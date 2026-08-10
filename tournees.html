@@ -103,12 +103,12 @@
   .status-badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap;}
   .status-badge.ok{background:var(--accent-tint); color:var(--accent-dark);}
   .status-badge.muted{background:transparent; color:var(--muted); font-weight:600;}
-  .statut-group{display:inline-flex; border-radius:20px; overflow:hidden; border:1px solid var(--border);}
+  .statut-group{display:flex; flex-direction:column; border-radius:8px; overflow:hidden; border:1px solid var(--border); width:100%; max-width:96px;}
   .statut-opt{
-    padding:5px 9px; font-size:10.5px; font-weight:700; border:none; cursor:pointer; font-family:inherit;
-    background:var(--card); color:var(--muted); white-space:nowrap; border-right:1px solid var(--border);
+    padding:4px 9px; font-size:10.5px; font-weight:700; border:none; cursor:pointer; font-family:inherit;
+    background:var(--card); color:var(--muted); white-space:nowrap; border-bottom:1px solid var(--border); text-align:left;
   }
-  .statut-opt:last-child{border-right:none;}
+  .statut-opt:last-child{border-bottom:none;}
   .statut-opt:hover{background:var(--border);}
   .statut-opt.active.option{background:var(--maybe-tint); color:var(--maybe);}
   .statut-opt.active.validee{background:var(--ok-tint); color:var(--ok);}
@@ -680,7 +680,7 @@ function render(){
           ${dates.length ? `
             <div class="grid-table-wrap">
               <table class="grid-table">
-                <thead><tr><th style="width:9%;">Date</th><th style="width:8%;">Type</th><th style="width:13%;">Statut</th><th style="width:11%;">Ville</th><th style="width:11%;">Salle</th><th style="width:16%;">Commentaire</th><th style="width:18%;">Musicien·nes</th><th style="width:1%;"></th></tr></thead>
+                <thead><tr><th style="width:9%;">Date</th><th style="width:7%;">Type</th><th style="width:9%;">Statut</th><th style="width:15%;">Ville</th><th style="width:15%;">Salle</th><th style="width:16%;">Commentaire</th><th style="width:17%;">Musicien·nes</th><th style="width:1%;"></th></tr></thead>
                 <tbody>${rows}</tbody>
               </table>
             </div>
@@ -723,16 +723,21 @@ function exportTourneePdf(tourneeId){
   const pageWidth = doc.internal.pageSize.getWidth();
   drawCurieuxPdfHeader(doc, pageWidth, (tournee.nom || 'TOURNÉE').toUpperCase());
 
+  // Lignes appartenant à un bloc : utilisé par didDrawCell pour dessiner un repère
+  // visuel (liseré coloré) sur la cellule Date, en plus du texte "Bloc — ...".
+  const blocRowIndexes = new Set();
+
   doc.autoTable({
     startY: 26,
     margin: { left: 10, right: 10 },
     head: [['Date', 'Type', 'Statut', 'Ville', 'Salle', 'Commentaire']],
-    body: dates.map(d=>{
+    body: dates.map((d, idx)=>{
       const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
       const type = ['concert','residence'].includes(d.type) ? d.type : 'concert';
       const blocInfo = blocMap.get(d.id);
       let dateCell = fmtDateFR(d.date);
       if(blocInfo){
+        blocRowIndexes.add(idx);
         if(blocInfo.isFirst) dateCell += `\nBloc — départ veille ${fmtDateFR(blocInfo.veille)}`;
         else if(blocInfo.isLast) dateCell += `\nBloc — retour lendemain ${fmtDateFR(blocInfo.lendemain)}`;
         else dateCell += `\nBloc`;
@@ -740,6 +745,10 @@ function exportTourneePdf(tourneeId){
       return [dateCell, TYPE_PDF_LABEL[type], STATUT_PDF_LABEL[statut], d.ville || '', d.lieu || '', d.commentaire || ''];
     }),
     styles: { font:'Host', fontSize:8.5, cellPadding:2.6, textColor:[20,22,23] },
+    columnStyles: {
+      0: { cellWidth: 34 }, 1: { cellWidth: 20 }, 2: { cellWidth: 20 },
+      3: { cellWidth: 38 }, 4: { cellWidth: 38 },
+    },
     headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold' },
     alternateRowStyles: { fillColor:[253,242,240] },
     didParseCell: (data)=>{
@@ -752,7 +761,15 @@ function exportTourneePdf(tourneeId){
         else { data.cell.styles.fillColor = [246,234,210]; data.cell.styles.textColor = [184,121,42]; }
       }
       if(data.section === 'body' && data.column.index === 1 && data.cell.raw === 'Résidence'){
-        data.cell.styles.fillColor = [254,201,224]; data.cell.styles.textColor = [121,22,73]; data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [251,228,213]; data.cell.styles.textColor = [193,61,15]; data.cell.styles.fontStyle = 'bold';
+      }
+    },
+    didDrawCell: (data)=>{
+      // Liseré vertical sur la cellule Date des lignes de bloc — repère visuel qui
+      // ne dépend pas du texte, cohérent avec le liseré utilisé dans l'app.
+      if(data.section === 'body' && data.column.index === 0 && blocRowIndexes.has(data.row.index)){
+        doc.setFillColor(201, 138, 160);
+        doc.rect(data.cell.x, data.cell.y, 1, data.cell.height, 'F');
       }
     }
   });
