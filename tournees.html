@@ -742,7 +742,16 @@ function exportTourneePdf(tourneeId){
         else if(blocInfo.isLast) dateCell += `\nBloc — retour lendemain ${fmtDateFR(blocInfo.lendemain)}`;
         else dateCell += `\nBloc`;
       }
-      return [dateCell, TYPE_PDF_LABEL[type], STATUT_PDF_LABEL[statut], d.ville || '', d.lieu || '', d.commentaire || ''];
+      const row = [dateCell];
+      // Type et statut sont communs à tout le bloc : une seule cellule fusionnée
+      // (rowSpan) sur toute la hauteur du bloc plutôt qu'une valeur répétée par date.
+      if(!blocInfo || blocInfo.isFirst){
+        const span = blocInfo ? blocInfo.blocDates.length : 1;
+        row.push({ content: TYPE_PDF_LABEL[type], rowSpan: span, styles: { valign: 'middle' } });
+        row.push({ content: STATUT_PDF_LABEL[statut], rowSpan: span, styles: { valign: 'middle' } });
+      }
+      row.push(d.ville || '', d.lieu || '', d.commentaire || '');
+      return row;
     }),
     styles: { font:'Host', fontSize:8.5, cellPadding:2.6, textColor:[20,22,23] },
     columnStyles: {
@@ -752,15 +761,18 @@ function exportTourneePdf(tourneeId){
     headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold' },
     alternateRowStyles: { fillColor:[253,242,240] },
     didParseCell: (data)=>{
+      // Cellules fusionnées (rowSpan, colonnes Type/Statut d'un bloc) : le contenu
+      // brut est un objet { content, rowSpan, ... } plutôt qu'une simple chaîne.
+      const raw = (data.cell.raw && typeof data.cell.raw === 'object') ? data.cell.raw.content : data.cell.raw;
       // Colonne "Statut" (index 2) : badge plein (fond + texte) plutôt qu'une simple
       // couleur de texte, pour repérer d'un coup d'œil option/validée/annulée.
       if(data.section === 'body' && data.column.index === 2){
         data.cell.styles.fontStyle = 'bold';
-        if(data.cell.raw === 'Validée'){ data.cell.styles.fillColor = [226,244,234]; data.cell.styles.textColor = [47,143,91]; }
-        else if(data.cell.raw === 'ANNULÉE'){ data.cell.styles.fillColor = [251,230,226]; data.cell.styles.textColor = [178,59,46]; }
+        if(raw === 'Validée'){ data.cell.styles.fillColor = [226,244,234]; data.cell.styles.textColor = [47,143,91]; }
+        else if(raw === 'ANNULÉE'){ data.cell.styles.fillColor = [251,230,226]; data.cell.styles.textColor = [178,59,46]; }
         else { data.cell.styles.fillColor = [246,234,210]; data.cell.styles.textColor = [184,121,42]; }
       }
-      if(data.section === 'body' && data.column.index === 1 && data.cell.raw === 'Résidence'){
+      if(data.section === 'body' && data.column.index === 1 && raw === 'Résidence'){
         data.cell.styles.fillColor = [251,228,213]; data.cell.styles.textColor = [193,61,15]; data.cell.styles.fontStyle = 'bold';
       }
     },
