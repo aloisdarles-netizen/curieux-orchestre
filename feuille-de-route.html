@@ -603,9 +603,16 @@ function bindTopFields(){
 }
 
 // --- Carnet de contacts partagé (réutilisé entre feuilles de route) ---
-// Cache mémoire synchronisé avec Supabase (table "carnet_contacts").
+// Cache mémoire synchronisé avec Supabase (table "carnet_contacts"). musiciensCache/
+// techniciensCache sont en lecture seule ici — la modale "Depuis le carnet" pioche
+// aussi dedans, pour ne pas ressaisir à la main les infos déjà dans les annuaires.
 let carnetCache = [];
+let musiciansCache = [];
+let techniciansCache = [];
 function loadCarnet(){ return carnetCache; }
+function loadMusicians(){ return musiciansCache; }
+function loadTechnicians(){ return techniciansCache; }
+function fullName(p){ return [p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom'; }
 // Ajoute ou met à jour une entrée du carnet, dédoublonnée par nom (insensible à la casse/aux espaces).
 // Un seul contact change à la fois ici (pas de saisie à haute fréquence comme saveState),
 // upsertOne suffit — pas besoin de resynchroniser tout le carnet.
@@ -652,11 +659,22 @@ document.getElementById('addContactBtn').addEventListener('click', ()=>{
   saveState(); renderContacts();
 });
 
+const CARNET_SOURCE_LABEL = { carnet: 'Carnet', musicien: 'Musicien·ne', technicien: 'Technicien·ne' };
+
+// Liste combinée : le carnet de contacts (alimenté au fil des FDR) + les annuaires
+// musiciens/techniciens — évite de ressaisir à la main des infos déjà connues de l'app.
+function combinedCarnetEntries(){
+  const carnet = loadCarnet().map(c => ({ id: 'carnet:'+c.id, nom: c.nom, role: c.role, indicatif: c.indicatif, tel: c.tel, email: c.email, source: 'carnet' }));
+  const musiciens = loadMusicians().map(m => ({ id: 'musicien:'+m.id, nom: fullName(m), role: m.instrument || '', indicatif: '+33', tel: m.telephone || '', email: m.email || '', source: 'musicien' }));
+  const techniciens = loadTechnicians().map(t => ({ id: 'technicien:'+t.id, nom: fullName(t), role: t.poste || '', indicatif: '+33', tel: t.telephone || '', email: t.email || '', source: 'technicien' }));
+  return [...carnet, ...musiciens, ...techniciens].sort((a,b)=> a.nom.localeCompare(b.nom));
+}
+
 function openCarnetModal(){
-  const carnet = loadCarnet().sort((a,b)=>a.nom.localeCompare(b.nom));
+  const entries = combinedCarnetEntries();
   const body = document.getElementById('carnetModalBody');
-  if(carnet.length === 0){
-    body.innerHTML = '<p class="modal-sub">Le carnet est vide pour l\'instant — il se remplit automatiquement dès que tu renseignes un contact.</p>';
+  if(entries.length === 0){
+    body.innerHTML = '<p class="modal-sub">Rien pour l\'instant — le carnet se remplit automatiquement dès que tu renseignes un contact, et les annuaires musicien·nes/technicien·nes apparaîtront ici dès qu\'ils auront des entrées.</p>';
   } else {
     body.innerHTML = `
       <input type="text" id="carnetSearch" placeholder="Rechercher un nom ou un rôle..." style="margin-bottom:10px;">
@@ -665,16 +683,16 @@ function openCarnetModal(){
     const listEl = document.getElementById('carnetList');
     const renderList = (filter)=>{
       const f = (filter||'').trim().toLowerCase();
-      const filtered = carnet.filter(c => !f || c.nom.toLowerCase().includes(f) || (c.role||'').toLowerCase().includes(f));
+      const filtered = entries.filter(c => !f || c.nom.toLowerCase().includes(f) || (c.role||'').toLowerCase().includes(f));
       listEl.innerHTML = filtered.map(c => `
         <button type="button" class="carnet-item" data-id="${c.id}">
           <strong>${escapeAttr(c.nom)}</strong>
-          <span>${escapeAttr(c.role || 'Sans rôle')}${c.tel ? ' · ' + escapeAttr(c.tel) : ''}</span>
+          <span>${escapeAttr(c.role || 'Sans rôle')}${c.tel ? ' · ' + escapeAttr(c.tel) : ''} · <em>${escapeAttr(CARNET_SOURCE_LABEL[c.source])}</em></span>
         </button>
       `).join('') || '<p class="modal-sub">Aucun résultat.</p>';
       listEl.querySelectorAll('.carnet-item').forEach(btn=>{
         btn.addEventListener('click', ()=>{
-          const entry = carnet.find(c => c.id === btn.dataset.id);
+          const entry = entries.find(c => c.id === btn.dataset.id);
           if(!entry) return;
           state.contacts.push(defaultContact(entry.role, entry.nom, entry.indicatif, entry.tel, entry.email));
           saveState(); renderContacts();
@@ -1360,9 +1378,11 @@ applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 
 async function initData(){
-  [fdrsCache, carnetCache] = await Promise.all([
+  [fdrsCache, carnetCache, musiciansCache, techniciansCache] = await Promise.all([
     CurieuxDB.fetchAll('feuilles_route'),
     CurieuxDB.fetchAll('carnet_contacts'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
   ]);
   loadState();
   bindTopFields();
