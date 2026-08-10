@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Disponibilités</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
+    --champagne:#fde3ee; --old-champagne:#c98aa0;
+    --ok:#2f8f5b; --ok-tint:#e2f4ea;
+    --ko:#b23b2e; --ko-tint:#fbe6e2;
+    --maybe:#b8792a; --maybe-tint:#f6ead2;
+    --radius:10px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --secondary:#ff7a4a; --secondary-dark:#ffab84; --secondary-tint:#3d2430;
+    --champagne:#3a2530; --old-champagne:#7a5064;
+    --ok:#7fd9a6; --ok-tint:#1c3327;
+    --ko:#e2825a; --ko-tint:#3d2420;
+    --maybe:#e8bd7c; --maybe-tint:#3a2f1c;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 80px;
+    transition:background .3s, color .3s;
+  }
+  .wrap{max-width:1200px; margin:0 auto;}
+  .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
+  .brand-logo-img{height:30px; width:auto; display:block;}
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap;}
+  .page-nav a{
+    color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    white-space:nowrap;
+  }
+  .page-nav a:hover{background:#a8c9e6;}
+  .page-nav a.ghost{background:transparent; color:var(--muted);}
+  .page-nav a.ghost:hover{background:var(--border); color:var(--text);}
+  h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .subtitle{color:var(--muted); margin:0 0 18px; font-size:14px;}
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 8px; font-size:14px;}
+  .btn-ghost:hover{color:var(--danger, var(--ko));}
+
+  .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--muted); margin-bottom:16px;}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .swatch{width:14px; height:14px; border-radius:4px; display:inline-block;}
+  .swatch.ok{background:var(--ok); border:1px solid var(--ok);}
+  .swatch.ko{background:var(--ko); border:1px solid var(--ko);}
+  .swatch.maybe{background:var(--maybe); border:1px solid var(--maybe);}
+  .swatch.none{background:var(--card); border:1px solid var(--border);}
+
+  .empty-hint{color:var(--muted); font-size:13.5px; padding:40px 4px; text-align:center;}
+
+  .table-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--card);}
+  table.dispo-table{border-collapse:collapse; min-width:100%;}
+  table.dispo-table th, table.dispo-table td{border-bottom:1px solid var(--border); border-right:1px solid var(--border);}
+  table.dispo-table th:last-child, table.dispo-table td:last-child{border-right:none;}
+  table.dispo-table tr:last-child td{border-bottom:none;}
+  .col-name{
+    position:sticky; left:0; background:var(--card); z-index:2;
+    text-align:left; padding:10px 14px; font-size:13px; font-weight:700; white-space:nowrap;
+    min-width:160px;
+  }
+  th.col-name{z-index:3; color:var(--muted); text-transform:uppercase; font-size:10.5px; letter-spacing:.03em;}
+  .col-date{
+    padding:8px 4px; text-align:center; font-size:11px; color:var(--muted); font-weight:700;
+    white-space:nowrap; min-width:64px;
+  }
+  .cell{padding:6px; text-align:center;}
+  .dispo-btn{
+    width:34px; height:30px; border-radius:6px; border:1px solid var(--border); background:var(--card);
+    font-size:14px; font-weight:800; cursor:pointer; color:var(--muted);
+  }
+  .dispo-btn.ok{background:var(--ok); border-color:var(--ok); color:#fff;}
+  .dispo-btn.ko{background:var(--ko); border-color:var(--ko); color:#fff;}
+  .dispo-btn.maybe{background:var(--maybe); border-color:var(--maybe); color:#fff;}
+  .m-instrument-sub{font-weight:500; color:var(--muted); font-size:11px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav">
+      <a class="ghost" href="accueil.html">← Accueil</a>
+      <a href="recap.html">Vue d'ensemble</a>
+      <a href="tournees.html">Tournées</a>
+      <a href="annuaire.html">Annuaire musiciens</a>
+      <a href="techniciens.html">Techniciens</a>
+      <a href="feuille-de-route.html">Feuille de route</a>
+    </nav>
+  </div>
+  <h1>Disponibilités</h1>
+  <p class="subtitle">Clique une cellule pour faire tourner le statut : non renseigné → disponible → indisponible → à confirmer. Les dates viennent des <a href="tournees.html">tournées</a>.</p>
+
+  <div class="legend">
+    <span><span class="swatch ok"></span> Disponible</span>
+    <span><span class="swatch ko"></span> Indisponible</span>
+    <span><span class="swatch maybe"></span> À confirmer</span>
+    <span><span class="swatch none"></span> Non renseigné</span>
+    <span style="margin-left:auto;"><button type="button" class="btn-primary" id="exportPdfBtn" style="padding:7px 13px; font-size:12.5px;">📄 Exporter en PDF</button></span>
+  </div>
+
+  <div id="tableHolder"></div>
+</div>
+
+<script>
+const STATES = ['', 'dispo', 'indispo', 'incertain'];
+const STATE_LABEL = { '':'Non renseigné', dispo:'Disponible', indispo:'Indisponible', incertain:'À confirmer' };
+const STATE_CLASS = { '':'', dispo:'ok', indispo:'ko', incertain:'maybe' };
+const STATE_SYMBOL = { '':'—', dispo:'✓', indispo:'✕', incertain:'?' };
+
+function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
+// tournees est en lecture seule ici (juste pour lister les dates).
+let musiciansCache = [];
+let tourneesCache = [];
+
+function loadMusicians(){ return musiciansCache; }
+function saveMusicians(list){
+  musiciansCache = list;
+  CurieuxDB.syncCollection('musiciens', list);
+}
+function loadTournees(){ return tourneesCache; }
+function fullName(m){ return [m.prenom, m.nom].filter(Boolean).join(' ') || 'Sans nom'; }
+function fmtDateFR(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  const months = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]}`;
+}
+
+function allDates(){
+  const set = new Set();
+  loadTournees().forEach(t=> (t.dates||[]).forEach(d=>{ if(d.date) set.add(d.date); }));
+  return Array.from(set).sort();
+}
+
+function render(){
+  const musicians = loadMusicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const dates = allDates();
+  const holder = document.getElementById('tableHolder');
+
+  if(musicians.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Ajoute d'abord des musicien·nes dans l'<a href="annuaire.html">annuaire</a>.</div>`;
+    return;
+  }
+  if(dates.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Aucune date pour l'instant — crée une <a href="tournees.html">tournée</a> pour en ajouter.</div>`;
+    return;
+  }
+
+  const head = `
+    <tr>
+      <th class="col-name">Musicien·ne</th>
+      ${dates.map(d=>`
+        <th class="col-date">${escapeHtml(fmtDateFR(d))}</th>
+      `).join('')}
+    </tr>
+  `;
+
+  const rows = musicians.map(m=>{
+    const dispo = m.disponibilites || {};
+    return `
+      <tr>
+        <td class="col-name">${escapeHtml(fullName(m))}<div class="m-instrument-sub">${escapeHtml(m.instrument || '')}</div></td>
+        ${dates.map(d=>{
+          const state = dispo[d] || '';
+          const cls = STATE_CLASS[state];
+          return `<td class="cell"><button type="button" class="dispo-btn ${cls}" data-musician="${m.id}" data-date="${escapeHtml(d)}" title="${STATE_LABEL[state]} — clique pour changer">${STATE_SYMBOL[state]}</button></td>`;
+        }).join('')}
+      </tr>
+    `;
+  }).join('');
+
+  holder.innerHTML = `
+    <div class="table-wrap">
+      <table class="dispo-table">
+        <thead>${head}</thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+
+  holder.querySelectorAll('.dispo-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const musicians = loadMusicians();
+      const m = musicians.find(x=>x.id === btn.dataset.musician);
+      if(!m) return;
+      if(!m.disponibilites) m.disponibilites = {};
+      const current = m.disponibilites[btn.dataset.date] || '';
+      const next = STATES[(STATES.indexOf(current) + 1) % STATES.length];
+      if(next) m.disponibilites[btn.dataset.date] = next; else delete m.disponibilites[btn.dataset.date];
+      saveMusicians(musicians);
+      render();
+    });
+  });
+}
+
+const STATE_PDF_LABEL = { '':'', dispo:'Dispo', indispo:'Indispo', incertain:'À conf.' };
+
+function exportAvailabilityPdf(){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const musicians = loadMusicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const dates = allDates();
+  if(musicians.length === 0 || dates.length === 0){ alert("Rien à exporter pour l'instant."); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
+  registerHostFont(doc);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  drawCurieuxPdfHeader(doc, pageWidth, 'DISPONIBILITÉS');
+
+  doc.autoTable({
+    startY: 26,
+    margin: { left: 10, right: 10 },
+    head: [['Musicien·ne', ...dates.map(d=>fmtDateFR(d))]],
+    body: musicians.map(m=>[
+      fullName(m),
+      ...dates.map(d=> STATE_PDF_LABEL[(m.disponibilites||{})[d] || ''] || '')
+    ]),
+    styles: { font:'Host', fontSize:7.5, cellPadding:2.2, textColor:[20,22,23], halign:'center' },
+    columnStyles: { 0: { halign:'left', fontStyle:'bold', cellWidth:40 } },
+    headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold', fontSize:7 },
+    alternateRowStyles: { fillColor:[253,242,240] },
+    didParseCell: (data)=>{
+      if(data.section === 'body' && data.column.index > 0){
+        const v = data.cell.raw;
+        if(v === 'Dispo') data.cell.styles.textColor = [47,143,91];
+        else if(v === 'Indispo') data.cell.styles.textColor = [178,59,46];
+        else if(v === 'À conf.') data.cell.styles.textColor = [184,121,42];
+      }
+    }
+  });
+
+  doc.save(`Disponibilites_Curieux_orchestre.pdf`);
+}
+document.getElementById('exportPdfBtn').addEventListener('click', exportAvailabilityPdf);
+
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+async function initData(){
+  [musiciansCache, tourneesCache] = await Promise.all([
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('tournees'),
+  ]);
+  render();
+}
+CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; render(); }); });
+CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; render(); }); });
+initData();
+</script>
+</body>
+</html>

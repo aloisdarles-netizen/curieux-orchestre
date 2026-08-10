@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Tournées</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
+    --champagne:#fde3ee; --old-champagne:#c98aa0;
+    --danger:#a5313f; --danger-dark:#7a2333;
+    --ok:#2f8f5b; --ok-tint:#e2f4ea;
+    --ko:#b23b2e; --ko-tint:#fbe6e2;
+    --maybe:#b8792a; --maybe-tint:#f6ead2;
+    --radius:10px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --secondary:#ff7a4a; --secondary-dark:#ffab84; --secondary-tint:#3d2430;
+    --champagne:#3a2530; --old-champagne:#7a5064;
+    --danger:#e2685a; --danger-dark:#ffab9a;
+    --ok:#7fd9a6; --ok-tint:#1c3327;
+    --ko:#e2825a; --ko-tint:#3d2420;
+    --maybe:#e8bd7c; --maybe-tint:#3a2f1c;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 80px;
+    transition:background .3s, color .3s;
+  }
+  .wrap{max-width:1180px; margin:0 auto;}
+  .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
+  .brand-logo-img{height:30px; width:auto; display:block;}
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap;}
+  .page-nav a{
+    color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    white-space:nowrap;
+  }
+  .page-nav a:hover{background:#a8c9e6;}
+  .page-nav a.ghost{background:transparent; color:var(--muted);}
+  .page-nav a.ghost:hover{background:var(--border); color:var(--text);}
+  h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-ghost:hover{background:var(--border); color:var(--text);}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 8px;}
+  .btn-danger:hover{background:var(--secondary-tint);}
+  .btn-sm{padding:6px 10px; font-size:12px;}
+
+  input[type=text], input[type=date], textarea{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13.5px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  textarea{resize:vertical; min-height:38px; width:100%;}
+
+  .new-tournee-card{
+    background:var(--card); border:1px dashed var(--border); border-radius:var(--radius);
+    padding:16px 18px; margin-bottom:22px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+  }
+  .new-tournee-card input{flex:1 1 240px;}
+
+  .tournee-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px 20px; margin-bottom:20px; box-shadow:0 1px 2px rgba(20,15,10,.03);
+  }
+  .tournee-head{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px; flex-wrap:wrap;}
+  .tournee-name{font-size:17px; font-weight:800;}
+  .tournee-meta{color:var(--muted); font-size:12.5px; margin-bottom:14px;}
+  .add-date-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--border);}
+  .add-date-row input{flex:1 1 140px;}
+
+  .grid-table-wrap{overflow-x:auto;}
+  table.grid-table{width:100%; min-width:760px; border-collapse:collapse;}
+  table.grid-table th{font-size:10.5px; text-transform:uppercase; color:var(--muted); text-align:left; padding:6px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  table.grid-table td{padding:8px 6px; vertical-align:top; border-bottom:1px solid var(--border); font-size:13px;}
+  table.grid-table tr:last-child td{border-bottom:none;}
+  .col-date{white-space:nowrap; font-weight:700;}
+  .col-lieu input{width:100%;}
+  .col-comment textarea{font-size:12.5px;}
+
+  .status-badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap;}
+  .status-badge.ok{background:var(--accent-tint); color:var(--accent-dark);}
+  .status-badge.muted{background:transparent; color:var(--muted); font-weight:600;}
+  .statut-group{display:inline-flex; border-radius:20px; overflow:hidden; border:1px solid var(--border);}
+  .statut-opt{
+    padding:5px 9px; font-size:10.5px; font-weight:700; border:none; cursor:pointer; font-family:inherit;
+    background:var(--card); color:var(--muted); white-space:nowrap; border-right:1px solid var(--border);
+  }
+  .statut-opt:last-child{border-right:none;}
+  .statut-opt:hover{background:var(--border);}
+  .statut-opt.active.option{background:var(--maybe-tint); color:var(--maybe);}
+  .statut-opt.active.validee{background:var(--ok-tint); color:var(--ok);}
+  .statut-opt.active.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
+  .bloc-badge{
+    display:inline-block; margin-top:4px; font-size:10px; font-weight:700; white-space:normal;
+    padding:2px 7px; border-radius:10px; background:var(--secondary-tint); color:var(--secondary-dark); max-width:110px;
+  }
+  .row-actions{display:flex; gap:6px; flex-wrap:wrap;}
+
+  .chips{display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px;}
+  .chip{
+    display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
+    padding:3px 8px; border-radius:20px; background:var(--champagne); color:#7a1f52; white-space:nowrap;
+  }
+  :root[data-theme="dark"] .chip{color:#f8d9e8;}
+  .chip.dispo{background:var(--ok); color:#fff;}
+  .chip.indispo{background:var(--ko); color:#fff;}
+  .chip.incertain{background:var(--maybe); color:#fff;}
+  .chip.tech{background:var(--secondary-tint); color:var(--secondary-dark);}
+  .empty-hint{color:var(--muted); font-size:13px; padding:20px 4px; text-align:center;}
+
+  .undated-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px;
+    text-decoration:none; color:var(--text); font-size:13.5px; transition:background .15s;
+  }
+  .undated-item:hover{background:var(--accent-tint);}
+  .undated-item span{color:var(--accent-dark); font-weight:700; font-size:12.5px;}
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(20,15,10,.5);
+    align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--card); border-radius:14px; padding:22px; max-width:460px; width:100%;
+    max-height:82vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.25);
+  }
+  .modal h2{font-size:16px; margin:0 0 4px;}
+  .modal .modal-sub{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
+  .assign-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:8px 4px; border-bottom:1px solid var(--border); font-size:13.5px;
+  }
+  .assign-row:last-child{border-bottom:none;}
+  .assign-row label{display:flex; align-items:center; gap:8px; cursor:pointer;}
+  .assign-row input[type=checkbox]{width:16px; height:16px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav">
+      <a class="ghost" href="accueil.html">← Accueil</a>
+      <a href="recap.html">Vue d'ensemble</a>
+      <a href="annuaire.html">Annuaire musiciens</a>
+      <a href="techniciens.html">Techniciens</a>
+      <a href="disponibilites.html">Disponibilités</a>
+      <a href="feuille-de-route.html">Feuille de route</a>
+    </nav>
+  </div>
+  <h1>Tournées</h1>
+  <p class="subtitle">Une tournée par production — dates, commentaires, et musicien·nes affecté·es selon leurs disponibilités.</p>
+
+  <div class="new-tournee-card">
+    <input type="text" id="newTourneeName" placeholder="Nom de la nouvelle tournée (ex: Tournée Automne 2026)">
+    <button type="button" class="btn-primary" id="addTourneeBtn">+ Créer la tournée</button>
+  </div>
+
+  <div id="tourneesHolder"></div>
+
+  <div class="tournee-card" id="undatedWrap" style="display:none;">
+    <div class="tournee-name" style="margin-bottom:14px;">Feuilles de route sans date</div>
+    <div id="undatedList"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="importOverlay">
+  <div class="modal" style="max-width:640px;">
+    <h2>Importer des dates (copier-coller)</h2>
+    <p class="modal-sub" id="importSub"></p>
+    <p class="modal-sub" style="margin-top:-10px;">Une ligne par date, format <code>JJ/MM/AAAA - (PAYS) Ville, Lieu</code>. Les lignes vides sont ignorées.</p>
+    <textarea id="importTextarea" rows="8" style="width:100%; font-size:12.5px; font-family:ui-monospace,monospace;" placeholder="23/01/2027 - (FR) Épernay, Le Millenium&#10;24/01/2027 - (FR) Épernay, Le Millenium&#10;..."></textarea>
+    <div class="modal-actions" style="justify-content:flex-start;">
+      <button type="button" class="btn-secondary btn-sm" id="importAnalyzeBtn">Analyser</button>
+    </div>
+    <div id="importPreview"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="importCancel">Annuler</button>
+      <button type="button" class="btn-primary" id="importConfirm" style="display:none;">Importer les dates</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="assignOverlay">
+  <div class="modal">
+    <h2 id="assignTitle">Affecter des musicien·nes</h2>
+    <p class="modal-sub" id="assignSub"></p>
+    <input type="text" id="assignSearch" placeholder="Chercher un nom, un instrument, un poste…" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13.5px; margin-bottom:6px; background:var(--bg); color:var(--text); font-family:inherit;">
+    <div id="assignList" style="max-height:50vh; overflow-y:auto;"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="assignCancel">Annuler</button>
+      <button type="button" class="btn-primary" id="assignSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const FDR_LAST_ID_KEY = 'fdr-last-id';
+
+function genId(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(str){ return escapeHtml(str); }
+
+// Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
+// musiciens/techniciens sont en lecture seule ici (juste pour affichage/affectation) ;
+// tournees et feuilles_route sont aussi écrits depuis cette page.
+let tourneesCache = [];
+let fdrsCache = [];
+let musiciansCache = [];
+let techniciansCache = [];
+
+function loadFdrCollection(){ return fdrsCache; }
+function saveFdrCollection(list){
+  fdrsCache = list;
+  CurieuxDB.syncCollection('feuilles_route', list);
+}
+function loadTournees(){ return tourneesCache; }
+function saveTournees(list){
+  tourneesCache = list;
+  CurieuxDB.syncCollection('tournees', list);
+}
+function loadMusicians(){ return musiciansCache; }
+function loadTechnicians(){ return techniciansCache; }
+
+function fmtDateFR(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  const months = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} ${y}`;
+}
+function fullName(m){ return [m.prenom, m.nom].filter(Boolean).join(' ') || 'Sans nom'; }
+
+// Arithmétique de date en UTC pur (Date.UTC + getters/setters UTC) pour éviter tout
+// décalage d'un jour dû au fuseau horaire local lors de la sérialisation toISOString().
+function addDaysIso(iso, delta){
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + delta);
+  return dt.toISOString().slice(0,10);
+}
+
+// Regroupe les dates consécutives liées (d.linkedToNext) en "blocs" (ex: tournée bus).
+// Un bloc implique un départ la veille de la 1ère date et un retour le lendemain de la dernière.
+function computeBlocMap(datesSorted){
+  const map = new Map();
+  let i = 0;
+  while(i < datesSorted.length){
+    let j = i;
+    while(j < datesSorted.length - 1 && datesSorted[j].linkedToNext) j++;
+    const blocDates = datesSorted.slice(i, j+1);
+    if(blocDates.length > 1){
+      blocDates.forEach((d, idx)=> map.set(d.id, {
+        blocDates, idx, isFirst: idx===0, isLast: idx===blocDates.length-1,
+        veille: addDaysIso(blocDates[0].date, -1),
+        lendemain: addDaysIso(blocDates[blocDates.length-1].date, 1)
+      }));
+    }
+    i = j + 1;
+  }
+  return map;
+}
+
+function createFdrForDate(iso, artistName){
+  const id = genId('fdr');
+  const collection = loadFdrCollection();
+  collection.push({ id, artistName: artistName || '', eventDate: iso });
+  saveFdrCollection(collection);
+  localStorage.setItem(FDR_LAST_ID_KEY, id);
+  location.href = 'feuille-de-route.html?id=' + encodeURIComponent(id);
+}
+
+// Parse des lignes "JJ/MM/AAAA - (PAYS) Ville, Lieu" collées depuis un routing de tournée.
+const FR_MONTHS = {
+  janvier:1, fevrier:2, mars:3, avril:4, mai:5, juin:6, juillet:7, aout:8,
+  septembre:9, octobre:10, novembre:11, decembre:12,
+  jan:1, fev:2, avr:4, jui:6, jul:7, sep:9, oct:10, nov:11, dec:12
+};
+function stripAccents(str){ return str.normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+// Essaie plusieurs formats de date en début de ligne : JJ/MM/AAAA (séparateur / . ou -),
+// AAAA-MM-JJ (ISO), ou "23 janvier 2027" — pour tolérer des collages pas parfaitement homogènes.
+function extractLeadingDate(line){
+  let m = line.match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{4})\s*(.*)$/);
+  if(m){
+    const day = parseInt(m[1],10), month = parseInt(m[2],10), year = parseInt(m[3],10);
+    if(month>=1 && month<=12 && day>=1 && day<=31) return { day, month, year, rest: m[4] };
+  }
+  m = line.match(/^(\d{4})[\/\.\-](\d{1,2})[\/\.\-](\d{1,2})\s*(.*)$/);
+  if(m){
+    const year = parseInt(m[1],10), month = parseInt(m[2],10), day = parseInt(m[3],10);
+    if(month>=1 && month<=12 && day>=1 && day<=31) return { day, month, year, rest: m[4] };
+  }
+  m = line.match(/^(\d{1,2})\s+([A-Za-zéûîôâêàèç]+)\.?\s+(\d{4})\s*(.*)$/i);
+  if(m){
+    const monthKey = stripAccents(m[2].toLowerCase());
+    if(FR_MONTHS[monthKey]) return { day: parseInt(m[1],10), month: FR_MONTHS[monthKey], year: parseInt(m[3],10), rest: m[4] };
+  }
+  return null;
+}
+
+// Parse des lignes de type "23/01/2027 - (FR) Épernay, Le Millenium", en restant souple
+// sur le séparateur de date, la présence du code pays, et le séparateur ville/lieu
+// (virgule ou tiret) — le collage n'est jamais parfaitement homogène d'une tournée à l'autre.
+function parseDatesPaste(text){
+  const parsed = [];
+  const rejected = [];
+  text.split('\n').forEach(rawLine=>{
+    const line = rawLine.trim();
+    if(!line) return;
+    const dateInfo = extractLeadingDate(line);
+    if(!dateInfo){ rejected.push(rawLine); return; }
+
+    let remainder = (dateInfo.rest || '').trim();
+    remainder = remainder.replace(/^[-–—:|]\s*/, '').trim();
+
+    let country = '';
+    const countryMatch = remainder.match(/^[\(\[]([A-Za-z]{2,4})[\)\]]\s*(.*)$/);
+    if(countryMatch){ country = countryMatch[1].toUpperCase(); remainder = countryMatch[2].trim(); }
+
+    let ville, lieu;
+    const commaIdx = remainder.indexOf(',');
+    if(commaIdx >= 0){
+      ville = remainder.slice(0, commaIdx).trim();
+      lieu = remainder.slice(commaIdx + 1).trim();
+    } else {
+      const dashParts = remainder.split(/\s+[-–—]\s+/);
+      if(dashParts.length >= 2){ ville = dashParts[0].trim(); lieu = dashParts.slice(1).join(' - ').trim(); }
+      else { ville = remainder.trim(); lieu = ''; }
+    }
+    ville = ville.replace(/\*+\s*$/, '').trim();
+    lieu = lieu.replace(/\*+\s*$/, '').trim();
+    if(!ville && !lieu){ rejected.push(rawLine); return; }
+    if(country) ville = ville ? `${ville} (${country})` : `(${country})`;
+
+    const dd = String(dateInfo.day).padStart(2, '0');
+    const mm = String(dateInfo.month).padStart(2, '0');
+    parsed.push({ date: `${dateInfo.year}-${mm}-${dd}`, ville, lieu });
+  });
+  return { parsed, rejected };
+}
+
+let importContext = null;
+
+function openImportModal(tourneeId){
+  const tournees = loadTournees();
+  const tournee = tournees.find(t=>t.id === tourneeId);
+  if(!tournee) return;
+  importContext = { tourneeId };
+  document.getElementById('importSub').textContent = tournee.nom;
+  document.getElementById('importTextarea').value = '';
+  document.getElementById('importPreview').innerHTML = '';
+  document.getElementById('importConfirm').style.display = 'none';
+  document.getElementById('importOverlay').classList.add('open');
+  document.getElementById('importTextarea').focus();
+}
+function closeImportModal(){
+  document.getElementById('importOverlay').classList.remove('open');
+  importContext = null;
+}
+document.getElementById('importCancel').addEventListener('click', closeImportModal);
+document.getElementById('importOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'importOverlay') closeImportModal(); });
+
+document.getElementById('importAnalyzeBtn').addEventListener('click', ()=>{
+  if(!importContext) return;
+  const tournees = loadTournees();
+  const tournee = tournees.find(t=>t.id === importContext.tourneeId);
+  const existingDates = new Set((tournee.dates||[]).map(d=>d.date));
+  const text = document.getElementById('importTextarea').value;
+  const { parsed, rejected } = parseDatesPaste(text);
+  const preview = document.getElementById('importPreview');
+  const confirmBtn = document.getElementById('importConfirm');
+
+  if(parsed.length === 0){
+    preview.innerHTML = `<div class="empty-hint">Aucune date reconnue. Vérifie le format (JJ/MM/AAAA - (PAYS) Ville, Lieu).</div>`;
+    confirmBtn.style.display = 'none';
+    return;
+  }
+
+  const rows = parsed.map(p=>{
+    const dup = existingDates.has(p.date);
+    return `<tr style="${dup ? 'opacity:.5;' : ''}"><td style="padding:4px 8px; white-space:nowrap;">${escapeHtml(fmtDateFR(p.date))}</td><td style="padding:4px 8px;">${escapeHtml(p.ville)}</td><td style="padding:4px 8px;">${escapeHtml(p.lieu)}</td><td style="padding:4px 8px; font-size:11px; color:var(--muted);">${dup ? 'déjà présente — ignorée' : ''}</td></tr>`;
+  }).join('');
+  const rejectedHtml = rejected.length
+    ? `<div style="margin-top:10px; font-size:12px; color:var(--muted);">${rejected.length} ligne(s) non reconnue(s) et ignorée(s).</div>`
+    : '';
+
+  preview.innerHTML = `
+    <div class="grid-table-wrap" style="margin-top:12px; max-height:280px; overflow-y:auto;">
+      <table class="grid-table" style="min-width:0;"><tbody>${rows}</tbody></table>
+    </div>
+    ${rejectedHtml}
+  `;
+  const newCount = parsed.filter(p=>!existingDates.has(p.date)).length;
+  confirmBtn.textContent = `Importer ${newCount} date${newCount>1?'s':''}`;
+  confirmBtn.style.display = newCount > 0 ? 'inline-block' : 'none';
+  confirmBtn.dataset.parsed = JSON.stringify(parsed);
+});
+
+document.getElementById('importConfirm').addEventListener('click', (e)=>{
+  if(!importContext) return;
+  const parsed = JSON.parse(e.target.dataset.parsed || '[]');
+  const tournees = loadTournees();
+  const tournee = tournees.find(t=>t.id === importContext.tourneeId);
+  if(!tournee) return;
+  if(!tournee.dates) tournee.dates = [];
+  const existingDates = new Set(tournee.dates.map(d=>d.date));
+  let added = 0;
+  parsed.forEach(p=>{
+    if(existingDates.has(p.date)) return;
+    tournee.dates.push({ id: genId('date'), date: p.date, ville: p.ville, lieu: p.lieu, commentaire:'', statut:'option', musiciensAssignes:[], techniciensAssignes:[] });
+    existingDates.add(p.date);
+    added++;
+  });
+  saveTournees(tournees);
+  closeImportModal();
+  render();
+  alert(`${added} date${added>1?'s':''} importée${added>1?'s':''}.`);
+});
+
+let assignContext = null;
+let assignMusicians = [], assignTechnicians = [];
+let assignSelectedM = new Set(), assignSelectedT = new Set();
+let assignDateIso = '';
+
+function openAssignModal(tourneeId, dateId){
+  const tournees = loadTournees();
+  const tournee = tournees.find(t=>t.id === tourneeId);
+  if(!tournee) return;
+  const dateEntry = (tournee.dates||[]).find(d=>d.id === dateId);
+  if(!dateEntry) return;
+
+  assignContext = { tourneeId, dateId };
+  document.getElementById('assignTitle').textContent = 'Affecter des musicien·nes et technicien·nes';
+  document.getElementById('assignSub').textContent = `${tournee.nom} — ${fmtDateFR(dateEntry.date)}`;
+
+  assignMusicians = loadMusicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  assignTechnicians = loadTechnicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  assignSelectedM = new Set(dateEntry.musiciensAssignes || []);
+  assignSelectedT = new Set(dateEntry.techniciensAssignes || []);
+  assignDateIso = dateEntry.date;
+
+  document.getElementById('assignSearch').value = '';
+  renderAssignList('');
+  document.getElementById('assignOverlay').classList.add('open');
+  document.getElementById('assignSearch').focus();
+}
+
+function renderAssignList(search){
+  const q = (search || '').toLowerCase().trim();
+  const listEl = document.getElementById('assignList');
+
+  const musiciansFiltered = assignMusicians.filter(m=>{
+    if(!q) return true;
+    return [m.prenom, m.nom, m.instrument, m.pupitre].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+  const techniciansFiltered = assignTechnicians.filter(m=>{
+    if(!q) return true;
+    return [m.prenom, m.nom, m.poste, m.pole].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+
+  const musicianRows = assignMusicians.length === 0
+    ? `<div class="empty-hint">Aucun musicien dans l'<a href="annuaire.html">annuaire</a> pour l'instant.</div>`
+    : musiciansFiltered.length === 0
+    ? `<div class="empty-hint">Aucun résultat.</div>`
+    : musiciansFiltered.map(m=>{
+        const state = (m.disponibilites || {})[assignDateIso] || '';
+        const stateLabel = state === 'dispo' ? 'Disponible' : state === 'indispo' ? 'Indisponible' : state === 'incertain' ? 'À confirmer' : 'Non renseigné';
+        const chipClass = state || 'none';
+        return `
+          <div class="assign-row">
+            <label>
+              <input type="checkbox" data-role="musicien" value="${m.id}" ${assignSelectedM.has(m.id) ? 'checked' : ''}>
+              ${escapeHtml(fullName(m))} <span style="color:var(--muted); font-weight:400;">— ${escapeHtml(m.instrument || '')}</span>
+            </label>
+            <span class="chip ${chipClass}">${stateLabel}</span>
+          </div>
+        `;
+      }).join('');
+
+  const technicianRows = assignTechnicians.length === 0
+    ? `<div class="empty-hint">Aucun technicien dans l'<a href="techniciens.html">annuaire technicien</a> pour l'instant.</div>`
+    : techniciansFiltered.length === 0
+    ? `<div class="empty-hint">Aucun résultat.</div>`
+    : techniciansFiltered.map(m=>`
+        <div class="assign-row">
+          <label>
+            <input type="checkbox" data-role="technicien" value="${m.id}" ${assignSelectedT.has(m.id) ? 'checked' : ''}>
+            ${escapeHtml(fullName(m))} <span style="color:var(--muted); font-weight:400;">— ${escapeHtml(m.poste || '')}</span>
+          </label>
+        </div>
+      `).join('');
+
+  listEl.innerHTML = `
+    <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:14px 0 6px;">Musicien·nes (${assignSelectedM.size} sélectionné${assignSelectedM.size>1?'s':''})</h3>
+    ${musicianRows}
+    <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:14px 0 6px;">Techniciens (${assignSelectedT.size} sélectionné${assignSelectedT.size>1?'s':''})</h3>
+    ${technicianRows}
+  `;
+
+  listEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const set = cb.dataset.role === 'musicien' ? assignSelectedM : assignSelectedT;
+      if(cb.checked) set.add(cb.value); else set.delete(cb.value);
+    });
+  });
+}
+function closeAssignModal(){
+  document.getElementById('assignOverlay').classList.remove('open');
+  assignContext = null;
+}
+document.getElementById('assignCancel').addEventListener('click', closeAssignModal);
+document.getElementById('assignOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'assignOverlay') closeAssignModal(); });
+document.getElementById('assignSearch').addEventListener('input', (e)=> renderAssignList(e.target.value));
+document.getElementById('assignSave').addEventListener('click', ()=>{
+  if(!assignContext) return;
+  const checkedMusiciens = Array.from(assignSelectedM);
+  const checkedTechniciens = Array.from(assignSelectedT);
+  const tournees = loadTournees();
+  const tournee = tournees.find(t=>t.id === assignContext.tourneeId);
+  if(tournee){
+    const dateEntry = (tournee.dates||[]).find(d=>d.id === assignContext.dateId);
+    if(dateEntry){
+      dateEntry.musiciensAssignes = checkedMusiciens;
+      dateEntry.techniciensAssignes = checkedTechniciens;
+    }
+    saveTournees(tournees);
+  }
+  closeAssignModal();
+  render();
+});
+
+function render(){
+  const tournees = loadTournees();
+  const fdrs = loadFdrCollection();
+  const musicians = loadMusicians();
+  const musicianById = new Map(musicians.map(m=>[m.id, m]));
+  const technicians = loadTechnicians();
+  const technicianById = new Map(technicians.map(m=>[m.id, m]));
+  const holder = document.getElementById('tourneesHolder');
+
+  if(tournees.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Aucune tournée pour l'instant — crée-en une ci-dessus.</div>`;
+  } else {
+    holder.innerHTML = tournees.map(t=>{
+      const dates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+      const blocMap = computeBlocMap(dates);
+      const rows = dates.map((d, dIdx)=>{
+        const fdr = fdrs.find(f=>f.eventDate === d.date);
+        const fdrAction = fdr
+          ? `<a class="btn-secondary btn-sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}" style="text-decoration:none; display:inline-block;">Ouvrir FDR</a>`
+          : `<button type="button" class="btn-secondary btn-sm" data-create-fdr="${escapeAttr(d.id)}">Créer FDR</button>`;
+        const assignedChips = (d.musiciensAssignes||[]).map(id=>{
+          const m = musicianById.get(id);
+          if(!m) return '';
+          return `<span class="chip">${escapeHtml(fullName(m))}</span>`;
+        }).join('') + (d.techniciensAssignes||[]).map(id=>{
+          const m = technicianById.get(id);
+          if(!m) return '';
+          return `<span class="chip tech">🛠️ ${escapeHtml(fullName(m))}</span>`;
+        }).join('');
+        const musCount = (d.musiciensAssignes||[]).length;
+        const techCount = (d.techniciensAssignes||[]).length;
+        const summaryText = (musCount + techCount) === 0
+          ? 'Aucun·e assigné·e'
+          : [musCount ? `${musCount} musicien·ne${musCount>1?'s':''}` : '', techCount ? `${techCount} technicien·ne${techCount>1?'s':''}` : ''].filter(Boolean).join(' · ');
+        const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+        const statutGroup = `
+          <div class="statut-group">
+            <button type="button" class="statut-opt ${statut==='option'?'active option':''}" data-set-statut="${escapeAttr(d.id)}" data-statut-value="option">Option</button>
+            <button type="button" class="statut-opt ${statut==='validee'?'active validee':''}" data-set-statut="${escapeAttr(d.id)}" data-statut-value="validee">Validée</button>
+            <button type="button" class="statut-opt ${statut==='annulee'?'active annulee':''}" data-set-statut="${escapeAttr(d.id)}" data-statut-value="annulee">Annulée</button>
+          </div>
+        `;
+        const blocInfo = blocMap.get(d.id);
+        const hasNext = dIdx < dates.length - 1;
+        let blocBadge = '';
+        if(blocInfo){
+          let note = '';
+          if(blocInfo.isFirst) note = `depuis la veille ${fmtDateFR(blocInfo.veille)}`;
+          else if(blocInfo.isLast) note = `jusqu'au lendemain ${fmtDateFR(blocInfo.lendemain)}`;
+          blocBadge = `<div class="bloc-badge" title="Bloc de ${blocInfo.blocDates.length} dates — départ la veille (${fmtDateFR(blocInfo.veille)}), retour le lendemain (${fmtDateFR(blocInfo.lendemain)})">🔗 Bloc${note ? ' — ' + note : ''}</div>`;
+        }
+        const linkToggle = hasNext
+          ? `<button type="button" class="btn-ghost btn-sm" data-toggle-link="${escapeAttr(d.id)}" style="padding:2px 6px; font-size:10.5px; margin-top:2px;">${d.linkedToNext ? '✂️ Délier du bloc' : '+ Lier à la suivante'}</button>`
+          : '';
+        return `
+          <tr style="${statut==='annulee' ? 'opacity:.5;' : ''}">
+            <td class="col-date">
+              ${escapeHtml(fmtDateFR(d.date))}
+              ${blocBadge}
+              ${linkToggle}
+            </td>
+            <td>${statutGroup}</td>
+            <td class="col-lieu">
+              <input type="text" data-field="ville" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.ville||'')}" placeholder="Ville" style="margin-bottom:4px;">
+              <input type="text" data-field="lieu" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.lieu||'')}" placeholder="Salle / lieu">
+            </td>
+            <td class="col-comment"><textarea data-field="commentaire" data-date-id="${escapeAttr(d.id)}" placeholder="Commentaire…">${escapeHtml(d.commentaire||'')}</textarea></td>
+            <td>
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
+                <span style="font-size:12.5px; color:var(--muted);">${escapeHtml(summaryText)}</span>
+                ${(musCount + techCount) > 0 ? `<button type="button" class="btn-ghost btn-sm" data-toggle-chips="${escapeAttr(d.id)}" style="padding:2px 8px;">👁 Voir</button>` : ''}
+              </div>
+              <div class="chips" id="chips-${escapeAttr(d.id)}" style="display:none;">${assignedChips}</div>
+              <button type="button" class="btn-ghost btn-sm" data-assign="${escapeAttr(d.id)}">Affecter des musicien·nes / techniciens</button>
+            </td>
+            <td class="row-actions">
+              ${fdrAction}
+              <button type="button" class="btn-danger btn-sm" data-del-date="${escapeAttr(d.id)}" title="Retrait complet — n'apparaîtra plus, même dans le récap">Supprimer définitivement</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      return `
+        <div class="tournee-card" id="tournee-${escapeAttr(t.id)}" data-tournee-id="${escapeAttr(t.id)}">
+          <div class="tournee-head">
+            <div class="tournee-name" contenteditable="true" data-rename-tournee="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Tournée sans nom')}</div>
+            <div class="row-actions">
+              <button type="button" class="btn-secondary btn-sm" data-export-tournee="${escapeAttr(t.id)}">📄 Exporter en PDF</button>
+              <button type="button" class="btn-danger btn-sm" data-del-tournee="${escapeAttr(t.id)}">Supprimer la tournée</button>
+            </div>
+          </div>
+          <div class="tournee-meta">${dates.length} date${dates.length>1?'s':''}</div>
+          <div class="add-date-row">
+            <input type="date" data-new-date="${escapeAttr(t.id)}">
+            <input type="text" data-new-ville="${escapeAttr(t.id)}" placeholder="Ville">
+            <input type="text" data-new-lieu="${escapeAttr(t.id)}" placeholder="Salle / lieu">
+            <button type="button" class="btn-primary btn-sm" data-add-date="${escapeAttr(t.id)}">+ Ajouter une date</button>
+            <button type="button" class="btn-secondary btn-sm" data-import-dates="${escapeAttr(t.id)}">📋 Importer des dates (coller)</button>
+          </div>
+          ${dates.length ? `
+            <div class="grid-table-wrap">
+              <table class="grid-table">
+                <thead><tr><th style="width:10%;">Date</th><th style="width:16%;">Statut</th><th style="width:16%;">Lieu</th><th style="width:21%;">Commentaire</th><th style="width:21%;">Musicien·nes</th><th style="width:1%;"></th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          ` : `<div class="empty-hint">Aucune date pour l'instant.</div>`}
+        </div>
+      `;
+    }).join('');
+
+    bindTourneeEvents();
+  }
+
+  const undated = fdrs.filter(f=>!f.eventDate);
+  const undatedWrap = document.getElementById('undatedWrap');
+  if(undated.length){
+    undatedWrap.style.display = 'block';
+    document.getElementById('undatedList').innerHTML = undated.map(f=>`
+      <a class="undated-item" href="feuille-de-route.html?id=${encodeURIComponent(f.id)}">
+        <span style="color:var(--text); font-weight:400;">${escapeHtml(f.artistName || 'Feuille de route sans titre')}</span>
+        <span>Ouvrir →</span>
+      </a>
+    `).join('');
+  } else {
+    undatedWrap.style.display = 'none';
+  }
+}
+
+const STATUT_PDF_LABEL = { option:'Option', validee:'Validée', annulee:'ANNULÉE' };
+
+function exportTourneePdf(tourneeId){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const tournee = loadTournees().find(t=>t.id === tourneeId);
+  if(!tournee) return;
+  const dates = (tournee.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const blocMap = computeBlocMap(dates);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
+  registerHostFont(doc);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  drawCurieuxPdfHeader(doc, pageWidth, (tournee.nom || 'TOURNÉE').toUpperCase());
+
+  doc.autoTable({
+    startY: 26,
+    margin: { left: 10, right: 10 },
+    head: [['Date', 'Statut', 'Lieu', 'Commentaire']],
+    body: dates.map(d=>{
+      const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+      const blocInfo = blocMap.get(d.id);
+      let dateCell = fmtDateFR(d.date);
+      if(blocInfo){
+        if(blocInfo.isFirst) dateCell += `\nBloc — départ veille ${fmtDateFR(blocInfo.veille)}`;
+        else if(blocInfo.isLast) dateCell += `\nBloc — retour lendemain ${fmtDateFR(blocInfo.lendemain)}`;
+        else dateCell += `\nBloc`;
+      }
+      return [dateCell, STATUT_PDF_LABEL[statut], [d.ville, d.lieu].filter(Boolean).join(' · '), d.commentaire || ''];
+    }),
+    styles: { font:'Host', fontSize:8.5, cellPadding:2.6, textColor:[20,22,23] },
+    headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold' },
+    alternateRowStyles: { fillColor:[253,242,240] },
+    didParseCell: (data)=>{
+      if(data.section === 'body' && data.column.index === 1){
+        if(data.cell.raw === 'Validée') data.cell.styles.textColor = [47,143,91];
+        else if(data.cell.raw === 'ANNULÉE') data.cell.styles.textColor = [178,59,46];
+        else data.cell.styles.textColor = [184,121,42];
+      }
+    }
+  });
+
+  doc.save(`Tournee_${(tournee.nom||'tournee').trim().replace(/[^a-z0-9]+/gi,'_')}.pdf`);
+}
+
+function bindTourneeEvents(){
+  document.querySelectorAll('[data-import-dates]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openImportModal(btn.dataset.importDates));
+  });
+  document.querySelectorAll('[data-rename-tournee]').forEach(el=>{
+    el.addEventListener('blur', ()=>{
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === el.dataset.renameTournee);
+      if(t){ t.nom = el.textContent.trim() || 'Tournée sans nom'; saveTournees(tournees); }
+    });
+    el.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); el.blur(); } });
+  });
+  document.querySelectorAll('[data-del-tournee]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === btn.dataset.delTournee);
+      if(t && confirm(`Supprimer la tournée "${t.nom}" et toutes ses dates ?`)){
+        saveTournees(tournees.filter(x=>x.id !== btn.dataset.delTournee));
+        render();
+      }
+    });
+  });
+  document.querySelectorAll('[data-toggle-chips]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const box = document.getElementById(`chips-${btn.dataset.toggleChips}`);
+      if(!box) return;
+      const showing = box.style.display !== 'none';
+      box.style.display = showing ? 'none' : 'flex';
+      btn.textContent = showing ? '👁 Voir' : '🙈 Masquer';
+    });
+  });
+  document.querySelectorAll('[data-export-tournee]').forEach(btn=>{
+    btn.addEventListener('click', ()=> exportTourneePdf(btn.dataset.exportTournee));
+  });
+  document.querySelectorAll('[data-add-date]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const tourneeId = btn.dataset.addDate;
+      const dateInput = document.querySelector(`[data-new-date="${tourneeId}"]`);
+      const villeInput = document.querySelector(`[data-new-ville="${tourneeId}"]`);
+      const lieuInput = document.querySelector(`[data-new-lieu="${tourneeId}"]`);
+      if(!dateInput.value){ alert('Choisis une date.'); return; }
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      if(!t) return;
+      if(!t.dates) t.dates = [];
+      t.dates.push({ id: genId('date'), date: dateInput.value, ville: villeInput.value.trim(), lieu: lieuInput.value.trim(), commentaire:'', statut:'option', musiciensAssignes:[], techniciensAssignes:[] });
+      saveTournees(tournees);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-del-date]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const card = btn.closest('[data-tournee-id]');
+      const tourneeId = card.dataset.tourneeId;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.delDate);
+      if(!d) return;
+      const label = fmtDateFR(d.date);
+      if(!confirm(`Supprimer DÉFINITIVEMENT la date du ${label} ?\n\nElle disparaîtra complètement, y compris du récap newsletter (pas de trace d'annulation). Si tu veux garder une trace visible qu'elle est annulée, utilise plutôt le bouton "Annulée" à côté du statut.`)) return;
+      t.dates = (t.dates||[]).filter(x=>x.id !== btn.dataset.delDate);
+      saveTournees(tournees);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-set-statut]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const value = btn.dataset.statutValue;
+      const card = btn.closest('[data-tournee-id]');
+      const tourneeId = card.dataset.tourneeId;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.setStatut);
+      if(!d) return;
+      const current = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+      if(current === value) return;
+      const label = fmtDateFR(d.date);
+      const STATUT_LABELS = { option:'Option', validee:'Validée', annulee:'Annulée' };
+      const question = value === 'annulee'
+        ? `Marquer la date du ${label} comme ANNULÉE ?\n\nElle reste visible (barrée) et apparaîtra comme annulée dans le récap newsletter — rien n'est supprimé.`
+        : `Passer la date du ${label} de "${STATUT_LABELS[current]}" à "${STATUT_LABELS[value]}" ?`;
+      if(!confirm(question)) return;
+      d.statut = value;
+      saveTournees(tournees);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-toggle-link]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const card = btn.closest('[data-tournee-id]');
+      const tourneeId = card.dataset.tourneeId;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.toggleLink);
+      if(!d) return;
+      d.linkedToNext = !d.linkedToNext;
+      saveTournees(tournees);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-assign]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const card = btn.closest('[data-tournee-id]');
+      openAssignModal(card.dataset.tourneeId, btn.dataset.assign);
+    });
+  });
+  document.querySelectorAll('[data-create-fdr]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const card = btn.closest('[data-tournee-id]');
+      const tourneeId = card.dataset.tourneeId;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.createFdr);
+      if(d) createFdrForDate(d.date, t.nom);
+    });
+  });
+  document.querySelectorAll('[data-field]').forEach(el=>{
+    const handler = ()=>{
+      const card = el.closest('[data-tournee-id]');
+      const tourneeId = card.dataset.tourneeId;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      const d = t && (t.dates||[]).find(x=>x.id === el.dataset.dateId);
+      if(d){ d[el.dataset.field] = el.value; saveTournees(tournees); }
+    };
+    el.addEventListener('change', handler);
+  });
+}
+
+document.getElementById('addTourneeBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('newTourneeName');
+  const nom = input.value.trim();
+  if(!nom){ alert('Donne un nom à la tournée.'); return; }
+  const tournees = loadTournees();
+  tournees.unshift({ id: genId('tour'), nom, dates: [] });
+  saveTournees(tournees);
+  input.value = '';
+  render();
+});
+
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+function scrollToHash(){
+  if(location.hash){
+    const target = document.querySelector(location.hash);
+    if(target) setTimeout(()=> target.scrollIntoView({ behavior:'smooth', block:'start' }), 50);
+  }
+}
+
+async function initData(){
+  [tourneesCache, fdrsCache, musiciansCache, techniciansCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('feuilles_route'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+  ]);
+  render();
+  scrollToHash();
+}
+CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; render(); }); });
+CurieuxDB.subscribe('feuilles_route', ()=>{ CurieuxDB.fetchAll('feuilles_route').then(list=>{ fdrsCache = list; render(); }); });
+CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; render(); }); });
+CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; render(); }); });
+initData();
+</script>
+</body>
+</html>

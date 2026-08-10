@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Vue d'ensemble</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
+    --champagne:#fde3ee; --old-champagne:#c98aa0;
+    --ok:#2f8f5b; --ok-tint:#e2f4ea;
+    --ko:#b23b2e; --ko-tint:#fbe6e2;
+    --maybe:#b8792a; --maybe-tint:#f6ead2;
+    --radius:10px;
+    --tour-0:#f3ddd0; --tour-1:#dde8f5; --tour-2:#e2ece4; --tour-3:#f5dfe8;
+    --tour-4:#f7ecc9; --tour-5:#e3e0f5; --tour-6:#dcece9; --tour-7:#f0e0d4;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --secondary:#ff7a4a; --secondary-dark:#ffab84; --secondary-tint:#3d2430;
+    --champagne:#3a2530; --old-champagne:#7a5064;
+    --ok:#7fd9a6; --ok-tint:#1c3327;
+    --ko:#e2825a; --ko-tint:#3d2420;
+    --maybe:#e8bd7c; --maybe-tint:#3a2f1c;
+    --tour-0:#3d2a1f; --tour-1:#22293d; --tour-2:#20302a; --tour-3:#3a2430;
+    --tour-4:#3a3320; --tour-5:#2a2740; --tour-6:#1f302c; --tour-7:#332821;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 80px;
+    transition:background .3s, color .3s;
+  }
+  .wrap{max-width:1280px; margin:0 auto;}
+  .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
+  .brand-logo-img{height:30px; width:auto; display:block;}
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap;}
+  .page-nav a{
+    color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    white-space:nowrap;
+  }
+  .page-nav a:hover{background:#a8c9e6;}
+  .page-nav a.ghost{background:transparent; color:var(--muted);}
+  .page-nav a.ghost:hover{background:var(--border); color:var(--text);}
+  h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
+  h2.section-title{
+    font-size:15.5px; margin:36px 0 4px; display:flex; align-items:center; gap:9px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
+  }
+  h2.section-title::before{content:''; width:5px; height:16px; border-radius:3px; background:var(--accent); display:inline-block;}
+  .section-sub{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
+
+  .empty-hint{color:var(--muted); font-size:13.5px; padding:30px 4px; text-align:center;}
+
+  .grid-table-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--card);}
+  table.recap-table{width:100%; min-width:760px; border-collapse:collapse;}
+  table.recap-table th{font-size:10.5px; text-transform:uppercase; color:var(--muted); text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  table.recap-table td{padding:9px 10px; vertical-align:top; border-bottom:1px solid var(--border); font-size:13px;}
+  table.recap-table tr:last-child td{border-bottom:none;}
+  table.recap-table tr:hover td{background:var(--accent-tint);}
+  .tournee-tag{
+    display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px;
+    background:var(--champagne); color:#7a1f52; white-space:nowrap; text-decoration:none;
+  }
+  :root[data-theme="dark"] .tournee-tag{color:#f8d9e8;}
+  .chips{display:flex; flex-wrap:wrap; gap:4px;}
+  .chip{
+    display:inline-flex; align-items:center; font-size:11px; font-weight:700;
+    padding:3px 8px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); white-space:nowrap;
+  }
+
+  .matrix-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--card);}
+  table.matrix-table{border-collapse:collapse; min-width:100%;}
+  table.matrix-table th, table.matrix-table td{border-bottom:1px solid var(--border); border-right:1px solid var(--border);}
+  table.matrix-table th:last-child, table.matrix-table td:last-child{border-right:none;}
+  table.matrix-table tr:last-child td{border-bottom:none;}
+  .col-name{
+    position:sticky; left:0; background:var(--card); z-index:2;
+    text-align:left; padding:10px 14px; font-size:13px; font-weight:700; white-space:nowrap;
+    min-width:160px;
+  }
+  th.col-name{z-index:3; color:var(--muted); text-transform:uppercase; font-size:10.5px; letter-spacing:.03em;}
+  .col-date{
+    padding:8px 6px; text-align:center; font-size:11px; color:var(--muted); font-weight:700;
+    white-space:nowrap; min-width:70px;
+  }
+  .col-date .ville-sub{display:block; font-weight:500; color:var(--muted); font-size:10px; margin-top:1px;}
+  .cell{padding:6px; text-align:center;}
+  .m-cell{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:34px; height:28px; border-radius:6px; font-size:12px; font-weight:800;
+    border:1px solid var(--border); color:var(--muted);
+  }
+  .m-cell.assigned{background:var(--ok); border-color:var(--ok); color:#fff;}
+  .m-cell.dispo{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark); font-weight:900;}
+  .m-cell.indispo{background:var(--ko); border-color:var(--ko); color:#fff;}
+  .m-cell.incertain{background:var(--maybe); border-color:var(--maybe); color:#fff;}
+  .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin:10px 0 4px;}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .swatch{width:14px; height:14px; border-radius:4px; display:inline-block; border:1px solid var(--border);}
+  .swatch.assigned{background:var(--ok); border-color:var(--ok);}
+  .swatch.dispo{background:var(--accent-tint); border-color:var(--accent-dark);}
+  .swatch.indispo{background:var(--ko); border-color:var(--ko);}
+  .swatch.incertain{background:var(--maybe); border-color:var(--maybe);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav">
+      <a class="ghost" href="accueil.html">← Accueil</a>
+      <a href="tournees.html">Tournées</a>
+      <a href="annuaire.html">Annuaire musiciens</a>
+      <a href="techniciens.html">Techniciens</a>
+      <a href="disponibilites.html">Disponibilités</a>
+      <a href="feuille-de-route.html">Feuille de route</a>
+    </nav>
+  </div>
+  <h1>Vue d'ensemble</h1>
+  <p class="subtitle">Qui joue où, toutes tournées confondues — case pleine = affecté·e, le contour indique la disponibilité renseignée.</p>
+
+  <div class="legend">
+    <span><span class="swatch assigned"></span> Affecté·e</span>
+    <span><span class="swatch dispo"></span> Dispo (non affecté·e)</span>
+    <span><span class="swatch indispo"></span> Indispo</span>
+    <span><span class="swatch incertain"></span> À confirmer</span>
+    <span style="margin-left:auto;"><button type="button" id="exportPdfBtn" style="padding:7px 13px; font-size:12.5px; border:none; border-radius:8px; cursor:pointer; font-family:inherit; font-weight:700; background:var(--accent); color:#fff;">📄 Exporter en PDF</button></span>
+  </div>
+
+  <h2 class="section-title">Musicien·nes</h2>
+  <div id="matrixHolderMusiciens"></div>
+
+  <h2 class="section-title">Techniciens</h2>
+  <div id="matrixHolderTechniciens"></div>
+</div>
+
+<script>
+function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
+// Cette page est en lecture seule (recap), les 3 caches ne sont jamais écrits ici.
+let tourneesCache = [];
+let musiciansCache = [];
+let techniciansCache = [];
+
+function loadTournees(){ return tourneesCache; }
+function loadMusicians(){ return musiciansCache; }
+function loadTechnicians(){ return techniciansCache; }
+function fullName(m){ return [m.prenom, m.nom].filter(Boolean).join(' ') || 'Sans nom'; }
+function fmtDateFR(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  const months = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} ${y}`;
+}
+function fmtDateFRShort(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  const months = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]}`;
+}
+
+function allDateEntries(assignField){
+  const tournees = loadTournees();
+  const entries = [];
+  tournees.forEach(t=>{
+    (t.dates||[]).forEach(d=>{
+      if(!d.date) return;
+      entries.push({ tourneeId: t.id, tourneeNom: t.nom, date: d.date, ville: d.ville, lieu: d.lieu, commentaire: d.commentaire, assignes: d[assignField] || [] });
+    });
+  });
+  entries.sort((a,b)=> a.date.localeCompare(b.date));
+  return entries;
+}
+
+function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyLinkLabel, nameLabel){
+  const entries = allDateEntries(assignField);
+  const sorted = people.slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const holder = document.getElementById(holderId);
+
+  if(sorted.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Ajoute d'abord dans l'<a href="${emptyLinkHref}">${emptyLinkLabel}</a>.</div>`;
+    return;
+  }
+  if(entries.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Aucune date pour l'instant.</div>`;
+    return;
+  }
+
+  const tourneeIds = loadTournees().map(t=>t.id);
+  const colorByTournee = new Map(tourneeIds.map((id, i)=> [id, `var(--tour-${i % 8})`]));
+  const colorFor = e => colorByTournee.get(e.tourneeId) || 'transparent';
+
+  const head = `
+    <tr>
+      <th class="col-name">${nameLabel}</th>
+      ${entries.map(e=>`
+        <th class="col-date" style="background:${colorFor(e)};" title="${escapeHtml(e.tourneeNom || '')} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}">
+          ${escapeHtml(fmtDateFRShort(e.date))}
+          <span class="ville-sub">${escapeHtml((e.ville || '').split(' (')[0] || '—')}</span>
+        </th>
+      `).join('')}
+    </tr>
+  `;
+
+  const rows = sorted.map(m=>{
+    const dispo = m.disponibilites || {};
+    return `
+      <tr>
+        <td class="col-name">${escapeHtml(fullName(m))}</td>
+        ${entries.map(e=>{
+          const assigned = (e.assignes||[]).includes(m.id);
+          const state = dispo[e.date] || '';
+          let cls = '', symbol = '—', title = 'Non renseigné';
+          if(assigned){ cls = 'assigned'; symbol = '✓'; title = `Affecté·e — ${escapeHtml(e.tourneeNom || '')}`; }
+          else if(state === 'dispo'){ cls = 'dispo'; symbol = '✓'; title = 'Disponible'; }
+          else if(state === 'indispo'){ cls = 'indispo'; symbol = '✕'; title = 'Indisponible'; }
+          else if(state === 'incertain'){ cls = 'incertain'; symbol = '?'; title = 'À confirmer'; }
+          return `<td class="cell" style="background:${colorFor(e)};"><span class="m-cell ${cls}" title="${title}">${symbol}</span></td>`;
+        }).join('')}
+      </tr>
+    `;
+  }).join('');
+
+  const tourneeLegend = loadTournees().map(t=>`
+    <span><span class="swatch" style="background:${colorByTournee.get(t.id)}; border-color:transparent;"></span> ${escapeHtml(t.nom || 'Tournée')}</span>
+  `).join('');
+
+  holder.innerHTML = `
+    <div class="legend" style="margin-bottom:10px;">${tourneeLegend}</div>
+    <div class="matrix-wrap">
+      <table class="matrix-table">
+        <thead>${head}</thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderAll(){
+  renderPeopleMatrix(loadMusicians(), 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musiciens', "Musicien·ne");
+  renderPeopleMatrix(loadTechnicians(), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire techniciens', "Technicien·ne");
+}
+
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+async function initData(){
+  [tourneesCache, musiciansCache, techniciansCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+  ]);
+  renderAll();
+}
+CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; renderAll(); }); });
+CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; renderAll(); }); });
+CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; renderAll(); }); });
+initData();
+
+function buildMatrixTable(doc, startY, people, assignField, title, pageWidth){
+  const entries = allDateEntries(assignField);
+  const sorted = people.slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  if(sorted.length === 0 || entries.length === 0) return startY;
+
+  doc.setFont('Host', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(121, 22, 73);
+  doc.text(title, 10, startY);
+
+  doc.autoTable({
+    startY: startY + 3,
+    margin: { left: 10, right: 10 },
+    head: [[ '', ...entries.map(e=> fmtDateFRShort(e.date)) ]],
+    body: sorted.map(m=>{
+      const dispo = m.disponibilites || {};
+      return [ fullName(m), ...entries.map(e=>{
+        const assigned = (e.assignes||[]).includes(m.id);
+        const state = dispo[e.date] || '';
+        if(assigned) return 'X';
+        if(state === 'dispo') return 'd';
+        if(state === 'indispo') return 'x';
+        if(state === 'incertain') return '?';
+        return '';
+      })];
+    }),
+    styles: { font:'Host', fontSize:7, cellPadding:2, textColor:[20,22,23], halign:'center' },
+    columnStyles: { 0: { halign:'left', fontStyle:'bold', cellWidth:38 } },
+    headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold', fontSize:6.5 },
+    alternateRowStyles: { fillColor:[253,242,240] },
+    didParseCell: (data)=>{
+      if(data.section === 'body' && data.column.index > 0){
+        const v = data.cell.raw;
+        if(v === 'X') { data.cell.styles.fillColor = [47,143,91]; data.cell.styles.textColor = 255; }
+        else if(v === 'x') data.cell.styles.textColor = [178,59,46];
+        else if(v === '?') data.cell.styles.textColor = [184,121,42];
+        else if(v === 'd') data.cell.styles.textColor = [90,16,55];
+      }
+    }
+  });
+  return doc.lastAutoTable.finalY + 14;
+}
+
+function exportRecapPdf(){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
+  registerHostFont(doc);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  drawCurieuxPdfHeader(doc, pageWidth, 'VUE D\'ENSEMBLE');
+
+  let y = buildMatrixTable(doc, 30, loadMusicians(), 'musiciensAssignes', 'MUSICIEN·NES (X affecté·e, d dispo, x indispo, ? à confirmer)', pageWidth);
+  if(y > 180){ doc.addPage(); drawCurieuxPdfHeader(doc, pageWidth, 'VUE D\'ENSEMBLE'); y = 30; }
+  buildMatrixTable(doc, y, loadTechnicians(), 'techniciensAssignes', 'TECHNICIENS (X affecté·e, d dispo, x indispo, ? à confirmer)', pageWidth);
+
+  doc.save('Vue_ensemble_Curieux_orchestre.pdf');
+}
+document.getElementById('exportPdfBtn').addEventListener('click', exportRecapPdf);
+</script>
+</body>
+</html>

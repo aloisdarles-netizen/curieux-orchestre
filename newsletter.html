@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Récap newsletter</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
+    --champagne:#fde3ee; --old-champagne:#c98aa0;
+    --ok:#2f8f5b; --ok-tint:#e2f4ea;
+    --ko:#b23b2e; --ko-tint:#fbe6e2;
+    --maybe:#b8792a; --maybe-tint:#f6ead2;
+    --radius:10px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --secondary:#ff7a4a; --secondary-dark:#ffab84; --secondary-tint:#3d2430;
+    --champagne:#3a2530; --old-champagne:#7a5064;
+    --ok:#7fd9a6; --ok-tint:#1c3327;
+    --ko:#e2825a; --ko-tint:#3d2420;
+    --maybe:#e8bd7c; --maybe-tint:#3a2f1c;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 80px;
+    transition:background .3s, color .3s;
+  }
+  .wrap{max-width:900px; margin:0 auto;}
+  .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
+  .brand-logo-img{height:30px; width:auto; display:block;}
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap;}
+  .page-nav a{
+    color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    white-space:nowrap;
+  }
+  .page-nav a:hover{background:#a8c9e6;}
+  .page-nav a.ghost{background:transparent; color:var(--muted);}
+  .page-nav a.ghost:hover{background:var(--border); color:var(--text);}
+  h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
+
+  .banner{
+    border-radius:var(--radius); padding:14px 18px; margin-bottom:22px; font-size:13.5px; font-weight:600;
+    display:flex; align-items:center; gap:10px;
+  }
+  .banner.neutral{background:var(--champagne); color:#7a1f52;}
+  :root[data-theme="dark"] .banner.neutral{color:#f8d9e8;}
+  .banner.changed{background:var(--maybe-tint); color:var(--maybe);}
+  .banner.nochange{background:var(--ok-tint); color:var(--ok);}
+
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px 22px; margin-bottom:18px;
+  }
+  .card h2{
+    font-size:15.5px; margin:0 0 14px; display:flex; align-items:center; gap:9px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
+  }
+  .card h2::before{content:''; width:5px; height:16px; border-radius:3px; background:var(--accent); display:inline-block;}
+
+  table.nl-table{width:100%; border-collapse:collapse;}
+  table.nl-table th{font-size:10.5px; text-transform:uppercase; color:var(--muted); text-align:left; padding:6px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  table.nl-table td{padding:9px 6px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:top;}
+  table.nl-table tr:last-child td{border-bottom:none;}
+  .statut-tag{display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap;}
+  .statut-tag.option{background:var(--maybe-tint); color:var(--maybe);}
+  .statut-tag.validee{background:var(--ok-tint); color:var(--ok);}
+  .statut-tag.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
+  .change-tag{display:inline-block; padding:2px 8px; border-radius:20px; font-size:10.5px; font-weight:700; white-space:nowrap; margin-left:6px;}
+  .change-tag.nouveau{background:var(--accent-tint); color:var(--accent-dark);}
+  .change-tag.statut{background:var(--maybe-tint); color:var(--maybe);}
+  .change-tag.lieu{background:var(--secondary-tint); color:var(--secondary-dark);}
+  .retire-row td{text-decoration:line-through; color:var(--muted);}
+
+  textarea#nlText{
+    width:100%; min-height:260px; font-family:ui-monospace,monospace; font-size:12.5px;
+    padding:14px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text);
+    resize:vertical;
+  }
+  .actions-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:10px 16px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .empty-hint{color:var(--muted); font-size:13.5px; padding:30px 4px; text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav">
+      <a class="ghost" href="accueil.html">← Accueil</a>
+      <a href="recap.html">Vue d'ensemble</a>
+      <a href="tournees.html">Tournées</a>
+    </nav>
+  </div>
+  <h1>Récap newsletter</h1>
+  <p class="subtitle">Toutes les dates en option ou validées, avec ce qui a changé depuis le dernier envoi.</p>
+
+  <div id="bannerHolder"></div>
+
+  <div class="card">
+    <h2>Dates</h2>
+    <div id="tableHolder"></div>
+  </div>
+
+  <div class="card">
+    <h2>Texte prêt à copier</h2>
+    <textarea id="nlText" readonly></textarea>
+    <div class="actions-row">
+      <button type="button" class="btn-primary" id="copyBtn">📋 Copier le texte</button>
+      <button type="button" class="btn-secondary" id="markSentBtn">✅ Marquer comme envoyé maintenant</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
+// tournees est en lecture seule ici. Le snapshot newsletter est un singleton
+// (table "newsletter_snapshot") géré via fetchSnapshot/saveSnapshot de db.js.
+let tourneesCache = [];
+let snapshotCache = null;
+
+function loadTournees(){ return tourneesCache; }
+function loadSnapshot(){ return snapshotCache; }
+function saveSnapshot(snap){
+  snapshotCache = snap;
+  CurieuxDB.saveSnapshot(snap);
+}
+
+// Arithmétique de date en UTC pur (Date.UTC + getters/setters UTC) pour éviter tout
+// décalage d'un jour dû au fuseau horaire local lors de la sérialisation toISOString().
+function addDaysIso(iso, delta){
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + delta);
+  return dt.toISOString().slice(0,10);
+}
+
+// Regroupe les dates consécutives liées (d.linkedToNext) en "blocs" — voir tournees.html.
+function computeBlocMap(datesSorted){
+  const map = new Map();
+  let i = 0;
+  while(i < datesSorted.length){
+    let j = i;
+    while(j < datesSorted.length - 1 && datesSorted[j].linkedToNext) j++;
+    const blocDates = datesSorted.slice(i, j+1);
+    if(blocDates.length > 1){
+      blocDates.forEach((d, idx)=> map.set(d.id, {
+        blocDates, idx, isFirst: idx===0, isLast: idx===blocDates.length-1,
+        veille: addDaysIso(blocDates[0].date, -1),
+        lendemain: addDaysIso(blocDates[blocDates.length-1].date, 1)
+      }));
+    }
+    i = j + 1;
+  }
+  return map;
+}
+
+function fmtDateFR(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} ${y}`;
+}
+function fmtDateTimeFR(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' }) + ' à ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+}
+
+function currentEntries(){
+  const entries = [];
+  loadTournees().forEach(t=>{
+    const dates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+    const blocMap = computeBlocMap(dates);
+    dates.forEach(d=>{
+      if(!d.date) return;
+      const blocInfo = blocMap.get(d.id);
+      let blocNote = '';
+      if(blocInfo){
+        if(blocInfo.isFirst) blocNote = `bloc — départ veille ${fmtDateFR(blocInfo.veille)}`;
+        else if(blocInfo.isLast) blocNote = `bloc — retour lendemain ${fmtDateFR(blocInfo.lendemain)}`;
+        else blocNote = 'bloc';
+      }
+      entries.push({
+        key: `${t.id}|${d.date}`,
+        tourneeNom: t.nom,
+        date: d.date,
+        ville: d.ville || '',
+        lieu: d.lieu || '',
+        statut: ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option',
+        blocNote
+      });
+    });
+  });
+  entries.sort((a,b)=> a.date.localeCompare(b.date));
+  return entries;
+}
+
+function computeDiff(current, previous){
+  const prevMap = new Map((previous ? previous.entries : []).map(e=>[e.key, e]));
+  const currMap = new Map(current.map(e=>[e.key, e]));
+  const rows = current.map(e=>{
+    const prev = prevMap.get(e.key);
+    if(!prev) return { ...e, change: previous ? 'nouveau' : null };
+    if(prev.statut !== e.statut) return { ...e, change: 'statut', prevStatut: prev.statut };
+    if(prev.ville !== e.ville || prev.lieu !== e.lieu) return { ...e, change: 'lieu' };
+    return { ...e, change: null };
+  });
+  const removed = (previous ? previous.entries : []).filter(e=> !currMap.has(e.key));
+  return { rows, removed };
+}
+
+function statutLabel(s){ return s === 'validee' ? 'Validée' : s === 'annulee' ? 'Annulée' : 'Option'; }
+
+function render(){
+  const current = currentEntries();
+  const snapshot = loadSnapshot();
+  const { rows, removed } = computeDiff(current, snapshot);
+  const bannerHolder = document.getElementById('bannerHolder');
+  const changeCount = rows.filter(r=>r.change).length + removed.length;
+
+  if(!snapshot){
+    bannerHolder.innerHTML = `<div class="banner neutral">ℹ️ Aucun envoi précédent enregistré — ceci sera la première version du récap.</div>`;
+  } else if(changeCount === 0){
+    bannerHolder.innerHTML = `<div class="banner nochange">✅ Rien n'a changé depuis le dernier envoi du ${escapeHtml(fmtDateTimeFR(snapshot.sentAt))}.</div>`;
+  } else {
+    bannerHolder.innerHTML = `<div class="banner changed">🔄 ${changeCount} changement${changeCount>1?'s':''} depuis le dernier envoi du ${escapeHtml(fmtDateTimeFR(snapshot.sentAt))}.</div>`;
+  }
+
+  const tableHolder = document.getElementById('tableHolder');
+  if(current.length === 0){
+    tableHolder.innerHTML = `<div class="empty-hint">Aucune date pour l'instant — ajoute des dates dans <a href="tournees.html">Tournées</a>.</div>`;
+  } else {
+    const changeTagHtml = r=>{
+      if(r.change === 'nouveau') return '<span class="change-tag nouveau">🆕 Nouveau</span>';
+      if(r.change === 'statut') return `<span class="change-tag statut">🔄 ${statutLabel(r.prevStatut)} → ${statutLabel(r.statut)}</span>`;
+      if(r.change === 'lieu') return '<span class="change-tag lieu">📍 Lieu modifié</span>';
+      return '';
+    };
+    const activeRows = rows.map(r=>`
+      <tr>
+        <td style="white-space:nowrap; font-weight:700;">${escapeHtml(fmtDateFR(r.date))}</td>
+        <td><span class="statut-tag ${r.statut}">${statutLabel(r.statut)}</span></td>
+        <td>${escapeHtml(r.tourneeNom || '')}</td>
+        <td>${escapeHtml([r.ville, r.lieu].filter(Boolean).join(' · ') || '—')}</td>
+        <td>${changeTagHtml(r)}${r.blocNote ? `<span class="change-tag lieu">🔗 ${escapeHtml(r.blocNote)}</span>` : ''}</td>
+      </tr>
+    `).join('');
+    const removedRows = removed.map(r=>`
+      <tr class="retire-row">
+        <td style="white-space:nowrap; font-weight:700;">${escapeHtml(fmtDateFR(r.date))}</td>
+        <td><span class="statut-tag ${r.statut}">${statutLabel(r.statut)}</span></td>
+        <td>${escapeHtml(r.tourneeNom || '')}</td>
+        <td>${escapeHtml([r.ville, r.lieu].filter(Boolean).join(' · ') || '—')}</td>
+        <td><span class="change-tag statut">❌ Retirée</span></td>
+      </tr>
+    `).join('');
+    tableHolder.innerHTML = `
+      <table class="nl-table">
+        <thead><tr><th>Date</th><th>Statut</th><th>Tournée</th><th>Lieu</th><th></th></tr></thead>
+        <tbody>${activeRows}${removedRows}</tbody>
+      </table>
+    `;
+  }
+
+  document.getElementById('nlText').value = buildNewsletterText(rows, removed, snapshot, changeCount);
+}
+
+function buildNewsletterText(rows, removed, snapshot, changeCount){
+  const lines = [];
+  lines.push(`RÉCAP DATES — CURIEUX ORCHESTRE`);
+  lines.push(`Mis à jour le ${fmtDateFR(new Date().toISOString().slice(0,10))}`);
+  lines.push('');
+
+  if(snapshot && changeCount === 0){
+    lines.push(`Aucun changement depuis le dernier envoi du ${fmtDateTimeFR(snapshot.sentAt)}.`);
+    lines.push('');
+  }
+
+  const validees = rows.filter(r=>r.statut === 'validee');
+  const options = rows.filter(r=>r.statut === 'option');
+  const annulees = rows.filter(r=>r.statut === 'annulee');
+
+  const lineFor = r=>{
+    let suffix = '';
+    if(r.change === 'nouveau') suffix = '  [nouveau]';
+    else if(r.change === 'statut') suffix = `  [passé de ${statutLabel(r.prevStatut).toLowerCase()} à ${statutLabel(r.statut).toLowerCase()}]`;
+    else if(r.change === 'lieu') suffix = '  [lieu modifié]';
+    if(r.blocNote) suffix += `  [${r.blocNote}]`;
+    return `- ${fmtDateFR(r.date)} — ${[r.ville, r.lieu].filter(Boolean).join(', ') || 'lieu à confirmer'}${suffix}`;
+  };
+
+  if(validees.length){
+    lines.push('✅ DATES VALIDÉES');
+    validees.forEach(r=> lines.push(lineFor(r)));
+    lines.push('');
+  }
+  if(options.length){
+    lines.push('🕓 DATES EN OPTION');
+    options.forEach(r=> lines.push(lineFor(r)));
+    lines.push('');
+  }
+  if(annulees.length){
+    lines.push('❌ DATES ANNULÉES');
+    annulees.forEach(r=> lines.push(lineFor(r)));
+    lines.push('');
+  }
+  if(removed.length){
+    lines.push('🗑 DATES SUPPRIMÉES DÉFINITIVEMENT DEPUIS LE DERNIER ENVOI');
+    removed.forEach(r=> lines.push(`- ${fmtDateFR(r.date)} — ${[r.ville, r.lieu].filter(Boolean).join(', ') || ''}`));
+    lines.push('');
+  }
+  if(!validees.length && !options.length && !annulees.length){
+    lines.push('Aucune date en cours pour le moment.');
+  }
+  return lines.join('\n').trim();
+}
+
+document.getElementById('copyBtn').addEventListener('click', ()=>{
+  const text = document.getElementById('nlText');
+  text.select();
+  navigator.clipboard && navigator.clipboard.writeText(text.value).catch(()=>{ document.execCommand('copy'); });
+  const btn = document.getElementById('copyBtn');
+  const original = btn.textContent;
+  btn.textContent = '✓ Copié';
+  setTimeout(()=> btn.textContent = original, 1500);
+});
+
+document.getElementById('markSentBtn').addEventListener('click', ()=>{
+  const current = currentEntries();
+  if(!confirm("Marquer ce récap comme envoyé ? La prochaine comparaison se fera à partir de l'état actuel.")) return;
+  saveSnapshot({ sentAt: new Date().toISOString(), entries: current });
+  render();
+});
+
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+async function initData(){
+  [tourneesCache, snapshotCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchSnapshot(),
+  ]);
+  render();
+}
+CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; render(); }); });
+initData();
+</script>
+</body>
+</html>

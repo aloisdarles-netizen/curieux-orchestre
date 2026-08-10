@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Annuaire techniciens</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
+    --champagne:#fde3ee; --old-champagne:#c98aa0;
+    --danger:#a5313f; --danger-dark:#7a2333;
+    --radius:10px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --secondary:#ff7a4a; --secondary-dark:#ffab84; --secondary-tint:#3d2430;
+    --champagne:#3a2530; --old-champagne:#7a5064;
+    --danger:#e2685a; --danger-dark:#ffab9a;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 80px;
+    transition:background .3s, color .3s;
+  }
+  .wrap{max-width:1100px; margin:0 auto;}
+  .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
+  .brand-logo-img{height:30px; width:auto; display:block;}
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap;}
+  .page-nav a{
+    color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    white-space:nowrap;
+  }
+  .page-nav a:hover{background:#a8c9e6;}
+  .page-nav a.ghost{background:transparent; color:var(--muted);}
+  .page-nav a.ghost:hover{background:var(--border); color:var(--text);}
+  h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
+
+  .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:20px;}
+  .toolbar input[type=text], .toolbar select{
+    padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:13.5px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  .toolbar input[type=text]{flex:1 1 220px;}
+  .toolbar select{flex:0 0 auto;}
+  .spacer{flex:1;}
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-ghost:hover{background:var(--border); color:var(--text);}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-danger:hover{background:var(--secondary-tint);}
+  .btn-sm{padding:7px 11px; font-size:12px;}
+
+  .empty-hint{color:var(--muted); font-size:13.5px; padding:40px 4px; text-align:center;}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:14px;}
+  .m-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 18px; display:flex; flex-direction:column; gap:8px;
+    box-shadow:0 1px 2px rgba(20,15,10,.03);
+  }
+  .m-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .m-name{font-weight:800; font-size:15.5px;}
+  .m-instrument{color:var(--muted); font-size:12.5px; margin-top:2px;}
+  .pupitre-badge{
+    font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:3px 9px; border-radius:20px; background:var(--secondary-tint); color:var(--secondary-dark); white-space:nowrap;
+  }
+  .m-notes{font-size:12.5px; color:var(--muted); line-height:1.4; max-height:2.8em; overflow:hidden;}
+  .m-contact-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;}
+  .contact-btn{
+    display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+    font-size:12.5px; font-weight:700; padding:7px 12px; border-radius:8px;
+  }
+  .contact-btn.whatsapp{background:#e2f4ea; color:#1f7a4d;}
+  :root[data-theme="dark"] .contact-btn.whatsapp{background:#1c3327; color:#7fd9a6;}
+  .contact-btn.mail{background:var(--accent-tint); color:var(--accent-dark);}
+  .contact-btn.disabled{opacity:.4; pointer-events:none; background:var(--border); color:var(--muted);}
+  .m-actions{display:flex; gap:6px; margin-top:6px; border-top:1px solid var(--border); padding-top:10px;}
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(20,15,10,.5);
+    align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--card); border-radius:14px; padding:24px; max-width:480px; width:100%;
+    max-height:88vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.25);
+  }
+  .modal h2{font-size:17px; margin:0 0 16px;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .field-row{display:flex; gap:12px;}
+  .field-row .field{flex:1;}
+  label{font-size:12px; color:var(--muted); font-weight:600;}
+  input[type=text], input[type=email], input[type=tel], select, textarea{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;
+    width:100%; background:var(--bg); color:var(--text); font-family:inherit;
+  }
+  textarea{min-height:60px; resize:vertical;}
+  input:focus, textarea:focus, select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav">
+      <a class="ghost" href="accueil.html">← Accueil</a>
+      <a href="recap.html">Vue d'ensemble</a>
+      <a href="tournees.html">Tournées</a>
+      <a href="annuaire.html">Annuaire musiciens</a>
+      <a href="disponibilites.html">Disponibilités</a>
+      <a href="feuille-de-route.html">Feuille de route</a>
+    </nav>
+  </div>
+  <h1>Annuaire techniciens</h1>
+  <p class="subtitle">Toute l'équipe technique — contact WhatsApp ou email en un clic.</p>
+
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="Chercher un nom ou un poste…">
+    <select id="poleFilter">
+      <option value="">Tous les pôles</option>
+      <option value="Régie générale">Régie générale</option>
+      <option value="Son">Son</option>
+      <option value="Lumière">Lumière</option>
+      <option value="Plateau / Backline">Plateau / Backline</option>
+      <option value="Vidéo">Vidéo</option>
+      <option value="Tour management">Tour management</option>
+      <option value="Autre">Autre</option>
+    </select>
+    <div class="spacer"></div>
+    <button type="button" class="btn-secondary" id="importBtn">📋 Importer (coller)</button>
+    <button type="button" class="btn-secondary" id="exportPdfBtn">📄 Exporter en PDF</button>
+    <button type="button" class="btn-primary" id="addBtn">+ Ajouter un·e technicien·ne</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty-hint" id="emptyHint" style="display:none;">Aucun technicien pour l'instant — ajoute le premier avec le bouton ci-dessus.</div>
+</div>
+
+<div class="modal-overlay" id="importOverlay">
+  <div class="modal" style="max-width:720px;">
+    <h2>Importer des technicien·nes (copier-coller)</h2>
+    <p style="color:var(--muted); font-size:12.5px; margin:-8px 0 12px;">Colle une liste depuis un tableur ou une ligne par personne. Vérifie et corrige chaque ligne avant d'importer.</p>
+    <textarea id="importTextarea" rows="6" style="width:100%; font-size:12.5px; font-family:ui-monospace,monospace; padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text);" placeholder="Marie Dupont	Ingé son façade	06 12 34 56 78	marie.dupont@mail.com&#10;Karim Belkacem	Régie générale	06 98 76 54 32	karim.belkacem@mail.com"></textarea>
+    <div style="margin-top:10px;">
+      <button type="button" class="btn-secondary btn-sm" id="importAnalyzeBtn">Analyser</button>
+    </div>
+    <div id="importPreview"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="importCancelBtn">Annuler</button>
+      <button type="button" class="btn-primary" id="importConfirmBtn" style="display:none;">Importer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">Ajouter un·e technicien·ne</h2>
+    <input type="hidden" id="editId">
+    <div class="field-row">
+      <div class="field"><label>Prénom</label><input type="text" id="fPrenom"></div>
+      <div class="field"><label>Nom</label><input type="text" id="fNom"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Poste</label><input type="text" id="fPoste" placeholder="Ex: Ingé son façade"></div>
+      <div class="field">
+        <label>Pôle</label>
+        <select id="fPole">
+          <option value="Régie générale">Régie générale</option>
+          <option value="Son">Son</option>
+          <option value="Lumière">Lumière</option>
+          <option value="Plateau / Backline">Plateau / Backline</option>
+          <option value="Vidéo">Vidéo</option>
+          <option value="Tour management">Tour management</option>
+          <option value="Autre">Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Téléphone (WhatsApp)</label><input type="tel" id="fTelephone" placeholder="06 12 34 56 78"></div>
+      <div class="field"><label>Email</label><input type="email" id="fEmail" placeholder="prenom.nom@mail.com"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="fNotes" placeholder="Notes libres…"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="cancelBtn">Annuler</button>
+      <button type="button" class="btn-primary" id="saveBtn">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function genId(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Cache mémoire synchronisé avec Supabase (table "techniciens") : voir annuaire.html
+// pour le même pattern (lecture/écriture synchrones, sync réseau en tâche de fond).
+let techniciansCache = [];
+function loadTechnicians(){
+  return techniciansCache;
+}
+function saveTechnicians(list){
+  techniciansCache = list;
+  CurieuxDB.syncCollection('techniciens', list);
+}
+
+function normalizeWhatsappPhone(phone){
+  let digits = (phone || '').replace(/[^\d+]/g, '');
+  if(digits.startsWith('+')) digits = digits.slice(1);
+  else if(digits.startsWith('0') && digits.length === 10) digits = '33' + digits.slice(1);
+  return digits;
+}
+
+function fullName(m){ return [m.prenom, m.nom].filter(Boolean).join(' ') || 'Sans nom'; }
+
+function render(){
+  const list = loadTechnicians();
+  const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+  const pole = document.getElementById('poleFilter').value;
+
+  const filtered = list.filter(m=>{
+    if(pole && m.pole !== pole) return false;
+    if(!search) return true;
+    const haystack = [m.prenom, m.nom, m.poste, m.pole].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(search);
+  }).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+
+  const grid = document.getElementById('grid');
+  const emptyHint = document.getElementById('emptyHint');
+
+  if(list.length === 0){
+    grid.innerHTML = '';
+    emptyHint.style.display = 'block';
+    emptyHint.textContent = "Aucun technicien pour l'instant — ajoute le premier avec le bouton ci-dessus.";
+    return;
+  }
+  if(filtered.length === 0){
+    grid.innerHTML = '';
+    emptyHint.style.display = 'block';
+    emptyHint.textContent = 'Aucun résultat pour cette recherche.';
+    return;
+  }
+  emptyHint.style.display = 'none';
+
+  grid.innerHTML = filtered.map(m=>{
+    const waDigits = normalizeWhatsappPhone(m.telephone);
+    const waHref = waDigits ? `https://wa.me/${encodeURIComponent(waDigits)}` : null;
+    const mailHref = m.email ? `mailto:${encodeURIComponent(m.email)}` : null;
+    return `
+      <div class="m-card">
+        <div class="m-card-top">
+          <div>
+            <div class="m-name">${escapeHtml(fullName(m))}</div>
+            <div class="m-instrument">${escapeHtml(m.poste || '—')}</div>
+          </div>
+          <span class="pupitre-badge">${escapeHtml(m.pole || 'Autre')}</span>
+        </div>
+        ${m.notes ? `<div class="m-notes">${escapeHtml(m.notes)}</div>` : ''}
+        <div class="m-contact-row">
+          <a class="contact-btn whatsapp ${waHref ? '' : 'disabled'}" ${waHref ? `href="${waHref}" target="_blank" rel="noopener"` : ''}>💬 WhatsApp</a>
+          <a class="contact-btn mail ${mailHref ? '' : 'disabled'}" ${mailHref ? `href="${mailHref}"` : ''}>✉️ Email</a>
+        </div>
+        <div class="m-actions">
+          <button type="button" class="btn-ghost btn-sm" data-edit="${m.id}">Modifier</button>
+          <button type="button" class="btn-danger btn-sm" data-del="${m.id}">Supprimer</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  grid.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openModal(btn.dataset.edit));
+  });
+  grid.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const list = loadTechnicians();
+      const m = list.find(x=>x.id === btn.dataset.del);
+      if(m && confirm(`Supprimer ${fullName(m)} de l'annuaire ?`)){
+        saveTechnicians(list.filter(x=>x.id !== btn.dataset.del));
+        render();
+      }
+    });
+  });
+}
+
+function openModal(id){
+  const overlay = document.getElementById('modalOverlay');
+  document.getElementById('editId').value = id || '';
+  if(id){
+    const m = loadTechnicians().find(x=>x.id === id);
+    if(!m) return;
+    document.getElementById('modalTitle').textContent = 'Modifier ' + fullName(m);
+    document.getElementById('fPrenom').value = m.prenom || '';
+    document.getElementById('fNom').value = m.nom || '';
+    document.getElementById('fPoste').value = m.poste || '';
+    document.getElementById('fPole').value = m.pole || 'Régie générale';
+    document.getElementById('fTelephone').value = m.telephone || '';
+    document.getElementById('fEmail').value = m.email || '';
+    document.getElementById('fNotes').value = m.notes || '';
+  } else {
+    document.getElementById('modalTitle').textContent = "Ajouter un·e technicien·ne";
+    ['fPrenom','fNom','fPoste','fTelephone','fEmail','fNotes'].forEach(id=> document.getElementById(id).value = '');
+    document.getElementById('fPole').value = 'Régie générale';
+  }
+  overlay.classList.add('open');
+  document.getElementById('fPrenom').focus();
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+// Parse souple d'une liste de contacts collée (tableur ou texte libre) : détecte
+// email/téléphone où qu'ils soient, et prend les tokens restants comme prénom/nom/poste.
+function parseContactsPaste(text){
+  const rows = [];
+  const rejected = [];
+  text.split('\n').forEach(raw=>{
+    const line = raw.trim();
+    if(!line) return;
+    let tokens;
+    if(line.includes('\t')) tokens = line.split('\t');
+    else if(line.includes(';')) tokens = line.split(';');
+    else if(line.includes(',')) tokens = line.split(',');
+    else tokens = line.split(/\s{2,}|\s-\s/);
+    tokens = tokens.map(t=>t.trim()).filter(t=>t !== '');
+    if(tokens.length === 0){ rejected.push(raw); return; }
+
+    let email = '', telephone = '';
+    const rest = [];
+    tokens.forEach(tok=>{
+      if(!email && /\S+@\S+\.\S+/.test(tok)) email = tok;
+      else if(!telephone && /^[+\d][\d\s().-]{5,}$/.test(tok)) telephone = tok;
+      else rest.push(tok);
+    });
+
+    let prenom = '', nom = '', field3 = '';
+    if(rest.length >= 1 && /\s/.test(rest[0])){
+      // premier token du genre "Prenom Nom" deja combine dans une seule colonne/cellule
+      const parts = rest[0].split(/\s+/);
+      prenom = parts[0]; nom = parts.slice(1).join(' ');
+      field3 = rest.slice(1).join(' ');
+    } else if(rest.length >= 2){
+      prenom = rest[0]; nom = rest[1]; field3 = rest.slice(2).join(' ');
+    } else if(rest.length === 1){
+      prenom = rest[0];
+    }
+    if(!prenom && !nom && !email && !telephone){ rejected.push(raw); return; }
+    rows.push({ prenom, nom, field3, telephone, email });
+  });
+  return { rows, rejected };
+}
+
+function renderContactPreview(){
+  const { rows, rejected } = parseContactsPaste(document.getElementById('importTextarea').value);
+  const preview = document.getElementById('importPreview');
+  const confirmBtn = document.getElementById('importConfirmBtn');
+  if(rows.length === 0){
+    preview.innerHTML = `<div class="empty-hint">Aucun contact reconnu.</div>`;
+    confirmBtn.style.display = 'none';
+    return;
+  }
+  preview.innerHTML = `
+    <div class="grid-table-wrap" style="overflow-x:auto; margin-top:12px; max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
+      <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+        <thead><tr>
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Prénom</th>
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Nom</th>
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Poste</th>
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Téléphone</th>
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Email</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map((r,i)=>`
+            <tr style="border-top:1px solid var(--border);">
+              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="prenom" value="${escapeHtml(r.prenom)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="nom" value="${escapeHtml(r.nom)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="field3" value="${escapeHtml(r.field3)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="telephone" value="${escapeHtml(r.telephone)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="email" value="${escapeHtml(r.email)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${rejected.length ? `<div style="margin-top:8px; font-size:12px; color:var(--muted);">${rejected.length} ligne(s) non reconnue(s) et ignorée(s).</div>` : ''}
+  `;
+  preview.querySelectorAll('input[data-i]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{ rows[inp.dataset.i][inp.dataset.f] = inp.value; });
+  });
+  confirmBtn.textContent = `Importer ${rows.length} technicien${rows.length>1?'s':''}`;
+  confirmBtn.style.display = 'inline-block';
+  window.__importRows = rows;
+}
+
+function openImportModal(){
+  document.getElementById('importTextarea').value = '';
+  document.getElementById('importPreview').innerHTML = '';
+  document.getElementById('importConfirmBtn').style.display = 'none';
+  document.getElementById('importOverlay').classList.add('open');
+  document.getElementById('importTextarea').focus();
+}
+function closeImportModal(){ document.getElementById('importOverlay').classList.remove('open'); }
+
+document.getElementById('importBtn').addEventListener('click', openImportModal);
+document.getElementById('importCancelBtn').addEventListener('click', closeImportModal);
+document.getElementById('importOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'importOverlay') closeImportModal(); });
+document.getElementById('importAnalyzeBtn').addEventListener('click', renderContactPreview);
+document.getElementById('importConfirmBtn').addEventListener('click', ()=>{
+  const rows = window.__importRows || [];
+  if(rows.length === 0) return;
+  const list = loadTechnicians();
+  rows.forEach(r=>{
+    if(!r.prenom && !r.nom) return;
+    list.push({
+      id: genId('tech'), prenom: r.prenom, nom: r.nom,
+      poste: r.field3, pole: 'Autre',
+      telephone: r.telephone, email: r.email, notes: '', disponibilites: {}
+    });
+  });
+  saveTechnicians(list);
+  closeImportModal();
+  render();
+  alert(`${rows.length} technicien${rows.length>1?'s':''} importé${rows.length>1?'s':''}. Pense à vérifier le pôle de chacun·e.`);
+});
+
+function exportTechniciansPdf(){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const list = loadTechnicians();
+  const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+  const pole = document.getElementById('poleFilter').value;
+  const filtered = list.filter(m=>{
+    if(pole && m.pole !== pole) return false;
+    if(!search) return true;
+    return [m.prenom, m.nom, m.poste, m.pole].filter(Boolean).join(' ').toLowerCase().includes(search);
+  }).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  registerHostFont(doc);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  drawCurieuxPdfHeader(doc, pageWidth, 'ANNUAIRE TECHNICIENS');
+
+  doc.autoTable({
+    startY: 26,
+    margin: { left: 12, right: 12 },
+    head: [['Nom', 'Poste', 'Pôle', 'Téléphone', 'Email']],
+    body: filtered.map(m=>[fullName(m), m.poste || '', m.pole || '', m.telephone || '', m.email || '']),
+    styles: { font:'Host', fontSize:9, cellPadding:3, textColor:[20,22,23] },
+    headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold' },
+    alternateRowStyles: { fillColor:[253,242,240] },
+  });
+
+  doc.save(`Annuaire_techniciens_Curieux_orchestre.pdf`);
+}
+document.getElementById('exportPdfBtn').addEventListener('click', exportTechniciansPdf);
+
+document.getElementById('addBtn').addEventListener('click', ()=> openModal(null));
+document.getElementById('cancelBtn').addEventListener('click', closeModal);
+document.getElementById('modalOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'modalOverlay') closeModal(); });
+
+document.getElementById('saveBtn').addEventListener('click', ()=>{
+  const id = document.getElementById('editId').value;
+  const prenom = document.getElementById('fPrenom').value.trim();
+  const nom = document.getElementById('fNom').value.trim();
+  if(!prenom && !nom){ alert('Renseigne au moins un prénom ou un nom.'); return; }
+
+  const list = loadTechnicians();
+  if(id){
+    const m = list.find(x=>x.id === id);
+    if(m){
+      m.prenom = prenom; m.nom = nom;
+      m.poste = document.getElementById('fPoste').value.trim();
+      m.pole = document.getElementById('fPole').value;
+      m.telephone = document.getElementById('fTelephone').value.trim();
+      m.email = document.getElementById('fEmail').value.trim();
+      m.notes = document.getElementById('fNotes').value.trim();
+    }
+  } else {
+    list.push({
+      id: genId('tech'),
+      prenom, nom,
+      poste: document.getElementById('fPoste').value.trim(),
+      pole: document.getElementById('fPole').value,
+      telephone: document.getElementById('fTelephone').value.trim(),
+      email: document.getElementById('fEmail').value.trim(),
+      notes: document.getElementById('fNotes').value.trim(),
+      disponibilites: {}
+    });
+  }
+  saveTechnicians(list);
+  closeModal();
+  render();
+});
+
+document.getElementById('searchInput').addEventListener('input', render);
+document.getElementById('poleFilter').addEventListener('change', render);
+
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+async function initData(){
+  techniciansCache = await CurieuxDB.fetchAll('techniciens');
+  render();
+}
+CurieuxDB.subscribe('techniciens', ()=>{
+  CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; render(); });
+});
+initData();
+</script>
+</body>
+</html>
