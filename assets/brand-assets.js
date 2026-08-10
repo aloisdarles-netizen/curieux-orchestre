@@ -43,6 +43,16 @@ function applyBrandLogo(){
   document.querySelectorAll('.brand-logo-img').forEach(img => { if(img.src !== src) img.src = src; });
 }
 
+function applyCurieuxFavicon(){
+  if(document.getElementById('curieux-favicon-link')) return;
+  const link = document.createElement('link');
+  link.id = 'curieux-favicon-link';
+  link.rel = 'icon';
+  link.type = 'image/png';
+  link.href = CURIEUX_SYMBOL_PRUNE_PNG;
+  document.head.appendChild(link);
+}
+
 // Enregistre Host Grotesk (police de labeur de la charte) dans un document jsPDF sous le nom 'Host'.
 function registerHostFont(doc){
   doc.addFileToVFS('HostGrotesk-Regular.ttf', HOST_REGULAR_B64);

@@ -9,7 +9,7 @@
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
-<script>try{ injectCurieuxFonts(); applyAutoTheme(); }catch(e){}</script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); }catch(e){}</script>
 <style>
   :root{
     --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
@@ -92,7 +92,7 @@
   .add-date-row input{flex:1 1 140px;}
 
   .grid-table-wrap{overflow-x:auto;}
-  table.grid-table{width:100%; min-width:760px; border-collapse:collapse;}
+  table.grid-table{width:100%; min-width:920px; border-collapse:collapse;}
   table.grid-table th{font-size:10.5px; text-transform:uppercase; color:var(--muted); text-align:left; padding:6px; border-bottom:1px solid var(--border); white-space:nowrap;}
   table.grid-table td{padding:8px 6px; vertical-align:top; border-bottom:1px solid var(--border); font-size:13px;}
   table.grid-table tr:last-child td{border-bottom:none;}
@@ -114,8 +114,13 @@
   .statut-opt.active.validee{background:var(--ok-tint); color:var(--ok);}
   .statut-opt.active.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
   .bloc-badge{
-    display:inline-block; margin-top:4px; font-size:10px; font-weight:700; white-space:normal;
-    padding:2px 7px; border-radius:10px; background:var(--secondary-tint); color:var(--secondary-dark); max-width:110px;
+    display:inline-flex; align-items:center; gap:4px; margin-top:5px; font-size:10.5px; font-weight:700; white-space:normal;
+    padding:2px 8px; border-radius:20px; background:var(--border); color:var(--muted); max-width:170px;
+  }
+  tr.bloc-row td.col-date{border-left:3px solid var(--old-champagne); padding-left:6px;}
+  .type-select{
+    padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;
+    background:var(--card); color:var(--text); font-family:inherit; width:100%;
   }
   .row-actions{display:flex; gap:6px; flex-wrap:wrap;}
 
@@ -432,7 +437,7 @@ document.getElementById('importConfirm').addEventListener('click', (e)=>{
   let added = 0;
   parsed.forEach(p=>{
     if(existingDates.has(p.date)) return;
-    tournee.dates.push({ id: genId('date'), date: p.date, ville: p.ville, lieu: p.lieu, commentaire:'', statut:'option', musiciensAssignes:[], techniciensAssignes:[] });
+    tournee.dates.push({ id: genId('date'), date: p.date, ville: p.ville, lieu: p.lieu, commentaire:'', statut:'option', type:'concert', musiciensAssignes:[], techniciensAssignes:[] });
     existingDates.add(p.date);
     added++;
   });
@@ -589,6 +594,13 @@ function render(){
           ? 'Aucun·e assigné·e'
           : [musCount ? `${musCount} musicien·ne${musCount>1?'s':''}` : '', techCount ? `${techCount} technicien·ne${techCount>1?'s':''}` : ''].filter(Boolean).join(' · ');
         const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+        const type = ['concert','residence'].includes(d.type) ? d.type : 'concert';
+        const typeSelect = `
+          <select class="type-select" data-field="type" data-date-id="${escapeAttr(d.id)}">
+            <option value="concert" ${type==='concert'?'selected':''}>🎤 Concert</option>
+            <option value="residence" ${type==='residence'?'selected':''}>🏠 Résidence</option>
+          </select>
+        `;
         const statutGroup = `
           <div class="statut-group">
             <button type="button" class="statut-opt ${statut==='option'?'active option':''}" data-set-statut="${escapeAttr(d.id)}" data-statut-value="option">Option</button>
@@ -609,16 +621,19 @@ function render(){
           ? `<button type="button" class="btn-ghost btn-sm" data-toggle-link="${escapeAttr(d.id)}" style="padding:2px 6px; font-size:10.5px; margin-top:2px;">${d.linkedToNext ? '✂️ Délier du bloc' : '+ Lier à la suivante'}</button>`
           : '';
         return `
-          <tr style="${statut==='annulee' ? 'opacity:.5;' : ''}">
+          <tr class="${blocInfo ? 'bloc-row' : ''}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
             <td class="col-date">
               ${escapeHtml(fmtDateFR(d.date))}
               ${blocBadge}
               ${linkToggle}
             </td>
+            <td>${typeSelect}</td>
             <td>${statutGroup}</td>
             <td class="col-lieu">
-              <input type="text" data-field="ville" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.ville||'')}" placeholder="Ville" style="margin-bottom:4px;">
-              <input type="text" data-field="lieu" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.lieu||'')}" placeholder="Salle / lieu">
+              <input type="text" data-field="ville" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.ville||'')}" placeholder="Ville">
+            </td>
+            <td class="col-lieu">
+              <input type="text" data-field="lieu" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.lieu||'')}" placeholder="Salle">
             </td>
             <td class="col-comment"><textarea data-field="commentaire" data-date-id="${escapeAttr(d.id)}" placeholder="Commentaire…">${escapeHtml(d.commentaire||'')}</textarea></td>
             <td>
@@ -649,15 +664,19 @@ function render(){
           <div class="tournee-meta">${dates.length} date${dates.length>1?'s':''}</div>
           <div class="add-date-row">
             <input type="date" data-new-date="${escapeAttr(t.id)}">
+            <select class="type-select" data-new-type="${escapeAttr(t.id)}" style="flex:0 0 130px;">
+              <option value="concert">🎤 Concert</option>
+              <option value="residence">🏠 Résidence</option>
+            </select>
             <input type="text" data-new-ville="${escapeAttr(t.id)}" placeholder="Ville">
-            <input type="text" data-new-lieu="${escapeAttr(t.id)}" placeholder="Salle / lieu">
+            <input type="text" data-new-lieu="${escapeAttr(t.id)}" placeholder="Salle">
             <button type="button" class="btn-primary btn-sm" data-add-date="${escapeAttr(t.id)}">+ Ajouter une date</button>
             <button type="button" class="btn-secondary btn-sm" data-import-dates="${escapeAttr(t.id)}">📋 Importer des dates (coller)</button>
           </div>
           ${dates.length ? `
             <div class="grid-table-wrap">
               <table class="grid-table">
-                <thead><tr><th style="width:10%;">Date</th><th style="width:16%;">Statut</th><th style="width:16%;">Lieu</th><th style="width:21%;">Commentaire</th><th style="width:21%;">Musicien·nes</th><th style="width:1%;"></th></tr></thead>
+                <thead><tr><th style="width:9%;">Date</th><th style="width:8%;">Type</th><th style="width:13%;">Statut</th><th style="width:11%;">Ville</th><th style="width:11%;">Salle</th><th style="width:16%;">Commentaire</th><th style="width:18%;">Musicien·nes</th><th style="width:1%;"></th></tr></thead>
                 <tbody>${rows}</tbody>
               </table>
             </div>
@@ -685,6 +704,7 @@ function render(){
 }
 
 const STATUT_PDF_LABEL = { option:'Option', validee:'Validée', annulee:'ANNULÉE' };
+const TYPE_PDF_LABEL = { concert:'Concert', residence:'Résidence' };
 
 function exportTourneePdf(tourneeId){
   if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
@@ -702,9 +722,10 @@ function exportTourneePdf(tourneeId){
   doc.autoTable({
     startY: 26,
     margin: { left: 10, right: 10 },
-    head: [['Date', 'Statut', 'Lieu', 'Commentaire']],
+    head: [['Date', 'Type', 'Statut', 'Ville', 'Salle', 'Commentaire']],
     body: dates.map(d=>{
       const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+      const type = ['concert','residence'].includes(d.type) ? d.type : 'concert';
       const blocInfo = blocMap.get(d.id);
       let dateCell = fmtDateFR(d.date);
       if(blocInfo){
@@ -712,16 +733,22 @@ function exportTourneePdf(tourneeId){
         else if(blocInfo.isLast) dateCell += `\nBloc — retour lendemain ${fmtDateFR(blocInfo.lendemain)}`;
         else dateCell += `\nBloc`;
       }
-      return [dateCell, STATUT_PDF_LABEL[statut], [d.ville, d.lieu].filter(Boolean).join(' · '), d.commentaire || ''];
+      return [dateCell, TYPE_PDF_LABEL[type], STATUT_PDF_LABEL[statut], d.ville || '', d.lieu || '', d.commentaire || ''];
     }),
     styles: { font:'Host', fontSize:8.5, cellPadding:2.6, textColor:[20,22,23] },
     headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold' },
     alternateRowStyles: { fillColor:[253,242,240] },
     didParseCell: (data)=>{
-      if(data.section === 'body' && data.column.index === 1){
-        if(data.cell.raw === 'Validée') data.cell.styles.textColor = [47,143,91];
-        else if(data.cell.raw === 'ANNULÉE') data.cell.styles.textColor = [178,59,46];
-        else data.cell.styles.textColor = [184,121,42];
+      // Colonne "Statut" (index 2) : badge plein (fond + texte) plutôt qu'une simple
+      // couleur de texte, pour repérer d'un coup d'œil option/validée/annulée.
+      if(data.section === 'body' && data.column.index === 2){
+        data.cell.styles.fontStyle = 'bold';
+        if(data.cell.raw === 'Validée'){ data.cell.styles.fillColor = [226,244,234]; data.cell.styles.textColor = [47,143,91]; }
+        else if(data.cell.raw === 'ANNULÉE'){ data.cell.styles.fillColor = [251,230,226]; data.cell.styles.textColor = [178,59,46]; }
+        else { data.cell.styles.fillColor = [246,234,210]; data.cell.styles.textColor = [184,121,42]; }
+      }
+      if(data.section === 'body' && data.column.index === 1 && data.cell.raw === 'Résidence'){
+        data.cell.styles.fillColor = [254,201,224]; data.cell.styles.textColor = [121,22,73]; data.cell.styles.fontStyle = 'bold';
       }
     }
   });
@@ -767,6 +794,7 @@ function bindTourneeEvents(){
     btn.addEventListener('click', ()=>{
       const tourneeId = btn.dataset.addDate;
       const dateInput = document.querySelector(`[data-new-date="${tourneeId}"]`);
+      const typeInput = document.querySelector(`[data-new-type="${tourneeId}"]`);
       const villeInput = document.querySelector(`[data-new-ville="${tourneeId}"]`);
       const lieuInput = document.querySelector(`[data-new-lieu="${tourneeId}"]`);
       if(!dateInput.value){ alert('Choisis une date.'); return; }
@@ -774,7 +802,7 @@ function bindTourneeEvents(){
       const t = tournees.find(x=>x.id === tourneeId);
       if(!t) return;
       if(!t.dates) t.dates = [];
-      t.dates.push({ id: genId('date'), date: dateInput.value, ville: villeInput.value.trim(), lieu: lieuInput.value.trim(), commentaire:'', statut:'option', musiciensAssignes:[], techniciensAssignes:[] });
+      t.dates.push({ id: genId('date'), date: dateInput.value, ville: villeInput.value.trim(), lieu: lieuInput.value.trim(), commentaire:'', statut:'option', type: typeInput.value || 'concert', musiciensAssignes:[], techniciensAssignes:[] });
       saveTournees(tournees);
       render();
     });
@@ -805,13 +833,22 @@ function bindTourneeEvents(){
       if(!d) return;
       const current = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
       if(current === value) return;
+
+      // Si la date fait partie d'un bloc, le changement de statut s'applique à tout le
+      // bloc (départ/retour groupés) — les affectations musiciens/techniciens, elles,
+      // restent individuelles par date.
+      const sortedDates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+      const blocInfo = computeBlocMap(sortedDates).get(d.id);
+      const groupDates = blocInfo ? blocInfo.blocDates : [d];
+
       const label = fmtDateFR(d.date);
       const STATUT_LABELS = { option:'Option', validee:'Validée', annulee:'Annulée' };
+      const groupNote = groupDates.length > 1 ? ` Ce changement s'appliquera aux ${groupDates.length} dates du bloc.` : '';
       const question = value === 'annulee'
-        ? `Marquer la date du ${label} comme ANNULÉE ?\n\nElle reste visible (barrée) et apparaîtra comme annulée dans le récap newsletter — rien n'est supprimé.`
-        : `Passer la date du ${label} de "${STATUT_LABELS[current]}" à "${STATUT_LABELS[value]}" ?`;
+        ? `Marquer la date du ${label} comme ANNULÉE ?${groupNote}\n\nElle reste visible (barrée) et apparaîtra comme annulée dans le récap newsletter — rien n'est supprimé.`
+        : `Passer la date du ${label} de "${STATUT_LABELS[current]}" à "${STATUT_LABELS[value]}" ?${groupNote}`;
       if(!confirm(question)) return;
-      d.statut = value;
+      groupDates.forEach(gd=> gd.statut = value);
       saveTournees(tournees);
       render();
     });
