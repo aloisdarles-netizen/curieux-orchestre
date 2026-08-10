@@ -761,7 +761,7 @@ function exportTourneePdf(tourneeId){
     }),
     styles: { font:'Host', fontSize:8.5, cellPadding:2.6, textColor:[20,22,23] },
     columnStyles: {
-      0: { cellWidth: 34 }, 1: { cellWidth: 20 }, 2: { cellWidth: 20 },
+      0: { cellWidth: 34, valign: 'top' }, 1: { cellWidth: 20 }, 2: { cellWidth: 20 },
       3: { cellWidth: 38 }, 4: { cellWidth: 38 },
     },
     headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold' },
@@ -781,12 +781,13 @@ function exportTourneePdf(tourneeId){
       if(data.section === 'body' && data.column.index === 1 && raw === 'Résidence'){
         data.cell.styles.fillColor = [251,228,213]; data.cell.styles.textColor = [193,61,15]; data.cell.styles.fontStyle = 'bold';
       }
-      // Colonne Date : on ne garde que la date elle-même dans le rendu par défaut —
-      // la note "depuis la veille / jusqu'au lendemain" est redessinée à la main
-      // dans didDrawCell (plus petite, grise) pour un rendu plus soigné qu'une
-      // deuxième ligne de même taille et couleur que la date.
+      // Colonne Date sur une ligne de bloc (départ veille / retour lendemain) : la
+      // 2e ligne de texte est la note "↳ Depuis la veille (...)" — on la rend plus
+      // petite et grise que la date, tout en laissant autoTable gérer lui-même le
+      // retour à la ligne et la hauteur de cellule (dessiner ce texte à la main
+      // ailleurs désynchronise la hauteur réservée et fait chevaucher les deux lignes).
       if(data.section === 'body' && data.column.index === 0 && Array.isArray(data.cell.text) && data.cell.text.length > 1){
-        data.cell.text = [data.cell.text[0]];
+        data.cell.styles.fontSize = 7.2;
       }
     },
     didDrawCell: (data)=>{
@@ -798,15 +799,20 @@ function exportTourneePdf(tourneeId){
         const barColor = info.groupIndex % 2 === 0 ? [201,138,160] : [121,22,73];
         doc.setFillColor(...barColor);
         doc.rect(data.cell.x, data.cell.y, 1, data.cell.height, 'F');
-
-        if(info.isFirst || info.isLast){
-          const note = info.isFirst
-            ? `↳ Depuis la veille (${fmtDateFR(info.veille)})`
-            : `↳ Jusqu'au lendemain (${fmtDateFR(info.lendemain)})`;
-          doc.setFont('Host', 'normal');
-          doc.setFontSize(6.5);
-          doc.setTextColor(150, 130, 138);
-          doc.text(note, data.cell.x + 2.6, data.cell.y + data.cell.height - 2.2);
+      }
+      // Traits de séparation sur TOUTES les colonnes (pas seulement Date) au début et
+      // à la fin d'un bloc, pour que sa limite soit visible même sur Ville/Salle/
+      // Commentaire — sinon deux blocs qui se suivent sont difficiles à distinguer
+      // en dehors de la colonne Date.
+      const info = blocRowInfo.get(data.row.index);
+      if(data.section === 'body' && info){
+        doc.setDrawColor(150, 130, 138);
+        doc.setLineWidth(0.35);
+        if(info.isFirst){
+          doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
+        }
+        if(info.isLast){
+          doc.line(data.cell.x, data.cell.y + data.cell.height, data.cell.x + data.cell.width, data.cell.y + data.cell.height);
         }
       }
     }
