@@ -35,17 +35,23 @@ npx vercel --prod
 Répondre aux questions (nom de projet, etc.) — aucun build n'est nécessaire, Vercel
 détecte un site statique.
 
-## Rediriger `/` vers `/accueil.html` (optionnel mais confortable)
+## Rediriger `/` vers `/accueil.html`
 
-Crée un fichier `vercel.json` à la racine du projet :
+Un fichier [vercel.json](vercel.json) est déjà présent à la racine du projet — il
+sert `/accueil.html` quand quelqu'un visite `/`, sans changer l'URL affichée
+(rewrite, pas redirect) :
 
 ```json
 {
-  "redirects": [
-    { "source": "/", "destination": "/accueil.html", "permanent": false }
+  "rewrites": [
+    { "source": "/", "destination": "/accueil.html" }
   ]
 }
 ```
+
+Ne pas ajouter de champ `"framework"` : Vercel n'accepte que des valeurs parmi une
+liste fermée de frameworks connus, et aucune ne correspond à "site statique sans
+framework" — dans ce cas, il faut simplement omettre le champ.
 
 ## Variables d'environnement / secrets
 
