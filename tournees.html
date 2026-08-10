@@ -620,6 +620,10 @@ function render(){
         const linkToggle = hasNext
           ? `<button type="button" class="btn-ghost btn-sm" data-toggle-link="${escapeAttr(d.id)}" style="padding:2px 6px; font-size:10.5px; margin-top:2px;">${d.linkedToNext ? '✂️ Délier du bloc' : '+ Lier à la suivante'}</button>`
           : '';
+        // Type et statut sont communs à tout un bloc : un seul contrôle par bloc
+        // (fusionné visuellement sur toutes ses lignes via rowspan), pas un par date.
+        const showTypeStatut = !blocInfo || blocInfo.isFirst;
+        const groupRowspan = blocInfo ? blocInfo.blocDates.length : 1;
         return `
           <tr class="${blocInfo ? 'bloc-row' : ''}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
             <td class="col-date">
@@ -627,8 +631,8 @@ function render(){
               ${blocBadge}
               ${linkToggle}
             </td>
-            <td>${typeSelect}</td>
-            <td>${statutGroup}</td>
+            ${showTypeStatut ? `<td rowspan="${groupRowspan}" style="vertical-align:middle;">${typeSelect}</td>` : ''}
+            ${showTypeStatut ? `<td rowspan="${groupRowspan}" style="vertical-align:middle;">${statutGroup}</td>` : ''}
             <td class="col-lieu">
               <input type="text" data-field="ville" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.ville||'')}" placeholder="Ville">
             </td>
@@ -862,6 +866,17 @@ function bindTourneeEvents(){
       const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.toggleLink);
       if(!d) return;
       d.linkedToNext = !d.linkedToNext;
+
+      if(d.linkedToNext){
+        // Bloc nouvellement formé (ou agrandi) : statut et type deviennent communs à
+        // toutes les dates du groupe, alignés sur la première date du bloc.
+        const sortedDates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+        const blocInfo = computeBlocMap(sortedDates).get(d.id);
+        if(blocInfo){
+          const ref = blocInfo.blocDates[0];
+          blocInfo.blocDates.forEach(gd=>{ gd.statut = ref.statut; gd.type = ref.type; });
+        }
+      }
       saveTournees(tournees);
       render();
     });
@@ -889,7 +904,18 @@ function bindTourneeEvents(){
       const tournees = loadTournees();
       const t = tournees.find(x=>x.id === tourneeId);
       const d = t && (t.dates||[]).find(x=>x.id === el.dataset.dateId);
-      if(d){ d[el.dataset.field] = el.value; saveTournees(tournees); }
+      if(!d) return;
+      d[el.dataset.field] = el.value;
+      if(el.dataset.field === 'type'){
+        // Le type (concert/résidence) est commun à tout le bloc, comme le statut.
+        const sortedDates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+        const blocInfo = computeBlocMap(sortedDates).get(d.id);
+        if(blocInfo) blocInfo.blocDates.forEach(gd=> gd.type = el.value);
+        saveTournees(tournees);
+        render();
+      } else {
+        saveTournees(tournees);
+      }
     };
     el.addEventListener('change', handler);
   });
