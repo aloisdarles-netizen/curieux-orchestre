@@ -297,10 +297,35 @@ function computeBlocMap(datesSorted){
   return map;
 }
 
-function createFdrForDate(iso, artistName){
+// Construit un contact de FDR à partir d'un·e musicien·ne/technicien·ne de l'annuaire
+// (roleField = 'instrument' ou 'poste' selon le roster d'origine).
+function buildFdrContactFromPerson(p, roleField){
+  return {
+    id: genId('contact'),
+    role: p[roleField] || '',
+    nom: fullName(p),
+    indicatif: '+33',
+    tel: p.telephone || '',
+    email: p.email || ''
+  };
+}
+
+// Pré-remplit la nouvelle FDR avec la date/ville/salle et les contacts des
+// musicien·nes/technicien·nes déjà affecté·es à cette date de tournée.
+function createFdrForDate(d, tourneeName){
   const id = genId('fdr');
+  const musicianById = new Map(loadMusicians().map(m=>[m.id, m]));
+  const technicianById = new Map(loadTechnicians().map(m=>[m.id, m]));
+  const contacts = [
+    ...(d.musiciensAssignes||[]).map(mid => musicianById.get(mid)).filter(Boolean).map(m => buildFdrContactFromPerson(m, 'instrument')),
+    ...(d.techniciensAssignes||[]).map(tid => technicianById.get(tid)).filter(Boolean).map(t => buildFdrContactFromPerson(t, 'poste')),
+  ];
   const collection = loadFdrCollection();
-  collection.push({ id, artistName: artistName || '', eventDate: iso });
+  const entry = { id, artistName: tourneeName || '', eventDate: d.date, venueCity: d.ville || '', venueSalle: d.lieu || '' };
+  // Si personne n'est encore affecté à cette date, on laisse le champ absent pour que
+  // la FDR reprenne les 2 contacts de base (régisseur/prod) au lieu d'une liste vide.
+  if(contacts.length > 0) entry.contacts = contacts;
+  collection.push(entry);
   saveFdrCollection(collection);
   localStorage.setItem(FDR_LAST_ID_KEY, id);
   location.href = 'feuille-de-route.html?id=' + encodeURIComponent(id);
@@ -955,7 +980,7 @@ function bindTourneeEvents(){
       const tournees = loadTournees();
       const t = tournees.find(x=>x.id === tourneeId);
       const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.createFdr);
-      if(d) createFdrForDate(d.date, t.nom);
+      if(d) createFdrForDate(d, t.nom);
     });
   });
   document.querySelectorAll('[data-field]').forEach(el=>{
