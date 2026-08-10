@@ -137,7 +137,12 @@
     <span><span class="swatch dispo"></span> Dispo (non affecté·e)</span>
     <span><span class="swatch indispo"></span> Indispo</span>
     <span><span class="swatch incertain"></span> À confirmer</span>
-    <span style="margin-left:auto;"><button type="button" id="exportPdfBtn" style="padding:7px 13px; font-size:12.5px; border:none; border-radius:8px; cursor:pointer; font-family:inherit; font-weight:700; background:var(--accent); color:#fff;">📄 Exporter en PDF</button></span>
+    <span style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+      <select id="pdfTourneeSelect" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; background:var(--card); color:var(--text); font-family:inherit;">
+        <option value="">Toutes les tournées</option>
+      </select>
+      <button type="button" id="exportPdfBtn" style="padding:7px 13px; font-size:12.5px; border:none; border-radius:8px; cursor:pointer; font-family:inherit; font-weight:700; background:var(--accent); color:#fff;">📄 Exporter en PDF</button>
+    </span>
   </div>
 
   <h2 class="section-title">Musicien·nes</h2>
@@ -173,8 +178,8 @@ function fmtDateFRShort(iso){
   return `${parseInt(d,10)} ${months[parseInt(m,10)-1]}`;
 }
 
-function allDateEntries(assignField){
-  const tournees = loadTournees();
+function allDateEntries(assignField, tourneeId){
+  const tournees = tourneeId ? loadTournees().filter(t=>t.id === tourneeId) : loadTournees();
   const entries = [];
   tournees.forEach(t=>{
     (t.dates||[]).forEach(d=>{
@@ -253,6 +258,7 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
 function renderAll(){
   renderPeopleMatrix(loadMusicians(), 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musiciens', "Musicien·ne");
   renderPeopleMatrix(loadTechnicians(), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire techniciens', "Technicien·ne");
+  populateTourneeSelect();
 }
 
 injectCurieuxFonts();
@@ -272,8 +278,8 @@ CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list
 CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; renderAll(); }); });
 initData();
 
-function buildMatrixTable(doc, startY, people, assignField, title, pageWidth){
-  const entries = allDateEntries(assignField);
+function buildMatrixTable(doc, startY, people, assignField, title, pageWidth, tourneeId){
+  const entries = allDateEntries(assignField, tourneeId);
   const sorted = people.slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
   if(sorted.length === 0 || entries.length === 0) return startY;
 
@@ -317,19 +323,32 @@ function buildMatrixTable(doc, startY, people, assignField, title, pageWidth){
 
 function exportRecapPdf(){
   if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const tourneeId = document.getElementById('pdfTourneeSelect').value || null;
+  const tournee = tourneeId ? loadTournees().find(t=>t.id === tourneeId) : null;
+  const headerTitle = tournee ? `VUE D'ENSEMBLE — ${(tournee.nom || 'TOURNÉE').toUpperCase()}` : 'VUE D\'ENSEMBLE';
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
   registerHostFont(doc);
   const pageWidth = doc.internal.pageSize.getWidth();
-  drawCurieuxPdfHeader(doc, pageWidth, 'VUE D\'ENSEMBLE');
+  drawCurieuxPdfHeader(doc, pageWidth, headerTitle);
 
-  let y = buildMatrixTable(doc, 30, loadMusicians(), 'musiciensAssignes', 'MUSICIEN·NES (X affecté·e, d dispo, x indispo, ? à confirmer)', pageWidth);
-  if(y > 180){ doc.addPage(); drawCurieuxPdfHeader(doc, pageWidth, 'VUE D\'ENSEMBLE'); y = 30; }
-  buildMatrixTable(doc, y, loadTechnicians(), 'techniciensAssignes', 'TECHNICIENS (X affecté·e, d dispo, x indispo, ? à confirmer)', pageWidth);
+  let y = buildMatrixTable(doc, 30, loadMusicians(), 'musiciensAssignes', 'MUSICIEN·NES (X affecté·e, d dispo, x indispo, ? à confirmer)', pageWidth, tourneeId);
+  if(y > 180){ doc.addPage(); drawCurieuxPdfHeader(doc, pageWidth, headerTitle); y = 30; }
+  buildMatrixTable(doc, y, loadTechnicians(), 'techniciensAssignes', 'TECHNICIENS (X affecté·e, d dispo, x indispo, ? à confirmer)', pageWidth, tourneeId);
 
-  doc.save('Vue_ensemble_Curieux_orchestre.pdf');
+  const fileSuffix = tournee ? (tournee.nom||'tournee').trim().replace(/[^a-z0-9]+/gi,'_') : 'toutes_tournees';
+  doc.save(`Vue_ensemble_Curieux_orchestre_${fileSuffix}.pdf`);
 }
 document.getElementById('exportPdfBtn').addEventListener('click', exportRecapPdf);
+
+function populateTourneeSelect(){
+  const sel = document.getElementById('pdfTourneeSelect');
+  const current = sel.value;
+  sel.innerHTML = `<option value="">Toutes les tournées</option>` +
+    loadTournees().map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(t.nom || 'Tournée')}</option>`).join('');
+  if(loadTournees().some(t=>t.id === current)) sel.value = current;
+}
 </script>
 </body>
 </html>
