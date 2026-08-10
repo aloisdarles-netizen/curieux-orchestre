@@ -92,7 +92,7 @@
   .add-date-row input{flex:1 1 140px;}
 
   .grid-table-wrap{overflow-x:auto;}
-  table.grid-table{width:100%; min-width:920px; border-collapse:collapse;}
+  table.grid-table{width:100%; min-width:980px; border-collapse:collapse;}
   table.grid-table th{font-size:10.5px; text-transform:uppercase; color:var(--muted); text-align:left; padding:6px; border-bottom:1px solid var(--border); white-space:nowrap;}
   table.grid-table td{padding:8px 6px; vertical-align:top; border-bottom:1px solid var(--border); font-size:13px;}
   table.grid-table tr:last-child td{border-bottom:none;}
@@ -117,10 +117,12 @@
     display:inline-flex; align-items:center; gap:4px; margin-top:5px; font-size:10.5px; font-weight:700; white-space:normal;
     padding:2px 8px; border-radius:20px; background:var(--border); color:var(--muted); max-width:170px;
   }
-  tr.bloc-row td.col-date{border-left:3px solid var(--old-champagne); padding-left:6px;}
+  tr.bloc-row td.col-date{padding-left:6px;}
+  tr.bloc-row.bloc-alt-0 td.col-date{border-left:3px solid var(--old-champagne);}
+  tr.bloc-row.bloc-alt-1 td.col-date{border-left:3px solid var(--accent);}
   .type-select{
     padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;
-    background:var(--card); color:var(--text); font-family:inherit; width:100%;
+    background:var(--card); color:var(--text); font-family:inherit; width:100%; min-width:118px;
   }
   .row-actions{display:flex; gap:6px; flex-wrap:wrap;}
 
@@ -274,13 +276,18 @@ function addDaysIso(iso, delta){
 function computeBlocMap(datesSorted){
   const map = new Map();
   let i = 0;
+  let blocGroupIndex = 0;
   while(i < datesSorted.length){
     let j = i;
     while(j < datesSorted.length - 1 && datesSorted[j].linkedToNext) j++;
     const blocDates = datesSorted.slice(i, j+1);
     if(blocDates.length > 1){
+      // groupIndex alterne (0/1) d'un bloc au suivant, pour pouvoir distinguer
+      // visuellement deux blocs consécutifs (sinon leur liseré se confond en un seul bandeau).
+      const groupIndex = blocGroupIndex;
+      blocGroupIndex++;
       blocDates.forEach((d, idx)=> map.set(d.id, {
-        blocDates, idx, isFirst: idx===0, isLast: idx===blocDates.length-1,
+        blocDates, idx, isFirst: idx===0, isLast: idx===blocDates.length-1, groupIndex,
         veille: addDaysIso(blocDates[0].date, -1),
         lendemain: addDaysIso(blocDates[blocDates.length-1].date, 1)
       }));
@@ -625,7 +632,7 @@ function render(){
         const showTypeStatut = !blocInfo || blocInfo.isFirst;
         const groupRowspan = blocInfo ? blocInfo.blocDates.length : 1;
         return `
-          <tr class="${blocInfo ? 'bloc-row' : ''}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
+          <tr class="${blocInfo ? `bloc-row bloc-alt-${blocInfo.groupIndex % 2}` : ''}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
             <td class="col-date">
               ${escapeHtml(fmtDateFR(d.date))}
               ${blocBadge}
@@ -680,7 +687,7 @@ function render(){
           ${dates.length ? `
             <div class="grid-table-wrap">
               <table class="grid-table">
-                <thead><tr><th style="width:9%;">Date</th><th style="width:7%;">Type</th><th style="width:9%;">Statut</th><th style="width:15%;">Ville</th><th style="width:15%;">Salle</th><th style="width:16%;">Commentaire</th><th style="width:17%;">Musicien·nes</th><th style="width:1%;"></th></tr></thead>
+                <thead><tr><th style="width:9%;">Date</th><th style="width:13%;">Type</th><th style="width:9%;">Statut</th><th style="width:13%;">Ville</th><th style="width:13%;">Salle</th><th style="width:15%;">Commentaire</th><th style="width:16%;">Musicien·nes</th><th style="width:1%;"></th></tr></thead>
                 <tbody>${rows}</tbody>
               </table>
             </div>
@@ -724,8 +731,8 @@ function exportTourneePdf(tourneeId){
   drawCurieuxPdfHeader(doc, pageWidth, (tournee.nom || 'TOURNÉE').toUpperCase());
 
   // Lignes appartenant à un bloc : utilisé par didDrawCell pour dessiner un repère
-  // visuel (liseré coloré) sur la cellule Date, en plus du texte "Bloc — ...".
-  const blocRowIndexes = new Set();
+  // visuel (liseré coloré, alterné d'un bloc au suivant) sur la cellule Date.
+  const blocRowInfo = new Map();
 
   doc.autoTable({
     startY: 26,
@@ -737,10 +744,9 @@ function exportTourneePdf(tourneeId){
       const blocInfo = blocMap.get(d.id);
       let dateCell = fmtDateFR(d.date);
       if(blocInfo){
-        blocRowIndexes.add(idx);
-        if(blocInfo.isFirst) dateCell += `\nBloc — départ veille ${fmtDateFR(blocInfo.veille)}`;
-        else if(blocInfo.isLast) dateCell += `\nBloc — retour lendemain ${fmtDateFR(blocInfo.lendemain)}`;
-        else dateCell += `\nBloc`;
+        blocRowInfo.set(idx, blocInfo);
+        if(blocInfo.isFirst) dateCell += `\n↳ Depuis la veille (${fmtDateFR(blocInfo.veille)})`;
+        else if(blocInfo.isLast) dateCell += `\n↳ Jusqu'au lendemain (${fmtDateFR(blocInfo.lendemain)})`;
       }
       const row = [dateCell];
       // Type et statut sont communs à tout le bloc : une seule cellule fusionnée
@@ -775,13 +781,33 @@ function exportTourneePdf(tourneeId){
       if(data.section === 'body' && data.column.index === 1 && raw === 'Résidence'){
         data.cell.styles.fillColor = [251,228,213]; data.cell.styles.textColor = [193,61,15]; data.cell.styles.fontStyle = 'bold';
       }
+      // Colonne Date : on ne garde que la date elle-même dans le rendu par défaut —
+      // la note "depuis la veille / jusqu'au lendemain" est redessinée à la main
+      // dans didDrawCell (plus petite, grise) pour un rendu plus soigné qu'une
+      // deuxième ligne de même taille et couleur que la date.
+      if(data.section === 'body' && data.column.index === 0 && Array.isArray(data.cell.text) && data.cell.text.length > 1){
+        data.cell.text = [data.cell.text[0]];
+      }
     },
     didDrawCell: (data)=>{
       // Liseré vertical sur la cellule Date des lignes de bloc — repère visuel qui
-      // ne dépend pas du texte, cohérent avec le liseré utilisé dans l'app.
-      if(data.section === 'body' && data.column.index === 0 && blocRowIndexes.has(data.row.index)){
-        doc.setFillColor(201, 138, 160);
+      // ne dépend pas du texte, alterné d'un bloc au suivant pour distinguer deux
+      // blocs qui se suivent directement.
+      if(data.section === 'body' && data.column.index === 0 && blocRowInfo.has(data.row.index)){
+        const info = blocRowInfo.get(data.row.index);
+        const barColor = info.groupIndex % 2 === 0 ? [201,138,160] : [121,22,73];
+        doc.setFillColor(...barColor);
         doc.rect(data.cell.x, data.cell.y, 1, data.cell.height, 'F');
+
+        if(info.isFirst || info.isLast){
+          const note = info.isFirst
+            ? `↳ Depuis la veille (${fmtDateFR(info.veille)})`
+            : `↳ Jusqu'au lendemain (${fmtDateFR(info.lendemain)})`;
+          doc.setFont('Host', 'normal');
+          doc.setFontSize(6.5);
+          doc.setTextColor(150, 130, 138);
+          doc.text(note, data.cell.x + 2.6, data.cell.y + data.cell.height - 2.2);
+        }
       }
     }
   });
