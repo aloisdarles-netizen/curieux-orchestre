@@ -352,6 +352,63 @@ function closeModal(){
   document.getElementById('modalOverlay').classList.remove('open');
 }
 
+function stripAccents(str){ return (str||'').normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+function pupitreForSection(section){
+  const s = stripAccents(section||'').toUpperCase();
+  if(/VIOLON|ALTO|VIOLONCELLE|CONTREBASSE|HARPE/.test(s)) return 'Cordes';
+  if(/FLUTE|HAUTBOIS|CLARINETTE|BASSON|SAXOPHONE/.test(s)) return 'Bois';
+  if(/\bCOR\b|TROMPETTE|TROMBONE|TUBA|SAXHORN/.test(s)) return 'Cuivres';
+  if(/PERCUSSION|BATTERIE|TIMBALE/.test(s)) return 'Percussions';
+  return 'Autre';
+}
+
+// Parse d'un roster structuré type "trombinoscope" : ligne d'en-tête NOM/PRÉNOM/...,
+// des lignes de section (une seule cellule non vide, ex. "Violons") qui deviennent
+// l'instrument/pupitre de tou·tes les musicien·nes en dessous jusqu'à la section
+// suivante, et un "*" devant le nom pour repérer les titulaires (le reste étant
+// remplaçant·e). Retourne null si le texte collé ne correspond pas à ce format
+// (auquel cas on retombe sur parseContactsPaste, plus permissif).
+function parseMusicianRosterPaste(text){
+  const lines = text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim() !== '');
+  if(lines.length < 2) return null;
+  const headerCells = lines[0].split('\t').map(c=>c.trim());
+  const norm = s => stripAccents(s||'').toUpperCase().trim();
+  const nomIdx = headerCells.findIndex(h => norm(h) === 'NOM');
+  const prenomIdx = headerCells.findIndex(h => norm(h).startsWith('PRENOM'));
+  if(nomIdx === -1 || prenomIdx === -1) return null;
+  const telIdx = headerCells.findIndex(h => norm(h).includes('TEL'));
+  const mailIdx = headerCells.findIndex(h => norm(h).includes('MAIL'));
+  const amiIdx = headerCells.findIndex(h => norm(h).includes('AMI'));
+
+  const rows = [];
+  let currentSection = '';
+  for(let li = 1; li < lines.length; li++){
+    const cells = lines[li].split('\t').map(c=>c.trim());
+    if(cells.filter(c=>c).length === 0) continue;
+    if(cells.filter(c=>c).length === 1 && cells[nomIdx]){
+      currentSection = cells[nomIdx];
+      continue;
+    }
+    const nomRaw = (cells[nomIdx] || '').trim();
+    const prenom = (cells[prenomIdx] || '').trim();
+    if(!nomRaw && !prenom) continue;
+    const isTitulaire = nomRaw.startsWith('*');
+    const nom = isTitulaire ? nomRaw.slice(1).trim() : nomRaw;
+    const amiDe = amiIdx >= 0 ? (cells[amiIdx] || '').trim() : '';
+    rows.push({
+      prenom, nom,
+      field3: currentSection,
+      pupitre: pupitreForSection(currentSection),
+      statutPoste: isTitulaire ? 'titulaire' : 'remplacant',
+      telephone: telIdx >= 0 ? (cells[telIdx] || '').trim() : '',
+      email: mailIdx >= 0 ? (cells[mailIdx] || '').trim() : '',
+      notes: amiDe ? `Ami de : ${amiDe}` : ''
+    });
+  }
+  return rows;
+}
+
 // Parse souple d'une liste de contacts collée (tableur ou texte libre) : détecte
 // email/téléphone où qu'ils soient, et prend les tokens restants comme prénom/nom/instrument.
 function parseContactsPaste(text){
@@ -393,8 +450,17 @@ function parseContactsPaste(text){
   return { rows, rejected };
 }
 
+const PUPITRE_OPTIONS = ['Cordes','Bois','Cuivres','Percussions','Autre'];
+
 function renderContactPreview(){
-  const { rows, rejected } = parseContactsPaste(document.getElementById('importTextarea').value);
+  const text = document.getElementById('importTextarea').value;
+  // Le roster structuré (NOM/PRÉNOM en en-tête + sections par instrument + "*" =
+  // titulaire) est essayé en premier ; s'il ne matche pas, on retombe sur le parseur
+  // libre habituel (une ligne = un contact, sans structure imposée).
+  const rosterRows = parseMusicianRosterPaste(text);
+  const isRoster = !!rosterRows;
+  const rows = rosterRows || parseContactsPaste(text).rows;
+  const rejected = rosterRows ? [] : parseContactsPaste(text).rejected;
   const preview = document.getElementById('importPreview');
   const confirmBtn = document.getElementById('importConfirmBtn');
   if(rows.length === 0){
@@ -403,12 +469,15 @@ function renderContactPreview(){
     return;
   }
   preview.innerHTML = `
+    ${isRoster ? `<div style="font-size:12px; color:var(--muted); margin:8px 0;">Roster détecté : instrument/pupitre et statut (titulaire·s marqué·es d'un ✻) déduits automatiquement — vérifie avant d'importer.</div>` : ''}
     <div class="grid-table-wrap" style="overflow-x:auto; margin-top:12px; max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
       <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
         <thead><tr>
           <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Prénom</th>
           <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Nom</th>
           <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Instrument</th>
+          ${isRoster ? `<th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Pupitre</th>
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Statut</th>` : ''}
           <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Téléphone</th>
           <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Email</th>
         </tr></thead>
@@ -418,6 +487,18 @@ function renderContactPreview(){
               <td style="padding:3px;"><input type="text" data-i="${i}" data-f="prenom" value="${escapeHtml(r.prenom)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
               <td style="padding:3px;"><input type="text" data-i="${i}" data-f="nom" value="${escapeHtml(r.nom)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
               <td style="padding:3px;"><input type="text" data-i="${i}" data-f="field3" value="${escapeHtml(r.field3)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+              ${isRoster ? `
+              <td style="padding:3px;">
+                <select data-i="${i}" data-f="pupitre" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;">
+                  ${PUPITRE_OPTIONS.map(p=>`<option value="${p}" ${r.pupitre===p?'selected':''}>${p}</option>`).join('')}
+                </select>
+              </td>
+              <td style="padding:3px;">
+                <select data-i="${i}" data-f="statutPoste" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;">
+                  <option value="titulaire" ${r.statutPoste==='titulaire'?'selected':''}>Titulaire</option>
+                  <option value="remplacant" ${r.statutPoste==='remplacant'?'selected':''}>Remplaçant·e</option>
+                </select>
+              </td>` : ''}
               <td style="padding:3px;"><input type="text" data-i="${i}" data-f="telephone" value="${escapeHtml(r.telephone)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
               <td style="padding:3px;"><input type="text" data-i="${i}" data-f="email" value="${escapeHtml(r.email)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
             </tr>
@@ -427,8 +508,9 @@ function renderContactPreview(){
     </div>
     ${rejected.length ? `<div style="margin-top:8px; font-size:12px; color:var(--muted);">${rejected.length} ligne(s) non reconnue(s) et ignorée(s).</div>` : ''}
   `;
-  preview.querySelectorAll('input[data-i]').forEach(inp=>{
+  preview.querySelectorAll('[data-i]').forEach(inp=>{
     inp.addEventListener('input', ()=>{ rows[inp.dataset.i][inp.dataset.f] = inp.value; });
+    inp.addEventListener('change', ()=>{ rows[inp.dataset.i][inp.dataset.f] = inp.value; });
   });
   confirmBtn.textContent = `Importer ${rows.length} musicien·ne${rows.length>1?'s':''}`;
   confirmBtn.style.display = 'inline-block';
@@ -457,8 +539,8 @@ document.getElementById('importConfirmBtn').addEventListener('click', ()=>{
     if(!r.prenom && !r.nom) return;
     list.push({
       id: genId('mus'), prenom: r.prenom, nom: r.nom,
-      instrument: r.field3, pupitre: 'Autre', statutPoste: 'titulaire',
-      telephone: r.telephone, email: r.email, notes: '', disponibilites: {}
+      instrument: r.field3, pupitre: r.pupitre || 'Autre', statutPoste: r.statutPoste || 'titulaire',
+      telephone: r.telephone, email: r.email, notes: r.notes || '', disponibilites: {}
     });
   });
   saveMusicians(list);
