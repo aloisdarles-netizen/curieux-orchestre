@@ -742,6 +742,21 @@ function render(){
 const STATUT_PDF_LABEL = { option:'Option', validee:'Validée', annulee:'ANNULÉE' };
 const TYPE_PDF_LABEL = { concert:'Concert', residence:'Résidence' };
 
+// Date courte sans année (pour la note de bloc, où l'année est déjà visible sur
+// chaque ligne et n'a pas besoin d'être répétée).
+function fmtDateFRShortNoYear(iso){
+  if(!iso) return '';
+  const [, m, d] = iso.split('-');
+  const months = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]}`;
+}
+
+// Deux teintes très pâles, alternées d'un bloc au suivant, pour que deux blocs qui se
+// suivent directement restent visuellement distincts sans jamais être criardes —
+// appliquées à TOUTES les colonnes de la ligne (pas juste un liseré) pour que la
+// limite du bloc soit lisible même sur Ville/Salle/Commentaire.
+const BLOC_TINTS = [[253, 245, 240], [244, 245, 251]];
+
 function exportTourneePdf(tourneeId){
   if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
   const tournee = loadTournees().find(t=>t.id === tourneeId);
@@ -755,91 +770,105 @@ function exportTourneePdf(tourneeId){
   const pageWidth = doc.internal.pageSize.getWidth();
   drawCurieuxPdfHeader(doc, pageWidth, (tournee.nom || 'TOURNÉE').toUpperCase());
 
-  // Lignes appartenant à un bloc : utilisé par didDrawCell pour dessiner un repère
-  // visuel (liseré coloré, alterné d'un bloc au suivant) sur la cellule Date.
+  // Résumé en un coup d'œil sous l'en-tête : nombre de dates par statut.
+  const counts = { validee: 0, option: 0, annulee: 0 };
+  dates.forEach(d=>{ counts[['option','validee','annulee'].includes(d.statut) ? d.statut : 'option']++; });
+  doc.setFont('Host', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(120, 105, 113);
+  doc.text(
+    `${dates.length} date${dates.length>1?'s':''}  ·  ${counts.validee} validée${counts.validee>1?'s':''}  ·  ${counts.option} en option  ·  ${counts.annulee} annulée${counts.annulee>1?'s':''}`,
+    10, 24
+  );
+
+  // Lignes appartenant à un bloc, pour appliquer la teinte alternée à toutes les
+  // cellules de la ligne (didParseCell tourne par cellule, pas par ligne).
   const blocRowInfo = new Map();
 
   doc.autoTable({
-    startY: 26,
+    startY: 29,
     margin: { left: 10, right: 10 },
     head: [['Date', 'Type', 'Statut', 'Ville', 'Salle', 'Commentaire']],
     body: dates.map((d, idx)=>{
       const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
       const type = ['concert','residence'].includes(d.type) ? d.type : 'concert';
       const blocInfo = blocMap.get(d.id);
-      let dateCell = fmtDateFR(d.date);
-      if(blocInfo){
-        blocRowInfo.set(idx, blocInfo);
-        if(blocInfo.isFirst) dateCell += `\n↳ Depuis la veille (${fmtDateFR(blocInfo.veille)})`;
-        else if(blocInfo.isLast) dateCell += `\n↳ Jusqu'au lendemain (${fmtDateFR(blocInfo.lendemain)})`;
-      }
-      const row = [dateCell];
+      if(blocInfo) blocRowInfo.set(idx, blocInfo);
+
+      const row = [fmtDateFR(d.date)];
       // Type et statut sont communs à tout le bloc : une seule cellule fusionnée
       // (rowSpan) sur toute la hauteur du bloc plutôt qu'une valeur répétée par date.
+      // La note "départ veille / retour lendemain" est intégrée comme 2e ligne de la
+      // cellule Statut (fusionnée elle aussi) — autoTable calcule alors lui-même la
+      // hauteur et la position, ce qui évite tout chevauchement avec un texte dessiné
+      // à la main par-dessus.
       if(!blocInfo || blocInfo.isFirst){
         const span = blocInfo ? blocInfo.blocDates.length : 1;
         row.push({ content: TYPE_PDF_LABEL[type], rowSpan: span, styles: { valign: 'middle' } });
-        row.push({ content: STATUT_PDF_LABEL[statut], rowSpan: span, styles: { valign: 'middle' } });
+        let statutContent = STATUT_PDF_LABEL[statut];
+        if(blocInfo){
+          statutContent += `\nDép. veille ${fmtDateFRShortNoYear(blocInfo.veille)}\nRetour lend. ${fmtDateFRShortNoYear(blocInfo.lendemain)}`;
+        }
+        row.push({ content: statutContent, rowSpan: span, styles: { valign: 'middle' } });
       }
       row.push(d.ville || '', d.lieu || '', d.commentaire || '');
       return row;
     }),
-    styles: { font:'Host', fontSize:8.5, cellPadding:2.6, textColor:[20,22,23] },
+    styles: { font:'Host', fontSize:8.5, cellPadding:3, textColor:[20,22,23] },
     columnStyles: {
-      0: { cellWidth: 34, valign: 'top' }, 1: { cellWidth: 20 }, 2: { cellWidth: 20 },
-      3: { cellWidth: 38 }, 4: { cellWidth: 38 },
+      0: { cellWidth: 32 }, 1: { cellWidth: 20 }, 2: { cellWidth: 26 },
+      3: { cellWidth: 36 }, 4: { cellWidth: 36 },
     },
     headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold' },
-    alternateRowStyles: { fillColor:[253,242,240] },
+    alternateRowStyles: { fillColor:[253,248,246] },
     didParseCell: (data)=>{
       // Cellules fusionnées (rowSpan, colonnes Type/Statut d'un bloc) : le contenu
       // brut est un objet { content, rowSpan, ... } plutôt qu'une simple chaîne.
       const raw = (data.cell.raw && typeof data.cell.raw === 'object') ? data.cell.raw.content : data.cell.raw;
-      // Colonne "Statut" (index 2) : badge plein (fond + texte) plutôt qu'une simple
-      // couleur de texte, pour repérer d'un coup d'œil option/validée/annulée.
-      if(data.section === 'body' && data.column.index === 2){
+      const isStatutCol = data.column.index === 2;
+      const statutWord = isStatutCol && typeof raw === 'string' ? raw.split('\n')[0] : null;
+
+      // Bloc : teinte pâle alternée sur toute la ligne, posée AVANT les styles de
+      // badge (Statut/Résidence) pour que ces derniers restent prioritaires.
+      if(data.section === 'body' && blocRowInfo.has(data.row.index)){
+        data.cell.styles.fillColor = BLOC_TINTS[blocRowInfo.get(data.row.index).groupIndex % 2];
+      }
+
+      // Colonne "Statut" : badge plein (fond + texte) plutôt qu'une simple couleur de
+      // texte, pour repérer d'un coup d'œil option/validée/annulée ; la note de bloc
+      // (2e/3e ligne) reste plus petite et discrète.
+      if(data.section === 'body' && isStatutCol){
         data.cell.styles.fontStyle = 'bold';
-        if(raw === 'Validée'){ data.cell.styles.fillColor = [226,244,234]; data.cell.styles.textColor = [47,143,91]; }
-        else if(raw === 'ANNULÉE'){ data.cell.styles.fillColor = [251,230,226]; data.cell.styles.textColor = [178,59,46]; }
+        if(statutWord === 'Validée'){ data.cell.styles.fillColor = [226,244,234]; data.cell.styles.textColor = [47,143,91]; }
+        else if(statutWord === 'ANNULÉE'){ data.cell.styles.fillColor = [251,230,226]; data.cell.styles.textColor = [178,59,46]; }
         else { data.cell.styles.fillColor = [246,234,210]; data.cell.styles.textColor = [184,121,42]; }
       }
       if(data.section === 'body' && data.column.index === 1 && raw === 'Résidence'){
         data.cell.styles.fillColor = [251,228,213]; data.cell.styles.textColor = [193,61,15]; data.cell.styles.fontStyle = 'bold';
       }
-      // Colonne Date sur une ligne de bloc (départ veille / retour lendemain) : la
-      // 2e ligne de texte est la note "↳ Depuis la veille (...)" — on la rend plus
-      // petite et grise que la date, tout en laissant autoTable gérer lui-même le
-      // retour à la ligne et la hauteur de cellule (dessiner ce texte à la main
-      // ailleurs désynchronise la hauteur réservée et fait chevaucher les deux lignes).
-      if(data.section === 'body' && data.column.index === 0 && Array.isArray(data.cell.text) && data.cell.text.length > 1){
-        data.cell.styles.fontSize = 7.2;
-      }
     },
     didDrawCell: (data)=>{
-      // Liseré vertical sur la cellule Date des lignes de bloc — repère visuel qui
-      // ne dépend pas du texte, alterné d'un bloc au suivant pour distinguer deux
-      // blocs qui se suivent directement.
-      if(data.section === 'body' && data.column.index === 0 && blocRowInfo.has(data.row.index)){
-        const info = blocRowInfo.get(data.row.index);
-        const barColor = info.groupIndex % 2 === 0 ? [201,138,160] : [121,22,73];
-        doc.setFillColor(...barColor);
-        doc.rect(data.cell.x, data.cell.y, 1, data.cell.height, 'F');
-      }
-      // Traits de séparation sur TOUTES les colonnes (pas seulement Date) au début et
-      // à la fin d'un bloc, pour que sa limite soit visible même sur Ville/Salle/
-      // Commentaire — sinon deux blocs qui se suivent sont difficiles à distinguer
-      // en dehors de la colonne Date.
-      const info = blocRowInfo.get(data.row.index);
-      if(data.section === 'body' && info){
-        doc.setDrawColor(150, 130, 138);
-        doc.setLineWidth(0.35);
-        if(info.isFirst){
-          doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
-        }
-        if(info.isLast){
-          doc.line(data.cell.x, data.cell.y + data.cell.height, data.cell.x + data.cell.width, data.cell.y + data.cell.height);
-        }
-      }
+      // La note de bloc (lignes 2-3 de la cellule Statut) est rendue plus petite et
+      // discrète que le mot de statut — redessinée par-dessus le texte par défaut
+      // avec les mêmes coordonnées de ligne, sans toucher à la hauteur de cellule
+      // (déjà correctement calculée par autoTable pour ces 3 lignes).
+      if(data.section !== 'body' || data.column.index !== 2) return;
+      const raw = (data.cell.raw && typeof data.cell.raw === 'object') ? data.cell.raw.content : data.cell.raw;
+      if(typeof raw !== 'string' || !raw.includes('\n')) return;
+      const lines = raw.split('\n');
+      const fillColor = data.cell.styles.fillColor;
+      doc.setFillColor(...fillColor);
+      doc.rect(data.cell.x + 0.3, data.cell.y + 0.3, data.cell.width - 0.6, data.cell.height - 0.6, 'F');
+      doc.setFont('Host', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...data.cell.styles.textColor);
+      const midY = data.cell.y + data.cell.height / 2;
+      doc.text(lines[0], data.cell.x + data.cell.padding('left'), midY - 3.4);
+      doc.setFont('Host', 'normal');
+      doc.setFontSize(6.6);
+      doc.setTextColor(120, 105, 113);
+      doc.text(lines[1], data.cell.x + data.cell.padding('left'), midY + 1.6);
+      doc.text(lines[2], data.cell.x + data.cell.padding('left'), midY + 5);
     }
   });
 
