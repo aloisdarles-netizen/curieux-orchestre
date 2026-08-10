@@ -349,6 +349,7 @@
     <button class="btn-primary" id="generateFdrBtn">Générer le PDF</button>
     <button class="btn-ghost" id="newFdrBtn">+ Nouvelle feuille de route</button>
     <button class="btn-ghost" id="resetFdrBtn">Réinitialiser le formulaire</button>
+    <button class="btn-danger" id="deleteFdrBtn">🗑 Supprimer cette feuille de route</button>
   </div>
 </div>
 
@@ -835,6 +836,15 @@ document.getElementById('resetFdrBtn').addEventListener('click', ()=>{
   }
 });
 document.getElementById('newFdrBtn').addEventListener('click', createNewFdr);
+
+document.getElementById('deleteFdrBtn').addEventListener('click', ()=>{
+  const desc = [state.artistName || 'Feuille de route sans titre', state.eventDate ? fmtDateFRLong(state.eventDate) : ''].filter(Boolean).join(' — ');
+  if(!confirm(`Supprimer DÉFINITIVEMENT la feuille de route "${desc}" ?\n\nCette action est irréversible : contacts, trajets, planning et toutes les infos saisies pour cette date seront perdus.`)) return;
+  const collection = loadFdrCollection().filter(f => f.id !== state.id);
+  saveFdrCollection(collection);
+  if(localStorage.getItem(FDR_LAST_ID_KEY) === state.id) localStorage.removeItem(FDR_LAST_ID_KEY);
+  location.href = 'accueil.html';
+});
 
 // --- Récupérer le train depuis SNCF Connect (uniquement pour la feuille de route) ---
 const TRAIN_TYPE_PATTERNS_FDR = [
