@@ -154,12 +154,23 @@ create policy "public full access" on newsletter_snapshot for all using (true) w
 -- Realtime : ajoute les tables à la publication utilisée par le Realtime
 -- de Supabase, pour que les changements se propagent instantanément.
 -- ============================================================================
-alter publication supabase_realtime add table musiciens;
-alter publication supabase_realtime add table techniciens;
-alter publication supabase_realtime add table tournees;
-alter publication supabase_realtime add table feuilles_route;
-alter publication supabase_realtime add table carnet_contacts;
-alter publication supabase_realtime add table newsletter_snapshot;
+-- "add table" échoue si la table est déjà membre de la publication (pas de variante
+-- "if not exists" en SQL pur) — on vérifie donc via pg_publication_tables avant d'ajouter,
+-- pour que ce fichier reste rejouable tel quel sans erreur sur une base déjà provisionnée.
+do $$
+declare
+  tbl text;
+begin
+  foreach tbl in array array['musiciens','techniciens','tournees','feuilles_route','carnet_contacts','newsletter_snapshot']
+  loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = tbl
+    ) then
+      execute format('alter publication supabase_realtime add table %I', tbl);
+    end if;
+  end loop;
+end $$;
 
 -- Replica identity FULL : permet à Realtime d'envoyer l'ancienne ET la nouvelle
 -- ligne sur UPDATE/DELETE (utile pour reconstruire l'état côté client).
