@@ -280,6 +280,12 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
     statusHtml = `<span style="font-size:11px; color:var(--muted); white-space:nowrap;">En attente</span>`;
   }
   const isRemplacant = (person.statutPoste || 'titulaire') === 'remplacant';
+  // Les technicien·nes (titulaires ou remplaçant·es) peuvent être sollicité·es sur une
+  // partie seulement des dates d'une tournée (contrairement aux musicien·nes titulaires,
+  // engagé·es sur la tournée entière) — on leur propose donc toujours le choix des dates,
+  // à la génération comme après coup. Les remplaçant·es (tout pupitre) gardent ce choix
+  // aussi, puisqu'ils/elles ne sont jamais sollicité·es par défaut sur la tournée entière.
+  const showDatesOption = isRemplacant || personType === 'technicien';
   const datesTag = existing && existing.dates && existing.dates.length > 0
     ? `<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--border); color:var(--muted); vertical-align:middle;" title="Lien restreint à ${existing.dates.length} date${existing.dates.length>1?'s':''}">${existing.dates.length} date${existing.dates.length>1?'s':''}</span>`
     : '';
@@ -293,12 +299,16 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
         ${statusHtml}
         ${url
           ? `<button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>
-             ${isRemplacant ? `<button type="button" class="btn-ghost btn-sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées">📅 Dates</button>` : ''}
+             ${showDatesOption ? `<button type="button" class="btn-ghost btn-sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées">📅 Dates</button>` : ''}
              <button type="button" class="btn-ghost btn-sm" data-delete-link="${escapeAttr(existing.id)}" title="Supprimer ce lien" style="color:var(--ko, #b23b2e);"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg></button>`
-          : `<button type="button" class="btn-secondary btn-sm" data-gen-link data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
+          : (personType === 'technicien'
+              ? `<button type="button" class="btn-secondary btn-sm" data-toggle-new-dates data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">+ Générer</button>`
+              : `<button type="button" class="btn-secondary btn-sm" data-gen-link data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
+            )
         }
       </div>
-      ${(isRemplacant && existing) ? `<div data-edit-dates-panel style="display:none; margin:0 0 10px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>` : ''}
+      ${(showDatesOption && existing) ? `<div data-edit-dates-panel style="display:none; margin:0 0 10px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>` : ''}
+      ${(!existing && personType === 'technicien') ? `<div data-new-dates-panel style="display:none; margin:0 0 10px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>` : ''}
     </div>
   `;
 }
@@ -375,6 +385,32 @@ function render(){
       btn.disabled = true; btn.textContent = '…';
       await generateDispoLink(btn.dataset.tournee, btn.dataset.personType, btn.dataset.personId);
       render();
+    });
+  });
+  holder.querySelectorAll('[data-toggle-new-dates]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const wrap = btn.closest('[data-demande-wrap]');
+      const panel = wrap.querySelector('[data-new-dates-panel]');
+      const opening = panel.style.display === 'none';
+      holder.querySelectorAll('[data-new-dates-panel], [data-edit-dates-panel]').forEach(p=> p.style.display = 'none');
+      if(!opening) return;
+      panel.innerHTML = remplacantDatesPanelHtml(btn.dataset.tournee, null, 'Générer le lien');
+      panel.style.display = 'block';
+      const toggleAllBtn = panel.querySelector('[data-toggle-all-dates]');
+      if(toggleAllBtn) toggleAllBtn.addEventListener('click', ()=>{
+        const boxes = panel.querySelectorAll('[data-date-checkbox]');
+        const allChecked = Array.from(boxes).every(b=> b.checked);
+        boxes.forEach(b=> b.checked = !allChecked);
+      });
+      const confirmBtn = panel.querySelector('[data-confirm-gen-dates]');
+      if(confirmBtn) confirmBtn.addEventListener('click', async ()=>{
+        const boxes = Array.from(panel.querySelectorAll('[data-date-checkbox]'));
+        const checked = boxes.filter(b=> b.checked).map(b=> b.value);
+        const dates = (checked.length === boxes.length) ? [] : checked;
+        confirmBtn.disabled = true; confirmBtn.textContent = '…';
+        await generateDispoLink(btn.dataset.tournee, btn.dataset.personType, btn.dataset.personId, dates);
+        render();
+      });
     });
   });
   holder.querySelectorAll('[data-delete-link]').forEach(btn=>{
