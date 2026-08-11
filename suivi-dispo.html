@@ -165,17 +165,20 @@ async function generateDispoLink(tourneeId, personType, personId, dates){
   return entry;
 }
 
-// Panneau de sélection de dates précises (remplaçant·es uniquement) : coché par défaut
-// = pas de restriction (dates:[] côté DB, valable pour les dates ajoutées plus tard) ;
-// décocher certaines dates fige la liste transmise à generateDispoLink.
-function remplacantDatesPanelHtml(tourneeId){
+// Panneau de sélection de dates précises (remplaçant·es uniquement). checkedIds=null
+// = pas de restriction connue, tout est coché par défaut (flux "nouveau lien") ; un
+// tableau (même vide) coche exactement ces dates (flux "modifier les dates" d'un lien
+// existant). dates:[] envoyé à la sauvegarde = pas de restriction (valable pour les
+// dates ajoutées plus tard) — c'est pour ça qu'on ne renvoie [] que si TOUT est coché.
+function remplacantDatesPanelHtml(tourneeId, checkedIds, confirmLabel){
   const tournee = loadTournees().find(t=> t.id === tourneeId);
   const dates = (tournee && tournee.dates || []).filter(d=> d.date && d.statut !== 'annulee')
     .slice().sort((a,b)=> a.date.localeCompare(b.date));
   if(dates.length === 0) return `<div class="empty-hint" style="padding:6px 0;">Aucune date pour l'instant.</div>`;
+  const checkedSet = checkedIds ? new Set(checkedIds) : null;
   const items = dates.map(d=> `
     <label style="display:flex; align-items:center; gap:6px; font-size:12px; padding:3px 0;">
-      <input type="checkbox" data-date-checkbox value="${escapeAttr(d.id)}" checked>
+      <input type="checkbox" data-date-checkbox value="${escapeAttr(d.id)}" ${(!checkedSet || checkedSet.has(d.id)) ? 'checked' : ''}>
       ${escapeHtml(fmtDateFR(d.date))}${d.ville ? ' · '+escapeHtml(d.ville) : ''}
     </label>
   `).join('');
@@ -184,7 +187,7 @@ function remplacantDatesPanelHtml(tourneeId){
     ${items}
     <div style="display:flex; gap:8px; margin-top:8px;">
       <button type="button" class="btn-ghost btn-sm" data-toggle-all-dates>Tout (dé)cocher</button>
-      <button type="button" class="btn-secondary btn-sm" data-confirm-gen-dates>Générer le lien</button>
+      <button type="button" class="btn-secondary btn-sm" data-confirm-gen-dates>${escapeHtml(confirmLabel || 'Générer le lien')}</button>
     </div>
   `;
 }
@@ -281,18 +284,35 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
     ? `<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--border); color:var(--muted); vertical-align:middle;" title="Lien restreint à ${existing.dates.length} date${existing.dates.length>1?'s':''}">${existing.dates.length} date${existing.dates.length>1?'s':''}</span>`
     : '';
   return `
-    <div class="dispo-row">
-      <div style="flex:1; min-width:0;">
-        <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? '<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;">Remplaçant·e</span>' : ''} ${datesTag}</div>
-        <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
+    <div data-demande-wrap="${existing ? escapeAttr(existing.id) : ''}">
+      <div class="dispo-row">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? '<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;">Remplaçant·e</span>' : ''} ${datesTag}</div>
+          <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
+        </div>
+        ${statusHtml}
+        ${url
+          ? `<button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>
+             ${isRemplacant ? `<button type="button" class="btn-ghost btn-sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées">📅 Dates</button>` : ''}
+             <button type="button" class="btn-ghost btn-sm" data-delete-link="${escapeAttr(existing.id)}" title="Supprimer ce lien" style="color:var(--ko, #b23b2e);"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg></button>`
+          : `<button type="button" class="btn-secondary btn-sm" data-gen-link data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
+        }
       </div>
-      ${statusHtml}
-      ${url
-        ? `<button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>`
-        : `<button type="button" class="btn-secondary btn-sm" data-gen-link data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
-      }
+      ${(isRemplacant && existing) ? `<div data-edit-dates-panel style="display:none; margin:0 0 10px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>` : ''}
     </div>
   `;
+}
+
+async function removeDispoLink(demandeId){
+  await CurieuxDB.removeOne('dispo_demandes', demandeId);
+  dispoDemandesCache = dispoDemandesCache.filter(d=> d.id !== demandeId);
+}
+
+async function updateDispoLinkDates(demandeId, dates){
+  const entry = dispoDemandesCache.find(d=> d.id === demandeId);
+  if(!entry) return;
+  entry.dates = dates;
+  await CurieuxDB.upsertOne('dispo_demandes', entry);
 }
 
 function render(){
@@ -355,6 +375,43 @@ function render(){
       btn.disabled = true; btn.textContent = '…';
       await generateDispoLink(btn.dataset.tournee, btn.dataset.personType, btn.dataset.personId);
       render();
+    });
+  });
+  holder.querySelectorAll('[data-delete-link]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Supprimer ce lien ? La personne ne pourra plus y accéder pour donner ou mettre à jour ses dispo.')) return;
+      btn.disabled = true;
+      await removeDispoLink(btn.dataset.deleteLink);
+      render();
+    });
+  });
+  holder.querySelectorAll('[data-toggle-edit-dates]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const wrap = btn.closest('[data-demande-wrap]');
+      const demandeId = wrap.dataset.demandeWrap;
+      const panel = wrap.querySelector('[data-edit-dates-panel]');
+      const opening = panel.style.display === 'none';
+      holder.querySelectorAll('[data-edit-dates-panel]').forEach(p=> p.style.display = 'none');
+      if(!opening) return;
+      const entry = loadDispoDemandes().find(d=> d.id === demandeId);
+      const currentDates = (entry && entry.dates && entry.dates.length > 0) ? entry.dates : null;
+      panel.innerHTML = remplacantDatesPanelHtml(btn.dataset.tournee, currentDates, 'Enregistrer les dates');
+      panel.style.display = 'block';
+      const toggleAllBtn = panel.querySelector('[data-toggle-all-dates]');
+      if(toggleAllBtn) toggleAllBtn.addEventListener('click', ()=>{
+        const boxes = panel.querySelectorAll('[data-date-checkbox]');
+        const allChecked = Array.from(boxes).every(b=> b.checked);
+        boxes.forEach(b=> b.checked = !allChecked);
+      });
+      const confirmBtn = panel.querySelector('[data-confirm-gen-dates]');
+      if(confirmBtn) confirmBtn.addEventListener('click', async ()=>{
+        const boxes = Array.from(panel.querySelectorAll('[data-date-checkbox]'));
+        const checked = boxes.filter(b=> b.checked).map(b=> b.value);
+        const dates = (checked.length === boxes.length) ? [] : checked;
+        confirmBtn.disabled = true; confirmBtn.textContent = '…';
+        await updateDispoLinkDates(demandeId, dates);
+        render();
+      });
     });
   });
   holder.querySelectorAll('[data-copy-link]').forEach(btn=>{
