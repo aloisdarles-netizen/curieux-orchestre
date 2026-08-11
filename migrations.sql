@@ -28,13 +28,16 @@ create table if not exists musiciens (
   email text default '',
   notes text default '',
   disponibilites jsonb not null default '{}'::jsonb,
+  disponibilites_commentaires jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
--- Rang de priorité des remplaçant·es (1 = à contacter en premier) : ajouté après la
--- création initiale de la table, donc "add column if not exists" pour une base déjà
--- provisionnée (le "create table if not exists" ci-dessus ne touche pas une table existante).
+-- Rang de priorité des remplaçant·es (1 = à contacter en premier) et commentaire par
+-- date de dispo : ajoutés après la création initiale de la table, donc "add column if
+-- not exists" pour une base déjà provisionnée (le "create table if not exists" ci-dessus
+-- ne touche pas une table existante).
 alter table musiciens add column if not exists rang integer;
+alter table musiciens add column if not exists disponibilites_commentaires jsonb not null default '{}'::jsonb;
 drop trigger if exists trg_musiciens_updated_at on musiciens;
 create trigger trg_musiciens_updated_at before update on musiciens
   for each row execute function set_updated_at();
@@ -52,9 +55,11 @@ create table if not exists techniciens (
   email text default '',
   notes text default '',
   disponibilites jsonb not null default '{}'::jsonb,
+  disponibilites_commentaires jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table techniciens add column if not exists disponibilites_commentaires jsonb not null default '{}'::jsonb;
 drop trigger if exists trg_techniciens_updated_at on techniciens;
 create trigger trg_techniciens_updated_at before update on techniciens
   for each row execute function set_updated_at();
@@ -122,6 +127,24 @@ drop trigger if exists trg_newsletter_snapshot_updated_at on newsletter_snapshot
 create trigger trg_newsletter_snapshot_updated_at before update on newsletter_snapshot
   for each row execute function set_updated_at();
 
+-- ----------------------------------------------------------------------------
+-- dispo_demandes  (liens personnels de demande de disponibilité, envoyés aux
+-- titulaires uniquement — un token imprévisible par personne/tournée, pas de
+-- compte : "id" EST le token utilisé dans l'URL du lien).
+-- ----------------------------------------------------------------------------
+create table if not exists dispo_demandes (
+  id text primary key,
+  tournee_id text not null references tournees(id) on delete cascade,
+  person_type text not null check (person_type in ('musicien','technicien')),
+  person_id text not null,
+  last_responded_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_dispo_demandes_updated_at on dispo_demandes;
+create trigger trg_dispo_demandes_updated_at before update on dispo_demandes
+  for each row execute function set_updated_at();
+
 -- ============================================================================
 -- RLS : accès public en lecture/écriture (pas de compte utilisateur).
 -- ============================================================================
@@ -131,6 +154,7 @@ alter table tournees enable row level security;
 alter table feuilles_route enable row level security;
 alter table carnet_contacts enable row level security;
 alter table newsletter_snapshot enable row level security;
+alter table dispo_demandes enable row level security;
 
 drop policy if exists "public full access" on musiciens;
 create policy "public full access" on musiciens for all using (true) with check (true);
@@ -150,6 +174,9 @@ create policy "public full access" on carnet_contacts for all using (true) with 
 drop policy if exists "public full access" on newsletter_snapshot;
 create policy "public full access" on newsletter_snapshot for all using (true) with check (true);
 
+drop policy if exists "public full access" on dispo_demandes;
+create policy "public full access" on dispo_demandes for all using (true) with check (true);
+
 -- ============================================================================
 -- Realtime : ajoute les tables à la publication utilisée par le Realtime
 -- de Supabase, pour que les changements se propagent instantanément.
@@ -161,7 +188,7 @@ do $$
 declare
   tbl text;
 begin
-  foreach tbl in array array['musiciens','techniciens','tournees','feuilles_route','carnet_contacts','newsletter_snapshot']
+  foreach tbl in array array['musiciens','techniciens','tournees','feuilles_route','carnet_contacts','newsletter_snapshot','dispo_demandes']
   loop
     if not exists (
       select 1 from pg_publication_tables
@@ -180,3 +207,4 @@ alter table tournees replica identity full;
 alter table feuilles_route replica identity full;
 alter table carnet_contacts replica identity full;
 alter table newsletter_snapshot replica identity full;
+alter table dispo_demandes replica identity full;

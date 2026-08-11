@@ -178,6 +178,7 @@
       <a href="techniciens.html">Technicien·nes</a>
       <a href="disponibilites.html">Disponibilités</a>
       <a href="feuille-de-route.html">Feuille de route</a>
+      <a href="suivi-dispo.html">Dispo titulaires</a>
     </nav>
   </div>
   <h1>Tournées</h1>
@@ -213,6 +214,20 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="dispoLinksOverlay">
+  <div class="modal" style="max-width:640px;">
+    <h2>Liens de dispo — titulaires</h2>
+    <p class="modal-sub">Un lien personnel par titulaire (musicien·nes et technicien·nes) — les remplaçant·es ne sont pas sollicité·es directement, on les contacte via le rang de priorité dans l'annuaire quand un·e titulaire décline.</p>
+    <div class="modal-actions" style="justify-content:flex-start;">
+      <button type="button" class="btn-secondary btn-sm" id="dispoLinksCopyAllBtn">📋 Copier tous les liens</button>
+    </div>
+    <div id="dispoLinksList" style="max-height:55vh; overflow-y:auto; margin-top:10px;"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="dispoLinksCloseBtn">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="assignOverlay">
   <div class="modal">
     <h2 id="assignTitle">Affecter des musicien·nes</h2>
@@ -240,6 +255,9 @@ let tourneesCache = [];
 let fdrsCache = [];
 let musiciansCache = [];
 let techniciansCache = [];
+let dispoDemandesCache = [];
+
+function loadDispoDemandes(){ return dispoDemandesCache; }
 
 function loadFdrCollection(){ return fdrsCache; }
 function saveFdrCollection(list){
@@ -705,6 +723,7 @@ function render(){
           <div class="tournee-head">
             <div class="tournee-name" contenteditable="true" data-rename-tournee="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Tournée sans nom')}</div>
             <div class="row-actions">
+              <button type="button" class="btn-secondary btn-sm" data-dispo-links="${escapeAttr(t.id)}">🔗 Dispo titulaires</button>
               <button type="button" class="btn-secondary btn-sm" data-export-tournee="${escapeAttr(t.id)}">📄 Exporter en PDF</button>
               <button type="button" class="btn-danger btn-sm" data-del-tournee="${escapeAttr(t.id)}">Supprimer la tournée</button>
             </div>
@@ -866,6 +885,119 @@ function exportTourneePdf(tourneeId){
   doc.save(`Tournee_${(tournee.nom||'tournee').trim().replace(/[^a-z0-9]+/gi,'_')}.pdf`);
 }
 
+// --- Liens personnels de dispo (titulaires uniquement) ---------------------------
+let dispoLinksCurrentTourneeId = null;
+
+function dispoLinkUrl(demandeId){
+  const base = location.href.slice(0, location.href.lastIndexOf('/') + 1);
+  return `${base}dispo-titulaire.html?token=${encodeURIComponent(demandeId)}`;
+}
+
+function openDispoLinksModal(tourneeId){
+  dispoLinksCurrentTourneeId = tourneeId;
+  renderDispoLinksModal(tourneeId);
+  document.getElementById('dispoLinksOverlay').classList.add('open');
+}
+function closeDispoLinksModal(){
+  document.getElementById('dispoLinksOverlay').classList.remove('open');
+  dispoLinksCurrentTourneeId = null;
+}
+
+async function generateDispoLink(tourneeId, personType, personId){
+  const demandes = loadDispoDemandes();
+  const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === personId);
+  if(existing) return existing;
+  const entry = { id: genId('demande'), tourneeId, personType, personId };
+  demandes.push(entry);
+  dispoDemandesCache = demandes;
+  await CurieuxDB.upsertOne('dispo_demandes', entry);
+  return entry;
+}
+
+function renderDispoLinksModal(tourneeId){
+  // Titulaires uniquement : les remplaçant·es sont contactés via le rang de priorité
+  // dans l'annuaire quand un·e titulaire décline, pas par ce lien.
+  const titulaireMusiciens = loadMusicians().filter(m=> (m.statutPoste||'titulaire') === 'titulaire')
+    .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const titulaireTechniciens = loadTechnicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const demandes = loadDispoDemandes();
+  const tournee = loadTournees().find(t=> t.id === tourneeId);
+  // Dates actuelles à répondre (hors annulées) — sert à détecter les personnes qui ont
+  // déjà répondu à un premier lot de dates mais pas encore aux dates ajoutées depuis.
+  const answerableDates = (tournee && tournee.dates || []).filter(d=> d.date && d.statut !== 'annulee');
+
+  function rowFor(person, personType, roleLabel){
+    const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === person.id);
+    const url = existing ? dispoLinkUrl(existing.id) : null;
+    const dispo = person.disponibilites || {};
+    const allAnswered = answerableDates.length > 0 && answerableDates.every(d=> dispo[d.date]);
+    let statusHtml;
+    if(!existing){
+      statusHtml = '';
+    } else if(allAnswered){
+      statusHtml = `<span style="font-size:11px; color:var(--ok); font-weight:700; white-space:nowrap;">✓ Répondu</span>`;
+    } else if(existing.lastRespondedAt){
+      statusHtml = `<span style="font-size:11px; color:var(--maybe); font-weight:700; white-space:nowrap;" title="A déjà répondu, mais de nouvelles dates ont été ajoutées depuis">🕓 Nouvelles dates</span>`;
+    } else {
+      statusHtml = `<span style="font-size:11px; color:var(--muted); white-space:nowrap;">En attente</span>`;
+    }
+    return `
+      <div style="display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid var(--border);">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))}</div>
+          <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
+        </div>
+        ${statusHtml}
+        ${url
+          ? `<button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}">📋 Copier</button>`
+          : `<button type="button" class="btn-secondary btn-sm" data-gen-link data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
+        }
+      </div>
+    `;
+  }
+
+  const html = `${titulaireMusiciens.map(m=> rowFor(m, 'musicien', m.instrument || 'Musicien·ne')).join('')}${titulaireTechniciens.map(t=> rowFor(t, 'technicien', t.poste || 'Technicien·ne')).join('')}`;
+  const list = document.getElementById('dispoLinksList');
+  list.innerHTML = html || `<div class="empty-hint">Aucun·e titulaire dans l'annuaire pour l'instant.</div>`;
+
+  list.querySelectorAll('[data-gen-link]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true; btn.textContent = '…';
+      await generateDispoLink(tourneeId, btn.dataset.personType, btn.dataset.personId);
+      renderDispoLinksModal(tourneeId);
+    });
+  });
+  list.querySelectorAll('[data-copy-link]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      navigator.clipboard.writeText(btn.dataset.copyLink).then(()=>{
+        const old = btn.textContent;
+        btn.textContent = '✓ Copié';
+        setTimeout(()=>{ btn.textContent = old; }, 1500);
+      });
+    });
+  });
+}
+
+document.getElementById('dispoLinksCloseBtn').addEventListener('click', closeDispoLinksModal);
+document.getElementById('dispoLinksOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'dispoLinksOverlay') closeDispoLinksModal(); });
+document.getElementById('dispoLinksCopyAllBtn').addEventListener('click', async ()=>{
+  const tourneeId = dispoLinksCurrentTourneeId;
+  if(!tourneeId) return;
+  const people = [
+    ...loadMusicians().filter(m=> (m.statutPoste||'titulaire') === 'titulaire').map(person=>({ person, personType:'musicien' })),
+    ...loadTechnicians().map(person=>({ person, personType:'technicien' })),
+  ];
+  const lines = [];
+  for(const { person, personType } of people){
+    const entry = await generateDispoLink(tourneeId, personType, person.id);
+    lines.push(`${fullName(person)} : ${dispoLinkUrl(entry.id)}`);
+  }
+  renderDispoLinksModal(tourneeId);
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>{
+    alert(`${lines.length} lien${lines.length>1?'s':''} copié${lines.length>1?'s':''} dans le presse-papiers.`);
+  });
+});
+
 function bindTourneeEvents(){
   document.querySelectorAll('[data-import-dates]').forEach(btn=>{
     btn.addEventListener('click', ()=> openImportModal(btn.dataset.importDates));
@@ -899,6 +1031,9 @@ function bindTourneeEvents(){
   });
   document.querySelectorAll('[data-export-tournee]').forEach(btn=>{
     btn.addEventListener('click', ()=> exportTourneePdf(btn.dataset.exportTournee));
+  });
+  document.querySelectorAll('[data-dispo-links]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openDispoLinksModal(btn.dataset.dispoLinks));
   });
   document.querySelectorAll('[data-add-date]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -1051,11 +1186,12 @@ function scrollToHash(){
 }
 
 async function initData(){
-  [tourneesCache, fdrsCache, musiciansCache, techniciansCache] = await Promise.all([
+  [tourneesCache, fdrsCache, musiciansCache, techniciansCache, dispoDemandesCache] = await Promise.all([
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('feuilles_route'),
     CurieuxDB.fetchAll('musiciens'),
     CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('dispo_demandes'),
   ]);
   render();
   scrollToHash();
@@ -1064,6 +1200,7 @@ CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>
 CurieuxDB.subscribe('feuilles_route', ()=>{ CurieuxDB.fetchAll('feuilles_route').then(list=>{ fdrsCache = list; render(); }); });
 CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; render(); }); });
 CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; render(); }); });
+CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; if(document.getElementById('dispoLinksOverlay').classList.contains('open')) renderDispoLinksModal(dispoLinksCurrentTourneeId); }); });
 initData();
 </script>
 </body>

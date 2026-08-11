@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Tes disponibilités</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<!-- Page volontairement PUBLIQUE : pas de hideCurieuxPageUntilUnlocked()/applyCurieuxPasswordGate()
+     ici, contrairement à toutes les autres pages — ce lien est envoyé à des titulaires qui n'ont
+     pas forcément le mot de passe partagé de l'app interne. L'identification se fait par le token
+     imprévisible dans l'URL, pas par ce mot de passe. -->
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --champagne:#fde3ee; --old-champagne:#c98aa0;
+    --ok:#2f8f5b; --ok-tint:#e2f4ea;
+    --ko:#b23b2e; --ko-tint:#fbe6e2;
+    --maybe:#b8792a; --maybe-tint:#f6ead2;
+    --radius:12px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --champagne:#3a2530; --old-champagne:#7a5064;
+    --ok:#7fd9a6; --ok-tint:#1c3327;
+    --ko:#e2825a; --ko-tint:#3d2420;
+    --maybe:#e8bd7c; --maybe-tint:#3a2f1c;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:20px 14px 80px;
+  }
+  .wrap{max-width:640px; margin:0 auto;}
+  .brand-logo-img{height:28px; width:auto; display:block; margin:0 auto 22px;}
+
+  .state-box{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:22px 20px; text-align:center; color:var(--muted); font-size:14px;}
+
+  .identity-banner{
+    background:var(--champagne); border-radius:var(--radius); padding:14px 18px; margin-bottom:16px;
+    font-size:14px;
+  }
+  .identity-banner strong{color:var(--accent-dark);}
+  .identity-note{font-size:11.5px; color:var(--muted); margin-top:4px;}
+
+  h1{font-size:20px; margin:0 0 6px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .intro-text{font-size:12.5px; color:var(--muted); line-height:1.55; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; margin-bottom:22px;}
+  .intro-text p{margin:0 0 8px;}
+  .intro-text p:last-child{margin-bottom:0;}
+
+  .month-header{
+    font-size:13.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
+    margin:26px 0 10px; display:flex; align-items:center; gap:8px;
+  }
+  .month-header::before{content:''; width:5px; height:14px; border-radius:3px; background:var(--accent); display:inline-block;}
+
+  .bloc-banner{
+    font-size:11.5px; color:var(--accent-dark); background:var(--accent-tint); border-radius:8px;
+    padding:7px 12px; margin-bottom:8px; display:flex; align-items:center; gap:6px;
+  }
+  .travel-note{
+    font-size:11.5px; color:var(--muted); text-align:center; padding:6px 0; font-style:italic;
+  }
+
+  .date-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:10px;
+  }
+  .date-card-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px; flex-wrap:wrap;}
+  .date-label{font-weight:800; font-size:14.5px;}
+  .date-place{color:var(--muted); font-size:12.5px;}
+  .isolated-tag{
+    font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 7px; border-radius:20px; background:var(--border); color:var(--muted); margin-left:8px; vertical-align:middle;
+  }
+
+  .state-toggle{display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;}
+  .state-btn{
+    padding:9px 4px; border-radius:8px; border:1px solid var(--border); background:var(--bg);
+    color:var(--muted); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit;
+    transition:background .15s, color .15s, border-color .15s;
+  }
+  .state-btn.active.dispo{background:var(--ok); border-color:var(--ok); color:#fff;}
+  .state-btn.active.indispo{background:var(--ko); border-color:var(--ko); color:#fff;}
+  .state-btn.active.incertain{background:var(--maybe); border-color:var(--maybe); color:#fff;}
+
+  .date-comment{
+    width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px;
+    background:var(--bg); color:var(--text); font-family:inherit;
+  }
+  .date-comment:focus{outline:2px solid var(--accent); outline-offset:1px;}
+
+  .save-flash{
+    position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--accent); color:#fff; font-size:12.5px; font-weight:700; padding:9px 18px;
+    border-radius:20px; opacity:0; transition:opacity .25s, transform .25s; pointer-events:none;
+    box-shadow:0 8px 24px rgba(0,0,0,.2);
+  }
+  .save-flash.show{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+  <div id="content"><div class="state-box">Chargement…</div></div>
+</div>
+<div class="save-flash" id="saveFlash">Réponses enregistrées ✓</div>
+
+<script>
+function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(str){ return escapeHtml(str); }
+function fullName(p){ return [p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom'; }
+
+const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+function fmtMonthYear(iso){
+  const [y,m] = iso.split('-');
+  return `${MONTHS_FR[parseInt(m,10)-1]} ${y}`;
+}
+function fmtDateFRLong(iso){
+  const [y,m,d] = iso.split('-');
+  return `${parseInt(d,10)} ${MONTHS_FR[parseInt(m,10)-1]}`;
+}
+function fmtDateFRShort(iso){
+  const [y,m,d] = iso.split('-');
+  const short = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d,10)} ${short[parseInt(m,10)-1]}`;
+}
+function addDaysIso(iso, delta){
+  const [y,m,d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m-1, d));
+  dt.setUTCDate(dt.getUTCDate() + delta);
+  return dt.toISOString().slice(0,10);
+}
+function daysBetween(isoA, isoB){
+  const [ya,ma,da] = isoA.split('-').map(Number);
+  const [yb,mb,db] = isoB.split('-').map(Number);
+  return Math.round((Date.UTC(yb,mb-1,db) - Date.UTC(ya,ma-1,da)) / 86400000);
+}
+// Même logique de regroupement en blocs que tournees.html (dates consécutives liées).
+function computeBlocMap(datesSorted){
+  const map = new Map();
+  let i = 0;
+  while(i < datesSorted.length){
+    let j = i;
+    while(j < datesSorted.length - 1 && datesSorted[j].linkedToNext) j++;
+    const blocDates = datesSorted.slice(i, j+1);
+    if(blocDates.length > 1){
+      blocDates.forEach((d, idx)=> map.set(d.id, {
+        blocDates, isFirst: idx===0, isLast: idx===blocDates.length-1,
+        veille: addDaysIso(blocDates[0].date, -1),
+        lendemain: addDaysIso(blocDates[blocDates.length-1].date, 1)
+      }));
+    }
+    i = j + 1;
+  }
+  return map;
+}
+
+let state = { demande:null, tournee:null, person:null, personType:null };
+let saveTimer = null;
+
+function showState(html){
+  document.getElementById('content').innerHTML = `<div class="state-box">${html}</div>`;
+}
+
+async function init(){
+  if(!window.supabase){ showState("La librairie n'a pas pu être chargée. Réessaie dans un instant."); return; }
+  const token = new URLSearchParams(location.search).get('token');
+  if(!token){ showState("Lien invalide — il manque le jeton d'accès."); return; }
+
+  const { data: demande } = await supabaseClient.from('dispo_demandes').select('*').eq('id', token).maybeSingle();
+  if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
+
+  const personTable = demande.person_type === 'musicien' ? 'musiciens' : 'techniciens';
+  const [tourneeRes, personRes] = await Promise.all([
+    supabaseClient.from('tournees').select('*').eq('id', demande.tournee_id).maybeSingle(),
+    supabaseClient.from(personTable).select('*').eq('id', demande.person_id).maybeSingle()
+  ]);
+  if(!tourneeRes.data || !personRes.data){ showState("Cette tournée ou cette fiche n'existe plus."); return; }
+
+  state.demande = demande;
+  state.tournee = tourneeRes.data;
+  state.personType = demande.person_type;
+  state.person = personRes.data;
+  if(!state.person.disponibilites) state.person.disponibilites = {};
+  if(!state.person.disponibilites_commentaires) state.person.disponibilites_commentaires = {};
+
+  render();
+}
+
+function render(){
+  // Le bloc (linkedToNext) se calcule sur TOUTES les dates triées, annulées incluses —
+  // exactement comme dans tournees.html. Filtrer les annulées AVANT de calculer le bloc
+  // décale artificiellement les liaisons linkedToNext et peut rattacher une date isolée
+  // au bloc précédent une fois l'écart comblé par le filtre. On filtre donc seulement
+  // à l'affichage, jamais avant computeBlocMap.
+  const allDates = (state.tournee.dates || [])
+    .filter(d=> d.date)
+    .slice().sort((a,b)=> a.date.localeCompare(b.date));
+  const dates = allDates.filter(d=> d.statut !== 'annulee');
+
+  if(dates.length === 0){
+    showState("Aucune date à renseigner pour l'instant sur cette tournée.");
+    return;
+  }
+
+  const blocMap = computeBlocMap(allDates);
+  const dispo = state.person.disponibilites;
+  const commentaires = state.person.disponibilites_commentaires;
+
+  let html = `
+    <h1>Tes disponibilités</h1>
+    <div class="identity-banner">
+      Bonjour <strong>${escapeHtml(fullName(state.person))}</strong> — merci de compléter tes dispo pour
+      <strong>${escapeHtml(state.tournee.nom || 'la tournée')}</strong>.
+      <div class="identity-note">Ce lien t'est personnel, pas la peine de le transférer. Tu peux revenir dessus à tout moment pour mettre à jour tes réponses.</div>
+    </div>
+    <div class="intro-text">
+      <p>Les dates ci-dessous sont <strong>strictement confidentielles</strong> — merci de ne pas les diffuser en dehors de l'équipe.</p>
+      <p>Ce document ne représente pas une embauche ferme : ce sont des options qui doivent être validées et peuvent évoluer.</p>
+      <p>Si tu es indisponible, nous contacterons directement les remplaçant·es concerné·es — inutile de le faire toi-même.</p>
+    </div>
+  `;
+
+  let currentMonth = null;
+  dates.forEach((d, idx)=>{
+    const monthKey = d.date.slice(0,7);
+    if(monthKey !== currentMonth){
+      currentMonth = monthKey;
+      html += `<div class="month-header">${escapeHtml(fmtMonthYear(d.date))}</div>`;
+    }
+
+    const blocInfo = blocMap.get(d.id);
+    if(blocInfo && blocInfo.isFirst){
+      html += `<div class="bloc-banner">🚌 Départ la veille (${escapeHtml(fmtDateFRShort(blocInfo.veille))}), retour le lendemain (${escapeHtml(fmtDateFRShort(blocInfo.lendemain))}).</div>`;
+    }
+
+    const current = dispo[d.date] || '';
+    const comment = commentaires[d.date] || '';
+    html += `
+      <div class="date-card" data-date-id="${escapeAttr(d.id)}">
+        <div class="date-card-head">
+          <div class="date-label">${escapeHtml(fmtDateFRLong(d.date))}${!blocInfo ? '<span class="isolated-tag">Date isolée</span>' : ''}</div>
+          <div class="date-place">${escapeHtml([d.ville, d.lieu].filter(Boolean).join(' · ') || '—')}</div>
+        </div>
+        <div class="state-toggle">
+          <button type="button" class="state-btn ${current==='dispo'?'active dispo':''}" data-date="${escapeAttr(d.date)}" data-state="dispo">Disponible</button>
+          <button type="button" class="state-btn ${current==='indispo'?'active indispo':''}" data-date="${escapeAttr(d.date)}" data-state="indispo">Indisponible</button>
+        </div>
+        <input type="text" class="date-comment" data-date="${escapeAttr(d.date)}" placeholder="Une précision ? (facultatif)" value="${escapeAttr(comment)}">
+      </div>
+    `;
+
+    // Jour(s) de trajet à l'intérieur d'un même bloc (ex: Marseille -> Zurich) : simple
+    // information, pas de question — même logique que la veille/lendemain de début/fin
+    // de bloc, mais pour un écart interne entre deux dates consécutives du bloc.
+    const next = dates[idx+1];
+    if(next && blocInfo && blocMap.get(next.id) && blocMap.get(next.id).blocDates === blocInfo.blocDates){
+      const gap = daysBetween(d.date, next.date);
+      if(gap > 1){
+        const between = [];
+        for(let i=1;i<gap;i++) between.push(fmtDateFRShort(addDaysIso(d.date, i)));
+        html += `<div class="travel-note">🚌 Jour${between.length>1?'s':''} de trajet (${escapeHtml(between.join(', '))}) — pas de réponse nécessaire.</div>`;
+      }
+    }
+  });
+
+  document.getElementById('content').innerHTML = html;
+
+  document.querySelectorAll('.state-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const date = btn.dataset.date;
+      state.person.disponibilites[date] = btn.dataset.state;
+      btn.closest('.state-toggle').querySelectorAll('.state-btn').forEach(b=>{
+        b.classList.toggle('active', b === btn);
+      });
+      scheduleSave();
+    });
+  });
+  document.querySelectorAll('.date-comment').forEach(input=>{
+    input.addEventListener('change', ()=>{
+      const date = input.dataset.date;
+      const val = input.value.trim();
+      if(val) state.person.disponibilites_commentaires[date] = val;
+      else delete state.person.disponibilites_commentaires[date];
+      scheduleSave();
+    });
+  });
+}
+
+function scheduleSave(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(doSave, 500);
+}
+async function doSave(){
+  const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
+  await supabaseClient.from(personTable).update({
+    disponibilites: state.person.disponibilites,
+    disponibilites_commentaires: state.person.disponibilites_commentaires
+  }).eq('id', state.person.id);
+  await supabaseClient.from('dispo_demandes').update({ last_responded_at: new Date().toISOString() }).eq('id', state.demande.id);
+  const flash = document.getElementById('saveFlash');
+  flash.classList.add('show');
+  clearTimeout(flash.__hideTimer);
+  flash.__hideTimer = setTimeout(()=> flash.classList.remove('show'), 1800);
+}
+
+init();
+</script>
+</body>
+</html>

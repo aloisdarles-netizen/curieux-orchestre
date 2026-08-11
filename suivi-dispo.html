@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Suivi des dispo titulaires</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script>try{ hideCurieuxPageUntilUnlocked(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', applyCurieuxPasswordGate); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
+    --champagne:#fde3ee; --old-champagne:#c98aa0;
+    --ok:#2f8f5b; --maybe:#b8792a;
+    --radius:10px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --secondary:#ff7a4a; --secondary-dark:#ffab84; --secondary-tint:#3d2430;
+    --champagne:#3a2530; --old-champagne:#7a5064;
+    --ok:#7fd9a6; --maybe:#e8bd7c;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 80px;
+    transition:background .3s, color .3s;
+  }
+  .wrap{max-width:900px; margin:0 auto;}
+  .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
+  .brand-logo-img{height:30px; width:auto; display:block;}
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap;}
+  .page-nav a{
+    color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    white-space:nowrap;
+  }
+  .page-nav a:hover{background:#a8c9e6;}
+  .page-nav a.ghost{background:transparent; color:var(--muted);}
+  .page-nav a.ghost:hover{background:var(--border); color:var(--text);}
+  h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
+
+  .empty-hint{color:var(--muted); font-size:13.5px; padding:40px 4px; text-align:center;}
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-ghost:hover{background:var(--border); color:var(--text);}
+  .btn-sm{padding:7px 11px; font-size:12px;}
+
+  .tournee-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px 20px; margin-bottom:18px;
+  }
+  .tournee-head{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px;}
+  .tournee-name{font-weight:800; font-size:16px;}
+  .tournee-meta{color:var(--muted); font-size:12px; margin-bottom:12px;}
+  .dispo-row{display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid var(--border);}
+  .dispo-row:last-child{border-bottom:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav">
+      <a class="ghost" href="accueil.html">← Accueil</a>
+      <a href="tournees.html">Tournées</a>
+      <a href="recap.html">Vue d'ensemble</a>
+      <a href="annuaire.html">Annuaire musicien·nes</a>
+      <a href="techniciens.html">Technicien·nes</a>
+      <a href="disponibilites.html">Disponibilités</a>
+      <a href="feuille-de-route.html">Feuille de route</a>
+    </nav>
+  </div>
+  <h1>Suivi des dispo titulaires</h1>
+  <p class="subtitle">Un lien personnel par titulaire, par tournée — les remplaçant·es sont contacté·es via le rang de priorité dans l'annuaire quand un·e titulaire décline.</p>
+
+  <div id="holder"></div>
+</div>
+
+<script>
+function genId(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(str){ return escapeHtml(str); }
+function fullName(p){ return [p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom'; }
+
+let tourneesCache = [];
+let musiciansCache = [];
+let techniciansCache = [];
+let dispoDemandesCache = [];
+
+function loadTournees(){ return tourneesCache; }
+function loadMusicians(){ return musiciansCache; }
+function loadTechnicians(){ return techniciansCache; }
+function loadDispoDemandes(){ return dispoDemandesCache; }
+
+function dispoLinkUrl(demandeId){
+  const base = location.href.slice(0, location.href.lastIndexOf('/') + 1);
+  return `${base}dispo-titulaire.html?token=${encodeURIComponent(demandeId)}`;
+}
+
+async function generateDispoLink(tourneeId, personType, personId){
+  const demandes = loadDispoDemandes();
+  const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === personId);
+  if(existing) return existing;
+  const entry = { id: genId('demande'), tourneeId, personType, personId };
+  demandes.push(entry);
+  dispoDemandesCache = demandes;
+  await CurieuxDB.upsertOne('dispo_demandes', entry);
+  return entry;
+}
+
+function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
+  const demandes = loadDispoDemandes();
+  const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === person.id);
+  const url = existing ? dispoLinkUrl(existing.id) : null;
+  const dispo = person.disponibilites || {};
+  const allAnswered = answerableDates.length > 0 && answerableDates.every(d=> dispo[d.date]);
+  let statusHtml;
+  if(!existing){
+    statusHtml = '';
+  } else if(allAnswered){
+    statusHtml = `<span style="font-size:11px; color:var(--ok); font-weight:700; white-space:nowrap;">✓ Répondu</span>`;
+  } else if(existing.lastRespondedAt){
+    statusHtml = `<span style="font-size:11px; color:var(--maybe); font-weight:700; white-space:nowrap;" title="A déjà répondu, mais de nouvelles dates ont été ajoutées depuis">🕓 Nouvelles dates</span>`;
+  } else {
+    statusHtml = `<span style="font-size:11px; color:var(--muted); white-space:nowrap;">En attente</span>`;
+  }
+  return `
+    <div class="dispo-row">
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))}</div>
+        <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
+      </div>
+      ${statusHtml}
+      ${url
+        ? `<button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}">📋 Copier</button>`
+        : `<button type="button" class="btn-secondary btn-sm" data-gen-link data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
+      }
+    </div>
+  `;
+}
+
+function render(){
+  const tournees = loadTournees();
+  const holder = document.getElementById('holder');
+  if(tournees.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Aucune tournée pour l'instant — crée-en une dans <a href="tournees.html">Tournées</a>.</div>`;
+    return;
+  }
+
+  const titulaireMusiciens = loadMusicians().filter(m=> (m.statutPoste||'titulaire') === 'titulaire')
+    .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const titulaireTechniciens = loadTechnicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+
+  holder.innerHTML = tournees.map(t=>{
+    const answerableDates = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
+    const rows = [
+      ...titulaireMusiciens.map(m=> rowFor(t.id, m, 'musicien', m.instrument || 'Musicien·ne', answerableDates)),
+      ...titulaireTechniciens.map(p=> rowFor(t.id, p, 'technicien', p.poste || 'Technicien·ne', answerableDates)),
+    ].join('');
+    return `
+      <div class="tournee-card" data-tournee-id="${escapeAttr(t.id)}">
+        <div class="tournee-head">
+          <div class="tournee-name">${escapeHtml(t.nom || 'Tournée sans nom')}</div>
+          <button type="button" class="btn-secondary btn-sm" data-copy-all="${escapeAttr(t.id)}">📋 Copier tous les liens</button>
+        </div>
+        <div class="tournee-meta">${answerableDates.length} date${answerableDates.length>1?'s':''}</div>
+        ${rows || `<div class="empty-hint">Aucun·e titulaire dans l'annuaire pour l'instant.</div>`}
+      </div>
+    `;
+  }).join('');
+
+  holder.querySelectorAll('[data-gen-link]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true; btn.textContent = '…';
+      await generateDispoLink(btn.dataset.tournee, btn.dataset.personType, btn.dataset.personId);
+      render();
+    });
+  });
+  holder.querySelectorAll('[data-copy-link]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      navigator.clipboard.writeText(btn.dataset.copyLink).then(()=>{
+        const old = btn.textContent;
+        btn.textContent = '✓ Copié';
+        setTimeout(()=>{ btn.textContent = old; }, 1500);
+      });
+    });
+  });
+  holder.querySelectorAll('[data-copy-all]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const tourneeId = btn.dataset.copyAll;
+      const people = [
+        ...titulaireMusiciens.map(person=>({ person, personType:'musicien' })),
+        ...titulaireTechniciens.map(person=>({ person, personType:'technicien' })),
+      ];
+      const lines = [];
+      for(const { person, personType } of people){
+        const entry = await generateDispoLink(tourneeId, personType, person.id);
+        lines.push(`${fullName(person)} : ${dispoLinkUrl(entry.id)}`);
+      }
+      render();
+      navigator.clipboard.writeText(lines.join('\n')).then(()=>{
+        alert(`${lines.length} lien${lines.length>1?'s':''} copié${lines.length>1?'s':''} dans le presse-papiers.`);
+      });
+    });
+  });
+}
+
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+async function initData(){
+  [tourneesCache, musiciansCache, techniciansCache, dispoDemandesCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('dispo_demandes'),
+  ]);
+  render();
+}
+CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; render(); }); });
+CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; render(); }); });
+CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; render(); }); });
+CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; render(); }); });
+initData();
+</script>
+</body>
+</html>

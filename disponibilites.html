@@ -103,6 +103,11 @@
   .dispo-btn.ok{background:var(--ok); border-color:var(--ok); color:#fff;}
   .dispo-btn.ko{background:var(--ko); border-color:var(--ko); color:#fff;}
   .dispo-btn.maybe{background:var(--maybe); border-color:var(--maybe); color:#fff;}
+  .dispo-btn-wrap{position:relative; display:inline-block;}
+  .comment-dot{
+    position:absolute; top:-3px; right:-3px; width:9px; height:9px; border-radius:50%;
+    background:var(--secondary); border:1.5px solid var(--card); pointer-events:none;
+  }
   .m-instrument-sub{font-weight:500; color:var(--muted); font-size:11px;}
   .remplacant-tag{
     font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
@@ -163,6 +168,7 @@
       <a href="annuaire.html">Annuaire musicien·nes</a>
       <a href="techniciens.html">Technicien·nes</a>
       <a href="feuille-de-route.html">Feuille de route</a>
+      <a href="suivi-dispo.html">Dispo titulaires</a>
     </nav>
   </div>
   <h1>Disponibilités</h1>
@@ -291,13 +297,16 @@ function renderDispoGrid(people, saveFn, holderId, roleAttr, emptyLinkHref, empt
 
   const rows = sorted.map(m=>{
     const dispo = m.disponibilites || {};
+    const commentaires = m.disponibilitesCommentaires || {};
     return `
       <tr>
         <td class="col-name">${escapeHtml(fullName(m))}<div class="m-instrument-sub">${escapeHtml(m[metierField] || '')}${m.statutPoste === 'remplacant' ? '<span class="remplacant-tag">Rempl.</span>' : ''}</div></td>
         ${dates.map(d=>{
           const state = dispo[d] || '';
           const cls = STATE_CLASS[state];
-          return `<td class="cell"><button type="button" class="dispo-btn ${cls}" data-role="${roleAttr}" data-person="${m.id}" data-date="${escapeHtml(d)}" title="${STATE_LABEL[state]} — clique pour changer">${STATE_SYMBOL[state]}</button></td>`;
+          const comment = commentaires[d] || '';
+          const title = comment ? `${STATE_LABEL[state]} — 💬 ${comment}` : `${STATE_LABEL[state]} — clique pour changer`;
+          return `<td class="cell"><div class="dispo-btn-wrap"><button type="button" class="dispo-btn ${cls}" data-role="${roleAttr}" data-person="${m.id}" data-date="${escapeHtml(d)}" title="${escapeHtml(title)}">${STATE_SYMBOL[state]}</button>${comment ? '<span class="comment-dot"></span>' : ''}</div></td>`;
         }).join('')}
       </tr>
     `;

@@ -30,7 +30,8 @@ const CurieuxDB = (()=>{
         statut_poste: m.statutPoste || 'titulaire',
         rang: m.rang || null,
         telephone: m.telephone || '', email: m.email || '', notes: m.notes || '',
-        disponibilites: m.disponibilites || {}
+        disponibilites: m.disponibilites || {},
+        disponibilites_commentaires: m.disponibilitesCommentaires || {}
       }),
       fromDb: (r)=> ({
         id: r.id, prenom: r.prenom, nom: r.nom,
@@ -38,7 +39,8 @@ const CurieuxDB = (()=>{
         statutPoste: r.statut_poste,
         rang: r.rang || undefined,
         telephone: r.telephone, email: r.email, notes: r.notes,
-        disponibilites: r.disponibilites || {}
+        disponibilites: r.disponibilites || {},
+        disponibilitesCommentaires: r.disponibilites_commentaires || {}
       })
     },
     techniciens: {
@@ -47,18 +49,34 @@ const CurieuxDB = (()=>{
         prenom: t.prenom || '', nom: t.nom || '',
         poste: t.poste || '', pole: t.pole || 'Autre',
         telephone: t.telephone || '', email: t.email || '', notes: t.notes || '',
-        disponibilites: t.disponibilites || {}
+        disponibilites: t.disponibilites || {},
+        disponibilites_commentaires: t.disponibilitesCommentaires || {}
       }),
       fromDb: (r)=> ({
         id: r.id, prenom: r.prenom, nom: r.nom,
         poste: r.poste, pole: r.pole,
         telephone: r.telephone, email: r.email, notes: r.notes,
-        disponibilites: r.disponibilites || {}
+        disponibilites: r.disponibilites || {},
+        disponibilitesCommentaires: r.disponibilites_commentaires || {}
       })
     },
     tournees: {
       toDb: (t)=> ({ id: t.id, nom: t.nom || '', dates: t.dates || [] }),
       fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [] })
+    },
+    // Liens personnels de demande de dispo envoyés aux titulaires — "id" est le token
+    // utilisé dans l'URL du lien (voir dispo-titulaire.html).
+    dispo_demandes: {
+      toDb: (d)=> ({
+        id: d.id, tournee_id: d.tourneeId,
+        person_type: d.personType, person_id: d.personId,
+        last_responded_at: d.lastRespondedAt || null
+      }),
+      fromDb: (r)=> ({
+        id: r.id, tourneeId: r.tournee_id,
+        personType: r.person_type, personId: r.person_id,
+        lastRespondedAt: r.last_responded_at || undefined
+      })
     },
     feuilles_route: {
       // La FDR entière (contacts, trajets, planning, lieu, hôtel...) tient dans "data".
