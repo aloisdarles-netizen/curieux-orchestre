@@ -73,13 +73,15 @@ const CurieuxDB = (()=>{
         id: d.id, tournee_id: d.tourneeId,
         person_type: d.personType, person_id: d.personId,
         last_responded_at: d.lastRespondedAt || null,
-        dates: d.dates || []
+        dates: d.dates || [],
+        last_reminder_at: d.lastReminderAt || null
       }),
       fromDb: (r)=> ({
         id: r.id, tourneeId: r.tournee_id,
         personType: r.person_type, personId: r.person_id,
         lastRespondedAt: r.last_responded_at || undefined,
-        dates: r.dates || []
+        dates: r.dates || [],
+        lastReminderAt: r.last_reminder_at || undefined
       })
     },
     feuilles_route: {

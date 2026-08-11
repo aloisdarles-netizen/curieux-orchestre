@@ -148,6 +148,11 @@ create table if not exists dispo_demandes (
 -- seulement. Tableau vide = pas de restriction (comportement historique, tout est
 -- proposé, y compris les dates ajoutées après coup).
 alter table dispo_demandes add column if not exists dates jsonb not null default '[]'::jsonb;
+-- Horodatage de la dernière relance envoyée (bouton "Relancer" de suivi-dispo.html) —
+-- distingue "Première relance" de "Relancer" pour l'admin. On ne peut pas savoir si le
+-- message a vraiment été envoyé (WhatsApp/email s'ouvrent dans une autre app), donc on
+-- enregistre l'intention au clic, en cohérence avec le reste de l'app (best-effort).
+alter table dispo_demandes add column if not exists last_reminder_at timestamptz;
 drop trigger if exists trg_dispo_demandes_updated_at on dispo_demandes;
 create trigger trg_dispo_demandes_updated_at before update on dispo_demandes
   for each row execute function set_updated_at();
