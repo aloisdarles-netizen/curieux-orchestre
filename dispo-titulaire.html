@@ -291,9 +291,11 @@ function render(){
   document.querySelectorAll('.state-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const date = btn.dataset.date;
-      state.person.disponibilites[date] = btn.dataset.state;
+      const wasActive = btn.classList.contains('active');
+      if(wasActive) delete state.person.disponibilites[date];
+      else state.person.disponibilites[date] = btn.dataset.state;
       btn.closest('.state-toggle').querySelectorAll('.state-btn').forEach(b=>{
-        b.classList.toggle('active', b === btn);
+        b.classList.toggle('active', !wasActive && b === btn);
       });
       markDirty();
     });
