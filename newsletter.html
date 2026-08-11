@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Curieux orchestre — Récap newsletter</title>
+<title>Curieux orchestre — Journal des changements</title>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
@@ -105,12 +105,9 @@
   .change-tag.lieu{background:var(--secondary-tint); color:var(--secondary-dark);}
   .retire-row td{text-decoration:line-through; color:var(--muted);}
 
-  textarea#nlText{
-    width:100%; min-height:260px; font-family:ui-monospace,monospace; font-size:12.5px;
-    padding:14px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text);
-    resize:vertical;
-  }
   .actions-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+  .btn-ghost{background:transparent; color:var(--muted); border:1px solid var(--border);}
+  .btn-ghost:hover{background:var(--border); color:var(--text);}
   button{
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:10px 16px; transition:background .15s, transform .1s; font-family:inherit;
@@ -134,7 +131,7 @@
         <div class="nav-dropdown">
           <a href="tournees.html">🗓️ Gérer les tournées</a>
           <a href="feuilles-de-route.html">🧭 Feuilles de route</a>
-          <a href="newsletter.html">📰 Récap newsletter</a>
+          <a href="newsletter.html">📰 Journal des changements</a>
         </div>
       </div>
       <div class="nav-group">
@@ -154,38 +151,50 @@
       <a href="recap.html">📊 Vue d'ensemble</a>
     </nav>
   </div>
-  <h1>Récap newsletter</h1>
-  <p class="subtitle">Toutes les dates en option ou validées, avec ce qui a changé depuis le dernier envoi.</p>
+  <h1>Journal des changements</h1>
+  <p class="subtitle">Ce qui a évolué sur les dates (option/validée/annulée) depuis ta dernière visite — usage interne, les titulaires ont déjà leur page personnelle à jour.</p>
 
   <div id="bannerHolder"></div>
 
   <div class="card">
     <h2>Dates</h2>
     <div id="tableHolder"></div>
+    <div class="actions-row">
+      <button type="button" class="btn-secondary" id="markSentBtn">✅ Marquer ces changements comme vus</button>
+    </div>
   </div>
 
-  <div class="card">
-    <h2>Texte prêt à copier</h2>
-    <textarea id="nlText" readonly></textarea>
-    <div class="actions-row">
-      <button type="button" class="btn-primary" id="copyBtn">📋 Copier le texte</button>
-      <button type="button" class="btn-secondary" id="markSentBtn">✅ Marquer comme envoyé maintenant</button>
-    </div>
+  <div class="card" id="relanceCard" style="display:none;">
+    <h2>À relancer, par tournée</h2>
+    <p class="card-sub" style="color:var(--muted); font-size:12.5px; margin:-8px 0 12px;">Personnes ayant déjà un lien de dispo pour une tournée qui a changé depuis ta dernière visite — copie leur lien pour les prévenir.</p>
+    <div id="relanceHolder"></div>
   </div>
 </div>
 
 <script>
 // Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
-// tournees est en lecture seule ici. Le snapshot newsletter est un singleton
-// (table "newsletter_snapshot") géré via fetchSnapshot/saveSnapshot de db.js.
+// tournees/musiciens/techniciens/dispo_demandes sont en lecture seule ici. Le snapshot
+// newsletter est un singleton (table "newsletter_snapshot") géré via
+// fetchSnapshot/saveSnapshot de db.js.
 let tourneesCache = [];
+let musiciansCache = [];
+let techniciansCache = [];
+let dispoDemandesCache = [];
 let snapshotCache = null;
 
 function loadTournees(){ return tourneesCache; }
+function loadMusicians(){ return musiciansCache; }
+function loadTechnicians(){ return techniciansCache; }
+function loadDispoDemandes(){ return dispoDemandesCache; }
 function loadSnapshot(){ return snapshotCache; }
 function saveSnapshot(snap){
   snapshotCache = snap;
   CurieuxDB.saveSnapshot(snap);
+}
+
+function dispoLinkUrl(demandeId){
+  const base = location.href.slice(0, location.href.lastIndexOf('/') + 1);
+  return `${base}dispo-titulaire.html?token=${encodeURIComponent(demandeId)}`;
 }
 
 function fmtDateFR(iso){
@@ -215,6 +224,7 @@ function currentEntries(){
       }
       entries.push({
         key: `${t.id}|${d.date}`,
+        tourneeId: t.id,
         tourneeNom: t.nom,
         date: d.date,
         ville: d.ville || '',
@@ -252,11 +262,11 @@ function render(){
   const changeCount = rows.filter(r=>r.change).length + removed.length;
 
   if(!snapshot){
-    bannerHolder.innerHTML = `<div class="banner neutral">ℹ️ Aucun envoi précédent enregistré — ceci sera la première version du récap.</div>`;
+    bannerHolder.innerHTML = `<div class="banner neutral">ℹ️ Pas encore de suivi enregistré — ceci sera la première photo de référence.</div>`;
   } else if(changeCount === 0){
-    bannerHolder.innerHTML = `<div class="banner nochange">✅ Rien n'a changé depuis le dernier envoi du ${escapeHtml(fmtDateTimeFR(snapshot.sentAt))}.</div>`;
+    bannerHolder.innerHTML = `<div class="banner nochange">✅ Rien n'a changé depuis ta dernière visite du ${escapeHtml(fmtDateTimeFR(snapshot.sentAt))}.</div>`;
   } else {
-    bannerHolder.innerHTML = `<div class="banner changed">🔄 ${changeCount} changement${changeCount>1?'s':''} depuis le dernier envoi du ${escapeHtml(fmtDateTimeFR(snapshot.sentAt))}.</div>`;
+    bannerHolder.innerHTML = `<div class="banner changed">🔄 ${changeCount} changement${changeCount>1?'s':''} depuis ta dernière visite du ${escapeHtml(fmtDateTimeFR(snapshot.sentAt))}.</div>`;
   }
 
   const tableHolder = document.getElementById('tableHolder');
@@ -295,72 +305,70 @@ function render(){
     `;
   }
 
-  document.getElementById('nlText').value = buildNewsletterText(rows, removed, snapshot, changeCount);
+  renderRelance(rows, removed, snapshot);
 }
 
-function buildNewsletterText(rows, removed, snapshot, changeCount){
-  const lines = [];
-  lines.push(`RÉCAP DATES — CURIEUX ORCHESTRE`);
-  lines.push(`Mis à jour le ${fmtDateFR(new Date().toISOString().slice(0,10))}`);
-  lines.push('');
+// Pour chaque tournée touchée par un changement depuis la dernière visite, liste les
+// personnes ayant déjà un lien de dispo pour cette tournée (dispo_demandes existante) —
+// pas un nouvel envoi, juste de quoi retrouver/copier leur lien pour les prévenir que
+// quelque chose a bougé. Les tournées sans dispo_demande générée n'apparaissent pas ici :
+// il n'y a alors personne à "relancer", c'est un premier envoi à faire depuis Tournées.
+function renderRelance(rows, removed, snapshot){
+  const card = document.getElementById('relanceCard');
+  const holder = document.getElementById('relanceHolder');
+  if(!snapshot){ card.style.display = 'none'; return; }
 
-  if(snapshot && changeCount === 0){
-    lines.push(`Aucun changement depuis le dernier envoi du ${fmtDateTimeFR(snapshot.sentAt)}.`);
-    lines.push('');
-  }
-
-  const validees = rows.filter(r=>r.statut === 'validee');
-  const options = rows.filter(r=>r.statut === 'option');
-  const annulees = rows.filter(r=>r.statut === 'annulee');
-
-  const lineFor = r=>{
-    let suffix = '';
-    if(r.change === 'nouveau') suffix = '  [nouveau]';
-    else if(r.change === 'statut') suffix = `  [passé de ${statutLabel(r.prevStatut).toLowerCase()} à ${statutLabel(r.statut).toLowerCase()}]`;
-    else if(r.change === 'lieu') suffix = '  [lieu modifié]';
-    if(r.blocNote) suffix += `  [${r.blocNote}]`;
-    return `- ${fmtDateFR(r.date)} — ${[r.ville, r.lieu].filter(Boolean).join(', ') || 'lieu à confirmer'}${suffix}`;
-  };
-
-  if(validees.length){
-    lines.push('✅ DATES VALIDÉES');
-    validees.forEach(r=> lines.push(lineFor(r)));
-    lines.push('');
-  }
-  if(options.length){
-    lines.push('🕓 DATES EN OPTION');
-    options.forEach(r=> lines.push(lineFor(r)));
-    lines.push('');
-  }
-  if(annulees.length){
-    lines.push('❌ DATES ANNULÉES');
-    annulees.forEach(r=> lines.push(lineFor(r)));
-    lines.push('');
-  }
+  const changedTourneeIds = new Set();
+  rows.forEach(r=>{ if(r.change) changedTourneeIds.add(r.tourneeId); });
   if(removed.length){
-    lines.push('🗑 DATES SUPPRIMÉES DÉFINITIVEMENT DEPUIS LE DERNIER ENVOI');
-    removed.forEach(r=> lines.push(`- ${fmtDateFR(r.date)} — ${[r.ville, r.lieu].filter(Boolean).join(', ') || ''}`));
-    lines.push('');
+    const byName = new Map(loadTournees().map(t=>[t.nom, t.id]));
+    removed.forEach(r=>{ const id = byName.get(r.tourneeNom); if(id) changedTourneeIds.add(id); });
   }
-  if(!validees.length && !options.length && !annulees.length){
-    lines.push('Aucune date en cours pour le moment.');
-  }
-  return lines.join('\n').trim();
-}
 
-document.getElementById('copyBtn').addEventListener('click', ()=>{
-  const text = document.getElementById('nlText');
-  text.select();
-  navigator.clipboard && navigator.clipboard.writeText(text.value).catch(()=>{ document.execCommand('copy'); });
-  const btn = document.getElementById('copyBtn');
-  const original = btn.textContent;
-  btn.textContent = '✓ Copié';
-  setTimeout(()=> btn.textContent = original, 1500);
-});
+  if(changedTourneeIds.size === 0){ card.style.display = 'none'; return; }
+
+  const peopleById = new Map([...loadMusicians(), ...loadTechnicians()].map(p=> [p.id, p]));
+  const sections = [...changedTourneeIds].map(tourneeId=>{
+    const tournee = loadTournees().find(t=> t.id === tourneeId);
+    const demandes = loadDispoDemandes().filter(d=> d.tourneeId === tourneeId);
+    if(!tournee || demandes.length === 0) return '';
+    const rowsHtml = demandes.map(d=>{
+      const person = peopleById.get(d.personId);
+      if(!person) return '';
+      const url = dispoLinkUrl(d.id);
+      return `
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border);">
+          <div style="flex:1; min-width:0; font-size:13px; font-weight:700;">${escapeHtml(fullName(person))}</div>
+          <button type="button" class="btn-ghost" style="padding:6px 10px; font-size:12px;" data-copy-link="${escapeAttr(url)}">📋 Copier son lien</button>
+        </div>
+      `;
+    }).join('');
+    if(!rowsHtml) return '';
+    return `
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12.5px; font-weight:800; color:var(--accent-dark); margin-bottom:4px;">${escapeHtml(tournee.nom || 'Tournée')}</div>
+        ${rowsHtml}
+      </div>
+    `;
+  }).filter(Boolean);
+
+  if(sections.length === 0){ card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  holder.innerHTML = sections.join('');
+  holder.querySelectorAll('[data-copy-link]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      navigator.clipboard.writeText(btn.dataset.copyLink).then(()=>{
+        const old = btn.textContent;
+        btn.textContent = '✓ Copié';
+        setTimeout(()=>{ btn.textContent = old; }, 1500);
+      });
+    });
+  });
+}
 
 document.getElementById('markSentBtn').addEventListener('click', ()=>{
   const current = currentEntries();
-  if(!confirm("Marquer ce récap comme envoyé ? La prochaine comparaison se fera à partir de l'état actuel.")) return;
+  if(!confirm("Marquer ces changements comme vus ? La prochaine comparaison se fera à partir de l'état actuel.")) return;
   saveSnapshot({ sentAt: new Date().toISOString(), entries: current });
   render();
 });
@@ -371,13 +379,19 @@ applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 
 async function initData(){
-  [tourneesCache, snapshotCache] = await Promise.all([
+  [tourneesCache, musiciansCache, techniciansCache, dispoDemandesCache, snapshotCache] = await Promise.all([
     CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('dispo_demandes'),
     CurieuxDB.fetchSnapshot(),
   ]);
   render();
 }
 CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; render(); }); });
+CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; render(); }); });
+CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; render(); }); });
+CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; render(); }); });
 initData();
 </script>
 </body>
