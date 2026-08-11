@@ -44,15 +44,36 @@
   .wrap{max-width:1280px; margin:0 auto;}
   .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
   .brand-logo-img{height:30px; width:auto; display:block;}
-  .page-nav{display:flex; gap:8px; flex-wrap:wrap;}
-  .page-nav a{
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .page-nav > a{
     color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
     background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
     white-space:nowrap;
   }
-  .page-nav a:hover{background:#a8c9e6;}
-  .page-nav a.ghost{background:transparent; color:var(--muted);}
-  .page-nav a.ghost:hover{background:var(--border); color:var(--text);}
+  .page-nav > a:hover{background:#a8c9e6;}
+  .page-nav > a.ghost{background:transparent; color:var(--muted);}
+  .page-nav > a.ghost:hover{background:var(--border); color:var(--text);}
+  .nav-group{position:relative;}
+  .nav-group-btn{
+    font-family:inherit; cursor:pointer; border:none; color:var(--accent-dark); font-weight:700; font-size:12.5px;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    display:flex; align-items:center; gap:4px; white-space:nowrap;
+  }
+  .nav-group-btn:hover{background:#a8c9e6;}
+  .nav-caret{font-size:9px; transition:transform .2s ease;}
+  .nav-group.open .nav-caret{transform:rotate(180deg);}
+  .nav-group.open .nav-group-btn{background:var(--accent); color:#fff;}
+  .nav-dropdown{
+    position:absolute; top:calc(100% + 6px); left:0; min-width:200px; background:var(--card);
+    border:1px solid var(--border); border-radius:12px; box-shadow:0 12px 30px rgba(20,15,10,.16);
+    padding:6px; display:none; flex-direction:column; gap:2px; z-index:50;
+  }
+  .nav-group.open .nav-dropdown{display:flex;}
+  .nav-dropdown a{
+    display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px;
+    color:var(--text); text-decoration:none; font-size:13px; font-weight:600; white-space:nowrap;
+  }
+  .nav-dropdown a:hover{background:var(--accent-tint);}
   h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
   .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
   h2.section-title{
@@ -132,12 +153,28 @@
     <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
     <nav class="page-nav">
       <a class="ghost" href="accueil.html">← Accueil</a>
-      <a href="tournees.html">Tournées</a>
-      <a href="annuaire.html">Annuaire musicien·nes</a>
-      <a href="techniciens.html">Technicien·nes</a>
-      <a href="disponibilites.html">Disponibilités</a>
-      <a href="feuille-de-route.html">Feuille de route</a>
-      <a href="suivi-dispo.html">Demandes titulaires</a>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Tournées <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="tournees.html">🗓️ Gérer les tournées</a>
+          <a href="feuilles-de-route.html">🧭 Feuilles de route</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Annuaires <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="annuaire.html">📇 Musicien·nes</a>
+          <a href="techniciens.html">🛠️ Technicien·nes</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Disponibilités <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="disponibilites.html">✅ Grille interne</a>
+          <a href="suivi-dispo.html">🔗 Demandes titulaires</a>
+        </div>
+      </div>
+      <a href="recap.html">📊 Vue d'ensemble</a>
     </nav>
   </div>
   <h1>Vue d'ensemble</h1>
@@ -293,6 +330,17 @@ function renderAll(){
 document.getElementById('musicienStatutFilter').addEventListener('change', renderAll);
 
 injectCurieuxFonts();
+document.querySelectorAll('.nav-group-btn').forEach(btn=>{
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const group = btn.closest('.nav-group');
+    const wasOpen = group.classList.contains('open');
+    document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open'));
+    if(!wasOpen) group.classList.add('open');
+  });
+});
+document.addEventListener('click', ()=> document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open')));
+
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 
@@ -335,17 +383,19 @@ function buildMatrixTable(doc, startY, people, assignField, title, pageWidth, to
         return '';
       })];
     }),
-    styles: { font:'Host', fontSize:7, cellPadding:2, textColor:[20,22,23], halign:'center' },
-    columnStyles: { 0: { halign:'left', fontStyle:'bold', cellWidth:38 } },
+    styles: { font:'Host', fontSize:8, cellPadding:2, textColor:[20,22,23], halign:'center' },
+    columnStyles: { 0: { halign:'left', fontStyle:'bold', fontSize:7, cellWidth:38 } },
     headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold', fontSize:6.5 },
     alternateRowStyles: { fillColor:[253,242,240] },
     didParseCell: (data)=>{
       if(data.section === 'body' && data.column.index > 0){
         const v = data.cell.raw;
-        if(v === 'X') { data.cell.styles.fillColor = [47,143,91]; data.cell.styles.textColor = 255; }
-        else if(v === 'x') data.cell.styles.textColor = [178,59,46];
-        else if(v === '?') data.cell.styles.textColor = [184,121,42];
-        else if(v === 'd') data.cell.styles.textColor = [90,16,55];
+        // Fond + symbole plutôt qu'une lettre brute — même code couleur que la grille à l'écran.
+        if(v === 'X'){ data.cell.styles.fillColor = [47,143,91]; data.cell.styles.textColor = 255; data.cell.text = ['✓']; }
+        else if(v === 'd'){ data.cell.styles.fillColor = [206,225,244]; data.cell.styles.textColor = [90,16,55]; data.cell.text = ['✓']; }
+        else if(v === 'x'){ data.cell.styles.fillColor = [178,59,46]; data.cell.styles.textColor = 255; data.cell.text = ['✕']; }
+        else if(v === '?'){ data.cell.styles.fillColor = [184,121,42]; data.cell.styles.textColor = 255; data.cell.text = ['?']; }
+        else { data.cell.styles.textColor = [180,170,175]; data.cell.text = ['—']; }
       }
     }
   });
@@ -366,9 +416,9 @@ function exportRecapPdf(){
 
   const statutFilter = document.getElementById('musicienStatutFilter').value;
   const filteredMusicians = loadMusicians().filter(m=> !statutFilter || (m.statutPoste || 'titulaire') === statutFilter);
-  let y = buildMatrixTable(doc, 30, filteredMusicians, 'musiciensAssignes', 'MUSICIEN·NES (X affecté·e, d dispo, x indispo, ? à confirmer)', pageWidth, tourneeId);
+  let y = buildMatrixTable(doc, 30, filteredMusicians, 'musiciensAssignes', 'MUSICIEN·NES (✓ vert = affecté·e, ✓ bleu = dispo, ✕ = indispo, ? = à confirmer)', pageWidth, tourneeId);
   if(y > 180){ doc.addPage(); drawCurieuxPdfHeader(doc, pageWidth, headerTitle); y = 30; }
-  buildMatrixTable(doc, y, loadTechnicians(), 'techniciensAssignes', 'TECHNICIENS (X affecté·e, d dispo, x indispo, ? à confirmer)', pageWidth, tourneeId);
+  buildMatrixTable(doc, y, loadTechnicians(), 'techniciensAssignes', 'TECHNICIENS (✓ vert = affecté·e, ✓ bleu = dispo, ✕ = indispo, ? = à confirmer)', pageWidth, tourneeId);
 
   const fileSuffix = tournee ? (tournee.nom||'tournee').trim().replace(/[^a-z0-9]+/gi,'_') : 'toutes_tournees';
   doc.save(`Vue_ensemble_Curieux_orchestre_${fileSuffix}.pdf`);

@@ -36,15 +36,36 @@
   .wrap{max-width:1100px; margin:0 auto;}
   .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
   .brand-logo-img{height:30px; width:auto; display:block;}
-  .page-nav{display:flex; gap:8px; flex-wrap:wrap;}
-  .page-nav a{
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .page-nav > a{
     color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
     background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
     white-space:nowrap;
   }
-  .page-nav a:hover{background:#a8c9e6;}
-  .page-nav a.ghost{background:transparent; color:var(--muted);}
-  .page-nav a.ghost:hover{background:var(--border); color:var(--text);}
+  .page-nav > a:hover{background:#a8c9e6;}
+  .page-nav > a.ghost{background:transparent; color:var(--muted);}
+  .page-nav > a.ghost:hover{background:var(--border); color:var(--text);}
+  .nav-group{position:relative;}
+  .nav-group-btn{
+    font-family:inherit; cursor:pointer; border:none; color:var(--accent-dark); font-weight:700; font-size:12.5px;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    display:flex; align-items:center; gap:4px; white-space:nowrap;
+  }
+  .nav-group-btn:hover{background:#a8c9e6;}
+  .nav-caret{font-size:9px; transition:transform .2s ease;}
+  .nav-group.open .nav-caret{transform:rotate(180deg);}
+  .nav-group.open .nav-group-btn{background:var(--accent); color:#fff;}
+  .nav-dropdown{
+    position:absolute; top:calc(100% + 6px); left:0; min-width:200px; background:var(--card);
+    border:1px solid var(--border); border-radius:12px; box-shadow:0 12px 30px rgba(20,15,10,.16);
+    padding:6px; display:none; flex-direction:column; gap:2px; z-index:50;
+  }
+  .nav-group.open .nav-dropdown{display:flex;}
+  .nav-dropdown a{
+    display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px;
+    color:var(--text); text-decoration:none; font-size:13px; font-weight:600; white-space:nowrap;
+  }
+  .nav-dropdown a:hover{background:var(--accent-tint);}
   h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
   .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
 
@@ -87,6 +108,15 @@
     font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
     padding:3px 9px; border-radius:20px; background:var(--secondary-tint); color:var(--secondary-dark); white-space:nowrap;
   }
+  .remplacant-tag{
+    font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;
+  }
+  .titulaire-tag{
+    font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 7px; border-radius:20px; background:#f6ead2; color:#b8792a; vertical-align:middle;
+  }
+  :root[data-theme="dark"] .titulaire-tag{background:#4a3a1c; color:#f0c988;}
   .m-notes{font-size:12.5px; color:var(--muted); line-height:1.4; max-height:2.8em; overflow:hidden;}
   .m-contact-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;}
   .contact-btn{
@@ -128,12 +158,28 @@
     <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
     <nav class="page-nav">
       <a class="ghost" href="accueil.html">← Accueil</a>
-      <a href="recap.html">Vue d'ensemble</a>
-      <a href="tournees.html">Tournées</a>
-      <a href="annuaire.html">Annuaire musicien·nes</a>
-      <a href="disponibilites.html">Disponibilités</a>
-      <a href="feuille-de-route.html">Feuille de route</a>
-      <a href="suivi-dispo.html">Demandes titulaires</a>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Tournées <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="tournees.html">🗓️ Gérer les tournées</a>
+          <a href="feuilles-de-route.html">🧭 Feuilles de route</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Annuaires <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="annuaire.html">📇 Musicien·nes</a>
+          <a href="techniciens.html">🛠️ Technicien·nes</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Disponibilités <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="disponibilites.html">✅ Grille interne</a>
+          <a href="suivi-dispo.html">🔗 Demandes titulaires</a>
+        </div>
+      </div>
+      <a href="recap.html">📊 Vue d'ensemble</a>
     </nav>
   </div>
   <h1>Annuaire technicien·nes</h1>
@@ -150,6 +196,11 @@
       <option value="Vidéo">Vidéo</option>
       <option value="Tour management">Tour management</option>
       <option value="Autre">Autre</option>
+    </select>
+    <select id="statutFilter">
+      <option value="titulaire" selected>Titulaire</option>
+      <option value="">Titulaire + remplaçant·e</option>
+      <option value="remplacant">Remplaçant·e</option>
     </select>
     <div class="spacer"></div>
     <button type="button" class="btn-secondary" id="importBtn">📋 Importer (coller)</button>
@@ -200,6 +251,15 @@
         </select>
       </div>
     </div>
+    <div class="field-row" id="fStatutPosteField" style="display:none;">
+      <div class="field">
+        <label>Statut (régie)</label>
+        <select id="fStatutPoste">
+          <option value="titulaire">Titulaire</option>
+          <option value="remplacant">Remplaçant·e</option>
+        </select>
+      </div>
+    </div>
     <div class="field-row">
       <div class="field"><label>Téléphone (WhatsApp)</label><input type="tel" id="fTelephone" placeholder="06 12 34 56 78"></div>
       <div class="field"><label>Email</label><input type="email" id="fEmail" placeholder="prenom.nom@mail.com"></div>
@@ -240,9 +300,11 @@ function render(){
   const list = loadTechnicians();
   const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
   const pole = document.getElementById('poleFilter').value;
+  const statutPoste = document.getElementById('statutFilter').value;
 
   const filtered = list.filter(m=>{
     if(pole && m.pole !== pole) return false;
+    if(statutPoste && (m.statutPoste || 'titulaire') !== statutPoste) return false;
     if(!search) return true;
     const haystack = [m.prenom, m.nom, m.poste, m.pole].filter(Boolean).join(' ').toLowerCase();
     return haystack.includes(search);
@@ -273,7 +335,7 @@ function render(){
       <div class="m-card">
         <div class="m-card-top">
           <div>
-            <div class="m-name">${escapeHtml(fullName(m))}</div>
+            <div class="m-name">${escapeHtml(fullName(m))} ${m.pole === 'Régie générale' ? (m.statutPoste === 'remplacant' ? '<span class="remplacant-tag">Remplaçant·e</span>' : '<span class="titulaire-tag">Titulaire</span>') : ''}</div>
             <div class="m-instrument">${escapeHtml(m.poste || '—')}</div>
           </div>
           <span class="pupitre-badge">${escapeHtml(m.pole || 'Autre')}</span>
@@ -306,6 +368,13 @@ function render(){
   });
 }
 
+// Le statut titulaire/remplaçant n'a de sens que pour l'équipe régie récurrente —
+// masqué pour les autres pôles (intervenant·es ponctuel·les de prod).
+function updateStatutPosteFieldVisibility(){
+  document.getElementById('fStatutPosteField').style.display = document.getElementById('fPole').value === 'Régie générale' ? 'flex' : 'none';
+}
+document.getElementById('fPole').addEventListener('change', updateStatutPosteFieldVisibility);
+
 function openModal(id){
   const overlay = document.getElementById('modalOverlay');
   document.getElementById('editId').value = id || '';
@@ -317,6 +386,7 @@ function openModal(id){
     document.getElementById('fNom').value = m.nom || '';
     document.getElementById('fPoste').value = m.poste || '';
     document.getElementById('fPole').value = m.pole || 'Régie générale';
+    document.getElementById('fStatutPoste').value = m.statutPoste || 'titulaire';
     document.getElementById('fTelephone').value = m.telephone || '';
     document.getElementById('fEmail').value = m.email || '';
     document.getElementById('fNotes').value = m.notes || '';
@@ -324,7 +394,9 @@ function openModal(id){
     document.getElementById('modalTitle').textContent = "Ajouter un·e technicien·ne";
     ['fPrenom','fNom','fPoste','fTelephone','fEmail','fNotes'].forEach(id=> document.getElementById(id).value = '');
     document.getElementById('fPole').value = 'Régie générale';
+    document.getElementById('fStatutPoste').value = 'titulaire';
   }
+  updateStatutPosteFieldVisibility();
   overlay.classList.add('open');
   document.getElementById('fPrenom').focus();
 }
@@ -451,8 +523,10 @@ function exportTechniciansPdf(){
   const list = loadTechnicians();
   const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
   const pole = document.getElementById('poleFilter').value;
+  const statutPoste = document.getElementById('statutFilter').value;
   const filtered = list.filter(m=>{
     if(pole && m.pole !== pole) return false;
+    if(statutPoste && (m.statutPoste || 'titulaire') !== statutPoste) return false;
     if(!search) return true;
     return [m.prenom, m.nom, m.poste, m.pole].filter(Boolean).join(' ').toLowerCase().includes(search);
   }).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
@@ -494,16 +568,19 @@ document.getElementById('saveBtn').addEventListener('click', ()=>{
       m.prenom = prenom; m.nom = nom;
       m.poste = document.getElementById('fPoste').value.trim();
       m.pole = document.getElementById('fPole').value;
+      m.statutPoste = m.pole === 'Régie générale' ? document.getElementById('fStatutPoste').value : 'titulaire';
       m.telephone = document.getElementById('fTelephone').value.trim();
       m.email = document.getElementById('fEmail').value.trim();
       m.notes = document.getElementById('fNotes').value.trim();
     }
   } else {
+    const pole = document.getElementById('fPole').value;
     list.push({
       id: genId('tech'),
       prenom, nom,
       poste: document.getElementById('fPoste').value.trim(),
-      pole: document.getElementById('fPole').value,
+      pole,
+      statutPoste: pole === 'Régie générale' ? document.getElementById('fStatutPoste').value : 'titulaire',
       telephone: document.getElementById('fTelephone').value.trim(),
       email: document.getElementById('fEmail').value.trim(),
       notes: document.getElementById('fNotes').value.trim(),
@@ -517,8 +594,20 @@ document.getElementById('saveBtn').addEventListener('click', ()=>{
 
 document.getElementById('searchInput').addEventListener('input', render);
 document.getElementById('poleFilter').addEventListener('change', render);
+document.getElementById('statutFilter').addEventListener('change', render);
 
 injectCurieuxFonts();
+document.querySelectorAll('.nav-group-btn').forEach(btn=>{
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const group = btn.closest('.nav-group');
+    const wasOpen = group.classList.contains('open');
+    document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open'));
+    if(!wasOpen) group.classList.add('open');
+  });
+});
+document.addEventListener('click', ()=> document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open')));
+
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 

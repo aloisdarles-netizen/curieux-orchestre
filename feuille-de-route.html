@@ -36,15 +36,36 @@
   .wrap{max-width:1040px; margin:0 auto;}
   .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between;}
   .brand-logo-img{height:30px; width:auto; display:block;}
-  .page-nav{display:flex; gap:8px;}
-  .page-nav a{
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .page-nav > a{
     color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
     background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
     white-space:nowrap;
   }
-  .page-nav a:hover{background:#a8c9e6;}
-  .page-nav a.ghost{background:transparent; color:var(--muted);}
-  .page-nav a.ghost:hover{background:var(--border); color:var(--text);}
+  .page-nav > a:hover{background:#a8c9e6;}
+  .page-nav > a.ghost{background:transparent; color:var(--muted);}
+  .page-nav > a.ghost:hover{background:var(--border); color:var(--text);}
+  .nav-group{position:relative;}
+  .nav-group-btn{
+    font-family:inherit; cursor:pointer; border:none; color:var(--accent-dark); font-weight:700; font-size:12.5px;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    display:flex; align-items:center; gap:4px; white-space:nowrap;
+  }
+  .nav-group-btn:hover{background:#a8c9e6;}
+  .nav-caret{font-size:9px; transition:transform .2s ease;}
+  .nav-group.open .nav-caret{transform:rotate(180deg);}
+  .nav-group.open .nav-group-btn{background:var(--accent); color:#fff;}
+  .nav-dropdown{
+    position:absolute; top:calc(100% + 6px); left:0; min-width:200px; background:var(--card);
+    border:1px solid var(--border); border-radius:12px; box-shadow:0 12px 30px rgba(20,15,10,.16);
+    padding:6px; display:none; flex-direction:column; gap:2px; z-index:50;
+  }
+  .nav-group.open .nav-dropdown{display:flex;}
+  .nav-dropdown a{
+    display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px;
+    color:var(--text); text-decoration:none; font-size:13px; font-weight:600; white-space:nowrap;
+  }
+  .nav-dropdown a:hover{background:var(--accent-tint);}
   h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
   .subtitle{color:var(--muted); margin:0 0 26px; font-size:14px;}
   .card{
@@ -154,12 +175,28 @@
     <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
     <nav class="page-nav">
       <a class="ghost" href="accueil.html">← Accueil</a>
-      <a href="recap.html">Vue d'ensemble</a>
-      <a href="tournees.html">Tournées</a>
-      <a href="annuaire.html">Annuaire musicien·nes</a>
-      <a href="techniciens.html">Technicien·nes</a>
-      <a href="disponibilites.html">Disponibilités</a>
-      <a href="suivi-dispo.html">Demandes titulaires</a>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Tournées <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="tournees.html">🗓️ Gérer les tournées</a>
+          <a href="feuilles-de-route.html">🧭 Feuilles de route</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Annuaires <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="annuaire.html">📇 Musicien·nes</a>
+          <a href="techniciens.html">🛠️ Technicien·nes</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Disponibilités <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="disponibilites.html">✅ Grille interne</a>
+          <a href="suivi-dispo.html">🔗 Demandes titulaires</a>
+        </div>
+      </div>
+      <a href="recap.html">📊 Vue d'ensemble</a>
     </nav>
   </div>
   <h1>Feuille de route</h1>
@@ -462,7 +499,7 @@ let fdrsCache = [];
 function loadFdrCollection(){ return fdrsCache; }
 function saveFdrCollection(list){
   fdrsCache = list;
-  CurieuxDB.syncCollection('feuilles_route', list);
+  return CurieuxDB.syncCollection('feuilles_route', list);
 }
 // Applique la même fusion défensive qu'avant (tableaux/sous-objets absents -> valeurs par
 // défaut) à une entrée quelconque de la collection, qu'elle vienne du stockage normal ou
@@ -530,10 +567,10 @@ function saveState(){
   localStorage.setItem(FDR_LAST_ID_KEY, state.id);
   scheduleStateSync();
 }
-function createNewFdr(){
+async function createNewFdr(){
   const fresh = buildDefaultState();
   fdrsCache = [...loadFdrCollection(), fresh];
-  CurieuxDB.upsertOne('feuilles_route', fresh);
+  await CurieuxDB.upsertOne('feuilles_route', fresh);
   localStorage.setItem(FDR_LAST_ID_KEY, fresh.id);
   location.href = 'feuille-de-route.html?id=' + encodeURIComponent(fresh.id);
 }
@@ -856,13 +893,13 @@ document.getElementById('resetFdrBtn').addEventListener('click', ()=>{
 });
 document.getElementById('newFdrBtn').addEventListener('click', createNewFdr);
 
-document.getElementById('deleteFdrBtn').addEventListener('click', ()=>{
+document.getElementById('deleteFdrBtn').addEventListener('click', async ()=>{
   const desc = [state.artistName || 'Feuille de route sans titre', state.eventDate ? fmtDateFRLong(state.eventDate) : ''].filter(Boolean).join(' — ');
   if(!confirm(`Supprimer DÉFINITIVEMENT la feuille de route "${desc}" ?\n\nCette action est irréversible : contacts, trajets, planning et toutes les infos saisies pour cette date seront perdus.`)) return;
   const collection = loadFdrCollection().filter(f => f.id !== state.id);
-  saveFdrCollection(collection);
+  await saveFdrCollection(collection);
   if(localStorage.getItem(FDR_LAST_ID_KEY) === state.id) localStorage.removeItem(FDR_LAST_ID_KEY);
-  location.href = 'accueil.html';
+  location.href = 'feuilles-de-route.html';
 });
 
 // --- Récupérer le train depuis SNCF Connect (uniquement pour la feuille de route) ---
@@ -1375,6 +1412,17 @@ function generateFdrPDF(){
 document.getElementById('generateFdrBtn').addEventListener('click', generateFdrPDF);
 
 injectCurieuxFonts();
+document.querySelectorAll('.nav-group-btn').forEach(btn=>{
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const group = btn.closest('.nav-group');
+    const wasOpen = group.classList.contains('open');
+    document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open'));
+    if(!wasOpen) group.classList.add('open');
+  });
+});
+document.addEventListener('click', ()=> document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open')));
+
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 

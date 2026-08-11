@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Feuilles de route</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script>try{ hideCurieuxPageUntilUnlocked(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', applyCurieuxPasswordGate); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
+    --champagne:#fde3ee; --old-champagne:#c98aa0;
+    --radius:12px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --secondary:#ff7a4a; --secondary-dark:#ffab84; --secondary-tint:#3d2430;
+    --champagne:#3a2530; --old-champagne:#7a5064;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 80px;
+    transition:background .3s, color .3s;
+  }
+  .wrap{max-width:820px; margin:0 auto;}
+  .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
+  .brand-logo-img{height:30px; width:auto; display:block;}
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .page-nav > a{
+    color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    white-space:nowrap;
+  }
+  .page-nav > a:hover{background:#a8c9e6;}
+  .page-nav > a.ghost{background:transparent; color:var(--muted);}
+  .page-nav > a.ghost:hover{background:var(--border); color:var(--text);}
+  .nav-group{position:relative;}
+  .nav-group-btn{
+    font-family:inherit; cursor:pointer; border:none; color:var(--accent-dark); font-weight:700; font-size:12.5px;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    display:flex; align-items:center; gap:4px; white-space:nowrap;
+  }
+  .nav-group-btn:hover{background:#a8c9e6;}
+  .nav-caret{font-size:9px; transition:transform .2s ease;}
+  .nav-group.open .nav-caret{transform:rotate(180deg);}
+  .nav-group.open .nav-group-btn{background:var(--accent); color:#fff;}
+  .nav-dropdown{
+    position:absolute; top:calc(100% + 6px); left:0; min-width:200px; background:var(--card);
+    border:1px solid var(--border); border-radius:12px; box-shadow:0 12px 30px rgba(20,15,10,.16);
+    padding:6px; display:none; flex-direction:column; gap:2px; z-index:50;
+  }
+  .nav-group.open .nav-dropdown{display:flex;}
+  .nav-dropdown a{
+    display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px;
+    color:var(--text); text-decoration:none; font-size:13px; font-weight:600; white-space:nowrap;
+  }
+  .nav-dropdown a:hover{background:var(--accent-tint);}
+  h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
+
+  .toolbar{display:flex; justify-content:flex-end; margin-bottom:16px;}
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-ghost:hover{background:var(--border); color:var(--text);}
+  .btn-danger-ghost{background:transparent; color:#b23b2e; padding:6px 10px;}
+  .btn-danger-ghost:hover{background:#fbe6e2;}
+
+  .empty-hint{color:var(--muted); font-size:13.5px; padding:40px 4px; text-align:center;}
+
+  .fdr-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 18px; margin-bottom:10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  .fdr-info{flex:1; min-width:200px;}
+  .fdr-title{font-weight:800; font-size:15px; margin-bottom:2px;}
+  .fdr-title.untitled{color:var(--muted); font-style:italic; font-weight:700;}
+  .fdr-meta{font-size:12.5px; color:var(--muted);}
+  .fdr-actions{display:flex; align-items:center; gap:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav">
+      <a class="ghost" href="accueil.html">← Accueil</a>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Tournées <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="tournees.html">🗓️ Gérer les tournées</a>
+          <a href="feuilles-de-route.html">🧭 Feuilles de route</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Annuaires <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="annuaire.html">📇 Musicien·nes</a>
+          <a href="techniciens.html">🛠️ Technicien·nes</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Disponibilités <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="disponibilites.html">✅ Grille interne</a>
+          <a href="suivi-dispo.html">🔗 Demandes titulaires</a>
+        </div>
+      </div>
+      <a href="recap.html">📊 Vue d'ensemble</a>
+    </nav>
+  </div>
+  <h1>Feuilles de route</h1>
+  <p class="subtitle">Toutes les feuilles de route, tous artistes et dates confondus.</p>
+
+  <div class="toolbar">
+    <button type="button" class="btn-primary" id="newFdrBtn">+ Nouvelle feuille de route</button>
+  </div>
+
+  <div id="holder"></div>
+</div>
+
+<script>
+function genId(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDateFR(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  const months = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} ${y}`;
+}
+
+let fdrsCache = [];
+
+function render(){
+  const holder = document.getElementById('holder');
+  if(fdrsCache.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Aucune feuille de route pour l'instant.</div>`;
+    return;
+  }
+  const sorted = fdrsCache.slice().sort((a,b)=>{
+    if(!a.eventDate && !b.eventDate) return 0;
+    if(!a.eventDate) return 1;
+    if(!b.eventDate) return -1;
+    return a.eventDate.localeCompare(b.eventDate);
+  });
+  holder.innerHTML = sorted.map(f=>{
+    const title = f.artistName || 'Feuille de route sans titre';
+    const venue = [f.venueCity, f.venueSalle].filter(Boolean).join(' · ');
+    const meta = [fmtDateFR(f.eventDate) || 'Sans date', venue].filter(Boolean).join('  —  ');
+    return `
+      <div class="fdr-card">
+        <div class="fdr-info">
+          <div class="fdr-title ${f.artistName ? '' : 'untitled'}">${escapeHtml(title)}</div>
+          <div class="fdr-meta">${escapeHtml(meta)}</div>
+        </div>
+        <div class="fdr-actions">
+          <a class="btn-ghost" style="text-decoration:none; display:inline-block;" href="feuille-de-route.html?id=${encodeURIComponent(f.id)}">Ouvrir →</a>
+          <button type="button" class="btn-danger-ghost" data-delete="${f.id}">🗑 Supprimer</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  holder.querySelectorAll('[data-delete]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const fdr = fdrsCache.find(f=> f.id === btn.dataset.delete);
+      const title = (fdr && fdr.artistName) || 'Feuille de route sans titre';
+      if(!confirm(`Supprimer DÉFINITIVEMENT la feuille de route "${title}" ?\n\nCette action est irréversible.`)) return;
+      btn.disabled = true;
+      await CurieuxDB.removeOne('feuilles_route', btn.dataset.delete);
+      fdrsCache = fdrsCache.filter(f=> f.id !== btn.dataset.delete);
+      render();
+    });
+  });
+}
+
+document.getElementById('newFdrBtn').addEventListener('click', async ()=>{
+  const fresh = { id: genId('fdr'), artistName:'', eventDate:'', venueCity:'', venueSalle:'' };
+  await CurieuxDB.upsertOne('feuilles_route', fresh);
+  location.href = 'feuille-de-route.html?id=' + encodeURIComponent(fresh.id);
+});
+
+document.querySelectorAll('.nav-group-btn').forEach(btn=>{
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const group = btn.closest('.nav-group');
+    const wasOpen = group.classList.contains('open');
+    document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open'));
+    if(!wasOpen) group.classList.add('open');
+  });
+});
+document.addEventListener('click', ()=> document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open')));
+
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+async function initData(){
+  fdrsCache = await CurieuxDB.fetchAll('feuilles_route');
+  render();
+}
+CurieuxDB.subscribe('feuilles_route', ()=>{
+  CurieuxDB.fetchAll('feuilles_route').then(list=>{ fdrsCache = list; render(); });
+});
+initData();
+</script>
+</body>
+</html>

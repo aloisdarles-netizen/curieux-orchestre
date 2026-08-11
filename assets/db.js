@@ -48,6 +48,7 @@ const CurieuxDB = (()=>{
         id: t.id,
         prenom: t.prenom || '', nom: t.nom || '',
         poste: t.poste || '', pole: t.pole || 'Autre',
+        statut_poste: t.statutPoste || 'titulaire',
         telephone: t.telephone || '', email: t.email || '', notes: t.notes || '',
         disponibilites: t.disponibilites || {},
         disponibilites_commentaires: t.disponibilitesCommentaires || {}
@@ -55,6 +56,7 @@ const CurieuxDB = (()=>{
       fromDb: (r)=> ({
         id: r.id, prenom: r.prenom, nom: r.nom,
         poste: r.poste, pole: r.pole,
+        statutPoste: r.statut_poste || 'titulaire',
         telephone: r.telephone, email: r.email, notes: r.notes,
         disponibilites: r.disponibilites || {},
         disponibilitesCommentaires: r.disponibilites_commentaires || {}

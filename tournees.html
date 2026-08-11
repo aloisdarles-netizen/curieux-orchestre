@@ -42,15 +42,36 @@
   .wrap{max-width:1380px; margin:0 auto;}
   .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
   .brand-logo-img{height:30px; width:auto; display:block;}
-  .page-nav{display:flex; gap:8px; flex-wrap:wrap;}
-  .page-nav a{
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .page-nav > a{
     color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
     background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
     white-space:nowrap;
   }
-  .page-nav a:hover{background:#a8c9e6;}
-  .page-nav a.ghost{background:transparent; color:var(--muted);}
-  .page-nav a.ghost:hover{background:var(--border); color:var(--text);}
+  .page-nav > a:hover{background:#a8c9e6;}
+  .page-nav > a.ghost{background:transparent; color:var(--muted);}
+  .page-nav > a.ghost:hover{background:var(--border); color:var(--text);}
+  .nav-group{position:relative;}
+  .nav-group-btn{
+    font-family:inherit; cursor:pointer; border:none; color:var(--accent-dark); font-weight:700; font-size:12.5px;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    display:flex; align-items:center; gap:4px; white-space:nowrap;
+  }
+  .nav-group-btn:hover{background:#a8c9e6;}
+  .nav-caret{font-size:9px; transition:transform .2s ease;}
+  .nav-group.open .nav-caret{transform:rotate(180deg);}
+  .nav-group.open .nav-group-btn{background:var(--accent); color:#fff;}
+  .nav-dropdown{
+    position:absolute; top:calc(100% + 6px); left:0; min-width:200px; background:var(--card);
+    border:1px solid var(--border); border-radius:12px; box-shadow:0 12px 30px rgba(20,15,10,.16);
+    padding:6px; display:none; flex-direction:column; gap:2px; z-index:50;
+  }
+  .nav-group.open .nav-dropdown{display:flex;}
+  .nav-dropdown a{
+    display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px;
+    color:var(--text); text-decoration:none; font-size:13px; font-weight:600; white-space:nowrap;
+  }
+  .nav-dropdown a:hover{background:var(--accent-tint);}
   h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
   .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
 
@@ -173,12 +194,28 @@
     <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
     <nav class="page-nav">
       <a class="ghost" href="accueil.html">← Accueil</a>
-      <a href="recap.html">Vue d'ensemble</a>
-      <a href="annuaire.html">Annuaire musicien·nes</a>
-      <a href="techniciens.html">Technicien·nes</a>
-      <a href="disponibilites.html">Disponibilités</a>
-      <a href="feuille-de-route.html">Feuille de route</a>
-      <a href="suivi-dispo.html">Demandes titulaires</a>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Tournées <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="tournees.html">🗓️ Gérer les tournées</a>
+          <a href="feuilles-de-route.html">🧭 Feuilles de route</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Annuaires <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="annuaire.html">📇 Musicien·nes</a>
+          <a href="techniciens.html">🛠️ Technicien·nes</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Disponibilités <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="disponibilites.html">✅ Grille interne</a>
+          <a href="suivi-dispo.html">🔗 Demandes titulaires</a>
+        </div>
+      </div>
+      <a href="recap.html">📊 Vue d'ensemble</a>
     </nav>
   </div>
   <h1>Tournées</h1>
@@ -217,11 +254,15 @@
 <div class="modal-overlay" id="dispoLinksOverlay">
   <div class="modal" style="max-width:640px;">
     <h2>Demandes titulaires — liens personnels</h2>
-    <p class="modal-sub">Un lien personnel par titulaire (musicien·nes et technicien·nes) — les remplaçant·es ne sont pas sollicité·es directement, on les contacte via le rang de priorité dans l'annuaire quand un·e titulaire décline.</p>
+    <p class="modal-sub">Un lien personnel par titulaire (musicien·nes et technicien·nes) — les remplaçant·es ne sont sollicité·es qu'à la demande (ci-dessous), sinon on les contacte via le rang de priorité dans l'annuaire quand un·e titulaire décline.</p>
     <div class="modal-actions" style="justify-content:flex-start;">
       <button type="button" class="btn-secondary btn-sm" id="dispoLinksCopyAllBtn">📋 Copier tous les liens</button>
     </div>
     <div id="dispoLinksList" style="max-height:55vh; overflow-y:auto; margin-top:10px;"></div>
+    <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+      <input type="text" id="addRemplacantSearch" placeholder="🔎 Ajouter un·e remplaçant·e à la demande…" style="width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit; box-sizing:border-box;">
+      <div id="addRemplacantResults" style="margin-top:6px; max-height:160px; overflow-y:auto;"></div>
+    </div>
     <div class="modal-actions">
       <button type="button" class="btn-ghost" id="dispoLinksCloseBtn">Fermer</button>
     </div>
@@ -895,6 +936,7 @@ function dispoLinkUrl(demandeId){
 
 function openDispoLinksModal(tourneeId){
   dispoLinksCurrentTourneeId = tourneeId;
+  document.getElementById('addRemplacantSearch').value = '';
   renderDispoLinksModal(tourneeId);
   document.getElementById('dispoLinksOverlay').classList.add('open');
 }
@@ -915,12 +957,20 @@ async function generateDispoLink(tourneeId, personType, personId){
 }
 
 function renderDispoLinksModal(tourneeId){
-  // Titulaires uniquement : les remplaçant·es sont contactés via le rang de priorité
-  // dans l'annuaire quand un·e titulaire décline, pas par ce lien.
-  const titulaireMusiciens = loadMusicians().filter(m=> (m.statutPoste||'titulaire') === 'titulaire')
-    .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
-  const titulaireTechniciens = loadTechnicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  // Titulaires par défaut : les remplaçant·es sont contactés via le rang de priorité
+  // dans l'annuaire quand un·e titulaire décline, sauf demande ponctuelle explicite
+  // (recherche "Ajouter un·e remplaçant·e" en bas de la modale) — dans ce cas, le/la
+  // remplaçant·e reste affiché·e dans la liste une fois son lien généré.
   const demandes = loadDispoDemandes();
+  const demandedRemplacantIds = new Set(
+    demandes.filter(d=> d.tourneeId === tourneeId).map(d=> `${d.personType}:${d.personId}`)
+  );
+  const titulaireMusiciens = loadMusicians()
+    .filter(m=> (m.statutPoste||'titulaire') === 'titulaire' || demandedRemplacantIds.has(`musicien:${m.id}`))
+    .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const titulaireTechniciens = loadTechnicians()
+    .filter(t=> (t.statutPoste||'titulaire') === 'titulaire' || demandedRemplacantIds.has(`technicien:${t.id}`))
+    .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
   const tournee = loadTournees().find(t=> t.id === tourneeId);
   // Dates actuelles à répondre (hors annulées) — sert à détecter les personnes qui ont
   // déjà répondu à un premier lot de dates mais pas encore aux dates ajoutées depuis.
@@ -941,10 +991,11 @@ function renderDispoLinksModal(tourneeId){
     } else {
       statusHtml = `<span style="font-size:11px; color:var(--muted); white-space:nowrap;">En attente</span>`;
     }
+    const isRemplacant = (person.statutPoste || 'titulaire') === 'remplacant';
     return `
       <div style="display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid var(--border);">
         <div style="flex:1; min-width:0;">
-          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))}</div>
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? '<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;">Remplaçant·e</span>' : ''}</div>
           <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
         </div>
         ${statusHtml}
@@ -976,7 +1027,60 @@ function renderDispoLinksModal(tourneeId){
       });
     });
   });
+
+  renderAddRemplacantResults(tourneeId, document.getElementById('addRemplacantSearch').value);
 }
+
+// Recherche ponctuelle d'un·e remplaçant·e (musicien·ne, ou technicien·ne du pôle Régie)
+// à qui générer un lien de dispo à la demande, en dehors des titulaires sollicités par défaut.
+function renderAddRemplacantResults(tourneeId, query){
+  const holder = document.getElementById('addRemplacantResults');
+  const q = (query || '').toLowerCase().trim();
+  if(!q){ holder.innerHTML = ''; return; }
+
+  const demandes = loadDispoDemandes();
+  const alreadyDemanded = new Set(
+    demandes.filter(d=> d.tourneeId === tourneeId).map(d=> `${d.personType}:${d.personId}`)
+  );
+
+  const remplacantMusiciens = loadMusicians()
+    .filter(m=> (m.statutPoste||'titulaire') === 'remplacant' && !alreadyDemanded.has(`musicien:${m.id}`))
+    .map(m=> ({ person:m, personType:'musicien', roleLabel: m.instrument || 'Musicien·ne' }));
+  const remplacantTechniciens = loadTechnicians()
+    .filter(t=> t.pole === 'Régie générale' && (t.statutPoste||'titulaire') === 'remplacant' && !alreadyDemanded.has(`technicien:${t.id}`))
+    .map(t=> ({ person:t, personType:'technicien', roleLabel: t.poste || 'Technicien·ne' }));
+
+  const results = [...remplacantMusiciens, ...remplacantTechniciens].filter(r=>{
+    const haystack = [r.person.prenom, r.person.nom, r.roleLabel].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(q);
+  }).slice(0, 8);
+
+  if(results.length === 0){
+    holder.innerHTML = `<div class="empty-hint" style="padding:10px 4px;">Aucun·e remplaçant·e trouvé·e.</div>`;
+    return;
+  }
+  holder.innerHTML = results.map(r=> `
+    <div style="display:flex; align-items:center; gap:10px; padding:7px 4px; border-bottom:1px solid var(--border);">
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(r.person))}</div>
+        <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(r.roleLabel)}</div>
+      </div>
+      <button type="button" class="btn-secondary btn-sm" data-gen-remplacant data-person-type="${r.personType}" data-person-id="${escapeAttr(r.person.id)}">+ Générer</button>
+    </div>
+  `).join('');
+
+  holder.querySelectorAll('[data-gen-remplacant]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true; btn.textContent = '…';
+      await generateDispoLink(tourneeId, btn.dataset.personType, btn.dataset.personId);
+      document.getElementById('addRemplacantSearch').value = '';
+      renderDispoLinksModal(tourneeId);
+    });
+  });
+}
+document.getElementById('addRemplacantSearch').addEventListener('input', (e)=>{
+  if(dispoLinksCurrentTourneeId) renderAddRemplacantResults(dispoLinksCurrentTourneeId, e.target.value);
+});
 
 document.getElementById('dispoLinksCloseBtn').addEventListener('click', closeDispoLinksModal);
 document.getElementById('dispoLinksOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'dispoLinksOverlay') closeDispoLinksModal(); });
@@ -1175,6 +1279,17 @@ document.getElementById('addTourneeBtn').addEventListener('click', ()=>{
 });
 
 injectCurieuxFonts();
+document.querySelectorAll('.nav-group-btn').forEach(btn=>{
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const group = btn.closest('.nav-group');
+    const wasOpen = group.classList.contains('open');
+    document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open'));
+    if(!wasOpen) group.classList.add('open');
+  });
+});
+document.addEventListener('click', ()=> document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open')));
+
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 

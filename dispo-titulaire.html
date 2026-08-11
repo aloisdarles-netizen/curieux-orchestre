@@ -49,6 +49,14 @@
   .identity-note{font-size:11.5px; color:var(--muted); margin-top:4px;}
 
   h1{font-size:20px; margin:0 0 6px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .contact-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; margin-bottom:16px;}
+  .contact-card-label{font-size:11.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:8px;}
+  .contact-card-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .contact-input{
+    flex:1; min-width:150px; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13.5px;
+    background:var(--bg); color:var(--text); font-family:inherit;
+  }
+  .contact-input:focus{outline:2px solid var(--accent); outline-offset:1px;}
   .intro-text{font-size:12.5px; color:var(--muted); line-height:1.55; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; margin-bottom:22px;}
   .intro-text p{margin:0 0 8px;}
   .intro-text p:last-child{margin-bottom:0;}
@@ -236,6 +244,13 @@ function render(){
       <strong>${escapeHtml(state.tournee.nom || 'la tournée')}</strong>.
       <div class="identity-note">Ce lien t'est personnel, pas la peine de le transférer. Tu peux revenir dessus à tout moment pour mettre à jour tes réponses.</div>
     </div>
+    <div class="contact-card">
+      <div class="contact-card-label">Tes coordonnées (visibles dans l'annuaire de la prod)</div>
+      <div class="contact-card-row">
+        <input type="tel" class="contact-input" id="contactTelephone" placeholder="Téléphone" value="${escapeAttr(state.person.telephone || '')}">
+        <input type="email" class="contact-input" id="contactEmail" placeholder="Email" value="${escapeAttr(state.person.email || '')}">
+      </div>
+    </div>
     <div class="intro-text">
       <p>Les dates ci-dessous sont <strong>strictement confidentielles</strong> — merci de ne pas les diffuser en dehors de l'équipe.</p>
       <p>Ce document ne représente pas une embauche ferme : ce sont des options qui doivent être validées et peuvent évoluer.</p>
@@ -309,6 +324,14 @@ function render(){
       markDirty();
     });
   });
+  document.getElementById('contactTelephone').addEventListener('input', (e)=>{
+    state.person.telephone = e.target.value.trim();
+    markDirty();
+  });
+  document.getElementById('contactEmail').addEventListener('input', (e)=>{
+    state.person.email = e.target.value.trim();
+    markDirty();
+  });
 
   document.getElementById('saveBar').classList.add('visible');
 }
@@ -329,7 +352,9 @@ async function doSave(){
   const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
   await supabaseClient.from(personTable).update({
     disponibilites: state.person.disponibilites,
-    disponibilites_commentaires: state.person.disponibilites_commentaires
+    disponibilites_commentaires: state.person.disponibilites_commentaires,
+    telephone: state.person.telephone || '',
+    email: state.person.email || ''
   }).eq('id', state.person.id);
   await supabaseClient.from('dispo_demandes').update({ last_responded_at: new Date().toISOString() }).eq('id', state.demande.id);
   btn.textContent = 'Valider mes réponses';

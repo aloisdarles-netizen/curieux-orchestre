@@ -36,15 +36,36 @@
   .wrap{max-width:1100px; margin:0 auto;}
   .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
   .brand-logo-img{height:30px; width:auto; display:block;}
-  .page-nav{display:flex; gap:8px; flex-wrap:wrap;}
-  .page-nav a{
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .page-nav > a{
     color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
     background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
     white-space:nowrap;
   }
-  .page-nav a:hover{background:#a8c9e6;}
-  .page-nav a.ghost{background:transparent; color:var(--muted);}
-  .page-nav a.ghost:hover{background:var(--border); color:var(--text);}
+  .page-nav > a:hover{background:#a8c9e6;}
+  .page-nav > a.ghost{background:transparent; color:var(--muted);}
+  .page-nav > a.ghost:hover{background:var(--border); color:var(--text);}
+  .nav-group{position:relative;}
+  .nav-group-btn{
+    font-family:inherit; cursor:pointer; border:none; color:var(--accent-dark); font-weight:700; font-size:12.5px;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    display:flex; align-items:center; gap:4px; white-space:nowrap;
+  }
+  .nav-group-btn:hover{background:#a8c9e6;}
+  .nav-caret{font-size:9px; transition:transform .2s ease;}
+  .nav-group.open .nav-caret{transform:rotate(180deg);}
+  .nav-group.open .nav-group-btn{background:var(--accent); color:#fff;}
+  .nav-dropdown{
+    position:absolute; top:calc(100% + 6px); left:0; min-width:200px; background:var(--card);
+    border:1px solid var(--border); border-radius:12px; box-shadow:0 12px 30px rgba(20,15,10,.16);
+    padding:6px; display:none; flex-direction:column; gap:2px; z-index:50;
+  }
+  .nav-group.open .nav-dropdown{display:flex;}
+  .nav-dropdown a{
+    display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px;
+    color:var(--text); text-decoration:none; font-size:13px; font-weight:600; white-space:nowrap;
+  }
+  .nav-dropdown a:hover{background:var(--accent-tint);}
   h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
   .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
 
@@ -153,12 +174,28 @@
     <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
     <nav class="page-nav">
       <a class="ghost" href="accueil.html">← Accueil</a>
-      <a href="recap.html">Vue d'ensemble</a>
-      <a href="tournees.html">Tournées</a>
-      <a href="techniciens.html">Technicien·nes</a>
-      <a href="disponibilites.html">Disponibilités</a>
-      <a href="feuille-de-route.html">Feuille de route</a>
-      <a href="suivi-dispo.html">Demandes titulaires</a>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Tournées <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="tournees.html">🗓️ Gérer les tournées</a>
+          <a href="feuilles-de-route.html">🧭 Feuilles de route</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Annuaires <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="annuaire.html">📇 Musicien·nes</a>
+          <a href="techniciens.html">🛠️ Technicien·nes</a>
+        </div>
+      </div>
+      <div class="nav-group">
+        <button type="button" class="nav-group-btn">Disponibilités <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown">
+          <a href="disponibilites.html">✅ Grille interne</a>
+          <a href="suivi-dispo.html">🔗 Demandes titulaires</a>
+        </div>
+      </div>
+      <a href="recap.html">📊 Vue d'ensemble</a>
     </nav>
   </div>
   <h1>Annuaire musicien·nes</h1>
@@ -175,8 +212,8 @@
       <option value="Autre">Autre</option>
     </select>
     <select id="statutFilter">
+      <option value="titulaire" selected>Titulaire</option>
       <option value="">Titulaire + remplaçant·e</option>
-      <option value="titulaire">Titulaire</option>
       <option value="remplacant">Remplaçant·e</option>
     </select>
     <div class="spacer"></div>
@@ -313,6 +350,16 @@ function compareForRemplacantRanking(a, b){
   return fullName(a).localeCompare(fullName(b));
 }
 
+// Pour les titulaires, on classe par pupitre (ordre de l'orchestre, pas alphabétique)
+// puis par nom — plus simple à parcourir qu'un ordre alphabétique pur.
+const PUPITRE_ORDER = ['Cordes', 'Bois', 'Cuivres', 'Percussions', 'Autre'];
+function compareByPupitreThenName(a, b){
+  const ia = PUPITRE_ORDER.indexOf(a.pupitre || 'Autre');
+  const ib = PUPITRE_ORDER.indexOf(b.pupitre || 'Autre');
+  if(ia !== ib) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  return fullName(a).localeCompare(fullName(b));
+}
+
 // Sélection multiple pour l'édition groupée (pupitre / statut uniquement) — persiste
 // tant qu'on ne vide pas explicitement la sélection, y compris si on change les filtres.
 const selectedIds = new Set();
@@ -338,7 +385,7 @@ function render(){
     if(!search) return true;
     const haystack = [m.prenom, m.nom, m.instrument, m.pupitre].filter(Boolean).join(' ').toLowerCase();
     return haystack.includes(search);
-  }).sort(statutPoste === 'remplacant' ? compareForRemplacantRanking : (a,b)=> fullName(a).localeCompare(fullName(b)));
+  }).sort(statutPoste === 'remplacant' ? compareForRemplacantRanking : statutPoste === 'titulaire' ? compareByPupitreThenName : (a,b)=> fullName(a).localeCompare(fullName(b)));
 
   const grid = document.getElementById('grid');
   const emptyHint = document.getElementById('emptyHint');
@@ -822,6 +869,17 @@ document.getElementById('bulkDeleteBtn').addEventListener('click', ()=>{
 });
 
 injectCurieuxFonts();
+document.querySelectorAll('.nav-group-btn').forEach(btn=>{
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const group = btn.closest('.nav-group');
+    const wasOpen = group.classList.contains('open');
+    document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open'));
+    if(!wasOpen) group.classList.add('open');
+  });
+});
+document.addEventListener('click', ()=> document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open')));
+
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 

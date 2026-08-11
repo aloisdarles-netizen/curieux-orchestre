@@ -51,6 +51,7 @@ create table if not exists techniciens (
   nom text default '',
   poste text default '',
   pole text default 'Autre',
+  statut_poste text default 'titulaire',
   telephone text default '',
   email text default '',
   notes text default '',
@@ -60,6 +61,7 @@ create table if not exists techniciens (
   updated_at timestamptz not null default now()
 );
 alter table techniciens add column if not exists disponibilites_commentaires jsonb not null default '{}'::jsonb;
+alter table techniciens add column if not exists statut_poste text default 'titulaire';
 drop trigger if exists trg_techniciens_updated_at on techniciens;
 create trigger trg_techniciens_updated_at before update on techniciens
   for each row execute function set_updated_at();
