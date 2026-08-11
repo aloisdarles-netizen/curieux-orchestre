@@ -360,6 +360,16 @@ function renderDashboard(){
   // Dates à venir sans ville ni salle renseignées.
   const infosManquantes = upcoming.filter(e=> !e.ville && !e.lieu);
 
+  // Dates à venir encore en option (pas encore validées) — à relancer/confirmer.
+  const enOption = upcoming.filter(e=> e.statut === 'option');
+
+  // Tournées ayant au moins une date à venir.
+  const tourneesActives = new Set(upcoming.map(e=> e.tourneeId)).size;
+
+  // Effectif de l'annuaire musicien·nes (titulaires vs remplaçant·es).
+  const musiciensTitulaires = loadMusicians().filter(m=> (m.statutPoste||'titulaire') === 'titulaire').length;
+  const musiciensRemplacants = loadMusicians().length - musiciensTitulaires;
+
   // Titulaires ayant un lien de dispo généré mais n'ayant pas répondu à toutes les
   // dates à venir de leur tournée (même logique que le badge "En attente" / "Nouvelles
   // dates" de la modale Demandes titulaires dans Tournées).
@@ -394,9 +404,24 @@ function renderDashboard(){
       label:'Date' + (infosManquantes.length>1?'s':'') + ' à venir sans ville ni salle'
     },
     {
+      icon:'🎫', href:'tournees.html',
+      value: String(enOption.length), valueClass: enOption.length > 0 ? 'warn' : 'ok',
+      label:'Date' + (enOption.length>1?'s':'') + ' à venir encore en option'
+    },
+    {
       icon:'🕓', href:'suivi-dispo.html',
       value: String(reponsesEnAttente), valueClass: reponsesEnAttente > 0 ? 'warn' : 'ok',
       label:'Réponse' + (reponsesEnAttente>1?'s':'') + ' de dispo en attente (titulaires)'
+    },
+    {
+      icon:'🚌', href:'tournees.html',
+      value: String(tourneesActives),
+      label:'Tournée' + (tourneesActives>1?'s':'') + ' avec des dates à venir'
+    },
+    {
+      icon:'🎻', href:'annuaire.html',
+      value: `${musiciensTitulaires} + ${musiciensRemplacants}`,
+      label:`Musicien·nes titulaires + remplaçant·es`
     }
   ];
 
