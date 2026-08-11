@@ -144,52 +144,17 @@ function drawCurieuxPdfHeader(doc, pageWidth, title, headerH){
   doc.setTextColor(20, 22, 23);
 }
 
-// --- Mode nuit automatique (declenche au coucher du soleil, coordonnees Paris) ---
-const SUN_LAT = 48.8566, SUN_LNG = 2.3522;
-function getSunTimes(date, lat, lng){
-  const rad = Math.PI / 180;
-  const dayMs = 86400000;
-  const J1970 = 2440588, J2000 = 2451545;
-  const toJulian = d => d.valueOf() / dayMs - 0.5 + J1970;
-  const toDays = d => toJulian(d) - J2000;
-  const e = rad * 23.4397;
-  const solarMeanAnomaly = d => rad * (357.5291 + 0.98560028 * d);
-  const eclipticLongitude = M => {
-    const C = rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2*M) + 0.0003 * Math.sin(3*M));
-    const P = rad * 102.9372;
-    return M + C + P + Math.PI;
-  };
-  const declination = l => Math.asin(Math.sin(e) * Math.sin(l));
-  const siderealTime = (d, lw) => rad * (280.16 + 360.9856235 * d) - lw;
-  const julianCycle = (d, lw) => Math.round(d - 0.0009 - lw / (2 * Math.PI));
-  const approxTransit = (Ht, lw, n) => 0.0009 + (Ht + lw) / (2 * Math.PI) + n;
-  const solarTransitJ = (ds, M, L) => J2000 + ds + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
-  const hourAngle = (h, phi, d) => Math.acos((Math.sin(h) - Math.sin(phi) * Math.sin(d)) / (Math.cos(phi) * Math.cos(d)));
-  const fromJulian = j => new Date((j + 0.5 - J1970) * dayMs);
-
-  const lw = rad * -lng, phi = rad * lat;
-  const d = toDays(date);
-  const n = julianCycle(d, lw);
-  const ds = approxTransit(0, lw, n);
-  const M = solarMeanAnomaly(ds);
-  const L = eclipticLongitude(M);
-  const dec = declination(L);
-  const Jnoon = solarTransitJ(ds, M, L);
-  const h0 = -0.833 * rad;
-  const w0 = hourAngle(h0, phi, dec);
-  const Jset = solarTransitJ(approxTransit(w0, lw, n), M, L);
-  const Jrise = Jnoon - (Jset - Jnoon);
-  return { sunrise: fromJulian(Jrise), sunset: fromJulian(Jset) };
-}
-function isNightTime(){
-  try{
-    const now = new Date();
-    const { sunrise, sunset } = getSunTimes(now, SUN_LAT, SUN_LNG);
-    return now < sunrise || now > sunset;
-  }catch(e){ return false; }
-}
+// --- Mode nuit automatique (suit le mode sombre/clair du système, pas l'heure) ---
+let __curieuxThemeListenerAdded = false;
 function applyAutoTheme(){
-  const dark = isNightTime();
+  const dark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
   try{ applyBrandLogo(); }catch(e){}
+  // Le navigateur/OS peut basculer le thème pendant que la page est ouverte (heure
+  // programmée du système, bascule manuelle) : on écoute le changement pour suivre en
+  // direct, plutôt que de dépendre du polling setInterval(applyAutoTheme, ...) existant.
+  if(window.matchMedia && !__curieuxThemeListenerAdded){
+    __curieuxThemeListenerAdded = true;
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyAutoTheme);
+  }
 }

@@ -28,6 +28,7 @@ const CurieuxDB = (()=>{
         prenom: m.prenom || '', nom: m.nom || '',
         instrument: m.instrument || '', pupitre: m.pupitre || 'Autre',
         statut_poste: m.statutPoste || 'titulaire',
+        rang: m.rang || null,
         telephone: m.telephone || '', email: m.email || '', notes: m.notes || '',
         disponibilites: m.disponibilites || {}
       }),
@@ -35,6 +36,7 @@ const CurieuxDB = (()=>{
         id: r.id, prenom: r.prenom, nom: r.nom,
         instrument: r.instrument, pupitre: r.pupitre,
         statutPoste: r.statut_poste,
+        rang: r.rang || undefined,
         telephone: r.telephone, email: r.email, notes: r.notes,
         disponibilites: r.disponibilites || {}
       })

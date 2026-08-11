@@ -114,6 +114,16 @@
   .swatch.dispo{background:var(--accent-tint); border-color:var(--accent-dark);}
   .swatch.indispo{background:var(--ko); border-color:var(--ko);}
   .swatch.incertain{background:var(--maybe); border-color:var(--maybe);}
+  .remplacant-tag{
+    font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:1px 6px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); margin-left:6px; vertical-align:middle;
+  }
+  .dispo-filter-row{display:flex; gap:8px; align-items:center; margin:-2px 0 10px; flex-wrap:wrap;}
+  .dispo-filter-row label{font-size:12px; color:var(--muted); font-weight:600;}
+  .dispo-filter-row select{
+    padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
 </style>
 </head>
 <body>
@@ -146,6 +156,14 @@
   </div>
 
   <h2 class="section-title">Musicien·nes</h2>
+  <div class="dispo-filter-row">
+    <label>Afficher :</label>
+    <select id="musicienStatutFilter">
+      <option value="">Tou·tes (titulaires en premier)</option>
+      <option value="titulaire">Titulaires uniquement</option>
+      <option value="remplacant">Remplaçant·es uniquement</option>
+    </select>
+  </div>
   <div id="matrixHolderMusiciens"></div>
 
   <h2 class="section-title">Technicien·nes</h2>
@@ -191,9 +209,18 @@ function allDateEntries(assignField, tourneeId){
   return entries;
 }
 
+// Titulaires en priorité (avant les remplaçant·es), alphabétique au sein de chaque
+// groupe. Sans effet sur les technicien·nes (pas de statutPoste).
+function compareByStatutThenName(a, b){
+  const rank = m => (m.statutPoste === 'remplacant' ? 1 : 0);
+  const ra = rank(a), rb = rank(b);
+  if(ra !== rb) return ra - rb;
+  return fullName(a).localeCompare(fullName(b));
+}
+
 function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyLinkLabel, nameLabel){
   const entries = allDateEntries(assignField);
-  const sorted = people.slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const sorted = people.slice().sort(compareByStatutThenName);
   const holder = document.getElementById(holderId);
 
   if(sorted.length === 0){
@@ -225,7 +252,7 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     const dispo = m.disponibilites || {};
     return `
       <tr>
-        <td class="col-name">${escapeHtml(fullName(m))}</td>
+        <td class="col-name">${escapeHtml(fullName(m))}${m.statutPoste === 'remplacant' ? '<span class="remplacant-tag">Rempl.</span>' : ''}</td>
         ${entries.map(e=>{
           const assigned = (e.assignes||[]).includes(m.id);
           const state = dispo[e.date] || '';
@@ -256,10 +283,13 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
 }
 
 function renderAll(){
-  renderPeopleMatrix(loadMusicians(), 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musiciens', "Musicien·ne");
+  const statutFilter = document.getElementById('musicienStatutFilter').value;
+  const filteredMusicians = loadMusicians().filter(m=> !statutFilter || (m.statutPoste || 'titulaire') === statutFilter);
+  renderPeopleMatrix(filteredMusicians, 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musiciens', "Musicien·ne");
   renderPeopleMatrix(loadTechnicians(), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire techniciens', "Technicien·ne");
   populateTourneeSelect();
 }
+document.getElementById('musicienStatutFilter').addEventListener('change', renderAll);
 
 injectCurieuxFonts();
 applyAutoTheme();
@@ -280,7 +310,7 @@ initData();
 
 function buildMatrixTable(doc, startY, people, assignField, title, pageWidth, tourneeId){
   const entries = allDateEntries(assignField, tourneeId);
-  const sorted = people.slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const sorted = people.slice().sort(compareByStatutThenName);
   if(sorted.length === 0 || entries.length === 0) return startY;
 
   doc.setFont('Host', 'bold');
@@ -333,7 +363,9 @@ function exportRecapPdf(){
   const pageWidth = doc.internal.pageSize.getWidth();
   drawCurieuxPdfHeader(doc, pageWidth, headerTitle);
 
-  let y = buildMatrixTable(doc, 30, loadMusicians(), 'musiciensAssignes', 'MUSICIEN·NES (X affecté·e, d dispo, x indispo, ? à confirmer)', pageWidth, tourneeId);
+  const statutFilter = document.getElementById('musicienStatutFilter').value;
+  const filteredMusicians = loadMusicians().filter(m=> !statutFilter || (m.statutPoste || 'titulaire') === statutFilter);
+  let y = buildMatrixTable(doc, 30, filteredMusicians, 'musiciensAssignes', 'MUSICIEN·NES (X affecté·e, d dispo, x indispo, ? à confirmer)', pageWidth, tourneeId);
   if(y > 180){ doc.addPage(); drawCurieuxPdfHeader(doc, pageWidth, headerTitle); y = 30; }
   buildMatrixTable(doc, y, loadTechnicians(), 'techniciensAssignes', 'TECHNICIENS (X affecté·e, d dispo, x indispo, ? à confirmer)', pageWidth, tourneeId);
 

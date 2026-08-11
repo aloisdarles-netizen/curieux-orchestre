@@ -23,6 +23,7 @@ create table if not exists musiciens (
   instrument text default '',
   pupitre text default 'Autre',
   statut_poste text default 'titulaire',
+  rang integer,
   telephone text default '',
   email text default '',
   notes text default '',
@@ -30,6 +31,10 @@ create table if not exists musiciens (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- Rang de priorité des remplaçant·es (1 = à contacter en premier) : ajouté après la
+-- création initiale de la table, donc "add column if not exists" pour une base déjà
+-- provisionnée (le "create table if not exists" ci-dessus ne touche pas une table existante).
+alter table musiciens add column if not exists rang integer;
 drop trigger if exists trg_musiciens_updated_at on musiciens;
 create trigger trg_musiciens_updated_at before update on musiciens
   for each row execute function set_updated_at();

@@ -244,7 +244,7 @@ let techniciansCache = [];
 function loadFdrCollection(){ return fdrsCache; }
 function saveFdrCollection(list){
   fdrsCache = list;
-  CurieuxDB.syncCollection('feuilles_route', list);
+  return CurieuxDB.syncCollection('feuilles_route', list);
 }
 function loadTournees(){ return tourneesCache; }
 function saveTournees(list){
@@ -312,7 +312,7 @@ function buildFdrContactFromPerson(p, roleField){
 
 // Pré-remplit la nouvelle FDR avec la date/ville/salle et les contacts des
 // musicien·nes/technicien·nes déjà affecté·es à cette date de tournée.
-function createFdrForDate(d, tourneeName){
+async function createFdrForDate(d, tourneeName){
   const id = genId('fdr');
   const musicianById = new Map(loadMusicians().map(m=>[m.id, m]));
   const technicianById = new Map(loadTechnicians().map(m=>[m.id, m]));
@@ -326,7 +326,10 @@ function createFdrForDate(d, tourneeName){
   // la FDR reprenne les 2 contacts de base (régisseur/prod) au lieu d'une liste vide.
   if(contacts.length > 0) entry.contacts = contacts;
   collection.push(entry);
-  saveFdrCollection(collection);
+  // On attend que l'écriture Supabase soit bien passée avant de naviguer : sinon
+  // feuille-de-route.html peut recharger sa collection AVANT que cette nouvelle entrée
+  // n'y soit encore, et créer une FDR vierge à la place (date/ville perdues).
+  await saveFdrCollection(collection);
   localStorage.setItem(FDR_LAST_ID_KEY, id);
   location.href = 'feuille-de-route.html?id=' + encodeURIComponent(id);
 }
@@ -802,7 +805,7 @@ function exportTourneePdf(tourneeId){
   doc.autoTable({
     startY: 29,
     margin: { left: 10, right: 10 },
-    head: [['Date', 'Type', 'Statut', 'Transport / Ville', 'Salle', 'Commentaire']],
+    head: [['Date', 'Type', 'Statut', 'Dép. / Retour', 'Transport', 'Ville', 'Salle', 'Commentaire']],
     body: dates.map((d, idx)=>{
       const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
       const type = ['concert','residence'].includes(d.type) ? d.type : 'concert';
@@ -810,40 +813,35 @@ function exportTourneePdf(tourneeId){
       if(blocInfo) blocRowInfo.set(idx, blocInfo);
 
       const row = [fmtDateFR(d.date)];
-      // Type et statut sont communs à tout le bloc : une seule cellule fusionnée
-      // (rowSpan) sur toute la hauteur du bloc plutôt qu'une valeur répétée par date.
-      // La note "départ veille / retour lendemain" est intégrée comme 2e ligne de la
-      // cellule Statut (fusionnée elle aussi) — autoTable calcule alors lui-même la
-      // hauteur et la position, ce qui évite tout chevauchement avec un texte dessiné
-      // à la main par-dessus.
+      // Type, Statut et Dép./Retour sont communs à tout le bloc : une seule cellule
+      // fusionnée (rowSpan) sur toute la hauteur du bloc plutôt qu'une valeur répétée
+      // par date. Chaque info a sa propre colonne — Statut ne mélange plus le mot
+      // (option/validée/annulée) avec les dates de trajet.
       if(!blocInfo || blocInfo.isFirst){
         const span = blocInfo ? blocInfo.blocDates.length : 1;
         row.push({ content: TYPE_PDF_LABEL[type], rowSpan: span, styles: { valign: 'middle' } });
-        let statutContent = STATUT_PDF_LABEL[statut];
-        if(blocInfo){
-          statutContent += `\nDép. veille ${fmtDateFRShortNoYear(blocInfo.veille)}\nRetour lend. ${fmtDateFRShortNoYear(blocInfo.lendemain)}`;
-        }
-        row.push({ content: statutContent, rowSpan: span, styles: { valign: 'middle' } });
+        row.push({ content: STATUT_PDF_LABEL[statut], rowSpan: span, styles: { valign: 'middle' } });
+        const depRetour = blocInfo ? `Dép. veille ${fmtDateFRShortNoYear(blocInfo.veille)}\nRetour lend. ${fmtDateFRShortNoYear(blocInfo.lendemain)}` : '';
+        row.push({ content: depRetour, rowSpan: span, styles: { valign: 'middle', fontSize: 6.6, textColor: [120,105,113] } });
       }
-      // Emoji non disponibles dans la police custom embarquée dans le PDF (glyphes
-      // absents de la fonte) — préfixe texte à la place.
+      // Transport et Ville dans deux colonnes séparées (au lieu d'un seul texte
+      // combiné "[Bus] Lyon") pour que le lien entre les deux infos soit lisible.
       const travelLabel = { tourbus: 'Bus', train: 'Train', avion: 'Avion' }[['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus'];
-      row.push([`[${travelLabel}]`, d.ville].filter(Boolean).join(' '), d.lieu || '', d.commentaire || '');
+      row.push(travelLabel, d.ville || '', d.lieu || '', d.commentaire || '');
       return row;
     }),
     styles: { font:'Host', fontSize:8.5, cellPadding:3, textColor:[20,22,23] },
     columnStyles: {
-      0: { cellWidth: 32 }, 1: { cellWidth: 20 }, 2: { cellWidth: 26 },
-      3: { cellWidth: 36 }, 4: { cellWidth: 36 },
+      0: { cellWidth: 24 }, 1: { cellWidth: 18 }, 2: { cellWidth: 20 },
+      3: { cellWidth: 32 }, 4: { cellWidth: 16 }, 5: { cellWidth: 30 }, 6: { cellWidth: 30 },
     },
     headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold' },
     alternateRowStyles: { fillColor:[253,248,246] },
     didParseCell: (data)=>{
-      // Cellules fusionnées (rowSpan, colonnes Type/Statut d'un bloc) : le contenu
-      // brut est un objet { content, rowSpan, ... } plutôt qu'une simple chaîne.
+      // Cellules fusionnées (rowSpan, colonnes Type/Statut/Dép.-Retour d'un bloc) : le
+      // contenu brut est un objet { content, rowSpan, ... } plutôt qu'une simple chaîne.
       const raw = (data.cell.raw && typeof data.cell.raw === 'object') ? data.cell.raw.content : data.cell.raw;
       const isStatutCol = data.column.index === 2;
-      const statutWord = isStatutCol && typeof raw === 'string' ? raw.split('\n')[0] : null;
 
       // Bloc : teinte pâle alternée sur toute la ligne, posée AVANT les styles de
       // badge (Statut/Résidence) pour que ces derniers restent prioritaires.
@@ -852,40 +850,16 @@ function exportTourneePdf(tourneeId){
       }
 
       // Colonne "Statut" : badge plein (fond + texte) plutôt qu'une simple couleur de
-      // texte, pour repérer d'un coup d'œil option/validée/annulée ; la note de bloc
-      // (2e/3e ligne) reste plus petite et discrète.
-      if(data.section === 'body' && isStatutCol){
+      // texte, pour repérer d'un coup d'œil option/validée/annulée.
+      if(data.section === 'body' && isStatutCol && typeof raw === 'string'){
         data.cell.styles.fontStyle = 'bold';
-        if(statutWord === 'Validée'){ data.cell.styles.fillColor = [226,244,234]; data.cell.styles.textColor = [47,143,91]; }
-        else if(statutWord === 'ANNULÉE'){ data.cell.styles.fillColor = [251,230,226]; data.cell.styles.textColor = [178,59,46]; }
+        if(raw === 'Validée'){ data.cell.styles.fillColor = [226,244,234]; data.cell.styles.textColor = [47,143,91]; }
+        else if(raw === 'ANNULÉE'){ data.cell.styles.fillColor = [251,230,226]; data.cell.styles.textColor = [178,59,46]; }
         else { data.cell.styles.fillColor = [246,234,210]; data.cell.styles.textColor = [184,121,42]; }
       }
       if(data.section === 'body' && data.column.index === 1 && raw === 'Résidence'){
         data.cell.styles.fillColor = [251,228,213]; data.cell.styles.textColor = [193,61,15]; data.cell.styles.fontStyle = 'bold';
       }
-    },
-    didDrawCell: (data)=>{
-      // La note de bloc (lignes 2-3 de la cellule Statut) est rendue plus petite et
-      // discrète que le mot de statut — redessinée par-dessus le texte par défaut
-      // avec les mêmes coordonnées de ligne, sans toucher à la hauteur de cellule
-      // (déjà correctement calculée par autoTable pour ces 3 lignes).
-      if(data.section !== 'body' || data.column.index !== 2) return;
-      const raw = (data.cell.raw && typeof data.cell.raw === 'object') ? data.cell.raw.content : data.cell.raw;
-      if(typeof raw !== 'string' || !raw.includes('\n')) return;
-      const lines = raw.split('\n');
-      const fillColor = data.cell.styles.fillColor;
-      doc.setFillColor(...fillColor);
-      doc.rect(data.cell.x + 0.3, data.cell.y + 0.3, data.cell.width - 0.6, data.cell.height - 0.6, 'F');
-      doc.setFont('Host', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...data.cell.styles.textColor);
-      const midY = data.cell.y + data.cell.height / 2;
-      doc.text(lines[0], data.cell.x + data.cell.padding('left'), midY - 3.4);
-      doc.setFont('Host', 'normal');
-      doc.setFontSize(6.6);
-      doc.setTextColor(120, 105, 113);
-      doc.text(lines[1], data.cell.x + data.cell.padding('left'), midY + 1.6);
-      doc.text(lines[2], data.cell.x + data.cell.padding('left'), midY + 5);
     }
   });
 

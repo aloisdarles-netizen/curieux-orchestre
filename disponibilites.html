@@ -104,6 +104,16 @@
   .dispo-btn.ko{background:var(--ko); border-color:var(--ko); color:#fff;}
   .dispo-btn.maybe{background:var(--maybe); border-color:var(--maybe); color:#fff;}
   .m-instrument-sub{font-weight:500; color:var(--muted); font-size:11px;}
+  .remplacant-tag{
+    font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:1px 6px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); margin-left:5px;
+  }
+  .dispo-filter-row{display:flex; gap:8px; align-items:center; margin:-2px 0 10px; flex-wrap:wrap;}
+  .dispo-filter-row label{font-size:12px; color:var(--muted); font-weight:600;}
+  .dispo-filter-row select{
+    padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
 
   .modal-overlay{
     display:none; position:fixed; inset:0; background:rgba(20,15,10,.5);
@@ -170,6 +180,14 @@
   </div>
 
   <h2 class="section-title">Musicien·nes</h2>
+  <div class="dispo-filter-row">
+    <label>Afficher :</label>
+    <select id="musicienStatutFilter">
+      <option value="">Tou·tes (titulaires en premier)</option>
+      <option value="titulaire">Titulaires uniquement</option>
+      <option value="remplacant">Remplaçant·es uniquement</option>
+    </select>
+  </div>
   <div id="tableHolderMusiciens"></div>
 
   <h2 class="section-title">Technicien·nes</h2>
@@ -236,10 +254,20 @@ function allDates(){
   return Array.from(set).sort();
 }
 
+// Titulaires en priorité (avant les remplaçant·es), alphabétique au sein de chaque
+// groupe plutôt qu'un tri purement alphabétique qui les mélangeait tous ensemble.
+// Sans effet sur les technicien·nes (pas de statutPoste, donc tri alphabétique inchangé).
+function compareByStatutThenName(a, b){
+  const rank = m => (m.statutPoste === 'remplacant' ? 1 : 0);
+  const ra = rank(a), rb = rank(b);
+  if(ra !== rb) return ra - rb;
+  return fullName(a).localeCompare(fullName(b));
+}
+
 // Grille générique musiciens/techniciens — les deux rosters ont la même forme
 // (disponibilites: { iso -> statut }), seul le champ "métier" affiché diffère.
 function renderDispoGrid(people, saveFn, holderId, roleAttr, emptyLinkHref, emptyLinkLabel, metierField, nameLabel){
-  const sorted = people.slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const sorted = people.slice().sort(compareByStatutThenName);
   const dates = allDates();
   const holder = document.getElementById(holderId);
 
@@ -265,7 +293,7 @@ function renderDispoGrid(people, saveFn, holderId, roleAttr, emptyLinkHref, empt
     const dispo = m.disponibilites || {};
     return `
       <tr>
-        <td class="col-name">${escapeHtml(fullName(m))}<div class="m-instrument-sub">${escapeHtml(m[metierField] || '')}</div></td>
+        <td class="col-name">${escapeHtml(fullName(m))}<div class="m-instrument-sub">${escapeHtml(m[metierField] || '')}${m.statutPoste === 'remplacant' ? '<span class="remplacant-tag">Rempl.</span>' : ''}</div></td>
         ${dates.map(d=>{
           const state = dispo[d] || '';
           const cls = STATE_CLASS[state];
@@ -300,14 +328,17 @@ function renderDispoGrid(people, saveFn, holderId, roleAttr, emptyLinkHref, empt
 }
 
 function renderAll(){
-  renderDispoGrid(loadMusicians(), saveMusicians, 'tableHolderMusiciens', 'musiciens', 'annuaire.html', 'annuaire musiciens', 'instrument', "Musicien·ne");
+  const statutFilter = document.getElementById('musicienStatutFilter').value;
+  const filteredMusicians = loadMusicians().filter(m=> !statutFilter || (m.statutPoste || 'titulaire') === statutFilter);
+  renderDispoGrid(filteredMusicians, saveMusicians, 'tableHolderMusiciens', 'musiciens', 'annuaire.html', 'annuaire musiciens', 'instrument', "Musicien·ne");
   renderDispoGrid(loadTechnicians(), saveTechnicians, 'tableHolderTechniciens', 'techniciens', 'techniciens.html', 'annuaire techniciens', 'poste', "Technicien·ne");
 }
+document.getElementById('musicienStatutFilter').addEventListener('change', renderAll);
 
 const STATE_PDF_LABEL = { '':'', dispo:'Dispo', indispo:'Indispo', incertain:'À conf.' };
 
 function buildAvailabilityTable(doc, startY, people, title, pageWidth){
-  const sorted = people.slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const sorted = people.slice().sort(compareByStatutThenName);
   const dates = allDates();
   if(sorted.length === 0 || dates.length === 0) return startY;
 
@@ -342,7 +373,8 @@ function buildAvailabilityTable(doc, startY, people, title, pageWidth){
 
 function exportAvailabilityPdf(){
   if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
-  const musicians = loadMusicians();
+  const statutFilter = document.getElementById('musicienStatutFilter').value;
+  const musicians = loadMusicians().filter(m=> !statutFilter || (m.statutPoste || 'titulaire') === statutFilter);
   const technicians = loadTechnicians();
   const dates = allDates();
   if((musicians.length === 0 && technicians.length === 0) || dates.length === 0){ alert("Rien à exporter pour l'instant."); return; }
