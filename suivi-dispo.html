@@ -154,6 +154,13 @@ function dispoLinkUrl(demandeId){
   return `${base}dispo-titulaire.html?token=${encodeURIComponent(demandeId)}`;
 }
 
+function normalizeWhatsappPhone(phone){
+  let digits = (phone || '').replace(/[^\d+]/g, '');
+  if(digits.startsWith('+')) digits = digits.slice(1);
+  else if(digits.startsWith('0') && digits.length === 10) digits = '33' + digits.slice(1);
+  return digits;
+}
+
 async function generateDispoLink(tourneeId, personType, personId, dates){
   const demandes = loadDispoDemandes();
   const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === personId);
@@ -165,31 +172,70 @@ async function generateDispoLink(tourneeId, personType, personId, dates){
   return entry;
 }
 
-// Panneau de sélection de dates précises (remplaçant·es uniquement). checkedIds=null
-// = pas de restriction connue, tout est coché par défaut (flux "nouveau lien") ; un
-// tableau (même vide) coche exactement ces dates (flux "modifier les dates" d'un lien
-// existant). dates:[] envoyé à la sauvegarde = pas de restriction (valable pour les
-// dates ajoutées plus tard) — c'est pour ça qu'on ne renvoie [] que si TOUT est coché.
-function remplacantDatesPanelHtml(tourneeId, checkedIds, confirmLabel){
+// Liste des cases à cocher pour une tournée donnée — extrait à part pour pouvoir la
+// regénérer seule quand on change de tournée dans le menu déroulant (voir bindDatesPanel).
+function datesChecklistHtml(tourneeId, checkedIds){
   const tournee = loadTournees().find(t=> t.id === tourneeId);
   const dates = (tournee && tournee.dates || []).filter(d=> d.date && d.statut !== 'annulee')
     .slice().sort((a,b)=> a.date.localeCompare(b.date));
   if(dates.length === 0) return `<div class="empty-hint" style="padding:6px 0;">Aucune date pour l'instant.</div>`;
   const checkedSet = checkedIds ? new Set(checkedIds) : null;
-  const items = dates.map(d=> `
+  return dates.map(d=> `
     <label style="display:flex; align-items:center; gap:6px; font-size:12px; padding:3px 0;">
       <input type="checkbox" data-date-checkbox value="${escapeAttr(d.id)}" ${(!checkedSet || checkedSet.has(d.id)) ? 'checked' : ''}>
       ${escapeHtml(fmtDateFR(d.date))}${d.ville ? ' · '+escapeHtml(d.ville) : ''}
     </label>
   `).join('');
+}
+
+// Panneau de sélection de dates précises. checkedIds=null = pas de restriction connue,
+// tout est coché par défaut (flux "nouveau lien") ; un tableau (même vide) coche
+// exactement ces dates (flux "modifier les dates" d'un lien existant). dates:[] envoyé à
+// la sauvegarde = pas de restriction (valable pour les dates ajoutées plus tard) — on ne
+// renvoie [] que si TOUT est coché. allowTourneeSwitch affiche un menu déroulant pour
+// choisir la tournée (utile pour générer un lien sans être limité à la tournée de la
+// carte en cours) — pas proposé en modification d'un lien existant, où la tournée est
+// fixée par le lien lui-même.
+function remplacantDatesPanelHtml(tourneeId, checkedIds, confirmLabel, allowTourneeSwitch){
+  const tourneeSelectHtml = allowTourneeSwitch ? `
+    <select data-tournee-select style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--card); color:var(--text); font-family:inherit; margin-bottom:8px;">
+      ${loadTournees().map(t=> `<option value="${escapeAttr(t.id)}" ${t.id===tourneeId?'selected':''}>${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('')}
+    </select>
+  ` : '';
   return `
+    ${tourneeSelectHtml}
     <div style="font-size:11.5px; color:var(--muted); margin-bottom:6px;">Dates proposées à cette personne :</div>
-    ${items}
+    <div data-dates-checklist>${datesChecklistHtml(tourneeId, checkedIds)}</div>
     <div style="display:flex; gap:8px; margin-top:8px;">
       <button type="button" class="btn-ghost btn-sm" data-toggle-all-dates>Tout (dé)cocher</button>
       <button type="button" class="btn-secondary btn-sm" data-confirm-gen-dates>${escapeHtml(confirmLabel || 'Générer le lien')}</button>
     </div>
   `;
+}
+
+// Câble les interactions communes d'un panneau de dates (bascule de tournée, tout cocher,
+// confirmation) une fois injecté dans le DOM. onConfirm(selectedTourneeId, dates) reçoit
+// dates=[] quand tout est coché (pas de restriction) ; selectedTourneeId est null si le
+// panneau n'a pas de menu déroulant de tournée (flux "modifier les dates").
+function bindDatesPanel(panel, onConfirm){
+  const tourneeSelect = panel.querySelector('[data-tournee-select]');
+  if(tourneeSelect) tourneeSelect.addEventListener('change', ()=>{
+    panel.querySelector('[data-dates-checklist]').innerHTML = datesChecklistHtml(tourneeSelect.value, null);
+  });
+  const toggleAllBtn = panel.querySelector('[data-toggle-all-dates]');
+  if(toggleAllBtn) toggleAllBtn.addEventListener('click', ()=>{
+    const boxes = panel.querySelectorAll('[data-date-checkbox]');
+    const allChecked = Array.from(boxes).every(b=> b.checked);
+    boxes.forEach(b=> b.checked = !allChecked);
+  });
+  const confirmBtn = panel.querySelector('[data-confirm-gen-dates]');
+  if(confirmBtn) confirmBtn.addEventListener('click', async ()=>{
+    const boxes = Array.from(panel.querySelectorAll('[data-date-checkbox]'));
+    const checked = boxes.filter(b=> b.checked).map(b=> b.value);
+    const dates = (checked.length === boxes.length) ? [] : checked;
+    confirmBtn.disabled = true; confirmBtn.textContent = '…';
+    await onConfirm(tourneeSelect ? tourneeSelect.value : null, dates);
+  });
 }
 
 // Recherche ponctuelle d'un·e remplaçant·e (musicien·ne, ou technicien·ne du pôle Régie)
@@ -240,21 +286,10 @@ function renderAddRemplacantResults(tourneeId, query, holder){
       const opening = panel.style.display === 'none';
       holder.querySelectorAll('[data-dates-panel]').forEach(p=> p.style.display = 'none');
       if(!opening) return;
-      panel.innerHTML = remplacantDatesPanelHtml(tourneeId);
+      panel.innerHTML = remplacantDatesPanelHtml(tourneeId, null, 'Générer le lien', true);
       panel.style.display = 'block';
-      const toggleAllBtn = panel.querySelector('[data-toggle-all-dates]');
-      if(toggleAllBtn) toggleAllBtn.addEventListener('click', ()=>{
-        const boxes = panel.querySelectorAll('[data-date-checkbox]');
-        const allChecked = Array.from(boxes).every(b=> b.checked);
-        boxes.forEach(b=> b.checked = !allChecked);
-      });
-      const confirmBtn = panel.querySelector('[data-confirm-gen-dates]');
-      if(confirmBtn) confirmBtn.addEventListener('click', async ()=>{
-        const boxes = Array.from(panel.querySelectorAll('[data-date-checkbox]'));
-        const checked = boxes.filter(b=> b.checked).map(b=> b.value);
-        const dates = (checked.length === boxes.length) ? [] : checked;
-        confirmBtn.disabled = true; confirmBtn.textContent = '…';
-        await generateDispoLink(tourneeId, row.dataset.personType, row.dataset.personId, dates);
+      bindDatesPanel(panel, async (selectedTourneeId, dates)=>{
+        await generateDispoLink(selectedTourneeId || tourneeId, row.dataset.personType, row.dataset.personId, dates);
         const searchInput = document.querySelector(`[data-remplacant-search][data-tournee="${tourneeId}"]`);
         if(searchInput) searchInput.value = '';
         render();
@@ -268,16 +303,39 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
   const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === person.id);
   const url = existing ? dispoLinkUrl(existing.id) : null;
   const dispo = person.disponibilites || {};
-  const allAnswered = answerableDates.length > 0 && answerableDates.every(d=> dispo[d.date]);
+  // Si le lien est restreint à des dates précises, on ne compte que celles-là — sinon on
+  // compare aux dates envoyées à tout le monde. Avant ce correctif, le statut se basait
+  // uniquement sur "a déjà validé une fois" (lastRespondedAt), ce qui affichait "Nouvelles
+  // dates" pour quelqu'un qui n'avait en réalité rempli qu'une partie de ses dispo — d'où
+  // le calcul explicite du nombre de dates manquantes ci-dessous.
+  const relevantDates = (existing && existing.dates && existing.dates.length > 0)
+    ? answerableDates.filter(d=> existing.dates.includes(d.id))
+    : answerableDates;
+  const missingDates = existing ? relevantDates.filter(d=> !dispo[d.date]) : [];
+  const answeredCount = relevantDates.length - missingDates.length;
   let statusHtml;
   if(!existing){
     statusHtml = '';
-  } else if(allAnswered){
+  } else if(relevantDates.length > 0 && missingDates.length === 0){
     statusHtml = `<span style="font-size:11px; color:var(--ok); font-weight:700; white-space:nowrap;">✓ Répondu</span>`;
-  } else if(existing.lastRespondedAt){
-    statusHtml = `<span style="font-size:11px; color:var(--maybe); font-weight:700; white-space:nowrap;" title="A déjà répondu, mais de nouvelles dates ont été ajoutées depuis">🕓 Nouvelles dates</span>`;
+  } else if(answeredCount > 0){
+    statusHtml = `<span style="font-size:11px; color:var(--maybe); font-weight:700; white-space:nowrap;" title="${missingDates.length} date${missingDates.length>1?'s':''} pas encore renseignée${missingDates.length>1?'s':''}">◐ ${answeredCount}/${relevantDates.length} dates</span>`;
   } else {
     statusHtml = `<span style="font-size:11px; color:var(--muted); white-space:nowrap;">En attente</span>`;
+  }
+  const tourneeObj = loadTournees().find(t=> t.id === tourneeId);
+  let relanceHtml = '';
+  if(existing && missingDates.length > 0){
+    const missingList = missingDates.map(d=> fmtDateFR(d.date)).join(', ');
+    const message = `Bonjour ${person.prenom || ''}, il te manque encore quelques dates à renseigner sur tes dispo pour "${(tourneeObj && tourneeObj.nom) || 'la tournée'}" : ${missingList}. Merci de compléter via ton lien personnel : ${url}`;
+    const waDigits = normalizeWhatsappPhone(person.telephone);
+    if(waDigits){
+      relanceHtml = `<a class="btn-ghost btn-sm" href="https://wa.me/${encodeURIComponent(waDigits)}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener" title="Relancer par WhatsApp pour les dates manquantes">🔔 Relancer</a>`;
+    } else if(person.email){
+      relanceHtml = `<a class="btn-ghost btn-sm" href="mailto:${encodeURIComponent(person.email)}?subject=${encodeURIComponent('Dispo manquantes — ' + ((tourneeObj && tourneeObj.nom) || ''))}&body=${encodeURIComponent(message)}" title="Relancer par email pour les dates manquantes">🔔 Relancer</a>`;
+    } else {
+      relanceHtml = `<button type="button" class="btn-ghost btn-sm" data-copy-relance="${escapeAttr(message)}" title="Copier un message de relance (pas de contact enregistré)">🔔 Copier</button>`;
+    }
   }
   const isRemplacant = (person.statutPoste || 'titulaire') === 'remplacant';
   // Les technicien·nes (titulaires ou remplaçant·es) peuvent être sollicité·es sur une
@@ -297,6 +355,7 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
           <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
         </div>
         ${statusHtml}
+        ${relanceHtml}
         ${url
           ? `<button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>
              ${showDatesOption ? `<button type="button" class="btn-ghost btn-sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées">📅 Dates</button>` : ''}
@@ -394,22 +453,20 @@ function render(){
       const opening = panel.style.display === 'none';
       holder.querySelectorAll('[data-new-dates-panel], [data-edit-dates-panel]').forEach(p=> p.style.display = 'none');
       if(!opening) return;
-      panel.innerHTML = remplacantDatesPanelHtml(btn.dataset.tournee, null, 'Générer le lien');
+      panel.innerHTML = remplacantDatesPanelHtml(btn.dataset.tournee, null, 'Générer le lien', true);
       panel.style.display = 'block';
-      const toggleAllBtn = panel.querySelector('[data-toggle-all-dates]');
-      if(toggleAllBtn) toggleAllBtn.addEventListener('click', ()=>{
-        const boxes = panel.querySelectorAll('[data-date-checkbox]');
-        const allChecked = Array.from(boxes).every(b=> b.checked);
-        boxes.forEach(b=> b.checked = !allChecked);
-      });
-      const confirmBtn = panel.querySelector('[data-confirm-gen-dates]');
-      if(confirmBtn) confirmBtn.addEventListener('click', async ()=>{
-        const boxes = Array.from(panel.querySelectorAll('[data-date-checkbox]'));
-        const checked = boxes.filter(b=> b.checked).map(b=> b.value);
-        const dates = (checked.length === boxes.length) ? [] : checked;
-        confirmBtn.disabled = true; confirmBtn.textContent = '…';
-        await generateDispoLink(btn.dataset.tournee, btn.dataset.personType, btn.dataset.personId, dates);
+      bindDatesPanel(panel, async (selectedTourneeId, dates)=>{
+        await generateDispoLink(selectedTourneeId || btn.dataset.tournee, btn.dataset.personType, btn.dataset.personId, dates);
         render();
+      });
+    });
+  });
+  holder.querySelectorAll('[data-copy-relance]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      navigator.clipboard.writeText(btn.dataset.copyRelance).then(()=>{
+        const old = btn.textContent;
+        btn.textContent = '✓ Copié';
+        setTimeout(()=>{ btn.textContent = old; }, 1500);
       });
     });
   });
@@ -431,20 +488,9 @@ function render(){
       if(!opening) return;
       const entry = loadDispoDemandes().find(d=> d.id === demandeId);
       const currentDates = (entry && entry.dates && entry.dates.length > 0) ? entry.dates : null;
-      panel.innerHTML = remplacantDatesPanelHtml(btn.dataset.tournee, currentDates, 'Enregistrer les dates');
+      panel.innerHTML = remplacantDatesPanelHtml(btn.dataset.tournee, currentDates, 'Enregistrer les dates', false);
       panel.style.display = 'block';
-      const toggleAllBtn = panel.querySelector('[data-toggle-all-dates]');
-      if(toggleAllBtn) toggleAllBtn.addEventListener('click', ()=>{
-        const boxes = panel.querySelectorAll('[data-date-checkbox]');
-        const allChecked = Array.from(boxes).every(b=> b.checked);
-        boxes.forEach(b=> b.checked = !allChecked);
-      });
-      const confirmBtn = panel.querySelector('[data-confirm-gen-dates]');
-      if(confirmBtn) confirmBtn.addEventListener('click', async ()=>{
-        const boxes = Array.from(panel.querySelectorAll('[data-date-checkbox]'));
-        const checked = boxes.filter(b=> b.checked).map(b=> b.value);
-        const dates = (checked.length === boxes.length) ? [] : checked;
-        confirmBtn.disabled = true; confirmBtn.textContent = '…';
+      bindDatesPanel(panel, async (_selectedTourneeId, dates)=>{
         await updateDispoLinkDates(demandeId, dates);
         render();
       });
