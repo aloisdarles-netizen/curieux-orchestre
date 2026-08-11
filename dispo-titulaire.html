@@ -95,13 +95,25 @@
   }
   .date-comment:focus{outline:2px solid var(--accent); outline-offset:1px;}
 
-  .save-flash{
-    position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(20px);
-    background:var(--accent); color:#fff; font-size:12.5px; font-weight:700; padding:9px 18px;
-    border-radius:20px; opacity:0; transition:opacity .25s, transform .25s; pointer-events:none;
-    box-shadow:0 8px 24px rgba(0,0,0,.2);
+  .save-bar{
+    position:fixed; bottom:0; left:0; right:0; z-index:20; display:none;
+    background:var(--card); border-top:1px solid var(--border);
+    box-shadow:0 -8px 24px rgba(0,0,0,.1);
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));
   }
-  .save-flash.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  .save-bar.visible{display:block;}
+  .save-bar-inner{
+    max-width:640px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  }
+  .save-status{font-size:12px; color:var(--muted); line-height:1.3;}
+  .save-status.dirty{color:var(--maybe); font-weight:700;}
+  .save-status.saved{color:var(--ok); font-weight:700;}
+  .save-btn{
+    flex-shrink:0; padding:11px 20px; border-radius:9px; border:none; background:var(--accent); color:#fff;
+    font-size:13.5px; font-weight:800; cursor:pointer; font-family:inherit; transition:background .15s, opacity .15s;
+  }
+  .save-btn:disabled{opacity:.45; cursor:default;}
+  .save-btn:not(:disabled):hover{background:var(--accent-dark);}
 </style>
 </head>
 <body>
@@ -109,7 +121,12 @@
   <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
   <div id="content"><div class="state-box">Chargement…</div></div>
 </div>
-<div class="save-flash" id="saveFlash">Réponses enregistrées ✓</div>
+<div class="save-bar" id="saveBar">
+  <div class="save-bar-inner">
+    <span class="save-status saved" id="saveStatus">Tes réponses sont à jour.</span>
+    <button type="button" class="save-btn" id="saveBtn" disabled>Valider mes réponses</button>
+  </div>
+</div>
 
 <script>
 function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -162,7 +179,6 @@ function computeBlocMap(datesSorted){
 }
 
 let state = { demande:null, tournee:null, person:null, personType:null };
-let saveTimer = null;
 
 function showState(html){
   document.getElementById('content').innerHTML = `<div class="state-box">${html}</div>`;
@@ -249,8 +265,8 @@ function render(){
           <div class="date-place">${escapeHtml([d.ville, d.lieu].filter(Boolean).join(' · ') || '—')}</div>
         </div>
         <div class="state-toggle">
-          <button type="button" class="state-btn ${current==='dispo'?'active dispo':''}" data-date="${escapeAttr(d.date)}" data-state="dispo">Disponible</button>
-          <button type="button" class="state-btn ${current==='indispo'?'active indispo':''}" data-date="${escapeAttr(d.date)}" data-state="indispo">Indisponible</button>
+          <button type="button" class="state-btn dispo ${current==='dispo'?'active':''}" data-date="${escapeAttr(d.date)}" data-state="dispo">Disponible</button>
+          <button type="button" class="state-btn indispo ${current==='indispo'?'active':''}" data-date="${escapeAttr(d.date)}" data-state="indispo">Indisponible</button>
         </div>
         <input type="text" class="date-comment" data-date="${escapeAttr(d.date)}" placeholder="Une précision ? (facultatif)" value="${escapeAttr(comment)}">
       </div>
@@ -279,37 +295,50 @@ function render(){
       btn.closest('.state-toggle').querySelectorAll('.state-btn').forEach(b=>{
         b.classList.toggle('active', b === btn);
       });
-      scheduleSave();
+      markDirty();
     });
   });
   document.querySelectorAll('.date-comment').forEach(input=>{
-    input.addEventListener('change', ()=>{
+    input.addEventListener('input', ()=>{
       const date = input.dataset.date;
       const val = input.value.trim();
       if(val) state.person.disponibilites_commentaires[date] = val;
       else delete state.person.disponibilites_commentaires[date];
-      scheduleSave();
+      markDirty();
     });
   });
+
+  document.getElementById('saveBar').classList.add('visible');
 }
 
-function scheduleSave(){
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(doSave, 500);
+function markDirty(){
+  const status = document.getElementById('saveStatus');
+  const btn = document.getElementById('saveBtn');
+  status.textContent = 'Modifications non enregistrées.';
+  status.className = 'save-status dirty';
+  btn.disabled = false;
 }
+
 async function doSave(){
+  const btn = document.getElementById('saveBtn');
+  const status = document.getElementById('saveStatus');
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement…';
   const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
   await supabaseClient.from(personTable).update({
     disponibilites: state.person.disponibilites,
     disponibilites_commentaires: state.person.disponibilites_commentaires
   }).eq('id', state.person.id);
   await supabaseClient.from('dispo_demandes').update({ last_responded_at: new Date().toISOString() }).eq('id', state.demande.id);
-  const flash = document.getElementById('saveFlash');
-  flash.classList.add('show');
-  clearTimeout(flash.__hideTimer);
-  flash.__hideTimer = setTimeout(()=> flash.classList.remove('show'), 1800);
+  btn.textContent = 'Valider mes réponses';
+  status.textContent = '✓ Réponses enregistrées.';
+  status.className = 'save-status saved';
 }
 
+document.getElementById('saveBtn').addEventListener('click', doSave);
+
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
 init();
 </script>
 </body>
