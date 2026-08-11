@@ -7,6 +7,7 @@
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
 <script>try{ hideCurieuxPageUntilUnlocked(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', applyCurieuxPasswordGate); }catch(e){}</script>
 <style>
   :root{
@@ -132,8 +133,6 @@
 </div>
 
 <script>
-function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
 // Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
 // tournees est en lecture seule ici. Le snapshot newsletter est un singleton
 // (table "newsletter_snapshot") géré via fetchSnapshot/saveSnapshot de db.js.
@@ -145,35 +144,6 @@ function loadSnapshot(){ return snapshotCache; }
 function saveSnapshot(snap){
   snapshotCache = snap;
   CurieuxDB.saveSnapshot(snap);
-}
-
-// Arithmétique de date en UTC pur (Date.UTC + getters/setters UTC) pour éviter tout
-// décalage d'un jour dû au fuseau horaire local lors de la sérialisation toISOString().
-function addDaysIso(iso, delta){
-  const [y, m, d] = iso.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + delta);
-  return dt.toISOString().slice(0,10);
-}
-
-// Regroupe les dates consécutives liées (d.linkedToNext) en "blocs" — voir tournees.html.
-function computeBlocMap(datesSorted){
-  const map = new Map();
-  let i = 0;
-  while(i < datesSorted.length){
-    let j = i;
-    while(j < datesSorted.length - 1 && datesSorted[j].linkedToNext) j++;
-    const blocDates = datesSorted.slice(i, j+1);
-    if(blocDates.length > 1){
-      blocDates.forEach((d, idx)=> map.set(d.id, {
-        blocDates, idx, isFirst: idx===0, isLast: idx===blocDates.length-1,
-        veille: addDaysIso(blocDates[0].date, -1),
-        lendemain: addDaysIso(blocDates[blocDates.length-1].date, 1)
-      }));
-    }
-    i = j + 1;
-  }
-  return map;
 }
 
 function fmtDateFR(iso){

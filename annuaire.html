@@ -9,6 +9,7 @@
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
 <script>try{ hideCurieuxPageUntilUnlocked(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', applyCurieuxPasswordGate); }catch(e){}</script>
 <style>
   :root{
@@ -315,9 +316,6 @@
 </div>
 
 <script>
-function genId(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
 // Cache mémoire synchronisé avec Supabase (table "musiciens") : toute l'UI lit/écrit
 // via loadMusicians()/saveMusicians() de façon synchrone comme avant, la sync réseau
 // se fait en tâche de fond dans saveMusicians() et à la réception d'événements realtime.
@@ -336,8 +334,6 @@ function normalizeWhatsappPhone(phone){
   else if(digits.startsWith('0') && digits.length === 10) digits = '33' + digits.slice(1);
   return digits;
 }
-
-function fullName(m){ return [m.prenom, m.nom].filter(Boolean).join(' ') || 'Sans nom'; }
 
 // Quand on affiche uniquement les remplaçant·es, on classe par instrument puis par rang
 // de priorité (1 = à contacter en premier) plutôt que par ordre alphabétique, pour que
@@ -869,16 +865,7 @@ document.getElementById('bulkDeleteBtn').addEventListener('click', ()=>{
 });
 
 injectCurieuxFonts();
-document.querySelectorAll('.nav-group-btn').forEach(btn=>{
-  btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    const group = btn.closest('.nav-group');
-    const wasOpen = group.classList.contains('open');
-    document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open'));
-    if(!wasOpen) group.classList.add('open');
-  });
-});
-document.addEventListener('click', ()=> document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open')));
+initNavDropdowns();
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

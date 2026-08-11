@@ -9,6 +9,7 @@
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
 <script>try{ hideCurieuxPageUntilUnlocked(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', applyCurieuxPasswordGate); }catch(e){}</script>
 <style>
   :root{
@@ -222,8 +223,6 @@
 </div>
 
 <script>
-function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
 // Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
 // Cette page est en lecture seule (recap), les 3 caches ne sont jamais écrits ici.
 let tourneesCache = [];
@@ -234,7 +233,6 @@ let dispoDemandesCache = [];
 function loadTournees(){ return tourneesCache; }
 function loadMusicians(){ return musiciansCache; }
 function loadTechnicians(){ return techniciansCache; }
-function fullName(m){ return [m.prenom, m.nom].filter(Boolean).join(' ') || 'Sans nom'; }
 function fmtDateFR(iso){
   if(!iso) return '';
   const [y,m,d] = iso.split('-');
@@ -436,16 +434,7 @@ function renderDashboard(){
 document.getElementById('musicienStatutFilter').addEventListener('change', renderAll);
 
 injectCurieuxFonts();
-document.querySelectorAll('.nav-group-btn').forEach(btn=>{
-  btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    const group = btn.closest('.nav-group');
-    const wasOpen = group.classList.contains('open');
-    document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open'));
-    if(!wasOpen) group.classList.add('open');
-  });
-});
-document.addEventListener('click', ()=> document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open')));
+initNavDropdowns();
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

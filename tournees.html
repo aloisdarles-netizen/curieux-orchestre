@@ -9,6 +9,7 @@
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
 <script>try{ hideCurieuxPageUntilUnlocked(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', applyCurieuxPasswordGate); }catch(e){}</script>
 <style>
   :root{
@@ -285,10 +286,6 @@
 <script>
 const FDR_LAST_ID_KEY = 'fdr-last-id';
 
-function genId(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function escapeAttr(str){ return escapeHtml(str); }
-
 // Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
 // musiciens/techniciens sont en lecture seule ici (juste pour affichage/affectation) ;
 // tournees et feuilles_route sont aussi écrits depuis cette page.
@@ -319,43 +316,6 @@ function fmtDateFR(iso){
   const months = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
   return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} ${y}`;
 }
-function fullName(m){ return [m.prenom, m.nom].filter(Boolean).join(' ') || 'Sans nom'; }
-
-// Arithmétique de date en UTC pur (Date.UTC + getters/setters UTC) pour éviter tout
-// décalage d'un jour dû au fuseau horaire local lors de la sérialisation toISOString().
-function addDaysIso(iso, delta){
-  const [y, m, d] = iso.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + delta);
-  return dt.toISOString().slice(0,10);
-}
-
-// Regroupe les dates consécutives liées (d.linkedToNext) en "blocs" (ex: tournée bus).
-// Un bloc implique un départ la veille de la 1ère date et un retour le lendemain de la dernière.
-function computeBlocMap(datesSorted){
-  const map = new Map();
-  let i = 0;
-  let blocGroupIndex = 0;
-  while(i < datesSorted.length){
-    let j = i;
-    while(j < datesSorted.length - 1 && datesSorted[j].linkedToNext) j++;
-    const blocDates = datesSorted.slice(i, j+1);
-    if(blocDates.length > 1){
-      // groupIndex alterne (0/1) d'un bloc au suivant, pour pouvoir distinguer
-      // visuellement deux blocs consécutifs (sinon leur liseré se confond en un seul bandeau).
-      const groupIndex = blocGroupIndex;
-      blocGroupIndex++;
-      blocDates.forEach((d, idx)=> map.set(d.id, {
-        blocDates, idx, isFirst: idx===0, isLast: idx===blocDates.length-1, groupIndex,
-        veille: addDaysIso(blocDates[0].date, -1),
-        lendemain: addDaysIso(blocDates[blocDates.length-1].date, 1)
-      }));
-    }
-    i = j + 1;
-  }
-  return map;
-}
-
 // Construit un contact de FDR à partir d'un·e musicien·ne/technicien·ne de l'annuaire
 // (roleField = 'instrument' ou 'poste' selon le roster d'origine).
 function buildFdrContactFromPerson(p, roleField){
@@ -1279,16 +1239,7 @@ document.getElementById('addTourneeBtn').addEventListener('click', ()=>{
 });
 
 injectCurieuxFonts();
-document.querySelectorAll('.nav-group-btn').forEach(btn=>{
-  btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    const group = btn.closest('.nav-group');
-    const wasOpen = group.classList.contains('open');
-    document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open'));
-    if(!wasOpen) group.classList.add('open');
-  });
-});
-document.addEventListener('click', ()=> document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open')));
+initNavDropdowns();
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

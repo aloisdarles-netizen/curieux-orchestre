@@ -7,6 +7,7 @@
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
 <script>try{ hideCurieuxPageUntilUnlocked(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', applyCurieuxPasswordGate); }catch(e){}</script>
 <style>
   :root{
@@ -128,11 +129,6 @@
 </div>
 
 <script>
-function genId(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function escapeAttr(str){ return escapeHtml(str); }
-function fullName(p){ return [p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom'; }
-
 let tourneesCache = [];
 let musiciansCache = [];
 let techniciansCache = [];
@@ -257,16 +253,7 @@ function render(){
 }
 
 injectCurieuxFonts();
-document.querySelectorAll('.nav-group-btn').forEach(btn=>{
-  btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    const group = btn.closest('.nav-group');
-    const wasOpen = group.classList.contains('open');
-    document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open'));
-    if(!wasOpen) group.classList.add('open');
-  });
-});
-document.addEventListener('click', ()=> document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open')));
+initNavDropdowns();
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

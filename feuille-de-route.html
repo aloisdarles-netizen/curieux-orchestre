@@ -9,6 +9,7 @@
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
 <script>try{ hideCurieuxPageUntilUnlocked(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', applyCurieuxPasswordGate); }catch(e){}</script>
 <style>
   :root{
@@ -431,9 +432,6 @@ const FDR_LAST_ID_KEY = 'fdr-last-id';
 let uidCounter = 1;
 // Identifiant stable inter-sessions (contrairement à uid(), dont le compteur repart de 1
 // à chaque chargement de page) — utilisé pour les entrées de collection FDR et le carnet.
-function genId(prefix){
-  return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
 const uid = () => 'id' + (uidCounter++);
 
 // Normalise une heure vers le format HH:MM exigé par <input type="time"> (ex: "8:5" -> "08:05")
@@ -574,10 +572,6 @@ async function createNewFdr(){
   localStorage.setItem(FDR_LAST_ID_KEY, fresh.id);
   location.href = 'feuille-de-route.html?id=' + encodeURIComponent(fresh.id);
 }
-function escapeAttr(str){
-  return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
 function bindSimpleField(elId, getter, setter){
   const el = document.getElementById(elId);
   el.value = getter();
@@ -650,7 +644,6 @@ let techniciansCache = [];
 function loadCarnet(){ return carnetCache; }
 function loadMusicians(){ return musiciansCache; }
 function loadTechnicians(){ return techniciansCache; }
-function fullName(p){ return [p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom'; }
 // Ajoute ou met à jour une entrée du carnet, dédoublonnée par nom (insensible à la casse/aux espaces).
 // Un seul contact change à la fois ici (pas de saisie à haute fréquence comme saveState),
 // upsertOne suffit — pas besoin de resynchroniser tout le carnet.
@@ -1412,16 +1405,7 @@ function generateFdrPDF(){
 document.getElementById('generateFdrBtn').addEventListener('click', generateFdrPDF);
 
 injectCurieuxFonts();
-document.querySelectorAll('.nav-group-btn').forEach(btn=>{
-  btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    const group = btn.closest('.nav-group');
-    const wasOpen = group.classList.contains('open');
-    document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open'));
-    if(!wasOpen) group.classList.add('open');
-  });
-});
-document.addEventListener('click', ()=> document.querySelectorAll('.nav-group.open').forEach(g=> g.classList.remove('open')));
+initNavDropdowns();
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
