@@ -143,6 +143,11 @@ create table if not exists dispo_demandes (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- Sous-ensemble de dates (ids) proposées à cette personne au lieu de toutes les dates
+-- de la tournée — utilisé pour les remplaçant·es sollicité·es sur des dates précises
+-- seulement. Tableau vide = pas de restriction (comportement historique, tout est
+-- proposé, y compris les dates ajoutées après coup).
+alter table dispo_demandes add column if not exists dates jsonb not null default '[]'::jsonb;
 drop trigger if exists trg_dispo_demandes_updated_at on dispo_demandes;
 create trigger trg_dispo_demandes_updated_at before update on dispo_demandes
   for each row execute function set_updated_at();

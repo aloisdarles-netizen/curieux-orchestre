@@ -192,7 +192,8 @@ function render(){
   const allDates = (state.tournee.dates || [])
     .filter(d=> d.date)
     .slice().sort((a,b)=> a.date.localeCompare(b.date));
-  const dates = allDates.filter(d=> d.statut !== 'annulee');
+  const restrictedIds = state.demande.dates && state.demande.dates.length > 0 ? new Set(state.demande.dates) : null;
+  const dates = allDates.filter(d=> d.statut !== 'annulee' && (!restrictedIds || restrictedIds.has(d.id)));
 
   if(dates.length === 0){
     showState("Aucune date à renseigner pour l'instant sur cette tournée.");
@@ -207,7 +208,7 @@ function render(){
     <h1>Tes disponibilités</h1>
     <div class="identity-banner">
       Bonjour <strong>${escapeHtml(fullName(state.person))}</strong> — merci de compléter tes dispo pour
-      <strong>${escapeHtml(state.tournee.nom || 'la tournée')}</strong>.
+      <strong>${escapeHtml(state.tournee.nom || 'la tournée')}</strong>${restrictedIds ? ', sur les dates ci-dessous uniquement' : ''}.
       <div class="identity-note">Ce lien t'est personnel, pas la peine de le transférer. Tu peux revenir dessus à tout moment pour mettre à jour tes réponses.</div>
     </div>
     <div class="contact-card">
