@@ -39,36 +39,76 @@
   .brand-logo-img{height:56px; width:auto; margin-bottom:26px; display:inline-block;}
   h1{font-size:30px; font-weight:900; margin:0 0 6px; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif; color:var(--accent);}
   .subtitle{color:var(--muted); font-size:15px; margin:0 0 40px;}
+  @keyframes tileIn{
+    from{ opacity:0; transform:translateY(14px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
   .choices{display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:20px;}
-  a.choice{
+  a.choice, .choice-group{
+    animation:tileIn .5s cubic-bezier(.16,1,.3,1) both;
+  }
+  .choices > :nth-child(1){animation-delay:.02s;}
+  .choices > :nth-child(2){animation-delay:.08s;}
+  .choices > :nth-child(3){animation-delay:.14s;}
+  .choices > :nth-child(4){animation-delay:.2s;}
+  a.choice, .choice-group summary{
     display:flex; flex-direction:column; align-items:flex-start; gap:10px;
     text-align:left; text-decoration:none; color:var(--text);
+    padding:26px 24px; cursor:pointer;
+  }
+  a.choice, .choice-group{
     background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-    padding:26px 24px; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
     box-shadow:0 1px 2px rgba(20,15,10,.04);
   }
-  a.choice:hover{
-    transform:translateY(-3px);
+  a.choice:hover, .choice-group:hover{
+    transform:translateY(-3px) scale(1.01);
     box-shadow:0 14px 30px rgba(121,22,73,.16);
     border-color:var(--accent);
   }
-  .choice .icon{
+  .choice-group{padding:0; display:flex; flex-direction:column;}
+  .choice-group summary{
+    list-style:none; position:relative; margin:0;
+  }
+  .choice-group summary::-webkit-details-marker{display:none;}
+  .choice-group summary::after{
+    content:'▾'; position:absolute; top:26px; right:22px; color:var(--muted);
+    font-size:13px; transition:transform .2s ease;
+  }
+  .choice-group[open] summary::after{transform:rotate(180deg);}
+  .choice-group[open]{border-color:var(--accent);}
+  .icon{
     width:44px; height:44px; border-radius:11px; display:flex; align-items:center; justify-content:center;
     font-size:21px;
   }
   .choice.routing .icon{background:var(--accent-tint); color:var(--accent-dark);}
   .choice.fdr .icon{background:var(--secondary-tint); color:var(--secondary-dark);}
-  .choice.tournee .icon{background:var(--champagne); color:#7a1f52;}
-  :root[data-theme="dark"] .choice.tournee .icon{color:#f8d9e8;}
-  .choice.annuaire .icon{background:var(--accent-tint); color:var(--accent-dark);}
-  .choice.dispo .icon{background:var(--secondary-tint); color:var(--secondary-dark);}
-  .choice h2{font-size:17px; font-weight:800; margin:2px 0 0;}
-  .choice p{font-size:13.5px; color:var(--muted); margin:0; line-height:1.5;}
+  .choice.tournee .icon, .choice-group.tournee summary .icon{background:var(--champagne); color:#7a1f52;}
+  :root[data-theme="dark"] .choice.tournee .icon, :root[data-theme="dark"] .choice-group.tournee summary .icon{color:#f8d9e8;}
+  .choice.annuaire .icon, .choice-group.annuaire summary .icon{background:var(--accent-tint); color:var(--accent-dark);}
+  .choice.dispo .icon, .choice-group.dispo summary .icon{background:var(--secondary-tint); color:var(--secondary-dark);}
+  .choice h2, .choice-group h2{font-size:17px; font-weight:800; margin:2px 0 0;}
+  .choice p, .choice-group p{font-size:13.5px; color:var(--muted); margin:0; line-height:1.5;}
   .choice .go{
     margin-top:auto; padding-top:10px; font-size:13px; font-weight:700; color:var(--accent);
     display:flex; align-items:center; gap:4px;
   }
   .choice:hover .go{text-decoration:underline;}
+
+  .sub-links{
+    display:flex; flex-direction:column; border-top:1px solid var(--border);
+    animation:tileIn .25s ease both;
+  }
+  .sub-links a{
+    display:flex; align-items:center; gap:10px; padding:13px 24px;
+    text-decoration:none; color:var(--text); font-size:13.5px; font-weight:700;
+    border-top:1px solid var(--border); transition:background .15s ease;
+  }
+  .sub-links a:first-child{border-top:none;}
+  .sub-links a:hover{background:var(--accent-tint);}
+  .sub-links a .sub-icon{font-size:15px;}
+  .sub-links a .sub-arrow{margin-left:auto; color:var(--accent); font-weight:700;}
+
   footer{margin-top:36px; font-size:12px; color:var(--old-champagne);}
 </style>
 </head>
@@ -79,46 +119,46 @@
   <p class="subtitle">Choisis ce que tu veux préparer.</p>
 
   <div class="choices">
-    <a class="choice tournee" href="tournees.html">
-      <div class="icon">🗓️</div>
-      <h2>Tournées</h2>
-      <p>Toutes les tournées et leurs dates, commentaires, et musicien·nes affecté·es.</p>
-      <span class="go">Ouvrir →</span>
-    </a>
-    <a class="choice annuaire" href="annuaire.html">
-      <div class="icon">📇</div>
-      <h2>Annuaire musicien·nes</h2>
-      <p>Tou·tes les musicien·nes de l'orchestre — contact WhatsApp ou email en un clic.</p>
-      <span class="go">Ouvrir →</span>
-    </a>
-    <a class="choice annuaire" href="techniciens.html">
-      <div class="icon">🛠️</div>
-      <h2>Annuaire technicien·nes</h2>
-      <p>Toute l'équipe technique — contact WhatsApp ou email en un clic.</p>
-      <span class="go">Ouvrir →</span>
-    </a>
-    <a class="choice dispo" href="disponibilites.html">
-      <div class="icon">✅</div>
-      <h2>Disponibilités</h2>
-      <p>Qui est dispo, indispo ou à confirmer, date par date.</p>
-      <span class="go">Ouvrir →</span>
-    </a>
+    <details class="choice-group tournee">
+      <summary>
+        <div class="icon">🗓️</div>
+        <h2>Tournées</h2>
+        <p>Dates, commentaires, musicien·nes affecté·es, et feuilles de route.</p>
+      </summary>
+      <div class="sub-links">
+        <a href="tournees.html"><span class="sub-icon">🗓️</span> Gérer les tournées <span class="sub-arrow">→</span></a>
+        <a href="feuille-de-route.html"><span class="sub-icon">🧭</span> Feuille de route <span class="sub-arrow">→</span></a>
+      </div>
+    </details>
+
+    <details class="choice-group annuaire">
+      <summary>
+        <div class="icon">📇</div>
+        <h2>Annuaires</h2>
+        <p>Musicien·nes et technicien·nes de l'orchestre — contact en un clic.</p>
+      </summary>
+      <div class="sub-links">
+        <a href="annuaire.html"><span class="sub-icon">📇</span> Musicien·nes <span class="sub-arrow">→</span></a>
+        <a href="techniciens.html"><span class="sub-icon">🛠️</span> Technicien·nes <span class="sub-arrow">→</span></a>
+      </div>
+    </details>
+
+    <details class="choice-group dispo">
+      <summary>
+        <div class="icon">✅</div>
+        <h2>Disponibilités</h2>
+        <p>Qui est dispo, et liens de demande aux titulaires.</p>
+      </summary>
+      <div class="sub-links">
+        <a href="disponibilites.html"><span class="sub-icon">✅</span> Disponibilités <span class="sub-arrow">→</span></a>
+        <a href="suivi-dispo.html"><span class="sub-icon">🔗</span> Dispo titulaires <span class="sub-arrow">→</span></a>
+      </div>
+    </details>
+
     <a class="choice tournee" href="recap.html">
       <div class="icon">📊</div>
       <h2>Vue d'ensemble</h2>
       <p>Qui joue où, toutes tournées confondues, en un seul tableau.</p>
-      <span class="go">Ouvrir →</span>
-    </a>
-    <a class="choice fdr" href="feuille-de-route.html">
-      <div class="icon">🧭</div>
-      <h2>Feuille de route</h2>
-      <p>Contacts, trajets confirmés, planning du jour, lieu et hôtel — tout ce qu'il faut sur le terrain.</p>
-      <span class="go">Ouvrir →</span>
-    </a>
-    <a class="choice dispo" href="suivi-dispo.html">
-      <div class="icon">🔗</div>
-      <h2>Dispo titulaires</h2>
-      <p>Génère les liens personnels de disponibilité par tournée et suis qui a répondu.</p>
       <span class="go">Ouvrir →</span>
     </a>
   </div>
