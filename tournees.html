@@ -278,6 +278,15 @@
     <p class="modal-sub" id="assignSub"></p>
     <input type="text" id="assignSearch" placeholder="Chercher un nom, un instrument, un poste…" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13.5px; margin-bottom:6px; background:var(--bg); color:var(--text); font-family:inherit;">
     <div id="assignList" style="max-height:50vh; overflow-y:auto;"></div>
+    <div id="assignBlocSection" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
+        <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:0;">🔗 Aussi affecter sur ce bloc</h3>
+        <label style="font-size:12px; font-weight:600; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="assignBlocSelectAll"> Toutes les dates du bloc
+        </label>
+      </div>
+      <div id="assignBlocDatesList" style="max-height:20vh; overflow-y:auto;"></div>
+    </div>
     <div class="modal-actions">
       <button type="button" class="btn-ghost" id="assignCancel">Annuler</button>
       <button type="button" class="btn-primary" id="assignSave">Enregistrer</button>
@@ -507,6 +516,7 @@ let assignContext = null;
 let assignMusicians = [], assignTechnicians = [];
 let assignSelectedM = new Set(), assignSelectedT = new Set();
 let assignDateIso = '';
+let assignBlocOtherDates = [];
 
 function openAssignModal(tourneeId, dateId){
   const tournees = loadTournees();
@@ -525,11 +535,40 @@ function openAssignModal(tourneeId, dateId){
   assignSelectedT = new Set(dateEntry.techniciensAssignes || []);
   assignDateIso = dateEntry.date;
 
+  // Bloc = dates liées (linkedToNext) à celle-ci — propose de répercuter la
+  // même affectation sur les autres dates du bloc, au choix (voir
+  // assignBlocSection), plutôt que de devoir rouvrir la modale pour chacune.
+  const sortedDates = (tournee.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const blocInfo = computeBlocMap(sortedDates).get(dateId);
+  assignBlocOtherDates = blocInfo ? blocInfo.blocDates.filter(d=> d.id !== dateId) : [];
+  renderAssignBlocSection();
+
   document.getElementById('assignSearch').value = '';
   renderAssignList('');
   document.getElementById('assignOverlay').classList.add('open');
   document.getElementById('assignSearch').focus();
 }
+
+function renderAssignBlocSection(){
+  const section = document.getElementById('assignBlocSection');
+  const selectAll = document.getElementById('assignBlocSelectAll');
+  selectAll.checked = false;
+  if(assignBlocOtherDates.length === 0){
+    section.style.display = 'none';
+    document.getElementById('assignBlocDatesList').innerHTML = '';
+    return;
+  }
+  section.style.display = 'block';
+  document.getElementById('assignBlocDatesList').innerHTML = assignBlocOtherDates.map(d=> `
+    <label style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; cursor:pointer;">
+      <input type="checkbox" data-bloc-date="${escapeAttr(d.id)}">
+      ${escapeHtml(fmtDateFR(d.date))}${d.ville ? ' — ' + escapeHtml(d.ville) : ''}
+    </label>
+  `).join('');
+}
+document.getElementById('assignBlocSelectAll').addEventListener('change', (e)=>{
+  document.querySelectorAll('#assignBlocDatesList input[type=checkbox]').forEach(cb=> cb.checked = e.target.checked);
+});
 
 function renderAssignList(search){
   const q = (search || '').toLowerCase().trim();
@@ -593,6 +632,7 @@ function renderAssignList(search){
 function closeAssignModal(){
   document.getElementById('assignOverlay').classList.remove('open');
   assignContext = null;
+  assignBlocOtherDates = [];
 }
 document.getElementById('assignCancel').addEventListener('click', closeAssignModal);
 document.getElementById('assignOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'assignOverlay') closeAssignModal(); });
@@ -604,11 +644,15 @@ document.getElementById('assignSave').addEventListener('click', ()=>{
   const tournees = loadTournees();
   const tournee = tournees.find(t=>t.id === assignContext.tourneeId);
   if(tournee){
-    const dateEntry = (tournee.dates||[]).find(d=>d.id === assignContext.dateId);
-    if(dateEntry){
-      dateEntry.musiciensAssignes = checkedMusiciens;
-      dateEntry.techniciensAssignes = checkedTechniciens;
-    }
+    const applyTo = dateId=>{
+      const dateEntry = (tournee.dates||[]).find(d=>d.id === dateId);
+      if(dateEntry){
+        dateEntry.musiciensAssignes = checkedMusiciens;
+        dateEntry.techniciensAssignes = checkedTechniciens;
+      }
+    };
+    applyTo(assignContext.dateId);
+    document.querySelectorAll('#assignBlocDatesList input[type=checkbox]:checked').forEach(cb=> applyTo(cb.dataset.blocDate));
     saveTournees(tournees);
   }
   closeAssignModal();
