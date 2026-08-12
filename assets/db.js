@@ -116,6 +116,7 @@ const CurieuxDB = (()=>{
         contact_urgence_tel: r.contactUrgenceTel || '',
         permis_conduire_numero: r.permisConduireNumero || '',
         permis_conduire_validite: r.permisConduireValidite || null,
+        taille_vetement: r.tailleVetement || '',
         extra: r.extra || {}
       }),
       fromDb: (row)=> ({
@@ -134,6 +135,7 @@ const CurieuxDB = (()=>{
         contactUrgenceTel: row.contact_urgence_tel || '',
         permisConduireNumero: row.permis_conduire_numero || '',
         permisConduireValidite: row.permis_conduire_validite || '',
+        tailleVetement: row.taille_vetement || '',
         extra: row.extra || {}
       })
     }

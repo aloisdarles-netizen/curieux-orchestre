@@ -18,6 +18,7 @@
     --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
     --champagne:#fde3ee; --old-champagne:#c98aa0;
     --ok:#2f8f5b; --ok-tint:#e2f4ea;
+    --danger:#a5313f; --danger-tint:#fbe6e2;
     --radius:12px;
   }
   :root[data-theme="dark"]{
@@ -25,6 +26,7 @@
     --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
     --champagne:#3a2530; --old-champagne:#7a5064;
     --ok:#5fbf8a; --ok-tint:#1c3327;
+    --danger:#e2685a; --danger-tint:#3d2420;
   }
   *{box-sizing:border-box;}
   html{color-scheme:light dark;}
@@ -64,6 +66,18 @@
   .extra-row .field{margin-bottom:0;}
   .save-hint{font-size:11.5px; color:var(--muted); margin-top:10px;}
   .save-hint.ok{color:var(--ok);}
+
+  .tier-badge{
+    display:inline-block; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:1px 6px; border-radius:20px; margin-left:6px; vertical-align:middle;
+  }
+  .tier-badge.obligatoire{background:var(--danger-tint); color:var(--danger);}
+  .tier-badge.conseille{background:var(--accent-tint); color:var(--accent-dark);}
+  .tier-badge.facultatif{background:var(--border); color:var(--muted);}
+
+  .completion-banner{border-radius:10px; padding:11px 16px; margin-bottom:16px; font-size:13px; font-weight:600;}
+  .completion-banner.missing{background:var(--danger-tint); color:var(--danger);}
+  .completion-banner.ok{background:var(--ok-tint); color:var(--ok);}
 
   button{
     cursor:pointer; border:none; border-radius:8px; font-size:12.5px; font-weight:700;
@@ -117,6 +131,40 @@ async function init(){
   render();
 }
 
+function tierBadge(tier){
+  const labels = { obligatoire:'Obligatoire', conseille:'Conseillé', facultatif:'Facultatif' };
+  return `<span class="tier-badge ${tier}">${labels[tier]}</span>`;
+}
+
+// Minimum pour une première fiche exploitable (embauche) : coordonnées +
+// identité civile de base. Le reste (RIB, n° sécu...) est conseillé mais pas
+// bloquant — beaucoup de gens ne l'ont pas sous la main au premier passage.
+const REQUIRED_FIELDS = [
+  { key:'telephone', label:'Téléphone', source:'person' },
+  { key:'email', label:'Email', source:'person' },
+  { key:'dateNaissance', label:'Date de naissance', source:'info' },
+  { key:'lieuNaissance', label:'Ville de naissance', source:'info' },
+  { key:'nationalite', label:'Nationalité', source:'info' },
+  { key:'adresse', label:'Adresse postale', source:'info' },
+];
+function computeMissingRequired(){
+  return REQUIRED_FIELDS
+    .filter(f=> !((f.source === 'person' ? state.person[f.key] : state.info[f.key]) || '').toString().trim())
+    .map(f=> f.label);
+}
+function updateCompletionBanner(){
+  const el = document.getElementById('completionBanner');
+  if(!el) return;
+  const missing = computeMissingRequired();
+  if(missing.length){
+    el.className = 'completion-banner missing';
+    el.innerHTML = `⚠️ Il manque encore des infos obligatoires : <strong>${missing.map(escapeHtml).join(', ')}</strong>`;
+  } else {
+    el.className = 'completion-banner ok';
+    el.textContent = '✓ Ta fiche contient toutes les infos obligatoires — merci !';
+  }
+}
+
 function render(){
   const info = state.info;
   const extraEntries = Object.entries(info.extra || {});
@@ -136,49 +184,58 @@ function render(){
       <div class="identity-note">Ce lien t'est personnel, pas la peine de le transférer. Tu peux revenir dessus à tout moment pour mettre à jour tes infos.</div>
     </div>
 
+    <div class="completion-banner" id="completionBanner"></div>
+
+    <div class="section-label">Coordonnées</div>
+    <div class="field-row">
+      <div class="field"><label>Téléphone ${tierBadge('obligatoire')}</label><input type="text" data-person-field="telephone" value="${escapeAttr(state.person.telephone || '')}"></div>
+      <div class="field"><label>Email ${tierBadge('obligatoire')}</label><input type="text" data-person-field="email" value="${escapeAttr(state.person.email || '')}"></div>
+    </div>
+
     <div class="section-label">Identité civile</div>
     <div class="field-row">
-      <div class="field"><label>Date de naissance</label><input type="date" data-info-field="dateNaissance" value="${escapeAttr(info.dateNaissance || '')}"></div>
-      <div class="field"><label>Lieu de naissance</label><input type="text" data-info-field="lieuNaissance" value="${escapeAttr(info.lieuNaissance || '')}"></div>
-      <div class="field"><label>Nationalité</label><input type="text" data-info-field="nationalite" value="${escapeAttr(info.nationalite || '')}"></div>
+      <div class="field"><label>Date de naissance ${tierBadge('obligatoire')}</label><input type="date" data-info-field="dateNaissance" value="${escapeAttr(info.dateNaissance || '')}"></div>
+      <div class="field"><label>Ville de naissance ${tierBadge('obligatoire')}</label><input type="text" data-info-field="lieuNaissance" value="${escapeAttr(info.lieuNaissance || '')}"></div>
+      <div class="field"><label>Nationalité ${tierBadge('obligatoire')}</label><input type="text" data-info-field="nationalite" value="${escapeAttr(info.nationalite || '')}"></div>
     </div>
     <div class="field">
-      <label>Adresse postale</label>
+      <label>Adresse postale ${tierBadge('obligatoire')}</label>
       <textarea data-info-field="adresse">${escapeHtml(info.adresse || '')}</textarea>
     </div>
 
     <div class="section-label">Sécurité sociale</div>
     <div class="field">
-      <label>N° de sécurité sociale (NIR)</label>
+      <label>N° de sécurité sociale (NIR) ${tierBadge('conseille')}</label>
       <input type="text" data-info-field="numSecu" value="${escapeAttr(info.numSecu || '')}">
     </div>
 
     <div class="section-label">Coordonnées bancaires</div>
     <div class="field-row">
-      <div class="field"><label>IBAN</label><input type="text" data-info-field="iban" value="${escapeAttr(info.iban || '')}"></div>
-      <div class="field"><label>BIC</label><input type="text" data-info-field="bic" value="${escapeAttr(info.bic || '')}"></div>
+      <div class="field"><label>IBAN ${tierBadge('conseille')}</label><input type="text" data-info-field="iban" value="${escapeAttr(info.iban || '')}"></div>
+      <div class="field"><label>BIC ${tierBadge('conseille')}</label><input type="text" data-info-field="bic" value="${escapeAttr(info.bic || '')}"></div>
     </div>
     <div class="field">
-      <label>Titulaire du compte</label>
+      <label>Titulaire du compte ${tierBadge('conseille')}</label>
       <input type="text" data-info-field="titulaireCompte" value="${escapeAttr(info.titulaireCompte || '')}">
     </div>
 
     <div class="section-label">Statut intermittent</div>
     <div class="field-row">
-      <div class="field"><label>N° Congés Spectacles</label><input type="text" data-info-field="numCongesSpectacles" value="${escapeAttr(info.numCongesSpectacles || '')}"></div>
-      <div class="field"><label>N° Audiens</label><input type="text" data-info-field="numAudiens" value="${escapeAttr(info.numAudiens || '')}"></div>
+      <div class="field"><label>N° Congés Spectacles ${tierBadge('conseille')}</label><input type="text" data-info-field="numCongesSpectacles" value="${escapeAttr(info.numCongesSpectacles || '')}"></div>
+      <div class="field"><label>N° Audiens ${tierBadge('conseille')}</label><input type="text" data-info-field="numAudiens" value="${escapeAttr(info.numAudiens || '')}"></div>
     </div>
 
     <div class="section-label">Contact d'urgence</div>
     <div class="field-row">
-      <div class="field"><label>Nom</label><input type="text" data-info-field="contactUrgenceNom" value="${escapeAttr(info.contactUrgenceNom || '')}"></div>
-      <div class="field"><label>Téléphone</label><input type="text" data-info-field="contactUrgenceTel" value="${escapeAttr(info.contactUrgenceTel || '')}"></div>
+      <div class="field"><label>Nom ${tierBadge('conseille')}</label><input type="text" data-info-field="contactUrgenceNom" value="${escapeAttr(info.contactUrgenceNom || '')}"></div>
+      <div class="field"><label>Téléphone ${tierBadge('conseille')}</label><input type="text" data-info-field="contactUrgenceTel" value="${escapeAttr(info.contactUrgenceTel || '')}"></div>
     </div>
 
-    <div class="section-label">Permis de conduire</div>
+    <div class="section-label">Autres infos pratiques</div>
     <div class="field-row">
-      <div class="field"><label>N°</label><input type="text" data-info-field="permisConduireNumero" value="${escapeAttr(info.permisConduireNumero || '')}"></div>
-      <div class="field"><label>Validité</label><input type="date" data-info-field="permisConduireValidite" value="${escapeAttr(info.permisConduireValidite || '')}"></div>
+      <div class="field"><label>Permis de conduire — n° ${tierBadge('facultatif')}</label><input type="text" data-info-field="permisConduireNumero" value="${escapeAttr(info.permisConduireNumero || '')}"></div>
+      <div class="field"><label>Permis de conduire — validité ${tierBadge('facultatif')}</label><input type="date" data-info-field="permisConduireValidite" value="${escapeAttr(info.permisConduireValidite || '')}"></div>
+      <div class="field"><label>Taille de vêtement ${tierBadge('facultatif')}</label><input type="text" data-info-field="tailleVetement" value="${escapeAttr(info.tailleVetement || '')}"></div>
     </div>
 
     <div class="section-label">Champs personnalisés</div>
@@ -188,6 +245,7 @@ function render(){
     <div class="save-hint" id="saveHint"></div>
   `;
   bindEvents();
+  updateCompletionBanner();
 }
 
 let saveTimer = null;
@@ -201,10 +259,36 @@ function scheduleSave(){
   }, 500);
 }
 
+// Téléphone/email vivent sur la fiche musicien·ne/technicien·ne elle-même
+// (pas infos_sociales), déjà en accès public (comme dispo-titulaire.html) —
+// pas besoin de passer par le token pour celles-ci.
+let personSaveTimer = null;
+function schedulePersonSave(){
+  clearTimeout(personSaveTimer);
+  const hint = document.getElementById('saveHint');
+  if(hint){ hint.textContent = 'Enregistrement…'; hint.classList.remove('ok'); }
+  personSaveTimer = setTimeout(async ()=>{
+    const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
+    const { error } = await supabaseClient.from(personTable)
+      .update({ telephone: state.person.telephone || '', email: state.person.email || '' })
+      .eq('id', state.person.id);
+    if(hint) { hint.textContent = error ? "Erreur d'enregistrement — réessaie." : 'Enregistré ✓'; hint.classList.toggle('ok', !error); }
+  }, 500);
+}
+
 function bindEvents(){
+  document.querySelectorAll('[data-person-field]').forEach(el=>{
+    el.addEventListener('input', ()=>{
+      state.person[el.dataset.personField] = el.value;
+      updateCompletionBanner();
+      schedulePersonSave();
+    });
+  });
+
   document.querySelectorAll('[data-info-field]').forEach(el=>{
     el.addEventListener('input', ()=>{
       state.info[el.dataset.infoField] = el.value;
+      updateCompletionBanner();
       scheduleSave();
     });
   });

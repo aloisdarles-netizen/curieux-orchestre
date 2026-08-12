@@ -196,6 +196,7 @@ create table if not exists infos_sociales (
   contact_urgence_tel text default '',
   permis_conduire_numero text default '',
   permis_conduire_validite date,
+  taille_vetement text default '',
   extra jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -211,6 +212,7 @@ alter table infos_sociales add column if not exists contact_urgence_nom text def
 alter table infos_sociales add column if not exists contact_urgence_tel text default '';
 alter table infos_sociales add column if not exists permis_conduire_numero text default '';
 alter table infos_sociales add column if not exists permis_conduire_validite date;
+alter table infos_sociales add column if not exists taille_vetement text default '';
 drop trigger if exists trg_infos_sociales_updated_at on infos_sociales;
 create trigger trg_infos_sociales_updated_at before update on infos_sociales
   for each row execute function set_updated_at();
@@ -272,7 +274,7 @@ begin
     id, person_type, date_naissance, lieu_naissance, nationalite, adresse,
     num_secu, iban, bic, titulaire_compte, num_conges_spectacles, num_audiens,
     contact_urgence_nom, contact_urgence_tel, permis_conduire_numero,
-    permis_conduire_validite, extra
+    permis_conduire_validite, taille_vetement, extra
   ) values (
     v_person_id, v_person_type,
     nullif(p_payload->>'date_naissance','')::date, p_payload->>'lieu_naissance',
@@ -281,6 +283,7 @@ begin
     p_payload->>'num_conges_spectacles', p_payload->>'num_audiens',
     p_payload->>'contact_urgence_nom', p_payload->>'contact_urgence_tel',
     p_payload->>'permis_conduire_numero', nullif(p_payload->>'permis_conduire_validite','')::date,
+    p_payload->>'taille_vetement',
     coalesce(p_payload->'extra', '{}'::jsonb)
   )
   on conflict (id) do update set
@@ -299,6 +302,7 @@ begin
     contact_urgence_tel = excluded.contact_urgence_tel,
     permis_conduire_numero = excluded.permis_conduire_numero,
     permis_conduire_validite = excluded.permis_conduire_validite,
+    taille_vetement = excluded.taille_vetement,
     extra = excluded.extra;
 end;
 $$;

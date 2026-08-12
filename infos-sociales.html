@@ -225,7 +225,7 @@ function infosFor(personId){
 
 const EXTRA_FIELD_DEFS = [
   ['dateNaissance', 'Date de naissance', 'date'],
-  ['lieuNaissance', 'Lieu de naissance', 'text'],
+  ['lieuNaissance', 'Ville de naissance', 'text'],
   ['nationalite', 'Nationalité', 'text'],
   ['numSecu', 'N° de sécurité sociale (NIR)', 'text'],
   ['iban', 'IBAN', 'text'],
@@ -237,6 +237,7 @@ const EXTRA_FIELD_DEFS = [
   ['contactUrgenceTel', "Contact d'urgence — téléphone", 'text'],
   ['permisConduireNumero', 'Permis de conduire — n°', 'text'],
   ['permisConduireValidite', 'Permis de conduire — validité', 'date'],
+  ['tailleVetement', 'Taille de vêtement', 'text'],
 ];
 
 function isFilled(info){
@@ -252,13 +253,6 @@ function renderPersonCard(p, personType){
   const roleLabel = personType === 'musicien'
     ? escapeHtml(p.instrument || 'Musicien·ne')
     : escapeHtml(p.poste || 'Technicien·ne');
-
-  const stdFields = EXTRA_FIELD_DEFS.map(([key, label, type])=> `
-    <div class="field">
-      <label>${label}</label>
-      <input type="${type}" data-info-field="${key}" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info[key] || '')}">
-    </div>
-  `).join('');
 
   const extraEntries = Object.entries(info.extra || {});
   const extraRows = extraEntries.map(([label, value], idx)=> `
@@ -281,7 +275,7 @@ function renderPersonCard(p, personType){
         <div class="section-label">Identité civile</div>
         <div class="field-row">
           <div class="field"><label>Date de naissance</label><input type="date" data-info-field="dateNaissance" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.dateNaissance || '')}"></div>
-          <div class="field"><label>Lieu de naissance</label><input type="text" data-info-field="lieuNaissance" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.lieuNaissance || '')}"></div>
+          <div class="field"><label>Ville de naissance</label><input type="text" data-info-field="lieuNaissance" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.lieuNaissance || '')}"></div>
           <div class="field"><label>Nationalité</label><input type="text" data-info-field="nationalite" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.nationalite || '')}"></div>
         </div>
         <div class="field">
@@ -317,10 +311,11 @@ function renderPersonCard(p, personType){
           <div class="field"><label>Téléphone</label><input type="text" data-info-field="contactUrgenceTel" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.contactUrgenceTel || '')}"></div>
         </div>
 
-        <div class="section-label">Permis de conduire</div>
+        <div class="section-label">Autres infos pratiques (facultatif)</div>
         <div class="field-row">
-          <div class="field"><label>N°</label><input type="text" data-info-field="permisConduireNumero" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.permisConduireNumero || '')}"></div>
-          <div class="field"><label>Validité</label><input type="date" data-info-field="permisConduireValidite" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.permisConduireValidite || '')}"></div>
+          <div class="field"><label>Permis de conduire — n°</label><input type="text" data-info-field="permisConduireNumero" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.permisConduireNumero || '')}"></div>
+          <div class="field"><label>Permis de conduire — validité</label><input type="date" data-info-field="permisConduireValidite" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.permisConduireValidite || '')}"></div>
+          <div class="field"><label>Taille de vêtement</label><input type="text" data-info-field="tailleVetement" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.tailleVetement || '')}"></div>
         </div>
 
         <div class="section-label">Champs personnalisés</div>
