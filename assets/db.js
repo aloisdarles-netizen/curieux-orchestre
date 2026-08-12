@@ -95,6 +95,41 @@ const CurieuxDB = (()=>{
         indicatif: c.indicatif || '', tel: c.tel || '', email: c.email || ''
       }),
       fromDb: (r)=> ({ id: r.id, role: r.role, nom: r.nom, indicatif: r.indicatif, tel: r.tel, email: r.email })
+    },
+    // Zone protégée (voir infos-sociales.html) : "id" est le même id que dans
+    // musiciens/techniciens (une fiche par personne). Accès restreint côté
+    // Supabase par RLS (infos_sociales_admins), pas par ce fichier.
+    infos_sociales: {
+      toDb: (r)=> ({
+        id: r.id, person_type: r.personType,
+        date_naissance: r.dateNaissance || null,
+        lieu_naissance: r.lieuNaissance || '',
+        nationalite: r.nationalite || '',
+        adresse: r.adresse || '',
+        num_secu: r.numSecu || '',
+        iban: r.iban || '',
+        bic: r.bic || '',
+        titulaire_compte: r.titulaireCompte || '',
+        num_objet_employeur: r.numObjetEmployeur || '',
+        num_aem: r.numAem || '',
+        num_audiens: r.numAudiens || '',
+        extra: r.extra || {}
+      }),
+      fromDb: (row)=> ({
+        id: row.id, personType: row.person_type,
+        dateNaissance: row.date_naissance || '',
+        lieuNaissance: row.lieu_naissance || '',
+        nationalite: row.nationalite || '',
+        adresse: row.adresse || '',
+        numSecu: row.num_secu || '',
+        iban: row.iban || '',
+        bic: row.bic || '',
+        titulaireCompte: row.titulaire_compte || '',
+        numObjetEmployeur: row.num_objet_employeur || '',
+        numAem: row.num_aem || '',
+        numAudiens: row.num_audiens || '',
+        extra: row.extra || {}
+      })
     }
   };
 
@@ -176,5 +211,40 @@ const CurieuxDB = (()=>{
       .subscribe();
   }
 
-  return { fetchAll, syncCollection, upsertOne, removeOne, fetchSnapshot, saveSnapshot, subscribe };
+  // --- Auth (utilisé uniquement par infos-sociales.html — le reste de l'app
+  // reste en accès public via la clé anonyme, voir DEPLOYMENT.md). ---
+  async function signIn(email, password){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    return supabaseClient.auth.signInWithPassword({ email, password });
+  }
+  async function signOut(){
+    if(!supabaseClient) return;
+    return supabaseClient.auth.signOut();
+  }
+  async function getSession(){
+    if(!supabaseClient) return null;
+    const { data } = await supabaseClient.auth.getSession();
+    return data.session;
+  }
+  function onAuthStateChange(callback){
+    if(!supabaseClient) return { data: { subscription: { unsubscribe(){} } } };
+    return supabaseClient.auth.onAuthStateChange(callback);
+  }
+  // Vérifie que le compte connecté figure dans infos_sociales_admins (policy
+  // RLS "self read own admin row" : la requête ne peut renvoyer QUE la ligne du
+  // compte courant, jamais la liste complète des admins).
+  async function isInfosSocialesAdmin(){
+    if(!supabaseClient) return false;
+    const session = await getSession();
+    if(!session || !session.user || !session.user.email) return false;
+    const { data, error } = await supabaseClient
+      .from('infos_sociales_admins').select('email').eq('email', session.user.email).maybeSingle();
+    if(error){ console.warn('[CurieuxDB] isInfosSocialesAdmin', error.message); return false; }
+    return !!data;
+  }
+
+  return {
+    fetchAll, syncCollection, upsertOne, removeOne, fetchSnapshot, saveSnapshot, subscribe,
+    signIn, signOut, getSession, onAuthStateChange, isInfosSocialesAdmin
+  };
 })();

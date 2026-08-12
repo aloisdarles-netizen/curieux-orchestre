@@ -62,3 +62,31 @@ idempotent, sans risque de le rejouer).
 Chaque page (annuaire, tournées, disponibilités, vue d'ensemble, feuille de route...)
 se met à jour automatiquement quand quelqu'un d'autre modifie une donnée depuis un
 autre poste — pas besoin de recharger la page.
+
+## Zone protégée "Infos sociales" (infos-sociales.html)
+
+Contrairement au reste de l'app (accès public via la clé anonyme, voir plus haut),
+[infos-sociales.html](infos-sociales.html) stocke des données sensibles nécessaires à
+une embauche (identité civile, n° de sécurité sociale, RIB, statut intermittent) et
+exige un **vrai compte** Supabase Auth (email + mot de passe), en plus du mot de passe
+d'accueil de l'app. Ça ne se configure pas tout seul en rejouant `migrations.sql` —
+deux étapes manuelles sont nécessaires dans le tableau de bord Supabase :
+
+1. **Activer les comptes email** — Authentication → Providers → vérifier que
+   "Email" est activé (c'est le cas par défaut sur un projet neuf).
+2. **Créer un compte** — Authentication → Users → **Add user** → renseigne l'email
+   de la personne autorisée et un mot de passe (tu peux cocher "Auto Confirm User"
+   pour éviter l'email de confirmation). Le compte pourra ensuite se connecter
+   directement sur `infos-sociales.html`.
+
+Une fois `migrations.sql` rejoué (il crée la table `infos_sociales` et une liste
+blanche `infos_sociales_admins`, déjà pré-remplie avec
+`alois.darles@lessoudaines.fr`), seuls les comptes présents dans
+`infos_sociales_admins` peuvent lire ou écrire ces données — imposé côté base par
+une policy RLS dédiée, pas juste côté app.
+
+**Pour autoriser une nouvelle personne** (après lui avoir créé un compte comme à
+l'étape 2 ci-dessus) : SQL Editor → `insert into infos_sociales_admins (email)
+values ('email@exemple.fr');`. Pour retirer l'accès de quelqu'un : `delete from
+infos_sociales_admins where email = 'email@exemple.fr';` (son compte Auth continue
+d'exister, il perd juste l'accès à cette table précise).

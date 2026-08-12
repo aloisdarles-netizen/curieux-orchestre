@@ -157,8 +157,71 @@ drop trigger if exists trg_dispo_demandes_updated_at on dispo_demandes;
 create trigger trg_dispo_demandes_updated_at before update on dispo_demandes
   for each row execute function set_updated_at();
 
+-- ----------------------------------------------------------------------------
+-- infos_sociales_admins — liste blanche des comptes (Supabase Auth) autorisés à
+-- consulter/modifier infos_sociales. Ajouter une ligne (email) donne accès, en
+-- retirer une le retire — c'est le SEUL endroit où gérer les autorisations,
+-- directement en SQL. Pas de lecture complète exposée côté app : chaque compte
+-- ne peut lire QUE sa propre ligne (juste assez pour la policy ci-dessous, qui a
+-- seulement besoin de vérifier l'existence, pas de lister les autres comptes).
+-- ----------------------------------------------------------------------------
+create table if not exists infos_sociales_admins (
+  email text primary key
+);
+insert into infos_sociales_admins (email) values ('alois.darles@lessoudaines.fr')
+  on conflict (email) do nothing;
+
+-- ----------------------------------------------------------------------------
+-- infos_sociales — zone protégée : infos nécessaires à l'embauche (identité
+-- civile, n° sécu, RIB, statut intermittent). Une ligne par musicien·ne ou
+-- technicien·ne, "id" = le même id que dans musiciens/techniciens (pas de FK
+-- stricte : les deux tables partagent l'espace d'id, préfixé "mus"/"tech").
+-- "extra" en JSONB accueille des champs additionnels ajoutés depuis l'app sans
+-- nouvelle migration.
+-- ----------------------------------------------------------------------------
+create table if not exists infos_sociales (
+  id text primary key,
+  person_type text not null check (person_type in ('musicien','technicien')),
+  date_naissance date,
+  lieu_naissance text default '',
+  nationalite text default '',
+  adresse text default '',
+  num_secu text default '',
+  iban text default '',
+  bic text default '',
+  titulaire_compte text default '',
+  num_objet_employeur text default '',
+  num_aem text default '',
+  num_audiens text default '',
+  extra jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_infos_sociales_updated_at on infos_sociales;
+create trigger trg_infos_sociales_updated_at before update on infos_sociales
+  for each row execute function set_updated_at();
+
+-- RLS restrictive (à l'opposé du reste du schéma, volontairement public) :
+-- seuls les comptes Supabase Auth listés dans infos_sociales_admins peuvent lire
+-- ou écrire infos_sociales. Nécessite un vrai compte (email + mot de passe) créé
+-- dans Supabase → Authentication → Users, voir SETUP_LOCAL.md.
+alter table infos_sociales_admins enable row level security;
+alter table infos_sociales enable row level security;
+
+drop policy if exists "self read own admin row" on infos_sociales_admins;
+create policy "self read own admin row" on infos_sociales_admins
+  for select using (email = auth.jwt()->>'email');
+
+drop policy if exists "admins only" on infos_sociales;
+create policy "admins only" on infos_sociales
+  for all
+  using (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email'))
+  with check (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email'));
+
 -- ============================================================================
 -- RLS : accès public en lecture/écriture (pas de compte utilisateur).
+-- infos_sociales / infos_sociales_admins font exception (voir plus haut) : ce
+-- sont les deux seules tables où l'accès est restreint à des comptes Auth.
 -- ============================================================================
 alter table musiciens enable row level security;
 alter table techniciens enable row level security;

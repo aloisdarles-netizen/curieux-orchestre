@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Infos sociales</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script>try{ hideCurieuxPageUntilUnlocked(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', applyCurieuxPasswordGate); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
+    --champagne:#fde3ee; --old-champagne:#c98aa0;
+    --danger:#a5313f; --danger-dark:#7a2333;
+    --ok:#2f8f5b; --ok-tint:#e2f4ea;
+    --radius:10px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --secondary:#ff7a4a; --secondary-dark:#ffab84; --secondary-tint:#3d2430;
+    --champagne:#3a2530; --old-champagne:#7a5064;
+    --danger:#e2685a; --danger-dark:#ffab9a;
+    --ok:#5fbf8a; --ok-tint:#1c3327;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 80px;
+    transition:background .3s, color .3s;
+  }
+  .wrap{max-width:900px; margin:0 auto;}
+  .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
+  .brand-logo-img{height:30px; width:auto; display:block;}
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .page-nav > a{
+    color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none;
+    background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s;
+    white-space:nowrap; display:inline-flex; align-items:center; gap:5px;
+  }
+  .page-nav > a:hover{background:#a8c9e6;}
+  .page-nav > a.ghost{background:transparent; color:var(--muted);}
+  .page-nav > a.ghost:hover{background:var(--border); color:var(--text);}
+  h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
+
+  .lock-banner{
+    display:flex; align-items:center; gap:10px; background:var(--champagne); border:1px solid var(--old-champagne);
+    border-radius:10px; padding:12px 16px; margin-bottom:22px; font-size:13px; color:var(--accent-dark); font-weight:600;
+  }
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-ghost:hover{background:var(--border); color:var(--text);}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-danger:hover{background:var(--secondary-tint);}
+  .btn-sm{padding:7px 11px; font-size:12px;}
+
+  label{font-size:12px; color:var(--muted); font-weight:600;}
+  input[type=text], input[type=email], input[type=password], input[type=date], textarea{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;
+    width:100%; background:var(--card); color:var(--text); font-family:inherit;
+  }
+  textarea{min-height:56px; resize:vertical;}
+  input:focus, textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .field-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .field-row .field{flex:1 1 200px;}
+
+  /* --- Écran de connexion --- */
+  #loginScreen{max-width:360px; margin:60px auto 0;}
+  .login-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.1);}
+  .login-card h2{font-size:16px; margin:0 0 4px;}
+  .login-card p{color:var(--muted); font-size:12.5px; margin:0 0 18px;}
+  .login-error{color:var(--danger); font-size:12.5px; margin:10px 0 0; display:none;}
+
+  /* --- Liste des personnes --- */
+  .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:20px;}
+  .toolbar input[type=text]{flex:1 1 220px;}
+  .empty-hint{color:var(--muted); font-size:13.5px; padding:30px 4px; text-align:center;}
+  .person-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    margin-bottom:10px; overflow:hidden;
+  }
+  .person-card summary{
+    list-style:none; cursor:pointer; padding:13px 16px; display:flex; align-items:center; gap:10px;
+  }
+  .person-card summary::-webkit-details-marker{display:none;}
+  .person-card summary .name{font-weight:800; font-size:14.5px;}
+  .person-card summary .role{color:var(--muted); font-size:12.5px;}
+  .person-card summary .filled-badge{
+    margin-left:auto; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 8px; border-radius:20px; background:var(--ok-tint); color:var(--ok);
+  }
+  .person-card summary .caret{color:var(--muted); transition:transform .2s ease; margin-left:4px;}
+  .person-card[open] summary .caret{transform:rotate(180deg);}
+  .person-body{padding:4px 16px 18px; border-top:1px solid var(--border);}
+  .section-label{
+    font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
+    margin:16px 0 8px;
+  }
+  .save-hint{font-size:11.5px; color:var(--muted); margin-top:2px;}
+  .save-hint.ok{color:var(--ok);}
+  .extra-row{display:flex; gap:8px; align-items:flex-end; margin-bottom:8px;}
+  .extra-row .field{margin-bottom:0;}
+
+  @media (max-width:600px){
+    input, textarea{ font-size:16px !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav">
+      <a class="ghost" href="accueil.html">← Accueil</a>
+      <button type="button" class="btn-ghost btn-sm" id="logoutBtn" style="display:none;">Se déconnecter</button>
+    </nav>
+  </div>
+
+  <h1>🔒 Infos sociales</h1>
+  <p class="subtitle">Identité civile, n° sécu, RIB, statut intermittent — pour préparer une embauche. Accès restreint, séparé du reste de l'app.</p>
+
+  <div id="loginScreen">
+    <div class="login-card">
+      <h2>Connexion requise</h2>
+      <p>Cette page nécessite un compte séparé du mot de passe d'accueil de l'app.</p>
+      <form id="loginForm">
+        <div class="field">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="loginPassword">Mot de passe</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn-primary" style="width:100%;">Se connecter</button>
+        <div class="login-error" id="loginError"></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="appScreen" style="display:none;">
+    <div class="lock-banner">🔒 Connecté·e en tant que <span id="userEmailLabel" style="margin-left:4px;"></span> — ces données ne sont visibles que par les comptes autorisés.</div>
+
+    <div id="notAdminNotice" class="empty-hint" style="display:none;">
+      Ce compte est connecté mais n'est pas autorisé à consulter les infos sociales.<br>
+      Demande à un administrateur d'ajouter <strong id="notAdminEmail"></strong> dans la table <code>infos_sociales_admins</code> (Supabase → SQL Editor).
+    </div>
+
+    <div id="listWrap">
+      <div class="toolbar">
+        <input type="text" id="searchInput" placeholder="Chercher un nom…">
+      </div>
+      <div id="peopleHolder"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+applyBrandLogo();
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+let musiciansCache = [];
+let techniciansCache = [];
+let infosCache = [];
+let currentUser = null;
+
+function fullName(p){ return `${p.prenom || ''} ${p.nom || ''}`.trim() || 'Sans nom'; }
+function escapeHtml(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s); }
+
+function showLogin(){
+  document.getElementById('loginScreen').style.display = 'block';
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('logoutBtn').style.display = 'none';
+}
+
+async function showApp(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  document.getElementById('logoutBtn').style.display = 'inline-block';
+  document.getElementById('userEmailLabel').textContent = currentUser.email;
+
+  const isAdmin = await CurieuxDB.isInfosSocialesAdmin();
+  if(!isAdmin){
+    document.getElementById('notAdminNotice').style.display = 'block';
+    document.getElementById('notAdminEmail').textContent = currentUser.email;
+    document.getElementById('listWrap').style.display = 'none';
+    return;
+  }
+  document.getElementById('notAdminNotice').style.display = 'none';
+  document.getElementById('listWrap').style.display = 'block';
+  await initData();
+}
+
+async function initData(){
+  [musiciansCache, techniciansCache, infosCache] = await Promise.all([
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('infos_sociales'),
+  ]);
+  render();
+}
+
+function infosFor(personId){
+  return infosCache.find(i=> i.id === personId) || { id: personId, extra: {} };
+}
+
+const EXTRA_FIELD_DEFS = [
+  ['dateNaissance', 'Date de naissance', 'date'],
+  ['lieuNaissance', 'Lieu de naissance', 'text'],
+  ['nationalite', 'Nationalité', 'text'],
+  ['numSecu', 'N° de sécurité sociale (NIR)', 'text'],
+  ['iban', 'IBAN', 'text'],
+  ['bic', 'BIC', 'text'],
+  ['titulaireCompte', 'Titulaire du compte', 'text'],
+  ['numObjetEmployeur', "N° d'objet employeur", 'text'],
+  ['numAem', 'N° AEM (Pôle emploi spectacle)', 'text'],
+  ['numAudiens', 'N° Audiens', 'text'],
+];
+
+function isFilled(info){
+  if(!info) return false;
+  const base = EXTRA_FIELD_DEFS.some(([key])=> (info[key] || '').toString().trim());
+  const extra = Object.values(info.extra || {}).some(v=> (v || '').toString().trim());
+  return base || extra;
+}
+
+function renderPersonCard(p, personType){
+  const info = infosFor(p.id);
+  const filled = isFilled(info);
+  const roleLabel = personType === 'musicien'
+    ? escapeHtml(p.instrument || 'Musicien·ne')
+    : escapeHtml(p.poste || 'Technicien·ne');
+
+  const stdFields = EXTRA_FIELD_DEFS.map(([key, label, type])=> `
+    <div class="field">
+      <label>${label}</label>
+      <input type="${type}" data-info-field="${key}" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info[key] || '')}">
+    </div>
+  `).join('');
+
+  const extraEntries = Object.entries(info.extra || {});
+  const extraRows = extraEntries.map(([label, value], idx)=> `
+    <div class="extra-row" data-extra-row data-person="${escapeAttr(p.id)}" data-extra-index="${idx}">
+      <div class="field"><label>Nom du champ</label><input type="text" data-extra-label value="${escapeAttr(label)}"></div>
+      <div class="field"><label>Valeur</label><input type="text" data-extra-value value="${escapeAttr(value)}"></div>
+      <button type="button" class="btn-danger btn-sm" data-remove-extra>Retirer</button>
+    </div>
+  `).join('');
+
+  return `
+    <details class="person-card" data-person-id="${escapeAttr(p.id)}" data-person-type="${personType}">
+      <summary>
+        <span class="name">${escapeHtml(fullName(p))}</span>
+        <span class="role">${roleLabel}</span>
+        ${filled ? '<span class="filled-badge">Fiche remplie</span>' : ''}
+        <span class="caret">▾</span>
+      </summary>
+      <div class="person-body">
+        <div class="section-label">Identité civile</div>
+        <div class="field-row">
+          <div class="field"><label>Date de naissance</label><input type="date" data-info-field="dateNaissance" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.dateNaissance || '')}"></div>
+          <div class="field"><label>Lieu de naissance</label><input type="text" data-info-field="lieuNaissance" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.lieuNaissance || '')}"></div>
+          <div class="field"><label>Nationalité</label><input type="text" data-info-field="nationalite" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.nationalite || '')}"></div>
+        </div>
+        <div class="field">
+          <label>Adresse postale</label>
+          <textarea data-info-field="adresse" data-person="${escapeAttr(p.id)}">${escapeHtml(info.adresse || '')}</textarea>
+        </div>
+
+        <div class="section-label">Sécurité sociale</div>
+        <div class="field">
+          <label>N° de sécurité sociale (NIR)</label>
+          <input type="text" data-info-field="numSecu" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.numSecu || '')}">
+        </div>
+
+        <div class="section-label">Coordonnées bancaires</div>
+        <div class="field-row">
+          <div class="field"><label>IBAN</label><input type="text" data-info-field="iban" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.iban || '')}"></div>
+          <div class="field"><label>BIC</label><input type="text" data-info-field="bic" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.bic || '')}"></div>
+        </div>
+        <div class="field">
+          <label>Titulaire du compte</label>
+          <input type="text" data-info-field="titulaireCompte" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.titulaireCompte || '')}">
+        </div>
+
+        <div class="section-label">Statut intermittent</div>
+        <div class="field-row">
+          <div class="field"><label>N° d'objet employeur</label><input type="text" data-info-field="numObjetEmployeur" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.numObjetEmployeur || '')}"></div>
+          <div class="field"><label>N° AEM</label><input type="text" data-info-field="numAem" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.numAem || '')}"></div>
+          <div class="field"><label>N° Audiens</label><input type="text" data-info-field="numAudiens" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.numAudiens || '')}"></div>
+        </div>
+
+        <div class="section-label">Champs personnalisés</div>
+        <div data-extra-holder data-person="${escapeAttr(p.id)}">${extraRows}</div>
+        <button type="button" class="btn-secondary btn-sm" data-add-extra data-person="${escapeAttr(p.id)}">+ Ajouter un champ</button>
+
+        <div class="save-hint" data-save-hint data-person="${escapeAttr(p.id)}"></div>
+      </div>
+    </details>
+  `;
+}
+
+function render(){
+  const query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const all = [
+    ...musiciansCache.map(m=> ({ p: m, type: 'musicien' })),
+    ...techniciansCache.map(t=> ({ p: t, type: 'technicien' })),
+  ].sort((a, b)=> fullName(a.p).localeCompare(fullName(b.p)));
+
+  const filtered = query ? all.filter(({p})=> fullName(p).toLowerCase().includes(query)) : all;
+  const holder = document.getElementById('peopleHolder');
+
+  if(filtered.length === 0){
+    holder.innerHTML = `<div class="empty-hint">${all.length === 0 ? "Ajoute d'abord des musicien·nes ou technicien·nes dans les annuaires." : 'Aucun résultat.'}</div>`;
+    return;
+  }
+
+  holder.innerHTML = filtered.map(({p, type})=> renderPersonCard(p, type)).join('');
+  bindPersonEvents();
+}
+
+let saveTimers = {};
+function scheduleSave(personId, personType){
+  clearTimeout(saveTimers[personId]);
+  const hint = document.querySelector(`[data-save-hint][data-person="${CSS.escape(personId)}"]`);
+  if(hint){ hint.textContent = 'Enregistrement…'; hint.classList.remove('ok'); }
+  saveTimers[personId] = setTimeout(async ()=>{
+    const info = infosFor(personId);
+    info.personType = personType;
+    await CurieuxDB.upsertOne('infos_sociales', info);
+    if(!infosCache.some(i=> i.id === personId)) infosCache.push(info);
+    if(hint){ hint.textContent = 'Enregistré ✓'; hint.classList.add('ok'); }
+  }, 500);
+}
+
+function bindPersonEvents(){
+  document.querySelectorAll('[data-info-field]').forEach(el=>{
+    el.addEventListener('input', ()=>{
+      const personId = el.dataset.person;
+      const card = el.closest('[data-person-id]');
+      const info = infosFor(personId);
+      info[el.dataset.infoField] = el.value;
+      if(!infosCache.some(i=> i.id === personId)) infosCache.push(info);
+      scheduleSave(personId, card.dataset.personType);
+    });
+  });
+
+  document.querySelectorAll('[data-add-extra]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const personId = btn.dataset.person;
+      const card = btn.closest('[data-person-id]');
+      const info = infosFor(personId);
+      if(!info.extra) info.extra = {};
+      let n = 1, key = 'Nouveau champ';
+      while(Object.prototype.hasOwnProperty.call(info.extra, key)){ n++; key = `Nouveau champ ${n}`; }
+      info.extra[key] = '';
+      if(!infosCache.some(i=> i.id === personId)) infosCache.push(info);
+      const holder = card.querySelector('[data-extra-holder]');
+      holder.insertAdjacentHTML('beforeend', `
+        <div class="extra-row" data-extra-row data-person="${escapeAttr(personId)}">
+          <div class="field"><label>Nom du champ</label><input type="text" data-extra-label value="${escapeAttr(key)}"></div>
+          <div class="field"><label>Valeur</label><input type="text" data-extra-value value=""></div>
+          <button type="button" class="btn-danger btn-sm" data-remove-extra>Retirer</button>
+        </div>
+      `);
+      bindExtraRow(holder.lastElementChild, personId, card.dataset.personType);
+    });
+  });
+
+  document.querySelectorAll('[data-extra-row]').forEach(row=>{
+    const card = row.closest('[data-person-id]');
+    bindExtraRow(row, row.dataset.person, card.dataset.personType);
+  });
+}
+
+function bindExtraRow(row, personId, personType){
+  const labelInput = row.querySelector('[data-extra-label]');
+  const valueInput = row.querySelector('[data-extra-value]');
+  const removeBtn = row.querySelector('[data-remove-extra]');
+  let previousLabel = labelInput.value;
+
+  const sync = ()=>{
+    const info = infosFor(personId);
+    if(!info.extra) info.extra = {};
+    if(labelInput.value !== previousLabel){
+      delete info.extra[previousLabel];
+      previousLabel = labelInput.value;
+    }
+    info.extra[labelInput.value] = valueInput.value;
+    if(!infosCache.some(i=> i.id === personId)) infosCache.push(info);
+    scheduleSave(personId, personType);
+  };
+  labelInput.addEventListener('input', sync);
+  valueInput.addEventListener('input', sync);
+  removeBtn.addEventListener('click', ()=>{
+    const info = infosFor(personId);
+    if(info.extra) delete info.extra[previousLabel];
+    row.remove();
+    scheduleSave(personId, personType);
+  });
+}
+
+document.getElementById('searchInput').addEventListener('input', render);
+
+document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+  errorEl.style.display = 'none';
+  const { error } = await CurieuxDB.signIn(email, password);
+  if(error){
+    errorEl.textContent = error.message === 'Invalid login credentials' ? 'Email ou mot de passe incorrect.' : error.message;
+    errorEl.style.display = 'block';
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+  await CurieuxDB.signOut();
+});
+
+CurieuxDB.onAuthStateChange((event, session)=>{
+  if(session && session.user){ currentUser = session.user; showApp(); }
+  else { currentUser = null; showLogin(); }
+});
+
+(async ()=>{
+  const session = await CurieuxDB.getSession();
+  if(session && session.user){ currentUser = session.user; await showApp(); }
+  else { showLogin(); }
+})();
+</script>
+</body>
+</html>
