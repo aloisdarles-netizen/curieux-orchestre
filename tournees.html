@@ -163,14 +163,6 @@
   .chip.tech{background:var(--secondary-tint); color:var(--secondary-dark);}
   .empty-hint{color:var(--muted); font-size:13px; padding:20px 4px; text-align:center;}
 
-  .undated-item{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px;
-    text-decoration:none; color:var(--text); font-size:13.5px; transition:background .15s;
-  }
-  .undated-item:hover{background:var(--accent-tint);}
-  .undated-item span{color:var(--accent-dark); font-weight:700; font-size:12.5px;}
-
   .modal-overlay{
     display:none; position:fixed; inset:0; background:rgba(20,15,10,.5);
     align-items:center; justify-content:center; padding:20px; z-index:50;
@@ -243,11 +235,6 @@
     <summary style="cursor:pointer; font-weight:700; color:var(--muted); padding:10px 4px;">Tournées passées (<span id="pastTourneesCount">0</span>)</summary>
     <div id="pastTourneesHolder"></div>
   </details>
-
-  <div class="tournee-card" id="undatedWrap" style="display:none;">
-    <div class="tournee-name" style="margin-bottom:14px;">Feuilles de route sans date</div>
-    <div id="undatedList"></div>
-  </div>
 </div>
 
 <div class="modal-overlay" id="importOverlay">
@@ -798,20 +785,6 @@ function render(){
   }
 
   bindTourneeEvents();
-
-  const undated = fdrs.filter(f=>!f.eventDate);
-  const undatedWrap = document.getElementById('undatedWrap');
-  if(undated.length){
-    undatedWrap.style.display = 'block';
-    document.getElementById('undatedList').innerHTML = undated.map(f=>`
-      <a class="undated-item" href="feuille-de-route.html?id=${encodeURIComponent(f.id)}">
-        <span style="color:var(--text); font-weight:400;">${escapeHtml(f.artistName || 'Feuille de route sans titre')}</span>
-        <span>Ouvrir →</span>
-      </a>
-    `).join('');
-  } else {
-    undatedWrap.style.display = 'none';
-  }
 }
 
 const STATUT_PDF_LABEL = { option:'Option', validee:'Validée', annulee:'ANNULÉE' };
