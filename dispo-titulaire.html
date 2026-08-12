@@ -274,43 +274,43 @@ function maybeShowInfosModal(){
   document.getElementById('infosModalOverlay').classList.add('open');
 }
 
-let modalPersonSaveTimer = null;
-function scheduleModalPersonSave(){
-  clearTimeout(modalPersonSaveTimer);
-  const hint = document.getElementById('modalSaveHint');
-  if(hint){ hint.textContent = 'Enregistrement…'; hint.classList.remove('ok'); }
-  modalPersonSaveTimer = setTimeout(async ()=>{
-    const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
-    const { error } = await supabaseClient.from(personTable)
-      .update({ telephone: state.person.telephone || '', email: state.person.email || '' })
-      .eq('id', state.person.id);
-    if(hint) { hint.textContent = error ? "Erreur d'enregistrement — réessaie." : 'Enregistré ✓'; hint.classList.toggle('ok', !error); }
-  }, 500);
-}
-let modalInfoSaveTimer = null;
-function scheduleModalInfoSave(){
-  clearTimeout(modalInfoSaveTimer);
-  const hint = document.getElementById('modalSaveHint');
-  if(hint){ hint.textContent = 'Enregistrement…'; hint.classList.remove('ok'); }
-  modalInfoSaveTimer = setTimeout(async ()=>{
-    const { error } = await CurieuxDB.upsertInfosSocialesByToken(state.token, state.info);
-    if(hint) { hint.textContent = error ? "Erreur d'enregistrement — réessaie." : 'Enregistré ✓'; hint.classList.toggle('ok', !error); }
-  }, 500);
-}
-
-document.getElementById('m_telephone').addEventListener('input', e=>{ state.person.telephone = e.target.value; scheduleModalPersonSave(); });
-document.getElementById('m_email').addEventListener('input', e=>{ state.person.email = e.target.value; scheduleModalPersonSave(); });
-document.getElementById('m_dateNaissance').addEventListener('input', e=>{ state.info.dateNaissance = e.target.value; scheduleModalInfoSave(); });
-document.getElementById('m_lieuNaissance').addEventListener('input', e=>{ state.info.lieuNaissance = e.target.value; scheduleModalInfoSave(); });
-document.getElementById('m_nationalite').addEventListener('input', e=>{ state.info.nationalite = e.target.value; scheduleModalInfoSave(); });
-document.getElementById('m_adresse').addEventListener('input', e=>{ state.info.adresse = e.target.value; scheduleModalInfoSave(); });
+// Comme pour les dispo (bouton "Valider mes réponses") : rien n'est enregistré
+// tant que la personne n'a pas cliqué "C'est fait" — pas de sauvegarde
+// automatique au fil de la frappe dans la modale.
+document.getElementById('m_telephone').addEventListener('input', e=>{ state.person.telephone = e.target.value; });
+document.getElementById('m_email').addEventListener('input', e=>{ state.person.email = e.target.value; });
+document.getElementById('m_dateNaissance').addEventListener('input', e=>{ state.info.dateNaissance = e.target.value; });
+document.getElementById('m_lieuNaissance').addEventListener('input', e=>{ state.info.lieuNaissance = e.target.value; });
+document.getElementById('m_nationalite').addEventListener('input', e=>{ state.info.nationalite = e.target.value; });
+document.getElementById('m_adresse').addEventListener('input', e=>{ state.info.adresse = e.target.value; });
 
 function closeInfosModal(){
   document.getElementById('infosModalOverlay').classList.remove('open');
-  render(); // reflète le téléphone/email éventuellement saisis dans la modale sur la fiche contact ci-dessous
 }
 document.getElementById('infosModalLater').addEventListener('click', closeInfosModal);
-document.getElementById('infosModalDone').addEventListener('click', closeInfosModal);
+document.getElementById('infosModalDone').addEventListener('click', async ()=>{
+  const btn = document.getElementById('infosModalDone');
+  const hint = document.getElementById('modalSaveHint');
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement…';
+  const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
+  const [personRes, infoRes] = await Promise.all([
+    supabaseClient.from(personTable)
+      .update({ telephone: state.person.telephone || '', email: state.person.email || '' })
+      .eq('id', state.person.id),
+    CurieuxDB.upsertInfosSocialesByToken(state.token, state.info)
+  ]);
+  btn.disabled = false;
+  btn.textContent = "C'est fait";
+  if(personRes.error || infoRes.error){
+    hint.textContent = "Erreur d'enregistrement — réessaie.";
+    hint.classList.remove('ok');
+    return;
+  }
+  hint.textContent = '';
+  closeInfosModal();
+  render(); // reflète le téléphone/email saisis dans la modale sur la fiche contact ci-dessous
+});
 
 function render(){
   // Le bloc (linkedToNext) se calcule sur TOUTES les dates triées, annulées incluses —

@@ -64,8 +64,24 @@
   .section-label:first-child{margin-top:4px;}
   .extra-row{display:flex; gap:8px; align-items:flex-end; margin-bottom:8px;}
   .extra-row .field{margin-bottom:0;}
-  .save-hint{font-size:11.5px; color:var(--muted); margin-top:10px;}
-  .save-hint.ok{color:var(--ok);}
+
+  .save-bar{
+    position:fixed; bottom:0; left:0; right:0; z-index:20; display:none;
+    background:var(--card); border-top:1px solid var(--border);
+    box-shadow:0 -8px 24px rgba(0,0,0,.1);
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  .save-bar.visible{display:block;}
+  .save-bar-inner{max-width:640px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .save-status{font-size:12px; color:var(--muted); line-height:1.3;}
+  .save-status.dirty{color:#b8792a; font-weight:700;}
+  .save-status.saved{color:var(--ok); font-weight:700;}
+  .save-btn{
+    flex-shrink:0; padding:11px 20px; border-radius:9px; border:none; background:var(--accent); color:#fff;
+    font-size:13.5px; font-weight:800; cursor:pointer; font-family:inherit; transition:background .15s, opacity .15s;
+  }
+  .save-btn:disabled{opacity:.45; cursor:default;}
+  .save-btn:not(:disabled):hover{background:var(--accent-dark);}
 
   .tier-badge{
     display:inline-block; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
@@ -98,6 +114,12 @@
 <div class="wrap">
   <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
   <div id="content"><div class="state-box">Chargement…</div></div>
+</div>
+<div class="save-bar" id="saveBar">
+  <div class="save-bar-inner">
+    <span class="save-status saved" id="saveStatus">Tes infos sont à jour.</span>
+    <button type="button" class="save-btn" id="saveBtn" disabled>Valider mes infos</button>
+  </div>
 </div>
 
 <script>
@@ -241,47 +263,53 @@ function render(){
     <div class="section-label">Champs personnalisés</div>
     <div data-extra-holder>${extraRows}</div>
     <button type="button" class="btn-secondary" id="addExtraBtn">+ Ajouter un champ</button>
-
-    <div class="save-hint" id="saveHint"></div>
   `;
   bindEvents();
   updateCompletionBanner();
+  document.getElementById('saveBar').classList.add('visible');
 }
 
-let saveTimer = null;
-function scheduleSave(){
-  clearTimeout(saveTimer);
-  const hint = document.getElementById('saveHint');
-  if(hint){ hint.textContent = 'Enregistrement…'; hint.classList.remove('ok'); }
-  saveTimer = setTimeout(async ()=>{
-    const { error } = await CurieuxDB.upsertInfosSocialesByToken(state.token, state.info);
-    if(hint) { hint.textContent = error ? "Erreur d'enregistrement — réessaie." : 'Enregistré ✓'; hint.classList.toggle('ok', !error); }
-  }, 500);
+// Comme dispo-titulaire.html : rien n'est enregistré tant que la personne n'a
+// pas cliqué "Valider mes infos" — pas de sauvegarde automatique au fil de la
+// frappe, pour que ce soit un vrai geste volontaire de validation.
+function markDirty(){
+  const status = document.getElementById('saveStatus');
+  const btn = document.getElementById('saveBtn');
+  status.textContent = 'Modifications non enregistrées.';
+  status.className = 'save-status dirty';
+  btn.disabled = false;
 }
 
-// Téléphone/email vivent sur la fiche musicien·ne/technicien·ne elle-même
-// (pas infos_sociales), déjà en accès public (comme dispo-titulaire.html) —
-// pas besoin de passer par le token pour celles-ci.
-let personSaveTimer = null;
-function schedulePersonSave(){
-  clearTimeout(personSaveTimer);
-  const hint = document.getElementById('saveHint');
-  if(hint){ hint.textContent = 'Enregistrement…'; hint.classList.remove('ok'); }
-  personSaveTimer = setTimeout(async ()=>{
-    const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
-    const { error } = await supabaseClient.from(personTable)
+async function doSave(){
+  const btn = document.getElementById('saveBtn');
+  const status = document.getElementById('saveStatus');
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement…';
+  const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
+  const [personRes, infoRes] = await Promise.all([
+    supabaseClient.from(personTable)
       .update({ telephone: state.person.telephone || '', email: state.person.email || '' })
-      .eq('id', state.person.id);
-    if(hint) { hint.textContent = error ? "Erreur d'enregistrement — réessaie." : 'Enregistré ✓'; hint.classList.toggle('ok', !error); }
-  }, 500);
+      .eq('id', state.person.id),
+    CurieuxDB.upsertInfosSocialesByToken(state.token, state.info)
+  ]);
+  btn.textContent = 'Valider mes infos';
+  if(personRes.error || infoRes.error){
+    status.textContent = "Erreur d'enregistrement — réessaie.";
+    status.className = 'save-status dirty';
+    btn.disabled = false;
+  } else {
+    status.textContent = '✓ Infos enregistrées.';
+    status.className = 'save-status saved';
+  }
 }
+document.getElementById('saveBtn').addEventListener('click', doSave);
 
 function bindEvents(){
   document.querySelectorAll('[data-person-field]').forEach(el=>{
     el.addEventListener('input', ()=>{
       state.person[el.dataset.personField] = el.value;
       updateCompletionBanner();
-      schedulePersonSave();
+      markDirty();
     });
   });
 
@@ -289,7 +317,7 @@ function bindEvents(){
     el.addEventListener('input', ()=>{
       state.info[el.dataset.infoField] = el.value;
       updateCompletionBanner();
-      scheduleSave();
+      markDirty();
     });
   });
 
@@ -307,6 +335,7 @@ function bindEvents(){
       </div>
     `);
     bindExtraRow(holder.lastElementChild);
+    markDirty();
   });
 
   document.querySelectorAll('[data-extra-row]').forEach(bindExtraRow);
@@ -325,14 +354,14 @@ function bindExtraRow(row){
       previousLabel = labelInput.value;
     }
     state.info.extra[labelInput.value] = valueInput.value;
-    scheduleSave();
+    markDirty();
   };
   labelInput.addEventListener('input', sync);
   valueInput.addEventListener('input', sync);
   removeBtn.addEventListener('click', ()=>{
     if(state.info.extra) delete state.info.extra[previousLabel];
     row.remove();
-    scheduleSave();
+    markDirty();
   });
 }
 
