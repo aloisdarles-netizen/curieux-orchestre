@@ -47,7 +47,7 @@
   h1{font-size:20px; margin:0 0 6px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
 
   label{font-size:12px; color:var(--muted); font-weight:600;}
-  input[type=text], input[type=date], textarea{
+  input[type=text], input[type=date], select, textarea{
     padding:9px 11px; border:1px solid var(--border); border-radius:6px; font-size:14px;
     width:100%; background:var(--card); color:var(--text); font-family:inherit;
   }
@@ -62,8 +62,6 @@
     margin:18px 0 8px;
   }
   .section-label:first-child{margin-top:4px;}
-  .extra-row{display:flex; gap:8px; align-items:flex-end; margin-bottom:8px;}
-  .extra-row .field{margin-bottom:0;}
 
   .save-bar{
     position:fixed; bottom:0; left:0; right:0; z-index:20; display:none;
@@ -95,18 +93,8 @@
   .completion-banner.missing{background:var(--danger-tint); color:var(--danger);}
   .completion-banner.ok{background:var(--ok-tint); color:var(--ok);}
 
-  button{
-    cursor:pointer; border:none; border-radius:8px; font-size:12.5px; font-weight:700;
-    padding:9px 14px; transition:background .15s, transform .1s; font-family:inherit;
-  }
-  button:active{transform:translateY(1px);}
-  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-secondary:hover{background:#a8c9e6;}
-  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
-  .btn-ghost:hover{background:var(--border); color:var(--text);}
-
   @media (max-width:600px){
-    input, textarea{ font-size:16px !important; }
+    input, select, textarea{ font-size:16px !important; }
   }
 </style>
 </head>
@@ -158,7 +146,7 @@ function tierBadge(tier){
   return `<span class="tier-badge ${tier}">${labels[tier]}</span>`;
 }
 
-// Minimum pour une première fiche exploitable (embauche) : coordonnées +
+// Minimum pour une première fiche exploitable : coordonnées +
 // identité civile de base. Le reste (RIB, n° sécu...) est conseillé mais pas
 // bloquant — beaucoup de gens ne l'ont pas sous la main au premier passage.
 const REQUIRED_FIELDS = [
@@ -189,20 +177,12 @@ function updateCompletionBanner(){
 
 function render(){
   const info = state.info;
-  const extraEntries = Object.entries(info.extra || {});
-  const extraRows = extraEntries.map(([label, value])=> `
-    <div class="extra-row" data-extra-row>
-      <div class="field"><label>Nom du champ</label><input type="text" data-extra-label value="${escapeAttr(label)}"></div>
-      <div class="field"><label>Valeur</label><input type="text" data-extra-value value="${escapeAttr(value)}"></div>
-      <button type="button" class="btn-ghost" data-remove-extra>Retirer</button>
-    </div>
-  `).join('');
 
   document.getElementById('content').innerHTML = `
     <h1>Mes infos</h1>
     <div class="identity-banner">
-      Bonjour <strong>${escapeHtml(fullName(state.person))}</strong> — ces informations servent à préparer une
-      éventuelle embauche (identité civile, n° sécu, RIB, statut intermittent).
+      Bonjour <strong>${escapeHtml(fullName(state.person))}</strong> — on a besoin de ces informations pour ta fiche
+      musicien·ne/technicien·ne (identité civile, n° sécu, RIB, statut intermittent).
       <div class="identity-note">Ce lien t'est personnel, pas la peine de le transférer. Tu peux revenir dessus à tout moment pour mettre à jour tes infos.</div>
     </div>
 
@@ -219,6 +199,18 @@ function render(){
       <div class="field"><label>Date de naissance ${tierBadge('obligatoire')}</label><input type="date" data-info-field="dateNaissance" value="${escapeAttr(info.dateNaissance || '')}"></div>
       <div class="field"><label>Ville de naissance ${tierBadge('obligatoire')}</label><input type="text" data-info-field="lieuNaissance" value="${escapeAttr(info.lieuNaissance || '')}"></div>
       <div class="field"><label>Nationalité ${tierBadge('obligatoire')}</label><input type="text" data-info-field="nationalite" value="${escapeAttr(info.nationalite || '')}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Genre ${tierBadge('conseille')}</label>
+        <select data-info-field="genre">
+          <option value="">Non renseigné</option>
+          <option value="femme" ${info.genre==='femme'?'selected':''}>Femme</option>
+          <option value="homme" ${info.genre==='homme'?'selected':''}>Homme</option>
+          <option value="autre" ${info.genre==='autre'?'selected':''}>Autre</option>
+          <option value="npr" ${info.genre==='npr'?'selected':''}>Préfère ne pas préciser</option>
+        </select>
+      </div>
     </div>
     <div class="field">
       <label>Adresse postale ${tierBadge('obligatoire')}</label>
@@ -255,14 +247,27 @@ function render(){
 
     <div class="section-label">Autres infos pratiques</div>
     <div class="field-row">
-      <div class="field"><label>Permis de conduire — n° ${tierBadge('facultatif')}</label><input type="text" data-info-field="permisConduireNumero" value="${escapeAttr(info.permisConduireNumero || '')}"></div>
-      <div class="field"><label>Permis de conduire — validité ${tierBadge('facultatif')}</label><input type="date" data-info-field="permisConduireValidite" value="${escapeAttr(info.permisConduireValidite || '')}"></div>
+      <div class="field">
+        <label>Permis de conduire ${tierBadge('facultatif')}</label>
+        <select data-info-field="permisConduire" id="mi_permisConduire">
+          <option value="">Non renseigné</option>
+          <option value="oui" ${info.permisConduire==='oui'?'selected':''}>Oui</option>
+          <option value="non" ${info.permisConduire==='non'?'selected':''}>Non</option>
+        </select>
+      </div>
+      <div class="field" id="mi_permisTypeField" style="${info.permisConduire==='oui' ? '' : 'display:none;'}">
+        <label>Type de permis</label>
+        <select data-info-field="permisConduireType" id="mi_permisConduireType">
+          <option value="B" ${info.permisConduireType!=='autre'?'selected':''}>Permis B</option>
+          <option value="autre" ${info.permisConduireType==='autre'?'selected':''}>Autre</option>
+        </select>
+      </div>
+      <div class="field" id="mi_permisTypeDetailField" style="${info.permisConduire==='oui' && info.permisConduireType==='autre' ? '' : 'display:none;'}">
+        <label>Préciser</label>
+        <input type="text" data-info-field="permisConduireTypeDetail" value="${escapeAttr(info.permisConduireTypeDetail || '')}">
+      </div>
       <div class="field"><label>Taille de vêtement ${tierBadge('facultatif')}</label><input type="text" data-info-field="tailleVetement" value="${escapeAttr(info.tailleVetement || '')}"></div>
     </div>
-
-    <div class="section-label">Champs personnalisés</div>
-    <div data-extra-holder>${extraRows}</div>
-    <button type="button" class="btn-secondary" id="addExtraBtn">+ Ajouter un champ</button>
   `;
   bindEvents();
   updateCompletionBanner();
@@ -321,47 +326,18 @@ function bindEvents(){
     });
   });
 
-  document.getElementById('addExtraBtn').addEventListener('click', ()=>{
-    if(!state.info.extra) state.info.extra = {};
-    let n = 1, key = 'Nouveau champ';
-    while(Object.prototype.hasOwnProperty.call(state.info.extra, key)){ n++; key = `Nouveau champ ${n}`; }
-    state.info.extra[key] = '';
-    const holder = document.querySelector('[data-extra-holder]');
-    holder.insertAdjacentHTML('beforeend', `
-      <div class="extra-row" data-extra-row>
-        <div class="field"><label>Nom du champ</label><input type="text" data-extra-label value="${escapeAttr(key)}"></div>
-        <div class="field"><label>Valeur</label><input type="text" data-extra-value value=""></div>
-        <button type="button" class="btn-ghost" data-remove-extra>Retirer</button>
-      </div>
-    `);
-    bindExtraRow(holder.lastElementChild);
-    markDirty();
+  // Affiche "Type de permis" seulement si "Oui", et "Préciser" seulement si
+  // le type est "Autre" — sans re-render (perdrait le focus en cours de frappe).
+  const permisField = document.getElementById('mi_permisConduire');
+  const permisTypeField = document.getElementById('mi_permisTypeField');
+  const permisTypeSelect = document.getElementById('mi_permisConduireType');
+  const permisTypeDetailField = document.getElementById('mi_permisTypeDetailField');
+  permisField.addEventListener('change', ()=>{
+    permisTypeField.style.display = permisField.value === 'oui' ? '' : 'none';
+    permisTypeDetailField.style.display = permisField.value === 'oui' && permisTypeSelect.value === 'autre' ? '' : 'none';
   });
-
-  document.querySelectorAll('[data-extra-row]').forEach(bindExtraRow);
-}
-
-function bindExtraRow(row){
-  const labelInput = row.querySelector('[data-extra-label]');
-  const valueInput = row.querySelector('[data-extra-value]');
-  const removeBtn = row.querySelector('[data-remove-extra]');
-  let previousLabel = labelInput.value;
-
-  const sync = ()=>{
-    if(!state.info.extra) state.info.extra = {};
-    if(labelInput.value !== previousLabel){
-      delete state.info.extra[previousLabel];
-      previousLabel = labelInput.value;
-    }
-    state.info.extra[labelInput.value] = valueInput.value;
-    markDirty();
-  };
-  labelInput.addEventListener('input', sync);
-  valueInput.addEventListener('input', sync);
-  removeBtn.addEventListener('click', ()=>{
-    if(state.info.extra) delete state.info.extra[previousLabel];
-    row.remove();
-    markDirty();
+  permisTypeSelect.addEventListener('change', ()=>{
+    permisTypeDetailField.style.display = permisField.value === 'oui' && permisTypeSelect.value === 'autre' ? '' : 'none';
   });
 }
 

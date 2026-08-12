@@ -61,16 +61,12 @@
   button:active{transform:translateY(1px);}
   .btn-primary{background:var(--accent); color:#fff;}
   .btn-primary:hover{background:var(--accent-dark);}
-  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-secondary:hover{background:#a8c9e6;}
   .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
   .btn-ghost:hover{background:var(--border); color:var(--text);}
-  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
-  .btn-danger:hover{background:var(--secondary-tint);}
   .btn-sm{padding:7px 11px; font-size:12px;}
 
   label{font-size:12px; color:var(--muted); font-weight:600;}
-  input[type=text], input[type=email], input[type=password], input[type=date], textarea{
+  input[type=text], input[type=email], input[type=password], input[type=date], select, textarea{
     padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;
     width:100%; background:var(--card); color:var(--text); font-family:inherit;
   }
@@ -114,11 +110,9 @@
   }
   .save-hint{font-size:11.5px; color:var(--muted); margin-top:2px;}
   .save-hint.ok{color:var(--ok);}
-  .extra-row{display:flex; gap:8px; align-items:flex-end; margin-bottom:8px;}
-  .extra-row .field{margin-bottom:0;}
 
   @media (max-width:600px){
-    input, textarea{ font-size:16px !important; }
+    input, select, textarea{ font-size:16px !important; }
   }
 </style>
 </head>
@@ -133,7 +127,7 @@
   </div>
 
   <h1>🔒 Infos sociales</h1>
-  <p class="subtitle">Identité civile, n° sécu, RIB, statut intermittent — pour préparer une embauche. Accès restreint, séparé du reste de l'app.</p>
+  <p class="subtitle">Identité civile, n° sécu, RIB, statut intermittent — infos nécessaires pour la fiche de chaque musicien·ne/technicien·ne. Accès restreint, séparé du reste de l'app.</p>
 
   <div id="loginScreen">
     <div class="login-card">
@@ -224,6 +218,7 @@ function infosFor(personId){
 }
 
 const EXTRA_FIELD_DEFS = [
+  ['genre', 'Genre', 'text'],
   ['dateNaissance', 'Date de naissance', 'date'],
   ['lieuNaissance', 'Ville de naissance', 'text'],
   ['nationalite', 'Nationalité', 'text'],
@@ -235,8 +230,8 @@ const EXTRA_FIELD_DEFS = [
   ['numAudiens', 'N° Audiens', 'text'],
   ['contactUrgenceNom', "Contact d'urgence — nom", 'text'],
   ['contactUrgenceTel', "Contact d'urgence — téléphone", 'text'],
-  ['permisConduireNumero', 'Permis de conduire — n°', 'text'],
-  ['permisConduireValidite', 'Permis de conduire — validité', 'date'],
+  ['permisConduire', 'Permis de conduire', 'text'],
+  ['permisConduireType', 'Type de permis', 'text'],
   ['tailleVetement', 'Taille de vêtement', 'text'],
 ];
 
@@ -254,15 +249,6 @@ function renderPersonCard(p, personType){
     ? escapeHtml(p.instrument || 'Musicien·ne')
     : escapeHtml(p.poste || 'Technicien·ne');
 
-  const extraEntries = Object.entries(info.extra || {});
-  const extraRows = extraEntries.map(([label, value], idx)=> `
-    <div class="extra-row" data-extra-row data-person="${escapeAttr(p.id)}" data-extra-index="${idx}">
-      <div class="field"><label>Nom du champ</label><input type="text" data-extra-label value="${escapeAttr(label)}"></div>
-      <div class="field"><label>Valeur</label><input type="text" data-extra-value value="${escapeAttr(value)}"></div>
-      <button type="button" class="btn-danger btn-sm" data-remove-extra>Retirer</button>
-    </div>
-  `).join('');
-
   return `
     <details class="person-card" data-person-id="${escapeAttr(p.id)}" data-person-type="${personType}">
       <summary>
@@ -277,6 +263,18 @@ function renderPersonCard(p, personType){
           <div class="field"><label>Date de naissance</label><input type="date" data-info-field="dateNaissance" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.dateNaissance || '')}"></div>
           <div class="field"><label>Ville de naissance</label><input type="text" data-info-field="lieuNaissance" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.lieuNaissance || '')}"></div>
           <div class="field"><label>Nationalité</label><input type="text" data-info-field="nationalite" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.nationalite || '')}"></div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Genre</label>
+            <select data-info-field="genre" data-person="${escapeAttr(p.id)}">
+              <option value="">Non renseigné</option>
+              <option value="femme" ${info.genre==='femme'?'selected':''}>Femme</option>
+              <option value="homme" ${info.genre==='homme'?'selected':''}>Homme</option>
+              <option value="autre" ${info.genre==='autre'?'selected':''}>Autre</option>
+              <option value="npr" ${info.genre==='npr'?'selected':''}>Préfère ne pas préciser</option>
+            </select>
+          </div>
         </div>
         <div class="field">
           <label>Adresse postale</label>
@@ -313,14 +311,27 @@ function renderPersonCard(p, personType){
 
         <div class="section-label">Autres infos pratiques (facultatif)</div>
         <div class="field-row">
-          <div class="field"><label>Permis de conduire — n°</label><input type="text" data-info-field="permisConduireNumero" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.permisConduireNumero || '')}"></div>
-          <div class="field"><label>Permis de conduire — validité</label><input type="date" data-info-field="permisConduireValidite" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.permisConduireValidite || '')}"></div>
+          <div class="field">
+            <label>Permis de conduire</label>
+            <select data-info-field="permisConduire" data-person="${escapeAttr(p.id)}" data-permis-select>
+              <option value="">Non renseigné</option>
+              <option value="oui" ${info.permisConduire==='oui'?'selected':''}>Oui</option>
+              <option value="non" ${info.permisConduire==='non'?'selected':''}>Non</option>
+            </select>
+          </div>
+          <div class="field" data-permis-type-field style="${info.permisConduire==='oui' ? '' : 'display:none;'}">
+            <label>Type de permis</label>
+            <select data-info-field="permisConduireType" data-person="${escapeAttr(p.id)}" data-permis-type-select>
+              <option value="B" ${info.permisConduireType!=='autre'?'selected':''}>Permis B</option>
+              <option value="autre" ${info.permisConduireType==='autre'?'selected':''}>Autre</option>
+            </select>
+          </div>
+          <div class="field" data-permis-type-detail-field style="${info.permisConduire==='oui' && info.permisConduireType==='autre' ? '' : 'display:none;'}">
+            <label>Préciser</label>
+            <input type="text" data-info-field="permisConduireTypeDetail" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.permisConduireTypeDetail || '')}">
+          </div>
           <div class="field"><label>Taille de vêtement</label><input type="text" data-info-field="tailleVetement" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.tailleVetement || '')}"></div>
         </div>
-
-        <div class="section-label">Champs personnalisés</div>
-        <div data-extra-holder data-person="${escapeAttr(p.id)}">${extraRows}</div>
-        <button type="button" class="btn-secondary btn-sm" data-add-extra data-person="${escapeAttr(p.id)}">+ Ajouter un champ</button>
 
         <div class="save-hint" data-save-hint data-person="${escapeAttr(p.id)}"></div>
       </div>
@@ -373,58 +384,20 @@ function bindPersonEvents(){
     });
   });
 
-  document.querySelectorAll('[data-add-extra]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const personId = btn.dataset.person;
-      const card = btn.closest('[data-person-id]');
-      const info = infosFor(personId);
-      if(!info.extra) info.extra = {};
-      let n = 1, key = 'Nouveau champ';
-      while(Object.prototype.hasOwnProperty.call(info.extra, key)){ n++; key = `Nouveau champ ${n}`; }
-      info.extra[key] = '';
-      if(!infosCache.some(i=> i.id === personId)) infosCache.push(info);
-      const holder = card.querySelector('[data-extra-holder]');
-      holder.insertAdjacentHTML('beforeend', `
-        <div class="extra-row" data-extra-row data-person="${escapeAttr(personId)}">
-          <div class="field"><label>Nom du champ</label><input type="text" data-extra-label value="${escapeAttr(key)}"></div>
-          <div class="field"><label>Valeur</label><input type="text" data-extra-value value=""></div>
-          <button type="button" class="btn-danger btn-sm" data-remove-extra>Retirer</button>
-        </div>
-      `);
-      bindExtraRow(holder.lastElementChild, personId, card.dataset.personType);
+  // Affiche "Type de permis" seulement si "Oui", et "Préciser" seulement si
+  // le type est "Autre" — sans re-render (perdrait le focus en cours de frappe).
+  document.querySelectorAll('[data-permis-select]').forEach(sel=>{
+    const card = sel.closest('[data-person-id]');
+    const typeField = card.querySelector('[data-permis-type-field]');
+    const typeSelect = card.querySelector('[data-permis-type-select]');
+    const typeDetailField = card.querySelector('[data-permis-type-detail-field]');
+    sel.addEventListener('change', ()=>{
+      typeField.style.display = sel.value === 'oui' ? '' : 'none';
+      typeDetailField.style.display = sel.value === 'oui' && typeSelect.value === 'autre' ? '' : 'none';
     });
-  });
-
-  document.querySelectorAll('[data-extra-row]').forEach(row=>{
-    const card = row.closest('[data-person-id]');
-    bindExtraRow(row, row.dataset.person, card.dataset.personType);
-  });
-}
-
-function bindExtraRow(row, personId, personType){
-  const labelInput = row.querySelector('[data-extra-label]');
-  const valueInput = row.querySelector('[data-extra-value]');
-  const removeBtn = row.querySelector('[data-remove-extra]');
-  let previousLabel = labelInput.value;
-
-  const sync = ()=>{
-    const info = infosFor(personId);
-    if(!info.extra) info.extra = {};
-    if(labelInput.value !== previousLabel){
-      delete info.extra[previousLabel];
-      previousLabel = labelInput.value;
-    }
-    info.extra[labelInput.value] = valueInput.value;
-    if(!infosCache.some(i=> i.id === personId)) infosCache.push(info);
-    scheduleSave(personId, personType);
-  };
-  labelInput.addEventListener('input', sync);
-  valueInput.addEventListener('input', sync);
-  removeBtn.addEventListener('click', ()=>{
-    const info = infosFor(personId);
-    if(info.extra) delete info.extra[previousLabel];
-    row.remove();
-    scheduleSave(personId, personType);
+    typeSelect.addEventListener('change', ()=>{
+      typeDetailField.style.display = sel.value === 'oui' && typeSelect.value === 'autre' ? '' : 'none';
+    });
   });
 }
 

@@ -150,9 +150,8 @@
   .modal input:focus, .modal textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
   .modal-save-hint{font-size:11.5px; color:var(--muted); margin-top:4px;}
   .modal-save-hint.ok{color:var(--ok);}
-  .modal-actions{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:16px; flex-wrap:wrap;}
+  .modal-actions{display:flex; align-items:center; gap:10px; margin-top:16px; flex-wrap:wrap;}
   .modal-actions button{font-family:inherit; cursor:pointer;}
-  .modal-actions .btn-later{background:transparent; border:none; color:var(--muted); font-size:12.5px; font-weight:700; padding:8px 4px;}
   .modal-actions .btn-done{background:var(--accent); color:#fff; border:none; border-radius:9px; padding:10px 18px; font-size:13.5px; font-weight:800;}
   .modal-actions .btn-done:hover{background:var(--accent-dark);}
   .modal-full-link{display:block; margin-top:14px; font-size:12px; color:var(--accent-dark); text-align:center;}
@@ -173,7 +172,7 @@
 <div class="modal-overlay" id="infosModalOverlay">
   <div class="modal">
     <h2>🔒 Avant de commencer</h2>
-    <p class="modal-sub">Quelques infos nécessaires pour une éventuelle embauche — tu peux compléter le reste plus tard.</p>
+    <p class="modal-sub">On a besoin de ces infos pour ta fiche musicien·ne/technicien·ne.</p>
     <div class="field-row">
       <div class="field"><label>Téléphone</label><input type="text" id="m_telephone"></div>
       <div class="field"><label>Email</label><input type="text" id="m_email"></div>
@@ -188,11 +187,10 @@
       <textarea id="m_adresse"></textarea>
     </div>
     <div class="modal-save-hint" id="modalSaveHint"></div>
-    <div class="modal-actions">
-      <button type="button" class="btn-later" id="infosModalLater">Plus tard</button>
-      <button type="button" class="btn-done" id="infosModalDone">C'est fait</button>
+    <div class="modal-actions" style="justify-content:flex-end;">
+      <button type="button" class="btn-done" id="infosModalDone">Valider</button>
     </div>
-    <a class="modal-full-link" id="modalFullLink" href="#">Voir toutes mes infos (RIB, n° sécu, statut intermittent...) →</a>
+    <a class="modal-full-link" id="modalFullLink" href="#">Voir aussi mes infos complètes (RIB, n° sécu, statut intermittent...) →</a>
   </div>
 </div>
 
@@ -287,10 +285,17 @@ document.getElementById('m_adresse').addEventListener('input', e=>{ state.info.a
 function closeInfosModal(){
   document.getElementById('infosModalOverlay').classList.remove('open');
 }
-document.getElementById('infosModalLater').addEventListener('click', closeInfosModal);
+// Pas de bouton "Plus tard" : la fiche est requise dès la première visite,
+// la modale ne se ferme qu'une fois tous les champs obligatoires remplis.
 document.getElementById('infosModalDone').addEventListener('click', async ()=>{
   const btn = document.getElementById('infosModalDone');
   const hint = document.getElementById('modalSaveHint');
+  const missing = computeMissingRequired();
+  if(missing.length){
+    hint.textContent = `⚠️ Il manque encore : ${missing.map(f=>f.label).join(', ')}`;
+    hint.classList.remove('ok');
+    return;
+  }
   btn.disabled = true;
   btn.textContent = 'Enregistrement…';
   const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
@@ -301,7 +306,7 @@ document.getElementById('infosModalDone').addEventListener('click', async ()=>{
     CurieuxDB.upsertInfosSocialesByToken(state.token, state.info)
   ]);
   btn.disabled = false;
-  btn.textContent = "C'est fait";
+  btn.textContent = 'Valider';
   if(personRes.error || infoRes.error){
     hint.textContent = "Erreur d'enregistrement — réessaie.";
     hint.classList.remove('ok');
@@ -339,7 +344,7 @@ function render(){
       Bonjour <strong>${escapeHtml(fullName(state.person))}</strong> — merci de compléter tes dispo pour
       <strong>${escapeHtml(state.tournee.nom || 'la tournée')}</strong>${restrictedIds ? ', sur les dates ci-dessous uniquement' : ''}.
       <div class="identity-note">Ce lien t'est personnel, pas la peine de le transférer. Tu peux revenir dessus à tout moment pour mettre à jour tes réponses.</div>
-      <div class="identity-note">🔒 <a href="mes-infos.html?token=${encodeURIComponent(state.token)}">Renseigner mes infos pour une éventuelle embauche</a> (identité, RIB, n° sécu…).</div>
+      <div class="identity-note">🔒 <a href="mes-infos.html?token=${encodeURIComponent(state.token)}">Renseigner mes infos pour ma fiche</a> (identité, RIB, n° sécu…).</div>
     </div>
     <div class="contact-card">
       <div class="contact-card-label">Tes coordonnées (visibles dans l'annuaire de la prod)</div>

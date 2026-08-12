@@ -182,6 +182,7 @@ insert into infos_sociales_admins (email) values ('alois.darles@lessoudaines.fr'
 create table if not exists infos_sociales (
   id text primary key,
   person_type text not null check (person_type in ('musicien','technicien')),
+  genre text default '',
   date_naissance date,
   lieu_naissance text default '',
   nationalite text default '',
@@ -194,8 +195,9 @@ create table if not exists infos_sociales (
   num_audiens text default '',
   contact_urgence_nom text default '',
   contact_urgence_tel text default '',
-  permis_conduire_numero text default '',
-  permis_conduire_validite date,
+  permis_conduire text default '',
+  permis_conduire_type text default '',
+  permis_conduire_type_detail text default '',
   taille_vetement text default '',
   extra jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
@@ -210,9 +212,17 @@ alter table infos_sociales add column if not exists num_conges_spectacles text d
 -- pour une base déjà provisionnée.
 alter table infos_sociales add column if not exists contact_urgence_nom text default '';
 alter table infos_sociales add column if not exists contact_urgence_tel text default '';
-alter table infos_sociales add column if not exists permis_conduire_numero text default '';
-alter table infos_sociales add column if not exists permis_conduire_validite date;
 alter table infos_sociales add column if not exists taille_vetement text default '';
+-- Genre, ajouté après coup.
+alter table infos_sociales add column if not exists genre text default '';
+-- Permis de conduire simplifié en oui/non + type (B/autre) — remplace les
+-- anciennes colonnes permis_conduire_numero/permis_conduire_validite (pas
+-- droppées, juste plus utilisées : on ne demandait pas vraiment besoin du
+-- numéro exact ni de la date de validité, juste de savoir si la personne
+-- peut conduire et avec quel type de permis).
+alter table infos_sociales add column if not exists permis_conduire text default '';
+alter table infos_sociales add column if not exists permis_conduire_type text default '';
+alter table infos_sociales add column if not exists permis_conduire_type_detail text default '';
 drop trigger if exists trg_infos_sociales_updated_at on infos_sociales;
 create trigger trg_infos_sociales_updated_at before update on infos_sociales
   for each row execute function set_updated_at();
@@ -271,23 +281,24 @@ begin
   end if;
 
   insert into infos_sociales (
-    id, person_type, date_naissance, lieu_naissance, nationalite, adresse,
+    id, person_type, genre, date_naissance, lieu_naissance, nationalite, adresse,
     num_secu, iban, bic, titulaire_compte, num_conges_spectacles, num_audiens,
-    contact_urgence_nom, contact_urgence_tel, permis_conduire_numero,
-    permis_conduire_validite, taille_vetement, extra
+    contact_urgence_nom, contact_urgence_tel, permis_conduire,
+    permis_conduire_type, permis_conduire_type_detail, taille_vetement, extra
   ) values (
-    v_person_id, v_person_type,
+    v_person_id, v_person_type, p_payload->>'genre',
     nullif(p_payload->>'date_naissance','')::date, p_payload->>'lieu_naissance',
     p_payload->>'nationalite', p_payload->>'adresse',
     p_payload->>'num_secu', p_payload->>'iban', p_payload->>'bic', p_payload->>'titulaire_compte',
     p_payload->>'num_conges_spectacles', p_payload->>'num_audiens',
     p_payload->>'contact_urgence_nom', p_payload->>'contact_urgence_tel',
-    p_payload->>'permis_conduire_numero', nullif(p_payload->>'permis_conduire_validite','')::date,
+    p_payload->>'permis_conduire', p_payload->>'permis_conduire_type', p_payload->>'permis_conduire_type_detail',
     p_payload->>'taille_vetement',
     coalesce(p_payload->'extra', '{}'::jsonb)
   )
   on conflict (id) do update set
     person_type = excluded.person_type,
+    genre = excluded.genre,
     date_naissance = excluded.date_naissance,
     lieu_naissance = excluded.lieu_naissance,
     nationalite = excluded.nationalite,
@@ -300,8 +311,9 @@ begin
     num_audiens = excluded.num_audiens,
     contact_urgence_nom = excluded.contact_urgence_nom,
     contact_urgence_tel = excluded.contact_urgence_tel,
-    permis_conduire_numero = excluded.permis_conduire_numero,
-    permis_conduire_validite = excluded.permis_conduire_validite,
+    permis_conduire = excluded.permis_conduire,
+    permis_conduire_type = excluded.permis_conduire_type,
+    permis_conduire_type_detail = excluded.permis_conduire_type_detail,
     taille_vetement = excluded.taille_vetement,
     extra = excluded.extra;
 end;

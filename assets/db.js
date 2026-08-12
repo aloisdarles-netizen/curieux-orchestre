@@ -102,6 +102,7 @@ const CurieuxDB = (()=>{
     infos_sociales: {
       toDb: (r)=> ({
         id: r.id, person_type: r.personType,
+        genre: r.genre || '',
         date_naissance: r.dateNaissance || null,
         lieu_naissance: r.lieuNaissance || '',
         nationalite: r.nationalite || '',
@@ -114,13 +115,15 @@ const CurieuxDB = (()=>{
         num_audiens: r.numAudiens || '',
         contact_urgence_nom: r.contactUrgenceNom || '',
         contact_urgence_tel: r.contactUrgenceTel || '',
-        permis_conduire_numero: r.permisConduireNumero || '',
-        permis_conduire_validite: r.permisConduireValidite || null,
+        permis_conduire: r.permisConduire || '',
+        permis_conduire_type: r.permisConduireType || '',
+        permis_conduire_type_detail: r.permisConduireTypeDetail || '',
         taille_vetement: r.tailleVetement || '',
         extra: r.extra || {}
       }),
       fromDb: (row)=> ({
         id: row.id, personType: row.person_type,
+        genre: row.genre || '',
         dateNaissance: row.date_naissance || '',
         lieuNaissance: row.lieu_naissance || '',
         nationalite: row.nationalite || '',
@@ -133,8 +136,9 @@ const CurieuxDB = (()=>{
         numAudiens: row.num_audiens || '',
         contactUrgenceNom: row.contact_urgence_nom || '',
         contactUrgenceTel: row.contact_urgence_tel || '',
-        permisConduireNumero: row.permis_conduire_numero || '',
-        permisConduireValidite: row.permis_conduire_validite || '',
+        permisConduire: row.permis_conduire || '',
+        permisConduireType: row.permis_conduire_type || '',
+        permisConduireTypeDetail: row.permis_conduire_type_detail || '',
         tailleVetement: row.taille_vetement || '',
         extra: row.extra || {}
       })
