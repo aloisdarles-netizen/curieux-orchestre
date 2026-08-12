@@ -126,6 +126,36 @@
   @media (max-width:600px){
     input, select, textarea{ font-size:16px !important; }
   }
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(20,15,10,.5);
+    align-items:flex-start; justify-content:center; padding:20px; z-index:50; overflow-y:auto;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--card); border-radius:14px; padding:24px; max-width:480px; width:100%;
+    margin-top:20px; box-shadow:0 20px 60px rgba(0,0,0,.25);
+  }
+  .modal h2{font-size:17px; margin:0 0 4px;}
+  .modal-sub{color:var(--muted); font-size:12.5px; margin:0 0 16px;}
+  .modal .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .modal .field-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .modal .field-row .field{flex:1 1 160px;}
+  .modal label{font-size:12px; color:var(--muted); font-weight:600;}
+  .modal input[type=text], .modal input[type=date], .modal textarea{
+    padding:9px 11px; border:1px solid var(--border); border-radius:6px; font-size:14px;
+    width:100%; background:var(--bg); color:var(--text); font-family:inherit;
+  }
+  .modal textarea{min-height:56px; resize:vertical;}
+  .modal input:focus, .modal textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .modal-save-hint{font-size:11.5px; color:var(--muted); margin-top:4px;}
+  .modal-save-hint.ok{color:var(--ok);}
+  .modal-actions{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:16px; flex-wrap:wrap;}
+  .modal-actions button{font-family:inherit; cursor:pointer;}
+  .modal-actions .btn-later{background:transparent; border:none; color:var(--muted); font-size:12.5px; font-weight:700; padding:8px 4px;}
+  .modal-actions .btn-done{background:var(--accent); color:#fff; border:none; border-radius:9px; padding:10px 18px; font-size:13.5px; font-weight:800;}
+  .modal-actions .btn-done:hover{background:var(--accent-dark);}
+  .modal-full-link{display:block; margin-top:14px; font-size:12px; color:var(--accent-dark); text-align:center;}
 </style>
 </head>
 <body>
@@ -137,6 +167,32 @@
   <div class="save-bar-inner">
     <span class="save-status saved" id="saveStatus">Tes réponses sont à jour.</span>
     <button type="button" class="save-btn" id="saveBtn" disabled>Valider mes réponses</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="infosModalOverlay">
+  <div class="modal">
+    <h2>🔒 Avant de commencer</h2>
+    <p class="modal-sub">Quelques infos nécessaires pour une éventuelle embauche — tu peux compléter le reste plus tard.</p>
+    <div class="field-row">
+      <div class="field"><label>Téléphone</label><input type="text" id="m_telephone"></div>
+      <div class="field"><label>Email</label><input type="text" id="m_email"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Date de naissance</label><input type="date" id="m_dateNaissance"></div>
+      <div class="field"><label>Ville de naissance</label><input type="text" id="m_lieuNaissance"></div>
+      <div class="field"><label>Nationalité</label><input type="text" id="m_nationalite"></div>
+    </div>
+    <div class="field">
+      <label>Adresse postale</label>
+      <textarea id="m_adresse"></textarea>
+    </div>
+    <div class="modal-save-hint" id="modalSaveHint"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-later" id="infosModalLater">Plus tard</button>
+      <button type="button" class="btn-done" id="infosModalDone">C'est fait</button>
+    </div>
+    <a class="modal-full-link" id="modalFullLink" href="#">Voir toutes mes infos (RIB, n° sécu, statut intermittent...) →</a>
   </div>
 </div>
 
@@ -155,7 +211,23 @@ function fmtDateFRShort(iso){
   const short = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
   return `${parseInt(d,10)} ${short[parseInt(m,10)-1]}`;
 }
-let state = { demande:null, token:null, tournee:null, person:null, personType:null };
+let state = { demande:null, token:null, tournee:null, person:null, personType:null, info:null };
+
+// Minimum requis pour une fiche exploitable (même liste que mes-infos.html) —
+// tant qu'il en manque, la modale "Avant de commencer" s'affiche à l'ouverture
+// du lien personnel. Le reste (RIB, n° sécu, statut intermittent...) se
+// complète plus tard sur mes-infos.html, pas bloquant ici.
+const REQUIRED_FIELDS = [
+  { key:'telephone', label:'Téléphone', source:'person' },
+  { key:'email', label:'Email', source:'person' },
+  { key:'dateNaissance', label:'Date de naissance', source:'info' },
+  { key:'lieuNaissance', label:'Ville de naissance', source:'info' },
+  { key:'nationalite', label:'Nationalité', source:'info' },
+  { key:'adresse', label:'Adresse postale', source:'info' },
+];
+function computeMissingRequired(){
+  return REQUIRED_FIELDS.filter(f=> !((f.source === 'person' ? state.person[f.key] : state.info[f.key]) || '').toString().trim());
+}
 
 function showState(html){
   document.getElementById('content').innerHTML = `<div class="state-box">${html}</div>`;
@@ -183,9 +255,62 @@ async function init(){
   state.person = personRes.data;
   if(!state.person.disponibilites) state.person.disponibilites = {};
   if(!state.person.disponibilites_commentaires) state.person.disponibilites_commentaires = {};
+  state.info = (await CurieuxDB.getInfosSocialesByToken(token)) || { extra: {} };
 
   render();
+  maybeShowInfosModal();
 }
+
+function maybeShowInfosModal(){
+  const missing = computeMissingRequired();
+  if(missing.length === 0) return;
+  document.getElementById('modalFullLink').href = 'mes-infos.html?token=' + encodeURIComponent(state.token);
+  document.getElementById('m_telephone').value = state.person.telephone || '';
+  document.getElementById('m_email').value = state.person.email || '';
+  document.getElementById('m_dateNaissance').value = state.info.dateNaissance || '';
+  document.getElementById('m_lieuNaissance').value = state.info.lieuNaissance || '';
+  document.getElementById('m_nationalite').value = state.info.nationalite || '';
+  document.getElementById('m_adresse').value = state.info.adresse || '';
+  document.getElementById('infosModalOverlay').classList.add('open');
+}
+
+let modalPersonSaveTimer = null;
+function scheduleModalPersonSave(){
+  clearTimeout(modalPersonSaveTimer);
+  const hint = document.getElementById('modalSaveHint');
+  if(hint){ hint.textContent = 'Enregistrement…'; hint.classList.remove('ok'); }
+  modalPersonSaveTimer = setTimeout(async ()=>{
+    const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
+    const { error } = await supabaseClient.from(personTable)
+      .update({ telephone: state.person.telephone || '', email: state.person.email || '' })
+      .eq('id', state.person.id);
+    if(hint) { hint.textContent = error ? "Erreur d'enregistrement — réessaie." : 'Enregistré ✓'; hint.classList.toggle('ok', !error); }
+  }, 500);
+}
+let modalInfoSaveTimer = null;
+function scheduleModalInfoSave(){
+  clearTimeout(modalInfoSaveTimer);
+  const hint = document.getElementById('modalSaveHint');
+  if(hint){ hint.textContent = 'Enregistrement…'; hint.classList.remove('ok'); }
+  modalInfoSaveTimer = setTimeout(async ()=>{
+    const { error } = await CurieuxDB.upsertInfosSocialesByToken(state.token, state.info);
+    if(hint) { hint.textContent = error ? "Erreur d'enregistrement — réessaie." : 'Enregistré ✓'; hint.classList.toggle('ok', !error); }
+  }, 500);
+}
+
+document.getElementById('m_telephone').addEventListener('input', e=>{ state.person.telephone = e.target.value; scheduleModalPersonSave(); });
+document.getElementById('m_email').addEventListener('input', e=>{ state.person.email = e.target.value; scheduleModalPersonSave(); });
+document.getElementById('m_dateNaissance').addEventListener('input', e=>{ state.info.dateNaissance = e.target.value; scheduleModalInfoSave(); });
+document.getElementById('m_lieuNaissance').addEventListener('input', e=>{ state.info.lieuNaissance = e.target.value; scheduleModalInfoSave(); });
+document.getElementById('m_nationalite').addEventListener('input', e=>{ state.info.nationalite = e.target.value; scheduleModalInfoSave(); });
+document.getElementById('m_adresse').addEventListener('input', e=>{ state.info.adresse = e.target.value; scheduleModalInfoSave(); });
+
+function closeInfosModal(){
+  document.getElementById('infosModalOverlay').classList.remove('open');
+  render(); // reflète le téléphone/email éventuellement saisis dans la modale sur la fiche contact ci-dessous
+}
+document.getElementById('infosModalLater').addEventListener('click', closeInfosModal);
+document.getElementById('infosModalDone').addEventListener('click', closeInfosModal);
 
 function render(){
   // Le bloc (linkedToNext) se calcule sur TOUTES les dates triées, annulées incluses —
