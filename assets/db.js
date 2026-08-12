@@ -103,6 +103,7 @@ const CurieuxDB = (()=>{
       toDb: (r)=> ({
         id: r.id, person_type: r.personType,
         genre: r.genre || '',
+        genre_detail: r.genreDetail || '',
         date_naissance: r.dateNaissance || null,
         lieu_naissance: r.lieuNaissance || '',
         nationalite: r.nationalite || '',
@@ -124,6 +125,7 @@ const CurieuxDB = (()=>{
       fromDb: (row)=> ({
         id: row.id, personType: row.person_type,
         genre: row.genre || '',
+        genreDetail: row.genre_detail || '',
         dateNaissance: row.date_naissance || '',
         lieuNaissance: row.lieu_naissance || '',
         nationalite: row.nationalite || '',

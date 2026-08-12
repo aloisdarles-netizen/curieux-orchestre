@@ -152,6 +152,7 @@ function tierBadge(tier){
 const REQUIRED_FIELDS = [
   { key:'telephone', label:'Téléphone', source:'person' },
   { key:'email', label:'Email', source:'person' },
+  { key:'genre', label:'Genre', source:'info' },
   { key:'dateNaissance', label:'Date de naissance', source:'info' },
   { key:'lieuNaissance', label:'Ville de naissance', source:'info' },
   { key:'nationalite', label:'Nationalité', source:'info' },
@@ -202,14 +203,19 @@ function render(){
     </div>
     <div class="field-row">
       <div class="field">
-        <label>Genre ${tierBadge('conseille')}</label>
-        <select data-info-field="genre">
+        <label>Genre ${tierBadge('obligatoire')}</label>
+        <select data-info-field="genre" id="mi_genre">
           <option value="">Non renseigné</option>
           <option value="femme" ${info.genre==='femme'?'selected':''}>Femme</option>
           <option value="homme" ${info.genre==='homme'?'selected':''}>Homme</option>
+          <option value="non-binaire" ${info.genre==='non-binaire'?'selected':''}>Non-binaire</option>
           <option value="autre" ${info.genre==='autre'?'selected':''}>Autre</option>
           <option value="npr" ${info.genre==='npr'?'selected':''}>Préfère ne pas préciser</option>
         </select>
+      </div>
+      <div class="field" id="mi_genreDetailField" style="${info.genre==='autre' ? '' : 'display:none;'}">
+        <label>Préciser</label>
+        <input type="text" data-info-field="genreDetail" value="${escapeAttr(info.genreDetail || '')}">
       </div>
     </div>
     <div class="field">
@@ -324,6 +330,13 @@ function bindEvents(){
       updateCompletionBanner();
       markDirty();
     });
+  });
+
+  // Affiche "Préciser" seulement si le genre choisi est "Autre".
+  const genreField = document.getElementById('mi_genre');
+  const genreDetailField = document.getElementById('mi_genreDetailField');
+  genreField.addEventListener('change', ()=>{
+    genreDetailField.style.display = genreField.value === 'autre' ? '' : 'none';
   });
 
   // Affiche "Type de permis" seulement si "Oui", et "Préciser" seulement si

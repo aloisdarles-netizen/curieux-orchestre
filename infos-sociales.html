@@ -219,6 +219,7 @@ function infosFor(personId){
 
 const EXTRA_FIELD_DEFS = [
   ['genre', 'Genre', 'text'],
+  ['genreDetail', 'Genre — précision', 'text'],
   ['dateNaissance', 'Date de naissance', 'date'],
   ['lieuNaissance', 'Ville de naissance', 'text'],
   ['nationalite', 'Nationalité', 'text'],
@@ -267,13 +268,18 @@ function renderPersonCard(p, personType){
         <div class="field-row">
           <div class="field">
             <label>Genre</label>
-            <select data-info-field="genre" data-person="${escapeAttr(p.id)}">
+            <select data-info-field="genre" data-person="${escapeAttr(p.id)}" data-genre-select>
               <option value="">Non renseigné</option>
               <option value="femme" ${info.genre==='femme'?'selected':''}>Femme</option>
               <option value="homme" ${info.genre==='homme'?'selected':''}>Homme</option>
+              <option value="non-binaire" ${info.genre==='non-binaire'?'selected':''}>Non-binaire</option>
               <option value="autre" ${info.genre==='autre'?'selected':''}>Autre</option>
               <option value="npr" ${info.genre==='npr'?'selected':''}>Préfère ne pas préciser</option>
             </select>
+          </div>
+          <div class="field" data-genre-detail-field style="${info.genre==='autre' ? '' : 'display:none;'}">
+            <label>Préciser</label>
+            <input type="text" data-info-field="genreDetail" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.genreDetail || '')}">
           </div>
         </div>
         <div class="field">
@@ -381,6 +387,15 @@ function bindPersonEvents(){
       info[el.dataset.infoField] = el.value;
       if(!infosCache.some(i=> i.id === personId)) infosCache.push(info);
       scheduleSave(personId, card.dataset.personType);
+    });
+  });
+
+  // Affiche "Préciser" seulement si le genre choisi est "Autre".
+  document.querySelectorAll('[data-genre-select]').forEach(sel=>{
+    const card = sel.closest('[data-person-id]');
+    const detailField = card.querySelector('[data-genre-detail-field]');
+    sel.addEventListener('change', ()=>{
+      detailField.style.display = sel.value === 'autre' ? '' : 'none';
     });
   });
 

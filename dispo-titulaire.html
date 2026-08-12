@@ -142,7 +142,7 @@
   .modal .field-row{display:flex; gap:12px; flex-wrap:wrap;}
   .modal .field-row .field{flex:1 1 160px;}
   .modal label{font-size:12px; color:var(--muted); font-weight:600;}
-  .modal input[type=text], .modal input[type=date], .modal textarea{
+  .modal input[type=text], .modal input[type=date], .modal select, .modal textarea{
     padding:9px 11px; border:1px solid var(--border); border-radius:6px; font-size:14px;
     width:100%; background:var(--bg); color:var(--text); font-family:inherit;
   }
@@ -182,6 +182,23 @@
       <div class="field"><label>Ville de naissance</label><input type="text" id="m_lieuNaissance"></div>
       <div class="field"><label>Nationalité</label><input type="text" id="m_nationalite"></div>
     </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Genre</label>
+        <select id="m_genre">
+          <option value="">Non renseigné</option>
+          <option value="femme">Femme</option>
+          <option value="homme">Homme</option>
+          <option value="non-binaire">Non-binaire</option>
+          <option value="autre">Autre</option>
+          <option value="npr">Préfère ne pas préciser</option>
+        </select>
+      </div>
+      <div class="field" id="m_genreDetailField" style="display:none;">
+        <label>Préciser</label>
+        <input type="text" id="m_genreDetail">
+      </div>
+    </div>
     <div class="field">
       <label>Adresse postale</label>
       <textarea id="m_adresse"></textarea>
@@ -218,6 +235,7 @@ let state = { demande:null, token:null, tournee:null, person:null, personType:nu
 const REQUIRED_FIELDS = [
   { key:'telephone', label:'Téléphone', source:'person' },
   { key:'email', label:'Email', source:'person' },
+  { key:'genre', label:'Genre', source:'info' },
   { key:'dateNaissance', label:'Date de naissance', source:'info' },
   { key:'lieuNaissance', label:'Ville de naissance', source:'info' },
   { key:'nationalite', label:'Nationalité', source:'info' },
@@ -265,6 +283,9 @@ function maybeShowInfosModal(){
   document.getElementById('modalFullLink').href = 'mes-infos.html?token=' + encodeURIComponent(state.token);
   document.getElementById('m_telephone').value = state.person.telephone || '';
   document.getElementById('m_email').value = state.person.email || '';
+  document.getElementById('m_genre').value = state.info.genre || '';
+  document.getElementById('m_genreDetail').value = state.info.genreDetail || '';
+  document.getElementById('m_genreDetailField').style.display = state.info.genre === 'autre' ? '' : 'none';
   document.getElementById('m_dateNaissance').value = state.info.dateNaissance || '';
   document.getElementById('m_lieuNaissance').value = state.info.lieuNaissance || '';
   document.getElementById('m_nationalite').value = state.info.nationalite || '';
@@ -277,6 +298,11 @@ function maybeShowInfosModal(){
 // automatique au fil de la frappe dans la modale.
 document.getElementById('m_telephone').addEventListener('input', e=>{ state.person.telephone = e.target.value; });
 document.getElementById('m_email').addEventListener('input', e=>{ state.person.email = e.target.value; });
+document.getElementById('m_genre').addEventListener('change', e=>{
+  state.info.genre = e.target.value;
+  document.getElementById('m_genreDetailField').style.display = e.target.value === 'autre' ? '' : 'none';
+});
+document.getElementById('m_genreDetail').addEventListener('input', e=>{ state.info.genreDetail = e.target.value; });
 document.getElementById('m_dateNaissance').addEventListener('input', e=>{ state.info.dateNaissance = e.target.value; });
 document.getElementById('m_lieuNaissance').addEventListener('input', e=>{ state.info.lieuNaissance = e.target.value; });
 document.getElementById('m_nationalite').addEventListener('input', e=>{ state.info.nationalite = e.target.value; });

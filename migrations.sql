@@ -183,6 +183,7 @@ create table if not exists infos_sociales (
   id text primary key,
   person_type text not null check (person_type in ('musicien','technicien')),
   genre text default '',
+  genre_detail text default '',
   date_naissance date,
   lieu_naissance text default '',
   nationalite text default '',
@@ -215,6 +216,7 @@ alter table infos_sociales add column if not exists contact_urgence_tel text def
 alter table infos_sociales add column if not exists taille_vetement text default '';
 -- Genre, ajouté après coup.
 alter table infos_sociales add column if not exists genre text default '';
+alter table infos_sociales add column if not exists genre_detail text default '';
 -- Permis de conduire simplifié en oui/non + type (B/autre) — remplace les
 -- anciennes colonnes permis_conduire_numero/permis_conduire_validite (pas
 -- droppées, juste plus utilisées : on ne demandait pas vraiment besoin du
@@ -281,12 +283,12 @@ begin
   end if;
 
   insert into infos_sociales (
-    id, person_type, genre, date_naissance, lieu_naissance, nationalite, adresse,
+    id, person_type, genre, genre_detail, date_naissance, lieu_naissance, nationalite, adresse,
     num_secu, iban, bic, titulaire_compte, num_conges_spectacles, num_audiens,
     contact_urgence_nom, contact_urgence_tel, permis_conduire,
     permis_conduire_type, permis_conduire_type_detail, taille_vetement, extra
   ) values (
-    v_person_id, v_person_type, p_payload->>'genre',
+    v_person_id, v_person_type, p_payload->>'genre', p_payload->>'genre_detail',
     nullif(p_payload->>'date_naissance','')::date, p_payload->>'lieu_naissance',
     p_payload->>'nationalite', p_payload->>'adresse',
     p_payload->>'num_secu', p_payload->>'iban', p_payload->>'bic', p_payload->>'titulaire_compte',
@@ -299,6 +301,7 @@ begin
   on conflict (id) do update set
     person_type = excluded.person_type,
     genre = excluded.genre,
+    genre_detail = excluded.genre_detail,
     date_naissance = excluded.date_naissance,
     lieu_naissance = excluded.lieu_naissance,
     nationalite = excluded.nationalite,
