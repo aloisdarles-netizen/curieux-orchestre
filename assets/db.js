@@ -227,11 +227,17 @@ const CurieuxDB = (()=>{
       .subscribe();
   }
 
-  // --- Auth (utilisé uniquement par infos-sociales.html, la page admin — le
-  // reste de l'app reste en accès public via la clé anonyme, voir DEPLOYMENT.md). ---
+  // --- Auth : comptes Supabase réels, utilisés pour protéger toutes les pages
+  // admin (accueil, annuaire, tournées, infos sociales, ...) — le reste de
+  // l'app (liens personnels dispo/mes-infos) reste en accès public par token,
+  // voir DEPLOYMENT.md. ---
   async function signIn(email, password){
     if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
     return supabaseClient.auth.signInWithPassword({ email, password });
+  }
+  async function signUp(email, password){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    return supabaseClient.auth.signUp({ email, password });
   }
   async function signOut(){
     if(!supabaseClient) return;
@@ -246,16 +252,17 @@ const CurieuxDB = (()=>{
     if(!supabaseClient) return { data: { subscription: { unsubscribe(){} } } };
     return supabaseClient.auth.onAuthStateChange(callback);
   }
-  // Vérifie que le compte connecté figure dans infos_sociales_admins (policy
-  // RLS "self read own admin row" : la requête ne peut renvoyer QUE la ligne du
-  // compte courant, jamais la liste complète des admins).
-  async function isInfosSocialesAdmin(){
+  // Vérifie que le compte connecté figure dans infos_sociales_admins — c'est
+  // la même liste de confiance qui sert d'allowlist admin pour toute l'app
+  // (policy RLS "self read own admin row" : la requête ne peut renvoyer QUE
+  // la ligne du compte courant, jamais la liste complète des admins).
+  async function isAdmin(){
     if(!supabaseClient) return false;
     const session = await getSession();
     if(!session || !session.user || !session.user.email) return false;
     const { data, error } = await supabaseClient
       .from('infos_sociales_admins').select('email').eq('email', session.user.email).maybeSingle();
-    if(error){ console.warn('[CurieuxDB] isInfosSocialesAdmin', error.message); return false; }
+    if(error){ console.warn('[CurieuxDB] isAdmin', error.message); return false; }
     return !!data;
   }
 
@@ -281,7 +288,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, syncCollection, upsertOne, removeOne, fetchSnapshot, saveSnapshot, subscribe,
-    signIn, signOut, getSession, onAuthStateChange, isInfosSocialesAdmin,
+    signIn, signUp, signOut, getSession, onAuthStateChange, isAdmin,
     getInfosSocialesByToken, upsertInfosSocialesByToken
   };
 })();

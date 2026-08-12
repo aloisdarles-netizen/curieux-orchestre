@@ -33,10 +33,10 @@ Le projet Supabase est déjà configuré et ses identifiants sont écrits en dur
 [assets/db.js](assets/db.js) — la clé utilisée est la clé **anonyme/publique**
 (`sb_publishable_...`), volontairement non secrète : la sécurité vient des règles
 d'accès (RLS) définies dans [migrations.sql](migrations.sql), pas de la
-confidentialité de cette clé. Il n'y a pas de compte utilisateur : tout le monde qui
-a l'app partage les mêmes données, comme c'était le cas avec le stockage local avant
-la migration — sauf que maintenant c'est partagé entre postes au lieu d'être
-enfermé sur une seule machine.
+confidentialité de cette clé. Les tables de données courantes (musicien·nes,
+tournées, dispos...) restent en RLS `public full access` : tout compte admin
+partage les mêmes données. Seule `infos_sociales` (identité civile, n° sécu, RIB)
+est restreinte par compte, voir la section dédiée plus bas.
 
 **Si tu dois recréer le projet Supabase** (nouveau projet, changement de compte) :
 1. Crée un projet sur [supabase.com](https://supabase.com).
@@ -63,33 +63,43 @@ Chaque page (annuaire, tournées, disponibilités, vue d'ensemble, feuille de ro
 se met à jour automatiquement quand quelqu'un d'autre modifie une donnée depuis un
 autre poste — pas besoin de recharger la page.
 
-## Zone protégée "Infos sociales" (infos-sociales.html)
+## Accès admin par compte (toutes les pages internes)
 
-Contrairement au reste de l'app (accès public via la clé anonyme, voir plus haut),
-[infos-sociales.html](infos-sociales.html) stocke des données sensibles nécessaires à
-une embauche (identité civile, n° de sécurité sociale, RIB, statut intermittent) et
-exige un **vrai compte** Supabase Auth (email + mot de passe), en plus du mot de passe
-d'accueil de l'app. Ça ne se configure pas tout seul en rejouant `migrations.sql` —
-deux étapes manuelles sont nécessaires dans le tableau de bord Supabase :
+Toutes les pages admin (accueil, annuaire, technicien·nes, tournées,
+disponibilités, suivi, récap, newsletter, feuilles de route, infos sociales...)
+sont protégées par un **vrai compte** Supabase Auth (email + mot de passe) —
+l'ancien mot de passe partagé "admin" en clair n'existe plus. Avoir un compte ne
+suffit pas : il faut en plus figurer dans la liste blanche `infos_sociales_admins`
+pour être reconnu comme admin et accéder aux pages (sinon [admin-login.html](admin-login.html)
+affiche "compte non autorisé"). C'est la même liste de confiance qui gérait déjà
+l'accès à `infos-sociales.html` — elle sert maintenant d'allowlist pour toute l'app.
 
-1. **Activer les comptes email** — Authentication → Providers → vérifier que
-   "Email" est activé (c'est le cas par défaut sur un projet neuf).
-2. **Créer un compte** — Authentication → Users → **Add user** → renseigne l'email
-   de la personne autorisée et un mot de passe (tu peux cocher "Auto Confirm User"
-   pour éviter l'email de confirmation). Le compte pourra ensuite se connecter
-   directement sur `infos-sociales.html`.
+Les liens personnels envoyés aux musicien·nes/technicien·nes
+([dispo-titulaire.html](dispo-titulaire.html), [mes-infos.html](mes-infos.html)) ne
+sont **pas concernés** : ils restent publics, identifiés par leur token dans l'URL,
+sans compte à créer.
 
-Une fois `migrations.sql` rejoué (il crée la table `infos_sociales` et une liste
-blanche `infos_sociales_admins`, déjà pré-remplie avec
-`alois.darles@lessoudaines.fr`), seuls les comptes présents dans
-`infos_sociales_admins` peuvent lire ou écrire ces données — imposé côté base par
-une policy RLS dédiée, pas juste côté app.
+**Créer un compte** — deux façons :
+- Self-service : [creer-compte.html](creer-compte.html) (email + mot de passe,
+  confirmation par email selon la config Supabase par défaut).
+- Depuis le tableau de bord Supabase : Authentication → Users → **Add user** (tu
+  peux cocher "Auto Confirm User" pour éviter l'email de confirmation).
 
-**Pour autoriser une nouvelle personne** (après lui avoir créé un compte comme à
-l'étape 2 ci-dessus) : SQL Editor → `insert into infos_sociales_admins (email)
-values ('email@exemple.fr');`. Pour retirer l'accès de quelqu'un : `delete from
-infos_sociales_admins where email = 'email@exemple.fr';` (son compte Auth continue
-d'exister, il perd juste l'accès à cette table précise).
+Dans les deux cas, le compte créé n'a **aucun accès** tant qu'il n'est pas ajouté à
+la liste blanche (policy RLS "self read own admin row" : chaque compte ne peut
+vérifier que sa propre appartenance, jamais lister les autres admins).
+
+**Pour autoriser une personne** (après création de son compte) : SQL Editor →
+`insert into infos_sociales_admins (email) values ('email@exemple.fr');`. Pour
+retirer l'accès de quelqu'un : `delete from infos_sociales_admins where email =
+'email@exemple.fr';` (son compte Auth continue d'exister, il perd juste l'accès aux
+pages admin et aux infos sociales).
+
+Note : ce système protège l'**accès aux pages** (comptes nommés, révocables, plus
+de mot de passe en clair) mais, comme avant, les tables de données courantes
+(musicien·nes, tournées...) restent en RLS `public full access` — seule la table
+`infos_sociales` (identité civile, n° sécu, RIB) est réellement verrouillée côté
+base aux comptes de la liste blanche.
 
 ### Auto-saisie côté musicien·nes/technicien·nes (mes-infos.html)
 

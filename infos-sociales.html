@@ -8,7 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script>try{ hideCurieuxPageUntilUnlocked(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', applyCurieuxPasswordGate); }catch(e){}</script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); }catch(e){}</script>
 <style>
   :root{
     --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
@@ -86,6 +86,8 @@
   /* --- Liste des personnes --- */
   .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:20px;}
   .toolbar input[type=text]{flex:1 1 220px;}
+  .select-all-label{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); font-weight:600; cursor:pointer; white-space:nowrap;}
+  .select-all-label input{width:15px; height:15px; cursor:pointer; accent-color:var(--accent);}
   .empty-hint{color:var(--muted); font-size:13.5px; padding:30px 4px; text-align:center;}
   .person-card{
     background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
@@ -94,6 +96,8 @@
   .person-card summary{
     list-style:none; cursor:pointer; padding:13px 16px; display:flex; align-items:center; gap:10px;
   }
+  .person-card summary .select-wrap{display:flex; align-items:center;}
+  .person-card summary .select-wrap input{width:16px; height:16px; cursor:pointer; accent-color:var(--accent);}
   .person-card summary::-webkit-details-marker{display:none;}
   .person-card summary .name{font-weight:800; font-size:14.5px;}
   .person-card summary .role{color:var(--muted); font-size:12.5px;}
@@ -132,7 +136,7 @@
   <div id="loginScreen">
     <div class="login-card">
       <h2>Connexion requise</h2>
-      <p>Cette page nécessite un compte séparé du mot de passe d'accueil de l'app.</p>
+      <p>Connecte-toi avec ton compte administrateur·rice pour accéder aux infos sociales.</p>
       <form id="loginForm">
         <div class="field">
           <label for="loginEmail">Email</label>
@@ -159,6 +163,10 @@
     <div id="listWrap">
       <div class="toolbar">
         <input type="text" id="searchInput" placeholder="Chercher un nom…">
+        <label class="select-all-label">
+          <input type="checkbox" id="selectAllCheckbox"> Tout sélectionner
+        </label>
+        <button type="button" class="btn-primary btn-sm" id="exportBtn" disabled>Exporter la sélection (0)</button>
       </div>
       <div id="peopleHolder"></div>
     </div>
@@ -175,6 +183,7 @@ let musiciansCache = [];
 let techniciansCache = [];
 let infosCache = [];
 let currentUser = null;
+let selectedIds = new Set();
 
 function fullName(p){ return `${p.prenom || ''} ${p.nom || ''}`.trim() || 'Sans nom'; }
 function escapeHtml(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -192,8 +201,8 @@ async function showApp(){
   document.getElementById('logoutBtn').style.display = 'inline-block';
   document.getElementById('userEmailLabel').textContent = currentUser.email;
 
-  const isAdmin = await CurieuxDB.isInfosSocialesAdmin();
-  if(!isAdmin){
+  const admin = await CurieuxDB.isAdmin();
+  if(!admin){
     document.getElementById('notAdminNotice').style.display = 'block';
     document.getElementById('notAdminEmail').textContent = currentUser.email;
     document.getElementById('listWrap').style.display = 'none';
@@ -254,6 +263,9 @@ function renderPersonCard(p, personType){
   return `
     <details class="person-card" data-person-id="${escapeAttr(p.id)}" data-person-type="${personType}">
       <summary>
+        <span class="select-wrap" onclick="event.stopPropagation()">
+          <input type="checkbox" class="person-select" data-person="${escapeAttr(p.id)}" ${selectedIds.has(p.id) ? 'checked' : ''}>
+        </span>
         <span class="name">${escapeHtml(fullName(p))}</span>
         <span class="role">${roleLabel}</span>
         ${filled ? '<span class="filled-badge">Fiche remplie</span>' : ''}
@@ -368,6 +380,76 @@ function render(){
 
   holder.innerHTML = filtered.map(({p, type})=> renderPersonCard(p, type)).join('');
   bindPersonEvents();
+  updateExportToolbar();
+}
+
+function updateExportToolbar(){
+  const btn = document.getElementById('exportBtn');
+  btn.textContent = `Exporter la sélection (${selectedIds.size})`;
+  btn.disabled = selectedIds.size === 0;
+  const visibleIds = [...document.querySelectorAll('.person-select')].map(cb=> cb.dataset.person);
+  const allCb = document.getElementById('selectAllCheckbox');
+  allCb.checked = visibleIds.length > 0 && visibleIds.every(id=> selectedIds.has(id));
+  allCb.indeterminate = !allCb.checked && visibleIds.some(id=> selectedIds.has(id));
+}
+
+function genreLabel(g){
+  return { femme:'Femme', homme:'Homme', 'non-binaire':'Non-binaire', autre:'Autre', npr:'Préfère ne pas préciser' }[g] || '';
+}
+
+const EXPORT_COLUMNS = [
+  ['Nom complet', (p)=> fullName(p)],
+  ['Rôle', (p, info, type)=> type === 'musicien' ? (p.instrument || 'Musicien·ne') : (p.poste || 'Technicien·ne')],
+  ['Téléphone', (p)=> p.telephone || ''],
+  ['Email', (p)=> p.email || ''],
+  ['Genre', (p, info)=> genreLabel(info.genre)],
+  ['Genre — précision', (p, info)=> info.genreDetail || ''],
+  ["Prénom d'état civil", (p, info)=> info.prenomCivil || ''],
+  ['Date de naissance', (p, info)=> info.dateNaissance || ''],
+  ['Ville de naissance', (p, info)=> info.lieuNaissance || ''],
+  ['Nationalité', (p, info)=> info.nationalite || ''],
+  ['Adresse postale', (p, info)=> info.adresse || ''],
+  ['N° de sécurité sociale (NIR)', (p, info)=> info.numSecu || ''],
+  ['IBAN', (p, info)=> info.iban || ''],
+  ['BIC', (p, info)=> info.bic || ''],
+  ['Titulaire du compte', (p, info)=> info.titulaireCompte || ''],
+  ['N° Congés Spectacles', (p, info)=> info.numCongesSpectacles || ''],
+  ['N° Audiens', (p, info)=> info.numAudiens || ''],
+  ["Contact d'urgence — nom", (p, info)=> info.contactUrgenceNom || ''],
+  ["Contact d'urgence — téléphone", (p, info)=> info.contactUrgenceTel || ''],
+  ['Permis de conduire', (p, info)=> info.permisConduire === 'oui' ? 'Oui' : (info.permisConduire === 'non' ? 'Non' : '')],
+  ['Type de permis', (p, info)=> info.permisConduire === 'oui' ? (info.permisConduireType === 'autre' ? (info.permisConduireTypeDetail || 'Autre') : 'Permis B') : ''],
+  ['Taille de vêtement', (p, info)=> info.tailleVetement || ''],
+];
+
+function csvEscape(v){
+  const s = v == null ? '' : String(v);
+  return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportSelectedToCsv(){
+  const all = [
+    ...musiciansCache.map(m=> ({ p: m, type: 'musicien' })),
+    ...techniciansCache.map(t=> ({ p: t, type: 'technicien' })),
+  ];
+  const rows = all.filter(({p})=> selectedIds.has(p.id));
+  if(rows.length === 0) return;
+
+  const lines = [EXPORT_COLUMNS.map(([label])=> csvEscape(label)).join(';')];
+  rows.forEach(({p, type})=>{
+    const info = infosFor(p.id);
+    lines.push(EXPORT_COLUMNS.map(([, get])=> csvEscape(get(p, info, type))).join(';'));
+  });
+
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `infos-sociales-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 let saveTimers = {};
@@ -385,6 +467,14 @@ function scheduleSave(personId, personType){
 }
 
 function bindPersonEvents(){
+  document.querySelectorAll('.person-select').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const id = cb.dataset.person;
+      if(cb.checked) selectedIds.add(id); else selectedIds.delete(id);
+      updateExportToolbar();
+    });
+  });
+
   document.querySelectorAll('[data-info-field]').forEach(el=>{
     el.addEventListener('input', ()=>{
       const personId = el.dataset.person;
@@ -423,6 +513,15 @@ function bindPersonEvents(){
 }
 
 document.getElementById('searchInput').addEventListener('input', render);
+
+document.getElementById('selectAllCheckbox').addEventListener('change', (e)=>{
+  const visibleIds = [...document.querySelectorAll('.person-select')].map(cb=> cb.dataset.person);
+  if(e.target.checked) visibleIds.forEach(id=> selectedIds.add(id));
+  else visibleIds.forEach(id=> selectedIds.delete(id));
+  render();
+});
+
+document.getElementById('exportBtn').addEventListener('click', exportSelectedToCsv);
 
 document.getElementById('loginForm').addEventListener('submit', async (e)=>{
   e.preventDefault();

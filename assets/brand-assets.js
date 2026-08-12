@@ -53,61 +53,51 @@ function applyCurieuxFavicon(){
   document.head.appendChild(link);
 }
 
-// --- Verrou par mot de passe partagé (simple barrière d'accès, pas une vraie
-// sécurité : le mot de passe est en clair côté client, comme toute l'app statique).
-// Stocké en localStorage (pas sessionStorage) pour ne pas redemander le mot de passe
-// à chaque nouvel onglet ni à chaque ouverture — juste sur un nouveau navigateur/poste.
-const CURIEUX_AUTH_KEY = 'curieux-unlocked';
-const CURIEUX_PASSWORD = 'admin';
+// --- Accès admin par vrai compte Supabase (remplace l'ancien mot de passe
+// partagé "admin" en clair). Un compte doit en plus figurer dans la table
+// infos_sociales_admins pour être reconnu — même liste de confiance que la
+// zone infos sociales, voir migrations.sql / SETUP_LOCAL.md pour y ajouter
+// quelqu'un. Redirige vers admin-login.html si la session est absente ou
+// non autorisée. ---
 
-// Appelé depuis le <head>, avant que <body> existe : masque la page tout de suite
-// pour éviter un flash de contenu visible avant l'écran de verrouillage.
-function hideCurieuxPageUntilUnlocked(){
-  if(localStorage.getItem(CURIEUX_AUTH_KEY) === '1') return;
+// Appelé depuis le <head>, avant que <body> existe : masque la page tout de
+// suite pour éviter un flash de contenu avant la vérification de session.
+function hideCurieuxPageUntilAuth(){
   const style = document.createElement('style');
   style.id = 'curieux-lock-hide';
   style.textContent = 'body{visibility:hidden !important;}';
   document.head.appendChild(style);
 }
 
-// Affiche l'écran de verrouillage si besoin — appelé une fois <body> chargé.
-function applyCurieuxPasswordGate(){
-  if(localStorage.getItem(CURIEUX_AUTH_KEY) === '1'){
-    const hideStyle = document.getElementById('curieux-lock-hide');
-    if(hideStyle) hideStyle.remove();
-    return;
-  }
-  if(document.getElementById('curieux-lock-overlay')) return;
-  const overlay = document.createElement('div');
-  overlay.id = 'curieux-lock-overlay';
-  overlay.style.cssText = 'position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center; background:#FCF2F0; visibility:visible;';
-  overlay.innerHTML = `
-    <div style="background:#fff; border:1px solid #f0dbe6; border-radius:14px; padding:32px; max-width:340px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,.15); text-align:center; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,sans-serif;">
-      <img class="brand-logo-img" alt="Curieux orchestre" style="height:40px; margin-bottom:18px;">
-      <h2 style="font-size:16px; margin:0 0 14px; color:#141617;">Accès réservé</h2>
-      <input type="password" id="curieuxLockInput" placeholder="Mot de passe" autocomplete="off" style="width:100%; padding:10px 12px; border:1px solid #f0dbe6; border-radius:8px; font-size:14px; margin-bottom:10px; box-sizing:border-box; font-family:inherit;">
-      <div id="curieuxLockError" style="color:#a5313f; font-size:12.5px; margin-bottom:10px; display:none;">Mot de passe incorrect.</div>
-      <button id="curieuxLockSubmit" style="width:100%; padding:10px; border:none; border-radius:8px; background:#791649; color:#fff; font-weight:700; font-size:14px; cursor:pointer; font-family:inherit;">Déverrouiller</button>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-  try{ applyBrandLogo(); }catch(e){}
-  const input = document.getElementById('curieuxLockInput');
-  const submit = ()=>{
-    if(input.value === CURIEUX_PASSWORD){
-      localStorage.setItem(CURIEUX_AUTH_KEY, '1');
-      overlay.remove();
+// Appelé une fois <body> chargé : vérifie session + appartenance à
+// infos_sociales_admins, révèle la page si tout est bon, sinon redirige.
+async function requireAdminAuth(){
+  try{
+    const session = await CurieuxDB.getSession();
+    if(session && await CurieuxDB.isAdmin()){
       const hideStyle = document.getElementById('curieux-lock-hide');
       if(hideStyle) hideStyle.remove();
-    } else {
-      document.getElementById('curieuxLockError').style.display = 'block';
-      input.value = '';
-      input.focus();
+      try{ injectAdminLogoutButton(session.user.email); }catch(e){}
+      return;
     }
-  };
-  document.getElementById('curieuxLockSubmit').addEventListener('click', submit);
-  input.addEventListener('keydown', e=>{ if(e.key === 'Enter') submit(); });
-  input.focus();
+  }catch(e){ console.warn('[requireAdminAuth]', e); }
+  const here = location.pathname.split('/').pop() + location.search;
+  location.replace('admin-login.html?redirect=' + encodeURIComponent(here));
+}
+
+// Petit bouton fixe en coin de page pour se déconnecter — injecté par JS
+// plutôt que dupliqué dans le HTML de chaque page admin.
+function injectAdminLogoutButton(email){
+  if(document.getElementById('curieux-admin-bar')) return;
+  const bar = document.createElement('div');
+  bar.id = 'curieux-admin-bar';
+  bar.style.cssText = 'position:fixed; top:10px; right:12px; z-index:9998; display:flex; align-items:center; gap:8px; font-family:\'Host Grotesk\',-apple-system,BlinkMacSystemFont,sans-serif; font-size:12px; color:var(--muted,#8a7686); background:var(--card,#fff); border:1px solid var(--border,#f0dbe6); border-radius:20px; padding:5px 6px 5px 12px;';
+  bar.innerHTML = `<span style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${email}</span><button id="curieuxAdminLogout" style="border:none; background:var(--accent,#791649); color:#fff; border-radius:14px; padding:5px 10px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit;">Déconnexion</button>`;
+  document.body.appendChild(bar);
+  document.getElementById('curieuxAdminLogout').addEventListener('click', async ()=>{
+    await CurieuxDB.signOut();
+    location.href = 'admin-login.html';
+  });
 }
 
 // Enregistre Host Grotesk (police de labeur de la charte) dans un document jsPDF sous le nom 'Host'.
