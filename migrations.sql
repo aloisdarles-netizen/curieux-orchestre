@@ -190,13 +190,16 @@ create table if not exists infos_sociales (
   iban text default '',
   bic text default '',
   titulaire_compte text default '',
-  num_objet_employeur text default '',
-  num_aem text default '',
+  num_conges_spectacles text default '',
   num_audiens text default '',
   extra jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- Remplace num_objet_employeur/num_aem (retirés — générés côté employeur/GUSO,
+-- ça n'avait pas de sens de les demander à la personne embauchée) par
+-- num_conges_spectacles, ajouté après coup pour une base déjà provisionnée.
+alter table infos_sociales add column if not exists num_conges_spectacles text default '';
 drop trigger if exists trg_infos_sociales_updated_at on infos_sociales;
 create trigger trg_infos_sociales_updated_at before update on infos_sociales
   for each row execute function set_updated_at();

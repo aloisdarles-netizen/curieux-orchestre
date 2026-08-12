@@ -110,9 +110,12 @@ const CurieuxDB = (()=>{
         iban: r.iban || '',
         bic: r.bic || '',
         titulaire_compte: r.titulaireCompte || '',
-        num_objet_employeur: r.numObjetEmployeur || '',
-        num_aem: r.numAem || '',
+        num_conges_spectacles: r.numCongesSpectacles || '',
         num_audiens: r.numAudiens || '',
+        contact_urgence_nom: r.contactUrgenceNom || '',
+        contact_urgence_tel: r.contactUrgenceTel || '',
+        permis_conduire_numero: r.permisConduireNumero || '',
+        permis_conduire_validite: r.permisConduireValidite || null,
         extra: r.extra || {}
       }),
       fromDb: (row)=> ({
@@ -125,9 +128,12 @@ const CurieuxDB = (()=>{
         iban: row.iban || '',
         bic: row.bic || '',
         titulaireCompte: row.titulaire_compte || '',
-        numObjetEmployeur: row.num_objet_employeur || '',
-        numAem: row.num_aem || '',
+        numCongesSpectacles: row.num_conges_spectacles || '',
         numAudiens: row.num_audiens || '',
+        contactUrgenceNom: row.contact_urgence_nom || '',
+        contactUrgenceTel: row.contact_urgence_tel || '',
+        permisConduireNumero: row.permis_conduire_numero || '',
+        permisConduireValidite: row.permis_conduire_validite || '',
         extra: row.extra || {}
       })
     }
