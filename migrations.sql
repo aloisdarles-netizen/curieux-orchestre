@@ -159,16 +159,25 @@ create trigger trg_dispo_demandes_updated_at before update on dispo_demandes
 
 -- ----------------------------------------------------------------------------
 -- infos_sociales_admins — liste blanche des comptes (Supabase Auth) autorisés à
--- consulter/modifier infos_sociales. Ajouter une ligne (email) donne accès, en
--- retirer une le retire — c'est le SEUL endroit où gérer les autorisations,
--- directement en SQL. Pas de lecture complète exposée côté app : chaque compte
--- ne peut lire QUE sa propre ligne (juste assez pour la policy ci-dessous, qui a
--- seulement besoin de vérifier l'existence, pas de lister les autres comptes).
+-- utiliser les pages admin de l'app. Ajouter une ligne (email) donne accès, en
+-- retirer une le retire. Deux rôles :
+--   'admin' — accès à tout, y compris infos_sociales et la gestion des comptes
+--             elle-même (admin-dashboard.html).
+--   'user'  — accès aux pages admin courantes (annuaires, tournées, dispos,
+--             feuilles de route...) mais PAS à infos_sociales ni au dashboard.
+-- Un compte 'admin' peut lister/ajouter/modifier/retirer n'importe quelle
+-- ligne (policy "admins manage all rows" ci-dessous) ; un compte 'user' ne
+-- peut lire QUE sa propre ligne (policy "self read own row"), pour connaître
+-- son propre rôle sans pouvoir lister les autres comptes.
 -- ----------------------------------------------------------------------------
 create table if not exists infos_sociales_admins (
-  email text primary key
+  email text primary key,
+  role text not null default 'admin' check (role in ('admin','user'))
 );
-insert into infos_sociales_admins (email) values ('alois.darles@lessoudaines.fr')
+-- Ajoutée après coup : les comptes déjà en liste blanche avant l'introduction
+-- des rôles restent 'admin' par défaut, pour ne pas perdre l'accès existant.
+alter table infos_sociales_admins add column if not exists role text not null default 'admin' check (role in ('admin','user'));
+insert into infos_sociales_admins (email, role) values ('alois.darles@lessoudaines.fr', 'admin')
   on conflict (email) do nothing;
 
 -- ----------------------------------------------------------------------------
@@ -242,14 +251,28 @@ alter table infos_sociales_admins enable row level security;
 alter table infos_sociales enable row level security;
 
 drop policy if exists "self read own admin row" on infos_sociales_admins;
-create policy "self read own admin row" on infos_sociales_admins
+drop policy if exists "self read own row" on infos_sociales_admins;
+create policy "self read own row" on infos_sociales_admins
   for select using (email = auth.jwt()->>'email');
 
+-- Un compte 'admin' peut lire/ajouter/modifier/retirer n'importe quelle ligne
+-- (gestion des comptes depuis admin-dashboard.html). La sous-requête sur
+-- infos_sociales_admins référence la table elle-même, mais reste résolue par
+-- la policy "self read own row" ci-dessus pour la propre ligne de l'appelant
+-- (pas de récursion : c'est ce qui permet de déterminer que l'appelant est
+-- bien 'admin' avant de lui ouvrir tout le reste).
+drop policy if exists "admins manage all rows" on infos_sociales_admins;
+create policy "admins manage all rows" on infos_sociales_admins
+  for all
+  using (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email' and a.role = 'admin'))
+  with check (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email' and a.role = 'admin'));
+
+-- infos_sociales reste réservée au rôle 'admin' précisément (pas 'user').
 drop policy if exists "admins only" on infos_sociales;
 create policy "admins only" on infos_sociales
   for all
-  using (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email'))
-  with check (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email'));
+  using (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email' and a.role = 'admin'))
+  with check (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email' and a.role = 'admin'));
 
 -- Auto-saisie (mes-infos.html) : PAS de compte séparé — on réutilise le même
 -- lien personnel imprévisible que pour les dispos (dispo_demandes.id comme
@@ -367,6 +390,120 @@ create policy "public full access" on newsletter_snapshot for all using (true) w
 
 drop policy if exists "public full access" on dispo_demandes;
 create policy "public full access" on dispo_demandes for all using (true) with check (true);
+
+-- ============================================================================
+-- audit_log — historique des modifications, lisible uniquement par les
+-- comptes 'admin' (page admin-dashboard.html). Écrit UNIQUEMENT par les
+-- fonctions trigger ci-dessous (SECURITY DEFINER) : aucune policy
+-- insert/update/delete n'est donnée à anon/authenticated, pour que ce journal
+-- ne puisse pas être falsifié depuis le client.
+-- Pour infos_sociales (données sensibles), on ne logue QUE la liste des
+-- champs modifiés — jamais les valeurs (n° sécu, IBAN...) — pour ne pas
+-- dupliquer des données sensibles dans une table moins cloisonnée.
+-- ============================================================================
+create table if not exists audit_log (
+  id bigint generated always as identity primary key,
+  table_name text not null,
+  row_id text not null,
+  action text not null check (action in ('INSERT','UPDATE','DELETE')),
+  changed_by text,
+  old_data jsonb,
+  new_data jsonb,
+  changed_at timestamptz not null default now()
+);
+create index if not exists idx_audit_log_table_changed_at on audit_log (table_name, changed_at desc);
+create index if not exists idx_audit_log_row_id on audit_log (row_id);
+
+alter table audit_log enable row level security;
+drop policy if exists "admins read audit log" on audit_log;
+create policy "admins read audit log" on audit_log
+  for select
+  using (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email' and a.role = 'admin'));
+
+-- Trigger générique (avant/après complets) pour les tables "normales".
+create or replace function audit_trigger_func()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    insert into audit_log(table_name, row_id, action, changed_by, old_data, new_data)
+    values (tg_table_name, old.id::text, tg_op, auth.jwt()->>'email', to_jsonb(old), null);
+    return old;
+  elsif tg_op = 'INSERT' then
+    insert into audit_log(table_name, row_id, action, changed_by, old_data, new_data)
+    values (tg_table_name, new.id::text, tg_op, auth.jwt()->>'email', null, to_jsonb(new));
+    return new;
+  else
+    insert into audit_log(table_name, row_id, action, changed_by, old_data, new_data)
+    values (tg_table_name, new.id::text, tg_op, auth.jwt()->>'email', to_jsonb(old), to_jsonb(new));
+    return new;
+  end if;
+end;
+$$;
+
+do $$
+declare tbl text;
+begin
+  foreach tbl in array array['musiciens','techniciens','tournees','feuilles_route','carnet_contacts','newsletter_snapshot','dispo_demandes']
+  loop
+    execute format('drop trigger if exists trg_audit_%1$s on %1$I', tbl);
+    execute format('create trigger trg_audit_%1$s after insert or update or delete on %1$I for each row execute function audit_trigger_func()', tbl);
+  end loop;
+end $$;
+
+-- Trigger dédié pour infos_sociales : ne logue que les noms de champs
+-- modifiés (pas les valeurs), pour ne jamais exposer n° sécu/IBAN/etc. dans
+-- ce journal.
+create or replace function audit_trigger_infos_sociales()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_cols text[] := array['genre','genre_detail','prenom_civil','date_naissance','lieu_naissance','nationalite','adresse',
+    'num_secu','iban','bic','titulaire_compte','num_conges_spectacles','num_audiens',
+    'contact_urgence_nom','contact_urgence_tel','permis_conduire','permis_conduire_type',
+    'permis_conduire_type_detail','taille_vetement'];
+  v_col text;
+  v_changed text[] := array[]::text[];
+  v_old jsonb;
+  v_new jsonb;
+begin
+  if tg_op = 'DELETE' then
+    insert into audit_log(table_name, row_id, action, changed_by, old_data, new_data)
+    values ('infos_sociales', old.id, tg_op, auth.jwt()->>'email', jsonb_build_object('fields', to_jsonb(v_cols)), null);
+    return old;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    v_old := to_jsonb(old);
+    v_new := to_jsonb(new);
+    foreach v_col in array v_cols loop
+      if v_old->>v_col is distinct from v_new->>v_col then
+        v_changed := array_append(v_changed, v_col);
+      end if;
+    end loop;
+    if array_length(v_changed, 1) is null then
+      return new;
+    end if;
+    insert into audit_log(table_name, row_id, action, changed_by, old_data, new_data)
+    values ('infos_sociales', new.id, tg_op, auth.jwt()->>'email', null, jsonb_build_object('fields_changed', to_jsonb(v_changed)));
+    return new;
+  end if;
+
+  insert into audit_log(table_name, row_id, action, changed_by, old_data, new_data)
+  values ('infos_sociales', new.id, tg_op, auth.jwt()->>'email', null, jsonb_build_object('note', 'fiche créée'));
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_audit_infos_sociales on infos_sociales;
+create trigger trg_audit_infos_sociales after insert or update or delete on infos_sociales
+  for each row execute function audit_trigger_infos_sociales();
 
 -- ============================================================================
 -- Realtime : ajoute les tables à la publication utilisée par le Realtime

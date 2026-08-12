@@ -66,40 +66,47 @@ autre poste — pas besoin de recharger la page.
 ## Accès admin par compte (toutes les pages internes)
 
 Toutes les pages admin (accueil, annuaire, technicien·nes, tournées,
-disponibilités, suivi, récap, newsletter, feuilles de route, infos sociales...)
-sont protégées par un **vrai compte** Supabase Auth (email + mot de passe) —
-l'ancien mot de passe partagé "admin" en clair n'existe plus. Avoir un compte ne
-suffit pas : il faut en plus figurer dans la liste blanche `infos_sociales_admins`
-pour être reconnu comme admin et accéder aux pages (sinon [admin-login.html](admin-login.html)
-affiche "compte non autorisé"). C'est la même liste de confiance qui gérait déjà
-l'accès à `infos-sociales.html` — elle sert maintenant d'allowlist pour toute l'app.
+disponibilités, suivi, récap, newsletter, feuilles de route, infos sociales,
+tableau de bord admin...) sont protégées par un **vrai compte** Supabase Auth
+(email + mot de passe) — l'ancien mot de passe partagé "admin" en clair n'existe
+plus. Avoir un compte ne suffit pas : il faut en plus figurer dans la liste
+blanche `infos_sociales_admins` pour accéder aux pages. Deux rôles :
+- **admin** — accès à tout, y compris `infos-sociales.html` et
+  [admin-dashboard.html](admin-dashboard.html) (gestion des comptes + historique).
+- **user** — accès aux pages admin courantes (annuaires, tournées, dispos,
+  feuilles de route...) mais PAS à infos sociales ni au tableau de bord.
 
 Les liens personnels envoyés aux musicien·nes/technicien·nes
 ([dispo-titulaire.html](dispo-titulaire.html), [mes-infos.html](mes-infos.html)) ne
 sont **pas concernés** : ils restent publics, identifiés par leur token dans l'URL,
 sans compte à créer.
 
-**Créer un compte** — deux façons :
-- Self-service : [creer-compte.html](creer-compte.html) (email + mot de passe,
-  confirmation par email selon la config Supabase par défaut).
-- Depuis le tableau de bord Supabase : Authentication → Users → **Add user** (tu
-  peux cocher "Auto Confirm User" pour éviter l'email de confirmation).
-
-Dans les deux cas, le compte créé n'a **aucun accès** tant qu'il n'est pas ajouté à
-la liste blanche (policy RLS "self read own admin row" : chaque compte ne peut
-vérifier que sa propre appartenance, jamais lister les autres admins).
-
-**Pour autoriser une personne** (après création de son compte) : SQL Editor →
-`insert into infos_sociales_admins (email) values ('email@exemple.fr');`. Pour
-retirer l'accès de quelqu'un : `delete from infos_sociales_admins where email =
-'email@exemple.fr';` (son compte Auth continue d'exister, il perd juste l'accès aux
-pages admin et aux infos sociales).
+**Gérer les comptes** — le plus simple est [admin-dashboard.html](admin-dashboard.html)
+(réservé au rôle admin) : ajouter un compte avec mot de passe ou par lien email,
+changer le rôle, retirer l'accès — tout depuis l'interface, sans SQL. Un compte
+peut aussi être créé en self-service via [creer-compte.html](creer-compte.html),
+mais il n'a **aucun accès** tant qu'un admin ne l'a pas ajouté à la liste (depuis
+le dashboard, ou en SQL : `insert into infos_sociales_admins (email, role) values
+('email@exemple.fr', 'user');` / `delete from infos_sociales_admins where email =
+'email@exemple.fr';`).
 
 Note : ce système protège l'**accès aux pages** (comptes nommés, révocables, plus
 de mot de passe en clair) mais, comme avant, les tables de données courantes
 (musicien·nes, tournées...) restent en RLS `public full access` — seule la table
 `infos_sociales` (identité civile, n° sécu, RIB) est réellement verrouillée côté
-base aux comptes de la liste blanche.
+base, au rôle admin uniquement.
+
+### Historique des modifications (audit_log)
+
+Chaque création/modification/suppression sur les tables principales (musicien·nes,
+technicien·nes, tournées, feuilles de route, carnet de contacts, journal des
+changements, demandes de dispo) est enregistrée dans `audit_log` avec qui, quoi,
+quand — visible depuis [admin-dashboard.html](admin-dashboard.html) (rôle admin
+uniquement), filtrable par table ou par recherche libre. Pour `infos_sociales`
+(données sensibles), seuls les **noms des champs modifiés** sont enregistrés,
+jamais les valeurs (n° sécu, IBAN...), pour ne pas dupliquer ces données ailleurs.
+Ce journal est écrit uniquement par des triggers Postgres (SECURITY DEFINER) :
+impossible à falsifier depuis le client.
 
 ### Auto-saisie côté musicien·nes/technicien·nes (mes-infos.html)
 

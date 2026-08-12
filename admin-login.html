@@ -73,7 +73,7 @@
     </form>
 
     <div id="notAdminBlock" style="display:none;">
-      <p class="hint" style="margin-top:14px;">Ce compte est connecté mais n'est pas encore autorisé. Demande à un·e administrateur·rice de l'ajouter à la table <code>infos_sociales_admins</code> (Supabase → SQL Editor).</p>
+      <p class="hint" style="margin-top:14px;" id="notAdminHint">Ce compte est connecté mais n'est pas encore autorisé. Demande à un·e administrateur·rice de t'ajouter depuis le tableau de bord admin.</p>
       <button type="button" class="btn-primary" id="switchAccountBtn">Se connecter avec un autre compte</button>
     </div>
 
@@ -83,6 +83,13 @@
 <script>
 const params = new URLSearchParams(location.search);
 const redirect = params.get('redirect') || 'accueil.html';
+// 'admin' = page cible réservée au rôle admin (infos sociales, dashboard) ;
+// 'user' (défaut) = page admin courante, accessible à tout compte listé.
+const requiredLevel = params.get('level') === 'admin' ? 'admin' : 'user';
+
+async function hasRequiredAccess(){
+  return requiredLevel === 'admin' ? CurieuxDB.isSuperAdmin() : CurieuxDB.hasAppAccess();
+}
 
 function showError(msg){
   const el = document.getElementById('loginError');
@@ -93,13 +100,16 @@ function showError(msg){
 async function checkExistingSession(){
   const session = await CurieuxDB.getSession();
   if(!session) return;
-  if(await CurieuxDB.isAdmin()){
+  if(await hasRequiredAccess()){
     location.replace(redirect);
     return;
   }
   document.getElementById('loginForm').style.display = 'none';
   document.getElementById('signupLink').style.display = 'none';
   document.getElementById('notAdminBlock').style.display = 'block';
+  document.getElementById('notAdminHint').textContent = requiredLevel === 'admin'
+    ? "Ce compte est connecté mais n'a pas le rôle \"admin\" requis pour cette page. Demande à un·e administrateur·rice de te passer en rôle admin depuis le tableau de bord."
+    : "Ce compte est connecté mais n'est pas encore autorisé. Demande à un·e administrateur·rice de t'ajouter depuis le tableau de bord admin.";
   document.getElementById('cardHint').textContent = 'Connecté·e en tant que ' + session.user.email + '.';
 }
 
@@ -116,7 +126,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e)=>{
     showError(error.message === 'Invalid login credentials' ? 'Email ou mot de passe incorrect.' : error.message);
     return;
   }
-  if(await CurieuxDB.isAdmin()){
+  if(await hasRequiredAccess()){
     location.replace(redirect);
   } else {
     checkExistingSession();

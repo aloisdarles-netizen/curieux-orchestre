@@ -252,18 +252,99 @@ const CurieuxDB = (()=>{
     if(!supabaseClient) return { data: { subscription: { unsubscribe(){} } } };
     return supabaseClient.auth.onAuthStateChange(callback);
   }
-  // Vérifie que le compte connecté figure dans infos_sociales_admins — c'est
-  // la même liste de confiance qui sert d'allowlist admin pour toute l'app
-  // (policy RLS "self read own admin row" : la requête ne peut renvoyer QUE
-  // la ligne du compte courant, jamais la liste complète des admins).
-  async function isAdmin(){
-    if(!supabaseClient) return false;
+  // Rôle du compte connecté dans infos_sociales_admins ('admin'|'user'), ou
+  // null s'il n'y figure pas — c'est la liste de confiance qui sert
+  // d'allowlist pour toute l'app (policy RLS "self read own row" : la
+  // requête ne peut renvoyer QUE la ligne du compte courant en lecture simple ;
+  // un compte 'admin' peut en plus lister/gérer les autres lignes, voir
+  // listAccounts ci-dessous).
+  async function getMyRole(){
+    if(!supabaseClient) return null;
     const session = await getSession();
-    if(!session || !session.user || !session.user.email) return false;
+    if(!session || !session.user || !session.user.email) return null;
     const { data, error } = await supabaseClient
-      .from('infos_sociales_admins').select('email').eq('email', session.user.email).maybeSingle();
-    if(error){ console.warn('[CurieuxDB] isAdmin', error.message); return false; }
-    return !!data;
+      .from('infos_sociales_admins').select('role').eq('email', session.user.email).maybeSingle();
+    if(error){ console.warn('[CurieuxDB] getMyRole', error.message); return null; }
+    return data ? (data.role || 'admin') : null;
+  }
+  // Accès aux pages admin courantes (annuaires, tournées, dispos...) : tout
+  // compte présent dans infos_sociales_admins, quel que soit son rôle.
+  async function hasAppAccess(){
+    return !!(await getMyRole());
+  }
+  // Accès aux zones réservées (infos sociales, gestion des comptes) : rôle
+  // 'admin' uniquement.
+  async function isSuperAdmin(){
+    return (await getMyRole()) === 'admin';
+  }
+
+  // --- Gestion des comptes (page admin-dashboard.html, réservée aux comptes
+  // 'admin') : liste/ajoute/retire des lignes dans infos_sociales_admins. Ne
+  // liste PAS les comptes Supabase Auth eux-mêmes (ça nécessiterait la clé
+  // service_role, jamais utilisée côté client) — seulement la liste blanche
+  // qui donne accès à l'app, ce qui est suffisant pour gérer qui a accès. ---
+  async function listAccounts(){
+    if(!supabaseClient) return [];
+    const { data, error } = await supabaseClient
+      .from('infos_sociales_admins').select('email, role').order('email');
+    if(error){ console.warn('[CurieuxDB] listAccounts', error.message); return []; }
+    return data || [];
+  }
+  async function setAccountRole(email, role){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient
+      .from('infos_sociales_admins').upsert({ email, role }, { onConflict: 'email' });
+    if(error) console.warn('[CurieuxDB] setAccountRole', error.message);
+    return { error };
+  }
+  async function removeAccount(email){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.from('infos_sociales_admins').delete().eq('email', email);
+    if(error) console.warn('[CurieuxDB] removeAccount', error.message);
+    return { error };
+  }
+
+  // Client Supabase secondaire, sans persistance de session : utilisé pour
+  // créer un compte AU NOM DE quelqu'un d'autre depuis le dashboard, sans
+  // remplacer la session actuelle de l'admin connecté (auth.signUp() sur le
+  // client principal authentifierait le navigateur comme ce nouveau compte).
+  let adminActionClient = null;
+  function getAdminActionClient(){
+    if(!adminActionClient && typeof window !== 'undefined' && window.supabase){
+      adminActionClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      });
+    }
+    return adminActionClient;
+  }
+  // Crée un compte avec un mot de passe choisi par l'admin (à transmettre à
+  // la personne par un canal séparé — SMS, appel...). L'email de confirmation
+  // par défaut de Supabase part quand même si l'option est activée sur le
+  // projet ; le compte n'a aucun accès tant qu'il n'est pas ajouté à la liste
+  // (setAccountRole ci-dessus).
+  async function createAccountWithPassword(email, password){
+    const client = getAdminActionClient();
+    if(!client) return { error: { message: 'Supabase non chargé' } };
+    return client.auth.signUp({ email, password });
+  }
+  // Envoie un lien de connexion par email (sans mot de passe) — crée le
+  // compte au premier clic si besoin. N'affecte pas la session de l'admin
+  // qui déclenche l'envoi : rien ne change côté navigateur tant que le lien
+  // n'est pas ouvert (dans la boîte mail du destinataire).
+  async function sendMagicLinkInvite(email){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    return supabaseClient.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  }
+
+  // --- Historique des modifications (audit_log, réservé aux comptes 'admin'
+  // par RLS — voir migrations.sql). tableName optionnel pour filtrer. ---
+  async function fetchAuditLog(tableName, limit){
+    if(!supabaseClient) return [];
+    let q = supabaseClient.from('audit_log').select('*').order('changed_at', { ascending: false }).limit(limit || 200);
+    if(tableName) q = q.eq('table_name', tableName);
+    const { data, error } = await q;
+    if(error){ console.warn('[CurieuxDB] fetchAuditLog', error.message); return []; }
+    return data || [];
   }
 
   // --- Auto-saisie par lien personnel (mes-infos.html, même token que
@@ -288,7 +369,10 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, syncCollection, upsertOne, removeOne, fetchSnapshot, saveSnapshot, subscribe,
-    signIn, signUp, signOut, getSession, onAuthStateChange, isAdmin,
+    signIn, signUp, signOut, getSession, onAuthStateChange,
+    getMyRole, hasAppAccess, isSuperAdmin,
+    listAccounts, setAccountRole, removeAccount,
+    createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
     getInfosSocialesByToken, upsertInfosSocialesByToken
   };
 })();

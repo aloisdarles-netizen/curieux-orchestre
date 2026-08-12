@@ -69,12 +69,13 @@ function hideCurieuxPageUntilAuth(){
   document.head.appendChild(style);
 }
 
-// Appelé une fois <body> chargé : vérifie session + appartenance à
-// infos_sociales_admins, révèle la page si tout est bon, sinon redirige.
+// Appelé une fois <body> chargé : vérifie session + appartenance (tout rôle)
+// à infos_sociales_admins, révèle la page si tout est bon, sinon redirige.
+// Utilisé par les pages admin courantes (annuaires, tournées, dispos...).
 async function requireAdminAuth(){
   try{
     const session = await CurieuxDB.getSession();
-    if(session && await CurieuxDB.isAdmin()){
+    if(session && await CurieuxDB.hasAppAccess()){
       const hideStyle = document.getElementById('curieux-lock-hide');
       if(hideStyle) hideStyle.remove();
       try{ injectAdminLogoutButton(session.user.email); }catch(e){}
@@ -83,6 +84,25 @@ async function requireAdminAuth(){
   }catch(e){ console.warn('[requireAdminAuth]', e); }
   const here = location.pathname.split('/').pop() + location.search;
   location.replace('admin-login.html?redirect=' + encodeURIComponent(here));
+}
+
+// Même chose, mais exige le rôle 'admin' précisément (pas juste 'user') —
+// utilisé par les zones réservées : infos sociales, tableau de bord admin.
+// Passe level=admin à admin-login.html : SANS ça, un compte 'user' connecté
+// (donc avec hasAppAccess() vrai) serait renvoyé en boucle infinie vers cette
+// page par admin-login.html, qui le croirait autorisé.
+async function requireSuperAdminAuth(){
+  try{
+    const session = await CurieuxDB.getSession();
+    if(session && await CurieuxDB.isSuperAdmin()){
+      const hideStyle = document.getElementById('curieux-lock-hide');
+      if(hideStyle) hideStyle.remove();
+      try{ injectAdminLogoutButton(session.user.email); }catch(e){}
+      return;
+    }
+  }catch(e){ console.warn('[requireSuperAdminAuth]', e); }
+  const here = location.pathname.split('/').pop() + location.search;
+  location.replace('admin-login.html?level=admin&redirect=' + encodeURIComponent(here));
 }
 
 // Petit bouton fixe en coin de page pour se déconnecter — injecté par JS

@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Administration</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
+    --danger:#a5313f; --danger-dark:#7a2333;
+    --ok:#2f8f5b; --ok-tint:#e2f4ea;
+    --radius:12px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --secondary:#ff7a4a; --secondary-dark:#ffab84; --secondary-tint:#3d2430;
+    --danger:#e2685a; --danger-dark:#ffab9a;
+    --ok:#5fbf8a; --ok-tint:#1c3327;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 80px;
+    transition:background .3s, color .3s;
+  }
+  .wrap{max-width:1000px; margin:0 auto;}
+  .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between; flex-wrap:wrap;}
+  .brand-logo-img{height:30px; width:auto; display:block;}
+  .page-nav{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .page-nav a{color:var(--muted); text-decoration:none; font-size:13px; font-weight:600;}
+  .page-nav a:hover{color:var(--accent);}
+  h1{font-size:22px; margin:0 0 4px;}
+  .subtitle{color:var(--muted); font-size:14px; margin:0 0 28px;}
+  h2{font-size:15px; margin:0 0 12px;}
+
+  section{margin-bottom:34px;}
+
+  .stats-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px;}
+  .stat-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px;}
+  .stat-card .num{font-size:26px; font-weight:800; color:var(--accent);}
+  .stat-card .label{font-size:12px; color:var(--muted); margin-top:2px;}
+
+  .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px;}
+
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  th, td{text-align:left; padding:8px 6px; border-bottom:1px solid var(--border);}
+  th{color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.03em; font-weight:700;}
+  td.email{font-weight:600;}
+  .table-scroll{overflow-x:auto;}
+
+  button{border:none; border-radius:8px; padding:8px 14px; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;}
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-primary:disabled{opacity:.55; cursor:default;}
+  .btn-danger{background:transparent; color:var(--danger); border:1px solid var(--danger);}
+  .btn-danger:hover{background:var(--danger); color:#fff;}
+  .btn-ghost{background:transparent; color:var(--muted); border:1px solid var(--border);}
+  .btn-ghost:hover{background:var(--border); color:var(--text);}
+  .btn-sm{padding:5px 10px; font-size:12px;}
+
+  label{font-size:12px; color:var(--muted); font-weight:600;}
+  input[type=text], input[type=email], input[type=password], select{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;
+    width:100%; background:var(--card); color:var(--text); font-family:inherit;
+  }
+  input:focus, select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field-row{display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;}
+  .field-row .field{flex:1 1 160px;}
+
+  .role-badge{font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 8px; border-radius:20px;}
+  .role-badge.admin{background:var(--accent-tint); color:var(--accent-dark);}
+  .role-badge.user{background:var(--secondary-tint); color:var(--secondary-dark);}
+
+  .msg{font-size:12.5px; margin-top:10px; display:none;}
+  .msg.error{color:var(--danger);}
+  .msg.ok{color:var(--ok);}
+
+  .add-account-form{margin-top:16px; padding-top:16px; border-top:1px solid var(--border);}
+  .method-toggle{display:flex; gap:6px; margin-bottom:12px;}
+  .method-toggle button{flex:1; background:var(--bg); color:var(--muted); border:1px solid var(--border);}
+  .method-toggle button.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+
+  .empty-hint{color:var(--muted); font-size:13px; padding:16px 4px; text-align:center;}
+
+  .log-entry{border-bottom:1px solid var(--border); padding:10px 0; font-size:13px;}
+  .log-entry:last-child{border-bottom:none;}
+  .log-meta{display:flex; gap:10px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:12px;}
+  .log-action{font-weight:700; text-transform:uppercase; font-size:10.5px; padding:1px 7px; border-radius:12px;}
+  .log-action.INSERT{background:var(--ok-tint); color:var(--ok);}
+  .log-action.UPDATE{background:var(--accent-tint); color:var(--accent-dark);}
+  .log-action.DELETE{background:var(--secondary-tint); color:var(--secondary-dark);}
+  .log-detail{margin-top:6px; font-size:12px; color:var(--text);}
+  .log-detail summary{cursor:pointer; color:var(--muted);}
+  .log-detail pre{white-space:pre-wrap; word-break:break-word; background:var(--bg); border-radius:6px; padding:8px; margin-top:6px; font-size:11px;}
+
+  @media (max-width:600px){
+    input, select{ font-size:16px !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav">
+      <a href="accueil.html">← Accueil</a>
+    </nav>
+  </div>
+
+  <h1>🛠️ Administration</h1>
+  <p class="subtitle">Vue d'ensemble, gestion des comptes et historique des modifications.</p>
+
+  <section>
+    <h2>Vue d'ensemble</h2>
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card"><div class="num">…</div><div class="label">Musicien·nes</div></div>
+      <div class="stat-card"><div class="num">…</div><div class="label">Technicien·nes</div></div>
+      <div class="stat-card"><div class="num">…</div><div class="label">Tournées à venir</div></div>
+      <div class="stat-card"><div class="num">…</div><div class="label">Comptes actifs</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Comptes</h2>
+    <div class="card">
+      <div class="table-scroll">
+        <table id="accountsTable">
+          <thead><tr><th>Email</th><th>Rôle</th><th></th></tr></thead>
+          <tbody id="accountsBody"></tbody>
+        </table>
+      </div>
+      <div id="accountsEmpty" class="empty-hint" style="display:none;">Aucun compte pour l'instant.</div>
+
+      <div class="add-account-form">
+        <h2 style="margin-bottom:10px;">Ajouter un compte</h2>
+        <div class="method-toggle">
+          <button type="button" id="methodPasswordBtn" class="active">Mot de passe</button>
+          <button type="button" id="methodMagicBtn">Lien par email</button>
+        </div>
+        <form id="addAccountForm">
+          <div class="field-row">
+            <div class="field">
+              <label for="newAccountEmail">Email</label>
+              <input type="email" id="newAccountEmail" required>
+            </div>
+            <div class="field" id="passwordField">
+              <label for="newAccountPassword">Mot de passe initial</label>
+              <input type="text" id="newAccountPassword" minlength="6" placeholder="À transmettre à la personne">
+            </div>
+            <div class="field" style="flex:0 0 160px;">
+              <label for="newAccountRole">Rôle</label>
+              <select id="newAccountRole">
+                <option value="user">Utilisateur·rice</option>
+                <option value="admin">Administrateur·rice</option>
+              </select>
+            </div>
+            <div class="field" style="flex:0 0 auto;">
+              <button type="submit" class="btn-primary" id="addAccountBtn">Ajouter</button>
+            </div>
+          </div>
+        </form>
+        <p style="font-size:12px; color:var(--muted); margin:8px 0 0;" id="methodHint">
+          Le compte est créé avec ce mot de passe et directement ajouté à la liste d'accès avec le rôle choisi. Transmets le mot de passe à la personne par un canal séparé (SMS, appel...).
+        </p>
+        <div class="msg error" id="addAccountError"></div>
+        <div class="msg ok" id="addAccountSuccess"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Historique des modifications</h2>
+    <div class="card">
+      <div class="field-row" style="margin-bottom:14px;">
+        <div class="field" style="flex:0 0 220px;">
+          <label for="logTableFilter">Table</label>
+          <select id="logTableFilter">
+            <option value="">Toutes</option>
+            <option value="musiciens">Musicien·nes</option>
+            <option value="techniciens">Technicien·nes</option>
+            <option value="tournees">Tournées</option>
+            <option value="feuilles_route">Feuilles de route</option>
+            <option value="carnet_contacts">Carnet de contacts</option>
+            <option value="newsletter_snapshot">Journal des changements</option>
+            <option value="dispo_demandes">Demandes de dispo</option>
+            <option value="infos_sociales">Infos sociales</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1 1 200px;">
+          <label for="logSearch">Chercher (personne, table...)</label>
+          <input type="text" id="logSearch" placeholder="ex : mus-abc123">
+        </div>
+      </div>
+      <div id="logList"></div>
+      <div id="logEmpty" class="empty-hint" style="display:none;">Aucune modification enregistrée pour ce filtre.</div>
+    </div>
+  </section>
+</div>
+<script>
+applyBrandLogo();
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+let accountsCache = [];
+let logCache = [];
+let personNames = {};
+let createMethod = 'password';
+
+const TABLE_LABELS = {
+  musiciens: 'Musicien·nes', techniciens: 'Technicien·nes', tournees: 'Tournées',
+  feuilles_route: 'Feuilles de route', carnet_contacts: 'Carnet de contacts',
+  newsletter_snapshot: 'Journal des changements', dispo_demandes: 'Demandes de dispo',
+  infos_sociales: 'Infos sociales',
+};
+
+function escapeHtml(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function loadStats(){
+  const [musiciens, techniciens, tournees, accounts] = await Promise.all([
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.listAccounts(),
+  ]);
+  personNames = {};
+  musiciens.forEach(m=> personNames[m.id] = `${m.prenom || ''} ${m.nom || ''}`.trim());
+  techniciens.forEach(t=> personNames[t.id] = `${t.prenom || ''} ${t.nom || ''}`.trim());
+
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = tournees.filter(t=> (t.dates || []).some(d=> d.date >= today)).length;
+
+  const cards = document.querySelectorAll('.stat-card .num');
+  cards[0].textContent = musiciens.length;
+  cards[1].textContent = techniciens.length;
+  cards[2].textContent = upcoming;
+  cards[3].textContent = accounts.length;
+
+  accountsCache = accounts;
+  renderAccounts();
+}
+
+function renderAccounts(){
+  const body = document.getElementById('accountsBody');
+  const empty = document.getElementById('accountsEmpty');
+  if(accountsCache.length === 0){
+    body.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  body.innerHTML = accountsCache.map(a=> `
+    <tr data-email="${escapeHtml(a.email)}">
+      <td class="email">${escapeHtml(a.email)}</td>
+      <td>
+        <select class="role-select" data-email="${escapeHtml(a.email)}">
+          <option value="user" ${a.role==='user'?'selected':''}>Utilisateur·rice</option>
+          <option value="admin" ${a.role==='admin'?'selected':''}>Administrateur·rice</option>
+        </select>
+      </td>
+      <td><button type="button" class="btn-danger btn-sm remove-account-btn" data-email="${escapeHtml(a.email)}">Retirer</button></td>
+    </tr>
+  `).join('');
+
+  body.querySelectorAll('.role-select').forEach(sel=>{
+    sel.addEventListener('change', async ()=>{
+      const email = sel.dataset.email;
+      sel.disabled = true;
+      const { error } = await CurieuxDB.setAccountRole(email, sel.value);
+      sel.disabled = false;
+      if(error){ alert('Erreur : ' + error.message); return; }
+      const acc = accountsCache.find(a=> a.email === email);
+      if(acc) acc.role = sel.value;
+    });
+  });
+
+  body.querySelectorAll('.remove-account-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const email = btn.dataset.email;
+      if(!confirm(`Retirer l'accès de ${email} ? Son compte continuera d'exister mais n'aura plus accès aux pages admin.`)) return;
+      btn.disabled = true;
+      const { error } = await CurieuxDB.removeAccount(email);
+      if(error){ alert('Erreur : ' + error.message); btn.disabled = false; return; }
+      accountsCache = accountsCache.filter(a=> a.email !== email);
+      renderAccounts();
+      document.querySelectorAll('.stat-card .num')[3].textContent = accountsCache.length;
+    });
+  });
+}
+
+function setMethod(method){
+  createMethod = method;
+  document.getElementById('methodPasswordBtn').classList.toggle('active', method === 'password');
+  document.getElementById('methodMagicBtn').classList.toggle('active', method === 'magic');
+  document.getElementById('passwordField').style.display = method === 'password' ? '' : 'none';
+  document.getElementById('newAccountPassword').required = method === 'password';
+  document.getElementById('methodHint').textContent = method === 'password'
+    ? "Le compte est créé avec ce mot de passe et directement ajouté à la liste d'accès avec le rôle choisi. Transmets le mot de passe à la personne par un canal séparé (SMS, appel...)."
+    : "Un email avec un lien de connexion est envoyé à cette adresse (pas de mot de passe à transmettre) — le compte est créé au premier clic sur le lien, et directement ajouté à la liste d'accès avec le rôle choisi.";
+}
+document.getElementById('methodPasswordBtn').addEventListener('click', ()=> setMethod('password'));
+document.getElementById('methodMagicBtn').addEventListener('click', ()=> setMethod('magic'));
+
+document.getElementById('addAccountForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = document.getElementById('newAccountEmail').value.trim();
+  const role = document.getElementById('newAccountRole').value;
+  const password = document.getElementById('newAccountPassword').value;
+  const errorEl = document.getElementById('addAccountError');
+  const successEl = document.getElementById('addAccountSuccess');
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  const btn = document.getElementById('addAccountBtn');
+  btn.disabled = true; btn.textContent = 'Ajout…';
+
+  let result;
+  if(createMethod === 'password'){
+    if(password.length < 6){
+      errorEl.textContent = 'Le mot de passe doit faire au moins 6 caractères.';
+      errorEl.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Ajouter';
+      return;
+    }
+    result = await CurieuxDB.createAccountWithPassword(email, password);
+  } else {
+    result = await CurieuxDB.sendMagicLinkInvite(email);
+  }
+
+  const alreadyRegistered = result.error && /already registered|already exists/i.test(result.error.message);
+  if(result.error && !alreadyRegistered){
+    errorEl.textContent = result.error.message;
+    errorEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Ajouter';
+    return;
+  }
+
+  const { error: roleError } = await CurieuxDB.setAccountRole(email, role);
+  btn.disabled = false; btn.textContent = 'Ajouter';
+  if(roleError){
+    errorEl.textContent = "Compte créé mais l'ajout à la liste d'accès a échoué : " + roleError.message;
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  if(alreadyRegistered){
+    successEl.textContent = 'Ce compte existait déjà — accès accordé avec le rôle choisi.';
+  } else {
+    successEl.textContent = createMethod === 'password'
+      ? 'Compte créé et ajouté à la liste d\'accès.'
+      : 'Lien envoyé par email, compte ajouté à la liste d\'accès dès sa création.';
+  }
+  successEl.style.display = 'block';
+  document.getElementById('addAccountForm').reset();
+  setMethod('password');
+
+  if(!accountsCache.some(a=> a.email === email)) accountsCache.push({ email, role });
+  else accountsCache.find(a=> a.email === email).role = role;
+  renderAccounts();
+  document.querySelectorAll('.stat-card .num')[3].textContent = accountsCache.length;
+});
+
+function logSummary(entry){
+  if(entry.table_name === 'infos_sociales'){
+    if(entry.action === 'DELETE') return 'Fiche supprimée';
+    if(entry.action === 'INSERT') return 'Fiche créée';
+    const fields = (entry.new_data && entry.new_data.fields_changed) || [];
+    return fields.length ? `Champs modifiés : ${fields.join(', ')}` : 'Modification';
+  }
+  return { INSERT: 'Création', UPDATE: 'Modification', DELETE: 'Suppression' }[entry.action] || entry.action;
+}
+
+function renderLog(){
+  const search = (document.getElementById('logSearch').value || '').trim().toLowerCase();
+  const filtered = search
+    ? logCache.filter(e=>
+        e.row_id.toLowerCase().includes(search) ||
+        (personNames[e.row_id] || '').toLowerCase().includes(search) ||
+        (TABLE_LABELS[e.table_name] || e.table_name).toLowerCase().includes(search))
+    : logCache;
+
+  const list = document.getElementById('logList');
+  const empty = document.getElementById('logEmpty');
+  if(filtered.length === 0){
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  list.innerHTML = filtered.map(e=>{
+    const personName = personNames[e.row_id];
+    const who = e.changed_by || 'lien personnel / système';
+    const when = new Date(e.changed_at).toLocaleString('fr-FR');
+    const showDetail = e.table_name !== 'infos_sociales' && (e.old_data || e.new_data);
+    return `
+      <div class="log-entry">
+        <div class="log-meta">
+          <span class="log-action ${e.action}">${e.action}</span>
+          <strong>${escapeHtml(TABLE_LABELS[e.table_name] || e.table_name)}</strong>
+          ${personName ? `— ${escapeHtml(personName)}` : `— <code>${escapeHtml(e.row_id)}</code>`}
+          <span>· ${escapeHtml(who)}</span>
+          <span>· ${escapeHtml(when)}</span>
+        </div>
+        <div class="log-detail">${escapeHtml(logSummary(e))}</div>
+        ${showDetail ? `
+        <details class="log-detail">
+          <summary>Voir le détail</summary>
+          <pre>${escapeHtml(JSON.stringify({ avant: e.old_data, apres: e.new_data }, null, 2))}</pre>
+        </details>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadLog(){
+  const table = document.getElementById('logTableFilter').value;
+  logCache = await CurieuxDB.fetchAuditLog(table || undefined);
+  renderLog();
+}
+
+document.getElementById('logTableFilter').addEventListener('change', loadLog);
+document.getElementById('logSearch').addEventListener('input', renderLog);
+
+(async ()=>{
+  await loadStats();
+  await loadLog();
+})();
+</script>
+</body>
+</html>
