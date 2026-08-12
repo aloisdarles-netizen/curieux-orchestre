@@ -192,6 +192,10 @@ create table if not exists infos_sociales (
   titulaire_compte text default '',
   num_conges_spectacles text default '',
   num_audiens text default '',
+  contact_urgence_nom text default '',
+  contact_urgence_tel text default '',
+  permis_conduire_numero text default '',
+  permis_conduire_validite date,
   extra jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -200,6 +204,13 @@ create table if not exists infos_sociales (
 -- ça n'avait pas de sens de les demander à la personne embauchée) par
 -- num_conges_spectacles, ajouté après coup pour une base déjà provisionnée.
 alter table infos_sociales add column if not exists num_conges_spectacles text default '';
+-- Contact d'urgence et permis de conduire (utile pour qui conduit le
+-- tourbus) : ajoutés après coup, mêmes colonnes que le "create table" ci-dessus
+-- pour une base déjà provisionnée.
+alter table infos_sociales add column if not exists contact_urgence_nom text default '';
+alter table infos_sociales add column if not exists contact_urgence_tel text default '';
+alter table infos_sociales add column if not exists permis_conduire_numero text default '';
+alter table infos_sociales add column if not exists permis_conduire_validite date;
 drop trigger if exists trg_infos_sociales_updated_at on infos_sociales;
 create trigger trg_infos_sociales_updated_at before update on infos_sociales
   for each row execute function set_updated_at();
@@ -220,6 +231,83 @@ create policy "admins only" on infos_sociales
   for all
   using (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email'))
   with check (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email'));
+
+-- Auto-saisie (mes-infos.html) : PAS de compte séparé — on réutilise le même
+-- lien personnel imprévisible que pour les dispos (dispo_demandes.id comme
+-- token dans l'URL, voir dispo-titulaire.html). infos_sociales reste
+-- interdite d'accès direct à la clé anonyme (seule "admins only" ci-dessus y
+-- touche) ; l'auto-saisie passe par deux fonctions SECURITY DEFINER qui
+-- valident le token contre dispo_demandes AVANT de lire/écrire, en
+-- contournant volontairement le RLS de la table une fois le token vérifié —
+-- c'est le seul chemin par lequel un token donne accès à une ligne précise.
+create or replace function get_own_infos_sociales(p_token text)
+returns setof infos_sociales
+language sql
+security definer
+set search_path = public
+as $$
+  select s.* from infos_sociales s
+  join dispo_demandes d on d.person_id = s.id
+  where d.id = p_token;
+$$;
+
+create or replace function upsert_own_infos_sociales(p_token text, p_payload jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_person_id text;
+  v_person_type text;
+begin
+  select person_id, person_type into v_person_id, v_person_type
+  from dispo_demandes where id = p_token;
+
+  if v_person_id is null then
+    raise exception 'Lien invalide';
+  end if;
+
+  insert into infos_sociales (
+    id, person_type, date_naissance, lieu_naissance, nationalite, adresse,
+    num_secu, iban, bic, titulaire_compte, num_conges_spectacles, num_audiens,
+    contact_urgence_nom, contact_urgence_tel, permis_conduire_numero,
+    permis_conduire_validite, extra
+  ) values (
+    v_person_id, v_person_type,
+    nullif(p_payload->>'date_naissance','')::date, p_payload->>'lieu_naissance',
+    p_payload->>'nationalite', p_payload->>'adresse',
+    p_payload->>'num_secu', p_payload->>'iban', p_payload->>'bic', p_payload->>'titulaire_compte',
+    p_payload->>'num_conges_spectacles', p_payload->>'num_audiens',
+    p_payload->>'contact_urgence_nom', p_payload->>'contact_urgence_tel',
+    p_payload->>'permis_conduire_numero', nullif(p_payload->>'permis_conduire_validite','')::date,
+    coalesce(p_payload->'extra', '{}'::jsonb)
+  )
+  on conflict (id) do update set
+    person_type = excluded.person_type,
+    date_naissance = excluded.date_naissance,
+    lieu_naissance = excluded.lieu_naissance,
+    nationalite = excluded.nationalite,
+    adresse = excluded.adresse,
+    num_secu = excluded.num_secu,
+    iban = excluded.iban,
+    bic = excluded.bic,
+    titulaire_compte = excluded.titulaire_compte,
+    num_conges_spectacles = excluded.num_conges_spectacles,
+    num_audiens = excluded.num_audiens,
+    contact_urgence_nom = excluded.contact_urgence_nom,
+    contact_urgence_tel = excluded.contact_urgence_tel,
+    permis_conduire_numero = excluded.permis_conduire_numero,
+    permis_conduire_validite = excluded.permis_conduire_validite,
+    extra = excluded.extra;
+end;
+$$;
+
+-- La validation du token est DANS la fonction, pas dans le grant : donner
+-- l'exécution à la clé anonyme est donc sans risque, comme le reste de l'app
+-- publique — sans token valide, les fonctions ne renvoient/n'écrivent rien.
+grant execute on function get_own_infos_sociales(text) to anon, authenticated;
+grant execute on function upsert_own_infos_sociales(text, jsonb) to anon, authenticated;
 
 -- ============================================================================
 -- RLS : accès public en lecture/écriture (pas de compte utilisateur).

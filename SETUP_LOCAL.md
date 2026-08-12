@@ -90,3 +90,14 @@ l'étape 2 ci-dessus) : SQL Editor → `insert into infos_sociales_admins (email
 values ('email@exemple.fr');`. Pour retirer l'accès de quelqu'un : `delete from
 infos_sociales_admins where email = 'email@exemple.fr';` (son compte Auth continue
 d'exister, il perd juste l'accès à cette table précise).
+
+### Auto-saisie côté musicien·nes/technicien·nes (mes-infos.html)
+
+En plus de la saisie côté admin ci-dessus, chaque musicien·ne/technicien·ne peut
+remplir et mettre à jour ses propres infos sociales sur `mes-infos.html`, accessible
+depuis le même lien personnel que ses réponses de disponibilité
+(`dispo-titulaire.html` — un lien "🔒 Renseigner mes infos" y a été ajouté). Pas de
+compte à créer : le token du lien fait office d'identification, exactement comme
+pour les dispos. Rien à configurer manuellement pour cette partie — `migrations.sql`
+suffit (il crée les fonctions `get_own_infos_sociales`/`upsert_own_infos_sociales`
+qui vérifient le token avant de toucher `infos_sociales`).

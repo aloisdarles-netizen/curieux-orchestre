@@ -155,7 +155,7 @@ function fmtDateFRShort(iso){
   const short = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
   return `${parseInt(d,10)} ${short[parseInt(m,10)-1]}`;
 }
-let state = { demande:null, tournee:null, person:null, personType:null };
+let state = { demande:null, token:null, tournee:null, person:null, personType:null };
 
 function showState(html){
   document.getElementById('content').innerHTML = `<div class="state-box">${html}</div>`;
@@ -177,6 +177,7 @@ async function init(){
   if(!tourneeRes.data || !personRes.data){ showState("Cette tournée ou cette fiche n'existe plus."); return; }
 
   state.demande = demande;
+  state.token = token;
   state.tournee = tourneeRes.data;
   state.personType = demande.person_type;
   state.person = personRes.data;
@@ -213,6 +214,7 @@ function render(){
       Bonjour <strong>${escapeHtml(fullName(state.person))}</strong> — merci de compléter tes dispo pour
       <strong>${escapeHtml(state.tournee.nom || 'la tournée')}</strong>${restrictedIds ? ', sur les dates ci-dessous uniquement' : ''}.
       <div class="identity-note">Ce lien t'est personnel, pas la peine de le transférer. Tu peux revenir dessus à tout moment pour mettre à jour tes réponses.</div>
+      <div class="identity-note">🔒 <a href="mes-infos.html?token=${encodeURIComponent(state.token)}">Renseigner mes infos pour une éventuelle embauche</a> (identité, RIB, n° sécu…).</div>
     </div>
     <div class="contact-card">
       <div class="contact-card-label">Tes coordonnées (visibles dans l'annuaire de la prod)</div>

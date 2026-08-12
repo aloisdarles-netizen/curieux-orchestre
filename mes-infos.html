@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Mes infos</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<!-- Page volontairement PUBLIQUE (pas de mot de passe d'accueil), comme
+     dispo-titulaire.html : c'est le même lien personnel imprévisible
+     (dispo_demandes.id) qui sert d'identification, pas un compte. -->
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --champagne:#fde3ee; --old-champagne:#c98aa0;
+    --ok:#2f8f5b; --ok-tint:#e2f4ea;
+    --radius:12px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --champagne:#3a2530; --old-champagne:#7a5064;
+    --ok:#5fbf8a; --ok-tint:#1c3327;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:20px 14px 80px;
+  }
+  .wrap{max-width:640px; margin:0 auto;}
+  .brand-logo-img{height:30px; width:auto; display:block; margin:0 0 22px;}
+  .state-box{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:22px 20px; text-align:center; color:var(--muted); font-size:14px;}
+
+  .identity-banner{
+    background:var(--champagne); border-radius:var(--radius); padding:14px 18px; margin-bottom:16px; font-size:14px;
+  }
+  .identity-banner strong{color:var(--accent-dark);}
+  .identity-note{font-size:11.5px; color:var(--muted); margin-top:4px;}
+
+  h1{font-size:20px; margin:0 0 6px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+
+  label{font-size:12px; color:var(--muted); font-weight:600;}
+  input[type=text], input[type=date], textarea{
+    padding:9px 11px; border:1px solid var(--border); border-radius:6px; font-size:14px;
+    width:100%; background:var(--card); color:var(--text); font-family:inherit;
+  }
+  textarea{min-height:56px; resize:vertical;}
+  input:focus, textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .field-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .field-row .field{flex:1 1 160px;}
+
+  .section-label{
+    font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
+    margin:18px 0 8px;
+  }
+  .section-label:first-child{margin-top:4px;}
+  .extra-row{display:flex; gap:8px; align-items:flex-end; margin-bottom:8px;}
+  .extra-row .field{margin-bottom:0;}
+  .save-hint{font-size:11.5px; color:var(--muted); margin-top:10px;}
+  .save-hint.ok{color:var(--ok);}
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:12.5px; font-weight:700;
+    padding:9px 14px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-ghost:hover{background:var(--border); color:var(--text);}
+
+  @media (max-width:600px){
+    input, textarea{ font-size:16px !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+  <div id="content"><div class="state-box">Chargement…</div></div>
+</div>
+
+<script>
+function escapeHtml(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s); }
+function fullName(p){ return `${p.prenom || ''} ${p.nom || ''}`.trim() || 'Sans nom'; }
+
+let state = { token:null, person:null, personType:null, info:null };
+
+function showState(html){
+  document.getElementById('content').innerHTML = `<div class="state-box">${html}</div>`;
+}
+
+async function init(){
+  if(!window.supabase){ showState("La librairie n'a pas pu être chargée. Réessaie dans un instant."); return; }
+  const token = new URLSearchParams(location.search).get('token');
+  if(!token){ showState("Lien invalide — il manque le jeton d'accès."); return; }
+
+  const { data: demande } = await supabaseClient.from('dispo_demandes').select('*').eq('id', token).maybeSingle();
+  if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
+
+  const personTable = demande.person_type === 'musicien' ? 'musiciens' : 'techniciens';
+  const { data: person } = await supabaseClient.from(personTable).select('*').eq('id', demande.person_id).maybeSingle();
+  if(!person){ showState("Cette fiche n'existe plus."); return; }
+
+  state.token = token;
+  state.person = person;
+  state.personType = demande.person_type;
+  state.info = (await CurieuxDB.getInfosSocialesByToken(token)) || { extra: {} };
+
+  render();
+}
+
+function render(){
+  const info = state.info;
+  const extraEntries = Object.entries(info.extra || {});
+  const extraRows = extraEntries.map(([label, value])=> `
+    <div class="extra-row" data-extra-row>
+      <div class="field"><label>Nom du champ</label><input type="text" data-extra-label value="${escapeAttr(label)}"></div>
+      <div class="field"><label>Valeur</label><input type="text" data-extra-value value="${escapeAttr(value)}"></div>
+      <button type="button" class="btn-ghost" data-remove-extra>Retirer</button>
+    </div>
+  `).join('');
+
+  document.getElementById('content').innerHTML = `
+    <h1>Mes infos</h1>
+    <div class="identity-banner">
+      Bonjour <strong>${escapeHtml(fullName(state.person))}</strong> — ces informations servent à préparer une
+      éventuelle embauche (identité civile, n° sécu, RIB, statut intermittent).
+      <div class="identity-note">Ce lien t'est personnel, pas la peine de le transférer. Tu peux revenir dessus à tout moment pour mettre à jour tes infos.</div>
+    </div>
+
+    <div class="section-label">Identité civile</div>
+    <div class="field-row">
+      <div class="field"><label>Date de naissance</label><input type="date" data-info-field="dateNaissance" value="${escapeAttr(info.dateNaissance || '')}"></div>
+      <div class="field"><label>Lieu de naissance</label><input type="text" data-info-field="lieuNaissance" value="${escapeAttr(info.lieuNaissance || '')}"></div>
+      <div class="field"><label>Nationalité</label><input type="text" data-info-field="nationalite" value="${escapeAttr(info.nationalite || '')}"></div>
+    </div>
+    <div class="field">
+      <label>Adresse postale</label>
+      <textarea data-info-field="adresse">${escapeHtml(info.adresse || '')}</textarea>
+    </div>
+
+    <div class="section-label">Sécurité sociale</div>
+    <div class="field">
+      <label>N° de sécurité sociale (NIR)</label>
+      <input type="text" data-info-field="numSecu" value="${escapeAttr(info.numSecu || '')}">
+    </div>
+
+    <div class="section-label">Coordonnées bancaires</div>
+    <div class="field-row">
+      <div class="field"><label>IBAN</label><input type="text" data-info-field="iban" value="${escapeAttr(info.iban || '')}"></div>
+      <div class="field"><label>BIC</label><input type="text" data-info-field="bic" value="${escapeAttr(info.bic || '')}"></div>
+    </div>
+    <div class="field">
+      <label>Titulaire du compte</label>
+      <input type="text" data-info-field="titulaireCompte" value="${escapeAttr(info.titulaireCompte || '')}">
+    </div>
+
+    <div class="section-label">Statut intermittent</div>
+    <div class="field-row">
+      <div class="field"><label>N° Congés Spectacles</label><input type="text" data-info-field="numCongesSpectacles" value="${escapeAttr(info.numCongesSpectacles || '')}"></div>
+      <div class="field"><label>N° Audiens</label><input type="text" data-info-field="numAudiens" value="${escapeAttr(info.numAudiens || '')}"></div>
+    </div>
+
+    <div class="section-label">Contact d'urgence</div>
+    <div class="field-row">
+      <div class="field"><label>Nom</label><input type="text" data-info-field="contactUrgenceNom" value="${escapeAttr(info.contactUrgenceNom || '')}"></div>
+      <div class="field"><label>Téléphone</label><input type="text" data-info-field="contactUrgenceTel" value="${escapeAttr(info.contactUrgenceTel || '')}"></div>
+    </div>
+
+    <div class="section-label">Permis de conduire</div>
+    <div class="field-row">
+      <div class="field"><label>N°</label><input type="text" data-info-field="permisConduireNumero" value="${escapeAttr(info.permisConduireNumero || '')}"></div>
+      <div class="field"><label>Validité</label><input type="date" data-info-field="permisConduireValidite" value="${escapeAttr(info.permisConduireValidite || '')}"></div>
+    </div>
+
+    <div class="section-label">Champs personnalisés</div>
+    <div data-extra-holder>${extraRows}</div>
+    <button type="button" class="btn-secondary" id="addExtraBtn">+ Ajouter un champ</button>
+
+    <div class="save-hint" id="saveHint"></div>
+  `;
+  bindEvents();
+}
+
+let saveTimer = null;
+function scheduleSave(){
+  clearTimeout(saveTimer);
+  const hint = document.getElementById('saveHint');
+  if(hint){ hint.textContent = 'Enregistrement…'; hint.classList.remove('ok'); }
+  saveTimer = setTimeout(async ()=>{
+    const { error } = await CurieuxDB.upsertInfosSocialesByToken(state.token, state.info);
+    if(hint) { hint.textContent = error ? "Erreur d'enregistrement — réessaie." : 'Enregistré ✓'; hint.classList.toggle('ok', !error); }
+  }, 500);
+}
+
+function bindEvents(){
+  document.querySelectorAll('[data-info-field]').forEach(el=>{
+    el.addEventListener('input', ()=>{
+      state.info[el.dataset.infoField] = el.value;
+      scheduleSave();
+    });
+  });
+
+  document.getElementById('addExtraBtn').addEventListener('click', ()=>{
+    if(!state.info.extra) state.info.extra = {};
+    let n = 1, key = 'Nouveau champ';
+    while(Object.prototype.hasOwnProperty.call(state.info.extra, key)){ n++; key = `Nouveau champ ${n}`; }
+    state.info.extra[key] = '';
+    const holder = document.querySelector('[data-extra-holder]');
+    holder.insertAdjacentHTML('beforeend', `
+      <div class="extra-row" data-extra-row>
+        <div class="field"><label>Nom du champ</label><input type="text" data-extra-label value="${escapeAttr(key)}"></div>
+        <div class="field"><label>Valeur</label><input type="text" data-extra-value value=""></div>
+        <button type="button" class="btn-ghost" data-remove-extra>Retirer</button>
+      </div>
+    `);
+    bindExtraRow(holder.lastElementChild);
+  });
+
+  document.querySelectorAll('[data-extra-row]').forEach(bindExtraRow);
+}
+
+function bindExtraRow(row){
+  const labelInput = row.querySelector('[data-extra-label]');
+  const valueInput = row.querySelector('[data-extra-value]');
+  const removeBtn = row.querySelector('[data-remove-extra]');
+  let previousLabel = labelInput.value;
+
+  const sync = ()=>{
+    if(!state.info.extra) state.info.extra = {};
+    if(labelInput.value !== previousLabel){
+      delete state.info.extra[previousLabel];
+      previousLabel = labelInput.value;
+    }
+    state.info.extra[labelInput.value] = valueInput.value;
+    scheduleSave();
+  };
+  labelInput.addEventListener('input', sync);
+  valueInput.addEventListener('input', sync);
+  removeBtn.addEventListener('click', ()=>{
+    if(state.info.extra) delete state.info.extra[previousLabel];
+    row.remove();
+    scheduleSave();
+  });
+}
+
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+init();
+</script>
+</body>
+</html>

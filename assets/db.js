@@ -217,8 +217,8 @@ const CurieuxDB = (()=>{
       .subscribe();
   }
 
-  // --- Auth (utilisé uniquement par infos-sociales.html — le reste de l'app
-  // reste en accès public via la clé anonyme, voir DEPLOYMENT.md). ---
+  // --- Auth (utilisé uniquement par infos-sociales.html, la page admin — le
+  // reste de l'app reste en accès public via la clé anonyme, voir DEPLOYMENT.md). ---
   async function signIn(email, password){
     if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
     return supabaseClient.auth.signInWithPassword({ email, password });
@@ -249,8 +249,29 @@ const CurieuxDB = (()=>{
     return !!data;
   }
 
+  // --- Auto-saisie par lien personnel (mes-infos.html, même token que
+  // dispo-titulaire.html) : pas d'auth, le token EST l'identification. Passe
+  // par des fonctions Postgres dédiées (get/upsert_own_infos_sociales) qui
+  // valident le token contre dispo_demandes avant de toucher infos_sociales —
+  // la table elle-même reste fermée à la clé anonyme (voir migrations.sql). ---
+  async function getInfosSocialesByToken(token){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('get_own_infos_sociales', { p_token: token });
+    if(error){ console.warn('[CurieuxDB] getInfosSocialesByToken', error.message); return null; }
+    const row = (data || [])[0];
+    return row ? adapterFor('infos_sociales').fromDb(row) : null;
+  }
+  async function upsertInfosSocialesByToken(token, item){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const payload = adapterFor('infos_sociales').toDb(item);
+    const { error } = await supabaseClient.rpc('upsert_own_infos_sociales', { p_token: token, p_payload: payload });
+    if(error) console.warn('[CurieuxDB] upsertInfosSocialesByToken', error.message);
+    return { error };
+  }
+
   return {
     fetchAll, syncCollection, upsertOne, removeOne, fetchSnapshot, saveSnapshot, subscribe,
-    signIn, signOut, getSession, onAuthStateChange, isInfosSocialesAdmin
+    signIn, signOut, getSession, onAuthStateChange, isInfosSocialesAdmin,
+    getInfosSocialesByToken, upsertInfosSocialesByToken
   };
 })();
