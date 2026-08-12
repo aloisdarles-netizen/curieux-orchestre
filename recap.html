@@ -206,6 +206,9 @@
     <span><span class="swatch dispo"></span> Dispo (non affecté·e)</span>
     <span><span class="swatch indispo"></span> Indispo</span>
     <span><span class="swatch incertain"></span> À confirmer</span>
+    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:var(--muted);">
+      <input type="checkbox" id="showPastDates"> Afficher aussi les dates passées
+    </label>
     <span style="margin-left:auto; display:flex; gap:8px; align-items:center;">
       <select id="pdfTourneeSelect" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; background:var(--card); color:var(--text); font-family:inherit;">
         <option value="">Toutes les tournées</option>
@@ -253,6 +256,8 @@ function fmtDateFRShort(iso){
   return `${parseInt(d,10)} ${months[parseInt(m,10)-1]}`;
 }
 
+let showPastDates = false;
+
 function allDateEntries(assignField, tourneeId){
   const tournees = tourneeId ? loadTournees().filter(t=>t.id === tourneeId) : loadTournees();
   const entries = [];
@@ -263,6 +268,10 @@ function allDateEntries(assignField, tourneeId){
     });
   });
   entries.sort((a,b)=> a.date.localeCompare(b.date));
+  if(!showPastDates){
+    const today = new Date().toISOString().slice(0, 10);
+    return entries.filter(e=> e.date >= today);
+  }
   return entries;
 }
 
@@ -285,7 +294,9 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     return;
   }
   if(entries.length === 0){
-    holder.innerHTML = `<div class="empty-hint">Aucune date pour l'instant.</div>`;
+    holder.innerHTML = !showPastDates && loadTournees().some(t=> (t.dates||[]).some(d=> d.date))
+      ? `<div class="empty-hint">Aucune date à venir — coche « Afficher aussi les dates passées » ci-dessus pour voir l'historique.</div>`
+      : `<div class="empty-hint">Aucune date pour l'instant.</div>`;
     return;
   }
 
@@ -439,6 +450,7 @@ function renderDashboard(){
   `).join('');
 }
 document.getElementById('musicienStatutFilter').addEventListener('change', renderAll);
+document.getElementById('showPastDates').addEventListener('change', e=>{ showPastDates = e.target.checked; renderAll(); });
 
 injectCurieuxFonts();
 initNavDropdowns();

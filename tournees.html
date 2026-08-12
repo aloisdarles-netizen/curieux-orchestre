@@ -238,6 +238,11 @@
 
   <div id="tourneesHolder"></div>
 
+  <details id="pastTourneesWrap" style="display:none; margin-bottom:20px;">
+    <summary style="cursor:pointer; font-weight:700; color:var(--muted); padding:10px 4px;">Tournées passées (<span id="pastTourneesCount">0</span>)</summary>
+    <div id="pastTourneesHolder"></div>
+  </details>
+
   <div class="tournee-card" id="undatedWrap" style="display:none;">
     <div class="tournee-name" style="margin-bottom:14px;">Feuilles de route sans date</div>
     <div id="undatedList"></div>
@@ -622,19 +627,7 @@ document.getElementById('assignSave').addEventListener('click', ()=>{
   render();
 });
 
-function render(){
-  const tournees = loadTournees();
-  const fdrs = loadFdrCollection();
-  const musicians = loadMusicians();
-  const musicianById = new Map(musicians.map(m=>[m.id, m]));
-  const technicians = loadTechnicians();
-  const technicianById = new Map(technicians.map(m=>[m.id, m]));
-  const holder = document.getElementById('tourneesHolder');
-
-  if(tournees.length === 0){
-    holder.innerHTML = `<div class="empty-hint">Aucune tournée pour l'instant — crée-en une ci-dessus.</div>`;
-  } else {
-    holder.innerHTML = tournees.map(t=>{
+function renderTourneeCard(t, fdrs, musicianById, technicianById){
       const dates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
       const blocMap = computeBlocMap(dates);
       const rows = dates.map((d, dIdx)=>{
@@ -765,10 +758,45 @@ function render(){
           ` : `<div class="empty-hint">Aucune date pour l'instant.</div>`}
         </div>
       `;
-    }).join('');
+}
 
-    bindTourneeEvents();
+function render(){
+  const tournees = loadTournees();
+  const fdrs = loadFdrCollection();
+  const musicians = loadMusicians();
+  const musicianById = new Map(musicians.map(m=>[m.id, m]));
+  const technicians = loadTechnicians();
+  const technicianById = new Map(technicians.map(m=>[m.id, m]));
+  const holder = document.getElementById('tourneesHolder');
+
+  // Une tournée "passée" a au moins une date, et toutes ses dates sont derrière
+  // nous — elle est repliée dans une section à part pour ne pas polluer la liste
+  // de travail au fil des saisons (voir aussi disponibilites.html/recap.html).
+  const today = new Date().toISOString().slice(0, 10);
+  const isPastTournee = tr => (tr.dates||[]).length > 0 && (tr.dates||[]).every(d=> d.date && d.date < today);
+  const upcoming = tournees.filter(t=> !isPastTournee(t));
+  const past = tournees.filter(isPastTournee);
+
+  if(tournees.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Aucune tournée pour l'instant — crée-en une ci-dessus.</div>`;
+  } else if(upcoming.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Aucune tournée à venir — ${past.length} tournée${past.length>1?'s':''} passée${past.length>1?'s':''} plus bas.</div>`;
+  } else {
+    holder.innerHTML = upcoming.map(t=> renderTourneeCard(t, fdrs, musicianById, technicianById)).join('');
   }
+
+  const pastWrap = document.getElementById('pastTourneesWrap');
+  const pastHolder = document.getElementById('pastTourneesHolder');
+  const pastCount = document.getElementById('pastTourneesCount');
+  if(past.length){
+    pastWrap.style.display = 'block';
+    pastCount.textContent = past.length;
+    pastHolder.innerHTML = past.map(t=> renderTourneeCard(t, fdrs, musicianById, technicianById)).join('');
+  } else {
+    pastWrap.style.display = 'none';
+  }
+
+  bindTourneeEvents();
 
   const undated = fdrs.filter(f=>!f.eventDate);
   const undatedWrap = document.getElementById('undatedWrap');
