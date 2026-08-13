@@ -424,7 +424,15 @@ function render(){
   const titulaireTechniciens = loadTechnicians().filter(t=> (t.statutPoste||'titulaire') === 'titulaire')
     .slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
 
-  holder.innerHTML = tournees.map(t=>{
+  // Une tournée "passée" (toutes ses dates derrière nous) est repliée dans une
+  // section à part, pour ne pas rendre la page illisible au fil des saisons
+  // (même règle que tournees.html).
+  const today = new Date().toISOString().slice(0, 10);
+  const isPastTournee = tr => (tr.dates||[]).length > 0 && (tr.dates||[]).every(d=> d.date && d.date < today);
+  const upcomingTournees = tournees.filter(t=> !isPastTournee(t));
+  const pastTournees = tournees.filter(isPastTournee);
+
+  const renderTourneeCard = (t) => {
     const answerableDates = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
     const demandes = loadDispoDemandes();
     const demandedRemplacantIds = new Set(
@@ -462,7 +470,18 @@ function render(){
         </div>
       </div>
     `;
-  }).join('');
+  };
+
+  const upcomingHtml = upcomingTournees.length
+    ? upcomingTournees.map(renderTourneeCard).join('')
+    : (pastTournees.length ? `<div class="empty-hint">Aucune tournée à venir — ${pastTournees.length} tournée${pastTournees.length>1?'s':''} passée${pastTournees.length>1?'s':''} plus bas.</div>` : '');
+  const pastHtml = pastTournees.length
+    ? `<details style="margin-top:20px;">
+        <summary style="cursor:pointer; font-weight:700; color:var(--muted); padding:10px 4px;">Tournées passées (${pastTournees.length})</summary>
+        ${pastTournees.map(renderTourneeCard).join('')}
+      </details>`
+    : '';
+  holder.innerHTML = upcomingHtml + pastHtml;
 
   holder.querySelectorAll('[data-remplacant-search]').forEach(input=>{
     input.addEventListener('input', (e)=>{
