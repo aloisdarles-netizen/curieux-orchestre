@@ -440,6 +440,81 @@ $$;
 grant execute on function get_own_infos_sociales(text) to anon, authenticated;
 grant execute on function upsert_own_infos_sociales(text, jsonb) to anon, authenticated;
 
+-- ----------------------------------------------------------------------------
+-- remplacant_prefs — liste personnelle et permanente des remplaçant·es
+-- classé·es (rang 1 = principal, jusqu'à 10) par chaque titulaire, gérée
+-- depuis mes-remplacants.html. Une ligne par titulaire ("id" = son person_id,
+-- espace d'id déjà partagé musiciens/techniciens, préfixé mus/tech). "items"
+-- est un tableau JSONB, chaque entrée soit un renvoi vers une personne déjà
+-- au répertoire ({source:'roster', personId, personType}), soit une personne
+-- pas encore connue de l'app ({source:'new', nom, prenom, telephone, email})
+-- saisie directement par le titulaire — volontairement PAS insérée dans
+-- musiciens/techniciens (répertoire géré par l'admin), pour ne pas le
+-- polluer avec des fiches incomplètes/non vérifiées depuis une page publique.
+-- Comme infos_sociales/dispo_demandes, contient des coordonnées de tiers :
+-- fermée à la clé anonyme, accès uniquement via les deux fonctions
+-- SECURITY DEFINER ci-dessous qui valident le token contre dispo_demandes —
+-- N'IMPORTE LEQUEL des tokens déjà envoyés à ce titulaire (une tournée
+-- passée suffit) permet de gérer cette liste permanente, pas besoin d'un
+-- nouveau token dédié.
+-- ----------------------------------------------------------------------------
+create table if not exists remplacant_prefs (
+  id text primary key,
+  person_type text not null check (person_type in ('musicien','technicien')),
+  items jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_remplacant_prefs_updated_at on remplacant_prefs;
+create trigger trg_remplacant_prefs_updated_at before update on remplacant_prefs
+  for each row execute function set_updated_at();
+
+alter table remplacant_prefs enable row level security;
+drop policy if exists "admin access" on remplacant_prefs;
+create policy "admin access" on remplacant_prefs
+  for all
+  using (has_access())
+  with check (has_access());
+
+create or replace function get_own_remplacant_prefs(p_token text)
+returns setof remplacant_prefs
+language sql
+security definer
+set search_path = public
+as $$
+  select r.* from remplacant_prefs r
+  join dispo_demandes d on d.person_id = r.id
+  where d.id = p_token;
+$$;
+
+create or replace function upsert_own_remplacant_prefs(p_token text, p_items jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_person_id text;
+  v_person_type text;
+begin
+  select person_id, person_type into v_person_id, v_person_type
+  from dispo_demandes where id = p_token;
+
+  if v_person_id is null then
+    raise exception 'Lien invalide';
+  end if;
+
+  insert into remplacant_prefs (id, person_type, items)
+  values (v_person_id, v_person_type, p_items)
+  on conflict (id) do update set
+    person_type = excluded.person_type,
+    items = excluded.items;
+end;
+$$;
+
+grant execute on function get_own_remplacant_prefs(text) to anon, authenticated;
+grant execute on function upsert_own_remplacant_prefs(text, jsonb) to anon, authenticated;
+
 -- ============================================================================
 -- RLS : accès public en lecture/écriture (pas de compte utilisateur).
 -- infos_sociales / infos_sociales_admins / dispo_demandes font exception (voir

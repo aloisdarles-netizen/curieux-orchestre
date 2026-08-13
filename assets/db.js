@@ -403,6 +403,24 @@ const CurieuxDB = (()=>{
     return { error };
   }
 
+  // Liste personnelle de remplaçant·es classé·es (mes-remplacants.html, même
+  // token que dispo-titulaire.html/mes-infos.html) : même principe que
+  // getInfosSocialesByToken, la table remplacant_prefs reste fermée à la clé
+  // anonyme, tout passe par ces deux fonctions Postgres dédiées.
+  async function getRemplacantPrefsByToken(token){
+    if(!supabaseClient) return [];
+    const { data, error } = await supabaseClient.rpc('get_own_remplacant_prefs', { p_token: token });
+    if(error){ console.warn('[CurieuxDB] getRemplacantPrefsByToken', error.message); return []; }
+    const row = (data || [])[0];
+    return row && Array.isArray(row.items) ? row.items : [];
+  }
+  async function upsertRemplacantPrefsByToken(token, items){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.rpc('upsert_own_remplacant_prefs', { p_token: token, p_items: items });
+    if(error) console.warn('[CurieuxDB] upsertRemplacantPrefsByToken', error.message);
+    return { error };
+  }
+
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
     signIn, signOut, getSession, onAuthStateChange,
@@ -410,6 +428,7 @@ const CurieuxDB = (()=>{
     listAccounts, setAccountRole, removeAccount,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
-    getDispoDemandeByToken, markDispoRespondedByToken
+    getDispoDemandeByToken, markDispoRespondedByToken,
+    getRemplacantPrefsByToken, upsertRemplacantPrefsByToken
   };
 })();

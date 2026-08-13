@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Mes remplaçant·es</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<!-- Page volontairement PUBLIQUE (pas de mot de passe d'accueil), comme
+     dispo-titulaire.html/mes-infos.html : c'est le même lien personnel
+     imprévisible (dispo_demandes.id, n'importe lequel déjà reçu) qui sert
+     d'identification, pas un compte. -->
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#7a6676;
+    --accent:#791649; --accent-dark:#5a1037; --accent-solid:#791649; --accent-tint:#CEE1F4;
+    --champagne:#fde3ee; --old-champagne:#c98aa0;
+    --ok:#2f8f5b; --ok-tint:#e2f4ea;
+    --danger:#a5313f; --danger-tint:#fbe6e2;
+    --radius:10px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
+    --champagne:#3a2530; --old-champagne:#7a5064;
+    --ok:#7fd9a6; --ok-tint:#1c3327;
+    --danger:#e2685a; --danger-tint:#3d2420;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:20px 14px 80px;
+  }
+  .wrap{max-width:640px; margin:0 auto;}
+  .brand-logo-img{height:30px; width:auto; display:block; margin:0 0 22px;}
+  .state-box{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:22px 20px; text-align:center; color:var(--muted); font-size:14px;}
+
+  .identity-banner{
+    background:var(--champagne); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px; font-size:14px;
+  }
+  .identity-banner strong{color:var(--accent-dark);}
+  .identity-note{font-size:11.5px; color:var(--muted); margin-top:4px;}
+
+  h1{font-size:20px; margin:0 0 6px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+
+  label{font-size:12px; color:var(--muted); font-weight:600;}
+  input[type=text], input[type=tel], input[type=email], select{
+    padding:9px 11px; border:1px solid var(--border); border-radius:6px; font-size:14px;
+    width:100%; background:var(--card); color:var(--text); font-family:inherit;
+  }
+  input:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:10px;}
+  .field-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .field-row .field{flex:1 1 160px;}
+
+  .rr-list{display:flex; flex-direction:column; gap:8px;}
+  .rr-row{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:12px 14px; display:flex; align-items:flex-start; gap:12px;
+  }
+  .rr-row.editing{align-items:stretch;}
+  .rr-rang{
+    flex-shrink:0; width:28px; height:28px; border-radius:50%; background:var(--accent-tint); color:var(--accent-dark);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px;
+  }
+  .rr-row.filled .rr-rang, .rr-row.editing .rr-rang{background:var(--accent-solid); color:#fff;}
+  .rr-info{flex:1; min-width:0;}
+  .rr-name{font-weight:700; font-size:14px;}
+  .rr-sub{font-size:12px; color:var(--muted); margin-top:2px;}
+  .rr-tag-new{
+    display:inline-block; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.02em;
+    padding:1px 6px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); margin-left:6px; vertical-align:middle;
+  }
+  .rr-actions{flex-shrink:0; display:flex; gap:6px;}
+  .rr-btn-edit, .rr-btn-remove, .rr-btn-cancel{
+    background:none; border:1px solid var(--border); border-radius:7px; padding:6px 10px; font-size:12px; font-weight:600;
+    color:var(--text); cursor:pointer; font-family:inherit;
+  }
+  .rr-btn-remove{color:var(--danger); border-color:var(--danger-tint);}
+  .rr-btn-add{
+    flex:1; background:none; border:1.5px dashed var(--border); border-radius:8px; padding:8px 10px; font-size:13px;
+    font-weight:600; color:var(--muted); cursor:pointer; font-family:inherit; text-align:left;
+  }
+  .rr-btn-add:hover{border-color:var(--accent); color:var(--accent-dark);}
+  .rr-edit-body{flex:1; min-width:0; display:flex; flex-direction:column; gap:10px;}
+  .rr-tabs{display:flex; gap:6px;}
+  .rr-tab{
+    background:var(--bg); border:1px solid var(--border); border-radius:20px; padding:6px 12px; font-size:12px;
+    font-weight:700; color:var(--muted); cursor:pointer; font-family:inherit;
+  }
+  .rr-tab.active{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
+  .rr-search-results{display:flex; flex-direction:column; gap:4px; max-height:220px; overflow-y:auto;}
+  .rr-result{
+    padding:8px 10px; border:1px solid var(--border); border-radius:7px; cursor:pointer; background:var(--bg);
+  }
+  .rr-result:hover{border-color:var(--accent);}
+  .rr-result-name{font-weight:700; font-size:13px;}
+  .rr-result-role{font-size:11.5px; color:var(--muted);}
+  .rr-new-form{display:flex; flex-direction:column; gap:4px;}
+  .rr-error{font-size:12px; color:var(--danger); min-height:1em;}
+  .rr-btn-save{
+    align-self:flex-start; background:var(--accent-solid); color:#fff; border:none; border-radius:8px; padding:9px 16px;
+    font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;
+  }
+  .rr-btn-save:hover{background:var(--accent-dark);}
+  .rr-empty-hint{font-size:12px; color:var(--muted); padding:2px 4px 14px;}
+
+  .save-bar{
+    position:fixed; bottom:0; left:0; right:0; z-index:20; display:none;
+    background:var(--card); border-top:1px solid var(--border);
+    box-shadow:0 -8px 24px rgba(0,0,0,.1);
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  .save-bar.visible{display:block;}
+  .save-bar-inner{max-width:640px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .save-status{font-size:12px; color:var(--muted); line-height:1.3;}
+  .save-status.dirty{color:#b8792a; font-weight:700;}
+  .save-status.saved{color:var(--ok); font-weight:700;}
+  .save-btn{
+    flex-shrink:0; padding:11px 20px; border-radius:9px; border:none; background:var(--accent-solid); color:#fff;
+    font-size:13.5px; font-weight:800; cursor:pointer; font-family:inherit; transition:background .15s, opacity .15s;
+  }
+  .save-btn:disabled{opacity:.45; cursor:default;}
+  .save-btn:not(:disabled):hover{background:var(--accent-dark);}
+
+  @media (max-width:600px){
+    input, select{ font-size:16px !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="brand-logo-img" alt="Curieux orchestre">
+  <a href="#" id="backToDispoLink" style="display:none; font-size:12.5px; color:var(--muted); margin:-14px 0 18px; text-decoration:none;">← Revenir à mes disponibilités</a>
+  <div id="content"><div class="state-box">Chargement…</div></div>
+</div>
+<div class="save-bar" id="saveBar">
+  <div class="save-bar-inner">
+    <span class="save-status saved" id="saveStatus">Ta liste est à jour.</span>
+    <button type="button" class="save-btn" id="saveBtn" disabled>Enregistrer ma liste</button>
+  </div>
+</div>
+
+<script>
+
+const RANGS = [1,2,3,4,5,6,7,8,9,10];
+let state = { token:null, person:null, personType:null, items:[], roster:[], editingRang:null, editTab:'search' };
+
+function showState(html){
+  document.getElementById('content').innerHTML = `<div class="state-box">${html}</div>`;
+}
+
+async function init(){
+  if(!window.supabase){ showState("La librairie n'a pas pu être chargée. Réessaie dans un instant."); return; }
+  const token = new URLSearchParams(location.search).get('token');
+  if(!token){ showState("Lien invalide — il manque le jeton d'accès."); return; }
+
+  const { data: demandeRows } = await supabaseClient.rpc('get_dispo_demande_by_token', { p_token: token });
+  const demande = (demandeRows || [])[0];
+  if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
+
+  const personTable = demande.person_type === 'musicien' ? 'musiciens' : 'techniciens';
+  const [personRes, musRes, techRes, items] = await Promise.all([
+    supabaseClient.from(personTable).select('*').eq('id', demande.person_id).maybeSingle(),
+    supabaseClient.from('musiciens').select('*'),
+    supabaseClient.from('techniciens').select('*'),
+    CurieuxDB.getRemplacantPrefsByToken(token)
+  ]);
+  if(!personRes.data){ showState("Cette fiche n'existe plus."); return; }
+
+  state.token = token;
+  state.person = personRes.data;
+  state.personType = demande.person_type;
+  state.items = items || [];
+
+  if((state.person.statut_poste || 'titulaire') !== 'titulaire'){
+    showState("Cette page est réservée aux titulaires — les remplaçant·es n'ont pas de liste à gérer ici.");
+    return;
+  }
+
+  state.roster = [
+    ...(musRes.data || []).map(m=> ({ id:m.id, personType:'musicien', nom:m.nom, prenom:m.prenom, roleLabel: m.instrument || 'Musicien·ne' })),
+    ...(techRes.data || []).map(t=> ({ id:t.id, personType:'technicien', nom:t.nom, prenom:t.prenom, roleLabel: t.poste || 'Technicien·ne' })),
+  ];
+
+  const backLink = document.getElementById('backToDispoLink');
+  backLink.href = 'dispo-titulaire.html?token=' + encodeURIComponent(token);
+  backLink.style.display = 'inline-block';
+
+  render();
+}
+
+function nameKey(nom, prenom){ return `${(nom||'').trim().toLowerCase()}|${(prenom||'').trim().toLowerCase()}`; }
+
+function isDuplicateName(nom, prenom, excludeRang){
+  const target = nameKey(nom, prenom);
+  if(state.roster.some(p=> nameKey(p.nom, p.prenom) === target)) return true;
+  return state.items.some(it=> it.rang !== excludeRang && it.source === 'new' && nameKey(it.nom, it.prenom) === target);
+}
+
+function markDirty(){
+  const status = document.getElementById('saveStatus');
+  const btn = document.getElementById('saveBtn');
+  status.textContent = 'Modifications non enregistrées.';
+  status.className = 'save-status dirty';
+  btn.disabled = false;
+}
+
+async function doSave(){
+  const btn = document.getElementById('saveBtn');
+  const status = document.getElementById('saveStatus');
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement…';
+  const { error } = await CurieuxDB.upsertRemplacantPrefsByToken(state.token, state.items);
+  btn.textContent = 'Enregistrer ma liste';
+  if(error){
+    status.textContent = "Erreur d'enregistrement — réessaie.";
+    status.className = 'save-status dirty';
+    btn.disabled = false;
+  } else {
+    status.textContent = '✓ Liste enregistrée.';
+    status.className = 'save-status saved';
+  }
+}
+document.getElementById('saveBtn').addEventListener('click', doSave);
+
+function rosterLabel(item){
+  return state.roster.find(p=> p.id === item.personId && p.personType === item.personType) || null;
+}
+
+function rowHtml(rang){
+  if(state.editingRang === rang) return editFormHtml(rang);
+
+  const item = state.items.find(it=> it.rang === rang);
+  if(!item){
+    return `
+      <div class="rr-row">
+        <div class="rr-rang">${rang}</div>
+        <button type="button" class="rr-btn-add" data-edit="${rang}">+ Ajouter un·e remplaçant·e</button>
+      </div>
+    `;
+  }
+  const roster = item.source === 'roster' ? rosterLabel(item) : null;
+  const name = roster ? fullName(roster) : `${item.prenom || ''} ${item.nom || ''}`.trim();
+  const sub = roster ? roster.roleLabel : [item.telephone, item.email].filter(Boolean).join(' · ');
+  const tag = item.source === 'new' ? `<span class="rr-tag-new">Pas encore au répertoire</span>` : '';
+  return `
+    <div class="rr-row filled">
+      <div class="rr-rang">${rang}</div>
+      <div class="rr-info">
+        <div class="rr-name">${escapeHtml(name || 'Sans nom')} ${tag}</div>
+        <div class="rr-sub">${escapeHtml(sub || '')}</div>
+      </div>
+      <div class="rr-actions">
+        <button type="button" class="rr-btn-edit" data-edit="${rang}">Modifier</button>
+        <button type="button" class="rr-btn-remove" data-remove="${rang}">Retirer</button>
+      </div>
+    </div>
+  `;
+}
+
+function editFormHtml(rang){
+  const tab = state.editTab || 'search';
+  const item = state.items.find(it=> it.rang === rang);
+  const newVals = item && item.source === 'new' ? item : { prenom:'', nom:'', telephone:'', email:'' };
+  return `
+    <div class="rr-row editing">
+      <div class="rr-rang">${rang}</div>
+      <div class="rr-edit-body">
+        <div class="rr-tabs">
+          <button type="button" class="rr-tab ${tab==='search'?'active':''}" data-tab="search">Dans le répertoire</button>
+          <button type="button" class="rr-tab ${tab==='new'?'active':''}" data-tab="new">Nouvelle personne</button>
+        </div>
+        ${tab === 'search' ? `
+          <input type="text" id="rrSearchInput" placeholder="🔎 Chercher un nom…" autocomplete="off">
+          <div id="rrSearchResults" class="rr-search-results"></div>
+        ` : `
+          <div class="rr-new-form">
+            <div class="field-row">
+              <div class="field"><label for="rrNewPrenom">Prénom</label><input type="text" id="rrNewPrenom" value="${escapeAttr(newVals.prenom || '')}"></div>
+              <div class="field"><label for="rrNewNom">Nom</label><input type="text" id="rrNewNom" value="${escapeAttr(newVals.nom || '')}"></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label for="rrNewTelephone">Téléphone</label><input type="tel" id="rrNewTelephone" value="${escapeAttr(newVals.telephone || '')}"></div>
+              <div class="field"><label for="rrNewEmail">Email (facultatif)</label><input type="email" id="rrNewEmail" value="${escapeAttr(newVals.email || '')}"></div>
+            </div>
+            <div id="rrNewError" class="rr-error"></div>
+            <button type="button" class="rr-btn-save" data-save-new="${rang}">Ajouter au rang ${rang}</button>
+          </div>
+        `}
+        <button type="button" class="rr-btn-cancel" data-cancel="${rang}" style="align-self:flex-start;">Annuler</button>
+      </div>
+    </div>
+  `;
+}
+
+function render(){
+  document.getElementById('content').innerHTML = `
+    <h1>Mes remplaçant·es</h1>
+    <div class="identity-banner">
+      Bonjour <strong>${escapeHtml(fullName(state.person))}</strong> — choisis ici tes remplaçant·es par ordre de préférence
+      (rang 1 = la personne à contacter en premier, jusqu'à 10).
+      <div class="identity-note">Cette liste t'est personnelle et permanente : reviens-y quand tu veux pour la mettre à jour.</div>
+    </div>
+    <div class="rr-list">${RANGS.map(rowHtml).join('')}</div>
+    <div class="rr-empty-hint">Une personne pas encore au répertoire ? Ajoute-la directement depuis l'onglet « Nouvelle personne » — nom, prénom et téléphone suffisent.</div>
+  `;
+  bindRowEvents();
+  document.getElementById('saveBar').classList.add('visible');
+}
+
+function bindRowEvents(){
+  document.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.editingRang = parseInt(btn.dataset.edit, 10);
+      const existing = state.items.find(it=> it.rang === state.editingRang);
+      state.editTab = existing && existing.source === 'new' ? 'new' : 'search';
+      render();
+    });
+  });
+  document.querySelectorAll('[data-remove]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const rang = parseInt(btn.dataset.remove, 10);
+      state.items = state.items.filter(it=> it.rang !== rang);
+      markDirty();
+      render();
+    });
+  });
+  document.querySelectorAll('[data-cancel]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.editingRang = null;
+      render();
+    });
+  });
+  document.querySelectorAll('[data-tab]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.editTab = btn.dataset.tab;
+      render();
+    });
+  });
+  document.querySelectorAll('[data-save-new]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const rang = parseInt(btn.dataset.saveNew, 10);
+      const prenom = document.getElementById('rrNewPrenom').value.trim();
+      const nom = document.getElementById('rrNewNom').value.trim();
+      const telephone = document.getElementById('rrNewTelephone').value.trim();
+      const email = document.getElementById('rrNewEmail').value.trim();
+      const errEl = document.getElementById('rrNewError');
+      if(!nom || !prenom || !telephone){
+        errEl.textContent = 'Prénom, nom et téléphone sont obligatoires.';
+        return;
+      }
+      if(isDuplicateName(nom, prenom, rang)){
+        errEl.textContent = `${prenom} ${nom} existe déjà — choisis-la/le dans l'onglet « Dans le répertoire » plutôt que de le/la recréer.`;
+        return;
+      }
+      state.items = state.items.filter(it=> it.rang !== rang);
+      state.items.push({ rang, source:'new', prenom, nom, telephone, email });
+      state.editingRang = null;
+      markDirty();
+      render();
+    });
+  });
+
+  const searchInput = document.getElementById('rrSearchInput');
+  if(searchInput){
+    searchInput.addEventListener('input', ()=> renderRosterSearchResults(searchInput.value));
+    searchInput.focus();
+  }
+}
+
+function renderRosterSearchResults(query){
+  const holder = document.getElementById('rrSearchResults');
+  if(!holder) return;
+  const q = (query || '').toLowerCase().trim();
+  if(!q){ holder.innerHTML = ''; return; }
+
+  const usedRosterKeys = new Set(
+    state.items.filter(it=> it.source === 'roster' && it.rang !== state.editingRang).map(it=> `${it.personType}:${it.personId}`)
+  );
+  const results = state.roster.filter(p=>{
+    if(p.id === state.person.id && p.personType === state.personType) return false;
+    if(usedRosterKeys.has(`${p.personType}:${p.id}`)) return false;
+    const haystack = [p.prenom, p.nom, p.roleLabel].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(q);
+  }).slice(0, 8);
+
+  if(!results.length){
+    holder.innerHTML = `<div class="rr-empty-hint">Aucun résultat.</div>`;
+    return;
+  }
+  holder.innerHTML = results.map(p=> `
+    <div class="rr-result" data-person-id="${escapeAttr(p.id)}" data-person-type="${escapeAttr(p.personType)}">
+      <div class="rr-result-name">${escapeHtml(fullName(p))}</div>
+      <div class="rr-result-role">${escapeHtml(p.roleLabel)}</div>
+    </div>
+  `).join('');
+  holder.querySelectorAll('.rr-result').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const rang = state.editingRang;
+      state.items = state.items.filter(it=> it.rang !== rang);
+      state.items.push({ rang, source:'roster', personId: el.dataset.personId, personType: el.dataset.personType });
+      state.editingRang = null;
+      markDirty();
+      render();
+    });
+  });
+}
+
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+init();
+</script>
+</body>
+</html>
