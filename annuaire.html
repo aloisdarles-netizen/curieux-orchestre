@@ -280,6 +280,7 @@
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h2 id="modalTitle">Ajouter un·e musicien·ne</h2>
+    <p style="font-size:12px; color:var(--muted); margin:-6px 0 14px;">Prénom ou nom obligatoire (les deux, idéalement) — le reste est facultatif.</p>
     <input type="hidden" id="editId">
     <div class="field-row">
       <div class="field"><label for="fPrenom">Prénom</label><input type="text" id="fPrenom"></div>
@@ -791,9 +792,16 @@ document.getElementById('modalOverlay').addEventListener('click', (e)=>{ if(e.ta
 
 document.getElementById('saveBtn').addEventListener('click', ()=>{
   const id = document.getElementById('editId').value;
-  const prenom = document.getElementById('fPrenom').value.trim();
-  const nom = document.getElementById('fNom').value.trim();
-  if(!prenom && !nom){ alert('Renseigne au moins un prénom ou un nom.'); return; }
+  const prenomInput = document.getElementById('fPrenom');
+  const nomInput = document.getElementById('fNom');
+  const prenom = prenomInput.value.trim();
+  const nom = nomInput.value.trim();
+  if(!prenom && !nom){
+    prenomInput.style.outline = nomInput.style.outline = '2px solid var(--danger, #a5313f)';
+    prenomInput.focus();
+    setTimeout(()=>{ prenomInput.style.outline = nomInput.style.outline = ''; }, 1500);
+    return;
+  }
 
   const statutPoste = document.getElementById('fStatutPoste').value;
   const rangRaw = document.getElementById('fRang').value.trim();
