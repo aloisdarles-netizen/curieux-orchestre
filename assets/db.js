@@ -81,9 +81,10 @@ const CurieuxDB = (()=>{
     },
     // Signalements du widget "Signaler un bug" (voir injectBugReportWidget dans
     // brand-assets.js) — écriture publique, lecture réservée aux comptes 'admin'.
+    // "type" distingue bug / amélioration / incohérence.
     bug_reports: {
-      toDb: (b)=> ({ id: b.id, message: b.message || '', page: b.page || '' }),
-      fromDb: (r)=> ({ id: r.id, message: r.message, page: r.page, createdAt: r.created_at })
+      toDb: (b)=> ({ id: b.id, message: b.message || '', page: b.page || '', type: b.type || 'bug' }),
+      fromDb: (r)=> ({ id: r.id, message: r.message, page: r.page, type: r.type || 'bug', createdAt: r.created_at })
     },
     // Liens personnels de demande de dispo envoyés aux titulaires — "id" est le token
     // utilisé dans l'URL du lien (voir dispo-titulaire.html).
@@ -438,12 +439,12 @@ const CurieuxDB = (()=>{
 
   // Widget "Signaler un bug" (voir injectBugReportWidget dans brand-assets.js) —
   // écriture seule, table fermée en lecture à la clé anonyme (voir migrations.sql).
-  async function reportBug(message, page){
+  async function reportBug(message, page, type){
     if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
     const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
       ? crypto.randomUUID()
       : 'bug-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
-    const payload = adapterFor('bug_reports').toDb({ id, message, page });
+    const payload = adapterFor('bug_reports').toDb({ id, message, page, type });
     const { error } = await supabaseClient.from('bug_reports').insert(payload);
     if(error) console.warn('[CurieuxDB] reportBug', error.message);
     return { error };

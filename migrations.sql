@@ -530,6 +530,11 @@ create table if not exists bug_reports (
   created_at timestamptz not null default now()
 );
 create index if not exists idx_bug_reports_created_at on bug_reports (created_at desc);
+-- Catégorie choisie dans le widget : distingue un vrai bug d'une simple idée
+-- d'amélioration ou d'une incohérence repérée — pour que la console admin
+-- serve aussi de liste centralisée des futures missions d'amélioration, pas
+-- seulement des pannes. Ajoutée après coup, pour une base déjà provisionnée.
+alter table bug_reports add column if not exists type text not null default 'bug' check (type in ('bug','amelioration','incoherence'));
 
 alter table bug_reports enable row level security;
 

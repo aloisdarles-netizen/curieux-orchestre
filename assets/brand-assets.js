@@ -171,23 +171,34 @@ function injectBugReportWidget(){
   const tab = document.createElement('button');
   tab.type = 'button';
   tab.id = 'curieuxBugWidget';
-  tab.title = 'Signaler un bug ou une remarque';
+  tab.title = 'Signaler un bug, une amélioration ou une incohérence';
   tab.style.cssText = `position:fixed; top:50%; right:0; transform:translateY(-50%); z-index:9997;
     display:flex; align-items:center; gap:6px; font-family:${FONT}; font-size:12px; font-weight:700;
     color:var(--muted,#8a7686); background:var(--card,#fff); border:1px solid var(--border,#f0dbe6);
     border-right:none; border-radius:10px 0 0 10px; padding:10px 12px; cursor:pointer;
     box-shadow:-2px 2px 10px rgba(20,15,10,.08); transition:background .15s, color .15s;`;
-  tab.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" style="flex-shrink:0;"><path d="M4 5.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-4.5 4V16.5H6a2 2 0 0 1-2-2v-9z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><line x1="12" y1="7.5" x2="12" y2="11.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><circle cx="12" cy="14" r="1" fill="currentColor"></circle></svg><span>Un bug ?</span>';
+  tab.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" style="flex-shrink:0;"><path d="M4 5.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-4.5 4V16.5H6a2 2 0 0 1-2-2v-9z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><line x1="12" y1="7.5" x2="12" y2="11.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><circle cx="12" cy="14" r="1" fill="currentColor"></circle></svg><span>Un retour ?</span>';
   tab.addEventListener('mouseenter', ()=>{ tab.style.color = 'var(--accent-dark,#5a1037)'; tab.style.borderColor = 'var(--accent,#791649)'; });
   tab.addEventListener('mouseleave', ()=>{ tab.style.color = 'var(--muted,#8a7686)'; tab.style.borderColor = 'var(--border,#f0dbe6)'; });
+
+  const TYPES = [
+    { value:'bug', label:'Bug' },
+    { value:'amelioration', label:'Amélioration' },
+    { value:'incoherence', label:'Incohérence' },
+  ];
+  const typeBtnStyle = 'flex:1; background:var(--bg,#FCF2F0); color:var(--muted,#8a7686); border:1px solid var(--border,#f0dbe6); border-radius:8px; padding:8px 6px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; transition:background .15s, color .15s, border-color .15s;';
+  const typeBtnActiveStyle = 'flex:1; background:var(--accent-solid,#791649); color:#fff; border:1px solid var(--accent-solid,#791649); border-radius:8px; padding:8px 6px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit;';
 
   const overlay = document.createElement('div');
   overlay.id = 'curieuxBugOverlay';
   overlay.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(20,15,10,.5); align-items:center; justify-content:center; padding:20px; z-index:9998;';
   overlay.innerHTML = `
     <div style="background:var(--card,#fff); color:var(--text,#141617); border-radius:14px; padding:22px; max-width:420px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,.25); font-family:${FONT};">
-      <h2 style="font-size:16px; margin:0 0 6px; font-weight:800;">Signaler un bug ou une remarque</h2>
-      <p style="font-size:12px; color:var(--muted,#8a7686); margin:0 0 12px; line-height:1.4;">Décris ce qui ne va pas ou ce que tu voudrais voir changer — ça arrive directement dans la console d'administration.</p>
+      <h2 style="font-size:16px; margin:0 0 6px; font-weight:800;">Signaler un bug, une amélioration ou une incohérence</h2>
+      <p style="font-size:12px; color:var(--muted,#8a7686); margin:0 0 12px; line-height:1.4;">Ça arrive directement dans la console d'administration, avec les autres retours du même genre.</p>
+      <div id="curieuxBugTypes" style="display:flex; gap:6px; margin-bottom:12px;">
+        ${TYPES.map(t=> `<button type="button" data-bug-type="${t.value}" style="${t.value === 'bug' ? typeBtnActiveStyle : typeBtnStyle}">${t.label}</button>`).join('')}
+      </div>
       <textarea id="curieuxBugMessage" rows="5" maxlength="2000" style="width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid var(--border,#f0dbe6); border-radius:8px; font-size:14px; font-family:inherit; background:var(--bg,#FCF2F0); color:var(--text,#141617); resize:vertical;" placeholder="Ex : le bouton Exporter en PDF ne répond plus sur la page Tournées…"></textarea>
       <div id="curieuxBugStatus" style="font-size:12px; min-height:1.2em; margin-top:6px;"></div>
       <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
@@ -204,11 +215,22 @@ function injectBugReportWidget(){
   const status = overlay.querySelector('#curieuxBugStatus');
   const sendBtn = overlay.querySelector('#curieuxBugSend');
   const cancelBtn = overlay.querySelector('#curieuxBugCancel');
+  const typeBtns = Array.from(overlay.querySelectorAll('[data-bug-type]'));
+  let selectedType = 'bug';
+
+  typeBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      selectedType = btn.dataset.bugType;
+      typeBtns.forEach(b=> b.style.cssText = b.dataset.bugType === selectedType ? typeBtnActiveStyle : typeBtnStyle);
+    });
+  });
 
   function openOverlay(){
     overlay.style.display = 'flex';
     status.textContent = '';
     textarea.value = '';
+    selectedType = 'bug';
+    typeBtns.forEach(b=> b.style.cssText = b.dataset.bugType === selectedType ? typeBtnActiveStyle : typeBtnStyle);
     sendBtn.disabled = false;
     sendBtn.textContent = 'Envoyer';
     setTimeout(()=> textarea.focus(), 0);
@@ -230,7 +252,7 @@ function injectBugReportWidget(){
     sendBtn.disabled = true;
     sendBtn.textContent = 'Envoi…';
     const page = location.pathname.split('/').pop() || 'accueil.html';
-    const { error } = await CurieuxDB.reportBug(message, page);
+    const { error } = await CurieuxDB.reportBug(message, page, selectedType);
     if(error){
       status.textContent = "Erreur d'envoi — réessaie.";
       status.style.color = 'var(--danger,#a5313f)';

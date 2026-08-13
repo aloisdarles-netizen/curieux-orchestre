@@ -16,6 +16,7 @@
     --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
     --danger:#a5313f; --danger-dark:#7a2333;
     --ok:#2f8f5b; --ok-tint:#e2f4ea;
+    --maybe:#b8792a; --maybe-tint:#f6ead2;
     --radius:10px;
   }
   :root[data-theme="dark"]{
@@ -24,6 +25,7 @@
     --secondary:#ff7a4a; --secondary-dark:#ffab84; --secondary-tint:#3d2430;
     --danger:#e2685a; --danger-dark:#ffab9a;
     --ok:#7fd9a6; --ok-tint:#1c3327;
+    --maybe:#e8bd7c; --maybe-tint:#3a2f1c;
   }
   *{box-sizing:border-box;}
   html{color-scheme:light dark;}
@@ -138,6 +140,10 @@
   .bug-message{white-space:pre-wrap; word-break:break-word; line-height:1.45;}
   .bug-meta{display:flex; gap:10px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:12px; margin-top:6px;}
   .bug-page{font-weight:700; text-transform:uppercase; font-size:10.5px; padding:1px 7px; border-radius:12px; background:var(--accent-tint); color:var(--accent-dark);}
+  .bug-type{font-weight:700; text-transform:uppercase; font-size:10.5px; padding:1px 7px; border-radius:12px;}
+  .bug-type.bug{background:var(--secondary-tint); color:var(--secondary-dark);}
+  .bug-type.amelioration{background:var(--accent-tint); color:var(--accent-dark);}
+  .bug-type.incoherence{background:var(--maybe-tint); color:var(--maybe);}
   .log-detail{margin-top:6px; font-size:12px; color:var(--text);}
   .log-detail summary{cursor:pointer; color:var(--muted);}
   .log-detail pre{white-space:pre-wrap; word-break:break-word; background:var(--bg); border-radius:6px; padding:8px; margin-top:6px; font-size:11px;}
@@ -196,8 +202,19 @@
 
   <section>
     <h2>Signalements</h2>
-    <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">Messages envoyés depuis le widget "Un bug ?" présent sur toutes les pages.</p>
+    <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">Messages envoyés depuis le widget "Un retour ?" présent sur toutes les pages — bugs, améliorations et incohérences rassemblés au même endroit.</p>
     <div class="card">
+      <div class="field-row" style="margin-bottom:14px;">
+        <div class="field" style="flex:0 0 200px;">
+          <label for="bugTypeFilter">Type</label>
+          <select id="bugTypeFilter">
+            <option value="">Tous</option>
+            <option value="bug">Bug</option>
+            <option value="amelioration">Amélioration</option>
+            <option value="incoherence">Incohérence</option>
+          </select>
+        </div>
+      </div>
       <div id="bugList"></div>
       <div id="bugEmpty" class="empty-hint">Chargement…</div>
     </div>
@@ -327,6 +344,7 @@ async function loadStats(){
 }
 
 let bugReportsCache = [];
+const BUG_TYPE_LABELS = { bug:'Bug', amelioration:'Amélioration', incoherence:'Incohérence' };
 
 async function loadBugReports(){
   bugReportsCache = await CurieuxDB.fetchAll('bug_reports');
@@ -336,20 +354,24 @@ async function loadBugReports(){
 }
 
 function renderBugReports(){
+  const typeFilter = document.getElementById('bugTypeFilter').value;
+  const filtered = typeFilter ? bugReportsCache.filter(b=> b.type === typeFilter) : bugReportsCache;
+
   const list = document.getElementById('bugList');
   const empty = document.getElementById('bugEmpty');
-  if(bugReportsCache.length === 0){
+  if(filtered.length === 0){
     list.innerHTML = '';
-    empty.textContent = 'Aucun signalement pour le moment.';
+    empty.textContent = bugReportsCache.length === 0 ? 'Aucun signalement pour le moment.' : 'Aucun signalement pour ce filtre.';
     empty.style.display = 'block';
     return;
   }
   empty.style.display = 'none';
-  list.innerHTML = bugReportsCache.map(b=> `
+  list.innerHTML = filtered.map(b=> `
     <div class="bug-entry">
       <div style="flex:1; min-width:0;">
         <div class="bug-message">${escapeHtml(b.message)}</div>
         <div class="bug-meta">
+          <span class="bug-type ${escapeHtml(b.type || 'bug')}">${escapeHtml(BUG_TYPE_LABELS[b.type] || 'Bug')}</span>
           <span class="bug-page">${escapeHtml(b.page || '—')}</span>
           <span>· ${escapeHtml(new Date(b.createdAt).toLocaleString('fr-FR'))}</span>
         </div>
@@ -554,6 +576,7 @@ async function loadLog(){
   renderLog();
 }
 
+document.getElementById('bugTypeFilter').addEventListener('change', renderBugReports);
 document.getElementById('logTableFilter').addEventListener('change', loadLog);
 document.getElementById('logSearch').addEventListener('input', renderLog);
 
