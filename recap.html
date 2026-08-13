@@ -138,7 +138,7 @@
     text-decoration:none; color:var(--text); display:block; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
   }
   a.kpi-card:hover{transform:translateY(-2px); box-shadow:0 10px 24px rgba(20,15,10,.1); border-color:var(--accent);}
-  .kpi-icon{font-size:17px; margin-bottom:6px;}
+  .kpi-icon{margin-bottom:6px; color:var(--accent-dark);}
   .kpi-value{font-size:20px; font-weight:900; line-height:1.15; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
   .kpi-value.warn{color:var(--maybe, #b8792a);}
   .kpi-value.ok{color:var(--ok, #2f8f5b);}
@@ -184,7 +184,7 @@
         <div class="nav-dropdown">
           <a href="annuaire.html"><img class="nav-icon" src="assets/icones/icone-annuaire.svg" alt=""> Musicien·nes</a>
           <a href="techniciens.html"><img class="nav-icon" src="assets/icones/icone-techniciens.svg" alt=""> Technicien·nes</a>
-          <a href="infos-sociales.html">🔒 Infos sociales</a>
+          <a href="infos-sociales.html"><svg width="16" height="16" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:6px;"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><path d="M8 11V7.5a4 4 0 0 1 8 0V11" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="12" cy="15.5" r="1.3" fill="currentColor"></circle></svg>Infos sociales</a>
         </div>
       </div>
       <div class="nav-group">
@@ -404,39 +404,50 @@ function renderDashboard(){
     if(!allAnswered) reponsesEnAttente++;
   });
 
+  const ICONS = {
+    calendar: '<rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.4"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><circle cx="8" cy="13.6" r="1.1" fill="currentColor"></circle><circle cx="12" cy="13.6" r="1.1" fill="currentColor"></circle><circle cx="16" cy="13.6" r="1.1" fill="currentColor"></circle>',
+    warning: '<path d="M12 3.5 22 20.5H2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><line x1="12" y1="9.5" x2="12" y2="14.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><circle cx="12" cy="17.2" r="1" fill="currentColor"></circle>',
+    pin: '<path d="M12 21.5S5 14.8 5 9.8a7 7 0 1 1 14 0c0 5-7 11.7-7 11.7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="12" cy="9.5" r="2.3" fill="none" stroke="currentColor" stroke-width="1.5"></circle>',
+    ticket: '<path d="M3.5 9.5a2 2 0 0 0 0 4v3.5a1 1 0 0 0 1 1h15a1 1 0 0 0 1-1V13.5a2 2 0 0 1 0-4V6a1 1 0 0 0-1-1h-15a1 1 0 0 0-1 1v3.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><line x1="14.5" y1="5.5" x2="14.5" y2="18" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2 2"></line>',
+    clock: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"></circle><polyline points="12,7 12,12 15.5,14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></polyline>',
+    bus: '<rect x="3.5" y="5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="3.5" y1="10.3" x2="20.5" y2="10.3" stroke="currentColor" stroke-width="1.4"></line><circle cx="7.5" cy="19.3" r="1.4" fill="currentColor"></circle><circle cx="16.5" cy="19.3" r="1.4" fill="currentColor"></circle>',
+    music: '<circle cx="7" cy="18" r="2.6" fill="currentColor"></circle><circle cx="16" cy="16" r="2.6" fill="currentColor"></circle><path d="M9.6 18V5.5L18.6 4v12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+  };
+  const kpiIcon = name => `<svg width="19" height="19" viewBox="0 0 24 24">${ICONS[name]}</svg>`;
+
   const cards = [
     {
-      icon:'📅', href:'tournees.html',
+      icon: kpiIcon('calendar'), href:'tournees.html',
       value: next ? `${fmtDateFRShort(next.date)}` : '—',
       label: next ? `Prochaine date — ${escapeHtml(next.tourneeNom || '')}${next.ville ? ' · ' + escapeHtml(next.ville) : ''}` : 'Aucune date à venir'
     },
     {
-      icon:'⚠️', href:'tournees.html',
+      icon: kpiIcon('warning'), href:'tournees.html',
       value: String(sansAffectation.length), valueClass: sansAffectation.length > 0 ? 'warn' : 'ok',
       label:'Date' + (sansAffectation.length>1?'s':'') + ' à venir sans musicien·ne affecté·e'
     },
     {
-      icon:'📍', href:'tournees.html',
+      icon: kpiIcon('pin'), href:'tournees.html',
       value: String(infosManquantes.length), valueClass: infosManquantes.length > 0 ? 'warn' : 'ok',
       label:'Date' + (infosManquantes.length>1?'s':'') + ' à venir sans ville ni salle'
     },
     {
-      icon:'🎫', href:'tournees.html',
+      icon: kpiIcon('ticket'), href:'tournees.html',
       value: String(enOption.length), valueClass: enOption.length > 0 ? 'warn' : 'ok',
       label:'Date' + (enOption.length>1?'s':'') + ' à venir encore en option'
     },
     {
-      icon:'🕓', href:'suivi-dispo.html',
+      icon: kpiIcon('clock'), href:'suivi-dispo.html',
       value: String(reponsesEnAttente), valueClass: reponsesEnAttente > 0 ? 'warn' : 'ok',
       label:'Réponse' + (reponsesEnAttente>1?'s':'') + ' de dispo en attente (titulaires)'
     },
     {
-      icon:'🚌', href:'tournees.html',
+      icon: kpiIcon('bus'), href:'tournees.html',
       value: String(tourneesActives),
       label:'Tournée' + (tourneesActives>1?'s':'') + ' avec des dates à venir'
     },
     {
-      icon:'🎻', href:'annuaire.html',
+      icon: kpiIcon('music'), href:'annuaire.html',
       value: `${musiciensTitulaires} + ${musiciensRemplacants}`,
       label:`Musicien·nes titulaires + remplaçant·es`
     }
