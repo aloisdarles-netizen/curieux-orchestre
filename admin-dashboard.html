@@ -516,6 +516,37 @@ document.getElementById('addAccountForm').addEventListener('submit', async (e)=>
   document.querySelectorAll('.stat-card .num')[3].textContent = accountsCache.length;
 });
 
+// Champs "lisibles" par table — seuls ceux-ci sont comparés pour décrire un changement
+// en langage courant (les champs volumineux/imbriqués comme "dates" ou "disponibilites"
+// sont traités à part ci-dessous, pas listés champ par champ).
+const LOG_FIELD_LABELS = {
+  musiciens: { prenom:'Prénom', nom:'Nom', instrument:'Instrument', pupitre:'Pupitre', statut_poste:'Statut', rang:'Rang', telephone:'Téléphone', email:'Email', notes:'Notes' },
+  techniciens: { prenom:'Prénom', nom:'Nom', poste:'Poste', pole:'Pôle', statut_poste:'Statut', telephone:'Téléphone', email:'Email', notes:'Notes' },
+  tournees: { nom:'Nom', cachet_statut:'Cachet', cachet_montant:'Montant du cachet' },
+  carnet_contacts: { role:'Rôle', nom:'Nom', indicatif:'Indicatif', tel:'Téléphone', email:'Email' },
+};
+const LOG_VALUE_LABELS = {
+  statut_poste: { titulaire: 'titulaire', remplacant: 'remplaçant·e' },
+  cachet_statut: { defini: 'défini', non_defini: 'non défini' },
+};
+function logFieldValue(field, value){
+  if(value === null || value === undefined || value === '') return '(vide)';
+  const known = LOG_VALUE_LABELS[field];
+  return known ? (known[value] || String(value)) : String(value);
+}
+const LOG_INSERT_LABELS = {
+  musiciens: 'Fiche créée', techniciens: 'Fiche créée', tournees: 'Tournée créée',
+  feuilles_route: 'Feuille de route créée', carnet_contacts: 'Contact ajouté',
+  dispo_demandes: 'Lien personnel généré',
+};
+const LOG_DELETE_LABELS = {
+  musiciens: 'Fiche supprimée', techniciens: 'Fiche supprimée', tournees: 'Tournée supprimée',
+  feuilles_route: 'Feuille de route supprimée', carnet_contacts: 'Contact supprimé',
+  dispo_demandes: 'Lien personnel supprimé',
+};
+
+// Décrit CE QUI a changé en une phrase, jamais les données brutes — voir le retrait du
+// bloc "Voir le détail" (JSON avant/après) ci-dessous dans renderLog().
 function logSummary(entry){
   if(entry.table_name === 'infos_sociales'){
     if(entry.action === 'DELETE') return 'Fiche supprimée';
@@ -523,7 +554,35 @@ function logSummary(entry){
     const fields = (entry.new_data && entry.new_data.fields_changed) || [];
     return fields.length ? `Champs modifiés : ${fields.join(', ')}` : 'Modification';
   }
-  return { INSERT: 'Création', UPDATE: 'Modification', DELETE: 'Suppression' }[entry.action] || entry.action;
+  if(entry.action === 'INSERT') return LOG_INSERT_LABELS[entry.table_name] || 'Création';
+  if(entry.action === 'DELETE') return LOG_DELETE_LABELS[entry.table_name] || 'Suppression';
+
+  const before = entry.old_data || {}, after = entry.new_data || {};
+  const changes = [];
+  const labels = LOG_FIELD_LABELS[entry.table_name];
+  if(labels){
+    Object.keys(labels).forEach(field=>{
+      if(JSON.stringify(before[field]) !== JSON.stringify(after[field])){
+        changes.push(`${labels[field]} : ${logFieldValue(field, before[field])} → ${logFieldValue(field, after[field])}`);
+      }
+    });
+  }
+  if(entry.table_name === 'tournees' && JSON.stringify(before.dates) !== JSON.stringify(after.dates)){
+    const nBefore = (before.dates || []).length, nAfter = (after.dates || []).length;
+    changes.push(nBefore === nAfter ? 'Dates modifiées' : (nAfter > nBefore ? `${nAfter - nBefore} date(s) ajoutée(s)` : `${nBefore - nAfter} date(s) supprimée(s)`));
+  }
+  if((entry.table_name === 'musiciens' || entry.table_name === 'techniciens') && JSON.stringify(before.disponibilites) !== JSON.stringify(after.disponibilites)){
+    changes.push('Disponibilités mises à jour');
+  }
+  if(entry.table_name === 'dispo_demandes'){
+    if(!before.last_responded_at && after.last_responded_at) changes.push('Réponse enregistrée par la personne');
+    if(before.last_reminder_at !== after.last_reminder_at) changes.push('Relance envoyée');
+    if(JSON.stringify(before.dates) !== JSON.stringify(after.dates)) changes.push('Dates ciblées modifiées');
+  }
+  if(entry.table_name === 'feuilles_route') changes.push('Contenu de la feuille de route modifié');
+  if(entry.table_name === 'newsletter_snapshot') changes.push('Photo de référence mise à jour');
+
+  return changes.length ? changes.join(' · ') : 'Modification';
 }
 
 function renderLog(){
@@ -549,7 +608,6 @@ function renderLog(){
     const personName = personNames[e.row_id];
     const who = e.changed_by || 'lien personnel / système';
     const when = new Date(e.changed_at).toLocaleString('fr-FR');
-    const showDetail = e.table_name !== 'infos_sociales' && (e.old_data || e.new_data);
     return `
       <div class="log-entry">
         <div class="log-meta">
@@ -560,19 +618,17 @@ function renderLog(){
           <span>· ${escapeHtml(when)}</span>
         </div>
         <div class="log-detail">${escapeHtml(logSummary(e))}</div>
-        ${showDetail ? `
-        <details class="log-detail">
-          <summary>Voir le détail</summary>
-          <pre>${escapeHtml(JSON.stringify({ avant: e.old_data, apres: e.new_data }, null, 2))}</pre>
-        </details>` : ''}
       </div>
     `;
   }).join('');
 }
 
+// Volontairement limité aux dernières entrées (pas de pagination) : l'historique sert à
+// vérifier ce qui vient de se passer, pas d'archive à parcourir en profondeur.
+const LOG_LIMIT = 20;
 async function loadLog(){
   const table = document.getElementById('logTableFilter').value;
-  logCache = await CurieuxDB.fetchAuditLog(table || undefined);
+  logCache = await CurieuxDB.fetchAuditLog(table || undefined, LOG_LIMIT);
   renderLog();
 }
 

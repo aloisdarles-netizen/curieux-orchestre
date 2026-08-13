@@ -321,6 +321,26 @@ function cachetOverridesForTournee(tourneeId){
   return map;
 }
 
+// Affiche une ligne du panneau "Cachet différent" si elle correspond à la recherche en
+// cours, ou si elle a déjà une valeur saisie (même une fois la recherche vidée).
+function applyCachetOverrideFilter(tourneeId){
+  const searchInp = document.querySelector(`[data-cachet-override-search="${CSS.escape(tourneeId)}"]`);
+  const rowsHolder = document.querySelector(`[data-cachet-override-rows="${CSS.escape(tourneeId)}"]`);
+  if(!searchInp || !rowsHolder) return;
+  const search = searchInp.value.trim().toLowerCase();
+  let visibleCount = 0;
+  rowsHolder.querySelectorAll('.cachet-override-row').forEach(row=>{
+    const input = row.querySelector('[data-cachet-override-person]');
+    const hasValue = input && input.value.trim() !== '';
+    const matches = search && row.dataset.personName.includes(search);
+    const visible = hasValue || matches;
+    row.style.display = visible ? 'flex' : 'none';
+    if(visible) visibleCount++;
+  });
+  const emptyHint = document.querySelector(`[data-cachet-override-empty="${CSS.escape(tourneeId)}"]`);
+  if(emptyHint) emptyHint.style.display = (search && visibleCount === 0) ? 'block' : 'none';
+}
+
 function loadFdrCollection(){ return fdrsCache; }
 function saveFdrCollection(list){
   fdrsCache = list;
@@ -675,31 +695,15 @@ document.getElementById('assignSave').addEventListener('click', ()=>{
 function renderTourneeCard(t, fdrs, musicianById, technicianById){
       const dates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
       const blocMap = computeBlocMap(dates);
-      // Personnes affectées à au moins une date de la tournée — seules celles-ci peuvent
-      // recevoir un cachet différent (pas de sens à en définir un pour quelqu'un d'absent).
-      const assignedPeople = [];
-      const seenPeople = new Set();
-      dates.forEach(d=>{
-        (d.musiciensAssignes||[]).forEach(id=>{
-          const key = 'musicien:' + id;
-          if(seenPeople.has(key)) return;
-          const m = musicianById.get(id);
-          if(!m) return;
-          seenPeople.add(key);
-          assignedPeople.push({ id, type: 'musicien', name: fullName(m) });
-        });
-        (d.techniciensAssignes||[]).forEach(id=>{
-          const key = 'technicien:' + id;
-          if(seenPeople.has(key)) return;
-          const m = technicianById.get(id);
-          if(!m) return;
-          seenPeople.add(key);
-          assignedPeople.push({ id, type: 'technicien', name: fullName(m) });
-        });
-      });
-      assignedPeople.sort((a,b)=> a.name.localeCompare(b.name));
+      // Tout le répertoire (pas seulement les personnes déjà affectées à une date) — un
+      // cachet différent peut se décider avant l'affectation. La recherche ci-dessous
+      // permet de retrouver n'importe qui sans dérouler toute la liste.
+      const rosterPeople = [
+        ...Array.from(musicianById.values()).map(m=>({ id: m.id, type: 'musicien', name: fullName(m) })),
+        ...Array.from(technicianById.values()).map(m=>({ id: m.id, type: 'technicien', name: fullName(m) })),
+      ].sort((a,b)=> a.name.localeCompare(b.name));
       const cachetOverrides = cachetOverridesForTournee(t.id);
-      const overrideCount = assignedPeople.filter(p => cachetOverrides[p.id] != null).length;
+      const overrideCount = rosterPeople.filter(p => cachetOverrides[p.id] != null).length;
       const rows = dates.map((d, dIdx)=>{
         const fdr = fdrs.find(f=>f.eventDate === d.date);
         const fdrAction = fdr
@@ -817,18 +821,25 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
               style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">Cachet différent pour certaines personnes${overrideCount ? ` (${overrideCount})` : ''}</button>
           </div>
           <div class="cachet-overrides" id="cachet-overrides-${escapeAttr(t.id)}" style="display:none; margin:-6px 0 14px;">
-            ${assignedPeople.length === 0
-              ? `<div style="font-size:12.5px; color:var(--muted);">Affecte des musicien·nes ou technicien·nes à une date pour pouvoir leur définir un cachet différent.</div>`
-              : assignedPeople.map(p => `
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-                  <span style="font-size:12.5px; width:220px;">${escapeHtml(p.name)}</span>
-                  <input type="number" min="0" step="0.01" placeholder="${t.cachetMontant != null ? escapeAttr(String(t.cachetMontant)) : 'Montant'}"
-                    data-cachet-override-tournee="${escapeAttr(t.id)}" data-cachet-override-person="${escapeAttr(p.id)}" data-cachet-override-type="${escapeAttr(p.type)}"
-                    value="${cachetOverrides[p.id] != null ? escapeAttr(String(cachetOverrides[p.id])) : ''}"
-                    style="width:110px; padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;">
-                  <span style="font-size:12.5px; color:var(--muted);">€ brut — laisser vide pour le cachet standard</span>
+            ${rosterPeople.length === 0
+              ? `<div style="font-size:12.5px; color:var(--muted);">Le répertoire est vide.</div>`
+              : `
+                <input type="text" placeholder="Chercher une personne à ajouter…" data-cachet-override-search="${escapeAttr(t.id)}"
+                  style="width:100%; max-width:320px; margin-bottom:8px; padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;">
+                <div data-cachet-override-rows="${escapeAttr(t.id)}">
+                  ${rosterPeople.map(p => `
+                    <div class="cachet-override-row" data-person-name="${escapeAttr(p.name.toLowerCase())}" style="display:${cachetOverrides[p.id] != null ? 'flex' : 'none'}; align-items:center; gap:8px; margin-bottom:6px;">
+                      <span style="font-size:12.5px; width:220px;">${escapeHtml(p.name)}</span>
+                      <input type="number" min="0" step="0.01" placeholder="${t.cachetMontant != null ? escapeAttr(String(t.cachetMontant)) : 'Montant'}"
+                        data-cachet-override-tournee="${escapeAttr(t.id)}" data-cachet-override-person="${escapeAttr(p.id)}" data-cachet-override-type="${escapeAttr(p.type)}"
+                        value="${cachetOverrides[p.id] != null ? escapeAttr(String(cachetOverrides[p.id])) : ''}"
+                        style="width:110px; padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;">
+                      <span style="font-size:12.5px; color:var(--muted);">€ brut — laisser vide pour le cachet standard</span>
+                    </div>
+                  `).join('')}
                 </div>
-              `).join('')}
+                <div class="empty-hint" data-cachet-override-empty="${escapeAttr(t.id)}" style="display:none; font-size:12.5px; padding:4px 0;">Aucune personne trouvée.</div>
+              `}
           </div>
           <div class="add-date-row">
             <input type="date" data-new-date="${escapeAttr(t.id)}">
@@ -1113,7 +1124,8 @@ function renderDispoLinksModal(tourneeId){
         </div>
         ${statusHtml}
         ${url
-          ? `<button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>`
+          ? `<a class="btn-ghost btn-sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line></svg> Ouvrir</a>
+             <button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>`
           : `<button type="button" class="btn-secondary btn-sm" data-gen-link data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
         }
       </div>
@@ -1295,7 +1307,14 @@ function bindTourneeEvents(){
       panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     });
   });
+  // Par défaut seules les personnes ayant déjà un montant sont visibles (pour ne pas
+  // dérouler tout le répertoire) ; taper une recherche fait apparaître tout le monde,
+  // et une ligne qu'on vient de remplir reste visible même une fois la recherche vidée.
+  document.querySelectorAll('[data-cachet-override-search]').forEach(searchInp=>{
+    searchInp.addEventListener('input', ()=> applyCachetOverrideFilter(searchInp.dataset.cachetOverrideSearch));
+  });
   document.querySelectorAll('[data-cachet-override-tournee]').forEach(inp=>{
+    inp.addEventListener('input', ()=> applyCachetOverrideFilter(inp.dataset.cachetOverrideTournee));
     inp.addEventListener('change', ()=>{
       const tourneeId = inp.dataset.cachetOverrideTournee;
       const personId = inp.dataset.cachetOverridePerson;
