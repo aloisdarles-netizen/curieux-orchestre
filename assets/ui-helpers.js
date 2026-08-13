@@ -5,7 +5,10 @@
 // non) — les fusionner risquait de changer silencieusement l'affichage de certaines pages.
 // Chaque page garde donc ses propres formateurs de date.
 
-function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// String(str||'') plutôt que (str||'') seul : un nombre ou tout autre valeur non-string
+// passée par erreur (ex: un montant en euros) plantait sur .replace, qui n'existe pas
+// sur Number.prototype — vu en pratique avec tournees.html/cachetMontant.
+function escapeHtml(str){ return String(str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escapeAttr(str){ return escapeHtml(str); }
 function fullName(p){ return [p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom'; }
 // Le suffixe aléatoire sert aussi de token imprévisible pour les liens perso
