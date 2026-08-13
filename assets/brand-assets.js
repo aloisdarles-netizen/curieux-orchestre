@@ -105,16 +105,30 @@ async function requireSuperAdminAuth(){
   location.replace('admin-login.html?level=admin&redirect=' + encodeURIComponent(here));
 }
 
-// Petit bouton fixe en coin de page pour se déconnecter — injecté par JS
-// plutôt que dupliqué dans le HTML de chaque page admin.
+// Bouton de déconnexion — inséré comme dernière pastille de .page-nav (même
+// style que les autres liens de nav) plutôt qu'en coin de page fixe : un
+// élément position:fixed superposait le texte du nav sur les pages où celui-ci
+// s'étend jusqu'à la droite de l'écran (toutes les pages admin courantes).
 function injectAdminLogoutButton(email){
-  if(document.getElementById('curieux-admin-bar')) return;
-  const bar = document.createElement('div');
-  bar.id = 'curieux-admin-bar';
-  bar.style.cssText = 'position:fixed; top:10px; right:12px; z-index:9998; display:flex; align-items:center; gap:8px; font-family:\'Host Grotesk\',-apple-system,BlinkMacSystemFont,sans-serif; font-size:12px; color:var(--muted,#8a7686); background:var(--card,#fff); border:1px solid var(--border,#f0dbe6); border-radius:20px; padding:5px 6px 5px 12px;';
-  bar.innerHTML = `<span style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${email}</span><button id="curieuxAdminLogout" style="border:none; background:var(--accent,#791649); color:#fff; border-radius:14px; padding:5px 10px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit;">Déconnexion</button>`;
-  document.body.appendChild(bar);
-  document.getElementById('curieuxAdminLogout').addEventListener('click', async ()=>{
+  if(document.getElementById('curieuxAdminLogout')) return;
+  const nav = document.querySelector('.page-nav');
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'curieuxAdminLogout';
+  btn.title = 'Connecté·e en tant que ' + email;
+  btn.textContent = 'Déconnexion';
+  if(nav){
+    // Le sélecteur .page-nav > a.ghost de chaque page ne cible que des <a> —
+    // ce bouton reprend donc le même rendu directement en style inline.
+    btn.style.cssText = 'color:var(--muted); font-weight:700; font-size:12.5px; background:transparent; border:none; padding:7px 13px; border-radius:20px; cursor:pointer; font-family:inherit; white-space:nowrap; transition:background .15s, color .15s;';
+    btn.addEventListener('mouseenter', ()=>{ btn.style.background = 'var(--border)'; btn.style.color = 'var(--text)'; });
+    btn.addEventListener('mouseleave', ()=>{ btn.style.background = 'transparent'; btn.style.color = 'var(--muted)'; });
+    nav.appendChild(btn);
+  } else {
+    btn.style.cssText = 'position:fixed; top:10px; right:12px; z-index:9998; font-family:\'Host Grotesk\',-apple-system,BlinkMacSystemFont,sans-serif; font-size:12px; font-weight:700; color:var(--muted,#8a7686); background:var(--card,#fff); border:1px solid var(--border,#f0dbe6); border-radius:20px; padding:7px 13px; cursor:pointer;';
+    document.body.appendChild(btn);
+  }
+  btn.addEventListener('click', async ()=>{
     await CurieuxDB.signOut();
     location.href = 'admin-login.html';
   });

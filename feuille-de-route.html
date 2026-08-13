@@ -14,7 +14,7 @@
 <style>
   :root{
     --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
-    --accent:#791649; --accent-dark:#5a1037; --accent-tint:#CEE1F4;
+    --accent:#791649; --accent-dark:#5a1037; --accent-solid:#791649; --accent-tint:#CEE1F4;
     --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
     --champagne:#fde3ee; --old-champagne:#c98aa0;
     --danger:#a5313f; --danger-dark:#7a2333;
@@ -55,7 +55,7 @@
   .nav-group-btn:hover{background:#a8c9e6;}
   .nav-caret{font-size:9px; transition:transform .2s ease;}
   .nav-group.open .nav-caret{transform:rotate(180deg);}
-  .nav-group.open .nav-group-btn{background:var(--accent); color:#fff;}
+  .nav-group.open .nav-group-btn{background:var(--accent-solid); color:#fff;}
   .nav-dropdown{
     position:absolute; top:calc(100% + 6px); left:0; min-width:200px; background:var(--card);
     border:1px solid var(--border); border-radius:12px; box-shadow:0 12px 30px rgba(20,15,10,.16);
@@ -97,7 +97,7 @@
   input[type=text], input[type=date], input[type=time], input[type=number], textarea,
   .field > select, table.grid-table select{
     padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;
-    width:100%; background:#fff; font-family:inherit;
+    width:100%; background:var(--card); color:var(--text); font-family:inherit;
   }
   textarea{min-height:44px; resize:vertical;}
   input:focus, textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
@@ -106,12 +106,12 @@
     padding:9px 15px; transition:background .15s, transform .1s, box-shadow .15s; font-family:inherit;
   }
   button:active{transform:translateY(1px);}
-  .btn-primary{background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(51,68,226,.25);}
-  .btn-primary:hover{background:var(--accent-dark); box-shadow:0 4px 12px rgba(51,68,226,.32);}
+  .btn-primary{background:var(--accent-solid); color:#fff; box-shadow:0 2px 8px rgba(121,22,73,.25);}
+  .btn-primary:hover{background:var(--accent-dark); box-shadow:0 4px 12px rgba(121,22,73,.32);}
   .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
   .btn-secondary:hover{background:#a8c9e6;}
-  .btn-danger{background:var(--secondary-tint); color:var(--secondary-dark);}
-  .btn-danger:hover{background:#f6d8dc; color:var(--danger-dark);}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-danger:hover{background:var(--secondary-tint);}
   .btn-ghost{background:transparent; color:var(--accent); padding:4px 8px;}
   .btn-ghost:hover{text-decoration:underline;}
   .btn-import{background:#0a2540; color:#fff;}
@@ -121,7 +121,6 @@
   .actions-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;}
   .toolbar{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;}
   .toolbar .btn-primary{padding:10px 18px; font-size:14px;}
-  .empty-hint{color:var(--muted); font-size:13px; padding:12px 0;}
 
   .grid-table-wrap{overflow-x:auto; margin-bottom:4px;}
   table.grid-table{width:100%; min-width:520px; border-collapse:collapse;}
@@ -132,7 +131,7 @@
   .highlight-toggle{display:flex; align-items:center; justify-content:center; gap:4px; cursor:pointer; font-size:13px; white-space:nowrap;}
   .highlight-toggle input{width:15px; height:15px; cursor:pointer;}
   tr.highlight-row{background:var(--secondary-tint);}
-  tr.highlight-row td input[type=text]{background:#fff;}
+  tr.highlight-row td input[type=text]{background:var(--card);}
 
   .contacts-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 20px;}
   @media (max-width:640px){ .contacts-grid{grid-template-columns:1fr;} }
@@ -145,7 +144,7 @@
   }
   .modal-overlay.open{display:flex;}
   .modal-card{
-    background:#fff; border-radius:14px; max-width:640px; width:100%;
+    background:var(--card); border-radius:14px; max-width:640px; width:100%;
     padding:24px; box-shadow:0 20px 60px rgba(0,0,0,.3);
   }
   .modal-card h2{margin:0 0 4px; font-size:18px;}
@@ -166,17 +165,10 @@
   .carnet-item strong{font-size:13.5px;}
   .carnet-item span{font-size:12px; color:var(--muted);}
 
-  /* Mode nuit : ajuste les fonds clairs codés en dur */
-  :root[data-theme="dark"] input[type=text],
-  :root[data-theme="dark"] input[type=date],
-  :root[data-theme="dark"] input[type=time],
-  :root[data-theme="dark"] input[type=number],
-  :root[data-theme="dark"] textarea,
-  :root[data-theme="dark"] select{ background:#26232f !important; color:var(--text); border-color:var(--border); }
-  :root[data-theme="dark"] tr.highlight-row td input[type=text]{ background:#26232f; }
-  :root[data-theme="dark"] .modal-card{ background:var(--card); box-shadow:0 20px 60px rgba(0,0,0,.6); }
+  /* Mode nuit : les fonds suivent déjà var(--card)/var(--text) depuis les
+     règles de base ci-dessus ; il ne reste que des ajustements ponctuels. */
+  :root[data-theme="dark"] .modal-card{ box-shadow:0 20px 60px rgba(0,0,0,.6); }
   :root[data-theme="dark"] .small-del:hover{ background:#3a1f22; }
-  :root[data-theme="dark"] .btn-danger:hover{ background:#3a1f22; color:var(--danger-dark); }
   :root[data-theme="dark"] .trip-import-group{ background:#1a1822; }
   @media (max-width:600px){
     input, select, textarea{ font-size:16px !important; }
@@ -305,7 +297,7 @@
     </div>
     <div class="actions-row">
       <button class="btn-ghost" id="addTrajetBtn">+ Ajouter un trajet</button>
-      <button class="btn-import" id="importTrainInfoBtn" style="background:#7a1f52;">🚆 Récupérer le train (SNCF Connect)</button>
+      <button class="btn-import" id="importTrainInfoBtn">🚆 Récupérer le train (SNCF Connect)</button>
     </div>
     </div>
   </div>
@@ -463,7 +455,7 @@
     <textarea id="trainTextarea" style="width:100%; min-height:120px; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:13px; font-family:inherit; resize:vertical;" placeholder="Colle ici le texte copié depuis SNCF Connect..."></textarea>
     <div class="modal-actions">
       <button class="btn-secondary" id="trainCloseBtn">Annuler</button>
-      <button class="btn-import" id="trainParseBtn" style="background:#0a2540;">Analyser le texte</button>
+      <button class="btn-import" id="trainParseBtn">Analyser le texte</button>
     </div>
     <div id="trainResults" style="margin-top:14px;"></div>
     <div class="modal-actions" id="trainApplyRow" style="display:none;">
@@ -857,7 +849,7 @@ function renderTrajets(){
         <button type="button" class="btn-ghost" data-action="add-passenger" style="padding:2px 4px; font-size:12px;">+ voyageur</button>
       </td>
       <td>
-        <select data-f="mode" style="margin-bottom:4px; width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px; background:#fff;">
+        <select data-f="mode" style="margin-bottom:4px; width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px; background:var(--card); color:var(--text);">
           <option value="train" ${t.mode!=='voiture' && t.mode!=='avion' ?'selected':''}>🚆 Train</option>
           <option value="voiture" ${t.mode==='voiture'?'selected':''}>🚗 Voiture</option>
           <option value="avion" ${t.mode==='avion'?'selected':''}>✈️ Avion</option>
