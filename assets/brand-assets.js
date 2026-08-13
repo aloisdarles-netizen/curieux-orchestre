@@ -154,11 +154,12 @@ function injectAdminLogoutButton(email){
 // ouverte en écriture à la clé anonyme (voir migrations.sql). Les messages
 // arrivent ensuite dans la console admin (admin-dashboard.html), lisible
 // uniquement par les comptes 'admin'.
-// Positionné en onglet vertical sur le bord droit de l'écran (position:fixed,
-// top:50%) plutôt qu'en coin — un coin fixe entre en collision avec d'autres
-// éléments position:fixed selon les pages (bouton de déconnexion en haut à
-// droite sur accueil.html, barre de sauvegarde pleine largeur en bas sur
-// dispo-titulaire.html/mes-infos.html/mes-remplacants.html).
+// Positionné en onglet vertical sur le bord droit de l'écran, en bas
+// (position:fixed, bottom:110px) plutôt qu'au milieu (top:50%) — un onglet
+// centré verticalement finissait immanquablement par recouvrir le contenu
+// des cartes au scroll sur les pages longues. bottom:110px laisse une marge
+// au-dessus de la barre de sauvegarde pleine largeur (~70-100px avec l'encoche)
+// de dispo-titulaire.html/mes-infos.html/mes-remplacants.html quand elle est visible.
 function injectBugReportWidget(){
   if(!document.body){
     document.addEventListener('DOMContentLoaded', injectBugReportWidget);
@@ -177,7 +178,7 @@ function injectBugReportWidget(){
   // "Se connecter") étire cet onglet sur toute la largeur de l'écran : les
   // styles inline gagnent en cascade, mais seulement pour les propriétés
   // qu'ils déclarent vraiment.
-  tab.style.cssText = `position:fixed; top:50%; right:0; transform:translateY(-50%); z-index:9997;
+  tab.style.cssText = `position:fixed; bottom:110px; right:0; z-index:9997;
     display:flex; align-items:center; gap:6px; width:max-content; font-family:${FONT}; font-size:12px; font-weight:700;
     color:var(--muted,#8a7686); background:var(--card,#fff); border:1px solid var(--border,#f0dbe6);
     border-right:none; border-radius:10px 0 0 10px; padding:10px 12px; cursor:pointer;
