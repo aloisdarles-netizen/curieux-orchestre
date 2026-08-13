@@ -8,7 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
 <style>
   :root{
     --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#7a6676;
@@ -132,6 +132,12 @@
   .log-action.INSERT{background:var(--ok-tint); color:var(--ok);}
   .log-action.UPDATE{background:var(--accent-tint); color:var(--accent-dark);}
   .log-action.DELETE{background:var(--secondary-tint); color:var(--secondary-dark);}
+
+  .bug-entry{border-bottom:1px solid var(--border); padding:12px 0; font-size:13px; display:flex; justify-content:space-between; gap:14px; align-items:flex-start;}
+  .bug-entry:last-child{border-bottom:none;}
+  .bug-message{white-space:pre-wrap; word-break:break-word; line-height:1.45;}
+  .bug-meta{display:flex; gap:10px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:12px; margin-top:6px;}
+  .bug-page{font-weight:700; text-transform:uppercase; font-size:10.5px; padding:1px 7px; border-radius:12px; background:var(--accent-tint); color:var(--accent-dark);}
   .log-detail{margin-top:6px; font-size:12px; color:var(--text);}
   .log-detail summary{cursor:pointer; color:var(--muted);}
   .log-detail pre{white-space:pre-wrap; word-break:break-word; background:var(--bg); border-radius:6px; padding:8px; margin-top:6px; font-size:11px;}
@@ -184,6 +190,16 @@
       <div class="stat-card"><div class="num">…</div><div class="label">Technicien·nes</div></div>
       <div class="stat-card"><div class="num">…</div><div class="label">Tournées à venir</div></div>
       <div class="stat-card"><div class="num">…</div><div class="label">Comptes actifs</div></div>
+      <div class="stat-card"><div class="num">…</div><div class="label">Signalements</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Signalements</h2>
+    <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">Messages envoyés depuis le widget "Un bug ?" présent sur toutes les pages.</p>
+    <div class="card">
+      <div id="bugList"></div>
+      <div id="bugEmpty" class="empty-hint">Chargement…</div>
     </div>
   </section>
 
@@ -308,6 +324,48 @@ async function loadStats(){
 
   accountsCache = accounts;
   renderAccounts();
+}
+
+let bugReportsCache = [];
+
+async function loadBugReports(){
+  bugReportsCache = await CurieuxDB.fetchAll('bug_reports');
+  bugReportsCache.sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
+  document.querySelectorAll('.stat-card .num')[4].textContent = bugReportsCache.length;
+  renderBugReports();
+}
+
+function renderBugReports(){
+  const list = document.getElementById('bugList');
+  const empty = document.getElementById('bugEmpty');
+  if(bugReportsCache.length === 0){
+    list.innerHTML = '';
+    empty.textContent = 'Aucun signalement pour le moment.';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = bugReportsCache.map(b=> `
+    <div class="bug-entry">
+      <div style="flex:1; min-width:0;">
+        <div class="bug-message">${escapeHtml(b.message)}</div>
+        <div class="bug-meta">
+          <span class="bug-page">${escapeHtml(b.page || '—')}</span>
+          <span>· ${escapeHtml(new Date(b.createdAt).toLocaleString('fr-FR'))}</span>
+        </div>
+      </div>
+      <button type="button" class="btn-danger btn-sm" data-dismiss-bug="${escapeAttr(b.id)}">Traité</button>
+    </div>
+  `).join('');
+  list.querySelectorAll('[data-dismiss-bug]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true;
+      await CurieuxDB.removeOne('bug_reports', btn.dataset.dismissBug);
+      bugReportsCache = bugReportsCache.filter(b=> b.id !== btn.dataset.dismissBug);
+      document.querySelectorAll('.stat-card .num')[4].textContent = bugReportsCache.length;
+      renderBugReports();
+    });
+  });
 }
 
 function renderAccounts(){
@@ -501,6 +559,7 @@ document.getElementById('logSearch').addEventListener('input', renderLog);
 
 (async ()=>{
   await loadStats();
+  await loadBugReports();
   await loadLog();
 })();
 </script>

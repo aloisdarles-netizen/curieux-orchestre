@@ -515,6 +515,39 @@ $$;
 grant execute on function get_own_remplacant_prefs(text) to anon, authenticated;
 grant execute on function upsert_own_remplacant_prefs(text, jsonb) to anon, authenticated;
 
+-- ----------------------------------------------------------------------------
+-- bug_reports — petit widget "Signaler un bug" présent sur TOUTES les pages
+-- (admin comme publiques par lien perso), voir injectBugReportWidget() dans
+-- assets/brand-assets.js. Écriture ouverte à la clé anonyme (n'importe qui
+-- doit pouvoir signaler un problème sans compte) mais lecture/suppression
+-- réservées au rôle 'admin' (console admin-dashboard.html) — comme
+-- audit_log, ce n'est pas un canal qu'on veut voir listé/lu publiquement.
+-- ----------------------------------------------------------------------------
+create table if not exists bug_reports (
+  id text primary key,
+  message text not null,
+  page text default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_bug_reports_created_at on bug_reports (created_at desc);
+
+alter table bug_reports enable row level security;
+
+drop policy if exists "public can report" on bug_reports;
+create policy "public can report" on bug_reports
+  for insert
+  with check (true);
+
+drop policy if exists "admins read reports" on bug_reports;
+create policy "admins read reports" on bug_reports
+  for select
+  using (is_admin());
+
+drop policy if exists "admins delete reports" on bug_reports;
+create policy "admins delete reports" on bug_reports
+  for delete
+  using (is_admin());
+
 -- ============================================================================
 -- RLS : accès public en lecture/écriture (pas de compte utilisateur).
 -- infos_sociales / infos_sociales_admins / dispo_demandes font exception (voir
