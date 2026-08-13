@@ -43,11 +43,22 @@
   .state-box{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:22px 20px; text-align:center; color:var(--muted); font-size:14px;}
 
   .identity-banner{
-    background:var(--champagne); border-radius:var(--radius); padding:14px 18px; margin-bottom:16px;
-    font-size:14px;
+    background:var(--champagne); border-radius:var(--radius); padding:18px 20px; margin-bottom:18px;
+    font-size:15px; line-height:1.45;
   }
   .identity-banner strong{color:var(--accent-dark);}
-  .identity-note{font-size:11.5px; color:var(--muted); margin-top:4px;}
+  .identity-meta{display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:10px;}
+  .identity-meta-item{font-size:12.5px; color:var(--muted); font-weight:600; display:flex; align-items:center; gap:5px;}
+  .identity-actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;}
+  .identity-action{
+    flex:1 1 220px; display:flex; align-items:center; gap:11px; text-decoration:none; color:var(--text);
+    background:var(--card); border:1px solid var(--old-champagne); border-radius:10px; padding:11px 14px;
+    transition:border-color .15s, transform .1s, box-shadow .15s;
+  }
+  .identity-action:hover{border-color:var(--accent); transform:translateY(-1px); box-shadow:0 4px 10px rgba(20,15,10,.06);}
+  .identity-action-icon{font-size:19px; flex-shrink:0; line-height:1;}
+  .identity-action-title{display:block; font-size:13.5px; font-weight:800; color:var(--accent-dark);}
+  .identity-action-sub{display:block; font-size:11.5px; color:var(--muted); margin-top:1px;}
 
   h1{font-size:20px; margin:0 0 6px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
   .contact-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; margin-bottom:16px;}
@@ -370,12 +381,29 @@ function render(){
     <div class="identity-banner">
       Bonjour <strong>${escapeHtml(fullName(state.person))}</strong> — merci de compléter tes dispo pour
       <strong>${escapeHtml(state.tournee.nom || 'la tournée')}</strong>${restrictedIds ? ', sur les dates ci-dessous uniquement' : ''}.
-      <div class="identity-note">Ce lien t'est personnel, pas la peine de le transférer. Tu peux revenir dessus à tout moment pour mettre à jour tes réponses.</div>
-      <div class="identity-note">${state.tournee.cachet_statut === 'defini' && state.tournee.cachet_montant != null
-        ? `💶 Cachet brut prévu pour cette tournée : <strong>${escapeHtml(String(state.tournee.cachet_montant))} € brut</strong>.`
-        : `💶 Cachet brut pour cette tournée : non défini pour l'instant.`}</div>
-      <div class="identity-note">🔒 <a href="mes-infos.html?token=${encodeURIComponent(state.token)}">Renseigner mes infos pour ma fiche</a> (identité, RIB, n° sécu…).</div>
-      ${(state.person.statut_poste || 'titulaire') === 'titulaire' ? `<div class="identity-note">🔁 <a href="mes-remplacants.html?token=${encodeURIComponent(state.token)}">Gérer mes remplaçant·es</a> (par ordre de préférence).</div>` : ''}
+      <div class="identity-meta">
+        <span class="identity-meta-item">🔗 Lien personnel — reviens-y quand tu veux</span>
+        <span class="identity-meta-item">${state.tournee.cachet_statut === 'defini' && state.tournee.cachet_montant != null
+          ? `💶 Cachet brut : <strong>${escapeHtml(String(state.tournee.cachet_montant))} € brut</strong>`
+          : `💶 Cachet brut : non défini pour l'instant`}</span>
+      </div>
+      <div class="identity-actions">
+        <a class="identity-action" href="mes-infos.html?token=${encodeURIComponent(state.token)}">
+          <span class="identity-action-icon">🔒</span>
+          <span>
+            <span class="identity-action-title">Renseigner mes infos</span>
+            <span class="identity-action-sub">Identité, RIB, n° sécu…</span>
+          </span>
+        </a>
+        ${(state.person.statut_poste || 'titulaire') === 'titulaire' ? `
+        <a class="identity-action" href="mes-remplacants.html?token=${encodeURIComponent(state.token)}">
+          <span class="identity-action-icon">🔁</span>
+          <span>
+            <span class="identity-action-title">Gérer mes remplaçant·es</span>
+            <span class="identity-action-sub">Par ordre de préférence</span>
+          </span>
+        </a>` : ''}
+      </div>
     </div>
     <div class="contact-card">
       <div class="contact-card-label">Tes coordonnées (visibles dans l'annuaire de la prod)</div>
