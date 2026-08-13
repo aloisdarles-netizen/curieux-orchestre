@@ -253,10 +253,6 @@ const CurieuxDB = (()=>{
     if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
     return supabaseClient.auth.signInWithPassword({ email, password });
   }
-  async function signUp(email, password){
-    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    return supabaseClient.auth.signUp({ email, password });
-  }
   async function signOut(){
     if(!supabaseClient) return;
     return supabaseClient.auth.signOut();
@@ -405,7 +401,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
-    signIn, signUp, signOut, getSession, onAuthStateChange,
+    signIn, signOut, getSession, onAuthStateChange,
     getMyRole, hasAppAccess, isSuperAdmin,
     listAccounts, setAccountRole, removeAccount,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
