@@ -255,24 +255,41 @@ drop policy if exists "self read own row" on infos_sociales_admins;
 create policy "self read own row" on infos_sociales_admins
   for select using (email = auth.jwt()->>'email');
 
+-- Vérifie si le compte connecté a le rôle 'admin'. SECURITY DEFINER : la
+-- lecture interne de infos_sociales_admins CONTOURNE le RLS de la table,
+-- ce qui casse la récursion — une policy qui interroge sa propre table via
+-- une sous-requête normale (sans passer par une fonction definer) déclenche
+-- une erreur Postgres "infinite recursion detected in policy for relation"
+-- (silencieuse côté app : elle finit juste par bloquer tout accès admin,
+-- y compris pour le compte déjà listé dans la table).
+create or replace function is_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from infos_sociales_admins
+    where email = auth.jwt()->>'email' and role = 'admin'
+  );
+$$;
+grant execute on function is_admin() to anon, authenticated;
+
 -- Un compte 'admin' peut lire/ajouter/modifier/retirer n'importe quelle ligne
--- (gestion des comptes depuis admin-dashboard.html). La sous-requête sur
--- infos_sociales_admins référence la table elle-même, mais reste résolue par
--- la policy "self read own row" ci-dessus pour la propre ligne de l'appelant
--- (pas de récursion : c'est ce qui permet de déterminer que l'appelant est
--- bien 'admin' avant de lui ouvrir tout le reste).
+-- (gestion des comptes depuis admin-dashboard.html).
 drop policy if exists "admins manage all rows" on infos_sociales_admins;
 create policy "admins manage all rows" on infos_sociales_admins
   for all
-  using (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email' and a.role = 'admin'))
-  with check (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email' and a.role = 'admin'));
+  using (is_admin())
+  with check (is_admin());
 
 -- infos_sociales reste réservée au rôle 'admin' précisément (pas 'user').
 drop policy if exists "admins only" on infos_sociales;
 create policy "admins only" on infos_sociales
   for all
-  using (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email' and a.role = 'admin'))
-  with check (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email' and a.role = 'admin'));
+  using (is_admin())
+  with check (is_admin());
 
 -- Auto-saisie (mes-infos.html) : PAS de compte séparé — on réutilise le même
 -- lien personnel imprévisible que pour les dispos (dispo_demandes.id comme
@@ -418,7 +435,7 @@ alter table audit_log enable row level security;
 drop policy if exists "admins read audit log" on audit_log;
 create policy "admins read audit log" on audit_log
   for select
-  using (exists (select 1 from infos_sociales_admins a where a.email = auth.jwt()->>'email' and a.role = 'admin'));
+  using (is_admin());
 
 -- Trigger générique (avant/après complets) pour les tables "normales".
 create or replace function audit_trigger_func()
