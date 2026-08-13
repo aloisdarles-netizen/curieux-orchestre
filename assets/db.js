@@ -70,6 +70,15 @@ const CurieuxDB = (()=>{
       }),
       fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant })
     },
+    // Liste personnelle et permanente de remplaçant·es classé·es (mes-remplacants.html) —
+    // "id" = le person_id du/de la titulaire. Accessible en lecture directe par les
+    // comptes admin/user (RLS "admin access", voir migrations.sql) : contrairement à
+    // infos_sociales/dispo_demandes, pas besoin de passer par une fonction à token ici,
+    // ce sont les pages admin (annuaire, techniciens) qui consultent cette table.
+    remplacant_prefs: {
+      toDb: (r)=> ({ id: r.id, person_type: r.personType, items: r.items || [] }),
+      fromDb: (r)=> ({ id: r.id, personType: r.person_type, items: r.items || [] })
+    },
     // Liens personnels de demande de dispo envoyés aux titulaires — "id" est le token
     // utilisé dans l'URL du lien (voir dispo-titulaire.html).
     dispo_demandes: {
