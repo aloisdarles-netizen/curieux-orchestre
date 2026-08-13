@@ -86,8 +86,11 @@ const CurieuxDB = (()=>{
     },
     feuilles_route: {
       // La FDR entière (contacts, trajets, planning, lieu, hôtel...) tient dans "data".
+      // _updatedAt (préfixé pour ne jamais entrer en collision avec un champ du
+      // même nom à l'intérieur de "data") sert à détecter les conflits d'édition
+      // concurrente, voir feuille-de-route.html.
       toDb: (f)=> ({ id: f.id, data: f }),
-      fromDb: (r)=> ({ ...(r.data || {}), id: r.id })
+      fromDb: (r)=> ({ ...(r.data || {}), id: r.id, _updatedAt: r.updated_at })
     },
     carnet_contacts: {
       toDb: (c)=> ({
@@ -160,43 +163,58 @@ const CurieuxDB = (()=>{
     return (data || []).map(adapter.fromDb);
   }
 
-  // Remplace toute une collection (équivalent de l'ancien saveXxx(list)) :
-  // upsert de tous les éléments présents, suppression de ceux qui ont disparu
-  // de la liste. Garde le même modèle mental "je sauvegarde le tableau entier"
-  // utilisé partout dans l'app, tout en restant du CRUD ligne par ligne côté DB.
+  // Upsert de toute une collection (équivalent de l'ancien saveXxx(list)) —
+  // sans plus jamais supprimer ce qui manquerait de la liste. Avant, syncCollection
+  // supprimait tout ce qui n'était pas dans "list", ce qui était dangereux dès que
+  // deux admins travaillaient en même temps : un onglet resté ouvert avec une
+  // liste devenue périmée pouvait supprimer d'un coup ce qu'une autre personne
+  // venait d'ajouter ailleurs. Les suppressions se font maintenant explicitement,
+  // via removeOne/removeMany/removePerson (le·la seul·e à savoir "je veux
+  // supprimer CETTE ligne précise" est l'action qui déclenche la suppression).
   async function syncCollection(table, list){
     if(!supabaseClient) return;
     const adapter = adapterFor(table);
     const rows = (list || []).map(adapter.toDb);
-
-    if(rows.length > 0){
-      const { error: upsertError } = await supabaseClient.from(table).upsert(rows, { onConflict: 'id' });
-      if(upsertError) console.warn(`[CurieuxDB] upsert(${table})`, upsertError.message);
-    }
-
-    const { data: existing, error: fetchErr } = await supabaseClient.from(table).select('id');
-    if(fetchErr){ console.warn(`[CurieuxDB] fetch ids(${table})`, fetchErr.message); return; }
-    const keepIds = new Set((list || []).map(r=>r.id));
-    const toDelete = (existing || []).map(r=>r.id).filter(id=> !keepIds.has(id));
-    if(toDelete.length > 0){
-      const { error: delError } = await supabaseClient.from(table).delete().in('id', toDelete);
-      if(delError) console.warn(`[CurieuxDB] delete(${table})`, delError.message);
-    }
+    if(rows.length === 0) return;
+    const { error } = await supabaseClient.from(table).upsert(rows, { onConflict: 'id' });
+    if(error) console.warn(`[CurieuxDB] syncCollection(${table})`, error.message);
   }
 
-  // Upsert d'une seule ligne, sans diff/suppression du reste de la table — utilisé pour
-  // les sauvegardes à haute fréquence (frappe clavier) où re-synchroniser toute la
-  // collection à chaque saisie serait inutilement coûteux (voir feuille-de-route.html).
+  // Upsert d'une seule ligne — utilisé pour les sauvegardes à haute fréquence
+  // (frappe clavier) où re-synchroniser toute la collection à chaque saisie
+  // serait inutilement coûteux (voir feuille-de-route.html), et plus généralement
+  // partout où on modifie/ajoute UNE ligne connue.
   async function upsertOne(table, item){
-    if(!supabaseClient) return;
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
     const adapter = adapterFor(table);
     const { error } = await supabaseClient.from(table).upsert(adapter.toDb(item), { onConflict: 'id' });
     if(error) console.warn(`[CurieuxDB] upsertOne(${table})`, error.message);
+    return { error };
   }
   async function removeOne(table, id){
-    if(!supabaseClient) return;
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
     const { error } = await supabaseClient.from(table).delete().eq('id', id);
     if(error) console.warn(`[CurieuxDB] removeOne(${table})`, error.message);
+    return { error };
+  }
+  async function removeMany(table, ids){
+    if(!supabaseClient || !ids || ids.length === 0) return { error: null };
+    const { error } = await supabaseClient.from(table).delete().in('id', ids);
+    if(error) console.warn(`[CurieuxDB] removeMany(${table})`, error.message);
+    return { error };
+  }
+  // Supprime un·e musicien·ne/technicien·ne ET les données rattachées ailleurs
+  // (fiche infos_sociales, liens dispo_demandes) — sans quoi elles restaient
+  // orphelines et invisibles indéfiniment. Best-effort : un compte de rôle
+  // 'user' n'a pas accès à infos_sociales (RLS), ce volet échoue silencieusement
+  // pour lui, la fiche roster est quand même bien supprimée.
+  async function removePerson(table, id){
+    if(!supabaseClient) return;
+    await Promise.all([
+      supabaseClient.from(table).delete().eq('id', id),
+      supabaseClient.from('infos_sociales').delete().eq('id', id),
+      supabaseClient.from('dispo_demandes').delete().eq('person_id', id),
+    ]);
   }
 
   // Le singleton "newsletter_snapshot" (une seule ligne, id=1) a sa propre API,
@@ -386,7 +404,7 @@ const CurieuxDB = (()=>{
   }
 
   return {
-    fetchAll, syncCollection, upsertOne, removeOne, fetchSnapshot, saveSnapshot, subscribe,
+    fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
     signIn, signUp, signOut, getSession, onAuthStateChange,
     getMyRole, hasAppAccess, isSuperAdmin,
     listAccounts, setAccountRole, removeAccount,

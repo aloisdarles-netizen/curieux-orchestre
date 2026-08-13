@@ -13,7 +13,7 @@
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <style>
   :root{
-    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#7a6676;
     --accent:#791649; --accent-dark:#5a1037; --accent-solid:#791649; --accent-tint:#CEE1F4;
     --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
     --champagne:#fde3ee; --old-champagne:#c98aa0;
@@ -451,7 +451,8 @@ function render(){
       const list = loadMusicians();
       const m = list.find(x=>x.id === btn.dataset.del);
       if(m && confirm(`Supprimer ${fullName(m)} de l'annuaire ?`)){
-        saveMusicians(list.filter(x=>x.id !== btn.dataset.del));
+        musiciansCache = list.filter(x=>x.id !== btn.dataset.del);
+        CurieuxDB.removePerson('musiciens', btn.dataset.del);
         selectedIds.delete(btn.dataset.del);
         render();
       }
@@ -867,7 +868,13 @@ document.getElementById('bulkDeleteBtn').addEventListener('click', ()=>{
   const list = loadMusicians();
   const toDelete = list.filter(m=>selectedIds.has(m.id));
   if(!confirm(`Supprimer définitivement ${toDelete.length} fiche${toDelete.length>1?'s':''} de l'annuaire ?\n\n${toDelete.map(fullName).join(', ')}`)) return;
-  saveMusicians(list.filter(m=>!selectedIds.has(m.id)));
+  const idsToDelete = toDelete.map(m=>m.id);
+  musiciansCache = list.filter(m=>!selectedIds.has(m.id));
+  CurieuxDB.removeMany('musiciens', idsToDelete);
+  idsToDelete.forEach(id=>{
+    supabaseClient.from('infos_sociales').delete().eq('id', id);
+    supabaseClient.from('dispo_demandes').delete().eq('person_id', id);
+  });
   selectedIds.clear();
   render();
 });

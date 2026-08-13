@@ -8,7 +8,15 @@
 function escapeHtml(str){ return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escapeAttr(str){ return escapeHtml(str); }
 function fullName(p){ return [p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom'; }
-function genId(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+// Le suffixe aléatoire sert aussi de token imprévisible pour les liens perso
+// (dispo_demandes.id) : crypto.getRandomValues plutôt que Math.random(), qui
+// n'offre aucune garantie d'imprévisibilité.
+function genId(prefix){
+  const bytes = new Uint8Array(10);
+  crypto.getRandomValues(bytes);
+  const rand = Array.from(bytes, b=> b.toString(36).padStart(2, '0')).join('');
+  return prefix + Date.now().toString(36) + rand;
+}
 
 function addDaysIso(iso, delta){
   const [y, m, d] = iso.split('-').map(Number);

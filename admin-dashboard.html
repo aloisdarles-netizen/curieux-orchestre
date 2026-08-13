@@ -11,7 +11,7 @@
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
 <style>
   :root{
-    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#7a6676;
     --accent:#791649; --accent-dark:#5a1037; --accent-solid:#791649; --accent-tint:#CEE1F4;
     --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
     --danger:#a5313f; --danger-dark:#7a2333;
@@ -212,7 +212,10 @@
             </div>
             <div class="field" id="passwordField">
               <label for="newAccountPassword">Mot de passe initial</label>
-              <input type="text" id="newAccountPassword" minlength="6" placeholder="À transmettre à la personne">
+              <div style="position:relative;">
+                <input type="password" id="newAccountPassword" minlength="6" placeholder="À transmettre à la personne" style="padding-right:34px;">
+                <button type="button" id="togglePasswordVisibility" title="Afficher/masquer" style="position:absolute; top:50%; right:4px; transform:translateY(-50%); background:transparent; padding:4px 6px; font-size:14px; color:var(--muted);">👁</button>
+              </div>
             </div>
             <div class="field" style="flex:0 0 160px;">
               <label for="newAccountRole">Rôle</label>
@@ -335,7 +338,7 @@ function renderAccounts(){
       sel.disabled = true;
       const { error } = await CurieuxDB.setAccountRole(email, sel.value);
       sel.disabled = false;
-      if(error){ alert('Erreur : ' + error.message); return; }
+      if(error){ alert('Erreur : ' + translateAuthError(error.message)); return; }
       const acc = accountsCache.find(a=> a.email === email);
       if(acc) acc.role = sel.value;
     });
@@ -347,7 +350,7 @@ function renderAccounts(){
       if(!confirm(`Retirer l'accès de ${email} ? Son compte continuera d'exister mais n'aura plus accès aux pages admin.`)) return;
       btn.disabled = true;
       const { error } = await CurieuxDB.removeAccount(email);
-      if(error){ alert('Erreur : ' + error.message); btn.disabled = false; return; }
+      if(error){ alert('Erreur : ' + translateAuthError(error.message)); btn.disabled = false; return; }
       accountsCache = accountsCache.filter(a=> a.email !== email);
       renderAccounts();
       document.querySelectorAll('.stat-card .num')[3].textContent = accountsCache.length;
@@ -367,6 +370,11 @@ function setMethod(method){
 }
 document.getElementById('methodPasswordBtn').addEventListener('click', ()=> setMethod('password'));
 document.getElementById('methodMagicBtn').addEventListener('click', ()=> setMethod('magic'));
+
+document.getElementById('togglePasswordVisibility').addEventListener('click', ()=>{
+  const input = document.getElementById('newAccountPassword');
+  input.type = input.type === 'password' ? 'text' : 'password';
+});
 
 document.getElementById('addAccountForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
@@ -396,7 +404,7 @@ document.getElementById('addAccountForm').addEventListener('submit', async (e)=>
 
   const alreadyRegistered = result.error && /already registered|already exists/i.test(result.error.message);
   if(result.error && !alreadyRegistered){
-    errorEl.textContent = result.error.message;
+    errorEl.textContent = translateAuthError(result.error.message);
     errorEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Ajouter';
     return;
@@ -405,7 +413,7 @@ document.getElementById('addAccountForm').addEventListener('submit', async (e)=>
   const { error: roleError } = await CurieuxDB.setAccountRole(email, role);
   btn.disabled = false; btn.textContent = 'Ajouter';
   if(roleError){
-    errorEl.textContent = "Compte créé mais l'ajout à la liste d'accès a échoué : " + roleError.message;
+    errorEl.textContent = "Compte créé mais l'ajout à la liste d'accès a échoué : " + translateAuthError(roleError.message);
     errorEl.style.display = 'block';
     return;
   }

@@ -13,7 +13,7 @@
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <style>
   :root{
-    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#7a6676;
     --accent:#791649; --accent-dark:#5a1037; --accent-solid:#791649; --accent-tint:#CEE1F4;
     --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
     --champagne:#fde3ee; --old-champagne:#c98aa0;
@@ -964,7 +964,12 @@ async function generateDispoLink(tourneeId, personType, personId, dates){
   const entry = { id: genId('demande'), tourneeId, personType, personId, dates: dates || [] };
   demandes.push(entry);
   dispoDemandesCache = demandes;
-  await CurieuxDB.upsertOne('dispo_demandes', entry);
+  const { error } = await CurieuxDB.upsertOne('dispo_demandes', entry);
+  if(error){
+    dispoDemandesCache = dispoDemandesCache.filter(d=> d.id !== entry.id);
+    alert("La création du lien a échoué, réessaie. (" + error.message + ")");
+    return null;
+  }
   return entry;
 }
 
@@ -1155,7 +1160,7 @@ document.getElementById('dispoLinksCopyAllBtn').addEventListener('click', async 
   const lines = [];
   for(const { person, personType } of people){
     const entry = await generateDispoLink(tourneeId, personType, person.id);
-    lines.push(`${fullName(person)} : ${dispoLinkUrl(entry.id)}`);
+    if(entry) lines.push(`${fullName(person)} : ${dispoLinkUrl(entry.id)}`);
   }
   renderDispoLinksModal(tourneeId);
   navigator.clipboard.writeText(lines.join('\n')).then(()=>{
@@ -1180,7 +1185,8 @@ function bindTourneeEvents(){
       const tournees = loadTournees();
       const t = tournees.find(x=>x.id === btn.dataset.delTournee);
       if(t && confirm(`Supprimer la tournée "${t.nom}" et toutes ses dates ?`)){
-        saveTournees(tournees.filter(x=>x.id !== btn.dataset.delTournee));
+        tourneesCache = tournees.filter(x=>x.id !== btn.dataset.delTournee);
+        CurieuxDB.removeOne('tournees', btn.dataset.delTournee);
         render();
       }
     });

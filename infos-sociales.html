@@ -11,7 +11,7 @@
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); }catch(e){}</script>
 <style>
   :root{
-    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#7a6676;
     --accent:#791649; --accent-dark:#5a1037; --accent-solid:#791649; --accent-tint:#CEE1F4;
     --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
     --champagne:#fde3ee; --old-champagne:#c98aa0;
@@ -457,7 +457,11 @@ function scheduleSave(personId, personType){
   saveTimers[personId] = setTimeout(async ()=>{
     const info = infosFor(personId);
     info.personType = personType;
-    await CurieuxDB.upsertOne('infos_sociales', info);
+    const { error } = await CurieuxDB.upsertOne('infos_sociales', info);
+    if(error){
+      if(hint){ hint.textContent = "⚠️ Échec de l'enregistrement, réessaie."; hint.classList.remove('ok'); }
+      return;
+    }
     if(!infosCache.some(i=> i.id === personId)) infosCache.push(info);
     if(hint){ hint.textContent = 'Enregistré ✓'; hint.classList.add('ok'); }
   }, 500);
@@ -528,7 +532,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e)=>{
   errorEl.style.display = 'none';
   const { error } = await CurieuxDB.signIn(email, password);
   if(error){
-    errorEl.textContent = error.message === 'Invalid login credentials' ? 'Email ou mot de passe incorrect.' : error.message;
+    errorEl.textContent = translateAuthError(error.message);
     errorEl.style.display = 'block';
   }
 });

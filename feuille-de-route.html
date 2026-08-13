@@ -13,7 +13,7 @@
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <style>
   :root{
-    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#8a7686;
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#7a6676;
     --accent:#791649; --accent-dark:#5a1037; --accent-solid:#791649; --accent-tint:#CEE1F4;
     --secondary:#EC4B15; --secondary-dark:#c13d0f; --secondary-tint:#FEC9E0;
     --champagne:#fde3ee; --old-champagne:#c98aa0;
@@ -71,7 +71,15 @@
   .page-nav > a .nav-icon{width:16px; height:16px;}
   .nav-dropdown a:hover .nav-icon, .page-nav > a:hover .nav-icon{transform:scale(1.18) rotate(-6deg);}
   h1{font-size:23px; margin:0 0 4px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
-  .subtitle{color:var(--muted); margin:0 0 26px; font-size:14px;}
+  .subtitle{color:var(--muted); margin:0 0 8px; font-size:14px;}
+  .fdr-save-status{font-size:12.5px; color:var(--muted); margin-bottom:18px; min-height:16px;}
+  .fdr-save-status.saved{color:var(--accent-dark);}
+  .fdr-save-status.error{color:var(--danger); font-weight:700;}
+  .fdr-conflict-banner{
+    background:var(--secondary-tint); color:var(--secondary-dark); border-radius:var(--radius);
+    padding:14px 18px; margin-bottom:20px; font-size:13.5px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  .fdr-conflict-banner button{background:var(--secondary-dark); color:#fff; padding:7px 14px; font-size:12.5px;}
   .card{
     background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
     padding:20px 22px; margin-bottom:18px; box-shadow:0 1px 2px rgba(20,15,10,.03), 0 8px 20px rgba(20,15,10,.03);
@@ -210,6 +218,11 @@
   </div>
   <h1>Feuille de route</h1>
   <p class="subtitle">Prépare la feuille de route complète d'une date (contacts, trajets confirmés, planning, lieu, hôtel), puis génère le PDF.</p>
+  <div id="fdrSaveStatus" class="fdr-save-status"></div>
+  <div id="fdrConflictBanner" class="fdr-conflict-banner" style="display:none;">
+    ⚠️ Cette feuille de route a été modifiée par quelqu'un d'autre pendant que tu l'éditais. Tes derniers changements n'ont <strong>pas</strong> été enregistrés pour éviter d'écraser les siens.
+    <button type="button" id="fdrReloadBtn">Recharger la page</button>
+  </div>
 
   <div class="card">
     <h2>Informations générales</h2>
@@ -587,16 +600,54 @@ function loadState(){
   }
 
   state = entry;
+  fdrLastKnownUpdatedAt = entry._updatedAt || null;
+  fdrConflict = false;
   localStorage.setItem(FDR_LAST_ID_KEY, state.id);
 }
+
+// Détection de conflit : si quelqu'un d'autre a enregistré cette même feuille de
+// route depuis notre dernier chargement/enregistrement (updated_at différent de
+// ce qu'on a vu en dernier), on n'écrase pas — on prévient plutôt que de faire
+// disparaître silencieusement le travail de l'autre personne (voir aussi
+// syncCollection dans assets/db.js pour le même principe côté rosters).
+let fdrLastKnownUpdatedAt = null;
+let fdrConflict = false;
+function setFdrSaveStatus(kind, text){
+  const el = document.getElementById('fdrSaveStatus');
+  if(!el) return;
+  el.className = 'fdr-save-status' + (kind ? ' ' + kind : '');
+  el.textContent = text || '';
+}
+async function checkConflictAndSave(){
+  if(!supabaseClient || fdrConflict) return;
+  const { data } = await supabaseClient.from('feuilles_route').select('updated_at').eq('id', state.id).maybeSingle();
+  const serverUpdatedAt = data ? data.updated_at : null;
+  if(fdrLastKnownUpdatedAt && serverUpdatedAt && serverUpdatedAt !== fdrLastKnownUpdatedAt){
+    fdrConflict = true;
+    document.getElementById('fdrConflictBanner').style.display = 'flex';
+    setFdrSaveStatus('error', '');
+    return;
+  }
+  setFdrSaveStatus('', 'Enregistrement…');
+  const { error } = await CurieuxDB.upsertOne('feuilles_route', state);
+  if(error){
+    setFdrSaveStatus('error', "⚠️ Échec de l'enregistrement, réessaie.");
+    return;
+  }
+  const { data: after } = await supabaseClient.from('feuilles_route').select('updated_at').eq('id', state.id).maybeSingle();
+  fdrLastKnownUpdatedAt = after ? after.updated_at : null;
+  setFdrSaveStatus('saved', 'Enregistré ✓');
+}
+document.getElementById('fdrReloadBtn').addEventListener('click', ()=> location.reload());
+
 let saveStateTimer = null;
 function scheduleStateSync(){
   clearTimeout(saveStateTimer);
-  saveStateTimer = setTimeout(()=>{ CurieuxDB.upsertOne('feuilles_route', state); }, 600);
+  saveStateTimer = setTimeout(checkConflictAndSave, 600);
 }
 function flushStateSync(){
   clearTimeout(saveStateTimer);
-  CurieuxDB.upsertOne('feuilles_route', state);
+  if(!fdrConflict) CurieuxDB.upsertOne('feuilles_route', state);
 }
 window.addEventListener('beforeunload', flushStateSync);
 
@@ -742,6 +793,7 @@ function renderContacts(){
       upsertCarnetContact(c);
     });
     tr.querySelector('.small-del').addEventListener('click', ()=>{
+      if(!confirm(`Supprimer le contact ${c.nom || 'sans nom'} ?`)) return;
       state.contacts.splice(idx,1);
       saveState(); renderContacts();
     });
@@ -821,6 +873,7 @@ function renderTicketLinks(){
       inp.addEventListener('input', e=>{ tl[e.target.dataset.f] = e.target.value; saveState(); });
     });
     tr.querySelector('.small-del').addEventListener('click', ()=>{
+      if(!confirm(`Supprimer le lien ${tl.nom || 'sans nom'} ?`)) return;
       state.ticketLinks.splice(idx,1);
       if(state.ticketLinks.length===0) state.ticketLinks.push(defaultTicketLink());
       saveState(); renderTicketLinks();
@@ -883,6 +936,7 @@ function renderTrajets(){
       });
     }
     tr.querySelector('.small-del').addEventListener('click', ()=>{
+      if(!confirm(`Supprimer le trajet ${t.label || 'sans nom'} ?`)) return;
       state.trajets.splice(idx,1);
       if(state.trajets.length===0) state.trajets.push(defaultTrajet());
       saveState(); renderTrajets();
@@ -923,6 +977,7 @@ function renderPlanning(){
       saveState();
     });
     tr.querySelector('.small-del').addEventListener('click', ()=>{
+      if(!confirm(`Supprimer cette ligne de planning${row.texte ? ' ("' + row.texte + '")' : ''} ?`)) return;
       state.planning.splice(idx,1);
       if(state.planning.length===0) state.planning.push(defaultPlanningRow());
       saveState(); renderPlanning();
@@ -952,8 +1007,8 @@ document.getElementById('newFdrBtn').addEventListener('click', createNewFdr);
 document.getElementById('deleteFdrBtn').addEventListener('click', async ()=>{
   const desc = [state.artistName || 'Feuille de route sans titre', state.eventDate ? fmtDateFRLong(state.eventDate) : ''].filter(Boolean).join(' — ');
   if(!confirm(`Supprimer DÉFINITIVEMENT la feuille de route "${desc}" ?\n\nCette action est irréversible : contacts, trajets, planning et toutes les infos saisies pour cette date seront perdus.`)) return;
-  const collection = loadFdrCollection().filter(f => f.id !== state.id);
-  await saveFdrCollection(collection);
+  fdrsCache = loadFdrCollection().filter(f => f.id !== state.id);
+  await CurieuxDB.removeOne('feuilles_route', state.id);
   if(localStorage.getItem(FDR_LAST_ID_KEY) === state.id) localStorage.removeItem(FDR_LAST_ID_KEY);
   location.href = 'feuilles-de-route.html';
 });

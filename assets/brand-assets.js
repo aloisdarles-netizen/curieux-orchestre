@@ -43,6 +43,21 @@ function applyBrandLogo(){
   document.querySelectorAll('.brand-logo-img').forEach(img => { if(img.src !== src) img.src = src; });
 }
 
+// Traduit les messages d'erreur Supabase Auth les plus courants — le reste
+// (cas rares) reste affiché tel quel plutôt que de risquer une traduction
+// approximative.
+const CURIEUX_AUTH_ERROR_FR = {
+  'Invalid login credentials': 'Email ou mot de passe incorrect.',
+  'User already registered': 'Un compte existe déjà avec cet email.',
+  'Password should be at least 6 characters': 'Le mot de passe doit faire au moins 6 caractères.',
+  'Unable to validate email address: invalid format': "Format d'email invalide.",
+  'Email not confirmed': "Cet email n'a pas encore été confirmé — vérifie ta boîte mail.",
+  'For security purposes, you can only request this after some time.': 'Merci de patienter un instant avant de réessayer.',
+};
+function translateAuthError(message){
+  return CURIEUX_AUTH_ERROR_FR[message] || message;
+}
+
 function applyCurieuxFavicon(){
   if(document.getElementById('curieux-favicon-link')) return;
   const link = document.createElement('link');

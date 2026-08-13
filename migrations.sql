@@ -520,6 +520,13 @@ begin
     values (tg_table_name, new.id::text, tg_op, auth.jwt()->>'email', null, to_jsonb(new));
     return new;
   else
+    -- Beaucoup d'écritures re-upsertent une ligne inchangée (syncCollection
+    -- sauvegarde toute une collection même quand une seule ligne a bougé) :
+    -- pas la peine de noircir le journal d'une "modification" quand seul
+    -- updated_at a changé.
+    if (to_jsonb(old) - 'updated_at') = (to_jsonb(new) - 'updated_at') then
+      return new;
+    end if;
     insert into audit_log(table_name, row_id, action, changed_by, old_data, new_data)
     values (tg_table_name, new.id::text, tg_op, auth.jwt()->>'email', to_jsonb(old), to_jsonb(new));
     return new;
