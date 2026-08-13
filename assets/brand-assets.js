@@ -172,8 +172,13 @@ function injectBugReportWidget(){
   tab.type = 'button';
   tab.id = 'curieuxBugWidget';
   tab.title = 'Signaler un bug, une amélioration ou une incohérence';
+  // width:max-content — sans ça, une page dont le CSS a une règle générique
+  // "button{width:100%}" (ex: admin-login.html, pensée pour son propre bouton
+  // "Se connecter") étire cet onglet sur toute la largeur de l'écran : les
+  // styles inline gagnent en cascade, mais seulement pour les propriétés
+  // qu'ils déclarent vraiment.
   tab.style.cssText = `position:fixed; top:50%; right:0; transform:translateY(-50%); z-index:9997;
-    display:flex; align-items:center; gap:6px; font-family:${FONT}; font-size:12px; font-weight:700;
+    display:flex; align-items:center; gap:6px; width:max-content; font-family:${FONT}; font-size:12px; font-weight:700;
     color:var(--muted,#8a7686); background:var(--card,#fff); border:1px solid var(--border,#f0dbe6);
     border-right:none; border-radius:10px 0 0 10px; padding:10px 12px; cursor:pointer;
     box-shadow:-2px 2px 10px rgba(20,15,10,.08); transition:background .15s, color .15s;`;
