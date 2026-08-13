@@ -63,8 +63,12 @@ const CurieuxDB = (()=>{
       })
     },
     tournees: {
-      toDb: (t)=> ({ id: t.id, nom: t.nom || '', dates: t.dates || [] }),
-      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [] })
+      toDb: (t)=> ({
+        id: t.id, nom: t.nom || '', dates: t.dates || [],
+        cachet_statut: t.cachetStatut === 'defini' ? 'defini' : 'non_defini',
+        cachet_montant: t.cachetStatut === 'defini' ? (t.cachetMontant != null ? t.cachetMontant : null) : null,
+      }),
+      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant })
     },
     // Liens personnels de demande de dispo envoyés aux titulaires — "id" est le token
     // utilisé dans l'URL du lien (voir dispo-titulaire.html).

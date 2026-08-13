@@ -78,6 +78,10 @@ create table if not exists tournees (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- Cachet brut de la tournée (un seul montant pour toutes ses dates) : ajouté
+-- après coup, pour une base déjà provisionnée.
+alter table tournees add column if not exists cachet_statut text not null default 'non_defini' check (cachet_statut in ('non_defini','defini'));
+alter table tournees add column if not exists cachet_montant numeric;
 drop trigger if exists trg_tournees_updated_at on tournees;
 create trigger trg_tournees_updated_at before update on tournees
   for each row execute function set_updated_at();

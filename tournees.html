@@ -113,6 +113,11 @@
   .tournee-head{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px; flex-wrap:wrap;}
   .tournee-name{font-size:17px; font-weight:800;}
   .tournee-meta{color:var(--muted); font-size:12.5px; margin-bottom:14px;}
+  .cachet-row{display:flex; align-items:center; gap:8px; margin:-6px 0 14px; flex-wrap:wrap;}
+  .cachet-row label{font-size:12.5px; color:var(--muted); font-weight:600;}
+  .cachet-row select{padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
+  .cachet-row input[type=number]{padding:6px 9px; font-size:12.5px; width:110px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
+  .cachet-row .cachet-unit{font-size:12.5px; color:var(--muted);}
   .add-date-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--border);}
   .add-date-row input{flex:1 1 140px;}
 
@@ -761,6 +766,17 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             </div>
           </div>
           <div class="tournee-meta">${dates.length} date${dates.length>1?'s':''}</div>
+          <div class="cachet-row">
+            <label>Cachet brut :</label>
+            <select data-cachet-statut="${escapeAttr(t.id)}">
+              <option value="non_defini" ${t.cachetStatut !== 'defini' ? 'selected' : ''}>Non défini pour l'instant</option>
+              <option value="defini" ${t.cachetStatut === 'defini' ? 'selected' : ''}>Montant défini</option>
+            </select>
+            <input type="number" data-cachet-montant="${escapeAttr(t.id)}" placeholder="Montant" min="0" step="0.01"
+              value="${t.cachetMontant != null ? escapeAttr(t.cachetMontant) : ''}"
+              style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">
+            <span class="cachet-unit" style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">€ brut</span>
+          </div>
           <div class="add-date-row">
             <input type="date" data-new-date="${escapeAttr(t.id)}">
             <select class="type-select" data-new-type="${escapeAttr(t.id)}" style="flex:0 0 130px;">
@@ -1180,6 +1196,35 @@ function bindTourneeEvents(){
     });
     el.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); el.blur(); } });
   });
+  document.querySelectorAll('[data-cachet-statut]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const tourneeId = sel.dataset.cachetStatut;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      if(!t) return;
+      t.cachetStatut = sel.value;
+      if(sel.value !== 'defini') t.cachetMontant = null;
+      saveTournees(tournees);
+      const montantInput = document.querySelector(`[data-cachet-montant="${CSS.escape(tourneeId)}"]`);
+      const unit = sel.parentElement.querySelector('.cachet-unit');
+      if(montantInput){
+        montantInput.style.display = sel.value === 'defini' ? '' : 'none';
+        if(sel.value === 'defini') montantInput.focus();
+      }
+      if(unit) unit.style.display = sel.value === 'defini' ? '' : 'none';
+    });
+  });
+  document.querySelectorAll('[data-cachet-montant]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const tourneeId = inp.dataset.cachetMontant;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      if(!t) return;
+      const val = inp.value.trim();
+      t.cachetMontant = val ? parseFloat(val) : null;
+      saveTournees(tournees);
+    });
+  });
   document.querySelectorAll('[data-del-tournee]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const tournees = loadTournees();
@@ -1344,7 +1389,7 @@ document.getElementById('addTourneeBtn').addEventListener('click', ()=>{
   const nom = input.value.trim();
   if(!nom){ alert('Donne un nom à la tournée.'); return; }
   const tournees = loadTournees();
-  tournees.unshift({ id: genId('tour'), nom, dates: [] });
+  tournees.unshift({ id: genId('tour'), nom, dates: [], cachetStatut: 'non_defini', cachetMontant: null });
   saveTournees(tournees);
   input.value = '';
   render();
