@@ -284,6 +284,10 @@ async function init(){
   if(!state.person.disponibilites) state.person.disponibilites = {};
   if(!state.person.disponibilites_commentaires) state.person.disponibilites_commentaires = {};
   state.info = (await CurieuxDB.getInfosSocialesByToken(token)) || { extra: {} };
+  // Cachet individualisé éventuel — jamais lu depuis la tournée elle-même (qui ne
+  // contient que le cachet standard, public), seulement via ce token, qui ne peut
+  // renvoyer que LE montant de cette personne (voir migrations.sql).
+  state.cachetOverride = await CurieuxDB.getCachetOverrideByToken(token);
 
   render();
   maybeShowInfosModal();
@@ -376,6 +380,17 @@ function render(){
   const dispo = state.person.disponibilites;
   const commentaires = state.person.disponibilites_commentaires;
 
+  // Une personne peut avoir un cachet différent du cachet standard de la tournée
+  // (voir cachet_overrides dans migrations.sql) — elle ne voit jamais le montant des
+  // autres, seulement le sien (state.cachetOverride, chargé via token dans init()).
+  const cachetLine = state.tournee.cachet_statut === 'defini'
+    ? (state.cachetOverride != null
+        ? `Cachet brut : <strong>${escapeHtml(String(state.cachetOverride))} € brut</strong>`
+        : (state.tournee.cachet_montant != null
+            ? `Cachet brut : <strong>${escapeHtml(String(state.tournee.cachet_montant))} € brut</strong>`
+            : `Cachet brut : non défini pour l'instant`))
+    : `Cachet brut : non défini pour l'instant`;
+
   let html = `
     <h1>Tes disponibilités</h1>
     <div class="identity-banner">
@@ -383,9 +398,7 @@ function render(){
       <strong>${escapeHtml(state.tournee.nom || 'la tournée')}</strong>${restrictedIds ? ', sur les dates ci-dessous uniquement' : ''}.
       <div class="identity-meta">
         <span class="identity-meta-item"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line></svg> Lien personnel — reviens-y quand tu veux</span>
-        <span class="identity-meta-item"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px;"><path d="M15.5 6.6a5.6 5.6 0 0 0-8.4 5v0.8h6.2M7.1 14.4h6.2a5.6 5.6 0 0 0 2.2-1.5M4.8 10.4h7.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg> ${state.tournee.cachet_statut === 'defini' && state.tournee.cachet_montant != null
-          ? `Cachet brut : <strong>${escapeHtml(String(state.tournee.cachet_montant))} € brut</strong>`
-          : `Cachet brut : non défini pour l'instant`}</span>
+        <span class="identity-meta-item"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px;"><path d="M15.5 6.6a5.6 5.6 0 0 0-8.4 5v0.8h6.2M7.1 14.4h6.2a5.6 5.6 0 0 0 2.2-1.5M4.8 10.4h7.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg> ${cachetLine}</span>
       </div>
       <div class="identity-actions">
         <a class="identity-action" href="mes-infos.html?token=${encodeURIComponent(state.token)}">

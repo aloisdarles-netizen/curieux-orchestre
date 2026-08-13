@@ -516,6 +516,55 @@ grant execute on function get_own_remplacant_prefs(text) to anon, authenticated;
 grant execute on function upsert_own_remplacant_prefs(text, jsonb) to anon, authenticated;
 
 -- ----------------------------------------------------------------------------
+-- cachet_overrides — exceptions par personne au cachet standard d'une tournée
+-- (tournees.cachet_montant), gérées depuis tournees.html. "id" =
+-- `${tournee_id}::${person_type}::${person_id}` (clé composite encodée en texte,
+-- pour rester compatible avec les helpers génériques upsertOne/removeOne du
+-- reste de l'app, qui opèrent tous sur une colonne "id"). Contrairement au
+-- cachet standard (colonne publique de tournees, identique pour tout le
+-- monde), un montant individualisé est une donnée de paie sensible : la table
+-- reste fermée à la clé anonyme, et dispo-titulaire.html n'y accède que via
+-- get_cachet_override_by_token, qui ne renvoie jamais que LE montant de la
+-- personne du token fourni — jamais la liste complète de la tournée.
+-- ----------------------------------------------------------------------------
+create table if not exists cachet_overrides (
+  id text primary key,
+  tournee_id text not null references tournees(id) on delete cascade,
+  person_type text not null check (person_type in ('musicien','technicien')),
+  person_id text not null,
+  montant numeric not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_cachet_overrides_tournee on cachet_overrides(tournee_id);
+drop trigger if exists trg_cachet_overrides_updated_at on cachet_overrides;
+create trigger trg_cachet_overrides_updated_at before update on cachet_overrides
+  for each row execute function set_updated_at();
+
+alter table cachet_overrides enable row level security;
+drop policy if exists "admin access" on cachet_overrides;
+create policy "admin access" on cachet_overrides
+  for all
+  using (has_access())
+  with check (has_access());
+
+create or replace function get_cachet_override_by_token(p_token text)
+returns table(montant numeric)
+language sql
+security definer
+set search_path = public
+as $$
+  select co.montant from cachet_overrides co
+  join dispo_demandes d
+    on d.tournee_id = co.tournee_id
+    and d.person_type = co.person_type
+    and d.person_id = co.person_id
+  where d.id = p_token;
+$$;
+
+grant execute on function get_cachet_override_by_token(text) to anon, authenticated;
+
+-- ----------------------------------------------------------------------------
 -- bug_reports — petit widget "Signaler un bug" présent sur TOUTES les pages
 -- (admin comme publiques par lien perso), voir injectBugReportWidget() dans
 -- assets/brand-assets.js. Écriture ouverte à la clé anonyme (n'importe qui

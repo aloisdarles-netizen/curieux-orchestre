@@ -70,6 +70,17 @@ const CurieuxDB = (()=>{
       }),
       fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant })
     },
+    // Exceptions par personne au cachet standard d'une tournée (voir tournees.cachet_montant) —
+    // table à part, verrouillée (RLS "admin access" ci-dessous) : contrairement au cachet
+    // standard (public, identique pour tout le monde), un montant individualisé est sensible
+    // et ne doit être lisible, côté lien perso, que par la personne concernée — jamais par
+    // simple lecture de la table (voir get_cachet_override_by_token dans migrations.sql).
+    // "id" = `${tourneeId}::${personType}::${personId}`, pour réutiliser upsertOne/removeOne
+    // tels quels malgré la clé composite.
+    cachet_overrides: {
+      toDb: (o)=> ({ id: o.id, tournee_id: o.tourneeId, person_type: o.personType, person_id: o.personId, montant: o.montant }),
+      fromDb: (r)=> ({ id: r.id, tourneeId: r.tournee_id, personType: r.person_type, personId: r.person_id, montant: r.montant })
+    },
     // Liste personnelle et permanente de remplaçant·es classé·es (mes-remplacants.html) —
     // "id" = le person_id du/de la titulaire. Accessible en lecture directe par les
     // comptes admin/user (RLS "admin access", voir migrations.sql) : contrairement à
@@ -437,6 +448,26 @@ const CurieuxDB = (()=>{
     return { error };
   }
 
+  // Cachet individualisé (voir cachet_overrides dans migrations.sql) : la table reste
+  // fermée à la clé anonyme, dispo-titulaire.html ne peut lire que le montant de LA
+  // personne du token fourni — jamais la liste complète des montants de la tournée.
+  async function getCachetOverrideByToken(token){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('get_cachet_override_by_token', { p_token: token });
+    if(error){ console.warn('[CurieuxDB] getCachetOverrideByToken', error.message); return null; }
+    const row = (data || [])[0];
+    return row && row.montant != null ? row.montant : null;
+  }
+  // Efface toutes les exceptions de cachet d'une tournée d'un coup — utilisé quand le
+  // cachet standard repasse à "non défini" (tournees.html) : une exception n'a de sens
+  // que par rapport à un cachet standard existant.
+  async function removeCachetOverridesForTournee(tourneeId){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.from('cachet_overrides').delete().eq('tournee_id', tourneeId);
+    if(error) console.warn('[CurieuxDB] removeCachetOverridesForTournee', error.message);
+    return { error };
+  }
+
   // Widget "Signaler un bug" (voir injectBugReportWidget dans brand-assets.js) —
   // écriture seule, table fermée en lecture à la clé anonyme (voir migrations.sql).
   async function reportBug(message, page, type){
@@ -459,6 +490,7 @@ const CurieuxDB = (()=>{
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,
     getRemplacantPrefsByToken, upsertRemplacantPrefsByToken,
+    getCachetOverrideByToken, removeCachetOverridesForTournee,
     reportBug
   };
 })();
