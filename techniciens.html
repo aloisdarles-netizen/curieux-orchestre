@@ -105,8 +105,23 @@
     padding:16px 18px; display:flex; flex-direction:column; gap:8px;
     box-shadow:0 1px 2px rgba(20,15,10,.03);
   }
+  .m-card{position:relative;}
+  .m-card.selected{border-color:var(--accent); box-shadow:0 0 0 1.5px var(--accent);}
   .m-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .m-card-top-left{display:flex; align-items:flex-start; gap:9px;}
+  .m-select-checkbox{margin-top:4px; width:16px; height:16px; accent-color:var(--accent); cursor:pointer; flex:0 0 auto;}
   .m-name{font-weight:800; font-size:15.5px;}
+  .select-all-row{display:flex; align-items:center; gap:8px; margin:-6px 0 12px;}
+  .select-all-row label{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); cursor:pointer; font-weight:600;}
+  .select-all-row input{width:16px; height:16px; accent-color:var(--accent); cursor:pointer;}
+  .bulk-bar{
+    display:none; align-items:center; gap:10px; flex-wrap:wrap;
+    background:var(--champagne); border:1px solid var(--old-champagne); border-radius:10px;
+    padding:10px 14px; margin:0 0 16px;
+  }
+  .bulk-bar.open{display:flex;}
+  .bulk-count{font-size:13px; font-weight:700; color:var(--accent-dark);}
+  .bulk-bar select{padding:7px 10px; font-size:12.5px;}
   .m-instrument{color:var(--muted); font-size:12.5px; margin-top:2px;}
   .pupitre-badge{
     font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
@@ -156,6 +171,7 @@
   .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
   @media (max-width:600px){
     input, select, textarea{ font-size:16px !important; }
+    .m-select-checkbox, .select-all-row input{ width:20px; height:20px; }
   }
 </style>
 </head>
@@ -215,6 +231,34 @@
     <button type="button" class="btn-secondary" id="importBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:2px;"><rect x="5" y="4" width="14" height="17" rx="2"></rect><rect x="9" y="2" width="6" height="3" rx="1"></rect><line x1="8" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="16" y2="14"></line></svg> Importer (coller)</button>
     <button type="button" class="btn-secondary" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:2px;"><path d="M7 3h7l3 3v15a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"></path><path d="M14 3v3h3"></path><line x1="9" y1="12" x2="15" y2="12"></line><line x1="9" y1="16" x2="13" y2="16"></line></svg> Exporter en PDF</button>
     <button type="button" class="btn-primary" id="addBtn">+ Ajouter un·e technicien·ne</button>
+  </div>
+
+  <div class="select-all-row">
+    <label><input type="checkbox" id="selectAllCheckbox"> Tout sélectionner (résultats affichés)</label>
+  </div>
+  <div class="bulk-bar" id="bulkBar">
+    <span class="bulk-count" id="bulkCount"></span>
+    <div class="spacer"></div>
+    <select id="bulkPole">
+      <option value="">Changer le pôle…</option>
+      <option value="Régie générale">Régie générale</option>
+      <option value="Son">Son</option>
+      <option value="Lumière">Lumière</option>
+      <option value="Plateau / Backline">Plateau / Backline</option>
+      <option value="Vidéo">Vidéo</option>
+      <option value="Tour management">Tour management</option>
+      <option value="Autre">Autre</option>
+    </select>
+    <button type="button" class="btn-secondary btn-sm" id="bulkPoleBtn">Appliquer</button>
+    <select id="bulkStatut">
+      <option value="">Changer le statut…</option>
+      <option value="titulaire">Titulaire</option>
+      <option value="remplacant">Remplaçant·e</option>
+    </select>
+    <button type="button" class="btn-secondary btn-sm" id="bulkStatutBtn">Appliquer</button>
+    <button type="button" class="btn-secondary btn-sm" id="bulkExportBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:2px;"><path d="M7 3h7l3 3v15a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"></path><path d="M14 3v3h3"></path><line x1="9" y1="12" x2="15" y2="12"></line><line x1="9" y1="16" x2="13" y2="16"></line></svg> Exporter la sélection</button>
+    <button type="button" class="btn-danger btn-sm" id="bulkDeleteBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:2px;"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg> Supprimer la sélection</button>
+    <button type="button" class="btn-ghost btn-sm" id="bulkClearBtn">Désélectionner tout</button>
   </div>
 
   <div class="grid" id="grid"><div class="empty-hint">Chargement…</div></div>
@@ -300,6 +344,19 @@ function normalizeWhatsappPhone(phone){
   return digits;
 }
 
+// Sélection multiple pour l'édition groupée (pôle / statut uniquement) — persiste
+// tant qu'on ne vide pas explicitement la sélection, y compris si on change les filtres.
+const selectedIds = new Set();
+let lastFilteredIds = [];
+
+function updateBulkBar(){
+  const bar = document.getElementById('bulkBar');
+  const count = selectedIds.size;
+  bar.classList.toggle('open', count > 0);
+  document.getElementById('bulkCount').textContent = `${count} sélectionné·e${count>1?'s':''}`;
+  document.getElementById('selectAllCheckbox').checked = lastFilteredIds.length > 0 && lastFilteredIds.every(id=>selectedIds.has(id));
+}
+
 function render(){
   const list = loadTechnicians();
   const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
@@ -321,26 +378,35 @@ function render(){
     grid.innerHTML = '';
     emptyHint.style.display = 'block';
     emptyHint.textContent = "Aucun·e technicien·ne pour l'instant — ajoute-en un·e avec le bouton ci-dessus.";
+    lastFilteredIds = [];
+    updateBulkBar();
     return;
   }
   if(filtered.length === 0){
     grid.innerHTML = '';
     emptyHint.style.display = 'block';
     emptyHint.textContent = 'Aucun résultat pour cette recherche.';
+    lastFilteredIds = [];
+    updateBulkBar();
     return;
   }
   emptyHint.style.display = 'none';
+  lastFilteredIds = filtered.map(m=>m.id);
 
   grid.innerHTML = filtered.map(m=>{
     const waDigits = normalizeWhatsappPhone(m.telephone);
     const waHref = waDigits ? `https://wa.me/${encodeURIComponent(waDigits)}` : null;
     const mailHref = m.email ? `mailto:${encodeURIComponent(m.email)}` : null;
+    const isSelected = selectedIds.has(m.id);
     return `
-      <div class="m-card">
+      <div class="m-card ${isSelected ? 'selected' : ''}">
         <div class="m-card-top">
-          <div>
-            <div class="m-name">${escapeHtml(fullName(m))} ${m.pole === 'Régie générale' ? (m.statutPoste === 'remplacant' ? '<span class="remplacant-tag">Remplaçant·e</span>' : '<span class="titulaire-tag">Titulaire</span>') : ''}</div>
-            <div class="m-instrument">${escapeHtml(m.poste || '—')}</div>
+          <div class="m-card-top-left">
+            <input type="checkbox" class="m-select-checkbox" data-select="${m.id}" ${isSelected ? 'checked' : ''} aria-label="Sélectionner ${escapeHtml(fullName(m))}">
+            <div>
+              <div class="m-name">${escapeHtml(fullName(m))} ${m.pole === 'Régie générale' ? (m.statutPoste === 'remplacant' ? '<span class="remplacant-tag">Remplaçant·e</span>' : '<span class="titulaire-tag">Titulaire</span>') : ''}</div>
+              <div class="m-instrument">${escapeHtml(m.poste || '—')}</div>
+            </div>
           </div>
           <span class="pupitre-badge">${escapeHtml(m.pole || 'Autre')}</span>
         </div>
@@ -367,10 +433,19 @@ function render(){
       if(m && confirm(`Supprimer ${fullName(m)} de l'annuaire ?`)){
         techniciansCache = list.filter(x=>x.id !== btn.dataset.del);
         CurieuxDB.removePerson('techniciens', btn.dataset.del);
+        selectedIds.delete(btn.dataset.del);
         render();
       }
     });
   });
+  grid.querySelectorAll('[data-select]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      if(cb.checked) selectedIds.add(cb.dataset.select); else selectedIds.delete(cb.dataset.select);
+      cb.closest('.m-card').classList.toggle('selected', cb.checked);
+      updateBulkBar();
+    });
+  });
+  updateBulkBar();
 }
 
 // Le statut titulaire/remplaçant n'a de sens que pour l'équipe régie récurrente —
@@ -523,18 +598,24 @@ document.getElementById('importConfirmBtn').addEventListener('click', ()=>{
   alert(`${rows.length} technicien·ne${rows.length>1?'s':''} importé·e${rows.length>1?'s':''}. Pense à vérifier le pôle de chacun·e.`);
 });
 
-function exportTechniciansPdf(){
+function exportTechniciansPdf(onlySelection){
   if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
   const list = loadTechnicians();
-  const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
-  const pole = document.getElementById('poleFilter').value;
-  const statutPoste = document.getElementById('statutFilter').value;
-  const filtered = list.filter(m=>{
-    if(pole && m.pole !== pole) return false;
-    if(statutPoste && (m.statutPoste || 'titulaire') !== statutPoste) return false;
-    if(!search) return true;
-    return [m.prenom, m.nom, m.poste, m.pole].filter(Boolean).join(' ').toLowerCase().includes(search);
-  }).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  let filtered;
+  if(onlySelection){
+    if(selectedIds.size === 0){ alert('Sélectionne au moins une fiche à exporter.'); return; }
+    filtered = list.filter(m=>selectedIds.has(m.id)).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  } else {
+    const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+    const pole = document.getElementById('poleFilter').value;
+    const statutPoste = document.getElementById('statutFilter').value;
+    filtered = list.filter(m=>{
+      if(pole && m.pole !== pole) return false;
+      if(statutPoste && (m.statutPoste || 'titulaire') !== statutPoste) return false;
+      if(!search) return true;
+      return [m.prenom, m.nom, m.poste, m.pole].filter(Boolean).join(' ').toLowerCase().includes(search);
+    }).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  }
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
@@ -554,7 +635,51 @@ function exportTechniciansPdf(){
 
   doc.save(`Annuaire_techniciens_Curieux_orchestre.pdf`);
 }
-document.getElementById('exportPdfBtn').addEventListener('click', exportTechniciansPdf);
+document.getElementById('exportPdfBtn').addEventListener('click', ()=> exportTechniciansPdf(false));
+
+document.getElementById('selectAllCheckbox').addEventListener('change', (e)=>{
+  if(e.target.checked) lastFilteredIds.forEach(id=>selectedIds.add(id));
+  else lastFilteredIds.forEach(id=>selectedIds.delete(id));
+  render();
+});
+document.getElementById('bulkClearBtn').addEventListener('click', ()=>{
+  selectedIds.clear();
+  render();
+});
+document.getElementById('bulkPoleBtn').addEventListener('click', ()=>{
+  const value = document.getElementById('bulkPole').value;
+  if(!value || selectedIds.size === 0) return;
+  const list = loadTechnicians();
+  list.forEach(m=>{ if(selectedIds.has(m.id)) m.pole = value; });
+  saveTechnicians(list);
+  document.getElementById('bulkPole').value = '';
+  render();
+});
+document.getElementById('bulkStatutBtn').addEventListener('click', ()=>{
+  const value = document.getElementById('bulkStatut').value;
+  if(!value || selectedIds.size === 0) return;
+  const list = loadTechnicians();
+  list.forEach(m=>{ if(selectedIds.has(m.id)) m.statutPoste = value; });
+  saveTechnicians(list);
+  document.getElementById('bulkStatut').value = '';
+  render();
+});
+document.getElementById('bulkExportBtn').addEventListener('click', ()=> exportTechniciansPdf(true));
+document.getElementById('bulkDeleteBtn').addEventListener('click', ()=>{
+  if(selectedIds.size === 0) return;
+  const list = loadTechnicians();
+  const toDelete = list.filter(m=>selectedIds.has(m.id));
+  if(!confirm(`Supprimer définitivement ${toDelete.length} fiche${toDelete.length>1?'s':''} de l'annuaire ?\n\n${toDelete.map(fullName).join(', ')}`)) return;
+  const idsToDelete = toDelete.map(m=>m.id);
+  techniciansCache = list.filter(m=>!selectedIds.has(m.id));
+  CurieuxDB.removeMany('techniciens', idsToDelete);
+  idsToDelete.forEach(id=>{
+    supabaseClient.from('infos_sociales').delete().eq('id', id);
+    supabaseClient.from('dispo_demandes').delete().eq('person_id', id);
+  });
+  selectedIds.clear();
+  render();
+});
 
 document.getElementById('addBtn').addEventListener('click', ()=> openModal(null));
 document.getElementById('cancelBtn').addEventListener('click', closeModal);
