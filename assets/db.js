@@ -367,12 +367,31 @@ const CurieuxDB = (()=>{
     return { error };
   }
 
+  // dispo_demandes n'est plus lisible/écrivable directement par la clé
+  // anonyme (voir migrations.sql) : dispo-titulaire.html/mes-infos.html
+  // passent par ces deux fonctions dédiées, qui ne donnent accès qu'à UNE
+  // ligne précise (celle du token fourni), jamais à la table entière.
+  async function getDispoDemandeByToken(token){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('get_dispo_demande_by_token', { p_token: token });
+    if(error){ console.warn('[CurieuxDB] getDispoDemandeByToken', error.message); return null; }
+    const row = (data || [])[0];
+    return row ? adapterFor('dispo_demandes').fromDb(row) : null;
+  }
+  async function markDispoRespondedByToken(token){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.rpc('mark_dispo_responded_by_token', { p_token: token });
+    if(error) console.warn('[CurieuxDB] markDispoRespondedByToken', error.message);
+    return { error };
+  }
+
   return {
     fetchAll, syncCollection, upsertOne, removeOne, fetchSnapshot, saveSnapshot, subscribe,
     signIn, signUp, signOut, getSession, onAuthStateChange,
     getMyRole, hasAppAccess, isSuperAdmin,
     listAccounts, setAccountRole, removeAccount,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
-    getInfosSocialesByToken, upsertInfosSocialesByToken
+    getInfosSocialesByToken, upsertInfosSocialesByToken,
+    getDispoDemandeByToken, markDispoRespondedByToken
   };
 })();

@@ -254,7 +254,8 @@ async function init(){
   const token = new URLSearchParams(location.search).get('token');
   if(!token){ showState("Lien invalide — il manque le jeton d'accès."); return; }
 
-  const { data: demande } = await supabaseClient.from('dispo_demandes').select('*').eq('id', token).maybeSingle();
+  const { data: demandeRows } = await supabaseClient.rpc('get_dispo_demande_by_token', { p_token: token });
+  const demande = (demandeRows || [])[0];
   if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
 
   const personTable = demande.person_type === 'musicien' ? 'musiciens' : 'techniciens';
@@ -478,14 +479,21 @@ async function doSave(){
   btn.disabled = true;
   btn.textContent = 'Enregistrement…';
   const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
-  await supabaseClient.from(personTable).update({
-    disponibilites: state.person.disponibilites,
-    disponibilites_commentaires: state.person.disponibilites_commentaires,
-    telephone: state.person.telephone || '',
-    email: state.person.email || ''
-  }).eq('id', state.person.id);
-  await supabaseClient.from('dispo_demandes').update({ last_responded_at: new Date().toISOString() }).eq('id', state.demande.id);
+  const [personRes, demandeRes] = await Promise.all([
+    supabaseClient.from(personTable).update({
+      disponibilites: state.person.disponibilites,
+      disponibilites_commentaires: state.person.disponibilites_commentaires,
+      telephone: state.person.telephone || '',
+      email: state.person.email || ''
+    }).eq('id', state.person.id),
+    supabaseClient.rpc('mark_dispo_responded_by_token', { p_token: state.demande.id })
+  ]);
   btn.textContent = 'Valider mes réponses';
+  if(personRes.error || demandeRes.error){
+    status.textContent = "⚠️ Erreur, tes réponses n'ont pas pu être enregistrées. Réessaie.";
+    status.className = 'save-status';
+    return;
+  }
   status.textContent = '✓ Réponses enregistrées.';
   status.className = 'save-status saved';
 }

@@ -126,7 +126,8 @@ async function init(){
   const token = new URLSearchParams(location.search).get('token');
   if(!token){ showState("Lien invalide — il manque le jeton d'accès."); return; }
 
-  const { data: demande } = await supabaseClient.from('dispo_demandes').select('*').eq('id', token).maybeSingle();
+  const { data: demandeRows } = await supabaseClient.rpc('get_dispo_demande_by_token', { p_token: token });
+  const demande = (demandeRows || [])[0];
   if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
 
   const personTable = demande.person_type === 'musicien' ? 'musiciens' : 'techniciens';

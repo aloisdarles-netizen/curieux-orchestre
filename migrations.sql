@@ -276,6 +276,22 @@ as $$
 $$;
 grant execute on function is_admin() to anon, authenticated;
 
+-- Même chose, mais pour "a un compte listé, quel que soit son rôle" — utilisée
+-- pour verrouiller dispo_demandes (voir plus bas) aux pages admin courantes
+-- (tournées, suivi des dispos), accessibles aussi bien aux 'admin' qu'aux 'user'.
+create or replace function has_access()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from infos_sociales_admins where email = auth.jwt()->>'email'
+  );
+$$;
+grant execute on function has_access() to anon, authenticated;
+
 -- Un compte 'admin' peut lire/ajouter/modifier/retirer n'importe quelle ligne
 -- (gestion des comptes depuis admin-dashboard.html).
 drop policy if exists "admins manage all rows" on infos_sociales_admins;
@@ -290,6 +306,52 @@ create policy "admins only" on infos_sociales
   for all
   using (is_admin())
   with check (is_admin());
+
+-- dispo_demandes : réservée aux comptes admin/user connectés (génération et
+-- gestion des liens perso, depuis tournees.html/suivi-dispo.html). PAS en
+-- accès public — voir plus bas pour l'explication de sécurité et les deux
+-- fonctions SECURITY DEFINER qui permettent quand même aux titulaires (sans
+-- compte) de lire/mettre à jour LEUR PROPRE ligne via leur token.
+alter table dispo_demandes enable row level security;
+drop policy if exists "public full access" on dispo_demandes;
+drop policy if exists "admin access" on dispo_demandes;
+create policy "admin access" on dispo_demandes
+  for all
+  using (has_access())
+  with check (has_access());
+
+-- CORRECTIF SÉCURITÉ : avant ces deux fonctions, dispo-titulaire.html et
+-- mes-infos.html lisaient/écrivaient dispo_demandes DIRECTEMENT via la clé
+-- anonyme (RLS "public full access"). Comme get_own_infos_sociales /
+-- upsert_own_infos_sociales font confiance à n'importe quel id de
+-- dispo_demandes comme preuve d'identité, ça permettait à n'importe qui de :
+-- (1) lire tous les tokens existants directement sur la table, ou (2) en
+-- fabriquer un pointant vers n'importe quelle personne — et donc lire/écraser
+-- le n° sécu/IBAN/adresse de n'importe qui, sans jamais se connecter. Ces deux
+-- fonctions donnent aux pages publiques un accès étroit (une seule ligne, par
+-- son token exact) sans jamais exposer la table elle-même à la clé anonyme.
+create or replace function get_dispo_demande_by_token(p_token text)
+returns setof dispo_demandes
+language sql
+security definer
+set search_path = public
+as $$
+  select * from dispo_demandes where id = p_token;
+$$;
+
+create or replace function mark_dispo_responded_by_token(p_token text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update dispo_demandes set last_responded_at = now() where id = p_token;
+end;
+$$;
+
+grant execute on function get_dispo_demande_by_token(text) to anon, authenticated;
+grant execute on function mark_dispo_responded_by_token(text) to anon, authenticated;
 
 -- Auto-saisie (mes-infos.html) : PAS de compte séparé — on réutilise le même
 -- lien personnel imprévisible que pour les dispos (dispo_demandes.id comme
@@ -376,8 +438,11 @@ grant execute on function upsert_own_infos_sociales(text, jsonb) to anon, authen
 
 -- ============================================================================
 -- RLS : accès public en lecture/écriture (pas de compte utilisateur).
--- infos_sociales / infos_sociales_admins font exception (voir plus haut) : ce
--- sont les deux seules tables où l'accès est restreint à des comptes Auth.
+-- infos_sociales / infos_sociales_admins / dispo_demandes font exception (voir
+-- plus haut) : ce sont les trois tables où l'accès direct est restreint à des
+-- comptes Auth (dispo_demandes reste accessible aux pages publiques via les
+-- fonctions get_dispo_demande_by_token/mark_dispo_responded_by_token, jamais
+-- via un accès direct à la table).
 -- ============================================================================
 alter table musiciens enable row level security;
 alter table techniciens enable row level security;
@@ -385,7 +450,7 @@ alter table tournees enable row level security;
 alter table feuilles_route enable row level security;
 alter table carnet_contacts enable row level security;
 alter table newsletter_snapshot enable row level security;
-alter table dispo_demandes enable row level security;
+-- dispo_demandes est déjà passée en RLS plus haut (policy "admin access").
 
 drop policy if exists "public full access" on musiciens;
 create policy "public full access" on musiciens for all using (true) with check (true);
@@ -405,8 +470,9 @@ create policy "public full access" on carnet_contacts for all using (true) with 
 drop policy if exists "public full access" on newsletter_snapshot;
 create policy "public full access" on newsletter_snapshot for all using (true) with check (true);
 
-drop policy if exists "public full access" on dispo_demandes;
-create policy "public full access" on dispo_demandes for all using (true) with check (true);
+-- dispo_demandes N'EST PLUS en "public full access" : sa policy "admin access"
+-- (basée sur has_access()) est définie plus haut, juste après is_admin() — voir
+-- le commentaire à cet endroit pour l'explication de sécurité.
 
 -- ============================================================================
 -- audit_log — historique des modifications, lisible uniquement par les
