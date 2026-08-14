@@ -742,6 +742,62 @@ $$;
 grant execute on function update_own_contact_by_token(text, text, text) to anon, authenticated;
 grant execute on function update_own_disponibilites_by_token(text, jsonb, jsonb, text, text) to anon, authenticated;
 
+-- Renommage d'affichage (mes-infos.html, "Prénom d'usage") : musiciens.prenom/
+-- techniciens.prenom sert de nom affiché PARTOUT dans l'app (annuaire, plannings,
+-- feuilles de route, etc.), donc le modifier ici suffit à propager le changement
+-- sans toucher au reste du code. Avant d'écraser ce prénom, l'ancien est préservé
+-- dans infos_sociales.prenom_civil (identité d'état civil, utilisée pour les
+-- documents administratifs) — mais seulement s'il n'y est pas déjà, pour ne
+-- jamais écraser un prénom civil déjà renseigné explicitement (par un admin ou
+-- un précédent renommage).
+create or replace function update_own_prenom_usage_by_token(p_token text, p_prenom_usage text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_person_id text;
+  v_person_type text;
+  v_current_prenom text;
+begin
+  if p_prenom_usage is null or btrim(p_prenom_usage) = '' then
+    return;
+  end if;
+
+  select person_id, person_type into v_person_id, v_person_type
+  from dispo_demandes where id = p_token;
+  if v_person_id is null then
+    raise exception 'Lien invalide';
+  end if;
+
+  if v_person_type = 'musicien' then
+    select prenom into v_current_prenom from musiciens where id = v_person_id;
+  else
+    select prenom into v_current_prenom from techniciens where id = v_person_id;
+  end if;
+
+  if v_current_prenom is not distinct from p_prenom_usage then
+    return;
+  end if;
+
+  insert into infos_sociales (id, person_type, prenom_civil)
+  values (v_person_id, v_person_type, coalesce(v_current_prenom, ''))
+  on conflict (id) do update set
+    prenom_civil = case when coalesce(infos_sociales.prenom_civil, '') = ''
+                         then excluded.prenom_civil
+                         else infos_sociales.prenom_civil end;
+
+  if v_person_type = 'musicien' then
+    update musiciens set prenom = p_prenom_usage where id = v_person_id;
+  else
+    update techniciens set prenom = p_prenom_usage where id = v_person_id;
+  end if;
+end;
+$$;
+
+grant execute on function update_own_prenom_usage_by_token(text) to anon, authenticated;
+
 -- ============================================================================
 -- audit_log — historique des modifications, lisible uniquement par les
 -- comptes 'admin' (page admin-dashboard.html). Écrit UNIQUEMENT par les

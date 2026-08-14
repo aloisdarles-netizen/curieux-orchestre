@@ -199,10 +199,10 @@ function render(){
     </div>
 
     <div class="section-label">Identité civile</div>
-    <p style="font-size:12px; color:var(--muted); margin:-4px 0 10px;">L'app t'affiche partout sous le prénom que tu utilises déjà (<strong>${escapeHtml(state.person.prenom || '')}</strong>). Renseigne un prénom d'état civil ci-dessous seulement s'il est différent — utile pour les documents administratifs.</p>
+    <p style="font-size:12px; color:var(--muted); margin:-4px 0 10px;">Ta fiche t'affiche partout sous <strong>${escapeHtml(state.person.prenom || '')}</strong>. Si tu préfères qu'on t'appelle autrement (annuaire, plannings, feuilles de route…), indique-le ci-dessous — ton prénom d'état civil est conservé de son côté pour les documents administratifs.</p>
     <div class="field">
-      <label for="mi_prenomCivil">Prénom d'état civil ${tierBadge('conseille')}</label>
-      <input id="mi_prenomCivil" type="text" data-info-field="prenomCivil" value="${escapeAttr(info.prenomCivil || '')}" placeholder="Laisse vide si identique au prénom utilisé ici">
+      <label for="mi_prenomUsage">Prénom d'usage ${tierBadge('facultatif')}</label>
+      <input id="mi_prenomUsage" type="text" placeholder="Laisse vide si «${escapeAttr(state.person.prenom || '')}» est déjà correct">
     </div>
     <div class="field-row">
       <div class="field"><label for="mi_dateNaissance">Date de naissance ${tierBadge('obligatoire')}</label><input id="mi_dateNaissance" type="date" data-info-field="dateNaissance" value="${escapeAttr(info.dateNaissance || '')}"></div>
@@ -312,24 +312,36 @@ async function doSave(){
   const status = document.getElementById('saveStatus');
   btn.disabled = true;
   btn.textContent = 'Enregistrement…';
-  const [personRes, infoRes] = await Promise.all([
+
+  const prenomUsageInput = document.getElementById('mi_prenomUsage');
+  const prenomUsageVal = prenomUsageInput ? prenomUsageInput.value.trim() : '';
+  const prenomChanged = prenomUsageVal.length > 0 && prenomUsageVal !== (state.person.prenom || '');
+
+  const [personRes, infoRes, prenomRes] = await Promise.all([
     CurieuxDB.updateOwnContactByToken(state.token, state.person.telephone || '', state.person.email || ''),
-    CurieuxDB.upsertInfosSocialesByToken(state.token, state.info)
+    CurieuxDB.upsertInfosSocialesByToken(state.token, state.info),
+    prenomChanged ? CurieuxDB.updateOwnPrenomUsageByToken(state.token, prenomUsageVal) : Promise.resolve({ error: null })
   ]);
   btn.textContent = 'Valider mes infos';
-  if(personRes.error || infoRes.error){
+  if(personRes.error || infoRes.error || prenomRes.error){
     status.textContent = "Erreur d'enregistrement — réessaie.";
     status.className = 'save-status dirty';
     btn.disabled = false;
-  } else {
-    status.textContent = '✓ Infos enregistrées.';
-    status.className = 'save-status saved';
-    hasUnsavedChanges = false;
+    return;
+  }
+  status.textContent = '✓ Infos enregistrées.';
+  status.className = 'save-status saved';
+  hasUnsavedChanges = false;
+  if(prenomChanged){
+    state.person.prenom = prenomUsageVal;
+    render(); // rafraîchit la phrase d'intro et vide le champ, maintenant appliqué
   }
 }
 document.getElementById('saveBtn').addEventListener('click', doSave);
 
 function bindEvents(){
+  document.getElementById('mi_prenomUsage').addEventListener('input', markDirty);
+
   document.querySelectorAll('[data-person-field]').forEach(el=>{
     el.addEventListener('input', ()=>{
       state.person[el.dataset.personField] = el.value;

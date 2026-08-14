@@ -448,6 +448,16 @@ const CurieuxDB = (()=>{
     if(error) console.warn('[CurieuxDB] updateOwnDisponibilitesByToken', error.message);
     return { error };
   }
+  // Renomme le prénom affiché partout dans l'app (mes-infos.html, "Prénom d'usage") :
+  // la fonction Postgres préserve l'ancien prénom dans infos_sociales.prenom_civil
+  // (seulement s'il n'y était pas déjà) avant d'écraser musiciens/techniciens.prenom —
+  // voir update_own_prenom_usage_by_token dans migrations.sql.
+  async function updateOwnPrenomUsageByToken(token, prenomUsage){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.rpc('update_own_prenom_usage_by_token', { p_token: token, p_prenom_usage: prenomUsage });
+    if(error) console.warn('[CurieuxDB] updateOwnPrenomUsageByToken', error.message);
+    return { error };
+  }
 
   // Liste personnelle de remplaçant·es classé·es (mes-remplacants.html, même
   // token que dispo-titulaire.html/mes-infos.html) : même principe que
@@ -508,7 +518,7 @@ const CurieuxDB = (()=>{
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,
-    updateOwnContactByToken, updateOwnDisponibilitesByToken,
+    updateOwnContactByToken, updateOwnDisponibilitesByToken, updateOwnPrenomUsageByToken,
     getRemplacantPrefsByToken, upsertRemplacantPrefsByToken,
     getCachetOverrideByToken, removeCachetOverridesForTournee,
     reportBug
