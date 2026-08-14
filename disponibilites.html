@@ -276,7 +276,11 @@ function renderDispoGrid(people, saveFn, holderId, roleAttr, emptyLinkHref, empt
           const cls = STATE_CLASS[state];
           const comment = commentaires[d] || '';
           const title = comment ? `${STATE_LABEL[state]} — ${comment}` : `${STATE_LABEL[state]} — clique pour changer`;
-          return `<td class="cell"><div class="dispo-btn-wrap"><button type="button" class="dispo-btn ${cls}" data-role="${roleAttr}" data-person="${m.id}" data-date="${escapeHtml(d)}" title="${escapeHtml(title)}">${STATE_SYMBOL[state]}</button>${comment ? '<span class="comment-dot"></span>' : ''}</div></td>`;
+          // data-jour : invisible à l'écran (un attribut ne rend rien), mais il
+          // permet à la version mobile d'afficher la date en tête de chaque
+          // ligne quand le tableau se replie en liste. Aucun effet sur le
+          // rendu sur ordinateur.
+          return `<td class="cell" data-jour="${escapeHtml(fmtDateFR(d))}"><div class="dispo-btn-wrap"><button type="button" class="dispo-btn ${cls}" data-role="${roleAttr}" data-person="${m.id}" data-date="${escapeHtml(d)}" title="${escapeHtml(title)}">${STATE_SYMBOL[state]}</button>${comment ? '<span class="comment-dot"></span>' : ''}</div></td>`;
         }).join('')}
       </tr>
     `;
@@ -575,9 +579,9 @@ async function initData(){
   ]);
   renderAll();
 }
-CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; renderAll(); }); });
-CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; renderAll(); }); });
-CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; renderAll(); }); });
+CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; curieuxRafraichir(renderAll); }); });
+CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; curieuxRafraichir(renderAll); }); });
+CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; curieuxRafraichir(renderAll); }); });
 initData();
 </script>
 </body>

@@ -235,7 +235,9 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           else if(state === 'dispo'){ cls = 'dispo'; symbol = '✓'; title = 'Disponible'; }
           else if(state === 'indispo'){ cls = 'indispo'; symbol = '✕'; title = 'Indisponible'; }
           else if(state === 'incertain'){ cls = 'incertain'; symbol = '?'; title = 'À confirmer'; }
-          return `<td class="cell" style="background:${colorFor(e)};"><span class="m-cell ${cls}" title="${title}">${symbol}</span></td>`;
+          // data-jour : voir disponibilites.html — sert uniquement à la mise en
+          // liste sur petit écran, sans rien changer au tableau sur ordinateur.
+          return `<td class="cell" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}" style="background:${colorFor(e)};"><span class="m-cell ${cls}" title="${title}">${symbol}</span></td>`;
         }).join('')}
       </tr>
     `;
@@ -385,10 +387,10 @@ async function initData(){
   ]);
   renderAll();
 }
-CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; renderAll(); }); });
-CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; renderAll(); }); });
-CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; renderAll(); }); });
-CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; renderAll(); }); });
+CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; curieuxRafraichir(renderAll); }); });
+CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; curieuxRafraichir(renderAll); }); });
+CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; curieuxRafraichir(renderAll); }); });
+CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; curieuxRafraichir(renderAll); }); });
 initData();
 
 function buildMatrixTable(doc, startY, people, assignField, title, pageWidth, tourneeId){
