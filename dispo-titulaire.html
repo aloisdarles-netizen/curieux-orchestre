@@ -56,6 +56,7 @@
     transition:border-color .15s, transform .1s, box-shadow .15s;
   }
   .identity-action:hover{border-color:var(--accent); transform:translateY(-1px); box-shadow:0 4px 10px rgba(20,15,10,.06);}
+  button.identity-action{font-family:inherit; font-size:inherit; cursor:pointer; text-align:left; width:100%;}
   .identity-action-icon{flex-shrink:0; color:var(--accent-dark); display:flex;}
   .identity-action-title{display:block; font-size:13.5px; font-weight:800; color:var(--accent-dark);}
   .identity-action-sub{display:block; font-size:11.5px; color:var(--muted); margin-top:1px;}
@@ -413,6 +414,13 @@ function render(){
             <span class="identity-action-sub">Par ordre de préférence</span>
           </span>
         </a>` : ''}
+        <button type="button" class="identity-action" id="icsBtn">
+          <span class="identity-action-icon"><svg width="20" height="20" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="4" y1="9.5" x2="20" y2="9.5" stroke="currentColor" stroke-width="1.6"></line><line x1="8" y1="3.5" x2="8" y2="7.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><line x1="16" y1="3.5" x2="16" y2="7.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><circle cx="8.5" cy="13.5" r="1.1" fill="currentColor"></circle><circle cx="12" cy="13.5" r="1.1" fill="currentColor"></circle></svg></span>
+          <span>
+            <span class="identity-action-title">Ajouter à mon calendrier</span>
+            <span class="identity-action-sub">Dates confirmées, fichier .ics</span>
+          </span>
+        </button>
       </div>
     </div>
     <div class="contact-card">
@@ -503,8 +511,57 @@ function render(){
     state.person.email = e.target.value.trim();
     markDirty();
   });
+  document.getElementById('icsBtn').addEventListener('click', downloadIcs);
 
   document.getElementById('saveBar').classList.add('visible');
+}
+
+// Fichier .ics généré côté client, sans dépendance ni service tiers — seules les dates
+// où la personne a coché "Disponible" y figurent (jamais une proposition en attente).
+function icsEscapeText(str){
+  return String(str || '').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+}
+
+function buildIcsForTournee(){
+  const dispo = state.person.disponibilites;
+  const confirmedDates = (state.tournee.dates || [])
+    .filter(d=> d.date && d.statut !== 'annulee' && dispo[d.date] === 'dispo')
+    .slice().sort((a,b)=> a.date.localeCompare(b.date));
+  const nowStamp = new Date().toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
+  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Curieux orchestre//dispo-titulaire//FR','CALSCALE:GREGORIAN'];
+  confirmedDates.forEach(d=>{
+    const location = [d.ville, d.lieu].filter(Boolean).join(', ');
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${state.tournee.id}-${d.id}@curieux-orchestre`,
+      `DTSTAMP:${nowStamp}`,
+      `DTSTART;VALUE=DATE:${d.date.replace(/-/g,'')}`,
+      `DTEND;VALUE=DATE:${addDaysIso(d.date, 1).replace(/-/g,'')}`,
+      `SUMMARY:${icsEscapeText(state.tournee.nom || 'Tournée')}`,
+    );
+    if(location) lines.push(`LOCATION:${icsEscapeText(location)}`);
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
+function downloadIcs(){
+  const dispo = state.person.disponibilites;
+  const hasConfirmed = (state.tournee.dates || []).some(d=> d.date && d.statut !== 'annulee' && dispo[d.date] === 'dispo');
+  if(!hasConfirmed){
+    alert('Aucune date "Disponible" pour l\'instant — coche au moins une date avant d\'exporter.');
+    return;
+  }
+  const blob = new Blob([buildIcsForTournee()], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(state.tournee.nom || 'tournee').replace(/[^a-z0-9]+/gi,'-').toLowerCase()}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 let hasUnsavedChanges = false;
