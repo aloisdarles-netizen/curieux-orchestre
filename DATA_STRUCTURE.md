@@ -33,7 +33,7 @@ Tableau de musicien·nes. Un objet :
   "disponibilites": { "2026-10-15": "dispo", "2027-01-23": "indispo" }
 }
 ```
-- `pupitre` ∈ {Cordes, Bois, Cuivres, Percussions, Autre}
+- `pupitre` ∈ {Chef d'orchestre, Cordes, Bois, Cuivres, Percussions, Autre}
 - `statutPoste` ∈ {titulaire, remplacant}
 - `disponibilites` : map `date ISO → 'dispo'|'indispo'|'incertain'`
 - Lu/écrit par : `annuaire.html` (CRUD + import), `disponibilites.html` (édition du champ `disponibilites`), `tournees.html` (lecture pour affectation), `recap.html` (lecture pour le tableau croisé)

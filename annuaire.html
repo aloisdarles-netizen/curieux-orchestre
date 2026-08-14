@@ -215,6 +215,7 @@
     <input type="text" id="searchInput" placeholder="Chercher un nom ou un instrument…">
     <select id="pupitreFilter">
       <option value="">Tous les pupitres</option>
+      <option value="Chef d'orchestre">Chef d'orchestre</option>
       <option value="Cordes">Cordes</option>
       <option value="Bois">Bois</option>
       <option value="Cuivres">Cuivres</option>
@@ -240,6 +241,7 @@
     <div class="spacer"></div>
     <select id="bulkPupitre">
       <option value="">Changer le pupitre…</option>
+      <option value="Chef d'orchestre">Chef d'orchestre</option>
       <option value="Cordes">Cordes</option>
       <option value="Bois">Bois</option>
       <option value="Cuivres">Cuivres</option>
@@ -292,6 +294,7 @@
       <div class="field">
         <label for="fPupitre">Pupitre</label>
         <select id="fPupitre">
+          <option value="Chef d'orchestre">Chef d'orchestre</option>
           <option value="Cordes">Cordes</option>
           <option value="Bois">Bois</option>
           <option value="Cuivres">Cuivres</option>
@@ -381,7 +384,7 @@ function compareForRemplacantRanking(a, b){
 
 // Pour les titulaires, on classe par pupitre (ordre de l'orchestre, pas alphabétique)
 // puis par nom — plus simple à parcourir qu'un ordre alphabétique pur.
-const PUPITRE_ORDER = ['Cordes', 'Bois', 'Cuivres', 'Percussions', 'Autre'];
+const PUPITRE_ORDER = ["Chef d'orchestre", 'Cordes', 'Bois', 'Cuivres', 'Percussions', 'Autre'];
 function compareByPupitreThenName(a, b){
   const ia = PUPITRE_ORDER.indexOf(a.pupitre || 'Autre');
   const ib = PUPITRE_ORDER.indexOf(b.pupitre || 'Autre');
@@ -577,6 +580,7 @@ function stripAccents(str){ return (str||'').normalize('NFD').replace(/[̀-ͯ]/g
 
 function pupitreForSection(section){
   const s = stripAccents(section||'').toUpperCase();
+  if(/CHEF D.?ORCHESTRE|DIRECTION/.test(s)) return "Chef d'orchestre";
   if(/VIOLON|ALTO|VIOLONCELLE|CONTREBASSE|HARPE/.test(s)) return 'Cordes';
   if(/FLUTE|HAUTBOIS|CLARINETTE|BASSON|SAXOPHONE/.test(s)) return 'Bois';
   if(/\bCOR\b|TROMPETTE|TROMBONE|TUBA|SAXHORN/.test(s)) return 'Cuivres';
@@ -671,7 +675,7 @@ function parseContactsPaste(text){
   return { rows, rejected };
 }
 
-const PUPITRE_OPTIONS = ['Cordes','Bois','Cuivres','Percussions','Autre'];
+const PUPITRE_OPTIONS = ["Chef d'orchestre",'Cordes','Bois','Cuivres','Percussions','Autre'];
 
 function renderContactPreview(){
   const text = document.getElementById('importTextarea').value;
