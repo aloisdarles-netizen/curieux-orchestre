@@ -1,7 +1,9 @@
 // ============================================================================
 // Curieux orchestre — couche de persistence Supabase (remplace localStorage).
 // Nécessite le script CDN Supabase chargé AVANT ce fichier :
-//   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+//   <script src="assets/vendor/supabase-js.js"></script>
+// (copie locale et versionnée : plus aucune dépendance à un CDN tiers, qui
+// pourrait tomber ou servir une version compromise — voir assets/vendor/*.VERSION)
 // Toutes les pages appellent les mêmes fonctions qu'avant (loadMusicians,
 // saveMusicians, etc.) mais désormais asynchrones — voir MIGRATION dans
 // chaque page pour le détail des appels convertis en async/await.
@@ -15,7 +17,7 @@ const supabaseClient = (typeof window !== 'undefined' && window.supabase)
   : null;
 
 if(!supabaseClient){
-  console.error("Supabase non chargé : ajoute <script src=\"https://unpkg.com/@supabase/supabase-js@2\"></script> avant assets/db.js");
+  console.error("Supabase non chargé : ajoute <script src=\"assets/vendor/supabase-js.js\"></script> avant assets/db.js");
 }
 
 // --- Adaptateurs JS <-> colonnes SQL (pour les tables à colonnes réelles) ---
@@ -185,6 +187,133 @@ const CurieuxDB = (()=>{
 
   function adapterFor(table){ return ADAPTERS[table] || { toDb: x=>x, fromDb: x=>x }; }
 
+  // --------------------------------------------------------------------------
+  // Suivi des écritures.
+  //
+  // Auparavant, une écriture qui échouait se contentait d'un console.warn : sur
+  // 29 appels, 24 ignoraient l'erreur renvoyée, et certaines pages lançaient même
+  // la sauvegarde sans l'attendre après avoir déjà mis à jour l'affichage. Une
+  // coupure réseau en salle ou une session expirée pendant la nuit produisait
+  // donc exactement le même écran qu'un enregistrement réussi — la modification
+  // était perdue sans que personne ne puisse le savoir.
+  //
+  // Le mécanisme ci-dessous reprend celui qui existait déjà sur la page des
+  // musicien·nes (dispo-titulaire.html) et le rend valable partout : l'échec est
+  // annoncé, l'opération est conservée pour être rejouée, et fermer l'onglet
+  // demande confirmation tant qu'il reste quelque chose à enregistrer.
+  // --------------------------------------------------------------------------
+  const _echecs = [];           // opérations à rejouer
+  let _enCours = 0;             // écritures en vol
+  const _abonnes = [];          // callbacks d'affichage
+
+  function _etatEcriture(){
+    return { enCours: _enCours, echecs: _echecs.length,
+             messages: [...new Set(_echecs.map(e => e.message))] };
+  }
+  function _notifier(){
+    const etat = _etatEcriture();
+    _abonnes.forEach(fn => { try{ fn(etat); }catch(e){} });
+    _majBandeau(etat);
+  }
+  // Permet à une page d'afficher l'état à sa façon (voir dispo-titulaire.html,
+  // qui a déjà son propre indicateur et n'a pas besoin du bandeau générique).
+  function onEtatEcriture(fn){ _abonnes.push(fn); fn(_etatEcriture()); return () => {
+    const i = _abonnes.indexOf(fn); if(i >= 0) _abonnes.splice(i, 1);
+  }; }
+
+  // Exécute une écriture en la surveillant. `rejouer` doit pouvoir être rappelée
+  // telle quelle : c'est ce qui permet le bouton « Réessayer ».
+  async function _ecrire(libelle, rejouer){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    _enCours++; _notifier();
+    let res;
+    try{
+      res = await rejouer();
+    }catch(err){
+      res = { error: { message: err && err.message ? err.message : String(err) } };
+    }
+    _enCours--;
+    if(res && res.error){
+      console.warn(`[CurieuxDB] ${libelle}`, res.error.message);
+      _echecs.push({ libelle, rejouer, message: _messageLisible(res.error.message) });
+    }
+    _notifier();
+    return res || { error: null };
+  }
+
+  // Les messages bruts de Postgres/Supabase ne veulent rien dire pour qui les
+  // lit dans une salle de concert : on traduit les deux cas réellement fréquents.
+  function _messageLisible(message){
+    const m = String(message || '');
+    if(/row-level security|JWT|not authorized|permission denied/i.test(m)){
+      return "Ta session n'est plus valide — reconnecte-toi pour enregistrer.";
+    }
+    if(/fetch|network|Failed to fetch|timeout/i.test(m)){
+      return "Pas de connexion — la modification n'est pas encore enregistrée.";
+    }
+    return m;
+  }
+
+  async function reessayerEcritures(){
+    if(_echecs.length === 0) return { error: null };
+    const aRejouer = _echecs.splice(0, _echecs.length);
+    _notifier();
+    for(const op of aRejouer) await _ecrire(op.libelle, op.rejouer);
+    return { error: _echecs.length ? { message: 'Certaines modifications résistent.' } : null };
+  }
+  function ecrituresEnAttente(){ return _echecs.length > 0 || _enCours > 0; }
+
+  // Bandeau générique, injecté à la première alerte seulement — les pages qui
+  // gèrent déjà leur propre indicateur peuvent le désactiver via
+  // window.CURIEUX_SANS_BANDEAU_ECRITURE.
+  let _bandeau = null;
+  function _majBandeau(etat){
+    if(typeof document === 'undefined' || window.CURIEUX_SANS_BANDEAU_ECRITURE) return;
+    if(etat.echecs === 0){
+      if(_bandeau) _bandeau.style.display = 'none';
+      return;
+    }
+    if(!_bandeau){
+      _bandeau = document.createElement('div');
+      _bandeau.id = 'curieuxEcritureBandeau';
+      _bandeau.setAttribute('role', 'alert');
+      _bandeau.style.cssText =
+        'position:fixed; left:0; right:0; bottom:0; z-index:9999;' +
+        'background:#a5313f; color:#fff; padding:11px 16px; font-size:13.5px;' +
+        "font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;" +
+        'display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap;' +
+        'box-shadow:0 -4px 16px rgba(0,0,0,.18);';
+      const texte = document.createElement('span');
+      texte.id = 'curieuxEcritureTexte';
+      const bouton = document.createElement('button');
+      bouton.type = 'button';
+      bouton.textContent = 'Réessayer';
+      bouton.style.cssText =
+        'background:#fff; color:#a5313f; border:none; border-radius:8px;' +
+        'padding:7px 14px; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;';
+      bouton.addEventListener('click', async () => {
+        bouton.disabled = true; bouton.textContent = 'Envoi…';
+        await reessayerEcritures();
+        bouton.disabled = false; bouton.textContent = 'Réessayer';
+      });
+      _bandeau.append(texte, bouton);
+      (document.body || document.documentElement).appendChild(_bandeau);
+    }
+    const n = etat.echecs;
+    document.getElementById('curieuxEcritureTexte').textContent =
+      `${n} modification${n > 1 ? 's' : ''} non enregistrée${n > 1 ? 's' : ''}. ` +
+      (etat.messages[0] || '');
+    _bandeau.style.display = 'flex';
+  }
+
+  if(typeof window !== 'undefined'){
+    window.addEventListener('beforeunload', (e) => {
+      if(!ecrituresEnAttente()) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
+  }
+
   // Récupère toute une collection (équivalent de l'ancien loadXxx()).
   async function fetchAll(table){
     if(!supabaseClient) return [];
@@ -203,12 +332,12 @@ const CurieuxDB = (()=>{
   // via removeOne/removeMany/removePerson (le·la seul·e à savoir "je veux
   // supprimer CETTE ligne précise" est l'action qui déclenche la suppression).
   async function syncCollection(table, list){
-    if(!supabaseClient) return;
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
     const adapter = adapterFor(table);
     const rows = (list || []).map(adapter.toDb);
-    if(rows.length === 0) return;
-    const { error } = await supabaseClient.from(table).upsert(rows, { onConflict: 'id' });
-    if(error) console.warn(`[CurieuxDB] syncCollection(${table})`, error.message);
+    if(rows.length === 0) return { error: null };
+    return _ecrire(`syncCollection(${table})`,
+      () => supabaseClient.from(table).upsert(rows, { onConflict: 'id' }));
   }
 
   // Upsert d'une seule ligne — utilisé pour les sauvegardes à haute fréquence
@@ -216,23 +345,19 @@ const CurieuxDB = (()=>{
   // serait inutilement coûteux (voir feuille-de-route.html), et plus généralement
   // partout où on modifie/ajoute UNE ligne connue.
   async function upsertOne(table, item){
-    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
     const adapter = adapterFor(table);
-    const { error } = await supabaseClient.from(table).upsert(adapter.toDb(item), { onConflict: 'id' });
-    if(error) console.warn(`[CurieuxDB] upsertOne(${table})`, error.message);
-    return { error };
+    const row = adapter.toDb(item);
+    return _ecrire(`upsertOne(${table})`,
+      () => supabaseClient.from(table).upsert(row, { onConflict: 'id' }));
   }
   async function removeOne(table, id){
-    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    const { error } = await supabaseClient.from(table).delete().eq('id', id);
-    if(error) console.warn(`[CurieuxDB] removeOne(${table})`, error.message);
-    return { error };
+    return _ecrire(`removeOne(${table})`,
+      () => supabaseClient.from(table).delete().eq('id', id));
   }
   async function removeMany(table, ids){
-    if(!supabaseClient || !ids || ids.length === 0) return { error: null };
-    const { error } = await supabaseClient.from(table).delete().in('id', ids);
-    if(error) console.warn(`[CurieuxDB] removeMany(${table})`, error.message);
-    return { error };
+    if(!ids || ids.length === 0) return { error: null };
+    return _ecrire(`removeMany(${table})`,
+      () => supabaseClient.from(table).delete().in('id', ids));
   }
   // Supprime un·e musicien·ne/technicien·ne ET les données rattachées ailleurs
   // (fiche infos_sociales, liens dispo_demandes) — sans quoi elles restaient
@@ -258,10 +383,9 @@ const CurieuxDB = (()=>{
     return { sentAt: data.sent_at, entries: data.entries || [] };
   }
   async function saveSnapshot(snap){
-    if(!supabaseClient) return;
-    const { error } = await supabaseClient.from('newsletter_snapshot')
-      .upsert({ id: 1, sent_at: snap.sentAt, entries: snap.entries || [] }, { onConflict: 'id' });
-    if(error) console.warn('[CurieuxDB] saveSnapshot', error.message);
+    return _ecrire('saveSnapshot',
+      () => supabaseClient.from('newsletter_snapshot')
+        .upsert({ id: 1, sent_at: snap.sentAt, entries: snap.entries || [] }, { onConflict: 'id' }));
   }
 
   // Abonnement realtime : callback appelé à chaque INSERT/UPDATE/DELETE sur la
@@ -498,6 +622,82 @@ const CurieuxDB = (()=>{
     return { error };
   }
 
+  // --- Accès par lien personnel aux données du répertoire (C1) -------------
+  // musiciens/techniciens ne sont plus lisibles par la clé anonyme : leur
+  // lecture publique exposait 107 fiches avec téléphones, e-mails et notes
+  // internes. Les pages à lien personnel passent par ces fonctions, qui ne
+  // rendent que le strict nécessaire.
+  //
+  // Chacune retombe sur l'ancien accès direct si la fonction n'existe pas
+  // encore côté base : le site et la migration SQL peuvent ainsi être déployés
+  // dans n'importe quel ordre sans jamais couper les liens des musicien·nes.
+  function _fonctionAbsente(error){
+    return !!error && /(does not exist|Could not find the function|PGRST202)/i.test(error.message || '');
+  }
+
+  async function getOwnPersonByToken(token, personType, personId){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('get_own_person_by_token', { p_token: token });
+    if(!error) return (data || [])[0] || null;
+    if(!_fonctionAbsente(error)){
+      console.warn('[CurieuxDB] getOwnPersonByToken', error.message);
+      return null;
+    }
+    const table = personType === 'musicien' ? 'musiciens' : 'techniciens';
+    const res = await supabaseClient.from(table).select('*').eq('id', personId).maybeSingle();
+    return res.data || null;
+  }
+
+  // Annuaire réduit aux noms, pour choisir ses remplaçant·es : ni téléphone,
+  // ni e-mail, ni notes, ni disponibilités.
+  async function getRosterForPicker(token){
+    if(!supabaseClient) return [];
+    const { data, error } = await supabaseClient.rpc('get_roster_for_picker', { p_token: token });
+    if(!error){
+      return (data || []).map(r => ({
+        id: r.id, personType: r.person_type, nom: r.nom, prenom: r.prenom, roleLabel: r.role_label
+      }));
+    }
+    if(!_fonctionAbsente(error)){
+      console.warn('[CurieuxDB] getRosterForPicker', error.message);
+      return [];
+    }
+    const [mus, tech] = await Promise.all([
+      supabaseClient.from('musiciens').select('id,prenom,nom,instrument'),
+      supabaseClient.from('techniciens').select('id,prenom,nom,poste'),
+    ]);
+    return [
+      ...(mus.data || []).map(m => ({ id:m.id, personType:'musicien', nom:m.nom, prenom:m.prenom, roleLabel: m.instrument || 'Musicien·ne' })),
+      ...(tech.data || []).map(t => ({ id:t.id, personType:'technicien', nom:t.nom, prenom:t.prenom, roleLabel: t.poste || 'Technicien·ne' })),
+    ];
+  }
+
+  async function getTourneeByToken(token, tourneeId){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('get_tournee_by_token', { p_token: token });
+    if(!error) return (data || [])[0] || null;
+    if(!_fonctionAbsente(error)){
+      console.warn('[CurieuxDB] getTourneeByToken', error.message);
+      return null;
+    }
+    const res = await supabaseClient.from('tournees').select('*').eq('id', tourneeId).maybeSingle();
+    return res.data || null;
+  }
+
+  // Jeton permanent d'une personne (I3), indépendant des tournées : appelé
+  // côté admin pour construire un lien qui survit au ménage des vieilles
+  // tournées. Renvoie null si la base n'a pas encore la migration.
+  async function ensureAccesPersonnel(personId, personType){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('ensure_acces_personnel',
+      { p_person_id: personId, p_person_type: personType });
+    if(error){
+      if(!_fonctionAbsente(error)) console.warn('[CurieuxDB] ensureAccesPersonnel', error.message);
+      return null;
+    }
+    return data || null;
+  }
+
   // Cachet individualisé (voir cachet_overrides dans migrations.sql) : la table reste
   // fermée à la clé anonyme, dispo-titulaire.html ne peut lire que le montant de LA
   // personne du token fourni — jamais la liste complète des montants de la tournée.
@@ -533,6 +733,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
+    onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,
     getMyRole, hasAppAccess, isSuperAdmin,
     listAccounts, setAccountRole, removeAccount,
@@ -541,6 +742,7 @@ const CurieuxDB = (()=>{
     getDispoDemandeByToken, markDispoRespondedByToken,
     updateOwnContactByToken, updateOwnDisponibilitesByToken, updateOwnPrenomUsageByToken,
     getRemplacantPrefsByToken, upsertRemplacantPrefsByToken,
+    getOwnPersonByToken, getRosterForPicker, getTourneeByToken, ensureAccesPersonnel,
     getCachetOverrideByToken, removeCachetOverridesForTournee,
     reportBug
   };

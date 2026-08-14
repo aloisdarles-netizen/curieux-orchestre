@@ -954,3 +954,345 @@ alter table feuilles_route replica identity full;
 alter table carnet_contacts replica identity full;
 alter table newsletter_snapshot replica identity full;
 alter table dispo_demandes replica identity full;
+
+-- ============================================================================
+-- Août 2026 — suites de l'audit. Ajouté à la fin du fichier, qui reste
+-- rejouable en entier sans risque.
+--
+--  C1  ferme la lecture publique de musiciens/techniciens
+--  I3  découple les accès personnels des tournées
+--  M6  index manquants et purge du journal d'audit
+--  M7  plafonne les signalements de bug
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- I3 — accès personnels permanents.
+--
+-- Jusqu'ici, le lien personnel d'une personne était l'id d'une ligne de
+-- dispo_demandes, elle-même rattachée à une tournée en suppression en cascade.
+-- Conséquence : faire du ménage dans les vieilles tournées révoquait sans
+-- prévenir l'accès des musicien·nes à leurs propres infos et à leur liste de
+-- remplaçant·es, qui n'ont pourtant rien à voir avec une tournée précise.
+--
+-- Un jeton permanent par personne règle cela. Les jetons de dispo_demandes
+-- restent valables : tous les liens déjà envoyés continuent de fonctionner.
+-- ----------------------------------------------------------------------------
+create table if not exists acces_personnels (
+  token text primary key,
+  person_id text not null,
+  person_type text not null check (person_type in ('musicien','technicien')),
+  created_at timestamptz not null default now()
+);
+create unique index if not exists idx_acces_personnels_personne
+  on acces_personnels(person_id, person_type);
+
+alter table acces_personnels enable row level security;
+drop policy if exists "admin access" on acces_personnels;
+create policy "admin access" on acces_personnels
+  for all using (has_access()) with check (has_access());
+
+-- Résout un jeton, qu'il soit permanent (acces_personnels) ou lié à une
+-- demande de dispo (dispo_demandes). Toutes les fonctions à jeton passent
+-- désormais par ici, ce qui évite de dupliquer la règle huit fois.
+create or replace function resolve_person_token(p_token text)
+returns table(person_id text, person_type text)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select a.person_id, a.person_type from acces_personnels a where a.token = p_token
+  union all
+  select d.person_id, d.person_type from dispo_demandes d where d.id = p_token
+  limit 1;
+$$;
+grant execute on function resolve_person_token(text) to anon, authenticated;
+
+-- Crée (ou retrouve) le jeton permanent d'une personne — appelé côté admin
+-- pour construire le lien à envoyer.
+create or replace function ensure_acces_personnel(p_person_id text, p_person_type text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_token text;
+begin
+  if not has_access() then
+    raise exception 'Réservé aux comptes autorisés';
+  end if;
+  select token into v_token from acces_personnels
+   where person_id = p_person_id and person_type = p_person_type;
+  if v_token is not null then return v_token; end if;
+  v_token := 'perso' || encode(gen_random_bytes(16), 'hex');
+  insert into acces_personnels (token, person_id, person_type)
+  values (v_token, p_person_id, p_person_type);
+  return v_token;
+end;
+$$;
+grant execute on function ensure_acces_personnel(text, text) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- C1 — fermeture de la lecture publique du répertoire.
+--
+-- musiciens était lisible en entier par la clé anonyme, qui est publique par
+-- construction : 107 fiches, dont 50 avec téléphone et e-mail, plus le champ
+-- "notes" qui contient des commentaires internes sur des personnes.
+--
+-- Cette ouverture ne servait qu'à trois usages précis, remplacés ci-dessous
+-- par des fonctions qui ne rendent que le strict nécessaire.
+-- ----------------------------------------------------------------------------
+
+-- 1. Sa propre fiche (dispo-titulaire.html, mes-infos.html, mes-remplacants.html).
+create or replace function get_own_person_by_token(p_token text)
+returns table(
+  id text, prenom text, nom text, instrument text, pupitre text, poste text, pole text,
+  statut_poste text, telephone text, email text,
+  disponibilites jsonb, disponibilites_commentaires jsonb
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with p as (select * from resolve_person_token(p_token))
+  select m.id, m.prenom, m.nom, m.instrument, m.pupitre, null::text, null::text,
+         m.statut_poste, m.telephone, m.email, m.disponibilites, m.disponibilites_commentaires
+    from musiciens m join p on p.person_id = m.id and p.person_type = 'musicien'
+  union all
+  select t.id, t.prenom, t.nom, null::text, null::text, t.poste, t.pole,
+         t.statut_poste, t.telephone, t.email, t.disponibilites, t.disponibilites_commentaires
+    from techniciens t join p on p.person_id = t.id and p.person_type = 'technicien';
+$$;
+grant execute on function get_own_person_by_token(text) to anon, authenticated;
+
+-- 2. L'annuaire réduit aux seuls noms, pour choisir ses remplaçant·es
+--    (mes-remplacants.html). Volontairement sans téléphone, e-mail, notes ni
+--    disponibilités : la page n'affichait que le nom et l'instrument, elle
+--    demandait pourtant la totalité des colonnes.
+create or replace function get_roster_for_picker(p_token text)
+returns table(id text, person_type text, prenom text, nom text, role_label text)
+language sql
+security definer
+set search_path = public
+as $$
+  select m.id, 'musicien'::text, m.prenom, m.nom, coalesce(nullif(m.instrument,''), 'Musicien·ne')
+    from musiciens m
+   where exists (select 1 from resolve_person_token(p_token))
+  union all
+  select t.id, 'technicien'::text, t.prenom, t.nom, coalesce(nullif(t.poste,''), 'Technicien·ne')
+    from techniciens t
+   where exists (select 1 from resolve_person_token(p_token));
+$$;
+grant execute on function get_roster_for_picker(text) to anon, authenticated;
+
+-- 3. La tournée d'un lien de dispo (nom + dates + cachet standard).
+create or replace function get_tournee_by_token(p_token text)
+returns setof tournees
+language sql
+security definer
+set search_path = public
+as $$
+  select t.* from tournees t
+    join dispo_demandes d on d.tournee_id = t.id
+   where d.id = p_token;
+$$;
+grant execute on function get_tournee_by_token(text) to anon, authenticated;
+
+-- Fermeture effective : plus aucune lecture anonyme du répertoire.
+drop policy if exists "public read" on musiciens;
+drop policy if exists "public read" on techniciens;
+create policy "admin read" on musiciens for select using (has_access());
+create policy "admin read" on techniciens for select using (has_access());
+
+-- tournees garde sa lecture publique : elle ne contient pas de donnée
+-- personnelle en clair (les affectations n'y figurent que sous forme d'id,
+-- inexploitables une fois le répertoire fermé) et plusieurs pages internes
+-- s'appuient dessus.
+
+-- Les fonctions à jeton existantes passent au résolveur commun, pour accepter
+-- aussi bien un jeton permanent qu'un jeton de demande de dispo.
+create or replace function get_own_infos_sociales(p_token text)
+returns setof infos_sociales
+language sql
+security definer
+set search_path = public
+as $$
+  select s.* from infos_sociales s
+    join resolve_person_token(p_token) p on p.person_id = s.id;
+$$;
+
+create or replace function get_own_remplacant_prefs(p_token text)
+returns setof remplacant_prefs
+language sql
+security definer
+set search_path = public
+as $$
+  select r.* from remplacant_prefs r
+    join resolve_person_token(p_token) p on p.person_id = r.id;
+$$;
+
+create or replace function upsert_own_remplacant_prefs(p_token text, p_items jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_person_id text; v_person_type text;
+begin
+  select person_id, person_type into v_person_id, v_person_type
+    from resolve_person_token(p_token);
+  if v_person_id is null then raise exception 'Lien invalide'; end if;
+  insert into remplacant_prefs (id, person_type, items)
+  values (v_person_id, v_person_type, p_items)
+  on conflict (id) do update set person_type = excluded.person_type, items = excluded.items;
+end;
+$$;
+
+create or replace function update_own_contact_by_token(p_token text, p_telephone text, p_email text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_person_id text; v_person_type text;
+begin
+  select person_id, person_type into v_person_id, v_person_type
+    from resolve_person_token(p_token);
+  if v_person_id is null then raise exception 'Lien invalide'; end if;
+  if v_person_type = 'musicien' then
+    update musiciens set telephone = p_telephone, email = p_email where id = v_person_id;
+  else
+    update techniciens set telephone = p_telephone, email = p_email where id = v_person_id;
+  end if;
+end;
+$$;
+
+create or replace function update_own_prenom_usage_by_token(p_token text, p_prenom_usage text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_person_id text; v_person_type text; v_current_prenom text;
+begin
+  if p_prenom_usage is null or btrim(p_prenom_usage) = '' then return; end if;
+  select person_id, person_type into v_person_id, v_person_type
+    from resolve_person_token(p_token);
+  if v_person_id is null then raise exception 'Lien invalide'; end if;
+  if v_person_type = 'musicien' then
+    select prenom into v_current_prenom from musiciens where id = v_person_id;
+  else
+    select prenom into v_current_prenom from techniciens where id = v_person_id;
+  end if;
+  if v_current_prenom is not distinct from p_prenom_usage then return; end if;
+  insert into infos_sociales (id, person_type, prenom_civil)
+  values (v_person_id, v_person_type, coalesce(v_current_prenom, ''))
+  on conflict (id) do update set
+    prenom_civil = case when coalesce(infos_sociales.prenom_civil, '') = ''
+                        then excluded.prenom_civil else infos_sociales.prenom_civil end;
+  if v_person_type = 'musicien' then
+    update musiciens set prenom = p_prenom_usage where id = v_person_id;
+  else
+    update techniciens set prenom = p_prenom_usage where id = v_person_id;
+  end if;
+end;
+$$;
+
+-- upsert_own_infos_sociales : même changement, résolveur commun.
+create or replace function upsert_own_infos_sociales(p_token text, p_payload jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_person_id text; v_person_type text;
+begin
+  select person_id, person_type into v_person_id, v_person_type
+    from resolve_person_token(p_token);
+  if v_person_id is null then raise exception 'Lien invalide'; end if;
+
+  insert into infos_sociales (
+    id, person_type, genre, genre_detail, prenom_civil, date_naissance, lieu_naissance, nationalite, adresse,
+    num_secu, iban, bic, titulaire_compte, num_conges_spectacles, num_audiens,
+    contact_urgence_nom, contact_urgence_tel, permis_conduire,
+    permis_conduire_type, permis_conduire_type_detail, taille_vetement, extra
+  ) values (
+    v_person_id, v_person_type, p_payload->>'genre', p_payload->>'genre_detail', p_payload->>'prenom_civil',
+    nullif(p_payload->>'date_naissance','')::date, p_payload->>'lieu_naissance',
+    p_payload->>'nationalite', p_payload->>'adresse',
+    p_payload->>'num_secu', p_payload->>'iban', p_payload->>'bic', p_payload->>'titulaire_compte',
+    p_payload->>'num_conges_spectacles', p_payload->>'num_audiens',
+    p_payload->>'contact_urgence_nom', p_payload->>'contact_urgence_tel',
+    p_payload->>'permis_conduire', p_payload->>'permis_conduire_type', p_payload->>'permis_conduire_type_detail',
+    p_payload->>'taille_vetement',
+    coalesce(p_payload->'extra', '{}'::jsonb)
+  )
+  on conflict (id) do update set
+    person_type = excluded.person_type, genre = excluded.genre, genre_detail = excluded.genre_detail,
+    prenom_civil = excluded.prenom_civil, date_naissance = excluded.date_naissance,
+    lieu_naissance = excluded.lieu_naissance, nationalite = excluded.nationalite, adresse = excluded.adresse,
+    num_secu = excluded.num_secu, iban = excluded.iban, bic = excluded.bic,
+    titulaire_compte = excluded.titulaire_compte, num_conges_spectacles = excluded.num_conges_spectacles,
+    num_audiens = excluded.num_audiens, contact_urgence_nom = excluded.contact_urgence_nom,
+    contact_urgence_tel = excluded.contact_urgence_tel, permis_conduire = excluded.permis_conduire,
+    permis_conduire_type = excluded.permis_conduire_type,
+    permis_conduire_type_detail = excluded.permis_conduire_type_detail,
+    taille_vetement = excluded.taille_vetement, extra = excluded.extra;
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- M6 — index manquants et conservation du journal.
+-- Postgres n'indexe pas automatiquement les clés étrangères, et person_id est
+-- joint par toutes les fonctions à jeton.
+-- ----------------------------------------------------------------------------
+create index if not exists idx_dispo_demandes_person on dispo_demandes(person_id, person_type);
+create index if not exists idx_dispo_demandes_tournee on dispo_demandes(tournee_id);
+
+-- Le journal conserve l'avant et l'après complets de chaque modification. Il
+-- rend la corbeille possible, mais sans limite il finirait par occuper
+-- l'essentiel de la base : deux ans de conservation, purge à la demande.
+create or replace function purge_audit_log(p_jours integer default 730)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_supprimees integer;
+begin
+  if not is_admin() then
+    raise exception 'Réservé aux comptes administrateurs';
+  end if;
+  delete from audit_log where changed_at < now() - make_interval(days => p_jours);
+  get diagnostics v_supprimees = row_count;
+  return v_supprimees;
+end;
+$$;
+grant execute on function purge_audit_log(integer) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- M7 — plafonnement des signalements.
+-- L'écriture est publique et doit le rester (n'importe qui doit pouvoir
+-- signaler un problème sans compte), mais rien n'empêchait d'y déverser un
+-- volume illimité.
+-- ----------------------------------------------------------------------------
+alter table bug_reports drop constraint if exists bug_reports_message_longueur;
+alter table bug_reports add constraint bug_reports_message_longueur
+  check (char_length(message) between 1 and 4000);
+
+create or replace function bug_reports_limite()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (select count(*) from bug_reports where created_at > now() - interval '1 hour') >= 30 then
+    raise exception 'Trop de signalements envoyés récemment — réessaie dans un moment.';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists trg_bug_reports_limite on bug_reports;
+create trigger trg_bug_reports_limite before insert on bug_reports
+  for each row execute function bug_reports_limite();

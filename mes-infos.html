@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Curieux orchestre — Mes infos</title>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
@@ -12,24 +12,8 @@
      dispo-titulaire.html : c'est le même lien personnel imprévisible
      (dispo_demandes.id) qui sert d'identification, pas un compte. -->
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
 <style>
-  :root{
-    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#7a6676;
-    --accent:#791649; --accent-dark:#5a1037; --accent-solid:#791649; --accent-tint:#CEE1F4;
-    --champagne:#fde3ee; --old-champagne:#c98aa0;
-    --ok:#2f8f5b; --ok-tint:#e2f4ea;
-    --danger:#a5313f; --danger-tint:#fbe6e2;
-    --radius:10px;
-  }
-  :root[data-theme="dark"]{
-    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
-    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
-    --champagne:#3a2530; --old-champagne:#7a5064;
-    --ok:#7fd9a6; --ok-tint:#1c3327;
-    --danger:#e2685a; --danger-tint:#3d2420;
-  }
-  *{box-sizing:border-box;}
-  html{color-scheme:light dark;}
   body{
     margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:var(--bg); color:var(--text); padding:20px 14px 80px;
@@ -45,8 +29,6 @@
   .identity-note{font-size:11.5px; color:var(--muted); margin-top:4px;}
 
   h1{font-size:20px; margin:0 0 6px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
-
-  label{font-size:12px; color:var(--muted); font-weight:600;}
   input[type=text], input[type=date], select, textarea{
     padding:9px 11px; border:1px solid var(--border); border-radius:6px; font-size:14px;
     width:100%; background:var(--card); color:var(--text); font-family:inherit;
@@ -93,9 +75,13 @@
   .completion-banner.missing{background:var(--danger-tint); color:var(--danger);}
   .completion-banner.ok{background:var(--ok-tint); color:var(--ok);}
 
-  @media (max-width:600px){
-    input, select, textarea{ font-size:16px !important; }
+  
+
+  .rgpd-encart{
+    background:var(--accent-tint); border-radius:8px; padding:12px 14px;
+    font-size:12.5px; line-height:1.55; color:var(--text); margin:0 0 16px;
   }
+  .rgpd-encart a{color:var(--accent-dark); font-weight:700;}
 </style>
 </head>
 <body>
@@ -128,8 +114,9 @@ async function init(){
   const demande = (demandeRows || [])[0];
   if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
 
-  const personTable = demande.person_type === 'musicien' ? 'musiciens' : 'techniciens';
-  const { data: person } = await supabaseClient.from(personTable).select('*').eq('id', demande.person_id).maybeSingle();
+  // Voir C1 : lecture de sa propre fiche par fonction à jeton, le répertoire
+  // n'étant plus ouvert à la clé anonyme.
+  const person = await CurieuxDB.getOwnPersonByToken(token, demande.person_type, demande.person_id);
   if(!person){ showState("Cette fiche n'existe plus."); return; }
 
   state.token = token;
@@ -184,6 +171,18 @@ function render(){
 
   document.getElementById('content').innerHTML = `
     <h1>Mes infos</h1>
+      <!-- Information des personnes (I2) : ces données sont demandées au moment
+           où elles sont saisies, avec la finalité, la durée et le moyen de
+           demander l'effacement — voir mentions-legales.html. -->
+      <div class="rgpd-encart">
+        <strong>Pourquoi ces informations&nbsp;?</strong> Elles servent uniquement à
+        établir ton contrat et les déclarations d'embauche. Elles sont réservées
+        aux comptes administrateurs de la production, ne sont jamais transmises à
+        des tiers en dehors des organismes sociaux, et tu peux demander leur
+        correction ou leur suppression à tout moment.
+        <a href="mentions-legales.html" target="_blank" rel="noopener">En savoir plus</a>
+      </div>
+
     <div class="identity-banner">
       Bonjour <strong>${escapeHtml(fullName(state.person))}</strong> — on a besoin de ces informations pour ta fiche
       musicien·ne/technicien·ne (identité civile, n° sécu, RIB, statut intermittent).
@@ -194,20 +193,20 @@ function render(){
 
     <div class="section-label">Coordonnées</div>
     <div class="field-row">
-      <div class="field"><label for="mi_telephone">Téléphone ${tierBadge('obligatoire')}</label><input id="mi_telephone" type="text" data-person-field="telephone" value="${escapeAttr(state.person.telephone || '')}"></div>
-      <div class="field"><label for="mi_email">Email ${tierBadge('obligatoire')}</label><input id="mi_email" type="text" data-person-field="email" value="${escapeAttr(state.person.email || '')}"></div>
+      <div class="field"><label for="mi_telephone">Téléphone ${tierBadge('obligatoire')}</label><input id="mi_telephone" type="text" data-person-field="telephone" value="${escapeAttr(state.person.telephone || '')}" inputmode="tel" autocomplete="tel"></div>
+      <div class="field"><label for="mi_email">Email ${tierBadge('obligatoire')}</label><input id="mi_email" type="text" data-person-field="email" value="${escapeAttr(state.person.email || '')}" inputmode="email" autocomplete="email"></div>
     </div>
 
     <div class="section-label">Identité civile</div>
     <p style="font-size:12px; color:var(--muted); margin:-4px 0 10px;">Ta fiche t'affiche partout sous <strong>${escapeHtml(state.person.prenom || '')}</strong>. Si tu préfères qu'on t'appelle autrement (annuaire, plannings, feuilles de route…), indique-le ci-dessous — ton prénom d'état civil est conservé de son côté pour les documents administratifs.</p>
     <div class="field">
       <label for="mi_prenomUsage">Prénom d'usage ${tierBadge('facultatif')}</label>
-      <input id="mi_prenomUsage" type="text" placeholder="Laisse vide si «${escapeAttr(state.person.prenom || '')}» est déjà correct">
+      <input id="mi_prenomUsage" type="text" placeholder="Laisse vide si «${escapeAttr(state.person.prenom || '')}» est déjà correct" autocomplete="given-name">
     </div>
     <div class="field-row">
-      <div class="field"><label for="mi_dateNaissance">Date de naissance ${tierBadge('obligatoire')}</label><input id="mi_dateNaissance" type="date" data-info-field="dateNaissance" value="${escapeAttr(info.dateNaissance || '')}"></div>
-      <div class="field"><label for="mi_lieuNaissance">Ville de naissance ${tierBadge('obligatoire')}</label><input id="mi_lieuNaissance" type="text" data-info-field="lieuNaissance" value="${escapeAttr(info.lieuNaissance || '')}"></div>
-      <div class="field"><label for="mi_nationalite">Nationalité ${tierBadge('obligatoire')}</label><input id="mi_nationalite" type="text" data-info-field="nationalite" value="${escapeAttr(info.nationalite || '')}"></div>
+      <div class="field"><label for="mi_dateNaissance">Date de naissance ${tierBadge('obligatoire')}</label><input id="mi_dateNaissance" type="date" data-info-field="dateNaissance" value="${escapeAttr(info.dateNaissance || '')}" autocomplete="bday"></div>
+      <div class="field"><label for="mi_lieuNaissance">Ville de naissance ${tierBadge('obligatoire')}</label><input id="mi_lieuNaissance" type="text" data-info-field="lieuNaissance" value="${escapeAttr(info.lieuNaissance || '')}" autocomplete="address-level2"></div>
+      <div class="field"><label for="mi_nationalite">Nationalité ${tierBadge('obligatoire')}</label><input id="mi_nationalite" type="text" data-info-field="nationalite" value="${escapeAttr(info.nationalite || '')}" autocomplete="country-name"></div>
     </div>
     <div class="field-row">
       <div class="field">
@@ -234,29 +233,29 @@ function render(){
     <div class="section-label">Sécurité sociale</div>
     <div class="field">
       <label for="mi_numSecu">N° de sécurité sociale (NIR) ${tierBadge('conseille')}</label>
-      <input id="mi_numSecu" type="text" data-info-field="numSecu" value="${escapeAttr(info.numSecu || '')}">
+      <input id="mi_numSecu" type="text" data-info-field="numSecu" value="${escapeAttr(info.numSecu || '')}" inputmode="numeric" pattern="[0-9 ]{13,21}" title="13 ou 15 chiffres, espaces autorisés" placeholder=" ">
     </div>
 
     <div class="section-label">Coordonnées bancaires</div>
     <div class="field-row">
-      <div class="field"><label for="mi_iban">IBAN ${tierBadge('conseille')}</label><input id="mi_iban" type="text" data-info-field="iban" value="${escapeAttr(info.iban || '')}"></div>
-      <div class="field"><label for="mi_bic">BIC ${tierBadge('conseille')}</label><input id="mi_bic" type="text" data-info-field="bic" value="${escapeAttr(info.bic || '')}"></div>
+      <div class="field"><label for="mi_iban">IBAN ${tierBadge('conseille')}</label><input id="mi_iban" type="text" data-info-field="iban" value="${escapeAttr(info.iban || '')}" pattern="[A-Za-z]{2}[0-9]{2}[A-Za-z0-9 ]{10,34}" title="Commence par 2 lettres de pays, ex : FR76 3000 …" placeholder=" "></div>
+      <div class="field"><label for="mi_bic">BIC ${tierBadge('conseille')}</label><input id="mi_bic" type="text" data-info-field="bic" value="${escapeAttr(info.bic || '')}" pattern="[A-Za-z0-9]{8}|[A-Za-z0-9]{11}" title="8 ou 11 caractères" placeholder=" "></div>
     </div>
     <div class="field">
       <label for="mi_titulaireCompte">Titulaire du compte ${tierBadge('conseille')}</label>
-      <input id="mi_titulaireCompte" type="text" data-info-field="titulaireCompte" value="${escapeAttr(info.titulaireCompte || '')}">
+      <input id="mi_titulaireCompte" type="text" data-info-field="titulaireCompte" value="${escapeAttr(info.titulaireCompte || '')}" autocomplete="name">
     </div>
 
     <div class="section-label">Statut intermittent</div>
     <div class="field-row">
-      <div class="field"><label for="mi_numCongesSpectacles">N° Congés Spectacles ${tierBadge('conseille')}</label><input id="mi_numCongesSpectacles" type="text" data-info-field="numCongesSpectacles" value="${escapeAttr(info.numCongesSpectacles || '')}"></div>
-      <div class="field"><label for="mi_numAudiens">N° Audiens ${tierBadge('conseille')}</label><input id="mi_numAudiens" type="text" data-info-field="numAudiens" value="${escapeAttr(info.numAudiens || '')}"></div>
+      <div class="field"><label for="mi_numCongesSpectacles">N° Congés Spectacles ${tierBadge('conseille')}</label><input id="mi_numCongesSpectacles" type="text" data-info-field="numCongesSpectacles" value="${escapeAttr(info.numCongesSpectacles || '')}" inputmode="numeric"></div>
+      <div class="field"><label for="mi_numAudiens">N° Audiens ${tierBadge('conseille')}</label><input id="mi_numAudiens" type="text" data-info-field="numAudiens" value="${escapeAttr(info.numAudiens || '')}" inputmode="numeric"></div>
     </div>
 
     <div class="section-label">Contact d'urgence</div>
     <div class="field-row">
       <div class="field"><label for="mi_contactUrgenceNom">Nom ${tierBadge('conseille')}</label><input id="mi_contactUrgenceNom" type="text" data-info-field="contactUrgenceNom" value="${escapeAttr(info.contactUrgenceNom || '')}"></div>
-      <div class="field"><label for="mi_contactUrgenceTel">Téléphone ${tierBadge('conseille')}</label><input id="mi_contactUrgenceTel" type="text" data-info-field="contactUrgenceTel" value="${escapeAttr(info.contactUrgenceTel || '')}"></div>
+      <div class="field"><label for="mi_contactUrgenceTel">Téléphone ${tierBadge('conseille')}</label><input id="mi_contactUrgenceTel" type="text" data-info-field="contactUrgenceTel" value="${escapeAttr(info.contactUrgenceTel || '')}" inputmode="tel"></div>
     </div>
 
     <div class="section-label">Autres infos pratiques</div>

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Curieux orchestre — Tes disponibilités</title>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
@@ -13,26 +13,8 @@
      pas de compte admin de l'app interne. L'identification se fait par le token imprévisible
      dans l'URL, pas par un compte. -->
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
 <style>
-  :root{
-    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#7a6676;
-    --accent:#791649; --accent-dark:#5a1037; --accent-solid:#791649; --accent-tint:#CEE1F4;
-    --champagne:#fde3ee; --old-champagne:#c98aa0;
-    --ok:#2f8f5b; --ok-tint:#e2f4ea;
-    --ko:#b23b2e; --ko-tint:#fbe6e2;
-    --maybe:#b8792a; --maybe-tint:#f6ead2;
-    --radius:10px;
-  }
-  :root[data-theme="dark"]{
-    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
-    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
-    --champagne:#3a2530; --old-champagne:#7a5064;
-    --ok:#7fd9a6; --ok-tint:#1c3327;
-    --ko:#e2825a; --ko-tint:#3d2420;
-    --maybe:#e8bd7c; --maybe-tint:#3a2f1c;
-  }
-  *{box-sizing:border-box;}
-  html{color-scheme:light dark;}
   body{
     margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:var(--bg); color:var(--text); padding:20px 14px 80px;
@@ -135,9 +117,7 @@
   }
   .save-btn:disabled{opacity:.45; cursor:default;}
   .save-btn:not(:disabled):hover{background:var(--accent-dark);}
-  @media (max-width:600px){
-    input, select, textarea{ font-size:16px !important; }
-  }
+  
 
   .modal-overlay{
     display:none; position:fixed; inset:0; background:rgba(20,15,10,.5);
@@ -186,13 +166,13 @@
     <h2><svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:5px;"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><path d="M8 11V7.5a4 4 0 0 1 8 0V11" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="12" cy="15.5" r="1.3" fill="currentColor"></circle></svg>Avant de commencer</h2>
     <p class="modal-sub">On a besoin de ces infos pour ta fiche musicien·ne/technicien·ne.</p>
     <div class="field-row">
-      <div class="field"><label for="m_telephone">Téléphone</label><input type="text" id="m_telephone"></div>
-      <div class="field"><label for="m_email">Email</label><input type="text" id="m_email"></div>
+      <div class="field"><label for="m_telephone">Téléphone</label><input type="text" id="m_telephone" inputmode="tel" autocomplete="tel"></div>
+      <div class="field"><label for="m_email">Email</label><input type="text" id="m_email" inputmode="email" autocomplete="email"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label for="m_dateNaissance">Date de naissance</label><input type="date" id="m_dateNaissance"></div>
-      <div class="field"><label for="m_lieuNaissance">Ville de naissance</label><input type="text" id="m_lieuNaissance"></div>
-      <div class="field"><label for="m_nationalite">Nationalité</label><input type="text" id="m_nationalite"></div>
+      <div class="field"><label for="m_dateNaissance">Date de naissance</label><input type="date" id="m_dateNaissance" autocomplete="bday"></div>
+      <div class="field"><label for="m_lieuNaissance">Ville de naissance</label><input type="text" id="m_lieuNaissance" autocomplete="address-level2"></div>
+      <div class="field"><label for="m_nationalite">Nationalité</label><input type="text" id="m_nationalite" autocomplete="country-name"></div>
     </div>
     <div class="field-row">
       <div class="field">
@@ -270,12 +250,15 @@ async function init(){
   const demande = (demandeRows || [])[0];
   if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
 
-  const personTable = demande.person_type === 'musicien' ? 'musiciens' : 'techniciens';
-  const [tourneeRes, personRes] = await Promise.all([
-    supabaseClient.from('tournees').select('*').eq('id', demande.tournee_id).maybeSingle(),
-    supabaseClient.from(personTable).select('*').eq('id', demande.person_id).maybeSingle()
+  // Le répertoire n'est plus lisible par la clé anonyme (voir C1 dans
+  // migrations.sql) : on passe par les fonctions à jeton, qui ne rendent que
+  // la fiche de la personne du lien et la tournée concernée.
+  const [tournee, person] = await Promise.all([
+    CurieuxDB.getTourneeByToken(token, demande.tournee_id),
+    CurieuxDB.getOwnPersonByToken(token, demande.person_type, demande.person_id)
   ]);
-  if(!tourneeRes.data || !personRes.data){ showState("Cette tournée ou cette fiche n'existe plus."); return; }
+  if(!tournee || !person){ showState("Cette tournée ou cette fiche n'existe plus."); return; }
+  const tourneeRes = { data: tournee }, personRes = { data: person };
 
   state.demande = demande;
   state.token = token;

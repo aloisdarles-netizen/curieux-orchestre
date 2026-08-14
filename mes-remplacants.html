@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Curieux orchestre — Mes remplaçant·es</title>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
@@ -13,24 +13,8 @@
      imprévisible (dispo_demandes.id, n'importe lequel déjà reçu) qui sert
      d'identification, pas un compte. -->
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
 <style>
-  :root{
-    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#7a6676;
-    --accent:#791649; --accent-dark:#5a1037; --accent-solid:#791649; --accent-tint:#CEE1F4;
-    --champagne:#fde3ee; --old-champagne:#c98aa0;
-    --ok:#2f8f5b; --ok-tint:#e2f4ea;
-    --danger:#a5313f; --danger-tint:#fbe6e2;
-    --radius:10px;
-  }
-  :root[data-theme="dark"]{
-    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
-    --accent:#CEE1F4; --accent-dark:#eef6fc; --accent-tint:#2a3f52;
-    --champagne:#3a2530; --old-champagne:#7a5064;
-    --ok:#7fd9a6; --ok-tint:#1c3327;
-    --danger:#e2685a; --danger-tint:#3d2420;
-  }
-  *{box-sizing:border-box;}
-  html{color-scheme:light dark;}
   body{
     margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:var(--bg); color:var(--text); padding:20px 14px 80px;
@@ -46,8 +30,6 @@
   .identity-note{font-size:11.5px; color:var(--muted); margin-top:4px;}
 
   h1{font-size:20px; margin:0 0 6px; font-weight:900; letter-spacing:-.01em; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
-
-  label{font-size:12px; color:var(--muted); font-weight:600;}
   input[type=text], input[type=tel], input[type=email], select{
     padding:9px 11px; border:1px solid var(--border); border-radius:6px; font-size:14px;
     width:100%; background:var(--card); color:var(--text); font-family:inherit;
@@ -163,14 +145,16 @@ async function init(){
   const demande = (demandeRows || [])[0];
   if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
 
-  const personTable = demande.person_type === 'musicien' ? 'musiciens' : 'techniciens';
-  const [personRes, musRes, techRes, items] = await Promise.all([
-    supabaseClient.from(personTable).select('*').eq('id', demande.person_id).maybeSingle(),
-    supabaseClient.from('musiciens').select('*'),
-    supabaseClient.from('techniciens').select('*'),
+  // Voir C1 : cette page demandait auparavant TOUT le répertoire
+  // (select('*') sur musiciens et techniciens) alors qu'elle n'affiche que le
+  // nom et l'instrument. Elle reçoit désormais un annuaire réduit aux noms.
+  const [person, roster, items] = await Promise.all([
+    CurieuxDB.getOwnPersonByToken(token, demande.person_type, demande.person_id),
+    CurieuxDB.getRosterForPicker(token),
     CurieuxDB.getRemplacantPrefsByToken(token)
   ]);
-  if(!personRes.data){ showState("Cette fiche n'existe plus."); return; }
+  if(!person){ showState("Cette fiche n'existe plus."); return; }
+  const personRes = { data: person };
 
   state.token = token;
   state.person = personRes.data;
@@ -182,10 +166,7 @@ async function init(){
     return;
   }
 
-  state.roster = [
-    ...(musRes.data || []).map(m=> ({ id:m.id, personType:'musicien', nom:m.nom, prenom:m.prenom, roleLabel: m.instrument || 'Musicien·ne' })),
-    ...(techRes.data || []).map(t=> ({ id:t.id, personType:'technicien', nom:t.nom, prenom:t.prenom, roleLabel: t.poste || 'Technicien·ne' })),
-  ];
+  state.roster = roster;
 
   const backLink = document.getElementById('backToDispoLink');
   backLink.href = 'dispo-titulaire.html?token=' + encodeURIComponent(token);
