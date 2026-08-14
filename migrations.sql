@@ -603,12 +603,21 @@ create policy "admins delete reports" on bug_reports
   using (is_admin());
 
 -- ============================================================================
--- RLS : accès public en lecture/écriture (pas de compte utilisateur).
--- infos_sociales / infos_sociales_admins / dispo_demandes font exception (voir
--- plus haut) : ce sont les trois tables où l'accès direct est restreint à des
--- comptes Auth (dispo_demandes reste accessible aux pages publiques via les
--- fonctions get_dispo_demande_by_token/mark_dispo_responded_by_token, jamais
--- via un accès direct à la table).
+-- RLS : lecture publique large (pas de compte utilisateur), mais ÉCRITURE
+-- réservée aux comptes admin/user (has_access()) — sauf pour les deux fonctions
+-- SECURITY DEFINER à token ci-dessous, seul chemin d'écriture public restant.
+--
+-- Historique : musiciens/techniciens/tournees/feuilles_route/carnet_contacts/
+-- newsletter_snapshot étaient auparavant en "public full access" (using(true)
+-- with check(true)) — donc en écriture ouverte à la clé anonyme, la même clé
+-- visible dans le code source de n'importe quelle page. dispo-titulaire.html
+-- écrivait directement dans musiciens/techniciens (coordonnées, dispos) sans
+-- passer par un token vérifié côté serveur : la seule chose qui empêchait de
+-- modifier la fiche de N'IMPORTE QUI (pas seulement la sienne) via un appel
+-- direct à l'API était le comportement du site, pas une règle en base.
+-- infos_sociales / infos_sociales_admins / dispo_demandes / remplacant_prefs
+-- avaient déjà ce traitement (accès direct fermé, RPC à token) — musiciens/
+-- techniciens/tournees suivent enfin le même principe.
 -- ============================================================================
 alter table musiciens enable row level security;
 alter table techniciens enable row level security;
@@ -619,26 +628,119 @@ alter table newsletter_snapshot enable row level security;
 -- dispo_demandes est déjà passée en RLS plus haut (policy "admin access").
 
 drop policy if exists "public full access" on musiciens;
-create policy "public full access" on musiciens for all using (true) with check (true);
+drop policy if exists "public read" on musiciens;
+drop policy if exists "admin write insert" on musiciens;
+drop policy if exists "admin write update" on musiciens;
+drop policy if exists "admin write delete" on musiciens;
+-- Lecture publique conservée : dispo-titulaire.html (sa propre fiche) et
+-- mes-remplacants.html (recherche dans tout le répertoire) en ont besoin sans
+-- compte. L'écriture publique, elle, ne passe plus que par les fonctions à
+-- token plus bas (SECURITY DEFINER, donc pas soumises à ces policies).
+create policy "public read" on musiciens for select using (true);
+create policy "admin write insert" on musiciens for insert with check (has_access());
+create policy "admin write update" on musiciens for update using (has_access()) with check (has_access());
+create policy "admin write delete" on musiciens for delete using (has_access());
 
 drop policy if exists "public full access" on techniciens;
-create policy "public full access" on techniciens for all using (true) with check (true);
+drop policy if exists "public read" on techniciens;
+drop policy if exists "admin write insert" on techniciens;
+drop policy if exists "admin write update" on techniciens;
+drop policy if exists "admin write delete" on techniciens;
+create policy "public read" on techniciens for select using (true);
+create policy "admin write insert" on techniciens for insert with check (has_access());
+create policy "admin write update" on techniciens for update using (has_access()) with check (has_access());
+create policy "admin write delete" on techniciens for delete using (has_access());
 
 drop policy if exists "public full access" on tournees;
-create policy "public full access" on tournees for all using (true) with check (true);
+drop policy if exists "public read" on tournees;
+drop policy if exists "admin write insert" on tournees;
+drop policy if exists "admin write update" on tournees;
+drop policy if exists "admin write delete" on tournees;
+-- Lecture publique conservée : dispo-titulaire.html affiche le nom de la
+-- tournée et le cachet standard. Aucune page publique n'écrit jamais dans
+-- tournees (le cachet individualisé passe par cachet_overrides, cloisonnée).
+create policy "public read" on tournees for select using (true);
+create policy "admin write insert" on tournees for insert with check (has_access());
+create policy "admin write update" on tournees for update using (has_access()) with check (has_access());
+create policy "admin write delete" on tournees for delete using (has_access());
 
+-- feuilles_route / carnet_contacts / newsletter_snapshot : aucune page
+-- publique n'y touche jamais (feuille-de-route.html, feuilles-de-route.html
+-- et newsletter.html exigent toutes un compte) — fermées entièrement,
+-- lecture comprise, plutôt que juste l'écriture comme ci-dessus.
 drop policy if exists "public full access" on feuilles_route;
-create policy "public full access" on feuilles_route for all using (true) with check (true);
+create policy "admin access" on feuilles_route for all using (has_access()) with check (has_access());
 
 drop policy if exists "public full access" on carnet_contacts;
-create policy "public full access" on carnet_contacts for all using (true) with check (true);
+create policy "admin access" on carnet_contacts for all using (has_access()) with check (has_access());
 
 drop policy if exists "public full access" on newsletter_snapshot;
-create policy "public full access" on newsletter_snapshot for all using (true) with check (true);
+create policy "admin access" on newsletter_snapshot for all using (has_access()) with check (has_access());
 
 -- dispo_demandes N'EST PLUS en "public full access" : sa policy "admin access"
 -- (basée sur has_access()) est définie plus haut, juste après is_admin() — voir
 -- le commentaire à cet endroit pour l'explication de sécurité.
+
+-- Écriture publique sur SA PROPRE fiche (coordonnées + dispos), depuis
+-- dispo-titulaire.html — même principe que get_own_infos_sociales : le token
+-- est vérifié contre dispo_demandes avant d'écrire, en SECURITY DEFINER pour
+-- contourner le RLS ci-dessus une fois cette vérification faite.
+create or replace function update_own_contact_by_token(p_token text, p_telephone text, p_email text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_person_id text;
+  v_person_type text;
+begin
+  select person_id, person_type into v_person_id, v_person_type
+  from dispo_demandes where id = p_token;
+  if v_person_id is null then
+    raise exception 'Lien invalide';
+  end if;
+  if v_person_type = 'musicien' then
+    update musiciens set telephone = p_telephone, email = p_email where id = v_person_id;
+  else
+    update techniciens set telephone = p_telephone, email = p_email where id = v_person_id;
+  end if;
+end;
+$$;
+
+create or replace function update_own_disponibilites_by_token(
+  p_token text, p_disponibilites jsonb, p_disponibilites_commentaires jsonb, p_telephone text, p_email text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_person_id text;
+  v_person_type text;
+begin
+  select person_id, person_type into v_person_id, v_person_type
+  from dispo_demandes where id = p_token;
+  if v_person_id is null then
+    raise exception 'Lien invalide';
+  end if;
+  if v_person_type = 'musicien' then
+    update musiciens set
+      disponibilites = p_disponibilites, disponibilites_commentaires = p_disponibilites_commentaires,
+      telephone = p_telephone, email = p_email
+    where id = v_person_id;
+  else
+    update techniciens set
+      disponibilites = p_disponibilites, disponibilites_commentaires = p_disponibilites_commentaires,
+      telephone = p_telephone, email = p_email
+    where id = v_person_id;
+  end if;
+end;
+$$;
+
+grant execute on function update_own_contact_by_token(text, text, text) to anon, authenticated;
+grant execute on function update_own_disponibilites_by_token(text, jsonb, jsonb, text, text) to anon, authenticated;
 
 -- ============================================================================
 -- audit_log — historique des modifications, lisible uniquement par les
@@ -700,10 +802,14 @@ begin
 end;
 $$;
 
+-- remplacant_prefs et cachet_overrides ajoutées : ce sont des données qui changent
+-- en dehors de l'écran admin (lien perso du titulaire pour la première, saisie admin
+-- mais sensible côté paie pour la seconde) — sans trace, un changement inattendu
+-- passait inaperçu.
 do $$
 declare tbl text;
 begin
-  foreach tbl in array array['musiciens','techniciens','tournees','feuilles_route','carnet_contacts','newsletter_snapshot','dispo_demandes']
+  foreach tbl in array array['musiciens','techniciens','tournees','feuilles_route','carnet_contacts','newsletter_snapshot','dispo_demandes','remplacant_prefs','cachet_overrides']
   loop
     execute format('drop trigger if exists trg_audit_%1$s on %1$I', tbl);
     execute format('create trigger trg_audit_%1$s after insert or update or delete on %1$I for each row execute function audit_trigger_func()', tbl);

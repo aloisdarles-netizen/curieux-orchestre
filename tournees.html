@@ -10,6 +10,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <style>
   :root{
@@ -603,9 +604,33 @@ document.getElementById('assignBlocSelectAll').addEventListener('change', (e)=>{
   document.querySelectorAll('#assignBlocDatesList input[type=checkbox]').forEach(cb=> cb.checked = e.target.checked);
 });
 
+// Signale (sans bloquer — certains chevauchements sont volontaires) les personnes déjà
+// affectées ailleurs à cette même date calendaire, tournée exclue. personId -> nom de
+// l'autre tournée.
+function computeDoubleBookings(dateIso, excludeTourneeId, excludeDateId){
+  const conflicts = new Map();
+  loadTournees().forEach(t=>{
+    (t.dates || []).forEach(d=>{
+      if(d.statut === 'annulee') return;
+      if(d.date !== dateIso) return;
+      if(t.id === excludeTourneeId && d.id === excludeDateId) return;
+      const tourneeName = t.nom || 'une autre tournée';
+      (d.musiciensAssignes || []).forEach(id=>{ if(!conflicts.has(id)) conflicts.set(id, tourneeName); });
+      (d.techniciensAssignes || []).forEach(id=>{ if(!conflicts.has(id)) conflicts.set(id, tourneeName); });
+    });
+  });
+  return conflicts;
+}
+function conflictBadge(conflicts, personId){
+  const tourneeName = conflicts.get(personId);
+  if(!tourneeName) return '';
+  return `<span class="chip" style="background:var(--secondary-tint); color:var(--secondary-dark);" title="Déjà affecté·e le ${escapeAttr(fmtDateFR(assignDateIso))} sur « ${escapeAttr(tourneeName)} »">⚠ ${escapeHtml(tourneeName)}</span>`;
+}
+
 function renderAssignList(search){
   const q = (search || '').toLowerCase().trim();
   const listEl = document.getElementById('assignList');
+  const conflicts = computeDoubleBookings(assignDateIso, assignContext.tourneeId, assignContext.dateId);
 
   const musiciansFiltered = assignMusicians.filter(m=>{
     if(!q) return true;
@@ -630,6 +655,7 @@ function renderAssignList(search){
               <input type="checkbox" data-role="musicien" value="${m.id}" ${assignSelectedM.has(m.id) ? 'checked' : ''}>
               ${escapeHtml(fullName(m))} <span style="color:var(--muted); font-weight:400;">— ${escapeHtml(m.instrument || '')}</span>
             </label>
+            ${conflictBadge(conflicts, m.id)}
             <span class="chip ${chipClass}">${stateLabel}</span>
           </div>
         `;
@@ -645,6 +671,7 @@ function renderAssignList(search){
             <input type="checkbox" data-role="technicien" value="${m.id}" ${assignSelectedT.has(m.id) ? 'checked' : ''}>
             ${escapeHtml(fullName(m))} <span style="color:var(--muted); font-weight:400;">— ${escapeHtml(m.poste || '')}</span>
           </label>
+          ${conflictBadge(conflicts, m.id)}
         </div>
       `).join('');
 
@@ -1507,6 +1534,7 @@ document.getElementById('addTourneeBtn').addEventListener('click', ()=>{
 
 injectCurieuxFonts();
 initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

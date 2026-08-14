@@ -291,12 +291,20 @@ function render(){
 // Comme dispo-titulaire.html : rien n'est enregistré tant que la personne n'a
 // pas cliqué "Valider mes infos" — pas de sauvegarde automatique au fil de la
 // frappe, pour que ce soit un vrai geste volontaire de validation.
+let hasUnsavedChanges = false;
+window.addEventListener('beforeunload', (e)=>{
+  if(!hasUnsavedChanges) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
+
 function markDirty(){
   const status = document.getElementById('saveStatus');
   const btn = document.getElementById('saveBtn');
   status.textContent = 'Modifications non enregistrées.';
   status.className = 'save-status dirty';
   btn.disabled = false;
+  hasUnsavedChanges = true;
 }
 
 async function doSave(){
@@ -304,11 +312,8 @@ async function doSave(){
   const status = document.getElementById('saveStatus');
   btn.disabled = true;
   btn.textContent = 'Enregistrement…';
-  const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
   const [personRes, infoRes] = await Promise.all([
-    supabaseClient.from(personTable)
-      .update({ telephone: state.person.telephone || '', email: state.person.email || '' })
-      .eq('id', state.person.id),
+    CurieuxDB.updateOwnContactByToken(state.token, state.person.telephone || '', state.person.email || ''),
     CurieuxDB.upsertInfosSocialesByToken(state.token, state.info)
   ]);
   btn.textContent = 'Valider mes infos';
@@ -319,6 +324,7 @@ async function doSave(){
   } else {
     status.textContent = '✓ Infos enregistrées.';
     status.className = 'save-status saved';
+    hasUnsavedChanges = false;
   }
 }
 document.getElementById('saveBtn').addEventListener('click', doSave);

@@ -430,6 +430,25 @@ const CurieuxDB = (()=>{
     return { error };
   }
 
+  // musiciens/techniciens ne sont plus écrivables directement par la clé anonyme
+  // (voir migrations.sql) : dispo-titulaire.html passe par ces deux fonctions, qui ne
+  // touchent que LA fiche de la personne du token fourni, jamais une autre.
+  async function updateOwnContactByToken(token, telephone, email){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.rpc('update_own_contact_by_token', { p_token: token, p_telephone: telephone, p_email: email });
+    if(error) console.warn('[CurieuxDB] updateOwnContactByToken', error.message);
+    return { error };
+  }
+  async function updateOwnDisponibilitesByToken(token, disponibilites, disponibilitesCommentaires, telephone, email){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.rpc('update_own_disponibilites_by_token', {
+      p_token: token, p_disponibilites: disponibilites, p_disponibilites_commentaires: disponibilitesCommentaires,
+      p_telephone: telephone, p_email: email
+    });
+    if(error) console.warn('[CurieuxDB] updateOwnDisponibilitesByToken', error.message);
+    return { error };
+  }
+
   // Liste personnelle de remplaçant·es classé·es (mes-remplacants.html, même
   // token que dispo-titulaire.html/mes-infos.html) : même principe que
   // getInfosSocialesByToken, la table remplacant_prefs reste fermée à la clé
@@ -489,6 +508,7 @@ const CurieuxDB = (()=>{
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,
+    updateOwnContactByToken, updateOwnDisponibilitesByToken,
     getRemplacantPrefsByToken, upsertRemplacantPrefsByToken,
     getCachetOverrideByToken, removeCachetOverridesForTournee,
     reportBug

@@ -202,12 +202,22 @@ function isDuplicateName(nom, prenom, excludeRang){
   return state.items.some(it=> it.rang !== excludeRang && it.source === 'new' && nameKey(it.nom, it.prenom) === target);
 }
 
+let hasUnsavedChanges = false;
+// Enregistrement volontaire (bouton), pas d'autosave à la frappe — sans ça, fermer
+// l'onglet par réflexe perdrait silencieusement ce qui vient d'être classé.
+window.addEventListener('beforeunload', (e)=>{
+  if(!hasUnsavedChanges) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
+
 function markDirty(){
   const status = document.getElementById('saveStatus');
   const btn = document.getElementById('saveBtn');
   status.textContent = 'Modifications non enregistrées.';
   status.className = 'save-status dirty';
   btn.disabled = false;
+  hasUnsavedChanges = true;
 }
 
 async function doSave(){
@@ -224,6 +234,7 @@ async function doSave(){
   } else {
     status.textContent = '✓ Liste enregistrée.';
     status.className = 'save-status saved';
+    hasUnsavedChanges = false;
   }
 }
 document.getElementById('saveBtn').addEventListener('click', doSave);

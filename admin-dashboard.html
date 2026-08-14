@@ -8,6 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
 <style>
   :root{
@@ -198,6 +199,10 @@
       <div class="stat-card"><div class="num">…</div><div class="label">Comptes actifs</div></div>
       <div class="stat-card"><div class="num">…</div><div class="label">Signalements</div></div>
     </div>
+    <div style="display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap;">
+      <button type="button" class="btn-secondary btn-sm" id="exportAllBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter toutes les données</button>
+      <span style="font-size:12px; color:var(--muted);" id="exportAllStatus">Un fichier JSON complet, à garder de côté — il n'y a pas de corbeille : une suppression est définitive.</span>
+    </div>
   </section>
 
   <section>
@@ -287,6 +292,8 @@
             <option value="newsletter_snapshot">Journal des changements</option>
             <option value="dispo_demandes">Demandes de dispo</option>
             <option value="infos_sociales">Infos sociales</option>
+            <option value="remplacant_prefs">Remplaçant·es (liste titulaire)</option>
+            <option value="cachet_overrides">Cachet individualisé</option>
           </select>
         </div>
         <div class="field" style="flex:1 1 200px;">
@@ -305,17 +312,20 @@ injectCurieuxFonts();
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 
 let accountsCache = [];
 let logCache = [];
 let personNames = {};
+let tourneeNames = {};
 let createMethod = 'password';
 
 const TABLE_LABELS = {
   musiciens: 'Musicien·nes', techniciens: 'Technicien·nes', tournees: 'Tournées',
   feuilles_route: 'Feuilles de route', carnet_contacts: 'Carnet de contacts',
   newsletter_snapshot: 'Journal des changements', dispo_demandes: 'Demandes de dispo',
-  infos_sociales: 'Infos sociales',
+  infos_sociales: 'Infos sociales', remplacant_prefs: 'Remplaçant·es (liste titulaire)',
+  cachet_overrides: 'Cachet individualisé',
 };
 
 
@@ -329,6 +339,8 @@ async function loadStats(){
   personNames = {};
   musiciens.forEach(m=> personNames[m.id] = `${m.prenom || ''} ${m.nom || ''}`.trim());
   techniciens.forEach(t=> personNames[t.id] = `${t.prenom || ''} ${t.nom || ''}`.trim());
+  tourneeNames = {};
+  tournees.forEach(t=> tourneeNames[t.id] = t.nom || 'Tournée sans nom');
 
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = tournees.filter(t=> (t.dates || []).some(d=> d.date >= today)).length;
@@ -545,6 +557,13 @@ const LOG_DELETE_LABELS = {
   dispo_demandes: 'Lien personnel supprimé',
 };
 
+// "id" = `${tourneeId}::${personType}::${personId}` (voir migrations.sql) — pas un id
+// direct de personNames, il faut l'extraire.
+function cachetOverrideRowParts(rowId){
+  const parts = (rowId || '').split('::');
+  return { tourneeId: parts[0], personType: parts[1], personId: parts[2] };
+}
+
 // Décrit CE QUI a changé en une phrase, jamais les données brutes — voir le retrait du
 // bloc "Voir le détail" (JSON avant/après) ci-dessous dans renderLog().
 function logSummary(entry){
@@ -553,6 +572,21 @@ function logSummary(entry){
     if(entry.action === 'INSERT') return 'Fiche créée';
     const fields = (entry.new_data && entry.new_data.fields_changed) || [];
     return fields.length ? `Champs modifiés : ${fields.join(', ')}` : 'Modification';
+  }
+  if(entry.table_name === 'cachet_overrides'){
+    const { personId } = cachetOverrideRowParts(entry.row_id);
+    const name = personNames[personId] || 'une personne';
+    if(entry.action === 'DELETE') return `Cachet individualisé retiré pour ${name} (retour au cachet standard)`;
+    const montant = entry.new_data && entry.new_data.montant;
+    if(entry.action === 'INSERT') return `Cachet individualisé défini pour ${name} : ${montant} €`;
+    const before = entry.old_data && entry.old_data.montant;
+    return `Cachet individualisé pour ${name} : ${before} € → ${montant} €`;
+  }
+  if(entry.table_name === 'remplacant_prefs'){
+    if(entry.action === 'DELETE') return 'Liste de remplaçant·es supprimée';
+    if(entry.action === 'INSERT') return 'Liste de remplaçant·es créée';
+    const afterCount = ((entry.new_data && entry.new_data.items) || []).length;
+    return `Liste de remplaçant·es modifiée (${afterCount} personne${afterCount>1?'s':''} classée${afterCount>1?'s':''})`;
   }
   if(entry.action === 'INSERT') return LOG_INSERT_LABELS[entry.table_name] || 'Création';
   if(entry.action === 'DELETE') return LOG_DELETE_LABELS[entry.table_name] || 'Suppression';
@@ -585,12 +619,25 @@ function logSummary(entry){
   return changes.length ? changes.join(' · ') : 'Modification';
 }
 
+// cachet_overrides a un row_id composite (tournée::type::personne) — pas directement
+// une clé de personNames comme pour les autres tables.
+function logRowLabel(e){
+  if(e.table_name === 'cachet_overrides'){
+    const { tourneeId, personId } = cachetOverrideRowParts(e.row_id);
+    const name = personNames[personId];
+    const tourneeName = tourneeNames[tourneeId];
+    if(name) return tourneeName ? `${name} · ${tourneeName}` : name;
+    return null;
+  }
+  return personNames[e.row_id];
+}
+
 function renderLog(){
   const search = (document.getElementById('logSearch').value || '').trim().toLowerCase();
   const filtered = search
     ? logCache.filter(e=>
         e.row_id.toLowerCase().includes(search) ||
-        (personNames[e.row_id] || '').toLowerCase().includes(search) ||
+        (logRowLabel(e) || '').toLowerCase().includes(search) ||
         (TABLE_LABELS[e.table_name] || e.table_name).toLowerCase().includes(search))
     : logCache;
 
@@ -605,7 +652,7 @@ function renderLog(){
   empty.style.display = 'none';
 
   list.innerHTML = filtered.map(e=>{
-    const personName = personNames[e.row_id];
+    const personName = logRowLabel(e);
     const who = e.changed_by || 'lien personnel / système';
     const when = new Date(e.changed_at).toLocaleString('fr-FR');
     return `
@@ -635,6 +682,42 @@ async function loadLog(){
 document.getElementById('bugTypeFilter').addEventListener('change', renderBugReports);
 document.getElementById('logTableFilter').addEventListener('change', loadLog);
 document.getElementById('logSearch').addEventListener('input', renderLog);
+
+// Filet de sécurité minimal en l'absence de corbeille : un instantané complet de la
+// base, téléchargé en un clic, plutôt qu'une vraie restauration en un clic.
+const EXPORT_ALL_TABLES = [
+  'musiciens', 'techniciens', 'tournees', 'feuilles_route', 'carnet_contacts',
+  'newsletter_snapshot', 'dispo_demandes', 'remplacant_prefs', 'cachet_overrides',
+  'infos_sociales', 'bug_reports',
+];
+async function exportAllData(){
+  const btn = document.getElementById('exportAllBtn');
+  const status = document.getElementById('exportAllStatus');
+  btn.disabled = true;
+  status.textContent = 'Export en cours…';
+  try{
+    const [results, accounts] = await Promise.all([
+      Promise.all(EXPORT_ALL_TABLES.map(t=> CurieuxDB.fetchAll(t))),
+      CurieuxDB.listAccounts(),
+    ]);
+    const dump = { exported_at: new Date().toISOString() };
+    EXPORT_ALL_TABLES.forEach((t, i)=> dump[t] = results[i]);
+    dump.comptes = accounts;
+    const blob = new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `curieux-orchestre-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    status.textContent = `✓ Export téléchargé (${new Date().toLocaleTimeString('fr-FR')}).`;
+  } catch(e){
+    console.warn('[exportAllData]', e);
+    status.textContent = "Erreur pendant l'export — réessaie.";
+  }
+  btn.disabled = false;
+}
+document.getElementById('exportAllBtn').addEventListener('click', exportAllData);
 
 (async ()=>{
   await loadStats();

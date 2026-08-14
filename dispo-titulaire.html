@@ -340,11 +340,8 @@ document.getElementById('infosModalDone').addEventListener('click', async ()=>{
   }
   btn.disabled = true;
   btn.textContent = 'Enregistrement…';
-  const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
   const [personRes, infoRes] = await Promise.all([
-    supabaseClient.from(personTable)
-      .update({ telephone: state.person.telephone || '', email: state.person.email || '' })
-      .eq('id', state.person.id),
+    CurieuxDB.updateOwnContactByToken(state.token, state.person.telephone || '', state.person.email || ''),
     CurieuxDB.upsertInfosSocialesByToken(state.token, state.info)
   ]);
   btn.disabled = false;
@@ -510,12 +507,20 @@ function render(){
   document.getElementById('saveBar').classList.add('visible');
 }
 
+let hasUnsavedChanges = false;
+window.addEventListener('beforeunload', (e)=>{
+  if(!hasUnsavedChanges) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
+
 function markDirty(){
   const status = document.getElementById('saveStatus');
   const btn = document.getElementById('saveBtn');
   status.textContent = 'Modifications non enregistrées.';
   status.className = 'save-status dirty';
   btn.disabled = false;
+  hasUnsavedChanges = true;
 }
 
 async function doSave(){
@@ -523,14 +528,11 @@ async function doSave(){
   const status = document.getElementById('saveStatus');
   btn.disabled = true;
   btn.textContent = 'Enregistrement…';
-  const personTable = state.personType === 'musicien' ? 'musiciens' : 'techniciens';
   const [personRes, demandeRes] = await Promise.all([
-    supabaseClient.from(personTable).update({
-      disponibilites: state.person.disponibilites,
-      disponibilites_commentaires: state.person.disponibilites_commentaires,
-      telephone: state.person.telephone || '',
-      email: state.person.email || ''
-    }).eq('id', state.person.id),
+    CurieuxDB.updateOwnDisponibilitesByToken(
+      state.token, state.person.disponibilites, state.person.disponibilites_commentaires,
+      state.person.telephone || '', state.person.email || ''
+    ),
     supabaseClient.rpc('mark_dispo_responded_by_token', { p_token: state.demande.id })
   ]);
   btn.textContent = 'Valider mes réponses';
@@ -541,6 +543,7 @@ async function doSave(){
   }
   status.textContent = '✓ Réponses enregistrées.';
   status.className = 'save-status saved';
+  hasUnsavedChanges = false;
 }
 
 document.getElementById('saveBtn').addEventListener('click', doSave);

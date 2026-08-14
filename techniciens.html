@@ -10,6 +10,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <style>
   :root{
@@ -768,20 +769,21 @@ document.getElementById('saveBtn').addEventListener('click', ()=>{
   }
 
   const list = loadTechnicians();
+  let person;
   if(id){
-    const m = list.find(x=>x.id === id);
-    if(m){
-      m.prenom = prenom; m.nom = nom;
-      m.poste = document.getElementById('fPoste').value.trim();
-      m.pole = document.getElementById('fPole').value;
-      m.statutPoste = m.pole === 'Régie générale' ? document.getElementById('fStatutPoste').value : 'titulaire';
-      m.telephone = document.getElementById('fTelephone').value.trim();
-      m.email = document.getElementById('fEmail').value.trim();
-      m.notes = document.getElementById('fNotes').value.trim();
+    person = list.find(x=>x.id === id);
+    if(person){
+      person.prenom = prenom; person.nom = nom;
+      person.poste = document.getElementById('fPoste').value.trim();
+      person.pole = document.getElementById('fPole').value;
+      person.statutPoste = person.pole === 'Régie générale' ? document.getElementById('fStatutPoste').value : 'titulaire';
+      person.telephone = document.getElementById('fTelephone').value.trim();
+      person.email = document.getElementById('fEmail').value.trim();
+      person.notes = document.getElementById('fNotes').value.trim();
     }
   } else {
     const pole = document.getElementById('fPole').value;
-    list.push({
+    person = {
       id: genId('tech'),
       prenom, nom,
       poste: document.getElementById('fPoste').value.trim(),
@@ -791,9 +793,12 @@ document.getElementById('saveBtn').addEventListener('click', ()=>{
       email: document.getElementById('fEmail').value.trim(),
       notes: document.getElementById('fNotes').value.trim(),
       disponibilites: {}
-    });
+    };
+    list.push(person);
   }
-  saveTechnicians(list);
+  // upsertOne (une seule fiche) plutôt que saveTechnicians (toute la liste) — voir la
+  // grille de dispo pour le même correctif et son explication.
+  if(person) CurieuxDB.upsertOne('techniciens', person);
   closeModal();
   render();
 });
@@ -804,6 +809,7 @@ document.getElementById('statutFilter').addEventListener('change', render);
 
 injectCurieuxFonts();
 initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
@@ -814,6 +820,10 @@ async function initData(){
     CurieuxDB.fetchAll('musiciens'),
     CurieuxDB.fetchAll('remplacant_prefs'),
   ]);
+  // Arrivée depuis la recherche globale (voir assets/global-search.js) : préremplit
+  // la recherche locale avec le nom cliqué.
+  const q = new URLSearchParams(location.search).get('q');
+  if(q) document.getElementById('searchInput').value = q;
   render();
 }
 CurieuxDB.subscribe('techniciens', ()=>{

@@ -10,6 +10,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <style>
   :root{
@@ -391,7 +392,10 @@ function renderDispoGrid(people, saveFn, holderId, roleAttr, emptyLinkHref, empt
       const current = m.disponibilites[btn.dataset.date] || '';
       const next = STATES[(STATES.indexOf(current) + 1) % STATES.length];
       if(next) m.disponibilites[btn.dataset.date] = next; else delete m.disponibilites[btn.dataset.date];
-      if(btn.dataset.role === 'musiciens') saveMusicians(list); else saveTechnicians(list);
+      // upsertOne (une seule personne) plutôt que saveMusicians/saveTechnicians (toute la
+      // liste) : un clic sur une cellule ne doit pas réécrire tout le monde — deux
+      // personnes cliquant en même temps sur des fiches différentes s'écraseraient sinon.
+      CurieuxDB.upsertOne(btn.dataset.role === 'musiciens' ? 'musiciens' : 'techniciens', m);
       renderAll();
     });
   });
@@ -650,6 +654,7 @@ document.getElementById('importAvailConfirmBtn').addEventListener('click', ()=>{
 
 injectCurieuxFonts();
 initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
