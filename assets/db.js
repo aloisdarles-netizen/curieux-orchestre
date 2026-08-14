@@ -297,6 +297,14 @@ const CurieuxDB = (()=>{
     if(!supabaseClient) return { data: { subscription: { unsubscribe(){} } } };
     return supabaseClient.auth.onAuthStateChange(callback);
   }
+  // Changement de mot de passe par le compte connecté lui-même (page admin,
+  // section "Mon compte") — ne touche que la session en cours, jamais un
+  // autre compte (contrairement à createAccountWithPassword qui en crée un
+  // nouveau au nom de quelqu'un d'autre).
+  async function updateOwnPassword(newPassword){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    return supabaseClient.auth.updateUser({ password: newPassword });
+  }
   // Rôle du compte connecté dans infos_sociales_admins ('admin'|'user'), ou
   // null s'il n'y figure pas — c'est la liste de confiance qui sert
   // d'allowlist pour toute l'app (policy RLS "self read own row" : la
@@ -376,9 +384,22 @@ const CurieuxDB = (()=>{
   // compte au premier clic si besoin. N'affecte pas la session de l'admin
   // qui déclenche l'envoi : rien ne change côté navigateur tant que le lien
   // n'est pas ouvert (dans la boîte mail du destinataire).
+  //
+  // emailRedirectTo doit être précisé explicitement : sans lui, Supabase
+  // renvoie vers la Site URL par défaut configurée dans le dashboard du
+  // projet (souvent restée sur localhost), ce qui casse le lien pour la
+  // personne qui clique dessus — voir admin-login.html qui sait déjà détecter
+  // une session issue d'un lien magique et rediriger vers accueil.html.
+  // location.origin est vide/"null" en file:// (app ouverte en local) : dans
+  // ce cas on n'envoie pas emailRedirectTo plutôt que de pointer vers un
+  // chemin local inutilisable pour le destinataire.
   async function sendMagicLinkInvite(email){
     if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    return supabaseClient.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+    const options = { shouldCreateUser: true };
+    if(typeof location !== 'undefined' && /^https?:$/.test(location.protocol)){
+      options.emailRedirectTo = location.origin + '/admin-login.html';
+    }
+    return supabaseClient.auth.signInWithOtp({ email, options });
   }
 
   // --- Historique des modifications (audit_log, réservé aux comptes 'admin'
@@ -512,7 +533,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
-    signIn, signOut, getSession, onAuthStateChange,
+    signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,
     getMyRole, hasAppAccess, isSuperAdmin,
     listAccounts, setAccountRole, removeAccount,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
