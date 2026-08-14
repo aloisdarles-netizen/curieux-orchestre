@@ -53,6 +53,7 @@ const CURIEUX_AUTH_ERROR_FR = {
   'Unable to validate email address: invalid format': "Format d'email invalide.",
   'Email not confirmed': "Cet email n'a pas encore été confirmé — vérifie ta boîte mail.",
   'For security purposes, you can only request this after some time.': 'Merci de patienter un instant avant de réessayer.',
+  'Email rate limit exceeded': "Trop d'emails envoyés en peu de temps (limite du service email intégré à Supabase, quelques envois par heure) — réessaie plus tard, ou configure un fournisseur SMTP dans le projet Supabase pour lever cette limite.",
 };
 function translateAuthError(message){
   return CURIEUX_AUTH_ERROR_FR[message] || message;
