@@ -622,6 +622,82 @@ const CurieuxDB = (()=>{
     return { error };
   }
 
+  // --- Accès par lien personnel aux données du répertoire (C1) -------------
+  // musiciens/techniciens ne sont plus lisibles par la clé anonyme : leur
+  // lecture publique exposait 107 fiches avec téléphones, e-mails et notes
+  // internes. Les pages à lien personnel passent par ces fonctions, qui ne
+  // rendent que le strict nécessaire.
+  //
+  // Chacune retombe sur l'ancien accès direct si la fonction n'existe pas
+  // encore côté base : le site et la migration SQL peuvent ainsi être déployés
+  // dans n'importe quel ordre sans jamais couper les liens des musicien·nes.
+  function _fonctionAbsente(error){
+    return !!error && /(does not exist|Could not find the function|PGRST202)/i.test(error.message || '');
+  }
+
+  async function getOwnPersonByToken(token, personType, personId){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('get_own_person_by_token', { p_token: token });
+    if(!error) return (data || [])[0] || null;
+    if(!_fonctionAbsente(error)){
+      console.warn('[CurieuxDB] getOwnPersonByToken', error.message);
+      return null;
+    }
+    const table = personType === 'musicien' ? 'musiciens' : 'techniciens';
+    const res = await supabaseClient.from(table).select('*').eq('id', personId).maybeSingle();
+    return res.data || null;
+  }
+
+  // Annuaire réduit aux noms, pour choisir ses remplaçant·es : ni téléphone,
+  // ni e-mail, ni notes, ni disponibilités.
+  async function getRosterForPicker(token){
+    if(!supabaseClient) return [];
+    const { data, error } = await supabaseClient.rpc('get_roster_for_picker', { p_token: token });
+    if(!error){
+      return (data || []).map(r => ({
+        id: r.id, personType: r.person_type, nom: r.nom, prenom: r.prenom, roleLabel: r.role_label
+      }));
+    }
+    if(!_fonctionAbsente(error)){
+      console.warn('[CurieuxDB] getRosterForPicker', error.message);
+      return [];
+    }
+    const [mus, tech] = await Promise.all([
+      supabaseClient.from('musiciens').select('id,prenom,nom,instrument'),
+      supabaseClient.from('techniciens').select('id,prenom,nom,poste'),
+    ]);
+    return [
+      ...(mus.data || []).map(m => ({ id:m.id, personType:'musicien', nom:m.nom, prenom:m.prenom, roleLabel: m.instrument || 'Musicien·ne' })),
+      ...(tech.data || []).map(t => ({ id:t.id, personType:'technicien', nom:t.nom, prenom:t.prenom, roleLabel: t.poste || 'Technicien·ne' })),
+    ];
+  }
+
+  async function getTourneeByToken(token, tourneeId){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('get_tournee_by_token', { p_token: token });
+    if(!error) return (data || [])[0] || null;
+    if(!_fonctionAbsente(error)){
+      console.warn('[CurieuxDB] getTourneeByToken', error.message);
+      return null;
+    }
+    const res = await supabaseClient.from('tournees').select('*').eq('id', tourneeId).maybeSingle();
+    return res.data || null;
+  }
+
+  // Jeton permanent d'une personne (I3), indépendant des tournées : appelé
+  // côté admin pour construire un lien qui survit au ménage des vieilles
+  // tournées. Renvoie null si la base n'a pas encore la migration.
+  async function ensureAccesPersonnel(personId, personType){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('ensure_acces_personnel',
+      { p_person_id: personId, p_person_type: personType });
+    if(error){
+      if(!_fonctionAbsente(error)) console.warn('[CurieuxDB] ensureAccesPersonnel', error.message);
+      return null;
+    }
+    return data || null;
+  }
+
   // Cachet individualisé (voir cachet_overrides dans migrations.sql) : la table reste
   // fermée à la clé anonyme, dispo-titulaire.html ne peut lire que le montant de LA
   // personne du token fourni — jamais la liste complète des montants de la tournée.
@@ -666,6 +742,7 @@ const CurieuxDB = (()=>{
     getDispoDemandeByToken, markDispoRespondedByToken,
     updateOwnContactByToken, updateOwnDisponibilitesByToken, updateOwnPrenomUsageByToken,
     getRemplacantPrefsByToken, upsertRemplacantPrefsByToken,
+    getOwnPersonByToken, getRosterForPicker, getTourneeByToken, ensureAccesPersonnel,
     getCachetOverrideByToken, removeCachetOverridesForTournee,
     reportBug
   };

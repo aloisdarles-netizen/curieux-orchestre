@@ -288,6 +288,7 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
           ${relanceHtml}
           ${url
             ? `<a class="btn-ghost btn-sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line></svg> Ouvrir</a>
+               <button type="button" class="btn-ghost btn-sm" data-lien-permanent data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}" title="Lien personnel permanent : il ne dépend d'aucune tournée et survit à la suppression de celles-ci">Lien permanent</button>
                <button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>
                ${showDatesOption ? `<button type="button" class="btn-ghost btn-sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.6"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line></svg>Dates</button>` : ''}
                <button type="button" class="btn-ghost btn-sm" data-delete-link="${escapeAttr(existing.id)}" title="Supprimer ce lien" style="color:var(--ko, #b23b2e);"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg></button>`
@@ -471,6 +472,27 @@ function render(){
       });
     });
   });
+  // Lien permanent (I3) : contrairement au lien de dispo, il n'est rattaché à
+  // aucune tournée. Supprimer une vieille tournée ne coupe donc plus l'accès
+  // de la personne à ses infos et à sa liste de remplaçant·es.
+  holder.querySelectorAll('[data-lien-permanent]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const libelle = btn.textContent;
+      btn.disabled = true; btn.textContent = '…';
+      const token = await CurieuxDB.ensureAccesPersonnel(btn.dataset.personId, btn.dataset.personType);
+      btn.disabled = false;
+      if(!token){
+        btn.textContent = libelle;
+        alert("Les liens permanents ne sont pas encore actifs sur cette base.\n\nApplique migrations.sql dans Supabase (SQL Editor) pour les activer.");
+        return;
+      }
+      const base = location.href.slice(0, location.href.lastIndexOf('/') + 1);
+      await navigator.clipboard.writeText(`${base}mes-infos.html?token=${encodeURIComponent(token)}`);
+      btn.textContent = '✓ Copié';
+      setTimeout(()=>{ btn.textContent = libelle; }, 1600);
+    });
+  });
+
   holder.querySelectorAll('[data-copy-link]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       navigator.clipboard.writeText(btn.dataset.copyLink).then(()=>{

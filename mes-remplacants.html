@@ -145,14 +145,16 @@ async function init(){
   const demande = (demandeRows || [])[0];
   if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
 
-  const personTable = demande.person_type === 'musicien' ? 'musiciens' : 'techniciens';
-  const [personRes, musRes, techRes, items] = await Promise.all([
-    supabaseClient.from(personTable).select('*').eq('id', demande.person_id).maybeSingle(),
-    supabaseClient.from('musiciens').select('*'),
-    supabaseClient.from('techniciens').select('*'),
+  // Voir C1 : cette page demandait auparavant TOUT le répertoire
+  // (select('*') sur musiciens et techniciens) alors qu'elle n'affiche que le
+  // nom et l'instrument. Elle reçoit désormais un annuaire réduit aux noms.
+  const [person, roster, items] = await Promise.all([
+    CurieuxDB.getOwnPersonByToken(token, demande.person_type, demande.person_id),
+    CurieuxDB.getRosterForPicker(token),
     CurieuxDB.getRemplacantPrefsByToken(token)
   ]);
-  if(!personRes.data){ showState("Cette fiche n'existe plus."); return; }
+  if(!person){ showState("Cette fiche n'existe plus."); return; }
+  const personRes = { data: person };
 
   state.token = token;
   state.person = personRes.data;
@@ -164,10 +166,7 @@ async function init(){
     return;
   }
 
-  state.roster = [
-    ...(musRes.data || []).map(m=> ({ id:m.id, personType:'musicien', nom:m.nom, prenom:m.prenom, roleLabel: m.instrument || 'Musicien·ne' })),
-    ...(techRes.data || []).map(t=> ({ id:t.id, personType:'technicien', nom:t.nom, prenom:t.prenom, roleLabel: t.poste || 'Technicien·ne' })),
-  ];
+  state.roster = roster;
 
   const backLink = document.getElementById('backToDispoLink');
   backLink.href = 'dispo-titulaire.html?token=' + encodeURIComponent(token);

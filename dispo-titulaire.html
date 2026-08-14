@@ -250,12 +250,15 @@ async function init(){
   const demande = (demandeRows || [])[0];
   if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
 
-  const personTable = demande.person_type === 'musicien' ? 'musiciens' : 'techniciens';
-  const [tourneeRes, personRes] = await Promise.all([
-    supabaseClient.from('tournees').select('*').eq('id', demande.tournee_id).maybeSingle(),
-    supabaseClient.from(personTable).select('*').eq('id', demande.person_id).maybeSingle()
+  // Le répertoire n'est plus lisible par la clé anonyme (voir C1 dans
+  // migrations.sql) : on passe par les fonctions à jeton, qui ne rendent que
+  // la fiche de la personne du lien et la tournée concernée.
+  const [tournee, person] = await Promise.all([
+    CurieuxDB.getTourneeByToken(token, demande.tournee_id),
+    CurieuxDB.getOwnPersonByToken(token, demande.person_type, demande.person_id)
   ]);
-  if(!tourneeRes.data || !personRes.data){ showState("Cette tournée ou cette fiche n'existe plus."); return; }
+  if(!tournee || !person){ showState("Cette tournée ou cette fiche n'existe plus."); return; }
+  const tourneeRes = { data: tournee }, personRes = { data: person };
 
   state.demande = demande;
   state.token = token;

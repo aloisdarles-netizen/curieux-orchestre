@@ -108,8 +108,9 @@ async function init(){
   const demande = (demandeRows || [])[0];
   if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
 
-  const personTable = demande.person_type === 'musicien' ? 'musiciens' : 'techniciens';
-  const { data: person } = await supabaseClient.from(personTable).select('*').eq('id', demande.person_id).maybeSingle();
+  // Voir C1 : lecture de sa propre fiche par fonction à jeton, le répertoire
+  // n'étant plus ouvert à la clé anonyme.
+  const person = await CurieuxDB.getOwnPersonByToken(token, demande.person_type, demande.person_id);
   if(!person){ showState("Cette fiche n'existe plus."); return; }
 
   state.token = token;
