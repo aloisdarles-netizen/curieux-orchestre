@@ -157,3 +157,81 @@ function renderCurieuxNav(){
   }).join('');
   nav.dataset.rendu = '1';
 }
+
+// ---------------------------------------------------------------------------
+// Accessibilité des fenêtres modales et des commandes (M2, M3).
+//
+// M2 — six pages ouvrent des fenêtres modales ; deux seulement se fermaient
+// avec Échap, et aucune ne retenait le focus : à la tabulation on sortait de
+// la fenêtre pour parcourir la page cachée derrière, sans la voir.
+//
+// M3 — 18 commandes n'étaient nommées que par un attribut title. Ce n'est pas
+// rien (le calcul du nom accessible s'en sert en dernier recours) mais c'est
+// fragile : title n'apparaît pas au tactile et son support par les lecteurs
+// d'écran est inégal. On le recopie donc en aria-label, qui est fait pour ça.
+// ---------------------------------------------------------------------------
+const CURIEUX_FOCUSABLES =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]),' +
+  ' textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function curieuxModaleOuverte(){
+  return document.querySelector('.modal-overlay.open, .modal-overlay[style*="display: flex"], .modal-overlay[style*="display:flex"]');
+}
+
+function initCurieuxAccessibilite(){
+  // Nomme proprement ce qui n'est nommé que par un title.
+  const nommer = () => {
+    document.querySelectorAll('button[title], a[title]').forEach(el => {
+      if(el.getAttribute('aria-label')) return;
+      const texte = (el.textContent || '').trim()
+        || [...el.querySelectorAll('img[alt]')].map(i => i.alt.trim()).join(' ').trim();
+      if(!texte) el.setAttribute('aria-label', el.getAttribute('title'));
+    });
+    // Les pictogrammes décoratifs ne doivent pas être annoncés.
+    document.querySelectorAll('button > svg, a > svg').forEach(svg => {
+      if(!svg.hasAttribute('aria-hidden')) svg.setAttribute('aria-hidden', 'true');
+    });
+  };
+  nommer();
+  // Les listes sont reconstruites en permanence : on renomme après coup.
+  new MutationObserver(() => nommer())
+    .observe(document.body, { childList: true, subtree: true });
+
+  let dernierFocus = null;
+  document.addEventListener('focusin', (e) => {
+    if(!curieuxModaleOuverte()) dernierFocus = e.target;
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const modale = curieuxModaleOuverte();
+    if(!modale) return;
+
+    if(e.key === 'Escape'){
+      // Referme par le bouton de fermeture de la page quand il existe, pour
+      // conserver le nettoyage que chaque page fait à sa façon.
+      const fermer = modale.querySelector('[data-fermer-modale], .modal-close, [id$="CancelBtn"], [id$="CloseBtn"]');
+      if(fermer){ fermer.click(); }
+      else { modale.classList.remove('open'); modale.style.display = 'none'; }
+      if(dernierFocus && document.contains(dernierFocus)) dernierFocus.focus();
+      return;
+    }
+
+    if(e.key === 'Tab'){
+      const cibles = [...modale.querySelectorAll(CURIEUX_FOCUSABLES)]
+        .filter(el => el.offsetParent !== null);
+      if(cibles.length === 0) return;
+      const premier = cibles[0], dernier = cibles[cibles.length - 1];
+      if(e.shiftKey && document.activeElement === premier){ e.preventDefault(); dernier.focus(); }
+      else if(!e.shiftKey && document.activeElement === dernier){ e.preventDefault(); premier.focus(); }
+      else if(!modale.contains(document.activeElement)){ e.preventDefault(); premier.focus(); }
+    }
+  });
+}
+
+if(typeof document !== 'undefined'){
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', initCurieuxAccessibilite);
+  } else {
+    initCurieuxAccessibilite();
+  }
+}
