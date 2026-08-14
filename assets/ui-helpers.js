@@ -235,3 +235,54 @@ if(typeof document !== 'undefined'){
     initCurieuxAccessibilite();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Rafraîchissement non intrusif (I6).
+//
+// Chaque page réagissait à un changement distant en reconstruisant intégralement
+// son contenu : sur une liste de 107 fiches, on perdait sa position de
+// défilement et le champ en cours de saisie. À deux personnes travaillant en
+// même temps — exactement ce que le temps réel est censé permettre — la page
+// sautait pendant qu'on la parcourait.
+//
+// Ici, on repousse la reconstruction tant que quelqu'un est en train de faire
+// quelque chose, et on restitue la position de défilement le reste du temps.
+// Rien n'est perdu : le rafraîchissement en attente est rejoué dès que la
+// saisie ou la fenêtre est terminée.
+// ---------------------------------------------------------------------------
+let _curieuxRenduEnAttente = null;
+
+function _curieuxOccupe(){
+  const el = document.activeElement;
+  if(el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && el.type !== 'checkbox') return true;
+  if(el && el.isContentEditable) return true;
+  try{ if(curieuxModaleOuverte()) return true; }catch(e){}
+  return false;
+}
+
+function curieuxRafraichir(render){
+  if(typeof render !== 'function') return;
+  if(_curieuxOccupe()){
+    // On ne garde que le dernier : les rendus sont idempotents.
+    _curieuxRenduEnAttente = render;
+    return;
+  }
+  const x = window.scrollX, y = window.scrollY;
+  render();
+  // Le rendu remplace des blocs entiers : sans cela, la page remonte en haut.
+  if(window.scrollX !== x || window.scrollY !== y) window.scrollTo(x, y);
+}
+
+function _curieuxRejouerSiLibre(){
+  if(!_curieuxRenduEnAttente || _curieuxOccupe()) return;
+  const render = _curieuxRenduEnAttente;
+  _curieuxRenduEnAttente = null;
+  curieuxRafraichir(render);
+}
+
+if(typeof document !== 'undefined'){
+  // Fin de saisie, fermeture de fenêtre, retour sur l'onglet : on rattrape.
+  document.addEventListener('focusout', ()=> setTimeout(_curieuxRejouerSiLibre, 150));
+  document.addEventListener('click', ()=> setTimeout(_curieuxRejouerSiLibre, 150));
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) _curieuxRejouerSiLibre(); });
+}

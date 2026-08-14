@@ -186,3 +186,85 @@ input[pattern]:not(:placeholder-shown):invalid + .champ-repere{ display:block; }
 .champ-repere{
   display:none; font-size:11.5px; color:var(--danger, #a5313f); margin-top:3px;
 }
+
+/* ============================================================================
+   Grands tableaux sur petit écran (I5).
+
+   Mesuré avant correction sur un écran de 390 px : le récap s'étendait sur
+   2 162 px et la grille de dispo sur 1 969 px, soit cinq écrans et demi à
+   promener latéralement pour lire une ligne. La colonne des noms était déjà
+   collante — on savait donc toujours de qui il s'agissait — mais il fallait
+   faire défiler à l'aveugle pour retrouver une date.
+
+   Sous 760 px, ces tableaux se replient en liste : une carte par personne,
+   chaque statut précédé de sa date. Plus rien à faire défiler latéralement.
+
+   Tout ce bloc est enfermé dans une media query : au-dessus de 760 px, pas une
+   seule de ces règles ne s'applique et le tableau reste strictement identique.
+   ============================================================================ */
+@media (max-width:760px){
+  table.matrix-table, table.dispo-table{ min-width:0; width:100%; display:block; }
+  table.matrix-table thead, table.dispo-table thead{
+    /* Les en-têtes de dates n'ont plus de sens en liste : chaque cellule
+       porte la sienne. Masqué pour les lecteurs d'écran aussi, la date étant
+       restituée juste avant chaque statut. */
+    display:none;
+  }
+  table.matrix-table tbody, table.dispo-table tbody,
+  table.matrix-table tr, table.dispo-table tr{ display:block; width:100%; }
+
+  table.matrix-table tr, table.dispo-table tr{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    margin-bottom:12px;
+    padding:4px 0 8px;
+    overflow:hidden;
+  }
+
+  /* Le nom devient l'en-tête de la carte. */
+  .matrix-table .col-name, .dispo-table .col-name{
+    position:static; display:block; width:auto; min-width:0;
+    padding:11px 14px 9px;
+    border-bottom:1px solid var(--border);
+    background:var(--bg);
+    font-size:14px;
+  }
+
+  /* Chaque statut sur sa ligne, précédé de sa date. */
+  .matrix-table .cell, .dispo-table .cell{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:7px 14px; text-align:left;
+    border-bottom:1px solid var(--border);
+    background:transparent !important;   /* la couleur de tournée passe sur la pastille */
+  }
+  .matrix-table tr .cell:last-child, .dispo-table tr .cell:last-child{ border-bottom:none; }
+  .matrix-table .cell::before, .dispo-table .cell::before{
+    content:attr(data-jour);
+    font-size:12.5px; color:var(--muted); font-weight:600;
+    white-space:nowrap; flex:1 1 auto; min-width:0;
+  }
+  .matrix-table .cell > *, .dispo-table .cell > *{ flex:0 0 auto; }
+  /* Cibles confortables au pouce, cohérent avec le reste du site. */
+  .dispo-table .dispo-btn{ min-width:44px; min-height:36px; }
+}
+
+/* Les tableaux d'actions (tournées) se replient de la même façon : leur
+   min-width de 1120 px imposait sinon un défilement permanent. */
+@media (max-width:760px){
+  /* !important : la page déclare min-width:1120px dans son propre <style>,
+     chargé après ce socle, et l'emporterait sinon. Portée strictement
+     limitée à cette media query. */
+  table.grid-table{ min-width:0 !important; width:100%; display:block; }
+  table.grid-table thead{ display:none; }
+  table.grid-table tbody, table.grid-table tr{ display:block; width:100%; }
+  table.grid-table tr{
+    background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius); margin-bottom:12px; padding:6px 2px;
+  }
+  table.grid-table td{
+    display:block; width:auto; padding:7px 12px;
+    border-bottom:1px solid var(--border);
+  }
+  table.grid-table tr td:last-child{ border-bottom:none; }
+}
