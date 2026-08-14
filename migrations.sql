@@ -796,7 +796,7 @@ begin
 end;
 $$;
 
-grant execute on function update_own_prenom_usage_by_token(text) to anon, authenticated;
+grant execute on function update_own_prenom_usage_by_token(text, text) to anon, authenticated;
 
 -- ============================================================================
 -- audit_log — historique des modifications, lisible uniquement par les
