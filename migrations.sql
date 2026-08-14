@@ -664,17 +664,24 @@ create policy "admin write insert" on tournees for insert with check (has_access
 create policy "admin write update" on tournees for update using (has_access()) with check (has_access());
 create policy "admin write delete" on tournees for delete using (has_access());
 
+-- Chaque "create policy" est précédé du "drop policy if exists" de CETTE
+-- policy : sans cela, rejouer le fichier échouait ici ("policy already
+-- exists") et tout ce qui suit — dont la fermeture de la lecture publique du
+-- répertoire, en fin de fichier — n'était jamais exécuté.
 -- feuilles_route / carnet_contacts / newsletter_snapshot : aucune page
 -- publique n'y touche jamais (feuille-de-route.html, feuilles-de-route.html
 -- et newsletter.html exigent toutes un compte) — fermées entièrement,
 -- lecture comprise, plutôt que juste l'écriture comme ci-dessus.
 drop policy if exists "public full access" on feuilles_route;
+drop policy if exists "admin access" on feuilles_route;
 create policy "admin access" on feuilles_route for all using (has_access()) with check (has_access());
 
 drop policy if exists "public full access" on carnet_contacts;
+drop policy if exists "admin access" on carnet_contacts;
 create policy "admin access" on carnet_contacts for all using (has_access()) with check (has_access());
 
 drop policy if exists "public full access" on newsletter_snapshot;
+drop policy if exists "admin access" on newsletter_snapshot;
 create policy "admin access" on newsletter_snapshot for all using (has_access()) with check (has_access());
 
 -- dispo_demandes N'EST PLUS en "public full access" : sa policy "admin access"
@@ -1101,6 +1108,8 @@ grant execute on function get_tournee_by_token(text) to anon, authenticated;
 -- Fermeture effective : plus aucune lecture anonyme du répertoire.
 drop policy if exists "public read" on musiciens;
 drop policy if exists "public read" on techniciens;
+drop policy if exists "admin read" on musiciens;
+drop policy if exists "admin read" on techniciens;
 create policy "admin read" on musiciens for select using (has_access());
 create policy "admin read" on techniciens for select using (has_access());
 
