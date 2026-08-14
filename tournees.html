@@ -532,6 +532,32 @@ function conflictBadge(conflicts, personId){
   return `<span class="chip" style="background:var(--secondary-tint); color:var(--secondary-dark);" title="Déjà affecté·e le ${escapeAttr(fmtDateFR(assignDateIso))} sur « ${escapeAttr(tourneeName)} »">⚠ ${escapeHtml(tourneeName)}</span>`;
 }
 
+// Contradiction : une personne affectée à une date où elle s'est déclarée
+// indisponible. La modale d'affectation affiche déjà la disponibilité au moment
+// de cocher, mais rien ne le rappelait ensuite : une fois l'affectation faite,
+// ou si la personne changeait sa réponse APRÈS avoir été affectée, plus aucun
+// écran ne signalait le problème — on ne s'en apercevait que le jour J.
+function contradictionsPourDate(dateEntry, musicianById, technicianById){
+  const iso = dateEntry.date;
+  if(!iso) return [];
+  const gens = [];
+  (dateEntry.musiciensAssignes || []).forEach(id=>{
+    const m = musicianById.get(id);
+    if(m && (m.disponibilites || {})[iso] === 'indispo') gens.push(fullName(m));
+  });
+  (dateEntry.techniciensAssignes || []).forEach(id=>{
+    const t = technicianById.get(id);
+    if(t && (t.disponibilites || {})[iso] === 'indispo') gens.push(fullName(t));
+  });
+  return gens;
+}
+
+function contradictionBadge(noms){
+  if(noms.length === 0) return '';
+  const liste = noms.join(', ');
+  return `<span class="chip" style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;" title="${escapeAttr(liste)} — affecté·e${noms.length>1?'s':''} alors qu'iel${noms.length>1?'s se sont':' s\'est'} déclaré·e${noms.length>1?'s':''} indisponible${noms.length>1?'s':''} sur cette date">\u26A0 ${noms.length} indisponible${noms.length>1?'s':''} affecté·e${noms.length>1?'s':''}</span>`;
+}
+
 function renderAssignList(search){
   const q = (search || '').toLowerCase().trim();
   const listEl = document.getElementById('assignList');
@@ -641,14 +667,17 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         const fdrAction = fdr
           ? `<a class="btn-secondary btn-sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}" style="text-decoration:none; display:inline-block;">Ouvrir FDR</a>`
           : `<button type="button" class="btn-secondary btn-sm" data-create-fdr="${escapeAttr(d.id)}">Créer FDR</button>`;
+        const indispoSurDate = (p)=> !!(p && (p.disponibilites || {})[d.date] === 'indispo');
+        const marqueIndispo = ' style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;"';
         const assignedChips = (d.musiciensAssignes||[]).map(id=>{
           const m = musicianById.get(id);
           if(!m) return '';
-          return `<span class="chip">${escapeHtml(fullName(m))}</span>`;
+          const ko = indispoSurDate(m);
+          return `<span class="chip"${ko ? marqueIndispo : ''}${ko ? ` title="S'est déclaré·e indisponible sur cette date"` : ''}>${ko ? '\u26A0 ' : ''}${escapeHtml(fullName(m))}</span>`;
         }).join('') + (d.techniciensAssignes||[]).map(id=>{
           const m = technicianById.get(id);
           if(!m) return '';
-          return `<span class="chip tech"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M20.2 7a4.5 4.5 0 0 1-5.7 5.7L7 20.2 3.8 17l7.5-7.5A4.5 4.5 0 0 1 17 3.8l-3 3 1.7 1.7 3-3z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>${escapeHtml(fullName(m))}</span>`;
+          return `<span class="chip tech"${indispoSurDate(m) ? marqueIndispo : ''}><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M20.2 7a4.5 4.5 0 0 1-5.7 5.7L7 20.2 3.8 17l7.5-7.5A4.5 4.5 0 0 1 17 3.8l-3 3 1.7 1.7 3-3z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>${escapeHtml(fullName(m))}</span>`;
         }).join('');
         const musCount = (d.musiciensAssignes||[]).length;
         const techCount = (d.techniciensAssignes||[]).length;
@@ -715,6 +744,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <td>
               <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
                 <span style="font-size:12.5px; color:var(--muted);">${escapeHtml(summaryText)}</span>
+                ${contradictionBadge(contradictionsPourDate(d, musicianById, technicianById))}
                 ${(musCount + techCount) > 0 ? `<button type="button" class="btn-ghost btn-sm" data-toggle-chips="${escapeAttr(d.id)}" style="padding:2px 8px;"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"></circle></svg>Voir</button>` : ''}
               </div>
               <div class="chips" id="chips-${escapeAttr(d.id)}" style="display:none;">${assignedChips}</div>
