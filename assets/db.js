@@ -1,7 +1,9 @@
 // ============================================================================
 // Curieux orchestre — couche de persistence Supabase (remplace localStorage).
 // Nécessite le script CDN Supabase chargé AVANT ce fichier :
-//   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+//   <script src="assets/vendor/supabase-js.js"></script>
+// (copie locale et versionnée : plus aucune dépendance à un CDN tiers, qui
+// pourrait tomber ou servir une version compromise — voir assets/vendor/*.VERSION)
 // Toutes les pages appellent les mêmes fonctions qu'avant (loadMusicians,
 // saveMusicians, etc.) mais désormais asynchrones — voir MIGRATION dans
 // chaque page pour le détail des appels convertis en async/await.
@@ -15,7 +17,7 @@ const supabaseClient = (typeof window !== 'undefined' && window.supabase)
   : null;
 
 if(!supabaseClient){
-  console.error("Supabase non chargé : ajoute <script src=\"https://unpkg.com/@supabase/supabase-js@2\"></script> avant assets/db.js");
+  console.error("Supabase non chargé : ajoute <script src=\"assets/vendor/supabase-js.js\"></script> avant assets/db.js");
 }
 
 // --- Adaptateurs JS <-> colonnes SQL (pour les tables à colonnes réelles) ---
