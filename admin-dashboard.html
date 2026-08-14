@@ -191,6 +191,33 @@
   <p class="subtitle">Vue d'ensemble, gestion des comptes et historique des modifications.</p>
 
   <section>
+    <h2>Mon compte</h2>
+    <div class="card">
+      <p style="font-size:13px; color:var(--muted); margin:0 0 14px;">Connecté·e en tant que <strong id="myAccountEmail">…</strong></p>
+      <form id="changePasswordForm">
+        <div class="field-row">
+          <div class="field">
+            <label for="newPassword">Nouveau mot de passe</label>
+            <div style="position:relative;">
+              <input type="password" id="newPassword" minlength="6" required autocomplete="new-password" style="padding-right:34px;">
+              <button type="button" id="toggleNewPasswordVisibility" title="Afficher/masquer" style="position:absolute; top:50%; right:4px; transform:translateY(-50%); background:transparent; padding:4px 6px; color:var(--muted); display:flex;"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"></circle></svg></button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="confirmPassword">Confirmer le mot de passe</label>
+            <input type="password" id="confirmPassword" minlength="6" required autocomplete="new-password">
+          </div>
+          <div class="field" style="flex:0 0 auto;">
+            <button type="submit" class="btn-primary" id="changePasswordBtn">Changer le mot de passe</button>
+          </div>
+        </div>
+      </form>
+      <div class="msg error" id="changePasswordError"></div>
+      <div class="msg ok" id="changePasswordSuccess"></div>
+    </div>
+  </section>
+
+  <section>
     <h2>Vue d'ensemble</h2>
     <div class="stats-grid" id="statsGrid">
       <div class="stat-card"><div class="num">…</div><div class="label">Musicien·nes</div></div>
@@ -329,6 +356,51 @@ const TABLE_LABELS = {
 };
 
 
+async function loadMyAccount(){
+  const session = await CurieuxDB.getSession();
+  document.getElementById('myAccountEmail').textContent = (session && session.user && session.user.email) || '—';
+}
+
+document.getElementById('toggleNewPasswordVisibility').addEventListener('click', ()=>{
+  const input = document.getElementById('newPassword');
+  input.type = input.type === 'password' ? 'text' : 'password';
+});
+
+document.getElementById('changePasswordForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const newPassword = document.getElementById('newPassword').value;
+  const confirmPassword = document.getElementById('confirmPassword').value;
+  const errorEl = document.getElementById('changePasswordError');
+  const successEl = document.getElementById('changePasswordSuccess');
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  if(newPassword.length < 6){
+    errorEl.textContent = 'Le mot de passe doit faire au moins 6 caractères.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  if(newPassword !== confirmPassword){
+    errorEl.textContent = 'Les deux mots de passe ne correspondent pas.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('changePasswordBtn');
+  btn.disabled = true; btn.textContent = 'Changement…';
+  const { error } = await CurieuxDB.updateOwnPassword(newPassword);
+  btn.disabled = false; btn.textContent = 'Changer le mot de passe';
+
+  if(error){
+    errorEl.textContent = translateAuthError(error.message);
+    errorEl.style.display = 'block';
+    return;
+  }
+  successEl.textContent = 'Mot de passe changé.';
+  successEl.style.display = 'block';
+  document.getElementById('changePasswordForm').reset();
+});
+
 async function loadStats(){
   const [musiciens, techniciens, tournees, accounts] = await Promise.all([
     CurieuxDB.fetchAll('musiciens'),
@@ -459,7 +531,7 @@ function setMethod(method){
   document.getElementById('newAccountPassword').required = method === 'password';
   document.getElementById('methodHint').textContent = method === 'password'
     ? "Le compte est créé avec ce mot de passe et directement ajouté à la liste d'accès avec le rôle choisi. Transmets le mot de passe à la personne par un canal séparé (SMS, appel...)."
-    : "Un email avec un lien de connexion est envoyé à cette adresse (pas de mot de passe à transmettre) — le compte est créé au premier clic sur le lien, et directement ajouté à la liste d'accès avec le rôle choisi.";
+    : "Un email avec un lien de connexion est envoyé à cette adresse (pas de mot de passe à transmettre) — le compte est créé au premier clic sur le lien, et directement ajouté à la liste d'accès avec le rôle choisi. À envoyer depuis le site en ligne (pas depuis la copie locale) pour que le lien fonctionne.";
 }
 document.getElementById('methodPasswordBtn').addEventListener('click', ()=> setMethod('password'));
 document.getElementById('methodMagicBtn').addEventListener('click', ()=> setMethod('magic'));
@@ -720,6 +792,7 @@ async function exportAllData(){
 document.getElementById('exportAllBtn').addEventListener('click', exportAllData);
 
 (async ()=>{
+  await loadMyAccount();
   await loadStats();
   await loadBugReports();
   await loadLog();
