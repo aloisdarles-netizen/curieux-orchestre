@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Curieux orchestre — Connexion</title>
+<script>
+// Capturé avant tout script tiers : supabase-js nettoie le hash de l'URL
+// (history.replaceState) une fois la session détectée, donc c'est ici, tout
+// en haut, qu'il faut lire "type=magiclink" — plus bas ce serait déjà parti.
+window.__curieuxMagicLink = /(^|[#&])type=magiclink(&|$)/.test(location.hash);
+</script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
@@ -101,6 +107,10 @@ async function checkExistingSession(){
   const session = await CurieuxDB.getSession();
   if(!session) return;
   if(await hasRequiredAccess()){
+    if(window.__curieuxMagicLink){
+      location.replace('definir-mot-de-passe.html?redirect=' + encodeURIComponent(redirect));
+      return;
+    }
     location.replace(redirect);
     return;
   }

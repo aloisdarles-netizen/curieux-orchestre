@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Finaliser mon compte</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); }catch(e){}</script>
+<style>
+  :root{
+    --bg:#FCF2F0; --card:#ffffff; --border:#f0dbe6; --text:#141617; --muted:#7a6676;
+    --accent:#791649; --accent-dark:#5a1037;
+    --danger:#a5313f;
+  }
+  :root[data-theme="dark"]{
+    --bg:#141617; --card:#1f2224; --border:#33383b; --text:#FCF2F0; --muted:#a79aa1;
+    --accent:#CEE1F4; --accent-dark:#eef6fc;
+    --danger:#e2685a;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh; display:flex; padding:24px 16px;
+    transition:background .3s, color .3s;
+  }
+  .wrap{max-width:360px; width:100%; margin:auto;}
+  .brand-logo-img{height:36px; width:auto; display:block; margin:0 auto 22px;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.1); text-align:center;}
+  h2{font-size:16px; margin:0 0 4px;}
+  p.hint{color:var(--muted); font-size:12.5px; margin:0 0 18px; line-height:1.5;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px; text-align:left;}
+  label{font-size:12px; color:var(--muted); font-weight:600;}
+  input[type=password]{
+    padding:9px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;
+    width:100%; background:var(--card); color:var(--text); font-family:inherit;
+  }
+  input:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  button{border:none; border-radius:8px; padding:10px; font-weight:700; font-size:14px; cursor:pointer; font-family:inherit; width:100%;}
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-primary:disabled{opacity:.6; cursor:default;}
+  .msg{font-size:12.5px; margin-top:10px; display:none;}
+  .msg.error{color:var(--danger);}
+  .switch-link{font-size:12.5px; color:var(--muted); margin-top:18px;}
+  .switch-link a{color:var(--accent); font-weight:600; text-decoration:none;}
+  .switch-link a:hover{text-decoration:underline;}
+  @media (max-width:600px){ input{ font-size:16px !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <img class="brand-logo-img" alt="Curieux orchestre">
+    <h2>Finalise ton compte</h2>
+    <p class="hint">Connecté·e via le lien reçu par email. Choisis un mot de passe pour pouvoir te reconnecter directement la prochaine fois, sans redemander de lien.</p>
+
+    <form id="setPasswordForm">
+      <div class="field">
+        <label for="newPassword">Mot de passe</label>
+        <input type="password" id="newPassword" minlength="6" required autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label for="confirmPassword">Confirmer le mot de passe</label>
+        <input type="password" id="confirmPassword" minlength="6" required autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn-primary" id="setPasswordBtn">Définir le mot de passe</button>
+      <div class="msg error" id="setPasswordError"></div>
+    </form>
+
+    <div class="switch-link"><a href="#" id="skipLink">Plus tard, continuer sans mot de passe</a></div>
+  </div>
+</div>
+<script>
+const params = new URLSearchParams(location.search);
+const redirect = params.get('redirect') || 'accueil.html';
+
+(async ()=>{
+  const session = await CurieuxDB.getSession();
+  if(!session){
+    location.replace('admin-login.html?redirect=' + encodeURIComponent(redirect));
+  }
+})();
+
+document.getElementById('skipLink').addEventListener('click', (e)=>{
+  e.preventDefault();
+  location.replace(redirect);
+});
+
+document.getElementById('setPasswordForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const newPassword = document.getElementById('newPassword').value;
+  const confirmPassword = document.getElementById('confirmPassword').value;
+  const errorEl = document.getElementById('setPasswordError');
+  errorEl.style.display = 'none';
+
+  if(newPassword !== confirmPassword){
+    errorEl.textContent = 'Les deux mots de passe ne correspondent pas.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('setPasswordBtn');
+  btn.disabled = true; btn.textContent = 'Enregistrement…';
+  const { error } = await CurieuxDB.updateOwnPassword(newPassword);
+  btn.disabled = false; btn.textContent = 'Définir le mot de passe';
+
+  if(error){
+    errorEl.textContent = translateAuthError(error.message);
+    errorEl.style.display = 'block';
+    return;
+  }
+  location.replace(redirect);
+});
+
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+</script>
+</body>
+</html>
