@@ -1031,7 +1031,11 @@ begin
   select token into v_token from acces_personnels
    where person_id = p_person_id and person_type = p_person_type;
   if v_token is not null then return v_token; end if;
-  v_token := 'perso' || encode(gen_random_bytes(16), 'hex');
+  -- gen_random_uuid() est fourni par PostgreSQL lui-même depuis la v13.
+  -- gen_random_bytes() aurait imposé l'extension pgcrypto, que Supabase
+  -- installe dans un schéma séparé, hors du search_path de cette fonction.
+  -- 32 caractères hexadécimaux, soit 128 bits d'aléa.
+  v_token := 'perso' || replace(gen_random_uuid()::text, '-', '');
   insert into acces_personnels (token, person_id, person_type)
   values (v_token, p_person_id, p_person_type);
   return v_token;
