@@ -479,13 +479,16 @@ function render(){
     btn.addEventListener('click', async ()=>{
       const libelle = btn.textContent;
       btn.disabled = true; btn.textContent = '…';
-      const token = await CurieuxDB.ensureAccesPersonnel(btn.dataset.personId, btn.dataset.personType);
+      const res = await CurieuxDB.ensureAccesPersonnel(btn.dataset.personId, btn.dataset.personType);
       btn.disabled = false;
-      if(!token){
+      if(!res.token){
         btn.textContent = libelle;
-        alert("Les liens permanents ne sont pas encore actifs sur cette base.\n\nApplique migrations.sql dans Supabase (SQL Editor) pour les activer.");
+        alert(res.migrationAbsente
+          ? "Les liens permanents ne sont pas encore actifs sur cette base.\n\nApplique migrations.sql dans Supabase (SQL Editor) pour les activer."
+          : "Le lien n'a pas pu être créé :\n\n" + ((res.error && res.error.message) || 'raison inconnue'));
         return;
       }
+      const token = res.token;
       const base = location.href.slice(0, location.href.lastIndexOf('/') + 1);
       await navigator.clipboard.writeText(`${base}mes-infos.html?token=${encodeURIComponent(token)}`);
       btn.textContent = '✓ Copié';

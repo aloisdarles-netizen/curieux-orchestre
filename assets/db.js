@@ -537,6 +537,67 @@ const CurieuxDB = (()=>{
     return data || [];
   }
 
+  // --- Corbeille : restauration depuis le journal d'audit -------------------
+  // L'interface prévenait qu'"il n'y a pas de corbeille : une suppression est
+  // définitive". C'était vrai côté écran, mais pas côté base : le journal
+  // conserve déjà l'état complet d'avant chaque suppression (old_data). Il ne
+  // manquait donc que la lecture — c'est ce que font les deux fonctions
+  // ci-dessous, sans rien ajouter au schéma.
+  //
+  // infos_sociales est volontairement exclue : son journal ne retient que le
+  // NOM des champs modifiés, jamais leurs valeurs (pour ne pas dupliquer un
+  // numéro de sécurité sociale dans une table moins cloisonnée). Il n'y a donc
+  // rien à restaurer, et c'est délibéré.
+  const TABLES_RESTAURABLES = [
+    'musiciens', 'techniciens', 'tournees', 'feuilles_route', 'carnet_contacts',
+    'dispo_demandes', 'remplacant_prefs', 'cachet_overrides',
+  ];
+
+  // Suppressions restaurables : celles dont la ligne n'a pas été recréée depuis.
+  async function fetchCorbeille(limit){
+    if(!supabaseClient) return [];
+    const { data, error } = await supabaseClient
+      .from('audit_log')
+      .select('*')
+      .eq('action', 'DELETE')
+      .in('table_name', TABLES_RESTAURABLES)
+      .order('changed_at', { ascending: false })
+      .limit(limit || 100);
+    if(error){ console.warn('[CurieuxDB] fetchCorbeille', error.message); return []; }
+
+    const entrees = (data || []).filter(e => e.old_data && e.old_data.id != null);
+    // Une ligne supprimée puis recréée ne doit plus apparaître comme
+    // restaurable, sinon on proposerait d'écraser la version actuelle.
+    const parTable = {};
+    entrees.forEach(e => { (parTable[e.table_name] = parTable[e.table_name] || new Set()).add(String(e.old_data.id)); });
+    const existants = {};
+    await Promise.all(Object.entries(parTable).map(async ([table, ids]) => {
+      const { data: presents } = await supabaseClient.from(table).select('id').in('id', [...ids]);
+      existants[table] = new Set((presents || []).map(r => String(r.id)));
+    }));
+    // Et si la même ligne a été supprimée plusieurs fois, seule la dernière compte.
+    const vus = new Set();
+    return entrees.filter(e => {
+      const cle = e.table_name + '::' + e.old_data.id;
+      if(vus.has(cle)) return false;
+      vus.add(cle);
+      return !(existants[e.table_name] || new Set()).has(String(e.old_data.id));
+    });
+  }
+
+  // Réinsère la ligne telle qu'elle était. old_data est déjà au format des
+  // colonnes SQL : on n'applique donc PAS les adaptateurs, qui traduisent
+  // depuis le format JavaScript.
+  async function restaurerDepuisCorbeille(entree){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    if(!entree || !entree.old_data || !TABLES_RESTAURABLES.includes(entree.table_name)){
+      return { error: { message: 'Entrée non restaurable' } };
+    }
+    const ligne = { ...entree.old_data };
+    return _ecrire(`restaurer(${entree.table_name})`,
+      () => supabaseClient.from(entree.table_name).insert(ligne));
+  }
+
   // --- Auto-saisie par lien personnel (mes-infos.html, même token que
   // dispo-titulaire.html) : pas d'auth, le token EST l'identification. Passe
   // par des fonctions Postgres dédiées (get/upsert_own_infos_sociales) qui
@@ -687,15 +748,19 @@ const CurieuxDB = (()=>{
   // Jeton permanent d'une personne (I3), indépendant des tournées : appelé
   // côté admin pour construire un lien qui survit au ménage des vieilles
   // tournées. Renvoie null si la base n'a pas encore la migration.
+  // Renvoie { token } en cas de succès, sinon { error } — et non null quelle que
+  // soit la cause : confondre « la migration n'est pas passée » avec « l'appel a
+  // échoué » affichait un message faux dès que la fonction existait mais levait
+  // une erreur.
   async function ensureAccesPersonnel(personId, personType){
-    if(!supabaseClient) return null;
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
     const { data, error } = await supabaseClient.rpc('ensure_acces_personnel',
       { p_person_id: personId, p_person_type: personType });
     if(error){
-      if(!_fonctionAbsente(error)) console.warn('[CurieuxDB] ensureAccesPersonnel', error.message);
-      return null;
+      console.warn('[CurieuxDB] ensureAccesPersonnel', error.message);
+      return { error, migrationAbsente: _fonctionAbsente(error) };
     }
-    return data || null;
+    return { token: data || null };
   }
 
   // Cachet individualisé (voir cachet_overrides dans migrations.sql) : la table reste
@@ -738,6 +803,7 @@ const CurieuxDB = (()=>{
     getMyRole, hasAppAccess, isSuperAdmin,
     listAccounts, setAccountRole, removeAccount,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
+    fetchCorbeille, restaurerDepuisCorbeille,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,
     updateOwnContactByToken, updateOwnDisponibilitesByToken, updateOwnPrenomUsageByToken,
