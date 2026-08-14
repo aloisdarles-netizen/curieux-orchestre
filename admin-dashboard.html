@@ -137,7 +137,7 @@
     </div>
     <div style="display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap;">
       <button type="button" class="btn-secondary btn-sm" id="exportAllBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter toutes les données</button>
-      <span style="font-size:12px; color:var(--muted);" id="exportAllStatus">Un fichier JSON complet, à garder de côté — il n'y a pas de corbeille : une suppression est définitive.</span>
+      <span style="font-size:12px; color:var(--muted);" id="exportAllStatus">Un fichier JSON complet, à garder de côté. Une suppression reste rattrapable via la corbeille ci-dessous, tant que le journal n'a pas été purgé.</span>
     </div>
   </section>
 
@@ -158,6 +158,15 @@
       </div>
       <div id="bugList"></div>
       <div id="bugEmpty" class="empty-hint">Chargement…</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Corbeille</h2>
+    <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">Ce qui a été supprimé et peut encore être rétabli. Reconstruit à partir du journal des modifications, qui conserve l'état complet d'avant chaque suppression — rien n'est réellement perdu tant que le journal n'a pas été purgé.</p>
+    <div class="card">
+      <div id="corbeilleList"></div>
+      <div id="corbeilleEmpty" class="empty-hint">Chargement…</div>
     </div>
   </section>
 
@@ -664,8 +673,87 @@ document.getElementById('bugTypeFilter').addEventListener('change', renderBugRep
 document.getElementById('logTableFilter').addEventListener('change', loadLog);
 document.getElementById('logSearch').addEventListener('input', renderLog);
 
-// Filet de sécurité minimal en l'absence de corbeille : un instantané complet de la
-// base, téléchargé en un clic, plutôt qu'une vraie restauration en un clic.
+
+// ---------------------------------------------------------------------------
+// Corbeille. L'interface prévenait qu'« il n'y a pas de corbeille : une
+// suppression est définitive ». C'était vrai à l'écran, pas en base : le
+// journal conserve déjà l'état complet d'avant chaque suppression. Il ne
+// manquait que la lecture.
+// ---------------------------------------------------------------------------
+let corbeilleCache = [];
+
+const CORBEILLE_LIBELLES = {
+  musiciens: 'Fiche musicien·ne', techniciens: 'Fiche technicien·ne',
+  tournees: 'Tournée', feuilles_route: 'Feuille de route',
+  carnet_contacts: 'Contact', dispo_demandes: 'Lien personnel',
+  remplacant_prefs: 'Liste de remplaçant·es', cachet_overrides: 'Cachet individualisé',
+};
+
+// Nomme la ligne supprimée à partir de ce que le journal en a gardé, pour que
+// la corbeille montre « Jean Dupont » et non « mus1a2b3c4d ».
+function corbeilleNom(entree){
+  const d = entree.old_data || {};
+  const nom = [d.prenom, d.nom].filter(Boolean).join(' ').trim();
+  if(nom) return nom;
+  if(d.nom) return d.nom;
+  if(entree.table_name === 'feuilles_route' && d.data) return d.data.titre || d.data.ville || 'Sans titre';
+  if(entree.table_name === 'dispo_demandes') return personNames[d.person_id] || d.person_id || '';
+  if(entree.table_name === 'cachet_overrides') return personNames[d.person_id] || d.person_id || '';
+  if(entree.table_name === 'remplacant_prefs') return personNames[d.id] || d.id || '';
+  return d.id || '';
+}
+
+async function loadCorbeille(){
+  corbeilleCache = await CurieuxDB.fetchCorbeille(60);
+  renderCorbeille();
+}
+
+function renderCorbeille(){
+  const list = document.getElementById('corbeilleList');
+  const empty = document.getElementById('corbeilleEmpty');
+  if(corbeilleCache.length === 0){
+    list.innerHTML = '';
+    empty.textContent = 'Rien à restaurer — aucune suppression récente.';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = corbeilleCache.map((e, i)=> `
+    <div class="log-entry" data-corbeille="${i}">
+      <div class="log-meta">
+        <span class="log-action DELETE">Supprimé</span>
+        <strong>${escapeHtml(CORBEILLE_LIBELLES[e.table_name] || e.table_name)}</strong>
+        ${corbeilleNom(e) ? `— ${escapeHtml(corbeilleNom(e))}` : ''}
+        <span>· ${escapeHtml(e.changed_by || 'lien personnel / système')}</span>
+        <span>· ${escapeHtml(new Date(e.changed_at).toLocaleString('fr-FR'))}</span>
+      </div>
+      <div style="margin-top:8px;">
+        <button type="button" class="btn-secondary btn-sm" data-restaurer="${i}">Rétablir</button>
+      </div>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('[data-restaurer]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const entree = corbeilleCache[Number(btn.dataset.restaurer)];
+      const quoi = `${CORBEILLE_LIBELLES[entree.table_name] || entree.table_name}${corbeilleNom(entree) ? ' — ' + corbeilleNom(entree) : ''}`;
+      if(!confirm(`Rétablir ${quoi} ?\n\nLa ligne sera recréée telle qu'elle était avant sa suppression.`)) return;
+      btn.disabled = true; btn.textContent = 'Rétablissement…';
+      const { error } = await CurieuxDB.restaurerDepuisCorbeille(entree);
+      if(error){
+        btn.disabled = false; btn.textContent = 'Rétablir';
+        alert("Le rétablissement a échoué :\n\n" + (error.message || 'raison inconnue'));
+        return;
+      }
+      corbeilleCache = corbeilleCache.filter(x=> x !== entree);
+      renderCorbeille();
+      await loadStats();
+    });
+  });
+}
+
+// Instantané complet de la base, en complément de la corbeille : celle-ci ne
+// rattrape que des suppressions ligne à ligne, pas un incident sur la base entière.
 const EXPORT_ALL_TABLES = [
   'musiciens', 'techniciens', 'tournees', 'feuilles_route', 'carnet_contacts',
   'newsletter_snapshot', 'dispo_demandes', 'remplacant_prefs', 'cachet_overrides',
@@ -704,6 +792,7 @@ document.getElementById('exportAllBtn').addEventListener('click', exportAllData)
   await loadMyAccount();
   await loadStats();
   await loadBugReports();
+  await loadCorbeille();
   await loadLog();
 })();
 </script>
