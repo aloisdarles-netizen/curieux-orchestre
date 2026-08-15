@@ -995,25 +995,6 @@ const CurieuxDB = (()=>{
     return { resultats: (data || []).map(r => ({ table: r.table_videe, lignes: Number(r.lignes_supprimees) })) };
   }
 
-  // Export complet de tout ce qui est lisible par le compte courant, en JSON.
-  // Systématiquement proposé au téléchargement avant une purge : c'est le
-  // filet, et il ne coûte qu'un aller-retour par table.
-  const TABLES_EXPORT = [
-    'musiciens','techniciens','tournees','feuilles_route','carnet_contacts',
-    'newsletter_snapshot','dispo_demandes','remplacant_prefs','cachet_overrides',
-    'bug_reports','moyens_salle','lots_materiel','carnets_ata','vehicules',
-    'chauffeurs','fiches_techniques','fiches_techniques_versions','acces_logistique'
-  ];
-  async function exporterTout(){
-    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    const dump = { exporteLe: new Date().toISOString(), tables: {} };
-    for(const table of TABLES_EXPORT){
-      const { data, error } = await supabaseClient.from(table).select('*');
-      dump.tables[table] = error ? { erreur: error.message } : (data || []);
-    }
-    return { dump };
-  }
-
   // ——— B1 · fiches techniques ———————————————————————————————————————
   // Publier une version : on dépose le fichier dans le bucket, on enregistre la
   // version, puis seulement on fait pointer la fiche dessus. Dans cet ordre —
@@ -1090,7 +1071,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
-    fetchReglages, setPhaseTest, compterLignesPurgeables, purgerDonneesEssai, exporterTout,
+    fetchReglages, setPhaseTest, compterLignesPurgeables, purgerDonneesEssai,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken, urlPubliqueFiche,
     getRecapLogistique,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
