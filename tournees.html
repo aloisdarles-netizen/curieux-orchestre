@@ -51,6 +51,13 @@
   .cachet-row select{padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
   .cachet-row input[type=number]{padding:6px 9px; font-size:12.5px; width:110px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
   .cachet-row .cachet-unit{font-size:12.5px; color:var(--muted);}
+  .manque-badge{display:inline-block; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:20px; margin-left:6px; font-variant-numeric:tabular-nums; vertical-align:middle;}
+  .manque-badge.ok{background:var(--ok-tint); color:var(--ok);}
+  .manque-badge.warn{background:var(--danger-tint); color:var(--danger);}
+  .nomenclature-panel select, .nomenclature-panel input[type=number]{
+    padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
   .add-date-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--border);}
   .add-date-row input{flex:1 1 140px;}
 
@@ -650,6 +657,125 @@ document.getElementById('assignSave').addEventListener('click', ()=>{
   render();
 });
 
+// ============================================================================
+// A3 — Effectif attendu (nomenclature). Optionnelle : tant qu'aucun pupitre
+// n'est défini pour une tournée, aucun badge ne s'affiche sur ses dates — pas
+// de saisie forcée. Une date peut la surcharger via d.nomenclature (même
+// forme), mais cette surcharge se règle pour l'instant directement en base :
+// aucun éditeur dédié par date dans cette version.
+// ============================================================================
+const PUPITRE_ORDER = ["Chef d'orchestre", 'Cordes', 'Bois', 'Cuivres', 'Percussions', 'Autre'];
+
+function nomenclatureActive(t, d){
+  return (d && d.nomenclature && d.nomenclature.length) ? d.nomenclature : (t.nomenclature || []);
+}
+// Le nombre d'affecté·es compté par pupitre est plafonné au nombre attendu
+// de ce pupitre : un violon affecté en trop ne doit pas masquer un manque de
+// cuivres. affecte est donc "ce qui compte comme couvert", pas un simple total.
+function effectifPourDate(t, d, musicianById){
+  const nomen = nomenclatureActive(t, d);
+  if(!nomen.length) return null;
+  const parPupitre = {};
+  (d.musiciensAssignes||[]).forEach(id=>{
+    const m = musicianById.get(id);
+    if(!m) return;
+    const p = m.pupitre || 'Autre';
+    parPupitre[p] = (parPupitre[p]||0) + 1;
+  });
+  let attendu = 0, affecte = 0;
+  const detail = nomen.map(row=>{
+    const a = parPupitre[row.pupitre] || 0;
+    const n = row.nombre || 0;
+    attendu += n;
+    affecte += Math.min(a, n);
+    return { pupitre: row.pupitre, attendu: n, affecte: a };
+  });
+  return { attendu, affecte, detail };
+}
+function manqueBadgeHtml(t, d, musicianById){
+  const eff = effectifPourDate(t, d, musicianById);
+  if(!eff || eff.attendu === 0) return `<span id="manque-${escapeAttr(d.id)}"></span>`;
+  const complet = eff.affecte >= eff.attendu;
+  const titre = eff.detail.map(x=>`${x.pupitre} ${x.affecte}/${x.attendu}`).join(' · ');
+  return `<span id="manque-${escapeAttr(d.id)}" class="manque-badge ${complet?'ok':'warn'}" title="${escapeAttr(titre)}">${eff.affecte}/${eff.attendu} effectif</span>`;
+}
+function renderNomenclatureRowsHtml(t){
+  const rows = t.nomenclature || [];
+  if(rows.length === 0) return `<div class="empty-hint" style="font-size:12.5px; padding:4px 0;">Aucun pupitre défini pour l'instant.</div>`;
+  return rows.map((row, i)=>`
+    <div class="nomenclature-item" data-nomenclature-tournee="${escapeAttr(t.id)}" data-nomenclature-index="${i}" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+      <select data-nomenclature-field="pupitre" style="width:170px;">
+        ${PUPITRE_ORDER.map(p=>`<option value="${escapeAttr(p)}" ${row.pupitre===p?'selected':''}>${escapeHtml(p)}</option>`).join('')}
+      </select>
+      <input type="number" min="0" step="1" data-nomenclature-field="nombre" value="${row.nombre != null ? escapeAttr(String(row.nombre)) : ''}" placeholder="Nombre" style="width:90px;">
+      <button type="button" class="btn-danger btn-sm" data-remove-nomenclature-row style="padding:5px 9px;">Retirer</button>
+    </div>
+  `).join('');
+}
+function renderNomenclaturePanel(tourneeId){
+  const t = loadTournees().find(x=>x.id === tourneeId);
+  if(!t) return;
+  const holder = document.querySelector(`[data-nomenclature-rows="${CSS.escape(tourneeId)}"]`);
+  if(holder) holder.innerHTML = renderNomenclatureRowsHtml(t);
+  const toggleBtn = document.querySelector(`[data-toggle-nomenclature="${CSS.escape(tourneeId)}"]`);
+  if(toggleBtn) toggleBtn.textContent = (t.nomenclature||[]).length ? `Modifier (${t.nomenclature.length} pupitre${t.nomenclature.length>1?'s':''})` : 'Définir la nomenclature';
+  updateManqueBadges(tourneeId);
+}
+function updateManqueBadges(tourneeId){
+  const t = loadTournees().find(x=>x.id === tourneeId);
+  if(!t) return;
+  const musicianById = new Map(loadMusicians().map(m=>[m.id, m]));
+  (t.dates||[]).forEach(d=>{
+    const el = document.getElementById(`manque-${d.id}`);
+    if(el) el.outerHTML = manqueBadgeHtml(t, d, musicianById);
+  });
+}
+// Délégué une fois pour toutes sur le conteneur stable — survit aux
+// remplacements d'innerHTML de render(), contrairement à un binding par
+// élément qu'il aurait fallu reposer après chaque rendu.
+document.addEventListener('change', (e)=>{
+  const item = e.target.closest('[data-nomenclature-tournee]');
+  if(!item || !e.target.dataset.nomenclatureField) return;
+  const tourneeId = item.dataset.nomenclatureTournee;
+  const idx = Number(item.dataset.nomenclatureIndex);
+  const t = loadTournees().find(x=>x.id === tourneeId);
+  if(!t || !t.nomenclature || !t.nomenclature[idx]) return;
+  if(e.target.dataset.nomenclatureField === 'pupitre') t.nomenclature[idx].pupitre = e.target.value;
+  else t.nomenclature[idx].nombre = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0);
+  saveTournees(loadTournees());
+  updateManqueBadges(tourneeId);
+});
+document.addEventListener('click', (e)=>{
+  const toggleBtn = e.target.closest('[data-toggle-nomenclature]');
+  if(toggleBtn){
+    const panel = document.getElementById(`nomenclature-${toggleBtn.dataset.toggleNomenclature}`);
+    if(panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    return;
+  }
+  const addBtn = e.target.closest('[data-add-nomenclature-row]');
+  if(addBtn){
+    const tourneeId = addBtn.dataset.addNomenclatureRow;
+    const t = loadTournees().find(x=>x.id === tourneeId);
+    if(!t) return;
+    t.nomenclature = t.nomenclature || [];
+    t.nomenclature.push({ pupitre: 'Cordes', nombre: 1 });
+    saveTournees(loadTournees());
+    renderNomenclaturePanel(tourneeId);
+    return;
+  }
+  const removeBtn = e.target.closest('[data-remove-nomenclature-row]');
+  if(removeBtn){
+    const item = removeBtn.closest('[data-nomenclature-tournee]');
+    const tourneeId = item.dataset.nomenclatureTournee;
+    const idx = Number(item.dataset.nomenclatureIndex);
+    const t = loadTournees().find(x=>x.id === tourneeId);
+    if(!t || !t.nomenclature) return;
+    t.nomenclature.splice(idx, 1);
+    saveTournees(loadTournees());
+    renderNomenclaturePanel(tourneeId);
+  }
+});
+
 function renderTourneeCard(t, fdrs, musicianById, technicianById){
       const dates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
       const blocMap = computeBlocMap(dates);
@@ -744,6 +870,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <td>
               <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
                 <span style="font-size:12.5px; color:var(--muted);">${escapeHtml(summaryText)}</span>
+                ${manqueBadgeHtml(t, d, musicianById)}
                 ${contradictionBadge(contradictionsPourDate(d, musicianById, technicianById))}
                 ${(musCount + techCount) > 0 ? `<button type="button" class="btn-ghost btn-sm" data-toggle-chips="${escapeAttr(d.id)}" style="padding:2px 8px;"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"></circle></svg>Voir</button>` : ''}
               </div>
@@ -781,6 +908,15 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <span class="cachet-unit" style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">€ brut</span>
             <button type="button" class="btn-ghost btn-sm" data-toggle-cachet-overrides="${escapeAttr(t.id)}"
               style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">Cachet différent pour certaines personnes${overrideCount ? ` (${overrideCount})` : ''}</button>
+          </div>
+          <div class="cachet-row" style="margin-top:-10px;">
+            <label>Effectif attendu :</label>
+            <button type="button" class="btn-ghost btn-sm" data-toggle-nomenclature="${escapeAttr(t.id)}">${(t.nomenclature||[]).length ? `Modifier (${t.nomenclature.length} pupitre${t.nomenclature.length>1?'s':''})` : 'Définir la nomenclature'}</button>
+          </div>
+          <div class="nomenclature-panel" id="nomenclature-${escapeAttr(t.id)}" style="display:none; margin:-6px 0 14px;">
+            <p style="font-size:12.5px; color:var(--muted); margin:0 0 8px;">Le nombre de musicien·nes attendu par pupitre pour cette tournée — sert à afficher ce qui manque sur chaque date, une fois les affectations faites.</p>
+            <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
+            <button type="button" class="btn-secondary btn-sm" data-add-nomenclature-row="${escapeAttr(t.id)}">+ Ajouter un pupitre</button>
           </div>
           <div class="cachet-overrides" id="cachet-overrides-${escapeAttr(t.id)}" style="display:none; margin:-6px 0 14px;">
             ${rosterPeople.length === 0
