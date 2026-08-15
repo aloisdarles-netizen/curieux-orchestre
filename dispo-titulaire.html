@@ -514,13 +514,19 @@ function buildIcsForTournee(){
   const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Curieux orchestre//dispo-titulaire//FR','CALSCALE:GREGORIAN'];
   confirmedDates.forEach(d=>{
     const location = [d.ville, d.lieu].filter(Boolean).join(', ');
+    // Titre de l'événement : nom de la tournée ET ville. Sans la ville, une
+    // tournée de 28 dates produisait 28 entrées au titre identique dans le
+    // calendrier, impossible à distinguer sans ouvrir chacune. Le séparateur
+    // est un point médian et non un tiret, les noms de tournée en contenant
+    // souvent un ("EXPEDITION 33 - 26/27").
+    const titre = [state.tournee.nom || 'Tournée', d.ville].filter(Boolean).join(' · ');
     lines.push(
       'BEGIN:VEVENT',
       `UID:${state.tournee.id}-${d.id}@curieux-orchestre`,
       `DTSTAMP:${nowStamp}`,
       `DTSTART;VALUE=DATE:${d.date.replace(/-/g,'')}`,
       `DTEND;VALUE=DATE:${addDaysIso(d.date, 1).replace(/-/g,'')}`,
-      `SUMMARY:${icsEscapeText(state.tournee.nom || 'Tournée')}`,
+      `SUMMARY:${icsEscapeText(titre)}`,
     );
     if(location) lines.push(`LOCATION:${icsEscapeText(location)}`);
     lines.push('END:VEVENT');
