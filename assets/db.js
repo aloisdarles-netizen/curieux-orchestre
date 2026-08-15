@@ -69,8 +69,159 @@ const CurieuxDB = (()=>{
         id: t.id, nom: t.nom || '', dates: t.dates || [],
         cachet_statut: t.cachetStatut === 'defini' ? 'defini' : 'non_defini',
         cachet_montant: t.cachetStatut === 'defini' ? (t.cachetMontant != null ? t.cachetMontant : null) : null,
+        nomenclature: t.nomenclature || [],
       }),
-      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant })
+      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [] })
+    },
+    // ——— Outils de direction technique (août 2026) ———
+    // Ce que la salle fournit, date par date (B2). "id" = `${tourneeId}::${dateId}`,
+    // pour réutiliser upsertOne/removeOne malgré la clé composite.
+    // Ce que la salle fournit, date par date. Miroir de lots_materiel : l'un
+    // décrit ce qu'on amène, l'autre ce qu'on demande en local. Pour tout ce
+    // qui se négocie (roadies, caristes, chariots), demande et validation
+    // restent deux valeurs distinctes — ce qu'on a obtenu n'est pas forcément
+    // ce qu'on a demandé.
+    moyens_salle: {
+      toDb: (m)=> ({
+        id: m.id, tournee_id: m.tourneeId, date_id: m.dateId,
+        statut: m.statut || 'non_demande',
+        plan_statut: m.planStatut || 'non_demande', plan_url: m.planUrl || '',
+        semis_places: m.semisPlaces != null ? m.semisPlaces : null,
+        niveau_dechargement: m.niveauDechargement || 'inconnu',
+        acces_notes: m.accesNotes || '',
+        roadies_demande: m.roadiesDemande != null ? m.roadiesDemande : null,
+        roadies_valide: m.roadiesValide != null ? m.roadiesValide : null,
+        roadies_horaire: m.roadiesHoraire || '',
+        caristes_demande: m.caristesDemande != null ? m.caristesDemande : null,
+        caristes_valide: m.caristesValide != null ? m.caristesValide : null,
+        // Un élément par chariot demandé — voir fromDb.
+        chariots: m.chariots || [],
+        hauteur_grill: m.hauteurGrill || '', ouverture_scene: m.ouvertureScene || '',
+        puissance: m.puissance || '',
+        contact_nom: m.contactNom || '', contact_tel: m.contactTel || '', contact_email: m.contactEmail || '',
+        notes: m.notes || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, tourneeId: r.tournee_id, dateId: r.date_id,
+        statut: r.statut || 'non_demande',
+        planStatut: r.plan_statut || 'non_demande', planUrl: r.plan_url || '',
+        semisPlaces: r.semis_places, niveauDechargement: r.niveau_dechargement || 'inconnu',
+        accesNotes: r.acces_notes || '',
+        roadiesDemande: r.roadies_demande, roadiesValide: r.roadies_valide,
+        roadiesHoraire: r.roadies_horaire || '',
+        caristesDemande: r.caristes_demande, caristesValide: r.caristes_valide,
+        // [{fourche:'longues'|'courtes'|'inconnu', valide:bool}, ...] — la
+        // longueur du tableau EST le nombre demandé, valide=true compte les
+        // confirmés. Chaque fenwick a ses propres fourches.
+        chariots: r.chariots || [],
+        hauteurGrill: r.hauteur_grill || '', ouvertureScene: r.ouverture_scene || '',
+        puissance: r.puissance || '',
+        contactNom: r.contact_nom || '', contactTel: r.contact_tel || '', contactEmail: r.contact_email || '',
+        notes: r.notes || ''
+      })
+    },
+    // Lots de matériel (B3) : ce qu'on AMÈNE — ce qui bouge, d'où ça vient,
+    // sur quelles dates c'est attendu. Sert deux fois — le récap du stage
+    // manager, et la liste douanière. Un lot est un kit ("Kit son A",
+    // "Backline cuivres") qui contient ses propres éléments, ajoutés
+    // librement plutôt que figés à la création du lot.
+    lots_materiel: {
+      toDb: (l)=> ({
+        id: l.id, nom: l.nom || '', categorie: l.categorie || 'autre',
+        provenance: l.provenance || '', tournee_id: l.tourneeId || null,
+        dates_ids: l.datesIds || [],
+        // [{nom, quantite, numeroSerie, notes}, ...]
+        elements: l.elements || [],
+        nb_colis: l.nbColis != null ? l.nbColis : null,
+        poids_kg: l.poidsKg != null ? l.poidsKg : null,
+        valeur: l.valeur != null ? l.valeur : null,
+        retour_le: l.retourLe || null, notes: l.notes || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, nom: r.nom, categorie: r.categorie || 'autre',
+        provenance: r.provenance || '', tourneeId: r.tournee_id || '',
+        datesIds: r.dates_ids || [],
+        elements: r.elements || [],
+        nbColis: r.nb_colis, poidsKg: r.poids_kg, valeur: r.valeur,
+        retourLe: r.retour_le || '', notes: r.notes || ''
+      })
+    },
+    // Un carnet ATA est attribué à une semi, pour toute la tournée — pas date
+    // par date : l'avoir pour une semi, c'est l'avoir pour tout ce qu'elle
+    // transporte sur la tournée.
+    carnets_ata: {
+      toDb: (c)=> ({
+        id: c.id, numero: c.numero || '', pays: c.pays || '',
+        tournee_id: c.tourneeId || null, vehicule_id: c.vehiculeId || null,
+        emis_le: c.emisLe || null, expire_le: c.expireLe || null,
+        statut: c.statut || 'a_demander',
+        lots_ids: c.lotsIds || [],
+        notes: c.notes || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, numero: r.numero || '', pays: r.pays || '',
+        tourneeId: r.tournee_id || '', vehiculeId: r.vehicule_id || '',
+        emisLe: r.emis_le || '', expireLe: r.expire_le || '',
+        statut: r.statut || 'a_demander',
+        lotsIds: r.lots_ids || [],
+        notes: r.notes || ''
+      })
+    },
+    // Tracteur et semi sont deux lignes distinctes : c'est la semi qui porte le
+    // hayon, et un tracteur peut tirer une autre semi.
+    vehicules: {
+      toDb: (v)=> ({
+        id: v.id, nom: v.nom || '', type: v.type || 'semi',
+        immatriculation: v.immatriculation || '', hayon: !!v.hayon,
+        capacite: v.capacite || '', prestataire: v.prestataire || '', notes: v.notes || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, nom: r.nom || '', type: r.type || 'semi',
+        immatriculation: r.immatriculation || '', hayon: !!r.hayon,
+        capacite: r.capacite || '', prestataire: r.prestataire || '', notes: r.notes || ''
+      })
+    },
+    chauffeurs: {
+      toDb: (c)=> ({
+        id: c.id, prenom: c.prenom || '', nom: c.nom || '',
+        telephone: c.telephone || '', email: c.email || '',
+        permis: c.permis || '', prestataire: c.prestataire || '', notes: c.notes || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, prenom: r.prenom || '', nom: r.nom || '',
+        telephone: r.telephone || '', email: r.email || '',
+        permis: r.permis || '', prestataire: r.prestataire || '', notes: r.notes || ''
+      })
+    },
+    // Fiches techniques (B1) : Drive reste l'atelier, l'appli est la vitrine.
+    fiches_techniques: {
+      toDb: (f)=> ({
+        id: f.id, nom: f.nom || '', tournee_id: f.tourneeId || null,
+        drive_url: f.driveUrl || '',
+        version_courante: f.versionCourante != null ? f.versionCourante : null
+      }),
+      fromDb: (r)=> ({
+        id: r.id, nom: r.nom || '', tourneeId: r.tournee_id || '',
+        driveUrl: r.drive_url || '', token: r.token,
+        versionCourante: r.version_courante
+      })
+    },
+    fiches_techniques_versions: {
+      toDb: (v)=> ({
+        id: v.id, fiche_id: v.ficheId, version: v.version,
+        fichier_chemin: v.fichierChemin || '', fichier_nom: v.fichierNom || '',
+        changelog: v.changelog || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, ficheId: r.fiche_id, version: r.version,
+        fichierChemin: r.fichier_chemin || '', fichierNom: r.fichier_nom || '',
+        changelog: r.changelog || '', createdAt: r.created_at
+      })
+    },
+    // Accès en lecture seule à la logistique (B4) — "id" est le jeton du lien.
+    acces_logistique: {
+      toDb: (a)=> ({ id: a.id, libelle: a.libelle || '', tournee_id: a.tourneeId || null, actif: a.actif !== false }),
+      fromDb: (r)=> ({ id: r.id, libelle: r.libelle || '', tourneeId: r.tournee_id || '', actif: r.actif !== false, createdAt: r.created_at })
     },
     // Exceptions par personne au cachet standard d'une tournée (voir tournees.cachet_montant) —
     // table à part, verrouillée (RLS "admin access" ci-dessous) : contrairement au cachet
@@ -796,8 +947,133 @@ const CurieuxDB = (()=>{
     return { error };
   }
 
+  // ==========================================================================
+  // Outils de direction technique (août 2026)
+  // ==========================================================================
+
+  // Réglages généraux — pour l'instant un seul drapeau, "phase de test", qui
+  // conditionne l'accès à l'espace de réinitialisation. Renvoie toujours un
+  // objet : si la table n'existe pas encore (migration non passée), on
+  // considère qu'on n'est PAS en phase de test, c'est-à-dire le cas le plus
+  // prudent — mieux vaut masquer la purge à tort que l'exposer à tort.
+  async function fetchReglages(){
+    if(!supabaseClient) return { phaseTest: false, absent: true };
+    const { data, error } = await supabaseClient.from('reglages').select('*').eq('id', 1).maybeSingle();
+    if(error){
+      console.warn('[CurieuxDB] fetchReglages', error.message);
+      return { phaseTest: false, absent: true };
+    }
+    return { phaseTest: !!(data && data.phase_test), absent: !data };
+  }
+  async function setPhaseTest(actif){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    return _ecrire('setPhaseTest',
+      () => supabaseClient.from('reglages').upsert({ id: 1, phase_test: !!actif }, { onConflict: 'id' }));
+  }
+
+  // Compte les lignes de chaque table purgeable, pour annoncer ce qu'on
+  // s'apprête à supprimer AVANT de le supprimer.
+  async function compterLignesPurgeables(){
+    if(!supabaseClient) return { lignes: [], error: { message: 'Supabase non chargé' } };
+    const { data, error } = await supabaseClient.rpc('compter_lignes_purgeables');
+    if(error){
+      console.warn('[CurieuxDB] compterLignesPurgeables', error.message);
+      return { lignes: [], error, migrationAbsente: _fonctionAbsente(error) };
+    }
+    return { lignes: (data || []).map(r => ({ table: r.nom_table, lignes: Number(r.lignes) })) };
+  }
+  // Vide les tables demandées. La liste blanche et le double verrou (compte
+  // admin + phase de test) sont côté base : l'interface ne fait que proposer.
+  async function purgerDonneesEssai(tables){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    if(!tables || !tables.length) return { resultats: [] };
+    const { data, error } = await supabaseClient.rpc('purger_donnees_essai', { p_tables: tables });
+    if(error){
+      console.warn('[CurieuxDB] purgerDonneesEssai', error.message);
+      return { error, migrationAbsente: _fonctionAbsente(error) };
+    }
+    return { resultats: (data || []).map(r => ({ table: r.table_videe, lignes: Number(r.lignes_supprimees) })) };
+  }
+
+  // ——— B1 · fiches techniques ———————————————————————————————————————
+  // Publier une version : on dépose le fichier dans le bucket, on enregistre la
+  // version, puis seulement on fait pointer la fiche dessus. Dans cet ordre —
+  // si le dépôt échoue, la fiche continue de servir l'ancienne version plutôt
+  // que de pointer vers un fichier absent.
+  async function publierVersionFiche(ficheId, fichier, changelog){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+
+    const dernieres = await supabaseClient.from('fiches_techniques_versions')
+      .select('version').eq('fiche_id', ficheId).order('version', { ascending: false }).limit(1);
+    if(dernieres.error) return { error: dernieres.error };
+    const version = ((dernieres.data || [])[0]?.version || 0) + 1;
+
+    const suffixe = (fichier.name.match(/\.[a-z0-9]+$/i) || ['.pdf'])[0].toLowerCase();
+    const chemin = `${ficheId}/v${version}-${_identifiant()}${suffixe}`;
+
+    const depot = await supabaseClient.storage.from('fiches-techniques')
+      .upload(chemin, fichier, { contentType: fichier.type || 'application/pdf', upsert: false });
+    if(depot.error) return { error: depot.error };
+
+    const insertion = await supabaseClient.from('fiches_techniques_versions').insert({
+      id: _identifiant(), fiche_id: ficheId, version,
+      fichier_chemin: chemin, fichier_nom: fichier.name, changelog: changelog || ''
+    });
+    if(insertion.error) return { error: insertion.error };
+
+    const maj = await supabaseClient.from('fiches_techniques')
+      .update({ version_courante: version }).eq('id', ficheId);
+    if(maj.error) return { error: maj.error };
+
+    return { version };
+  }
+  async function fetchVersionsFiche(ficheId){
+    if(!supabaseClient) return [];
+    const { data, error } = await supabaseClient.from('fiches_techniques_versions')
+      .select('*').eq('fiche_id', ficheId).order('version', { ascending: false });
+    if(error){ console.warn('[CurieuxDB] fetchVersionsFiche', error.message); return []; }
+    return (data || []).map(adapterFor('fiches_techniques_versions').fromDb);
+  }
+  // Lecture publique du lien canonique : la version courante, et rien d'autre.
+  async function getFicheTechniqueByToken(token){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('get_fiche_technique_by_token', { p_token: token });
+    if(error){ console.warn('[CurieuxDB] getFicheTechniqueByToken', error.message); return null; }
+    const row = (data || [])[0];
+    if(!row) return null;
+    return {
+      nom: row.nom, version: row.version, fichierNom: row.fichier_nom,
+      publieeLe: row.publiee_le,
+      url: urlPubliqueFiche(row.fichier_chemin)
+    };
+  }
+  function urlPubliqueFiche(chemin){
+    if(!chemin) return '';
+    const { data } = supabaseClient.storage.from('fiches-techniques').getPublicUrl(chemin);
+    return (data && data.publicUrl) || '';
+  }
+
+  // ——— B4 · récapitulatif logistique ————————————————————————————————
+  // Un seul aller-retour, côté base, qui ne renvoie que la logistique : ni le
+  // répertoire, ni les informations d'embauche ne passent par ce jeton.
+  async function getRecapLogistique(token){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('get_recap_logistique', { p_token: token });
+    if(error){ console.warn('[CurieuxDB] getRecapLogistique', error.message); return null; }
+    return data || null;
+  }
+
+  function _identifiant(){
+    return (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID().replace(/-/g, '')
+      : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  }
+
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
+    fetchReglages, setPhaseTest, compterLignesPurgeables, purgerDonneesEssai,
+    publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken, urlPubliqueFiche,
+    getRecapLogistique,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,
     getMyRole, hasAppAccess, isSuperAdmin,

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Fiche technique</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<!-- Page volontairement PUBLIQUE : envoyée aux salles, pas de compte requis.
+     Le jeton dans l'URL (fiches_techniques.token) résout toujours la version
+     courante — jamais une liste de versions, jamais le lien Drive de travail. -->
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:520px; margin:0 auto; text-align:center; padding-top:60px;}
+  .brand-logo-img{height:32px; width:auto; display:block; margin:0 auto 32px;}
+  .state-box{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:32px 24px; color:var(--muted); font-size:14px;}
+  .fiche-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:32px 26px;}
+  .fiche-card h1{font-size:19px; margin:0 0 6px; font-weight:900;}
+  .fiche-card .version{color:var(--muted); font-size:13px; margin-bottom:22px;}
+  .btn-primary{
+    display:inline-block; text-decoration:none; background:var(--accent-solid); color:#fff;
+    font-weight:700; font-size:14px; padding:12px 26px; border-radius:10px;
+  }
+  .btn-primary:hover{background:var(--accent-dark);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="brand-logo-img" alt="Curieux orchestre">
+  <div id="content"><div class="state-box">Chargement…</div></div>
+</div>
+<script>
+async function init(){
+  const token = new URLSearchParams(location.search).get('jeton');
+  const box = document.getElementById('content');
+  if(!token){ box.innerHTML = `<div class="state-box">Lien incomplet — il manque le jeton.</div>`; return; }
+
+  const fiche = await CurieuxDB.getFicheTechniqueByToken(token);
+  if(!fiche || !fiche.url){
+    box.innerHTML = `<div class="state-box">Ce lien n'a pas encore de version publiée, ou n'est plus actif.</div>`;
+    return;
+  }
+  box.innerHTML = `
+    <div class="fiche-card">
+      <h1>${escapeHtml(fiche.nom || 'Fiche technique')}</h1>
+      <p class="version">Version ${fiche.version}${fiche.publieeLe ? ' · publiée le ' + new Date(fiche.publieeLe).toLocaleDateString('fr-FR') : ''}</p>
+      <a class="btn-primary" href="${fiche.url}" target="_blank" rel="noopener">Ouvrir le PDF</a>
+    </div>
+  `;
+}
+applyBrandLogo();
+init();
+</script>
+</body>
+</html>

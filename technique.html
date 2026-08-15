@@ -1,0 +1,1461 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Direction technique</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  /* Espace de travail : plus dense que le reste du site — c'est une page où
+     on passe des heures, pas trois clics. Chiffres en chasse fixe, tableaux
+     compacts, couleur réservée au statut. */
+  .wrap{max-width:1180px; margin:0 auto; font-variant-numeric:tabular-nums;}
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-danger:hover{background:var(--secondary-tint);}
+  .btn-sm{padding:7px 11px; font-size:12px;}
+
+  .tournee-select{padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; background:var(--card); color:var(--text); font-family:inherit; margin-bottom:16px;}
+
+  .tab-bar{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:0;}
+  .tab-btn{
+    font-family:inherit; cursor:pointer; border:none; background:transparent; color:var(--muted);
+    font-size:13px; font-weight:700; padding:9px 14px; border-radius:8px 8px 0 0; border-bottom:2.5px solid transparent;
+    margin-bottom:-1px; white-space:nowrap;
+  }
+  .tab-btn:hover{color:var(--text); background:var(--border);}
+  .tab-btn.active{color:var(--accent-dark); border-bottom-color:var(--accent-solid);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  /* ——— Compteurs ——— */
+  .compteurs{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:20px;}
+  .compteurs > div{background:var(--card); padding:14px 15px; display:flex; flex-direction:column; gap:2px; cursor:pointer;}
+  .compteurs > div:hover{background:var(--bg);}
+  .compteurs b{font-size:26px; font-weight:900; line-height:1;}
+  .compteurs b.hot{color:var(--danger);}
+  .compteurs b.warm{color:var(--maybe);}
+  .compteurs b.cool{color:var(--accent-dark);}
+  .compteurs span{font-size:12px; color:var(--muted); line-height:1.35;}
+
+  /* ——— Manques ——— */
+  .manques{display:flex; flex-direction:column; gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
+  .manque{background:var(--card); padding:13px 15px; display:flex; gap:12px; align-items:flex-start; cursor:pointer; border:none; width:100%; text-align:left; font-family:inherit;}
+  .manque:hover{background:var(--bg);}
+  .manque .barre{width:3px; align-self:stretch; border-radius:2px; background:var(--ton, var(--muted)); flex:0 0 auto;}
+  .g-hot{--ton:var(--danger);} .g-warm{--ton:var(--maybe);} .g-cool{--ton:var(--ok);}
+  .manque .corps{display:flex; flex-direction:column; gap:3px; flex:1; min-width:0;}
+  .manque .quoi{font-size:14.5px; line-height:1.45; color:var(--text);}
+  .manque .ou{font-size:11.5px; color:var(--muted);}
+  .manque .quand{font-size:11px; color:var(--ton, var(--muted)); flex:0 0 auto; white-space:nowrap; padding-top:2px; text-transform:uppercase; letter-spacing:.04em; font-weight:700;}
+
+  /* ——— Grille des dates ——— */
+  table.grid-table{width:100%; min-width:1080px; border-collapse:collapse; font-size:13px;}
+  table.grid-table th{text-align:left; padding:8px 9px; font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); border-bottom:1px solid var(--border); white-space:nowrap; font-weight:700;}
+  table.grid-table td{padding:7px 9px; border-bottom:1px solid var(--border); white-space:nowrap; vertical-align:middle;}
+  table.grid-table tr:hover td{background:var(--bg);}
+  table.grid-table td.ville{font-weight:700;}
+  .marq{display:inline-block; border-radius:4px; padding:2px 8px; font-size:11px; font-weight:700; white-space:nowrap;}
+  .m-ok{background:var(--ok-tint); color:var(--ok);}
+  .m-att{background:var(--maybe-tint); color:var(--maybe);}
+  .m-non{background:var(--danger-tint); color:var(--danger);}
+  .m-neutre{background:var(--border); color:var(--muted);}
+  .vide{color:var(--old-champagne);}
+  .grid-table .col-name{font-weight:700;}
+
+  /* ——— Cartes registre (matériel / véhicules / chauffeurs) ——— */
+  .cardgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:12px; margin-bottom:22px;}
+  .r-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; display:flex; flex-direction:column; gap:7px;}
+  .r-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .r-name{font-weight:800; font-size:14.5px;}
+  .r-sub{color:var(--muted); font-size:12px;}
+  .r-actions{display:flex; gap:6px; margin-top:6px; border-top:1px solid var(--border); padding-top:9px;}
+  .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap;}
+  .badge-accent{background:var(--accent-tint); color:var(--accent-dark);}
+  .badge-hayon{background:var(--ok-tint); color:var(--ok);}
+  .badge-sans-hayon{background:var(--border); color:var(--muted);}
+
+  h2.section-title{font-size:16px; margin:0 0 12px; font-weight:800;}
+  .section-block{margin-bottom:28px;}
+  .section-lead{color:var(--muted); font-size:12.5px; margin:-8px 0 14px;}
+
+  /* ——— Modales ——— */
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(20,15,10,.5); align-items:center; justify-content:center; padding:20px; z-index:50; overflow-y:auto;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--card); border-radius:14px; padding:24px; max-width:560px; width:100%; max-height:88vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.25); margin:auto;}
+  .modal.modal-lg{max-width:780px;}
+  .modal h2{font-size:17px; margin:0 0 4px;}
+  .modal .modal-sub{font-size:12px; color:var(--muted); margin:0 0 16px;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .field-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .field-row .field{flex:1; min-width:130px;}
+  input[type=text], input[type=email], input[type=tel], input[type=number], input[type=date], input[type=url], input[type=file], select, textarea{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%;
+    background:var(--bg); color:var(--text); font-family:inherit;
+  }
+  textarea{min-height:56px; resize:vertical;}
+  input:focus, textarea:focus, select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  label.chk{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--text); font-weight:400; cursor:pointer;}
+  label.chk input{width:18px; height:18px; accent-color:var(--accent);}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
+  fieldset.groupe{border:1px solid var(--border); border-radius:8px; padding:12px 13px 4px; margin:0 0 14px;}
+  fieldset.groupe legend{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); padding:0 6px; font-weight:700;}
+
+  .sous-liste{display:flex; flex-direction:column; gap:8px; margin-bottom:10px;}
+  .sous-ligne{display:flex; gap:8px; align-items:flex-start; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:9px 10px;}
+  .sous-ligne > *{flex:1; min-width:0;}
+  .sous-ligne .sous-champ{display:flex; flex-direction:column; gap:2px;}
+  .sous-ligne .sous-champ label{margin:0;}
+  .sous-retirer{flex:0 0 auto !important; align-self:center;}
+
+  .chariot-ligne{display:flex; gap:10px; align-items:center; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 10px;}
+  .chariot-ligne select{width:auto; flex:1;}
+
+  .lien-copie{display:flex; gap:8px; align-items:center; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:12px; font-family:ui-monospace,monospace; overflow-x:auto;}
+  .lien-copie code{flex:1; white-space:nowrap; color:var(--muted);}
+
+  .version-item{display:flex; justify-content:space-between; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border); font-size:12.5px;}
+  .version-item:last-child{border-bottom:none;}
+  .version-item .v-n{font-weight:800; color:var(--accent-dark); flex:0 0 auto;}
+  .version-item .v-c{color:var(--muted); flex:1;}
+  .version-item .v-d{color:var(--old-champagne); flex:0 0 auto; white-space:nowrap;}
+
+  .banniere-alerte{display:flex; gap:11px; align-items:flex-start; background:var(--danger-tint); border-radius:var(--radius); padding:13px 15px; margin-bottom:16px;}
+  .banniere-alerte .sig{color:var(--danger); font-weight:900; font-size:15px; line-height:1.4; flex:0 0 auto;}
+  .banniere-alerte p{margin:0; font-size:13.5px; line-height:1.5;}
+
+  @media (max-width:600px){
+    input, select, textarea{ font-size:16px !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav" data-curieux-nav></nav>
+  </div>
+  <h1>Direction technique</h1>
+  <p class="subtitle">Ce qu'on amène, ce qu'on demande à la salle, ce qui manque encore.</p>
+
+  <div class="banniere-alerte" id="migrationBanner" style="display:none;">
+    <span class="sig">!</span>
+    <p>Les tables de cet espace ne sont pas encore créées dans Supabase. Colle la section « Direction technique » de <code>migrations.sql</code> dans l'éditeur SQL, puis recharge cette page — sans ça, rien de ce que tu saisis ici ne s'enregistre.</p>
+  </div>
+
+  <select class="tournee-select" id="tourneeSelect"></select>
+
+  <div class="tab-bar">
+    <button type="button" class="tab-btn" data-tab="manques">Ce qui manque</button>
+    <button type="button" class="tab-btn" data-tab="grille">Toutes les dates</button>
+    <button type="button" class="tab-btn" data-tab="materiel">Matériel</button>
+    <button type="button" class="tab-btn" data-tab="vehicules">Véhicules, chauffeurs &amp; ATA</button>
+    <button type="button" class="tab-btn" data-tab="fiches">Fiches techniques</button>
+    <button type="button" class="tab-btn" data-tab="partage">Partage</button>
+  </div>
+
+  <!-- ============ MANQUES ============ -->
+  <div class="tab-panel" id="panel-manques">
+    <div class="compteurs" id="compteurs"></div>
+    <div class="manques" id="manques"></div>
+    <div class="empty-hint" id="manquesEmpty" style="display:none;">Rien ne manque pour l'instant. Les alertes se calculent seules — reviens quand une salle aura répondu ou qu'une date se rapprochera.</div>
+  </div>
+
+  <!-- ============ GRILLE ============ -->
+  <div class="tab-panel" id="panel-grille">
+    <p class="section-lead">On tape dans une ligne pour l'ouvrir. Seules les dates à venir sont affichées.</p>
+    <div style="overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius);">
+      <table class="grid-table" id="grilleTable">
+        <thead>
+          <tr>
+            <th>Date</th><th>Ville</th><th>Salle</th><th>Statut</th><th>Plan</th>
+            <th>Semis</th><th>Niveau</th><th>Roadies</th><th>Chariots</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="grilleBody"></tbody>
+      </table>
+    </div>
+    <div class="empty-hint" id="grilleEmpty" style="display:none;">Aucune date à venir pour cette tournée.</div>
+  </div>
+
+  <!-- ============ MATÉRIEL ============ -->
+  <div class="tab-panel" id="panel-materiel">
+    <div class="section-block">
+      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:4px;">
+        <h2 class="section-title">Ce qu'on amène</h2>
+        <button type="button" class="btn-primary" id="addLotBtn">+ Ajouter un lot</button>
+      </div>
+      <p class="section-lead">Un lot est un kit — « Kit son A », « Backline cuivres » — qui contient ses propres éléments, ajoutés librement.</p>
+      <div class="cardgrid" id="lotsGrid"></div>
+      <div class="empty-hint" id="lotsEmpty" style="display:none;">Aucun lot enregistré — ajoute le premier avec le bouton ci-dessus.</div>
+    </div>
+  </div>
+
+  <!-- ============ VÉHICULES / CHAUFFEURS / ATA ============ -->
+  <div class="tab-panel" id="panel-vehicules">
+    <div class="section-block">
+      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:4px;">
+        <h2 class="section-title">Véhicules</h2>
+        <button type="button" class="btn-primary" id="addVehiculeBtn">+ Ajouter un véhicule</button>
+      </div>
+      <p class="section-lead">Tracteur et semi sont deux lignes distinctes : c'est la semi qui porte le hayon.</p>
+      <div class="cardgrid" id="vehiculesGrid"></div>
+      <div class="empty-hint" id="vehiculesEmpty" style="display:none;">Aucun véhicule enregistré.</div>
+    </div>
+    <div class="section-block">
+      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:4px;">
+        <h2 class="section-title">Chauffeurs</h2>
+        <button type="button" class="btn-primary" id="addChauffeurBtn">+ Ajouter un chauffeur</button>
+      </div>
+      <div class="cardgrid" id="chauffeursGrid"></div>
+      <div class="empty-hint" id="chauffeursEmpty" style="display:none;">Aucun chauffeur enregistré.</div>
+    </div>
+    <div class="section-block">
+      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:4px;">
+        <h2 class="section-title">Carnets ATA</h2>
+        <button type="button" class="btn-primary" id="addCarnetBtn">+ Ajouter un carnet</button>
+      </div>
+      <p class="section-lead">Attribué à une semi pour toute la tournée : l'avoir pour une semi, c'est l'avoir pour tout ce qu'elle transporte.</p>
+      <div class="cardgrid" id="carnetsGrid"></div>
+      <div class="empty-hint" id="carnetsEmpty" style="display:none;">Aucun carnet ATA enregistré.</div>
+    </div>
+  </div>
+
+  <!-- ============ FICHES TECHNIQUES ============ -->
+  <div class="tab-panel" id="panel-fiches">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:4px;">
+      <h2 class="section-title">Fiches techniques</h2>
+      <button type="button" class="btn-primary" id="addFicheBtn">+ Nouvelle fiche</button>
+    </div>
+    <p class="section-lead">Drive reste l'atelier. Publier une version fige le PDF et le lien envoyé aux salles sert toujours la version courante.</p>
+    <div class="cardgrid" id="fichesGrid"></div>
+    <div class="empty-hint" id="fichesEmpty" style="display:none;">Aucune fiche technique — crée-en une avec le bouton ci-dessus.</div>
+  </div>
+
+  <!-- ============ PARTAGE ============ -->
+  <div class="tab-panel" id="panel-partage">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:4px;">
+      <h2 class="section-title">Accès partagés</h2>
+      <button type="button" class="btn-primary" id="addAccesBtn">+ Nouvel accès</button>
+    </div>
+    <p class="section-lead">Un lien par destinataire — stage manager, chauffeur — sans compte, révocable à tout moment. Il ne donne accès qu'à la logistique : ni le répertoire, ni les informations d'embauche.</p>
+    <div class="cardgrid" id="accesGrid"></div>
+    <div class="empty-hint" id="accesEmpty" style="display:none;">Aucun accès créé pour l'instant.</div>
+  </div>
+</div>
+
+<!-- ============ MODALE : détail d'une date ============ -->
+<div class="modal-overlay" id="dateModalOverlay">
+  <div class="modal modal-lg">
+    <h2 id="dateModalTitle">Date</h2>
+    <p class="modal-sub" id="dateModalSub"></p>
+    <div id="dateModalAlerte"></div>
+    <input type="hidden" id="dateModalId">
+
+    <fieldset class="groupe">
+      <legend>Réponse de la salle</legend>
+      <div class="field-row">
+        <div class="field"><label for="mStatut">Statut général</label>
+          <select id="mStatut">
+            <option value="non_demande">Pas encore demandé</option>
+            <option value="demande">Demandé</option>
+            <option value="recu">Reçu</option>
+            <option value="valide">Validé</option>
+          </select>
+        </div>
+        <div class="field"><label for="mPlanStatut">Plan de scène</label>
+          <select id="mPlanStatut">
+            <option value="non_demande">Pas encore demandé</option>
+            <option value="demande">Demandé</option>
+            <option value="recu">Reçu</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label for="mPlanUrl">Lien du plan de scène</label><input type="url" id="mPlanUrl" placeholder="https://…"></div>
+    </fieldset>
+
+    <fieldset class="groupe">
+      <legend>Déchargement</legend>
+      <div class="field-row">
+        <div class="field"><label for="mSemisPlaces">Semis acceptées</label><input type="number" id="mSemisPlaces" min="0" step="1"></div>
+        <div class="field"><label for="mNiveau">Niveau de déchargement</label>
+          <select id="mNiveau">
+            <option value="inconnu">Inconnu</option>
+            <option value="scene">Sur scène</option>
+            <option value="sol">Au sol</option>
+            <option value="les_deux">Les deux</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label for="mAccesNotes">Notes d'accès</label><textarea id="mAccesNotes" placeholder="Marches, largeur de porte, distance…"></textarea></div>
+    </fieldset>
+
+    <fieldset class="groupe">
+      <legend>Roadies &amp; caristes</legend>
+      <div class="field-row">
+        <div class="field"><label for="mRoadiesDemande">Roadies demandés</label><input type="number" id="mRoadiesDemande" min="0" step="1"></div>
+        <div class="field"><label for="mRoadiesValide">Roadies confirmés</label><input type="number" id="mRoadiesValide" min="0" step="1"></div>
+        <div class="field"><label for="mRoadiesHoraire">À partir de</label><input type="text" id="mRoadiesHoraire" placeholder="Ex: 07h00"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="mCaristesDemande">Caristes demandés</label><input type="number" id="mCaristesDemande" min="0" step="1"></div>
+        <div class="field"><label for="mCaristesValide">Caristes confirmés</label><input type="number" id="mCaristesValide" min="0" step="1"></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="groupe">
+      <legend>Chariots élévateurs</legend>
+      <p class="section-lead" style="margin:-4px 0 10px;">Un chariot = une ligne. Chaque fenwick a ses propres fourches.</p>
+      <div class="sous-liste" id="chariotsListe"></div>
+      <button type="button" class="btn-secondary btn-sm" id="addChariotBtn">+ Ajouter un chariot</button>
+    </fieldset>
+
+    <fieldset class="groupe">
+      <legend>Faits techniques</legend>
+      <div class="field-row">
+        <div class="field"><label for="mHauteurGrill">Hauteur de grill</label><input type="text" id="mHauteurGrill" placeholder="Ex: 14 m"></div>
+        <div class="field"><label for="mOuvertureScene">Ouverture de scène</label><input type="text" id="mOuvertureScene" placeholder="Ex: 12 m"></div>
+        <div class="field"><label for="mPuissance">Puissance disponible</label><input type="text" id="mPuissance" placeholder="Ex: 400 A tri"></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="groupe">
+      <legend>Contact technique</legend>
+      <div class="field-row">
+        <div class="field"><label for="mContactNom">Nom</label><input type="text" id="mContactNom"></div>
+        <div class="field"><label for="mContactTel">Téléphone</label><input type="tel" id="mContactTel"></div>
+        <div class="field"><label for="mContactEmail">Email</label><input type="email" id="mContactEmail"></div>
+      </div>
+    </fieldset>
+
+    <div class="field"><label for="mNotes">Notes libres</label><textarea id="mNotes"></textarea></div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="dateModalCancel">Fermer</button>
+      <button type="button" class="btn-primary" id="dateModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODALE : lot de matériel ============ -->
+<div class="modal-overlay" id="lotModalOverlay">
+  <div class="modal modal-lg">
+    <h2 id="lotModalTitle">Ajouter un lot</h2>
+    <input type="hidden" id="lotEditId">
+    <div class="field-row">
+      <div class="field"><label for="lNom">Nom du lot</label><input type="text" id="lNom" placeholder="Ex: Kit son A"></div>
+      <div class="field"><label for="lCategorie">Catégorie</label>
+        <select id="lCategorie">
+          <option value="son">Son</option>
+          <option value="lumiere">Lumière</option>
+          <option value="structure">Structure</option>
+          <option value="backline">Backline</option>
+          <option value="partitions">Partitions</option>
+          <option value="costumes">Costumes</option>
+          <option value="autre" selected>Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="lProvenance">Provenance</label><input type="text" id="lProvenance" placeholder="Prestataire, ou 'stock'"></div>
+      <div class="field"><label for="lRetourLe">Date de retour</label><input type="date" id="lRetourLe"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="lNbColis">Nombre de colis</label><input type="number" id="lNbColis" min="0" step="1"></div>
+      <div class="field"><label for="lPoidsKg">Poids (kg)</label><input type="number" id="lPoidsKg" min="0" step="0.1"></div>
+      <div class="field"><label for="lValeur">Valeur (€)</label><input type="number" id="lValeur" min="0" step="1"></div>
+    </div>
+    <div class="field"><label for="lNotes">Notes</label><textarea id="lNotes"></textarea></div>
+
+    <fieldset class="groupe">
+      <legend>Éléments du kit</legend>
+      <div class="sous-liste" id="elementsListe"></div>
+      <button type="button" class="btn-secondary btn-sm" id="addElementBtn">+ Ajouter un élément</button>
+    </fieldset>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="lotModalCancel">Annuler</button>
+      <button type="button" class="btn-primary" id="lotModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODALE : véhicule ============ -->
+<div class="modal-overlay" id="vehiculeModalOverlay">
+  <div class="modal">
+    <h2 id="vehiculeModalTitle">Ajouter un véhicule</h2>
+    <input type="hidden" id="vEditId">
+    <div class="field-row">
+      <div class="field"><label for="vNom">Nom</label><input type="text" id="vNom" placeholder="Ex: Semi 1"></div>
+      <div class="field"><label for="vType">Type</label>
+        <select id="vType">
+          <option value="tracteur">Tracteur</option>
+          <option value="semi" selected>Semi</option>
+          <option value="porteur">Porteur</option>
+          <option value="camion">Camion</option>
+          <option value="voiture">Voiture</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="vImmat">Immatriculation</label><input type="text" id="vImmat"></div>
+      <div class="field"><label for="vCapacite">Capacité</label><input type="text" id="vCapacite" placeholder="Ex: 90 m³"></div>
+    </div>
+    <div class="field"><label class="chk"><input type="checkbox" id="vHayon"> Cette semi a un hayon</label></div>
+    <div class="field"><label for="vPrestataire">Prestataire</label><input type="text" id="vPrestataire"></div>
+    <div class="field"><label for="vNotes">Notes</label><textarea id="vNotes"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="vehiculeModalCancel">Annuler</button>
+      <button type="button" class="btn-primary" id="vehiculeModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODALE : chauffeur ============ -->
+<div class="modal-overlay" id="chauffeurModalOverlay">
+  <div class="modal">
+    <h2 id="chauffeurModalTitle">Ajouter un chauffeur</h2>
+    <input type="hidden" id="chEditId">
+    <div class="field-row">
+      <div class="field"><label for="chPrenom">Prénom</label><input type="text" id="chPrenom"></div>
+      <div class="field"><label for="chNom">Nom</label><input type="text" id="chNom"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="chTelephone">Téléphone</label><input type="tel" id="chTelephone"></div>
+      <div class="field"><label for="chEmail">Email</label><input type="email" id="chEmail"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="chPermis">Permis</label><input type="text" id="chPermis" placeholder="Ex: EC"></div>
+      <div class="field"><label for="chPrestataire">Prestataire</label><input type="text" id="chPrestataire"></div>
+    </div>
+    <div class="field"><label for="chNotes">Notes</label><textarea id="chNotes"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="chauffeurModalCancel">Annuler</button>
+      <button type="button" class="btn-primary" id="chauffeurModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODALE : carnet ATA ============ -->
+<div class="modal-overlay" id="carnetModalOverlay">
+  <div class="modal">
+    <h2 id="carnetModalTitle">Ajouter un carnet ATA</h2>
+    <input type="hidden" id="cEditId">
+    <div class="field-row">
+      <div class="field"><label for="cNumero">Numéro</label><input type="text" id="cNumero"></div>
+      <div class="field"><label for="cPays">Pays</label><input type="text" id="cPays" placeholder="Ex: États-Unis"></div>
+    </div>
+    <div class="field"><label for="cVehicule">Semi concernée</label><select id="cVehicule"></select></div>
+    <div class="field-row">
+      <div class="field"><label for="cStatut">Statut</label>
+        <select id="cStatut">
+          <option value="a_demander">À demander</option>
+          <option value="demande">Demandé</option>
+          <option value="en_cours">En cours</option>
+          <option value="obtenu">Obtenu</option>
+          <option value="a_apurer">À apurer</option>
+          <option value="apure">Apuré</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="cEmisLe">Émis le</label><input type="date" id="cEmisLe"></div>
+      <div class="field"><label for="cExpireLe">Expire le</label><input type="date" id="cExpireLe"></div>
+    </div>
+    <div class="field"><label>Lots déclarés sur ce carnet</label>
+      <div class="sous-liste" id="carnetLotsListe" style="max-height:180px; overflow-y:auto;"></div>
+    </div>
+    <div class="field"><label for="cNotes">Notes</label><textarea id="cNotes"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="carnetModalCancel">Annuler</button>
+      <button type="button" class="btn-primary" id="carnetModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODALE : fiche technique ============ -->
+<div class="modal-overlay" id="ficheModalOverlay">
+  <div class="modal modal-lg">
+    <h2 id="ficheModalTitle">Nouvelle fiche technique</h2>
+    <input type="hidden" id="fEditId">
+    <div class="field"><label for="fNom">Nom</label><input type="text" id="fNom" placeholder="Ex: Fiche technique — Expédition 33"></div>
+    <div class="field"><label for="fDriveUrl">Lien du dossier Drive (atelier de travail)</label><input type="url" id="fDriveUrl" placeholder="https://drive.google.com/…"></div>
+    <div id="ficheLienBloc" style="display:none;">
+      <label>Lien canonique — à envoyer aux salles, sert toujours la version en cours</label>
+      <div class="lien-copie"><code id="ficheLienTexte"></code><button type="button" class="btn-secondary btn-sm" id="ficheCopierBtn">Copier</button></div>
+    </div>
+
+    <fieldset class="groupe" id="ficheVersionsBloc" style="display:none;">
+      <legend>Publier une nouvelle version</legend>
+      <div class="field"><label for="fFichier">Fichier PDF</label><input type="file" id="fFichier" accept="application/pdf"></div>
+      <div class="field"><label for="fChangelog">Ce qui a changé</label><input type="text" id="fChangelog" placeholder="Ex: puissance mise à jour, contact modifié"></div>
+      <button type="button" class="btn-secondary btn-sm" id="ficherPublierBtn">Publier cette version</button>
+      <p id="fichePublierStatut" style="font-size:12px; color:var(--muted); margin:8px 0 0;"></p>
+      <div style="margin-top:12px;">
+        <label>Historique</label>
+        <div id="ficheVersionsListe"></div>
+      </div>
+    </fieldset>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="ficheModalCancel">Fermer</button>
+      <button type="button" class="btn-primary" id="ficheModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODALE : accès partagé ============ -->
+<div class="modal-overlay" id="accesModalOverlay">
+  <div class="modal">
+    <h2 id="accesModalTitle">Nouvel accès</h2>
+    <input type="hidden" id="aEditId">
+    <div class="field"><label for="aLibelle">Destinataire</label><input type="text" id="aLibelle" placeholder="Ex: Stage manager, Karim (chauffeur)…"></div>
+    <div id="accesLienBloc" style="display:none;">
+      <label>Lien — à envoyer, sans compte, révocable</label>
+      <div class="lien-copie"><code id="accesLienTexte"></code><button type="button" class="btn-secondary btn-sm" id="accesCopierBtn">Copier</button></div>
+    </div>
+    <div class="field"><label class="chk"><input type="checkbox" id="aActif" checked> Accès actif</label></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="accesModalCancel">Annuler</button>
+      <button type="button" class="btn-primary" id="accesModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// Direction technique — état et chargement.
+// Un seul jeu de données par tournée active ; les registres (lots, véhicules,
+// chauffeurs, carnets, fiches, accès) sont globaux, pas scopés à une tournée
+// (sauf tournee_id optionnel sur lots/carnets/fiches/accès, utilisé pour filtrer).
+// ============================================================================
+let tourneesCache = [];
+let moyensCache = [];
+let lotsCache = [];
+let carnetsCache = [];
+let vehiculesCache = [];
+let chauffeursCache = [];
+let fichesCache = [];
+let accesCache = [];
+
+function activeTourneeId(){ return document.getElementById('tourneeSelect').value; }
+function activeTournee(){ return tourneesCache.find(t=>t.id === activeTourneeId()); }
+function idMoyens(tourneeId, dateId){ return `${tourneeId}::${dateId}`; }
+function moyensFor(dateId){
+  return moyensCache.find(m=>m.id === idMoyens(activeTourneeId(), dateId)) || null;
+}
+function todayIso(){ return new Date().toISOString().slice(0,10); }
+function datesFutures(){
+  const t = activeTournee();
+  if(!t) return [];
+  const today = todayIso();
+  return (t.dates||[]).filter(d=> !d.date || d.date >= today).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+}
+function libelleDate(d){
+  const jour = d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' }) : '—';
+  return `${jour} · ${d.ville || d.lieu || 'Date sans ville'}`;
+}
+
+// ============================================================================
+// Onglets
+// ============================================================================
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p=> p.classList.toggle('active', p.id === 'panel-' + tab));
+  const url = new URL(location.href);
+  url.searchParams.set('onglet', tab);
+  history.replaceState(null, '', url);
+}
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
+});
+
+// ============================================================================
+// MANQUES — le tableau de bord de ce qui bloque, calculé à partir des données
+// des autres onglets. Rien n'est saisi ici, tout se calcule.
+// ============================================================================
+function calculerManques(){
+  const dates = datesFutures();
+  const tourneeId = activeTourneeId();
+
+  const sansReponse = dates.filter(d=>{
+    const m = moyensFor(d.id);
+    return !m || m.statut === 'non_demande' || m.statut === 'demande';
+  });
+
+  const roadiesEcart = dates.map(d=>({ d, m: moyensFor(d.id) }))
+    .filter(({m})=> m && m.roadiesDemande != null && (m.roadiesValide == null || m.roadiesValide < m.roadiesDemande));
+
+  const chariotsEcart = dates.map(d=>({ d, m: moyensFor(d.id) }))
+    .filter(({m})=> m && (m.chariots||[]).some(c=> !c.valide))
+    .map(({d,m})=> ({ d, m, nonValides: (m.chariots||[]).filter(c=>!c.valide).length, total: (m.chariots||[]).length }));
+
+  const carnetsTournee = carnetsCache.filter(c=> !c.tourneeId || c.tourneeId === tourneeId);
+  const ataADemander = carnetsTournee.filter(c=> c.statut === 'a_demander' || c.statut === 'demande');
+
+  const lotsSansRetour = lotsCache.filter(l=> l.provenance && l.provenance.trim() && !l.retourLe);
+
+  const fichesNonPubliees = fichesCache.filter(f=> f.versionCourante == null);
+
+  const alertes = [];
+  if(sansReponse.length){
+    alertes.push({
+      sev:'warm',
+      quoi: `<strong>${sansReponse.length} salle${sansReponse.length>1?'s':''} n'${sansReponse.length>1?'ont':'a'} pas répondu</strong> à la demande de moyens techniques.`,
+      ou: sansReponse.slice(0,8).map(d=> d.ville || d.lieu || '—').join(', ') + (sansReponse.length>8 ? '…' : ''),
+      quand: 'relancer',
+      action: ()=> switchTab('grille')
+    });
+  }
+  roadiesEcart.forEach(({d,m})=>{
+    alertes.push({
+      sev:'hot',
+      quoi: `<strong>${escapeHtml(d.ville || d.lieu || 'Date')}</strong> : ${m.roadiesValide != null ? m.roadiesValide : 0} roadie${(m.roadiesValide||0)>1?'s':''} confirmé${(m.roadiesValide||0)>1?'s':''} sur ${m.roadiesDemande} demandé${m.roadiesDemande>1?'s':''}.`,
+      ou: libelleDate(d),
+      quand: 'à relancer',
+      action: ()=> openDateModal(d.id)
+    });
+  });
+  chariotsEcart.forEach(({d,nonValides,total})=>{
+    alertes.push({
+      sev:'hot',
+      quoi: `<strong>${escapeHtml(d.ville || d.lieu || 'Date')}</strong> : ${nonValides} chariot${nonValides>1?'s':''} non confirmé${nonValides>1?'s':''} sur ${total} demandé${total>1?'s':''}.`,
+      ou: libelleDate(d),
+      quand: 'à confirmer',
+      action: ()=> openDateModal(d.id)
+    });
+  });
+  ataADemander.forEach(c=>{
+    const veh = vehiculesCache.find(v=>v.id === c.vehiculeId);
+    alertes.push({
+      sev:'hot',
+      quoi: `<strong>Carnet ATA ${escapeHtml(c.pays || 'sans pays')}</strong> ${c.statut === 'demande' ? 'en cours de traitement' : 'non demandé'}${veh ? ` — ${escapeHtml(veh.nom)}` : ''}.`,
+      ou: c.numero ? `n° ${c.numero}` : 'numéro pas encore attribué',
+      quand: c.statut === 'demande' ? 'en cours' : 'à demander',
+      action: ()=> switchTab('vehicules')
+    });
+  });
+  if(lotsSansRetour.length){
+    alertes.push({
+      sev:'warm',
+      quoi: `<strong>${lotsSansRetour.length} lot${lotsSansRetour.length>1?'s':''} sans date de retour</strong> chez le prestataire.`,
+      ou: lotsSansRetour.slice(0,6).map(l=>l.nom || 'Sans nom').join(', ') + (lotsSansRetour.length>6?'…':''),
+      quand: 'à compléter',
+      action: ()=> switchTab('materiel')
+    });
+  }
+  fichesNonPubliees.forEach(f=>{
+    alertes.push({
+      sev:'cool',
+      quoi: `<strong>${escapeHtml(f.nom || 'Fiche technique')}</strong> n'a jamais été publiée.`,
+      ou: 'lien canonique pas encore actif',
+      quand: '1 clic',
+      action: ()=> switchTab('fiches')
+    });
+  });
+
+  const ordre = { hot:0, warm:1, cool:2 };
+  alertes.sort((a,b)=> ordre[a.sev]-ordre[b.sev]);
+
+  return {
+    compteurs: {
+      sansReponse: sansReponse.length,
+      ata: ataADemander.length,
+      lotsSansRetour: lotsSansRetour.length,
+      fichesNonPubliees: fichesNonPubliees.length,
+    },
+    alertes
+  };
+}
+
+function renderManques(){
+  const { compteurs, alertes } = calculerManques();
+  document.getElementById('compteurs').innerHTML = `
+    <div data-go="grille"><b class="${compteurs.sansReponse ? 'hot' : 'cool'}">${compteurs.sansReponse}</b><span>salle${compteurs.sansReponse>1?'s':''} sans réponse</span></div>
+    <div data-go="vehicules"><b class="${compteurs.ata ? 'warm' : 'cool'}">${compteurs.ata}</b><span>carnet${compteurs.ata>1?'s':''} ATA à demander</span></div>
+    <div data-go="materiel"><b class="${compteurs.lotsSansRetour ? 'warm' : 'cool'}">${compteurs.lotsSansRetour}</b><span>lot${compteurs.lotsSansRetour>1?'s':''} sans date de retour</span></div>
+    <div data-go="fiches"><b class="${compteurs.fichesNonPubliees ? 'warm' : 'cool'}">${compteurs.fichesNonPubliees}</b><span>fiche${compteurs.fichesNonPubliees>1?'s':''} non publiée${compteurs.fichesNonPubliees>1?'s':''}</span></div>
+  `;
+  document.querySelectorAll('#compteurs [data-go]').forEach(el=> el.addEventListener('click', ()=> switchTab(el.dataset.go)));
+
+  const wrap = document.getElementById('manques');
+  const empty = document.getElementById('manquesEmpty');
+  if(alertes.length === 0){
+    wrap.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  wrap.innerHTML = alertes.map((a,i)=>`
+    <button type="button" class="manque g-${a.sev}" data-i="${i}">
+      <span class="barre"></span>
+      <span class="corps">
+        <span class="quoi">${a.quoi}</span>
+        <span class="ou">${escapeHtml(a.ou)}</span>
+      </span>
+      <span class="quand">${escapeHtml(a.quand)}</span>
+    </button>
+  `).join('');
+  wrap.querySelectorAll('[data-i]').forEach((btn,i)=> btn.addEventListener('click', ()=> alertes[i].action()));
+}
+
+// ============================================================================
+// GRILLE
+// ============================================================================
+const NIVEAU_LABEL = { scene:'sur scène', sol:'au sol', les_deux:'les deux', inconnu:'inconnu' };
+function marqueStatut(statut){
+  if(statut === 'recu' || statut === 'valide') return `<span class="marq m-ok">${statut === 'valide' ? 'validé' : 'reçu'}</span>`;
+  if(statut === 'demande') return `<span class="marq m-att">demandé</span>`;
+  return `<span class="marq m-non">manque</span>`;
+}
+function renderGrille(){
+  const dates = datesFutures();
+  const body = document.getElementById('grilleBody');
+  const empty = document.getElementById('grilleEmpty');
+  if(dates.length === 0){
+    body.innerHTML = ''; empty.style.display = 'block'; return;
+  }
+  empty.style.display = 'none';
+  body.innerHTML = dates.map(d=>{
+    const m = moyensFor(d.id) || {};
+    const chariotsN = (m.chariots||[]).length;
+    const chariotsValides = (m.chariots||[]).filter(c=>c.valide).length;
+    const jour = d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}) : '—';
+    return `
+      <tr data-date="${escapeHtml(d.id)}">
+        <td>${jour}</td>
+        <td class="ville">${escapeHtml(d.ville || '—')}</td>
+        <td>${escapeHtml(d.lieu || '—')}</td>
+        <td>${marqueStatut(m.statut)}</td>
+        <td>${marqueStatut(m.planStatut)}</td>
+        <td>${m.semisPlaces != null ? m.semisPlaces : '<span class="vide">—</span>'}</td>
+        <td>${m.niveauDechargement && m.niveauDechargement !== 'inconnu' ? NIVEAU_LABEL[m.niveauDechargement] : '<span class="vide">—</span>'}</td>
+        <td>${m.roadiesDemande != null ? `${m.roadiesValide != null ? m.roadiesValide : 0}/${m.roadiesDemande}` : '<span class="vide">—</span>'}</td>
+        <td>${chariotsN ? `${chariotsValides}/${chariotsN}` : '<span class="vide">—</span>'}</td>
+        <td><button type="button" class="btn-ghost btn-sm" data-ouvrir="${escapeHtml(d.id)}">Ouvrir</button></td>
+      </tr>
+    `;
+  }).join('');
+  body.querySelectorAll('[data-ouvrir]').forEach(btn=> btn.addEventListener('click', ()=> openDateModal(btn.dataset.ouvrir)));
+}
+
+// ============================================================================
+// MODALE DATE
+// ============================================================================
+let chariotsEnEdition = [];
+function renderChariotsEdition(){
+  document.getElementById('chariotsListe').innerHTML = chariotsEnEdition.map((c,i)=>`
+    <div class="chariot-ligne">
+      <select data-i="${i}" data-f="fourche">
+        <option value="inconnu" ${c.fourche==='inconnu'?'selected':''}>Fourches inconnues</option>
+        <option value="longues" ${c.fourche==='longues'?'selected':''}>Fourches longues</option>
+        <option value="courtes" ${c.fourche==='courtes'?'selected':''}>Fourches courtes</option>
+      </select>
+      <label class="chk"><input type="checkbox" data-i="${i}" data-f="valide" ${c.valide?'checked':''}> Confirmé</label>
+      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer="${i}">Retirer</button>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:10px 4px;">Aucun chariot demandé.</p>`;
+  document.querySelectorAll('#chariotsListe select[data-f]').forEach(el=> el.addEventListener('change', ()=>{
+    chariotsEnEdition[el.dataset.i].fourche = el.value;
+  }));
+  document.querySelectorAll('#chariotsListe input[type=checkbox][data-f]').forEach(el=> el.addEventListener('change', ()=>{
+    chariotsEnEdition[el.dataset.i].valide = el.checked;
+  }));
+  document.querySelectorAll('#chariotsListe [data-retirer]').forEach(btn=> btn.addEventListener('click', ()=>{
+    chariotsEnEdition.splice(Number(btn.dataset.retirer), 1);
+    renderChariotsEdition();
+  }));
+}
+document.getElementById('addChariotBtn').addEventListener('click', ()=>{
+  chariotsEnEdition.push({ fourche:'inconnu', valide:false });
+  renderChariotsEdition();
+});
+
+function openDateModal(dateId){
+  const t = activeTournee();
+  const d = (t.dates||[]).find(x=>x.id === dateId);
+  if(!d) return;
+  const m = moyensFor(dateId) || {};
+
+  document.getElementById('dateModalId').value = dateId;
+  document.getElementById('dateModalTitle').textContent = libelleDate(d);
+  document.getElementById('dateModalSub').textContent = d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : '';
+
+  const alerteBox = document.getElementById('dateModalAlerte');
+  const alertes = [];
+  if(m.chariots && m.chariots.some(c=>c.fourche==='courtes') && !m.chariots.some(c=>c.fourche==='longues')){
+    alertes.push("Seules des fourches courtes sont prévues — vérifie que le matériel attendu ne comprend pas de caisses longues.");
+  }
+  if(m.semisPlaces === 0){
+    alertes.push("Aucune semi acceptée sur ce site — à traiter avant la date.");
+  }
+  alerteBox.innerHTML = alertes.length ? `<div class="banniere-alerte"><span class="sig">!</span><p>${alertes.map(escapeHtml).join(' ')}</p></div>` : '';
+
+  document.getElementById('mStatut').value = m.statut || 'non_demande';
+  document.getElementById('mPlanStatut').value = m.planStatut || 'non_demande';
+  document.getElementById('mPlanUrl').value = m.planUrl || '';
+  document.getElementById('mSemisPlaces').value = m.semisPlaces != null ? m.semisPlaces : '';
+  document.getElementById('mNiveau').value = m.niveauDechargement || 'inconnu';
+  document.getElementById('mAccesNotes').value = m.accesNotes || '';
+  document.getElementById('mRoadiesDemande').value = m.roadiesDemande != null ? m.roadiesDemande : '';
+  document.getElementById('mRoadiesValide').value = m.roadiesValide != null ? m.roadiesValide : '';
+  document.getElementById('mRoadiesHoraire').value = m.roadiesHoraire || '';
+  document.getElementById('mCaristesDemande').value = m.caristesDemande != null ? m.caristesDemande : '';
+  document.getElementById('mCaristesValide').value = m.caristesValide != null ? m.caristesValide : '';
+  document.getElementById('mHauteurGrill').value = m.hauteurGrill || '';
+  document.getElementById('mOuvertureScene').value = m.ouvertureScene || '';
+  document.getElementById('mPuissance').value = m.puissance || '';
+  document.getElementById('mContactNom').value = m.contactNom || '';
+  document.getElementById('mContactTel').value = m.contactTel || '';
+  document.getElementById('mContactEmail').value = m.contactEmail || '';
+  document.getElementById('mNotes').value = m.notes || '';
+
+  chariotsEnEdition = (m.chariots || []).map(c=>({ fourche: c.fourche || 'inconnu', valide: !!c.valide }));
+  renderChariotsEdition();
+
+  document.getElementById('dateModalOverlay').classList.add('open');
+}
+document.getElementById('dateModalCancel').addEventListener('click', ()=> document.getElementById('dateModalOverlay').classList.remove('open'));
+document.getElementById('dateModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='dateModalOverlay') document.getElementById('dateModalOverlay').classList.remove('open'); });
+
+function numOrNull(id){
+  const v = document.getElementById(id).value;
+  return v === '' ? null : Number(v);
+}
+document.getElementById('dateModalSave').addEventListener('click', async ()=>{
+  const dateId = document.getElementById('dateModalId').value;
+  const tourneeId = activeTourneeId();
+  const obj = {
+    id: idMoyens(tourneeId, dateId), tourneeId, dateId,
+    statut: document.getElementById('mStatut').value,
+    planStatut: document.getElementById('mPlanStatut').value,
+    planUrl: document.getElementById('mPlanUrl').value.trim(),
+    semisPlaces: numOrNull('mSemisPlaces'),
+    niveauDechargement: document.getElementById('mNiveau').value,
+    accesNotes: document.getElementById('mAccesNotes').value.trim(),
+    roadiesDemande: numOrNull('mRoadiesDemande'),
+    roadiesValide: numOrNull('mRoadiesValide'),
+    roadiesHoraire: document.getElementById('mRoadiesHoraire').value.trim(),
+    caristesDemande: numOrNull('mCaristesDemande'),
+    caristesValide: numOrNull('mCaristesValide'),
+    chariots: chariotsEnEdition,
+    hauteurGrill: document.getElementById('mHauteurGrill').value.trim(),
+    ouvertureScene: document.getElementById('mOuvertureScene').value.trim(),
+    puissance: document.getElementById('mPuissance').value.trim(),
+    contactNom: document.getElementById('mContactNom').value.trim(),
+    contactTel: document.getElementById('mContactTel').value.trim(),
+    contactEmail: document.getElementById('mContactEmail').value.trim(),
+    notes: document.getElementById('mNotes').value.trim(),
+  };
+  const idx = moyensCache.findIndex(x=>x.id === obj.id);
+  if(idx >= 0) moyensCache[idx] = obj; else moyensCache.push(obj);
+  await CurieuxDB.upsertOne('moyens_salle', obj);
+  document.getElementById('dateModalOverlay').classList.remove('open');
+  renderGrille(); renderManques();
+});
+
+// ============================================================================
+// MATÉRIEL
+// ============================================================================
+const CATEGORIE_LABEL = { son:'Son', lumiere:'Lumière', structure:'Structure', backline:'Backline', partitions:'Partitions', costumes:'Costumes', autre:'Autre' };
+let elementsEnEdition = [];
+function renderElementsEdition(){
+  document.getElementById('elementsListe').innerHTML = elementsEnEdition.map((el,i)=>`
+    <div class="sous-ligne">
+      <div class="sous-champ"><label>Nom</label><input type="text" data-i="${i}" data-f="nom" value="${escapeHtml(el.nom||'')}" placeholder="Ex: Console façade"></div>
+      <div class="sous-champ" style="flex:0 0 90px;"><label>Qté</label><input type="number" min="0" step="1" data-i="${i}" data-f="quantite" value="${el.quantite != null ? el.quantite : ''}"></div>
+      <div class="sous-champ"><label>N° série</label><input type="text" data-i="${i}" data-f="numeroSerie" value="${escapeHtml(el.numeroSerie||'')}"></div>
+      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer="${i}">Retirer</button>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:10px 4px;">Aucun élément — ce lot est vide.</p>`;
+  document.querySelectorAll('#elementsListe input[data-f]').forEach(inp=> inp.addEventListener('input', ()=>{
+    const val = inp.dataset.f === 'quantite' ? (inp.value === '' ? null : Number(inp.value)) : inp.value;
+    elementsEnEdition[inp.dataset.i][inp.dataset.f] = val;
+  }));
+  document.querySelectorAll('#elementsListe [data-retirer]').forEach(btn=> btn.addEventListener('click', ()=>{
+    elementsEnEdition.splice(Number(btn.dataset.retirer), 1);
+    renderElementsEdition();
+  }));
+}
+document.getElementById('addElementBtn').addEventListener('click', ()=>{
+  elementsEnEdition.push({ nom:'', quantite:null, numeroSerie:'', notes:'' });
+  renderElementsEdition();
+});
+
+function renderLots(){
+  const grid = document.getElementById('lotsGrid');
+  const empty = document.getElementById('lotsEmpty');
+  if(lotsCache.length === 0){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+  grid.innerHTML = lotsCache.map(l=>`
+    <div class="r-card">
+      <div class="r-card-top">
+        <div><div class="r-name">${escapeHtml(l.nom || 'Sans nom')}</div><div class="r-sub">${(l.elements||[]).length} élément${(l.elements||[]).length>1?'s':''}${l.provenance ? ' · ' + escapeHtml(l.provenance) : ''}</div></div>
+        <span class="badge badge-accent">${CATEGORIE_LABEL[l.categorie]||'Autre'}</span>
+      </div>
+      ${l.retourLe ? `<div class="r-sub">Retour prévu le ${new Date(l.retourLe+'T00:00:00').toLocaleDateString('fr-FR')}</div>` : `<div class="r-sub" style="color:var(--maybe);">Pas de date de retour</div>`}
+      <div class="r-actions">
+        <button type="button" class="btn-ghost btn-sm" data-edit="${l.id}">Modifier</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${l.id}">Supprimer</button>
+      </div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openLotModal(b.dataset.edit)));
+  grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
+    const l = lotsCache.find(x=>x.id===b.dataset.del);
+    if(l && confirm(`Supprimer le lot « ${l.nom || 'Sans nom'} » ?`)){
+      lotsCache = lotsCache.filter(x=>x.id!==b.dataset.del);
+      CurieuxDB.removeOne('lots_materiel', b.dataset.del);
+      renderLots(); renderManques(); renderGrille();
+    }
+  }));
+}
+function openLotModal(id){
+  document.getElementById('lotEditId').value = id || '';
+  if(id){
+    const l = lotsCache.find(x=>x.id===id);
+    if(!l) return;
+    document.getElementById('lotModalTitle').textContent = 'Modifier ' + (l.nom || 'ce lot');
+    document.getElementById('lNom').value = l.nom || '';
+    document.getElementById('lCategorie').value = l.categorie || 'autre';
+    document.getElementById('lProvenance').value = l.provenance || '';
+    document.getElementById('lRetourLe').value = l.retourLe || '';
+    document.getElementById('lNbColis').value = l.nbColis != null ? l.nbColis : '';
+    document.getElementById('lPoidsKg').value = l.poidsKg != null ? l.poidsKg : '';
+    document.getElementById('lValeur').value = l.valeur != null ? l.valeur : '';
+    document.getElementById('lNotes').value = l.notes || '';
+    elementsEnEdition = (l.elements||[]).map(e=>({...e}));
+  } else {
+    document.getElementById('lotModalTitle').textContent = 'Ajouter un lot';
+    ['lNom','lProvenance','lRetourLe','lNbColis','lPoidsKg','lValeur','lNotes'].forEach(fid=> document.getElementById(fid).value = '');
+    document.getElementById('lCategorie').value = 'autre';
+    elementsEnEdition = [];
+  }
+  renderElementsEdition();
+  document.getElementById('lotModalOverlay').classList.add('open');
+}
+document.getElementById('addLotBtn').addEventListener('click', ()=> openLotModal(null));
+document.getElementById('lotModalCancel').addEventListener('click', ()=> document.getElementById('lotModalOverlay').classList.remove('open'));
+document.getElementById('lotModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='lotModalOverlay') document.getElementById('lotModalOverlay').classList.remove('open'); });
+document.getElementById('lotModalSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('lotEditId').value || genId('lot');
+  const obj = {
+    id, nom: document.getElementById('lNom').value.trim(),
+    categorie: document.getElementById('lCategorie').value,
+    provenance: document.getElementById('lProvenance').value.trim(),
+    tourneeId: activeTourneeId(),
+    datesIds: [],
+    elements: elementsEnEdition,
+    nbColis: numOrNull('lNbColis'), poidsKg: numOrNull('lPoidsKg'), valeur: numOrNull('lValeur'),
+    retourLe: document.getElementById('lRetourLe').value || '',
+    notes: document.getElementById('lNotes').value.trim(),
+  };
+  if(!obj.nom){ alert('Donne un nom au lot avant d\'enregistrer.'); return; }
+  const idx = lotsCache.findIndex(x=>x.id===id);
+  if(idx>=0) lotsCache[idx]=obj; else lotsCache.push(obj);
+  await CurieuxDB.upsertOne('lots_materiel', obj);
+  document.getElementById('lotModalOverlay').classList.remove('open');
+  renderLots(); renderManques(); renderGrille();
+});
+
+// ============================================================================
+// VÉHICULES
+// ============================================================================
+const TYPE_VEHICULE_LABEL = { tracteur:'Tracteur', semi:'Semi', porteur:'Porteur', camion:'Camion', voiture:'Voiture' };
+function renderVehicules(){
+  const grid = document.getElementById('vehiculesGrid');
+  const empty = document.getElementById('vehiculesEmpty');
+  if(vehiculesCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  grid.innerHTML = vehiculesCache.map(v=>`
+    <div class="r-card">
+      <div class="r-card-top">
+        <div><div class="r-name">${escapeHtml(v.nom || 'Sans nom')}</div><div class="r-sub">${v.immatriculation ? escapeHtml(v.immatriculation) : ''}${v.capacite ? ' · ' + escapeHtml(v.capacite) : ''}</div></div>
+        <span class="badge badge-accent">${TYPE_VEHICULE_LABEL[v.type]||v.type}</span>
+      </div>
+      ${v.type === 'semi' ? `<span class="badge ${v.hayon ? 'badge-hayon' : 'badge-sans-hayon'}" style="align-self:flex-start;">${v.hayon ? 'Avec hayon' : 'Sans hayon'}</span>` : ''}
+      ${v.prestataire ? `<div class="r-sub">${escapeHtml(v.prestataire)}</div>` : ''}
+      <div class="r-actions">
+        <button type="button" class="btn-ghost btn-sm" data-edit="${v.id}">Modifier</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${v.id}">Supprimer</button>
+      </div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openVehiculeModal(b.dataset.edit)));
+  grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
+    const v = vehiculesCache.find(x=>x.id===b.dataset.del);
+    if(v && confirm(`Supprimer « ${v.nom || 'ce véhicule'} » ?`)){
+      vehiculesCache = vehiculesCache.filter(x=>x.id!==b.dataset.del);
+      CurieuxDB.removeOne('vehicules', b.dataset.del);
+      renderVehicules(); renderCarnets();
+    }
+  }));
+}
+function openVehiculeModal(id){
+  document.getElementById('vEditId').value = id || '';
+  if(id){
+    const v = vehiculesCache.find(x=>x.id===id);
+    if(!v) return;
+    document.getElementById('vehiculeModalTitle').textContent = 'Modifier ' + (v.nom || 'ce véhicule');
+    document.getElementById('vNom').value = v.nom || '';
+    document.getElementById('vType').value = v.type || 'semi';
+    document.getElementById('vImmat').value = v.immatriculation || '';
+    document.getElementById('vCapacite').value = v.capacite || '';
+    document.getElementById('vHayon').checked = !!v.hayon;
+    document.getElementById('vPrestataire').value = v.prestataire || '';
+    document.getElementById('vNotes').value = v.notes || '';
+  } else {
+    document.getElementById('vehiculeModalTitle').textContent = 'Ajouter un véhicule';
+    ['vNom','vImmat','vCapacite','vPrestataire','vNotes'].forEach(fid=> document.getElementById(fid).value='');
+    document.getElementById('vType').value = 'semi';
+    document.getElementById('vHayon').checked = false;
+  }
+  document.getElementById('vehiculeModalOverlay').classList.add('open');
+}
+document.getElementById('addVehiculeBtn').addEventListener('click', ()=> openVehiculeModal(null));
+document.getElementById('vehiculeModalCancel').addEventListener('click', ()=> document.getElementById('vehiculeModalOverlay').classList.remove('open'));
+document.getElementById('vehiculeModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='vehiculeModalOverlay') document.getElementById('vehiculeModalOverlay').classList.remove('open'); });
+document.getElementById('vehiculeModalSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('vEditId').value || genId('veh');
+  const obj = {
+    id, nom: document.getElementById('vNom').value.trim(), type: document.getElementById('vType').value,
+    immatriculation: document.getElementById('vImmat').value.trim(),
+    hayon: document.getElementById('vHayon').checked,
+    capacite: document.getElementById('vCapacite').value.trim(),
+    prestataire: document.getElementById('vPrestataire').value.trim(),
+    notes: document.getElementById('vNotes').value.trim(),
+  };
+  if(!obj.nom){ alert('Donne un nom au véhicule avant d\'enregistrer.'); return; }
+  const idx = vehiculesCache.findIndex(x=>x.id===id);
+  if(idx>=0) vehiculesCache[idx]=obj; else vehiculesCache.push(obj);
+  await CurieuxDB.upsertOne('vehicules', obj);
+  document.getElementById('vehiculeModalOverlay').classList.remove('open');
+  renderVehicules(); renderCarnets();
+});
+
+// ============================================================================
+// CHAUFFEURS
+// ============================================================================
+function renderChauffeurs(){
+  const grid = document.getElementById('chauffeursGrid');
+  const empty = document.getElementById('chauffeursEmpty');
+  if(chauffeursCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  grid.innerHTML = chauffeursCache.map(c=>`
+    <div class="r-card">
+      <div class="r-card-top"><div class="r-name">${escapeHtml(fullName(c))}</div>${c.permis ? `<span class="badge badge-accent">${escapeHtml(c.permis)}</span>` : ''}</div>
+      <div class="r-sub">${[c.telephone, c.email].filter(Boolean).map(escapeHtml).join(' · ') || 'Pas de contact enregistré'}</div>
+      ${c.prestataire ? `<div class="r-sub">${escapeHtml(c.prestataire)}</div>` : ''}
+      <div class="r-actions">
+        <button type="button" class="btn-ghost btn-sm" data-edit="${c.id}">Modifier</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${c.id}">Supprimer</button>
+      </div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openChauffeurModal(b.dataset.edit)));
+  grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
+    const c = chauffeursCache.find(x=>x.id===b.dataset.del);
+    if(c && confirm(`Supprimer ${fullName(c)} ?`)){
+      chauffeursCache = chauffeursCache.filter(x=>x.id!==b.dataset.del);
+      CurieuxDB.removeOne('chauffeurs', b.dataset.del);
+      renderChauffeurs();
+    }
+  }));
+}
+function openChauffeurModal(id){
+  document.getElementById('chEditId').value = id || '';
+  if(id){
+    const c = chauffeursCache.find(x=>x.id===id);
+    if(!c) return;
+    document.getElementById('chauffeurModalTitle').textContent = 'Modifier ' + fullName(c);
+    document.getElementById('chPrenom').value = c.prenom || '';
+    document.getElementById('chNom').value = c.nom || '';
+    document.getElementById('chTelephone').value = c.telephone || '';
+    document.getElementById('chEmail').value = c.email || '';
+    document.getElementById('chPermis').value = c.permis || '';
+    document.getElementById('chPrestataire').value = c.prestataire || '';
+    document.getElementById('chNotes').value = c.notes || '';
+  } else {
+    document.getElementById('chauffeurModalTitle').textContent = 'Ajouter un chauffeur';
+    ['chPrenom','chNom','chTelephone','chEmail','chPermis','chPrestataire','chNotes'].forEach(fid=> document.getElementById(fid).value='');
+  }
+  document.getElementById('chauffeurModalOverlay').classList.add('open');
+}
+document.getElementById('addChauffeurBtn').addEventListener('click', ()=> openChauffeurModal(null));
+document.getElementById('chauffeurModalCancel').addEventListener('click', ()=> document.getElementById('chauffeurModalOverlay').classList.remove('open'));
+document.getElementById('chauffeurModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='chauffeurModalOverlay') document.getElementById('chauffeurModalOverlay').classList.remove('open'); });
+document.getElementById('chauffeurModalSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('chEditId').value || genId('chauf');
+  const prenom = document.getElementById('chPrenom').value.trim();
+  const nom = document.getElementById('chNom').value.trim();
+  if(!prenom && !nom){ alert('Prénom ou nom obligatoire.'); return; }
+  const obj = {
+    id, prenom, nom,
+    telephone: document.getElementById('chTelephone').value.trim(),
+    email: document.getElementById('chEmail').value.trim(),
+    permis: document.getElementById('chPermis').value.trim(),
+    prestataire: document.getElementById('chPrestataire').value.trim(),
+    notes: document.getElementById('chNotes').value.trim(),
+  };
+  const idx = chauffeursCache.findIndex(x=>x.id===id);
+  if(idx>=0) chauffeursCache[idx]=obj; else chauffeursCache.push(obj);
+  await CurieuxDB.upsertOne('chauffeurs', obj);
+  document.getElementById('chauffeurModalOverlay').classList.remove('open');
+  renderChauffeurs();
+});
+
+// ============================================================================
+// CARNETS ATA
+// ============================================================================
+const STATUT_ATA_LABEL = { a_demander:'À demander', demande:'Demandé', en_cours:'En cours', obtenu:'Obtenu', a_apurer:'À apurer', apure:'Apuré' };
+let carnetLotsSelection = new Set();
+function renderCarnetLotsChoix(){
+  const box = document.getElementById('carnetLotsListe');
+  if(lotsCache.length===0){ box.innerHTML = `<p class="empty-hint" style="padding:8px 4px;">Aucun lot enregistré pour l'instant.</p>`; return; }
+  box.innerHTML = lotsCache.map(l=>`
+    <label class="chk" style="padding:4px 0;"><input type="checkbox" data-lot="${l.id}" ${carnetLotsSelection.has(l.id)?'checked':''}> ${escapeHtml(l.nom || 'Sans nom')}</label>
+  `).join('');
+  box.querySelectorAll('[data-lot]').forEach(cb=> cb.addEventListener('change', ()=>{
+    if(cb.checked) carnetLotsSelection.add(cb.dataset.lot); else carnetLotsSelection.delete(cb.dataset.lot);
+  }));
+}
+function renderCarnets(){
+  const grid = document.getElementById('carnetsGrid');
+  const empty = document.getElementById('carnetsEmpty');
+  if(carnetsCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  grid.innerHTML = carnetsCache.map(c=>{
+    const veh = vehiculesCache.find(v=>v.id===c.vehiculeId);
+    const urgent = c.statut === 'a_demander';
+    return `
+    <div class="r-card">
+      <div class="r-card-top">
+        <div><div class="r-name">${escapeHtml(c.pays || 'Sans pays')}</div><div class="r-sub">${veh ? escapeHtml(veh.nom) : 'Aucun véhicule lié'}${c.numero ? ' · n° ' + escapeHtml(c.numero) : ''}</div></div>
+        <span class="badge ${urgent ? 'badge-sans-hayon' : 'badge-accent'}">${STATUT_ATA_LABEL[c.statut]||c.statut}</span>
+      </div>
+      <div class="r-sub">${(c.lotsIds||[]).length} lot${(c.lotsIds||[]).length>1?'s':''} déclaré${(c.lotsIds||[]).length>1?'s':''}</div>
+      <div class="r-actions">
+        <button type="button" class="btn-ghost btn-sm" data-edit="${c.id}">Modifier</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${c.id}">Supprimer</button>
+      </div>
+    </div>
+  `;
+  }).join('');
+  grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openCarnetModal(b.dataset.edit)));
+  grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
+    const c = carnetsCache.find(x=>x.id===b.dataset.del);
+    if(c && confirm(`Supprimer ce carnet ATA (${c.pays || 'sans pays'}) ?`)){
+      carnetsCache = carnetsCache.filter(x=>x.id!==b.dataset.del);
+      CurieuxDB.removeOne('carnets_ata', b.dataset.del);
+      renderCarnets(); renderManques();
+    }
+  }));
+}
+function fillVehiculeSelect(){
+  const sel = document.getElementById('cVehicule');
+  sel.innerHTML = '<option value="">— Aucune —</option>' + vehiculesCache.filter(v=>v.type==='semi').map(v=>`<option value="${v.id}">${escapeHtml(v.nom||'Sans nom')}</option>`).join('');
+}
+function openCarnetModal(id){
+  fillVehiculeSelect();
+  document.getElementById('cEditId').value = id || '';
+  if(id){
+    const c = carnetsCache.find(x=>x.id===id);
+    if(!c) return;
+    document.getElementById('carnetModalTitle').textContent = 'Modifier ce carnet ATA';
+    document.getElementById('cNumero').value = c.numero || '';
+    document.getElementById('cPays').value = c.pays || '';
+    document.getElementById('cVehicule').value = c.vehiculeId || '';
+    document.getElementById('cStatut').value = c.statut || 'a_demander';
+    document.getElementById('cEmisLe').value = c.emisLe || '';
+    document.getElementById('cExpireLe').value = c.expireLe || '';
+    document.getElementById('cNotes').value = c.notes || '';
+    carnetLotsSelection = new Set(c.lotsIds || []);
+  } else {
+    document.getElementById('carnetModalTitle').textContent = 'Ajouter un carnet ATA';
+    ['cNumero','cPays','cEmisLe','cExpireLe','cNotes'].forEach(fid=> document.getElementById(fid).value='');
+    document.getElementById('cVehicule').value = '';
+    document.getElementById('cStatut').value = 'a_demander';
+    carnetLotsSelection = new Set();
+  }
+  renderCarnetLotsChoix();
+  document.getElementById('carnetModalOverlay').classList.add('open');
+}
+document.getElementById('addCarnetBtn').addEventListener('click', ()=> openCarnetModal(null));
+document.getElementById('carnetModalCancel').addEventListener('click', ()=> document.getElementById('carnetModalOverlay').classList.remove('open'));
+document.getElementById('carnetModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='carnetModalOverlay') document.getElementById('carnetModalOverlay').classList.remove('open'); });
+document.getElementById('carnetModalSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('cEditId').value || genId('carnet');
+  const obj = {
+    id, numero: document.getElementById('cNumero').value.trim(), pays: document.getElementById('cPays').value.trim(),
+    tourneeId: activeTourneeId(), vehiculeId: document.getElementById('cVehicule').value || '',
+    statut: document.getElementById('cStatut').value,
+    emisLe: document.getElementById('cEmisLe').value || '', expireLe: document.getElementById('cExpireLe').value || '',
+    lotsIds: Array.from(carnetLotsSelection),
+    notes: document.getElementById('cNotes').value.trim(),
+  };
+  if(!obj.pays){ alert('Précise le pays concerné.'); return; }
+  const idx = carnetsCache.findIndex(x=>x.id===id);
+  if(idx>=0) carnetsCache[idx]=obj; else carnetsCache.push(obj);
+  await CurieuxDB.upsertOne('carnets_ata', obj);
+  document.getElementById('carnetModalOverlay').classList.remove('open');
+  renderCarnets(); renderManques();
+});
+
+// ============================================================================
+// FICHES TECHNIQUES
+// ============================================================================
+function renderFiches(){
+  const grid = document.getElementById('fichesGrid');
+  const empty = document.getElementById('fichesEmpty');
+  if(fichesCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  grid.innerHTML = fichesCache.map(f=>`
+    <div class="r-card">
+      <div class="r-card-top">
+        <div class="r-name">${escapeHtml(f.nom || 'Sans nom')}</div>
+        <span class="badge ${f.versionCourante ? 'badge-hayon' : 'badge-sans-hayon'}">${f.versionCourante ? 'v' + f.versionCourante : 'non publiée'}</span>
+      </div>
+      ${f.driveUrl ? `<a href="${escapeHtml(f.driveUrl)}" target="_blank" rel="noopener" class="r-sub">Ouvrir dans Drive ↗</a>` : ''}
+      <div class="r-actions">
+        <button type="button" class="btn-ghost btn-sm" data-edit="${f.id}">Ouvrir</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${f.id}">Supprimer</button>
+      </div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openFicheModal(b.dataset.edit)));
+  grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
+    const f = fichesCache.find(x=>x.id===b.dataset.del);
+    if(f && confirm(`Supprimer la fiche « ${f.nom || 'Sans nom'} » et tout son historique ?`)){
+      fichesCache = fichesCache.filter(x=>x.id!==b.dataset.del);
+      CurieuxDB.removeOne('fiches_techniques', b.dataset.del);
+      renderFiches(); renderManques();
+    }
+  }));
+}
+async function renderVersionsListe(ficheId){
+  const box = document.getElementById('ficheVersionsListe');
+  box.innerHTML = `<p class="empty-hint" style="padding:8px 4px;">Chargement…</p>`;
+  const versions = await CurieuxDB.fetchVersionsFiche(ficheId);
+  if(versions.length===0){ box.innerHTML = `<p class="empty-hint" style="padding:8px 4px;">Aucune version publiée pour l'instant.</p>`; return; }
+  box.innerHTML = versions.map(v=>`
+    <div class="version-item">
+      <span class="v-n">v${v.version}</span>
+      <span class="v-c">${escapeHtml(v.changelog || 'Sans description')}</span>
+      <span class="v-d">${v.createdAt ? new Date(v.createdAt).toLocaleDateString('fr-FR') : ''}</span>
+    </div>
+  `).join('');
+}
+function openFicheModal(id){
+  document.getElementById('fEditId').value = id || '';
+  document.getElementById('fFichier').value = '';
+  document.getElementById('fChangelog').value = '';
+  document.getElementById('fichePublierStatut').textContent = '';
+  if(id){
+    const f = fichesCache.find(x=>x.id===id);
+    if(!f) return;
+    document.getElementById('ficheModalTitle').textContent = 'Modifier ' + (f.nom || 'cette fiche');
+    document.getElementById('fNom').value = f.nom || '';
+    document.getElementById('fDriveUrl').value = f.driveUrl || '';
+    document.getElementById('ficheLienBloc').style.display = 'block';
+    document.getElementById('ficheLienTexte').textContent = location.origin + location.pathname.replace('technique.html','fiche-technique.html') + '?jeton=' + f.token;
+    document.getElementById('ficheVersionsBloc').style.display = 'block';
+    renderVersionsListe(id);
+  } else {
+    document.getElementById('ficheModalTitle').textContent = 'Nouvelle fiche technique';
+    document.getElementById('fNom').value = '';
+    document.getElementById('fDriveUrl').value = '';
+    document.getElementById('ficheLienBloc').style.display = 'none';
+    document.getElementById('ficheVersionsBloc').style.display = 'none';
+  }
+  document.getElementById('ficheModalOverlay').classList.add('open');
+}
+document.getElementById('addFicheBtn').addEventListener('click', ()=> openFicheModal(null));
+document.getElementById('ficheModalCancel').addEventListener('click', ()=> document.getElementById('ficheModalOverlay').classList.remove('open'));
+document.getElementById('ficheModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='ficheModalOverlay') document.getElementById('ficheModalOverlay').classList.remove('open'); });
+document.getElementById('ficheCopierBtn').addEventListener('click', ()=>{
+  navigator.clipboard.writeText(document.getElementById('ficheLienTexte').textContent);
+  const btn = document.getElementById('ficheCopierBtn');
+  const orig = btn.textContent; btn.textContent = 'Copié !';
+  setTimeout(()=> btn.textContent = orig, 1500);
+});
+document.getElementById('ficheModalSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('fEditId').value;
+  const nom = document.getElementById('fNom').value.trim();
+  if(!nom){ alert('Donne un nom à la fiche.'); return; }
+  if(id){
+    const f = fichesCache.find(x=>x.id===id);
+    f.nom = nom; f.driveUrl = document.getElementById('fDriveUrl').value.trim();
+    await CurieuxDB.upsertOne('fiches_techniques', f);
+    renderFiches();
+    document.getElementById('ficheModalOverlay').classList.remove('open');
+  } else {
+    const nid = genId('fiche');
+    const obj = { id: nid, nom, tourneeId: activeTourneeId(), driveUrl: document.getElementById('fDriveUrl').value.trim(), versionCourante: null };
+    await CurieuxDB.upsertOne('fiches_techniques', obj);
+    fichesCache.push(obj);
+    renderFiches();
+    openFicheModal(nid); // rouvre en mode édition pour publier une première version
+  }
+});
+document.getElementById('ficherPublierBtn').addEventListener('click', async ()=>{
+  const id = document.getElementById('fEditId').value;
+  const fichier = document.getElementById('fFichier').files[0];
+  if(!fichier){ alert('Choisis un fichier PDF.'); return; }
+  const statutEl = document.getElementById('fichePublierStatut');
+  statutEl.textContent = 'Envoi en cours…';
+  const res = await CurieuxDB.publierVersionFiche(id, fichier, document.getElementById('fChangelog').value.trim());
+  if(res.error){
+    statutEl.textContent = 'Échec : ' + res.error.message;
+    return;
+  }
+  statutEl.textContent = `Version ${res.version} publiée.`;
+  const f = fichesCache.find(x=>x.id===id);
+  if(f) f.versionCourante = res.version;
+  document.getElementById('fFichier').value = '';
+  document.getElementById('fChangelog').value = '';
+  renderVersionsListe(id);
+  renderFiches(); renderManques();
+});
+
+// ============================================================================
+// PARTAGE (accès logistique en lecture seule)
+// ============================================================================
+function renderAcces(){
+  const grid = document.getElementById('accesGrid');
+  const empty = document.getElementById('accesEmpty');
+  if(accesCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  grid.innerHTML = accesCache.map(a=>`
+    <div class="r-card">
+      <div class="r-card-top">
+        <div class="r-name">${escapeHtml(a.libelle || 'Sans nom')}</div>
+        <span class="badge ${a.actif ? 'badge-hayon' : 'badge-sans-hayon'}">${a.actif ? 'actif' : 'révoqué'}</span>
+      </div>
+      <div class="r-actions">
+        <button type="button" class="btn-ghost btn-sm" data-edit="${a.id}">Ouvrir</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${a.id}">Supprimer</button>
+      </div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openAccesModal(b.dataset.edit)));
+  grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
+    const a = accesCache.find(x=>x.id===b.dataset.del);
+    if(a && confirm(`Supprimer l'accès « ${a.libelle || 'sans nom'} » ? Le lien cessera de fonctionner.`)){
+      accesCache = accesCache.filter(x=>x.id!==b.dataset.del);
+      CurieuxDB.removeOne('acces_logistique', b.dataset.del);
+      renderAcces();
+    }
+  }));
+}
+function openAccesModal(id){
+  document.getElementById('aEditId').value = id || '';
+  if(id){
+    const a = accesCache.find(x=>x.id===id);
+    if(!a) return;
+    document.getElementById('accesModalTitle').textContent = 'Modifier cet accès';
+    document.getElementById('aLibelle').value = a.libelle || '';
+    document.getElementById('aActif').checked = a.actif !== false;
+    document.getElementById('accesLienBloc').style.display = 'block';
+    document.getElementById('accesLienTexte').textContent = location.origin + location.pathname.replace('technique.html','technique-partage.html') + '?jeton=' + a.id;
+  } else {
+    document.getElementById('accesModalTitle').textContent = 'Nouvel accès';
+    document.getElementById('aLibelle').value = '';
+    document.getElementById('aActif').checked = true;
+    document.getElementById('accesLienBloc').style.display = 'none';
+  }
+  document.getElementById('accesModalOverlay').classList.add('open');
+}
+document.getElementById('addAccesBtn').addEventListener('click', ()=> openAccesModal(null));
+document.getElementById('accesModalCancel').addEventListener('click', ()=> document.getElementById('accesModalOverlay').classList.remove('open'));
+document.getElementById('accesModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='accesModalOverlay') document.getElementById('accesModalOverlay').classList.remove('open'); });
+document.getElementById('accesCopierBtn').addEventListener('click', ()=>{
+  navigator.clipboard.writeText(document.getElementById('accesLienTexte').textContent);
+  const btn = document.getElementById('accesCopierBtn');
+  const orig = btn.textContent; btn.textContent = 'Copié !';
+  setTimeout(()=> btn.textContent = orig, 1500);
+});
+document.getElementById('accesModalSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('aEditId').value || genId('acces');
+  const libelle = document.getElementById('aLibelle').value.trim();
+  if(!libelle){ alert('Précise le destinataire de ce lien.'); return; }
+  const obj = { id, libelle, tourneeId: activeTourneeId(), actif: document.getElementById('aActif').checked };
+  const idx = accesCache.findIndex(x=>x.id===id);
+  if(idx>=0) accesCache[idx]=obj; else accesCache.push(obj);
+  await CurieuxDB.upsertOne('acces_logistique', obj);
+  if(idx < 0) openAccesModal(id); // rouvre pour révéler le lien à copier
+  else document.getElementById('accesModalOverlay').classList.remove('open');
+  renderAcces();
+});
+
+// ============================================================================
+// Chargement initial
+// ============================================================================
+function renderAll(){
+  renderManques(); renderGrille(); renderLots(); renderVehicules(); renderChauffeurs(); renderCarnets(); renderFiches(); renderAcces();
+}
+async function verifierMigrationPresente(){
+  try{
+    const res = await supabaseClient.from('reglages').select('id').limit(1);
+    if(res.error && /schema cache|does not exist|PGRST205/i.test(res.error.message || '')){
+      document.getElementById('migrationBanner').style.display = 'flex';
+    }
+  }catch(e){ /* pas bloquant : au pire la bannière ne s'affiche pas */ }
+}
+
+async function initData(){
+  verifierMigrationPresente();
+  [tourneesCache, moyensCache, lotsCache, carnetsCache, vehiculesCache, chauffeursCache, fichesCache, accesCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('moyens_salle'),
+    CurieuxDB.fetchAll('lots_materiel'),
+    CurieuxDB.fetchAll('carnets_ata'),
+    CurieuxDB.fetchAll('vehicules'),
+    CurieuxDB.fetchAll('chauffeurs'),
+    CurieuxDB.fetchAll('fiches_techniques'),
+    CurieuxDB.fetchAll('acces_logistique'),
+  ]);
+
+  const sel = document.getElementById('tourneeSelect');
+  if(tourneesCache.length === 0){
+    sel.innerHTML = '<option value="">Aucune tournée</option>';
+  } else {
+    sel.innerHTML = tourneesCache.map(t=>`<option value="${t.id}">${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('');
+  }
+  sel.addEventListener('change', renderAll);
+
+  const onglet = new URLSearchParams(location.search).get('onglet');
+  switchTab(onglet && document.getElementById('panel-'+onglet) ? onglet : 'manques');
+
+  renderAll();
+}
+
+CurieuxDB.subscribe('moyens_salle', ()=> CurieuxDB.fetchAll('moyens_salle').then(l=>{ moyensCache=l; curieuxRafraichir(renderAll); }));
+CurieuxDB.subscribe('lots_materiel', ()=> CurieuxDB.fetchAll('lots_materiel').then(l=>{ lotsCache=l; curieuxRafraichir(renderAll); }));
+CurieuxDB.subscribe('carnets_ata', ()=> CurieuxDB.fetchAll('carnets_ata').then(l=>{ carnetsCache=l; curieuxRafraichir(renderAll); }));
+CurieuxDB.subscribe('vehicules', ()=> CurieuxDB.fetchAll('vehicules').then(l=>{ vehiculesCache=l; curieuxRafraichir(renderAll); }));
+CurieuxDB.subscribe('chauffeurs', ()=> CurieuxDB.fetchAll('chauffeurs').then(l=>{ chauffeursCache=l; curieuxRafraichir(renderAll); }));
+CurieuxDB.subscribe('fiches_techniques', ()=> CurieuxDB.fetchAll('fiches_techniques').then(l=>{ fichesCache=l; curieuxRafraichir(renderAll); }));
+CurieuxDB.subscribe('acces_logistique', ()=> CurieuxDB.fetchAll('acces_logistique').then(l=>{ accesCache=l; curieuxRafraichir(renderAll); }));
+
+injectCurieuxFonts();
+initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+initData();
+</script>
+</body>
+</html>

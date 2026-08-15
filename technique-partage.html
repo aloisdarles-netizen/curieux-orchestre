@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Logistique de tournée</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<!-- Page volontairement PUBLIQUE : pas de hideCurieuxPageUntilAuth()/requireAdminAuth()
+     ici — ce lien est envoyé à un stage manager ou un chauffeur sans compte admin.
+     L'identification se fait par le jeton imprévisible dans l'URL (acces_logistique.id),
+     révocable à tout moment depuis technique.html. -->
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:680px; margin:0 auto; font-variant-numeric:tabular-nums;}
+  .brand-logo-img{height:30px; width:auto; display:block; margin:0 0 18px;}
+  .state-box{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:26px 20px; text-align:center; color:var(--muted); font-size:14px;}
+
+  .entete{margin-bottom:22px;}
+  .entete .qui{color:var(--muted); font-size:13px; margin-top:2px;}
+
+  .fiche-date{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:16px; overflow:hidden;}
+  .fiche-date-head{padding:14px 16px; background:var(--bg); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;}
+  .fiche-date-head h2{margin:0; font-size:16px; font-weight:800;}
+  .fiche-date-head .quand{font-size:12px; color:var(--muted);}
+  .fiche-date-body{padding:14px 16px; display:flex; flex-direction:column; gap:12px;}
+
+  .fiche-grille{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:8px; overflow:hidden;}
+  .bloc{background:var(--card); padding:11px 13px 13px; display:flex; flex-direction:column; gap:6px;}
+  .bloc .titre{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700;}
+  .champ{display:flex; justify-content:space-between; gap:10px; font-size:13px; align-items:baseline;}
+  .champ .k{color:var(--muted);}
+  .champ .v{font-weight:700; text-align:right;}
+  .vide-champ{color:var(--old-champagne); font-size:12.5px;}
+
+  .banniere-alerte{display:flex; gap:10px; align-items:flex-start; background:var(--danger-tint); border-radius:8px; padding:11px 13px;}
+  .banniere-alerte .sig{color:var(--danger); font-weight:900; flex:0 0 auto;}
+  .banniere-alerte p{margin:0; font-size:13px; line-height:1.48;}
+
+  .section-registre{margin-top:26px;}
+  .section-registre h2{font-size:15px; margin:0 0 10px;}
+  .registre-item{background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 13px; margin-bottom:8px; font-size:13px;}
+  .registre-item .nom{font-weight:700;}
+  .registre-item .sub{color:var(--muted); font-size:12px; margin-top:2px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="brand-logo-img" alt="Curieux orchestre">
+  <div id="content"><div class="state-box">Chargement…</div></div>
+</div>
+<script>
+const NIVEAU_LABEL = { scene:'sur scène', sol:'au sol', les_deux:'les deux', inconnu:'inconnu' };
+const CATEGORIE_LABEL = { son:'Son', lumiere:'Lumière', structure:'Structure', backline:'Backline', partitions:'Partitions', costumes:'Costumes', autre:'Autre' };
+
+function afficherEtat(html){
+  document.getElementById('content').innerHTML = `<div class="state-box">${html}</div>`;
+}
+
+function champ(label, valeur){
+  const v = (valeur === null || valeur === undefined || valeur === '') ? `<span class="vide-champ">—</span>` : escapeHtml(String(valeur));
+  return `<div class="champ"><span class="k">${escapeHtml(label)}</span><span class="v">${v}</span></div>`;
+}
+
+function ficheDate(d, m, lots, vehicules, chauffeurs){
+  const jour = d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' }) : '';
+  const chariots = (m && m.chariots) || [];
+  const chariotsValides = chariots.filter(c=>c.valide).length;
+  const alertes = [];
+  if(m && m.semis_places === 0) alertes.push("Aucune semi acceptée sur ce site.");
+  if(chariots.length && chariots.every(c=>c.fourche === 'courtes')) alertes.push("Seules des fourches courtes sont annoncées côté salle.");
+  if(!m || m.statut === 'non_demande' || m.statut === 'demande') alertes.push("La salle n'a pas encore confirmé ses moyens techniques pour cette date.");
+
+  return `
+    <div class="fiche-date">
+      <div class="fiche-date-head">
+        <h2>${escapeHtml(d.ville || d.lieu || 'Date')}${d.lieu && d.ville ? ` — ${escapeHtml(d.lieu)}` : ''}</h2>
+        <span class="quand">${escapeHtml(jour)}</span>
+      </div>
+      <div class="fiche-date-body">
+        ${alertes.length ? `<div class="banniere-alerte"><span class="sig">!</span><p>${alertes.map(escapeHtml).join(' ')}</p></div>` : ''}
+        <div class="fiche-grille">
+          <div class="bloc">
+            <span class="titre">Moyens de la salle</span>
+            ${champ('Roadies', m ? (m.roadies_valide != null ? `${m.roadies_valide} confirmés / ${m.roadies_demande != null ? m.roadies_demande : '—'} demandés` : (m.roadies_demande != null ? m.roadies_demande + ' demandés' : null)) : null)}
+            ${champ('À partir de', m && m.roadies_horaire)}
+            ${champ('Caristes', m && m.caristes_valide != null ? `${m.caristes_valide} confirmés` : (m && m.caristes_demande != null ? m.caristes_demande + ' demandés' : null))}
+            ${champ('Chariots', chariots.length ? `${chariotsValides}/${chariots.length} confirmés` : null)}
+          </div>
+          <div class="bloc">
+            <span class="titre">Accès</span>
+            ${champ('Semis acceptées', m && m.semis_places)}
+            ${champ('Déchargement', m && m.niveau_dechargement && m.niveau_dechargement !== 'inconnu' ? NIVEAU_LABEL[m.niveau_dechargement] : null)}
+            ${champ('Hauteur de grill', m && m.hauteur_grill)}
+            ${champ('Puissance', m && m.puissance)}
+          </div>
+          <div class="bloc">
+            <span class="titre">Contact technique</span>
+            ${champ('Nom', m && m.contact_nom)}
+            ${champ('Téléphone', m && m.contact_tel)}
+            ${champ('Email', m && m.contact_email)}
+          </div>
+          ${(m && m.plan_url) ? `<div class="bloc"><span class="titre">Documents</span>${champ('Plan de scène', 'ouvrir le lien ↗')}</div>` : ''}
+        </div>
+        ${(m && m.acces_notes) ? `<p style="font-size:13px; color:var(--muted); margin:0;">${escapeHtml(m.acces_notes)}</p>` : ''}
+        ${(m && m.notes) ? `<p style="font-size:13px; margin:0;">${escapeHtml(m.notes)}</p>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+async function init(){
+  const token = new URLSearchParams(location.search).get('jeton');
+  if(!token){ afficherEtat("Lien incomplet — il manque le jeton d'accès."); return; }
+
+  const recap = await CurieuxDB.getRecapLogistique(token);
+  if(!recap){ afficherEtat("Ce lien n'est plus actif, ou n'existe pas. Demande un nouveau lien à la production."); return; }
+  if(!recap.tournee){ afficherEtat("Aucune tournée associée à cet accès pour l'instant."); return; }
+
+  const today = new Date().toISOString().slice(0,10);
+  const dates = (recap.tournee.dates || []).filter(d=> !d.date || d.date >= today).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const moyensParDate = {};
+  (recap.moyens || []).forEach(m=> { moyensParDate[m.date_id] = m; });
+
+  let html = `
+    <div class="entete">
+      <h1 style="font-size:21px; margin:0 0 4px; font-weight:900;">${escapeHtml(recap.tournee.nom || 'Tournée')}</h1>
+      <p class="qui">Logistique transmise à ${escapeHtml(recap.libelle || 'vous')} — ${dates.length} date${dates.length>1?'s':''} à venir.</p>
+    </div>
+  `;
+
+  if(dates.length === 0){
+    html += `<div class="state-box">Aucune date à venir pour l'instant.</div>`;
+  } else {
+    html += dates.map(d=> ficheDate(d, moyensParDate[d.id], recap.lots, recap.vehicules, recap.chauffeurs)).join('');
+  }
+
+  if((recap.lots || []).length){
+    html += `
+      <div class="section-registre">
+        <h2>Matériel apporté par la tournée</h2>
+        ${recap.lots.map(l=>`
+          <div class="registre-item">
+            <div class="nom">${escapeHtml(l.nom || 'Sans nom')} <span style="font-weight:400; color:var(--muted);">— ${CATEGORIE_LABEL[l.categorie]||'Autre'}</span></div>
+            <div class="sub">${(l.elements||[]).length} élément${(l.elements||[]).length>1?'s':''}${l.provenance ? ' · ' + escapeHtml(l.provenance) : ''}${l.retour_le ? ' · retour le ' + new Date(l.retour_le+'T00:00:00').toLocaleDateString('fr-FR') : ''}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  const vehiculesEtChauffeurs = [...(recap.vehicules||[]), ...(recap.chauffeurs||[])];
+  if((recap.vehicules||[]).length || (recap.chauffeurs||[]).length){
+    html += `
+      <div class="section-registre">
+        <h2>Véhicules &amp; chauffeurs</h2>
+        ${(recap.vehicules||[]).map(v=>`
+          <div class="registre-item">
+            <div class="nom">${escapeHtml(v.nom || 'Sans nom')}${v.type === 'semi' ? (v.hayon ? ' · avec hayon' : ' · sans hayon') : ''}</div>
+            <div class="sub">${[v.immatriculation, v.capacite].filter(Boolean).map(escapeHtml).join(' · ')}</div>
+          </div>
+        `).join('')}
+        ${(recap.chauffeurs||[]).map(c=>`
+          <div class="registre-item">
+            <div class="nom">${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ') || 'Sans nom')}</div>
+            <div class="sub">${[c.telephone, c.email].filter(Boolean).map(escapeHtml).join(' · ') || 'Pas de contact enregistré'}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  document.getElementById('content').innerHTML = html;
+}
+
+applyBrandLogo();
+init();
+</script>
+</body>
+</html>

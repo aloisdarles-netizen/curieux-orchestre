@@ -250,6 +250,31 @@
       <div id="logEmpty" class="empty-hint">Chargement…</div>
     </div>
   </section>
+
+  <section>
+    <h2>Réinitialisation</h2>
+    <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">Vider les données saisies pendant la phase de test, avant l'ouverture aux équipes. Se désactive tout·e seul·e une fois la phase de test terminée.</p>
+    <div class="card" id="reinitCard">
+      <div id="reinitEtat" style="font-size:13px; margin-bottom:14px;">Chargement…</div>
+      <div id="reinitZone" style="display:none;">
+        <button type="button" class="btn-secondary btn-sm" id="reinitVoirBtn">Voir ce qu'il y a à vider</button>
+        <div id="reinitTableau" style="display:none; margin-top:14px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; color:var(--muted); margin-bottom:8px;">
+            <input type="checkbox" id="reinitToutCocher"> Tout sélectionner
+          </label>
+          <div id="reinitListe" style="display:flex; flex-direction:column; gap:2px; max-height:280px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:4px;"></div>
+          <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
+            <p style="font-size:12.5px; color:var(--muted); margin:0 0 8px;">Un export complet se télécharge automatiquement avant toute suppression. Pour continuer, tape <strong>SUPPRIMER</strong> ci-dessous.</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <input type="text" id="reinitConfirmation" placeholder="SUPPRIMER" style="max-width:180px;">
+              <button type="button" class="btn-danger btn-sm" id="reinitLancerBtn" disabled style="background:var(--danger); color:#fff; opacity:.5;">Exporter puis vider la sélection</button>
+            </div>
+          </div>
+        </div>
+        <div id="reinitResultat" style="margin-top:14px; font-size:12.5px;"></div>
+      </div>
+    </div>
+  </section>
 </div>
 <script>
 applyBrandLogo();
@@ -758,27 +783,37 @@ const EXPORT_ALL_TABLES = [
   'musiciens', 'techniciens', 'tournees', 'feuilles_route', 'carnet_contacts',
   'newsletter_snapshot', 'dispo_demandes', 'remplacant_prefs', 'cachet_overrides',
   'infos_sociales', 'bug_reports',
+  'moyens_salle', 'lots_materiel', 'carnets_ata', 'vehicules', 'chauffeurs',
+  'fiches_techniques', 'fiches_techniques_versions', 'acces_logistique',
 ];
+// Renvoie true si le fichier a bien été proposé au téléchargement — appelé
+// aussi bien par le bouton "Exporter toutes les données" que, juste avant,
+// par l'espace de réinitialisation (I11) : un filet qu'on ne peut pas oublier
+// de poser puisque la purge le déclenche elle-même.
+async function telechargerExportComplet(){
+  const [results, accounts] = await Promise.all([
+    Promise.all(EXPORT_ALL_TABLES.map(t=> CurieuxDB.fetchAll(t))),
+    CurieuxDB.listAccounts(),
+  ]);
+  const dump = { exported_at: new Date().toISOString() };
+  EXPORT_ALL_TABLES.forEach((t, i)=> dump[t] = results[i]);
+  dump.comptes = accounts;
+  const blob = new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `curieux-orchestre-export-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  return true;
+}
 async function exportAllData(){
   const btn = document.getElementById('exportAllBtn');
   const status = document.getElementById('exportAllStatus');
   btn.disabled = true;
   status.textContent = 'Export en cours…';
   try{
-    const [results, accounts] = await Promise.all([
-      Promise.all(EXPORT_ALL_TABLES.map(t=> CurieuxDB.fetchAll(t))),
-      CurieuxDB.listAccounts(),
-    ]);
-    const dump = { exported_at: new Date().toISOString() };
-    EXPORT_ALL_TABLES.forEach((t, i)=> dump[t] = results[i]);
-    dump.comptes = accounts;
-    const blob = new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `curieux-orchestre-export-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    await telechargerExportComplet();
     status.textContent = `✓ Export téléchargé (${new Date().toLocaleTimeString('fr-FR')}).`;
   } catch(e){
     console.warn('[exportAllData]', e);
@@ -788,12 +823,141 @@ async function exportAllData(){
 }
 document.getElementById('exportAllBtn').addEventListener('click', exportAllData);
 
+// ============================================================================
+// Réinitialisation (I11) — vider les données saisies en phase de test.
+// Doublement verrouillé côté base (compte admin + phase_test), l'interface ne
+// fait que proposer ; purger_donnees_essai refuse silencieusement sinon.
+// ============================================================================
+const REINIT_LABELS = {
+  dispo_demandes: 'Demandes de disponibilité', infos_sociales: 'Infos sociales',
+  feuilles_route: 'Feuilles de route', carnet_contacts: 'Carnet de contacts',
+  newsletter_snapshot: 'Journal des changements', cachet_overrides: 'Cachet individualisé',
+  remplacant_prefs: 'Remplaçant·es (listes)', bug_reports: 'Signalements',
+  audit_log: "Journal d'audit", moyens_salle: 'Moyens de salle',
+  lots_materiel: 'Lots de matériel', carnets_ata: 'Carnets ATA',
+  vehicules: 'Véhicules', chauffeurs: 'Chauffeurs',
+  fiches_techniques_versions: 'Versions de fiches techniques',
+  fiches_techniques: 'Fiches techniques', acces_logistique: 'Accès logistique partagés',
+  acces_personnels: 'Liens personnels permanents', tournees: 'Tournées',
+  musiciens: 'Musicien·nes', techniciens: 'Technicien·nes',
+};
+let reinitLignesParTable = [];
+const reinitSelection = new Set();
+
+async function chargerEtatReinit(){
+  const etat = document.getElementById('reinitEtat');
+  const zone = document.getElementById('reinitZone');
+  const reglages = await CurieuxDB.fetchReglages();
+  if(reglages.absent){
+    etat.innerHTML = "La table <code>reglages</code> n'existe pas encore — colle la section « Direction technique » de <code>migrations.sql</code> dans l'éditeur SQL Supabase pour activer cet espace.";
+    zone.style.display = 'none';
+    return;
+  }
+  if(!reglages.phaseTest){
+    etat.innerHTML = "✓ La phase de test est terminée — cet espace est désactivé, y compris côté base.";
+    zone.style.display = 'none';
+    return;
+  }
+  etat.innerHTML = `
+    En phase de test. Une fois l'outil déployé auprès des équipes,
+    <button type="button" class="btn-ghost btn-sm" id="reinitTerminerBtn" style="text-decoration:underline; padding:2px 4px;">termine la phase de test</button>
+    pour désactiver définitivement cet espace.
+  `;
+  zone.style.display = 'block';
+  document.getElementById('reinitTerminerBtn').addEventListener('click', async ()=>{
+    if(!confirm("Terminer la phase de test ? L'espace de réinitialisation se désactivera aussitôt — tu pourras le réactiver depuis Supabase si besoin.")) return;
+    await CurieuxDB.setPhaseTest(false);
+    chargerEtatReinit();
+  });
+}
+
+function renderReinitListe(){
+  const box = document.getElementById('reinitListe');
+  box.innerHTML = reinitLignesParTable.map(({table, lignes})=>`
+    <label style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 8px; font-size:13px; border-radius:6px; cursor:pointer;">
+      <span style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" data-table="${table}" ${reinitSelection.has(table)?'checked':''}>
+        ${escapeHtml(REINIT_LABELS[table] || table)}
+      </span>
+      <span style="color:var(--muted); font-variant-numeric:tabular-nums;">${lignes} ligne${lignes>1?'s':''}</span>
+    </label>
+  `).join('');
+  box.querySelectorAll('[data-table]').forEach(cb=> cb.addEventListener('change', ()=>{
+    if(cb.checked) reinitSelection.add(cb.dataset.table); else reinitSelection.delete(cb.dataset.table);
+    majBoutonLancer();
+  }));
+}
+function majBoutonLancer(){
+  const btn = document.getElementById('reinitLancerBtn');
+  const ok = reinitSelection.size > 0 && document.getElementById('reinitConfirmation').value.trim() === 'SUPPRIMER';
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? '1' : '.5';
+}
+
+document.getElementById('reinitVoirBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('reinitVoirBtn');
+  btn.disabled = true; btn.textContent = 'Chargement…';
+  const res = await CurieuxDB.compterLignesPurgeables();
+  btn.disabled = false; btn.textContent = "Voir ce qu'il y a à vider";
+  if(res.error){
+    document.getElementById('reinitResultat').textContent = res.migrationAbsente
+      ? "La fonction de purge n'existe pas encore côté base — colle la migration avant de continuer."
+      : 'Erreur : ' + res.error.message;
+    return;
+  }
+  reinitLignesParTable = res.lignes.filter(l=> l.lignes > 0);
+  if(reinitLignesParTable.length === 0){
+    document.getElementById('reinitResultat').textContent = 'Rien à vider pour l\'instant — toutes les tables sont vides.';
+    document.getElementById('reinitTableau').style.display = 'none';
+    return;
+  }
+  reinitSelection.clear();
+  renderReinitListe();
+  document.getElementById('reinitTableau').style.display = 'block';
+  document.getElementById('reinitResultat').textContent = '';
+});
+document.getElementById('reinitToutCocher').addEventListener('change', (e)=>{
+  reinitLignesParTable.forEach(({table})=>{ if(e.target.checked) reinitSelection.add(table); else reinitSelection.delete(table); });
+  renderReinitListe();
+  majBoutonLancer();
+});
+document.getElementById('reinitConfirmation').addEventListener('input', majBoutonLancer);
+document.getElementById('reinitLancerBtn').addEventListener('click', async ()=>{
+  const tables = Array.from(reinitSelection);
+  const total = reinitLignesParTable.filter(l=>reinitSelection.has(l.table)).reduce((s,l)=>s+l.lignes,0);
+  if(!confirm(`Sur le point de supprimer définitivement ${total} ligne(s) dans ${tables.length} table(s). Un export se télécharge d'abord. Continuer ?`)) return;
+
+  const btn = document.getElementById('reinitLancerBtn');
+  const resultat = document.getElementById('reinitResultat');
+  btn.disabled = true;
+  resultat.textContent = 'Export en cours…';
+  try{
+    await telechargerExportComplet();
+  } catch(e){
+    resultat.textContent = "L'export a échoué — rien n'a été supprimé. Réessaie.";
+    btn.disabled = false;
+    return;
+  }
+  resultat.textContent = 'Export téléchargé. Suppression en cours…';
+  const res = await CurieuxDB.purgerDonneesEssai(tables);
+  if(res.error){
+    resultat.textContent = 'Erreur pendant la suppression : ' + res.error.message;
+    btn.disabled = false;
+    return;
+  }
+  resultat.innerHTML = '✓ ' + res.resultats.map(r=> `${escapeHtml(REINIT_LABELS[r.table]||r.table)} (${r.lignes})`).join(', ');
+  document.getElementById('reinitConfirmation').value = '';
+  document.getElementById('reinitTableau').style.display = 'none';
+  reinitSelection.clear();
+});
+
 (async ()=>{
   await loadMyAccount();
   await loadStats();
   await loadBugReports();
   await loadCorbeille();
   await loadLog();
+  await chargerEtatReinit();
 })();
 </script>
 </body>

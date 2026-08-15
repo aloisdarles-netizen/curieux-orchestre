@@ -121,6 +121,7 @@ const CURIEUX_NAV = [
     { href:'disponibilites.html', icone:'icone-disponibilites.svg',        libelle:'Grille interne' },
     { href:'suivi-dispo.html',    icone:'icone-demandes-titulaires.svg',   libelle:'Demandes titulaires' },
   ]},
+  { type:'lien', href:'technique.html', libelle:'Direction technique' },
   { type:'lien', href:'recap.html', icone:'icone-vue-ensemble.svg', libelle:"Vue d'ensemble" },
 ];
 

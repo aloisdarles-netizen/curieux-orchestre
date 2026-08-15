@@ -1309,3 +1309,431 @@ $$;
 drop trigger if exists trg_bug_reports_limite on bug_reports;
 create trigger trg_bug_reports_limite before insert on bug_reports
   for each row execute function bug_reports_limite();
+
+
+-- ============================================================================
+-- Curieux orchestre — Outils direction technique + effectif + réinitialisation
+-- Août 2026.
+--
+-- Rejouable autant de fois que voulu : tout est en "if not exists" / "or
+-- replace", et chaque "create policy" est précédé de son "drop policy if
+-- exists" (sans quoi une base déjà provisionnée s'arrête à la première
+-- politique existante).
+--
+-- Contenu :
+--   A3  nomenclature (effectif attendu) par tournée, surchargeable par date
+--   A4  réglages (drapeau phase de test) + purge des données d'essai
+--   B1  fiches techniques versionnées + lien canonique public
+--   B2  moyens fournis par la salle, date par date
+--   B3  lots de matériel, carnets ATA, véhicules, chauffeurs
+--   B4  accès logistique en lecture seule (stage manager, chauffeur)
+-- ============================================================================
+
+
+-- ----------------------------------------------------------------------------
+-- A3 — effectif attendu.
+-- La nomenclature vit sur la tournée : [{pupitre, libelle, nombre}, ...].
+-- Une date peut la surcharger, via la clé "nomenclature" de son objet dans
+-- tournees.dates (jsonb, aucune migration nécessaire pour ça).
+-- ----------------------------------------------------------------------------
+alter table tournees add column if not exists nomenclature jsonb not null default '[]'::jsonb;
+
+
+-- ----------------------------------------------------------------------------
+-- A4 — réglages généraux (singleton).
+-- phase_test verrouille l'espace de réinitialisation : une fois l'outil
+-- déployé auprès des équipes, on bascule ce drapeau à false et le bouton
+-- « vider les tables » disparaît. Un bouton de purge qui survit à côté de
+-- vrais numéros de sécurité sociale finit toujours par servir.
+-- ----------------------------------------------------------------------------
+create table if not exists reglages (
+  id int primary key default 1 check (id = 1),
+  phase_test boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+insert into reglages (id) values (1) on conflict (id) do nothing;
+drop trigger if exists trg_reglages_updated_at on reglages;
+create trigger trg_reglages_updated_at before update on reglages
+  for each row execute function set_updated_at();
+
+alter table reglages enable row level security;
+drop policy if exists "reglages lecture" on reglages;
+create policy "reglages lecture" on reglages for select to anon, authenticated
+  using (has_access());
+drop policy if exists "reglages ecriture" on reglages;
+create policy "reglages ecriture" on reglages for all to authenticated
+  using (is_admin()) with check (is_admin());
+
+-- Purge des données d'essai. Réservée aux comptes 'admin' ET à la phase de
+-- test : hors phase de test, la fonction refuse, quoi qu'affiche l'interface.
+-- p_tables est la liste des tables à vider, en clair ; tout nom hors de la
+-- liste blanche est ignoré (jamais interpolé tel quel dans le SQL).
+create or replace function purger_donnees_essai(p_tables text[])
+returns table(table_videe text, lignes_supprimees bigint)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  autorisees constant text[] := array[
+    'dispo_demandes','infos_sociales','feuilles_route','carnet_contacts',
+    'newsletter_snapshot','cachet_overrides','remplacant_prefs','bug_reports',
+    'audit_log','moyens_salle','lots_materiel','carnets_ata','vehicules',
+    'chauffeurs','fiches_techniques_versions','fiches_techniques',
+    'acces_logistique','acces_personnels','tournees','musiciens','techniciens'
+  ];
+  t text;
+  n bigint;
+begin
+  if not is_admin() then
+    raise exception 'Réservé aux comptes administrateur.';
+  end if;
+  if not (select phase_test from reglages where id = 1) then
+    raise exception 'La phase de test est terminée : la purge est désactivée.';
+  end if;
+
+  foreach t in array coalesce(p_tables, array[]::text[]) loop
+    if t = any(autorisees) then
+      execute format('delete from %I', t);
+      get diagnostics n = row_count;
+      table_videe := t; lignes_supprimees := n;
+      return next;
+    end if;
+  end loop;
+end;
+$$;
+grant execute on function purger_donnees_essai(text[]) to authenticated;
+
+-- Compte les lignes des tables purgeables, pour afficher « vous êtes sur le
+-- point de supprimer N lignes » avant confirmation.
+create or replace function compter_lignes_purgeables()
+returns table(nom_table text, lignes bigint)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  autorisees constant text[] := array[
+    'dispo_demandes','infos_sociales','feuilles_route','carnet_contacts',
+    'newsletter_snapshot','cachet_overrides','remplacant_prefs','bug_reports',
+    'audit_log','moyens_salle','lots_materiel','carnets_ata','vehicules',
+    'chauffeurs','fiches_techniques_versions','fiches_techniques',
+    'acces_logistique','acces_personnels','tournees','musiciens','techniciens'
+  ];
+  t text;
+  n bigint;
+begin
+  if not is_admin() then
+    raise exception 'Réservé aux comptes administrateur.';
+  end if;
+  foreach t in array autorisees loop
+    if to_regclass('public.' || quote_ident(t)) is not null then
+      execute format('select count(*) from %I', t) into n;
+      nom_table := t; lignes := n;
+      return next;
+    end if;
+  end loop;
+end;
+$$;
+grant execute on function compter_lignes_purgeables() to authenticated;
+
+
+-- ----------------------------------------------------------------------------
+-- B1 — fiches techniques versionnées.
+-- Google Drive reste l'atelier (drive_url pointe vers le dossier de travail).
+-- L'application est la vitrine : publier une version fige le PDF, l'horodate
+-- et l'expose derrière un jeton permanent qui sert toujours la version
+-- courante. La salle reçoit ce lien une fois pour toutes.
+-- ----------------------------------------------------------------------------
+create table if not exists fiches_techniques (
+  id text primary key,
+  nom text default '',
+  tournee_id text,
+  drive_url text default '',
+  token text unique not null default replace(gen_random_uuid()::text, '-', ''),
+  version_courante int,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_fiches_techniques_updated_at on fiches_techniques;
+create trigger trg_fiches_techniques_updated_at before update on fiches_techniques
+  for each row execute function set_updated_at();
+
+create table if not exists fiches_techniques_versions (
+  id text primary key,
+  fiche_id text not null references fiches_techniques(id) on delete cascade,
+  version int not null,
+  fichier_chemin text default '',
+  fichier_nom text default '',
+  changelog text default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_ft_versions_fiche on fiches_techniques_versions(fiche_id, version desc);
+
+alter table fiches_techniques enable row level security;
+alter table fiches_techniques_versions enable row level security;
+drop policy if exists "fiches techniques acces" on fiches_techniques;
+create policy "fiches techniques acces" on fiches_techniques for all to authenticated
+  using (has_access()) with check (has_access());
+drop policy if exists "fiches techniques versions acces" on fiches_techniques_versions;
+create policy "fiches techniques versions acces" on fiches_techniques_versions for all to authenticated
+  using (has_access()) with check (has_access());
+
+-- Résolution publique du lien canonique : renvoie la version courante, et
+-- rien d'autre — ni la liste des versions, ni le lien Drive de travail.
+create or replace function get_fiche_technique_by_token(p_token text)
+returns table(nom text, version int, fichier_chemin text, fichier_nom text, publiee_le timestamptz)
+language sql
+security definer
+set search_path = public
+as $$
+  select f.nom, v.version, v.fichier_chemin, v.fichier_nom, v.created_at
+  from fiches_techniques f
+  join fiches_techniques_versions v
+    on v.fiche_id = f.id and v.version = f.version_courante
+  where f.token = p_token
+  limit 1;
+$$;
+grant execute on function get_fiche_technique_by_token(text) to anon, authenticated;
+
+-- Bucket de stockage des PDF publiés. Public en lecture : le chemin contient
+-- un identifiant aléatoire, et une fiche technique a de toute façon vocation à
+-- être envoyée aux salles. L'écriture reste réservée aux comptes connectés.
+insert into storage.buckets (id, name, public)
+values ('fiches-techniques', 'fiches-techniques', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "fiches techniques depot" on storage.objects;
+create policy "fiches techniques depot" on storage.objects for insert to authenticated
+  with check (bucket_id = 'fiches-techniques' and has_access());
+drop policy if exists "fiches techniques remplacement" on storage.objects;
+create policy "fiches techniques remplacement" on storage.objects for update to authenticated
+  using (bucket_id = 'fiches-techniques' and has_access());
+drop policy if exists "fiches techniques retrait" on storage.objects;
+create policy "fiches techniques retrait" on storage.objects for delete to authenticated
+  using (bucket_id = 'fiches-techniques' and has_access());
+
+
+-- ----------------------------------------------------------------------------
+-- B2 — ce que la salle fournit, date par date.
+-- "id" = `${tournee_id}::${date_id}`, pour réutiliser upsertOne/removeOne
+-- tels quels malgré la clé composite.
+--
+-- Deux registres en miroir dans tout l'axe B : ce qu'on AMÈNE (lots_materiel,
+-- ci-dessous) et ce qu'on DEMANDE EN LOCAL (ici). Pour tout ce qui se négocie
+-- avec la salle — roadies, caristes, chariots — la demande et la validation
+-- sont deux valeurs distinctes : ce qu'on a demandé n'est pas ce qu'on a
+-- obtenu. Ce qui est un fait constaté plutôt qu'une négociation (hauteur de
+-- grill, puissance disponible) reste un champ simple.
+--
+-- "Quai oui/non" est retiré : la question qui compte n'est pas binaire, c'est
+-- combien de semis on peut mettre et à quel niveau on décharge. Avec assez de
+-- roadies et de chariots aux bonnes fourches, l'accès importe peu en lui-même.
+-- ----------------------------------------------------------------------------
+create table if not exists moyens_salle (
+  id text primary key,
+  tournee_id text not null,
+  date_id text not null,
+  statut text not null default 'non_demande'
+    check (statut in ('non_demande','demande','recu','valide')),
+  plan_statut text not null default 'non_demande'
+    check (plan_statut in ('non_demande','demande','recu')),
+  plan_url text default '',
+  semis_places int,
+  niveau_dechargement text not null default 'inconnu'
+    check (niveau_dechargement in ('scene','sol','les_deux','inconnu')),
+  acces_notes text default '',
+  roadies_demande int,
+  roadies_valide int,
+  roadies_horaire text default '',
+  caristes_demande int,
+  caristes_valide int,
+  -- Un élément par chariot demandé : {fourche:'longues'|'courtes'|'inconnu', valide:bool}.
+  -- La longueur du tableau EST le nombre demandé ; compter valide=true donne
+  -- le nombre confirmé. Chaque fenwick a ses propres fourches, d'où le tableau
+  -- plutôt qu'un champ unique pour toute la date.
+  chariots jsonb not null default '[]'::jsonb,
+  hauteur_grill text default '',
+  ouverture_scene text default '',
+  puissance text default '',
+  contact_nom text default '',
+  contact_tel text default '',
+  contact_email text default '',
+  notes text default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_moyens_salle_tournee on moyens_salle(tournee_id);
+drop trigger if exists trg_moyens_salle_updated_at on moyens_salle;
+create trigger trg_moyens_salle_updated_at before update on moyens_salle
+  for each row execute function set_updated_at();
+
+alter table moyens_salle enable row level security;
+drop policy if exists "moyens salle acces" on moyens_salle;
+create policy "moyens salle acces" on moyens_salle for all to authenticated
+  using (has_access()) with check (has_access());
+
+
+-- ----------------------------------------------------------------------------
+-- B3 — lots de matériel, véhicules, chauffeurs, carnets ATA.
+-- Volontairement un registre, pas un plan de transport : ce qui doit être là,
+-- pas comment ça y arrive. L'exécution reste au stage manager.
+-- ----------------------------------------------------------------------------
+
+-- Un lot est un kit — « Kit son A », « Backline cuivres » — qui contient ses
+-- propres éléments (jsonb : [{nom, quantite, numeroSerie, notes}, ...]),
+-- ajoutés librement plutôt que figés à la création du lot.
+create table if not exists lots_materiel (
+  id text primary key,
+  nom text default '',
+  categorie text default 'autre'
+    check (categorie in ('son','lumiere','structure','backline','partitions','costumes','autre')),
+  provenance text default '',
+  tournee_id text,
+  dates_ids jsonb not null default '[]'::jsonb,
+  elements jsonb not null default '[]'::jsonb,
+  nb_colis int,
+  poids_kg numeric,
+  valeur numeric,
+  retour_le date,
+  notes text default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_lots_materiel_updated_at on lots_materiel;
+create trigger trg_lots_materiel_updated_at before update on lots_materiel
+  for each row execute function set_updated_at();
+
+-- Tracteur et semi sont deux lignes distinctes : c'est la semi qui porte le
+-- hayon, et un tracteur peut tirer une autre semi.
+create table if not exists vehicules (
+  id text primary key,
+  nom text default '',
+  type text not null default 'semi'
+    check (type in ('tracteur','semi','porteur','camion','voiture')),
+  immatriculation text default '',
+  hayon boolean not null default false,
+  capacite text default '',
+  prestataire text default '',
+  notes text default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_vehicules_updated_at on vehicules;
+create trigger trg_vehicules_updated_at before update on vehicules
+  for each row execute function set_updated_at();
+
+create table if not exists chauffeurs (
+  id text primary key,
+  prenom text default '',
+  nom text default '',
+  telephone text default '',
+  email text default '',
+  permis text default '',
+  prestataire text default '',
+  notes text default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_chauffeurs_updated_at on chauffeurs;
+create trigger trg_chauffeurs_updated_at before update on chauffeurs
+  for each row execute function set_updated_at();
+
+-- Un carnet ATA est attribué à une semi, pour toute la durée de la tournée —
+-- pas date par date : l'avoir pour une semi, c'est l'avoir pour tout ce
+-- qu'elle transporte sur la tournée. D'où vehicule_id plutôt que dates_ids.
+create table if not exists carnets_ata (
+  id text primary key,
+  numero text default '',
+  pays text default '',
+  tournee_id text,
+  vehicule_id text references vehicules(id) on delete set null,
+  emis_le date,
+  expire_le date,
+  statut text not null default 'a_demander'
+    check (statut in ('a_demander','demande','obtenu','en_cours','a_apurer','apure')),
+  lots_ids jsonb not null default '[]'::jsonb,
+  notes text default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_carnets_ata_vehicule on carnets_ata(vehicule_id);
+drop trigger if exists trg_carnets_ata_updated_at on carnets_ata;
+create trigger trg_carnets_ata_updated_at before update on carnets_ata
+  for each row execute function set_updated_at();
+
+alter table lots_materiel enable row level security;
+alter table vehicules    enable row level security;
+alter table chauffeurs   enable row level security;
+alter table carnets_ata  enable row level security;
+drop policy if exists "lots materiel acces" on lots_materiel;
+create policy "lots materiel acces" on lots_materiel for all to authenticated
+  using (has_access()) with check (has_access());
+drop policy if exists "vehicules acces" on vehicules;
+create policy "vehicules acces" on vehicules for all to authenticated
+  using (has_access()) with check (has_access());
+drop policy if exists "chauffeurs acces" on chauffeurs;
+create policy "chauffeurs acces" on chauffeurs for all to authenticated
+  using (has_access()) with check (has_access());
+drop policy if exists "carnets ata acces" on carnets_ata;
+create policy "carnets ata acces" on carnets_ata for all to authenticated
+  using (has_access()) with check (has_access());
+
+
+-- ----------------------------------------------------------------------------
+-- B4 — accès logistique en lecture seule.
+-- Un jeton par destinataire (stage manager, chauffeur…), révocable. La
+-- fonction ci-dessous est le SEUL chemin de lecture sans compte : elle ne
+-- renvoie que la logistique, jamais le répertoire ni les infos d'embauche.
+-- ----------------------------------------------------------------------------
+create table if not exists acces_logistique (
+  id text primary key default replace(gen_random_uuid()::text, '-', ''),
+  libelle text default '',
+  tournee_id text,
+  actif boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_acces_logistique_updated_at on acces_logistique;
+create trigger trg_acces_logistique_updated_at before update on acces_logistique
+  for each row execute function set_updated_at();
+
+alter table acces_logistique enable row level security;
+drop policy if exists "acces logistique acces" on acces_logistique;
+create policy "acces logistique acces" on acces_logistique for all to authenticated
+  using (has_access()) with check (has_access());
+
+create or replace function get_recap_logistique(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces  acces_logistique%rowtype;
+  resultat jsonb;
+begin
+  select * into acces from acces_logistique where id = p_token and actif limit 1;
+  if not found then
+    return null;
+  end if;
+
+  select jsonb_build_object(
+    'libelle',  acces.libelle,
+    'tournee',  (select jsonb_build_object('id', t.id, 'nom', t.nom, 'dates', t.dates)
+                 from tournees t where t.id = acces.tournee_id),
+    'moyens',   coalesce((select jsonb_agg(to_jsonb(m))
+                 from moyens_salle m where m.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'lots',     coalesce((select jsonb_agg(to_jsonb(l))
+                 from lots_materiel l where l.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'carnets',  coalesce((select jsonb_agg(to_jsonb(c))
+                 from carnets_ata c where c.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'vehicules',coalesce((select jsonb_agg(to_jsonb(v)) from vehicules v), '[]'::jsonb),
+    'chauffeurs',coalesce((select jsonb_agg(to_jsonb(ch)) from chauffeurs ch), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
+grant execute on function get_recap_logistique(text) to anon, authenticated;
