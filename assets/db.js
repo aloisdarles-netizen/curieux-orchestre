@@ -76,16 +76,26 @@ const CurieuxDB = (()=>{
     // ——— Outils de direction technique (août 2026) ———
     // Ce que la salle fournit, date par date (B2). "id" = `${tourneeId}::${dateId}`,
     // pour réutiliser upsertOne/removeOne malgré la clé composite.
+    // Ce que la salle fournit, date par date. Miroir de lots_materiel : l'un
+    // décrit ce qu'on amène, l'autre ce qu'on demande en local. Pour tout ce
+    // qui se négocie (roadies, caristes, chariots), demande et validation
+    // restent deux valeurs distinctes — ce qu'on a obtenu n'est pas forcément
+    // ce qu'on a demandé.
     moyens_salle: {
       toDb: (m)=> ({
         id: m.id, tournee_id: m.tourneeId, date_id: m.dateId,
         statut: m.statut || 'non_demande',
         plan_statut: m.planStatut || 'non_demande', plan_url: m.planUrl || '',
-        quai: m.quai || 'inconnu', acces_notes: m.accesNotes || '',
-        roadies: m.roadies != null ? m.roadies : null, roadies_horaire: m.roadiesHoraire || '',
-        caristes: m.caristes != null ? m.caristes : null,
-        chariots: m.chariots != null ? m.chariots : null,
-        chariots_fourches: m.chariotsFourches || 'inconnu',
+        semis_places: m.semisPlaces != null ? m.semisPlaces : null,
+        niveau_dechargement: m.niveauDechargement || 'inconnu',
+        acces_notes: m.accesNotes || '',
+        roadies_demande: m.roadiesDemande != null ? m.roadiesDemande : null,
+        roadies_valide: m.roadiesValide != null ? m.roadiesValide : null,
+        roadies_horaire: m.roadiesHoraire || '',
+        caristes_demande: m.caristesDemande != null ? m.caristesDemande : null,
+        caristes_valide: m.caristesValide != null ? m.caristesValide : null,
+        // Un élément par chariot demandé — voir fromDb.
+        chariots: m.chariots || [],
         hauteur_grill: m.hauteurGrill || '', ouverture_scene: m.ouvertureScene || '',
         puissance: m.puissance || '',
         contact_nom: m.contactNom || '', contact_tel: m.contactTel || '', contact_email: m.contactEmail || '',
@@ -95,53 +105,65 @@ const CurieuxDB = (()=>{
         id: r.id, tourneeId: r.tournee_id, dateId: r.date_id,
         statut: r.statut || 'non_demande',
         planStatut: r.plan_statut || 'non_demande', planUrl: r.plan_url || '',
-        quai: r.quai || 'inconnu', accesNotes: r.acces_notes || '',
-        roadies: r.roadies, roadiesHoraire: r.roadies_horaire || '',
-        caristes: r.caristes, chariots: r.chariots,
-        chariotsFourches: r.chariots_fourches || 'inconnu',
+        semisPlaces: r.semis_places, niveauDechargement: r.niveau_dechargement || 'inconnu',
+        accesNotes: r.acces_notes || '',
+        roadiesDemande: r.roadies_demande, roadiesValide: r.roadies_valide,
+        roadiesHoraire: r.roadies_horaire || '',
+        caristesDemande: r.caristes_demande, caristesValide: r.caristes_valide,
+        // [{fourche:'longues'|'courtes'|'inconnu', valide:bool}, ...] — la
+        // longueur du tableau EST le nombre demandé, valide=true compte les
+        // confirmés. Chaque fenwick a ses propres fourches.
+        chariots: r.chariots || [],
         hauteurGrill: r.hauteur_grill || '', ouvertureScene: r.ouverture_scene || '',
         puissance: r.puissance || '',
         contactNom: r.contact_nom || '', contactTel: r.contact_tel || '', contactEmail: r.contact_email || '',
         notes: r.notes || ''
       })
     },
-    // Lots de matériel (B3) : ce qui bouge, d'où ça vient, sur quelles dates c'est
-    // attendu. Sert deux fois — le récap du stage manager, et la liste douanière.
+    // Lots de matériel (B3) : ce qu'on AMÈNE — ce qui bouge, d'où ça vient,
+    // sur quelles dates c'est attendu. Sert deux fois — le récap du stage
+    // manager, et la liste douanière. Un lot est un kit ("Kit son A",
+    // "Backline cuivres") qui contient ses propres éléments, ajoutés
+    // librement plutôt que figés à la création du lot.
     lots_materiel: {
       toDb: (l)=> ({
         id: l.id, nom: l.nom || '', categorie: l.categorie || 'autre',
         provenance: l.provenance || '', tournee_id: l.tourneeId || null,
         dates_ids: l.datesIds || [],
+        // [{nom, quantite, numeroSerie, notes}, ...]
+        elements: l.elements || [],
         nb_colis: l.nbColis != null ? l.nbColis : null,
         poids_kg: l.poidsKg != null ? l.poidsKg : null,
         valeur: l.valeur != null ? l.valeur : null,
-        numeros_serie: l.numerosSerie || '',
         retour_le: l.retourLe || null, notes: l.notes || ''
       }),
       fromDb: (r)=> ({
         id: r.id, nom: r.nom, categorie: r.categorie || 'autre',
         provenance: r.provenance || '', tourneeId: r.tournee_id || '',
         datesIds: r.dates_ids || [],
+        elements: r.elements || [],
         nbColis: r.nb_colis, poidsKg: r.poids_kg, valeur: r.valeur,
-        numerosSerie: r.numeros_serie || '',
         retourLe: r.retour_le || '', notes: r.notes || ''
       })
     },
+    // Un carnet ATA est attribué à une semi, pour toute la tournée — pas date
+    // par date : l'avoir pour une semi, c'est l'avoir pour tout ce qu'elle
+    // transporte sur la tournée.
     carnets_ata: {
       toDb: (c)=> ({
         id: c.id, numero: c.numero || '', pays: c.pays || '',
-        tournee_id: c.tourneeId || null,
+        tournee_id: c.tourneeId || null, vehicule_id: c.vehiculeId || null,
         emis_le: c.emisLe || null, expire_le: c.expireLe || null,
         statut: c.statut || 'a_demander',
-        lots_ids: c.lotsIds || [], dates_ids: c.datesIds || [],
+        lots_ids: c.lotsIds || [],
         notes: c.notes || ''
       }),
       fromDb: (r)=> ({
         id: r.id, numero: r.numero || '', pays: r.pays || '',
-        tourneeId: r.tournee_id || '',
+        tourneeId: r.tournee_id || '', vehiculeId: r.vehicule_id || '',
         emisLe: r.emis_le || '', expireLe: r.expire_le || '',
         statut: r.statut || 'a_demander',
-        lotsIds: r.lots_ids || [], datesIds: r.dates_ids || [],
+        lotsIds: r.lots_ids || [],
         notes: r.notes || ''
       })
     },

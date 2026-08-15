@@ -1519,6 +1519,17 @@ create policy "fiches techniques retrait" on storage.objects for delete to authe
 -- B2 — ce que la salle fournit, date par date.
 -- "id" = `${tournee_id}::${date_id}`, pour réutiliser upsertOne/removeOne
 -- tels quels malgré la clé composite.
+--
+-- Deux registres en miroir dans tout l'axe B : ce qu'on AMÈNE (lots_materiel,
+-- ci-dessous) et ce qu'on DEMANDE EN LOCAL (ici). Pour tout ce qui se négocie
+-- avec la salle — roadies, caristes, chariots — la demande et la validation
+-- sont deux valeurs distinctes : ce qu'on a demandé n'est pas ce qu'on a
+-- obtenu. Ce qui est un fait constaté plutôt qu'une négociation (hauteur de
+-- grill, puissance disponible) reste un champ simple.
+--
+-- "Quai oui/non" est retiré : la question qui compte n'est pas binaire, c'est
+-- combien de semis on peut mettre et à quel niveau on décharge. Avec assez de
+-- roadies et de chariots aux bonnes fourches, l'accès importe peu en lui-même.
 -- ----------------------------------------------------------------------------
 create table if not exists moyens_salle (
   id text primary key,
@@ -1529,14 +1540,20 @@ create table if not exists moyens_salle (
   plan_statut text not null default 'non_demande'
     check (plan_statut in ('non_demande','demande','recu')),
   plan_url text default '',
-  quai text not null default 'inconnu' check (quai in ('oui','non','inconnu')),
+  semis_places int,
+  niveau_dechargement text not null default 'inconnu'
+    check (niveau_dechargement in ('scene','sol','les_deux','inconnu')),
   acces_notes text default '',
-  roadies int,
+  roadies_demande int,
+  roadies_valide int,
   roadies_horaire text default '',
-  caristes int,
-  chariots int,
-  chariots_fourches text not null default 'inconnu'
-    check (chariots_fourches in ('longues','courtes','les deux','inconnu')),
+  caristes_demande int,
+  caristes_valide int,
+  -- Un élément par chariot demandé : {fourche:'longues'|'courtes'|'inconnu', valide:bool}.
+  -- La longueur du tableau EST le nombre demandé ; compter valide=true donne
+  -- le nombre confirmé. Chaque fenwick a ses propres fourches, d'où le tableau
+  -- plutôt qu'un champ unique pour toute la date.
+  chariots jsonb not null default '[]'::jsonb,
   hauteur_grill text default '',
   ouverture_scene text default '',
   puissance text default '',
@@ -1559,10 +1576,14 @@ create policy "moyens salle acces" on moyens_salle for all to authenticated
 
 
 -- ----------------------------------------------------------------------------
--- B3 — lots de matériel, carnets ATA, véhicules, chauffeurs.
+-- B3 — lots de matériel, véhicules, chauffeurs, carnets ATA.
 -- Volontairement un registre, pas un plan de transport : ce qui doit être là,
 -- pas comment ça y arrive. L'exécution reste au stage manager.
 -- ----------------------------------------------------------------------------
+
+-- Un lot est un kit — « Kit son A », « Backline cuivres » — qui contient ses
+-- propres éléments (jsonb : [{nom, quantite, numeroSerie, notes}, ...]),
+-- ajoutés librement plutôt que figés à la création du lot.
 create table if not exists lots_materiel (
   id text primary key,
   nom text default '',
@@ -1571,10 +1592,10 @@ create table if not exists lots_materiel (
   provenance text default '',
   tournee_id text,
   dates_ids jsonb not null default '[]'::jsonb,
+  elements jsonb not null default '[]'::jsonb,
   nb_colis int,
   poids_kg numeric,
   valeur numeric,
-  numeros_serie text default '',
   retour_le date,
   notes text default '',
   created_at timestamptz not null default now(),
@@ -1584,26 +1605,7 @@ drop trigger if exists trg_lots_materiel_updated_at on lots_materiel;
 create trigger trg_lots_materiel_updated_at before update on lots_materiel
   for each row execute function set_updated_at();
 
-create table if not exists carnets_ata (
-  id text primary key,
-  numero text default '',
-  pays text default '',
-  tournee_id text,
-  emis_le date,
-  expire_le date,
-  statut text not null default 'a_demander'
-    check (statut in ('a_demander','demande','obtenu','en_cours','a_apurer','apure')),
-  lots_ids jsonb not null default '[]'::jsonb,
-  dates_ids jsonb not null default '[]'::jsonb,
-  notes text default '',
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-drop trigger if exists trg_carnets_ata_updated_at on carnets_ata;
-create trigger trg_carnets_ata_updated_at before update on carnets_ata
-  for each row execute function set_updated_at();
-
--- Tracteur et semi sont deux lignes distinctes : c'est le semi qui porte le
+-- Tracteur et semi sont deux lignes distinctes : c'est la semi qui porte le
 -- hayon, et un tracteur peut tirer une autre semi.
 create table if not exists vehicules (
   id text primary key,
@@ -1638,21 +1640,44 @@ drop trigger if exists trg_chauffeurs_updated_at on chauffeurs;
 create trigger trg_chauffeurs_updated_at before update on chauffeurs
   for each row execute function set_updated_at();
 
+-- Un carnet ATA est attribué à une semi, pour toute la durée de la tournée —
+-- pas date par date : l'avoir pour une semi, c'est l'avoir pour tout ce
+-- qu'elle transporte sur la tournée. D'où vehicule_id plutôt que dates_ids.
+create table if not exists carnets_ata (
+  id text primary key,
+  numero text default '',
+  pays text default '',
+  tournee_id text,
+  vehicule_id text references vehicules(id) on delete set null,
+  emis_le date,
+  expire_le date,
+  statut text not null default 'a_demander'
+    check (statut in ('a_demander','demande','obtenu','en_cours','a_apurer','apure')),
+  lots_ids jsonb not null default '[]'::jsonb,
+  notes text default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_carnets_ata_vehicule on carnets_ata(vehicule_id);
+drop trigger if exists trg_carnets_ata_updated_at on carnets_ata;
+create trigger trg_carnets_ata_updated_at before update on carnets_ata
+  for each row execute function set_updated_at();
+
 alter table lots_materiel enable row level security;
-alter table carnets_ata  enable row level security;
 alter table vehicules    enable row level security;
 alter table chauffeurs   enable row level security;
+alter table carnets_ata  enable row level security;
 drop policy if exists "lots materiel acces" on lots_materiel;
 create policy "lots materiel acces" on lots_materiel for all to authenticated
-  using (has_access()) with check (has_access());
-drop policy if exists "carnets ata acces" on carnets_ata;
-create policy "carnets ata acces" on carnets_ata for all to authenticated
   using (has_access()) with check (has_access());
 drop policy if exists "vehicules acces" on vehicules;
 create policy "vehicules acces" on vehicules for all to authenticated
   using (has_access()) with check (has_access());
 drop policy if exists "chauffeurs acces" on chauffeurs;
 create policy "chauffeurs acces" on chauffeurs for all to authenticated
+  using (has_access()) with check (has_access());
+drop policy if exists "carnets ata acces" on carnets_ata;
+create policy "carnets ata acces" on carnets_ata for all to authenticated
   using (has_access()) with check (has_access());
 
 
