@@ -170,7 +170,7 @@ async function valider(){
     : await CurieuxDB.connexionAcces(email, mdp);
 
   if(r.error){
-    afficher(translateAuthError(r.error.message), false);
+    afficher(messagePourLaPersonne(r.error.message), false);
     btn.disabled = false;
     return;
   }
@@ -188,6 +188,26 @@ async function valider(){
   afficher(`Presque fini. Un email de confirmation vient de partir à ${email} : ouvre-le pour activer ton accès. Ensuite, ton mot de passe suffira.`, true);
 }
 
+// Les messages d'erreur partagés s'adressent à l'équipe et parlent de
+// réglages Supabase. Ici c'est un·e musicien·ne qui lit : on traduit dans
+// ses termes, sans jargon ni conseil qu'il ne peut pas suivre.
+function messagePourLaPersonne(brut){
+  const m = String(brut || '');
+  if(/rate limit/i.test(m)){
+    return "Trop de demandes en peu de temps sur le site. Réessaie dans une heure, ou préviens la production.";
+  }
+  if(/already registered|already exists/i.test(m)){
+    return "Un compte existe déjà avec cette adresse. Passe par « J'en ai déjà un » pour te connecter.";
+  }
+  if(/invalid login credentials/i.test(m)){
+    return "Adresse ou mot de passe incorrect. Si tu as oublié ton mot de passe, utilise le lien ci-dessous.";
+  }
+  if(/email not confirmed/i.test(m)){
+    return "Ton adresse n'est pas encore confirmée : ouvre l'email qu'on t'a envoyé pour activer ton accès.";
+  }
+  return translateAuthError(m);
+}
+
 document.getElementById('validerBtn').addEventListener('click', valider);
 document.getElementById('fMdp').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') valider(); });
 
@@ -195,7 +215,7 @@ document.getElementById('oubliBtn').addEventListener('click', async ()=>{
   const email = document.getElementById('fEmail').value.trim();
   if(!email || !email.includes('@')){ afficher('Indique d\'abord ton adresse email.', false); return; }
   const { error } = await CurieuxDB.reinitialiserMotDePasseAcces(email);
-  afficher(error ? translateAuthError(error.message)
+  afficher(error ? messagePourLaPersonne(error.message)
                  : `Un email vient de partir à ${email} pour choisir un nouveau mot de passe.`, !error);
 });
 
