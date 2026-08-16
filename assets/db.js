@@ -70,8 +70,11 @@ const CurieuxDB = (()=>{
         cachet_statut: t.cachetStatut === 'defini' ? 'defini' : 'non_defini',
         cachet_montant: t.cachetStatut === 'defini' ? (t.cachetMontant != null ? t.cachetMontant : null) : null,
         nomenclature: t.nomenclature || [],
+        // [{id, label, couleur}, ...] — équipes road nommées, réutilisées comme
+        // base de répartition sur chaque vacation roadies.
+        equipes_road: t.equipesRoad || [],
       }),
-      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [] })
+      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [], equipesRoad: r.equipes_road || [] })
     },
     // ——— Outils de direction technique (août 2026) ———
     // Ce que la salle fournit, date par date (B2). "id" = `${tourneeId}::${dateId}`,
@@ -166,13 +169,15 @@ const CurieuxDB = (()=>{
         provenance_id: l.provenanceId || null,
         tournee_id: l.tourneeId || null,
         dates_ids: l.datesIds || [],
-        // [{nom, notes}, ...]
+        // [{nom, notes}, ...] — conservé tel quel mais plus édité (l'UI ne s'en sert plus)
         elements: l.elements || [],
         description: l.description || '',
         date_prepa: l.datePrepa || null,
         date_pickup: l.datePickup || null,
-        // [{id, date, type:'sortie'|'entree', description}, ...] — journal des allers-retours
+        // [{id, date, heure, type:'sortie'|'entree', description}, ...] — journal des allers-retours
         mouvements: l.mouvements || [],
+        retour_prestataire_date: l.retourPrestataireDate || null,
+        retour_prestataire_heure: l.retourPrestataireHeure || '',
         notes: l.notes || ''
       }),
       fromDb: (r)=> ({
@@ -184,7 +189,10 @@ const CurieuxDB = (()=>{
         elements: r.elements || [],
         description: r.description || '',
         datePrepa: r.date_prepa || '', datePickup: r.date_pickup || '',
-        mouvements: r.mouvements || [], notes: r.notes || ''
+        mouvements: r.mouvements || [],
+        retourPrestataireDate: r.retour_prestataire_date || '',
+        retourPrestataireHeure: r.retour_prestataire_heure || '',
+        notes: r.notes || ''
       })
     },
     // Un carnet ATA est attribué à une semi, pour toute la tournée — valable
@@ -216,13 +224,19 @@ const CurieuxDB = (()=>{
         hauteur_m: v.hauteurM != null ? v.hauteurM : null,
         largeur_m: v.largeurM != null ? v.largeurM : null,
         profondeur_m: v.profondeurM != null ? v.profondeurM : null,
-        capacite: v.capacite || '', prestataire_id: v.prestataireId || null, notes: v.notes || ''
+        capacite: v.capacite || '', prestataire_id: v.prestataireId || null,
+        // Chauffeur habituel de cette semi — reste le même d'une date à l'autre
+        // sauf exception gérée par affectations_transport.
+        chauffeur_defaut_id: v.chauffeurDefautId || null,
+        notes: v.notes || ''
       }),
       fromDb: (r)=> ({
         id: r.id, nom: r.nom || '', type: r.type || 'semi',
         immatriculation: r.immatriculation || '', hayon: !!r.hayon,
         hauteurM: r.hauteur_m, largeurM: r.largeur_m, profondeurM: r.profondeur_m,
-        capacite: r.capacite || '', prestataireId: r.prestataire_id || '', notes: r.notes || ''
+        capacite: r.capacite || '', prestataireId: r.prestataire_id || '',
+        chauffeurDefautId: r.chauffeur_defaut_id || '',
+        notes: r.notes || ''
       })
     },
     chauffeurs: {
@@ -1140,6 +1154,16 @@ const CurieuxDB = (()=>{
     if(error){ console.warn('[CurieuxDB] enregistrerPositionsSemis', error.message); return { error }; }
     return { ok: !!data };
   }
+  // Le stage manager (jeton type='stage_manager') modifie les horaires de la
+  // journée (load in, get in…) d'une date.
+  async function enregistrerHorairesJournee(token, dateId, horaires){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { data, error } = await supabaseClient.rpc('enregistrer_horaires_journee', {
+      p_token: token, p_date_id: dateId, p_horaires: horaires
+    });
+    if(error){ console.warn('[CurieuxDB] enregistrerHorairesJournee', error.message); return { error }; }
+    return { ok: !!data };
+  }
   // Dépôt d'une image de plan de salle (bucket réutilisé, append-only :
   // chaque dépôt prend un chemin distinct plutôt que d'écraser le précédent,
   // pour ne pas dépendre des policies UPDATE/DELETE du bucket).
@@ -1168,7 +1192,7 @@ const CurieuxDB = (()=>{
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
     fetchReglages, setPhaseTest, compterLignesPurgeables, purgerDonneesEssai,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
-    getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis,
+    getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis, enregistrerHorairesJournee,
     deposerPlanSalle, urlPubliquePlanSalle,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,

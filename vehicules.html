@@ -36,16 +36,32 @@
   .section-lead{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
   .section-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px;}
 
-  .cardgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px;}
-  .r-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; display:flex; flex-direction:column; gap:6px;}
+  .cardgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:14px;}
+  .r-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; display:flex; flex-direction:column; gap:8px;}
   .r-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
-  .r-name{font-weight:800; font-size:14.5px;}
-  .r-sub{color:var(--muted); font-size:12px;}
-  .r-actions{display:flex; gap:6px; margin-top:6px; border-top:1px solid var(--border); padding-top:9px;}
+  .r-name{font-weight:800; font-size:15.5px;}
+  .r-sub{color:var(--muted); font-size:12.5px;}
+  .r-actions{display:flex; gap:6px; margin-top:8px; border-top:1px solid var(--border); padding-top:10px;}
   .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap;}
   .badge-accent{background:var(--accent-tint); color:var(--accent-dark);}
   .badge-hayon{background:var(--ok-tint); color:var(--ok);}
   .badge-sans-hayon{background:var(--border); color:var(--muted);}
+  .r-dims{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; color:var(--muted); background:var(--bg); border-radius:8px; padding:7px 10px;}
+  .r-dims b{color:var(--text); font-weight:700;}
+
+  .lien-chauffeur{
+    display:flex; align-items:center; gap:9px; background:var(--bg); border:1px dashed var(--border);
+    border-radius:10px; padding:9px 11px; margin-top:2px;
+  }
+  .lien-chauffeur .lien-avatar{
+    flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--accent-tint); color:var(--accent-dark);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px;
+  }
+  .lien-chauffeur .lien-corps{flex:1; min-width:0;}
+  .lien-chauffeur .lien-label{font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); font-weight:700;}
+  .lien-chauffeur select{width:auto; flex:1; min-width:0; padding:5px 7px; font-size:13px; margin-top:2px;}
+  .lien-chauffeur.vide{border-style:dashed; border-color:var(--maybe);}
+  .exception-note{font-size:11.5px; color:var(--maybe); background:var(--maybe-tint); border-radius:8px; padding:5px 9px; margin-top:2px;}
 
   .modal-overlay{display:none; position:fixed; inset:0; background:rgba(20,15,10,.5); align-items:center; justify-content:center; padding:20px; z-index:50; overflow-y:auto;}
   .modal-overlay.open{display:flex;}
@@ -99,14 +115,14 @@
   </div>
 
   <div class="section-block">
-    <h2 class="section-title">Qui conduit quoi</h2>
-    <p class="section-lead">Souple, par date — un chauffeur peut changer de semi d'une date à l'autre. Rattache un chauffeur directement depuis une carte véhicule ci-dessus, ou ajoute une affectation ici.</p>
+    <h2 class="section-title">Exceptions par date</h2>
+    <p class="section-lead">Par défaut, chaque semi est conduite par son chauffeur habituel (défini sur sa carte, ci-dessus). N'ajoute une ligne ici que pour une date où ça change.</p>
     <div class="field-row">
       <select class="tournee-select" id="tourneeSelect" style="flex:1;"></select>
       <select class="tournee-select" id="affectationDateSelect" style="flex:1;"></select>
     </div>
     <div id="affectationsListe"></div>
-    <button type="button" class="btn-secondary btn-sm" id="addAffectationBtn">+ Ajouter une affectation</button>
+    <button type="button" class="btn-secondary btn-sm" id="addAffectationBtn">+ Ajouter une exception</button>
   </div>
 </div>
 
@@ -136,6 +152,7 @@
     <div class="field"><label class="chk"><input type="checkbox" id="vHayon"> Cette semi a un hayon</label></div>
     <div class="field"><label for="vCapacite">Capacité</label><input type="text" id="vCapacite" placeholder="Ex: 90 m³"></div>
     <div class="field"><label for="vPrestataire">Prestataire</label><select id="vPrestataire"></select></div>
+    <div class="field"><label for="vChauffeurDefaut">Chauffeur habituel</label><select id="vChauffeurDefaut"></select></div>
     <div class="field"><label for="vNotes">Notes</label><textarea id="vNotes"></textarea></div>
     <div class="modal-actions">
       <button type="button" class="btn-ghost" id="vehiculeModalCancel">Annuler</button>
@@ -222,6 +239,10 @@ document.getElementById('chPrestataire').addEventListener('change', (e)=> gererN
 // ============================================================================
 // Véhicules
 // ============================================================================
+function initiales(personne){
+  const p = (personne.prenom||'')[0] || ''; const n = (personne.nom||'')[0] || '';
+  return (p+n).toUpperCase() || '?';
+}
 function renderVehicules(){
   const grid = document.getElementById('vehiculesGrid');
   const empty = document.getElementById('vehiculesEmpty');
@@ -231,23 +252,41 @@ function renderVehicules(){
     const prest = prestatairesCache.find(p=>p.id===v.prestataireId);
     const dims = [v.hauteurM,v.largeurM,v.profondeurM].some(x=>x!=null)
       ? `${v.hauteurM ?? '—'} × ${v.largeurM ?? '—'} × ${v.profondeurM ?? '—'} m` : '';
+    const defaut = chauffeursCache.find(c=>c.id===v.chauffeurDefautId);
+    const exception = prochaineException(v.id, v.chauffeurDefautId);
     return `
     <div class="r-card">
       <div class="r-card-top">
         <div><div class="r-name">${escapeHtml(v.nom || 'Sans nom')}</div><div class="r-sub">${v.immatriculation ? escapeHtml(v.immatriculation) : ''}${v.capacite ? ' · ' + escapeHtml(v.capacite) : ''}</div></div>
         <span class="badge badge-accent">${TYPE_VEHICULE_LABEL[v.type]||v.type}</span>
       </div>
-      ${dims ? `<div class="r-sub">${dims}</div>` : ''}
+      ${dims ? `<div class="r-dims">${escapeHtml(dims)}</div>` : ''}
       ${v.type === 'semi' ? `<span class="badge ${v.hayon ? 'badge-hayon' : 'badge-sans-hayon'}" style="align-self:flex-start;">${v.hayon ? 'Avec hayon' : 'Sans hayon'}</span>` : ''}
-      ${prest ? `<div class="r-sub">${escapeHtml(prest.nom)}</div>` : ''}
-      ${chauffeurCourantHtml(v.id)}
+      ${prest ? `<div class="r-sub">Loué chez ${escapeHtml(prest.nom)}</div>` : ''}
+      <div class="lien-chauffeur${defaut?'':' vide'}">
+        <div class="lien-avatar">${defaut ? escapeHtml(initiales(defaut)) : '—'}</div>
+        <div class="lien-corps">
+          <div class="lien-label">Chauffeur habituel</div>
+          <select data-defaut="${v.id}">
+            <option value="">— Aucun —</option>
+            ${chauffeursCache.map(c=>`<option value="${c.id}" ${v.chauffeurDefautId===c.id?'selected':''}>${escapeHtml(fullName(c))}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      ${exception ? `<div class="exception-note">Exception le ${escapeHtml(libelleDateCourt(exception.d))} : ${escapeHtml(fullName(exception.chauffeur))}</div>` : ''}
       <div class="r-actions">
         <button type="button" class="btn-ghost btn-sm" data-edit="${v.id}">Modifier</button>
-        <button type="button" class="btn-ghost btn-sm" data-chauffeur="${v.id}">+ Chauffeur</button>
+        <button type="button" class="btn-ghost btn-sm" data-chauffeur="${v.id}">+ Exception</button>
         <button type="button" class="btn-danger btn-sm" data-del="${v.id}">Supprimer</button>
       </div>
     </div>
   `;}).join('');
+  grid.querySelectorAll('[data-defaut]').forEach(sel=> sel.addEventListener('change', async ()=>{
+    const v = vehiculesCache.find(x=>x.id===sel.dataset.defaut);
+    v.chauffeurDefautId = sel.value;
+    await CurieuxDB.upsertOne('vehicules', v);
+    renderVehicules();
+  }));
   grid.querySelectorAll('[data-chauffeur]').forEach(b=> b.addEventListener('click', ()=> attacherChauffeurRapide(b.dataset.chauffeur)));
   grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openVehiculeModal(b.dataset.edit)));
   grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
@@ -259,8 +298,13 @@ function renderVehicules(){
     }
   }));
 }
+function fillChauffeurDefautSelect(){
+  document.getElementById('vChauffeurDefaut').innerHTML = '<option value="">— Aucun —</option>'
+    + chauffeursCache.map(c=>`<option value="${c.id}">${escapeHtml(fullName(c))}</option>`).join('');
+}
 function openVehiculeModal(id){
   fillPrestataireSelects();
+  fillChauffeurDefautSelect();
   document.getElementById('vEditId').value = id || '';
   if(id){
     const v = vehiculesCache.find(x=>x.id===id);
@@ -275,6 +319,7 @@ function openVehiculeModal(id){
     document.getElementById('vCapacite').value = v.capacite || '';
     document.getElementById('vHayon').checked = !!v.hayon;
     document.getElementById('vPrestataire').value = v.prestataireId || '';
+    document.getElementById('vChauffeurDefaut').value = v.chauffeurDefautId || '';
     document.getElementById('vNotes').value = v.notes || '';
   } else {
     document.getElementById('vehiculeModalTitle').textContent = 'Ajouter un véhicule';
@@ -282,6 +327,7 @@ function openVehiculeModal(id){
     document.getElementById('vType').value = 'semi';
     document.getElementById('vHayon').checked = false;
     document.getElementById('vPrestataire').value = '';
+    document.getElementById('vChauffeurDefaut').value = '';
   }
   document.getElementById('vehiculeModalOverlay').classList.add('open');
 }
@@ -299,6 +345,7 @@ document.getElementById('vehiculeModalSave').addEventListener('click', async ()=
     hayon: document.getElementById('vHayon').checked,
     capacite: document.getElementById('vCapacite').value.trim(),
     prestataireId: document.getElementById('vPrestataire').value || '',
+    chauffeurDefautId: document.getElementById('vChauffeurDefaut').value || '',
     notes: document.getElementById('vNotes').value.trim(),
   };
   if(!obj.nom){ alert('Donne un nom au véhicule.'); return; }
@@ -319,11 +366,13 @@ function renderChauffeurs(){
   empty.style.display='none';
   grid.innerHTML = chauffeursCache.map(c=>{
     const prest = prestatairesCache.find(p=>p.id === c.prestataire); // legacy text fallback if not migrated
+    const semisHabituelles = vehiculesCache.filter(v=>v.chauffeurDefautId===c.id);
     return `
     <div class="r-card">
       <div class="r-card-top"><div class="r-name">${escapeHtml(fullName(c))}</div></div>
       <div class="r-sub">${[c.telephone, c.email].filter(Boolean).map(escapeHtml).join(' · ') || 'Pas de contact enregistré'}</div>
       ${c.prestataire ? `<div class="r-sub">${escapeHtml(c.prestataire)}</div>` : ''}
+      ${semisHabituelles.length ? `<div class="lien-chauffeur"><div class="lien-avatar">🚛</div><div class="lien-corps"><div class="lien-label">Chauffeur habituel de</div><div style="font-size:13px; font-weight:700;">${semisHabituelles.map(v=>escapeHtml(v.nom||'Sans nom')).join(', ')}</div></div></div>` : ''}
       <div class="r-actions">
         <button type="button" class="btn-ghost btn-sm" data-edit="${c.id}">Modifier</button>
         <button type="button" class="btn-danger btn-sm" data-del="${c.id}">Supprimer</button>
@@ -492,30 +541,24 @@ function fillAffectationDateSelect(){
     ? dates.map(d=>`<option value="${d.id}">${escapeHtml(libelleDateCourt(d))}</option>`).join('')
     : '<option value="">Aucune date à venir</option>';
 }
-// Affectation la plus proche (aujourd'hui ou après) pour ce véhicule, toutes tournées confondues.
-function prochaineAffectation(vehiculeId){
+// Exception la plus proche (aujourd'hui ou après) pour ce véhicule — une
+// affectation explicite dont le chauffeur diffère du chauffeur habituel.
+function prochaineException(vehiculeId, chauffeurDefautId){
   const today = new Date().toISOString().slice(0,10);
   const candidats = affectationsCache
-    .filter(a=> a.vehiculeId === vehiculeId && a.chauffeurId)
+    .filter(a=> a.vehiculeId === vehiculeId && a.chauffeurId && a.chauffeurId !== chauffeurDefautId)
     .map(a=>{
       const t = tourneesCache.find(x=>x.id===a.tourneeId);
       const d = t ? (t.dates||[]).find(x=>x.id===a.dateId) : null;
-      return { a, d };
+      return { a, d, chauffeur: chauffeursCache.find(c=>c.id===a.chauffeurId) };
     })
-    .filter(x=> x.d && (!x.d.date || x.d.date >= today))
+    .filter(x=> x.d && x.chauffeur && (!x.d.date || x.d.date >= today))
     .sort((x,y)=> (x.d.date||'').localeCompare(y.d.date||''));
   return candidats[0] || null;
 }
-function chauffeurCourantHtml(vehiculeId){
-  const prochaine = prochaineAffectation(vehiculeId);
-  if(!prochaine) return '';
-  const chauffeur = chauffeursCache.find(c=>c.id===prochaine.a.chauffeurId);
-  if(!chauffeur) return '';
-  return `<div class="r-sub">Chauffeur (${escapeHtml(libelleDateCourt(prochaine.d))}) : ${escapeHtml(fullName(chauffeur))}</div>`;
-}
 async function attacherChauffeurRapide(vehiculeId){
   const dateId = document.getElementById('affectationDateSelect').value;
-  if(!dateId){ alert("Choisis d'abord une date dans « Qui conduit quoi », en bas de page."); return; }
+  if(!dateId){ alert("Choisis d'abord une date dans « Exceptions par date », en bas de page."); return; }
   const tourneeId = activeTourneeId();
   let obj = affectationsCache.find(a=> a.tourneeId===tourneeId && a.dateId===dateId && a.vehiculeId===vehiculeId);
   if(!obj){

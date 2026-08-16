@@ -96,16 +96,19 @@
     </div>
 
     <fieldset class="groupe">
-      <legend>Éléments</legend>
-      <div class="sous-liste" id="elementsListe"></div>
-      <button type="button" class="btn-secondary btn-sm" id="addElementBtn">+ Ajouter un élément</button>
+      <legend>Mouvements</legend>
+      <p class="subtitle" style="margin:-6px 0 10px;">Chaque sortie ou entrée de matériel dans ce lot, avec sa date et éventuellement l'heure demandée — utile pour les échanges (une console qui sort, une autre qui rentre), les retours de matériel non utilisé, et pour transmettre l'info au chauffeur concerné.</p>
+      <div class="sous-liste" id="mouvementsListe"></div>
+      <button type="button" class="btn-secondary btn-sm" id="addMouvementBtn">+ Ajouter un mouvement</button>
     </fieldset>
 
     <fieldset class="groupe">
-      <legend>Mouvements</legend>
-      <p class="subtitle" style="margin:-6px 0 10px;">Chaque sortie ou entrée de matériel dans ce lot, avec sa date — utile pour les échanges (une console qui sort, une autre qui rentre) ou les retours de matériel non utilisé.</p>
-      <div class="sous-liste" id="mouvementsListe"></div>
-      <button type="button" class="btn-secondary btn-sm" id="addMouvementBtn">+ Ajouter un mouvement</button>
+      <legend>Retour chez le prestataire</legend>
+      <p class="subtitle" style="margin:-6px 0 10px;">Le retour définitif du lot en fin de tournée, distinct des mouvements courants.</p>
+      <div class="field-row">
+        <div class="field"><label for="lRetourPrestDate">Date</label><input type="date" id="lRetourPrestDate"></div>
+        <div class="field"><label for="lRetourPrestHeure">Heure de pick up / livraison</label><input type="time" id="lRetourPrestHeure"></div>
+      </div>
     </fieldset>
 
     <div class="field"><label for="lNotes">Notes</label><textarea id="lNotes"></textarea></div>
@@ -140,37 +143,20 @@ document.getElementById('lProvenance').addEventListener('change', async (e)=>{
   document.getElementById('lProvenance').value = obj.id;
 });
 
-function renderElementsEdition(){
-  document.getElementById('elementsListe').innerHTML = elementsEnEdition.map((el,i)=>`
-    <div class="sous-ligne">
-      <input type="text" data-i="${i}" data-f="nom" value="${escapeHtml(el.nom||'')}" placeholder="Ex: Console façade">
-      <input type="text" data-i="${i}" data-f="notes" value="${escapeHtml(el.notes||'')}" placeholder="Notes">
-      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer="${i}">Retirer</button>
-    </div>
-  `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun élément.</p>`;
-  document.querySelectorAll('#elementsListe input[data-f]').forEach(inp=> inp.addEventListener('input', ()=>{
-    elementsEnEdition[inp.dataset.i][inp.dataset.f] = inp.value;
-  }));
-  document.querySelectorAll('#elementsListe [data-retirer]').forEach(btn=> btn.addEventListener('click', ()=>{
-    elementsEnEdition.splice(Number(btn.dataset.retirer), 1);
-    renderElementsEdition();
-  }));
-}
-document.getElementById('addElementBtn').addEventListener('click', ()=>{
-  elementsEnEdition.push({ nom:'', notes:'' });
-  renderElementsEdition();
-});
+// Les éléments d'un lot ne sont plus affichés ni édités ici — la valeur
+// chargée est conservée telle quelle et repartira intacte à l'enregistrement.
 
 // ============================================================================
 // Mouvements — journal des allers-retours (échange, retour…), plusieurs
-// possibles par lot, chacun avec sa propre date.
+// possibles par lot, chacun avec sa propre date et heure éventuelle.
 // ============================================================================
 let mouvementsEnEdition = [];
 const TYPE_MOUVEMENT_LABEL = { sortie:'Sortie', entree:'Entrée' };
 function renderMouvementsEdition(){
   document.getElementById('mouvementsListe').innerHTML = mouvementsEnEdition.map((mv,i)=>`
     <div class="sous-ligne">
-      <input type="date" style="flex:0 0 150px;" data-i="${i}" data-f="date" value="${mv.date||''}">
+      <input type="date" style="flex:0 0 145px;" data-i="${i}" data-f="date" value="${mv.date||''}">
+      <input type="time" style="flex:0 0 100px;" data-i="${i}" data-f="heure" value="${mv.heure||''}">
       <select style="flex:0 0 110px;" data-i="${i}" data-f="type">
         <option value="sortie" ${mv.type==='sortie'?'selected':''}>Sortie</option>
         <option value="entree" ${mv.type==='entree'?'selected':''}>Entrée</option>
@@ -200,7 +186,8 @@ function joursDe(l){
   if(l.datePrepa) bits.push('préparation ' + new Date(l.datePrepa+'T00:00:00').toLocaleDateString('fr-FR'));
   if(l.datePickup) bits.push('récupération ' + new Date(l.datePickup+'T00:00:00').toLocaleDateString('fr-FR'));
   const dernierMouvement = (l.mouvements||[]).filter(mv=>mv.date).sort((a,b)=> b.date.localeCompare(a.date))[0];
-  if(dernierMouvement) bits.push(`${TYPE_MOUVEMENT_LABEL[dernierMouvement.type]||'Mouvement'} ${new Date(dernierMouvement.date+'T00:00:00').toLocaleDateString('fr-FR')}`);
+  if(dernierMouvement) bits.push(`${TYPE_MOUVEMENT_LABEL[dernierMouvement.type]||'Mouvement'} ${new Date(dernierMouvement.date+'T00:00:00').toLocaleDateString('fr-FR')}${dernierMouvement.heure ? ' à ' + dernierMouvement.heure : ''}`);
+  if(l.retourPrestataireDate) bits.push('retour prestataire ' + new Date(l.retourPrestataireDate+'T00:00:00').toLocaleDateString('fr-FR') + (l.retourPrestataireHeure ? ' à ' + l.retourPrestataireHeure : ''));
   return bits;
 }
 function carteLot(l){
@@ -211,7 +198,7 @@ function carteLot(l){
       <div class="lot-top">
         <div>
           <div class="lot-nom">${escapeHtml(l.nom || 'Sans nom')}</div>
-          <div class="lot-sub">${(l.elements||[]).length} élément${(l.elements||[]).length>1?'s':''}${provenance ? ' · ' + escapeHtml(provenance.nom) : ''}</div>
+          ${provenance ? `<div class="lot-sub">${escapeHtml(provenance.nom)}</div>` : ''}
           ${l.description ? `<div class="lot-sub">${escapeHtml(l.description)}</div>` : ''}
         </div>
         <span class="badge">${CATEGORIE_LABEL[l.categorie]||'Autre'}</span>
@@ -272,18 +259,19 @@ function openLotModal(id, parentId){
     document.getElementById('lDescription').value = l.description || '';
     document.getElementById('lDatePrepa').value = l.datePrepa || '';
     document.getElementById('lDatePickup').value = l.datePickup || '';
+    document.getElementById('lRetourPrestDate').value = l.retourPrestataireDate || '';
+    document.getElementById('lRetourPrestHeure').value = l.retourPrestataireHeure || '';
     document.getElementById('lNotes').value = l.notes || '';
     elementsEnEdition = (l.elements||[]).map(e=>({...e}));
     mouvementsEnEdition = (l.mouvements||[]).map(mv=>({...mv}));
   } else {
     document.getElementById('lotModalTitle').textContent = parentId ? 'Ajouter un sous-lot' : 'Ajouter un lot';
-    ['lNom','lDescription','lDatePrepa','lDatePickup','lNotes'].forEach(fid=> document.getElementById(fid).value = '');
+    ['lNom','lDescription','lDatePrepa','lDatePickup','lRetourPrestDate','lRetourPrestHeure','lNotes'].forEach(fid=> document.getElementById(fid).value = '');
     document.getElementById('lCategorie').value = 'autre';
     document.getElementById('lProvenance').value = '';
     elementsEnEdition = [];
     mouvementsEnEdition = [];
   }
-  renderElementsEdition();
   renderMouvementsEdition();
   document.getElementById('lotModalOverlay').classList.add('open');
 }
@@ -304,6 +292,8 @@ document.getElementById('lotModalSave').addEventListener('click', async ()=>{
     datePrepa: document.getElementById('lDatePrepa').value || '',
     datePickup: document.getElementById('lDatePickup').value || '',
     mouvements: mouvementsEnEdition,
+    retourPrestataireDate: document.getElementById('lRetourPrestDate').value || '',
+    retourPrestataireHeure: document.getElementById('lRetourPrestHeure').value || '',
     notes: document.getElementById('lNotes').value.trim(),
   };
   const idx = lotsCache.findIndex(x=>x.id===id);
