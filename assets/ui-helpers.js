@@ -12,22 +12,16 @@ function escapeHtml(str){ return String(str||'').replace(/&/g,'&amp;').replace(/
 function escapeAttr(str){ return escapeHtml(str); }
 function fullName(p){ return [p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom'; }
 
-// Répartition par défaut des roadies en équipes, par département — couleur de
-// base pour repérer chaque équipe sur les vacations (direction technique).
+// Départements par défaut utilisés pour amorcer le registre d'équipes road
+// d'une tournée (tournees.equipesRoad) la première fois qu'on l'ouvre —
+// ensuite ce sont les équipes nommées par la tournée qui font foi.
 const DEPARTEMENTS_ROAD = [
-  { cle:'lumiere', label:'Lumière', couleur:'#F5C518' },
-  { cle:'son', label:'Son', couleur:'#2F6FED' },
-  { cle:'backline', label:'Backline', couleur:'#F2994A' },
-  { cle:'rigg', label:'Rigg', couleur:'#27AE60' },
-  { cle:'video', label:'Vidéo', couleur:'#E85DA0' },
+  { label:'Lumière', couleur:'#F5C518' },
+  { label:'Son', couleur:'#2F6FED' },
+  { label:'Backline', couleur:'#F2994A' },
+  { label:'Rigg', couleur:'#27AE60' },
+  { label:'Vidéo', couleur:'#E85DA0' },
 ];
-function nouvellesEquipesRoadDefaut(){
-  return DEPARTEMENTS_ROAD.map(d=> ({ departement:d.cle, couleur:d.couleur, nombre:null }));
-}
-function labelDepartementRoad(cle){
-  const d = DEPARTEMENTS_ROAD.find(x=>x.cle===cle);
-  return d ? d.label : (cle || 'Équipe');
-}
 // Le suffixe aléatoire sert aussi de token imprévisible pour les liens perso
 // (dispo_demandes.id) : crypto.getRandomValues plutôt que Math.random(), qui
 // n'offre aucune garantie d'imprévisibilité.
@@ -139,11 +133,11 @@ const CURIEUX_NAV = [
     { href:'suivi-dispo.html',    icone:'icone-demandes-titulaires.svg',   libelle:'Demandes titulaires' },
   ]},
   { type:'groupe', libelle:'Direction technique', entrees:[
-    { href:'technique.html',          libelle:'Avancement par date' },
-    { href:'materiel.html',           libelle:'Matériel' },
-    { href:'vehicules.html',          libelle:'Véhicules & chauffeurs' },
-    { href:'fiches-techniques.html',  libelle:'Fiches techniques' },
-    { href:'partage.html',            libelle:'Partage' },
+    { href:'technique.html',          icone:'icone-technique-avancement.svg', libelle:'Avancement par date' },
+    { href:'materiel.html',           icone:'icone-technique-materiel.svg',   libelle:'Matériel' },
+    { href:'vehicules.html',          icone:'icone-technique-vehicules.svg',  libelle:'Véhicules & chauffeurs' },
+    { href:'fiches-techniques.html',  icone:'icone-technique-fiches.svg',     libelle:'Fiches techniques' },
+    { href:'partage.html',            icone:'icone-technique-partage.svg',    libelle:'Partage' },
   ]},
   { type:'lien', href:'recap.html', icone:'icone-vue-ensemble.svg', libelle:"Vue d'ensemble" },
 ];

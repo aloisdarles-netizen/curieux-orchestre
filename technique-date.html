@@ -175,8 +175,15 @@
   </fieldset>
 
   <fieldset class="groupe">
+    <legend>Équipes de la tournée (road)</legend>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Nommées une fois pour la tournée, réutilisées sur chaque vacation roadies ci-dessous.</p>
+    <div id="equipesTourneeListe"></div>
+    <button type="button" class="btn-secondary btn-sm" id="addEquipeTourneeBtn">+ Ajouter une équipe</button>
+  </fieldset>
+
+  <fieldset class="groupe">
     <legend>Roadies</legend>
-    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">En vacations plutôt qu'en demande globale — chaque créneau a son effectif demandé, une confirmation, et peut être réparti en équipes par département.</p>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">En vacations plutôt qu'en demande globale — chaque créneau a son effectif demandé, une confirmation, et se répartit sur les équipes de la tournée.</p>
     <div id="roadiesListe"></div>
     <button type="button" class="btn-secondary btn-sm" id="addRoadiesBtn">+ Ajouter une vacation</button>
   </fieldset>
@@ -254,59 +261,133 @@ function numOrNull(id){ const v = document.getElementById(id).value; return v ==
 // ============================================================================
 // Vacations (roadies / chariots / rigg)
 // ============================================================================
-function nouvelleVacationRoadies(){ return { horaireDebut:'', horaireFin:'', nombreDemande:null, confirme:false, notes:'', equipes: nouvellesEquipesRoadDefaut() }; }
+function nouvelleVacationRoadies(){
+  return {
+    horaireDebut:'', horaireFin:'', nombreDemande:null, confirme:false, notes:'', dejeunerInclus:null,
+    equipes: (tournee.equipesRoad||[]).map(eq=>({ equipeId: eq.id, nombre:null }))
+  };
+}
 function nouvelleVacationChariots(){ return { horaireDebut:'', horaireFin:'', nombreChariotsDemande:null, confirme:false, fourches:[], nombreCaristesDemande:null, notes:'' }; }
 function nouvelleVacationRigg(){ return { horaireDebut:'', horaireFin:'', nombreDemande:null, confirme:false, notes:'' }; }
 
+// ============================================================================
+// Équipes de la tournée (registre nommé, réutilisé par chaque vacation roadies)
+// ============================================================================
+function renderEquipesTournee(){
+  const box = document.getElementById('equipesTourneeListe');
+  const liste = tournee.equipesRoad;
+  box.innerHTML = liste.map((eq,i)=>`
+    <div class="equipe-ligne" data-i="${i}">
+      <input type="color" data-f="couleur" value="${eq.couleur || '#888888'}">
+      <input type="text" class="equipe-label-libre" data-f="label" value="${escapeAttr(eq.label||'')}" placeholder="Nom de l'équipe">
+      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-equipe-tournee="${i}">×</button>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucune équipe.</p>`;
+  box.querySelectorAll('.equipe-ligne').forEach(row=>{
+    const i = Number(row.dataset.i);
+    row.querySelectorAll('[data-f]').forEach(inp=> inp.addEventListener('input', async ()=>{
+      liste[i][inp.dataset.f] = inp.value;
+      await CurieuxDB.upsertOne('tournees', tournee);
+      renderRoadiesListe();
+    }));
+  });
+  box.querySelectorAll('[data-retirer-equipe-tournee]').forEach(btn=> btn.addEventListener('click', async ()=>{
+    liste.splice(Number(btn.dataset.retirerEquipeTournee), 1);
+    await CurieuxDB.upsertOne('tournees', tournee);
+    renderEquipesTournee();
+    renderRoadiesListe();
+  }));
+}
+document.getElementById('addEquipeTourneeBtn').addEventListener('click', async ()=>{
+  tournee.equipesRoad.push({ id: genId('eq'), label:'', couleur:'#888888' });
+  await CurieuxDB.upsertOne('tournees', tournee);
+  renderEquipesTournee();
+});
+
+function dureeVacation(debut, fin){
+  if(!debut || !fin) return '';
+  const [h1,m1] = debut.split(':').map(Number), [h2,m2] = fin.split(':').map(Number);
+  let mins = (h2*60+m2) - (h1*60+m1);
+  if(mins < 0) mins += 24*60;
+  const h = Math.floor(mins/60), m = mins%60;
+  return `${h}h${m ? String(m).padStart(2,'0') : ''}`;
+}
+function chevaucheDejeuner(debut, fin){
+  if(!debut || !fin) return false;
+  return debut < '14:30' && fin > '12:00';
+}
 function renderEquipesEdition(vacationIndex){
   const v = moyens.roadiesVacations[vacationIndex];
   const box = document.querySelector(`[data-equipes-de="${vacationIndex}"]`);
   if(!box) return;
   v.equipes = v.equipes || [];
-  box.innerHTML = v.equipes.map((eq,ei)=>{
-    const estDefaut = DEPARTEMENTS_ROAD.some(d=>d.cle===eq.departement);
+  const registre = tournee.equipesRoad || [];
+  registre.forEach(eq=>{ if(!v.equipes.some(e=>e.equipeId===eq.id)) v.equipes.push({ equipeId: eq.id, nombre:null }); });
+  box.innerHTML = registre.map(eq=>{
+    const entree = v.equipes.find(e=>e.equipeId===eq.id);
     return `
     <div class="equipe-ligne">
-      <input type="color" data-ei="${ei}" data-ef="couleur" value="${eq.couleur || '#888888'}">
-      ${estDefaut
-        ? `<span class="equipe-label">${escapeHtml(labelDepartementRoad(eq.departement))}</span>`
-        : `<input type="text" class="equipe-label-libre" data-ei="${ei}" data-ef="departement" value="${escapeAttr(eq.departement||'')}" placeholder="Nom de l'équipe">`}
-      <input type="number" min="0" data-ei="${ei}" data-ef="nombre" value="${eq.nombre!=null?eq.nombre:''}" placeholder="Nb">
-      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-equipe="${ei}">×</button>
+      <span style="width:14px; height:14px; border-radius:50%; background:${escapeHtml(eq.couleur||'#888')}; flex:0 0 auto;"></span>
+      <span class="equipe-label">${escapeHtml(eq.label || 'Équipe')}</span>
+      <input type="number" min="0" data-equipe-id="${eq.id}" value="${entree && entree.nombre!=null ? entree.nombre : ''}" placeholder="Nb">
     </div>
-  `;}).join('') || `<p style="font-size:12px; color:var(--muted); margin:0;">Aucune équipe.</p>`;
-  box.querySelectorAll('input[data-ef]').forEach(inp=> inp.addEventListener('input', ()=>{
-    const val = inp.dataset.ef === 'nombre' ? (inp.value === '' ? null : Number(inp.value)) : inp.value;
-    v.equipes[inp.dataset.ei][inp.dataset.ef] = val;
+  `;}).join('') || `<p style="font-size:12px; color:var(--muted); margin:0;">Aucune équipe nommée pour cette tournée — ajoute-les au-dessus.</p>`;
+  box.querySelectorAll('input[data-equipe-id]').forEach(inp=> inp.addEventListener('input', ()=>{
+    const entree = v.equipes.find(e=>e.equipeId===inp.dataset.equipeId);
+    entree.nombre = inp.value === '' ? null : Number(inp.value);
+    afficherSommeEquipes(vacationIndex);
   }));
-  box.querySelectorAll('[data-retirer-equipe]').forEach(btn=> btn.addEventListener('click', ()=>{
-    v.equipes.splice(Number(btn.dataset.retirerEquipe), 1);
-    renderEquipesEdition(vacationIndex);
-  }));
+  afficherSommeEquipes(vacationIndex);
+}
+function afficherSommeEquipes(vacationIndex){
+  const v = moyens.roadiesVacations[vacationIndex];
+  const el = document.querySelector(`[data-somme-equipes-de="${vacationIndex}"]`);
+  if(!el) return;
+  const somme = (v.equipes||[]).reduce((s,e)=> s + (Number(e.nombre)||0), 0);
+  const total = v.nombreDemande;
+  const correspond = total != null && somme === total;
+  el.textContent = `Somme des équipes : ${somme}${total!=null ? ' / ' + total + ' demandé' : ''}`;
+  el.style.color = total == null ? 'var(--muted)' : (correspond ? 'var(--ok)' : 'var(--maybe)');
 }
 function renderRoadiesListe(){
   const box = document.getElementById('roadiesListe');
   const liste = moyens.roadiesVacations;
-  box.innerHTML = liste.map((v,i)=>`
+  box.innerHTML = liste.map((v,i)=>{
+    const duree = dureeVacation(v.horaireDebut, v.horaireFin);
+    const surDejeuner = chevaucheDejeuner(v.horaireDebut, v.horaireFin);
+    return `
     <div class="vacation" data-i="${i}">
-      <div class="vacation-head"><b>Vacation ${i+1}</b><button type="button" class="btn-danger btn-sm" data-retirer-roadies="${i}">Retirer</button></div>
+      <div class="vacation-head"><b>Vacation ${i+1}${duree ? ' — ' + duree : ''}</b><button type="button" class="btn-danger btn-sm" data-retirer-roadies="${i}">Retirer</button></div>
       <div class="field-row">
         <div class="field"><label>Début</label><input type="time" data-f="horaireDebut" value="${v.horaireDebut||''}"></div>
         <div class="field"><label>Fin</label><input type="time" data-f="horaireFin" value="${v.horaireFin||''}"></div>
         <div class="field"><label>Demandé</label><input type="number" min="0" data-f="nombreDemande" value="${v.nombreDemande!=null?v.nombreDemande:''}"></div>
         <div class="field" style="justify-content:flex-end;"><label class="chk"><input type="checkbox" data-f="confirme" ${v.confirme?'checked':''}> Confirmée</label></div>
       </div>
-      <label style="display:block; margin:6px 0 4px;">Équipes (par département)</label>
+      ${surDejeuner ? `
+      <div class="field"><label>Vacation à cheval sur la pause déjeuner (12h–14h30)</label>
+        <select data-f="dejeunerInclus">
+          <option value="" ${v.dejeunerInclus==null?'selected':''}>À préciser</option>
+          <option value="oui" ${v.dejeunerInclus===true?'selected':''}>Le déjeuner est compté dans la vacation</option>
+          <option value="non" ${v.dejeunerInclus===false?'selected':''}>Le déjeuner n'est pas compté (pause à part)</option>
+        </select>
+      </div>` : ''}
+      <label style="display:block; margin:6px 0 4px;">Équipes de la tournée</label>
       <div data-equipes-de="${i}"></div>
-      <button type="button" class="btn-ghost btn-sm" data-add-equipe="${i}">+ Ajouter une équipe</button>
+      <p style="font-size:12px; font-weight:700; margin:6px 0 0;" data-somme-equipes-de="${i}"></p>
       <div class="field" style="margin-top:10px;"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
     </div>
-  `).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
+  `;}).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
   box.querySelectorAll('.vacation').forEach(card=>{
     const i = Number(card.dataset.i);
-    card.querySelectorAll(':scope > .field-row [data-f], :scope > .field [data-f]').forEach(inp=> inp.addEventListener(inp.type==='checkbox'?'change':'input', ()=>{
-      const val = inp.type === 'checkbox' ? inp.checked : (inp.type === 'number' ? (inp.value === '' ? null : Number(inp.value)) : inp.value);
+    card.querySelectorAll(':scope > .field-row [data-f], :scope > .field [data-f]').forEach(inp=> inp.addEventListener(inp.type==='checkbox'?'change':(inp.tagName==='SELECT'?'change':'input'), ()=>{
+      let val;
+      if(inp.dataset.f === 'confirme') val = inp.checked;
+      else if(inp.dataset.f === 'dejeunerInclus') val = inp.value === '' ? null : inp.value === 'oui';
+      else if(inp.type === 'number') val = inp.value === '' ? null : Number(inp.value);
+      else val = inp.value;
       liste[i][inp.dataset.f] = val;
+      if(inp.dataset.f === 'horaireDebut' || inp.dataset.f === 'horaireFin' || inp.dataset.f === 'nombreDemande') renderRoadiesListe();
     }));
     renderEquipesEdition(i);
   });
@@ -639,6 +720,7 @@ function peupler(){
 
   renderEmplacements();
   renderHorairesListe();
+  renderEquipesTournee();
   renderRoadiesListe();
   renderChariotsListe();
   renderRiggListe();
@@ -699,6 +781,11 @@ async function init(){
   if(!tournee){ document.getElementById('titre').textContent = 'Tournée introuvable'; return; }
   dateEntry = (tournee.dates||[]).find(d=>d.id === dateId);
   if(!dateEntry){ document.getElementById('titre').textContent = 'Date introuvable'; return; }
+
+  if(!tournee.equipesRoad || tournee.equipesRoad.length === 0){
+    tournee.equipesRoad = DEPARTEMENTS_ROAD.map(d=>({ id: genId('eq'), label: d.label, couleur: d.couleur }));
+    await CurieuxDB.upsertOne('tournees', tournee);
+  }
 
   document.getElementById('titre').textContent = `${dateEntry.ville || dateEntry.lieu || 'Date'}${dateEntry.lieu && dateEntry.ville ? ' — ' + dateEntry.lieu : ''}`;
   document.getElementById('sousTitre').textContent = dateEntry.date

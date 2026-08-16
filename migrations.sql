@@ -2309,3 +2309,96 @@ begin
 end;
 $$;
 grant execute on function repondre_vacation_salle(text, text, text, int, jsonb) to anon, authenticated;
+
+
+-- ============================================================================
+-- Direction technique v4 — matériel (mouvements horodatés, retour prestataire),
+-- chauffeur habituel par semi, équipes road nommées par tournée, horaires de
+-- journée modifiables par le stage manager, accès élargi aux documents.
+-- ============================================================================
+
+-- Matériel : heure de livraison/pickup par mouvement (jsonb, pas de colonne à
+-- ajouter) ; date + heure de retour chez le prestataire, distinctes des
+-- mouvements courants (c'est le retour définitif du lot en fin de tournée).
+alter table lots_materiel add column if not exists retour_prestataire_date date;
+alter table lots_materiel add column if not exists retour_prestataire_heure text default '';
+
+-- Véhicules : chauffeur habituel — le lien par défaut entre une semi et son
+-- chauffeur, qui ne change pas d'une date à l'autre sauf exception (gérée par
+-- affectations_transport, qui ne sert plus qu'aux exceptions).
+alter table vehicules add column if not exists chauffeur_defaut_id text references chauffeurs(id) on delete set null;
+
+-- Tournées : registre des équipes road nommées, réutilisé comme base de
+-- répartition sur chaque vacation roadies (au lieu de recréer les mêmes
+-- catégories à chaque fois).
+alter table tournees add column if not exists equipes_road jsonb not null default '[]'::jsonb;
+
+-- Le stage manager peut modifier les horaires de la journée (load in, get in…).
+create or replace function enregistrer_horaires_journee(
+  p_token text, p_date_id text, p_horaires jsonb
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces acces_logistique%rowtype;
+  n int;
+begin
+  select * into acces from acces_logistique where id = p_token and actif and type = 'stage_manager' limit 1;
+  if not found then return false; end if;
+  update moyens_salle set horaires_journee = p_horaires
+    where tournee_id = acces.tournee_id and date_id = p_date_id;
+  get diagnostics n = row_count;
+  return n > 0;
+end;
+$$;
+grant execute on function enregistrer_horaires_journee(text, text, jsonb) to anon, authenticated;
+
+-- get_recap_logistique : expose désormais equipes_road (noms d'équipes pour
+-- l'affichage des vacations roadies côté salle/technicien/stage manager).
+create or replace function get_recap_logistique(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces acces_logistique%rowtype;
+  resultat jsonb;
+begin
+  select * into acces from acces_logistique where id = p_token and actif limit 1;
+  if not found then
+    return null;
+  end if;
+
+  select jsonb_build_object(
+    'libelle', acces.libelle,
+    'type', acces.type,
+    'datesIds', acces.dates_ids,
+    'tournee', (select jsonb_build_object('id', t.id, 'nom', t.nom, 'dates', t.dates, 'equipesRoad', t.equipes_road)
+                from tournees t where t.id = acces.tournee_id),
+    'moyens', coalesce((select jsonb_agg(to_jsonb(m))
+                from moyens_salle m where m.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'lots', coalesce((select jsonb_agg(to_jsonb(l))
+                from lots_materiel l where l.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'carnets', coalesce((select jsonb_agg(to_jsonb(c))
+                from carnets_ata c where c.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'vehicules', coalesce((select jsonb_agg(to_jsonb(v)) from vehicules v), '[]'::jsonb),
+    'chauffeurs', coalesce((select jsonb_agg(to_jsonb(ch)) from chauffeurs ch), '[]'::jsonb),
+    'affectationsTransport', coalesce((select jsonb_agg(to_jsonb(a))
+                from affectations_transport a where a.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'fichesTechniques', coalesce((select jsonb_agg(to_jsonb(f))
+                from fiches_techniques f where f.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'techniciensContacts', coalesce((
+                select jsonb_agg(jsonb_build_object('id', tc.id, 'prenom', tc.prenom, 'nom', tc.nom, 'poste', tc.poste))
+                from techniciens tc
+                where tc.id in (
+                  select jsonb_array_elements_text(m.contacts_techniciens_ids)
+                  from moyens_salle m where m.tournee_id = acces.tournee_id
+                )), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
