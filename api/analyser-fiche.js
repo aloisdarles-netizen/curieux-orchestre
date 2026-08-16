@@ -9,7 +9,9 @@ import Anthropic from '@anthropic-ai/sdk';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nffqcvysweidquouulzs.supabase.co';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_-QZnJEZi01-5fjkjv_2SPw_wODqHcJQ';
 
-export const config = { maxDuration: 300 };
+// 60 s est la limite acceptée par tous les plans Vercel ; au-delà, c'est le
+// déploiement entier du site qui échoue, pas seulement cette fonction.
+export const config = { maxDuration: 60 };
 
 const SCHEMA = {
   type: 'object',
@@ -208,7 +210,7 @@ export default async function handler(req, res) {
   try {
     const stream = client.messages.stream({
       model: 'claude-opus-5',
-      max_tokens: 8000,
+      max_tokens: 4000,
       thinking: { type: 'adaptive' },
       system: SYSTEM,
       output_config: { format: { type: 'json_schema', schema: SCHEMA } },
