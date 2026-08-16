@@ -815,6 +815,25 @@ const CurieuxDB = (()=>{
     return data || null;
   }
 
+  // Administration des accès personnels : qui a créé son accès, qui pas encore.
+  async function listeComptesPersonnes(){
+    if(!supabaseClient) return { lies: [], sansCompte: [] };
+    const { data, error } = await supabaseClient.rpc('liste_comptes_personnes');
+    if(error){ console.warn('[CurieuxDB] listeComptesPersonnes', error.message); return { lies: [], sansCompte: [] }; }
+    return data || { lies: [], sansCompte: [] };
+  }
+
+  // Défait un rattachement — indispensable quand quelqu'un change d'adresse ou
+  // perd l'accès à sa boîte : sans cela, sa fiche resterait prise pour toujours.
+  async function delierComptePersonne(personId, personType){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { data, error } = await supabaseClient.rpc('delier_compte_personne', {
+      p_person_id: personId, p_person_type: personType
+    });
+    if(error){ console.warn('[CurieuxDB] delierComptePersonne', error.message); return { error }; }
+    return { ok: !!data };
+  }
+
   // --- Historique des modifications (audit_log, réservé aux comptes 'admin'
   // par RLS — voir migrations.sql). tableName optionnel pour filtrer. ---
   async function fetchAuditLog(tableName, limit){
@@ -1244,6 +1263,7 @@ const CurieuxDB = (()=>{
     listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
     envoyerLienAcces, lierCompteAPersonne, maPersonne, mesDemandesDispo,
+    listeComptesPersonnes, delierComptePersonne,
     fetchCorbeille, restaurerDepuisCorbeille,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,
