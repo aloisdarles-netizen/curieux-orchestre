@@ -157,6 +157,34 @@ async function requireSuperAdminAuth(){
   location.replace('admin-login.html?level=admin&redirect=' + encodeURIComponent(here));
 }
 
+// Direction technique (août 2026) : réservé aux comptes 'admin' + aux comptes
+// explicitement désignés (infos_sociales_admins.direction_technique), gérés
+// depuis admin-dashboard.html. Un compte 'user' sans ce droit, bien
+// qu'ayant accès au reste de l'app, est renvoyé vers l'accueil plutôt que
+// vers la page de connexion — il EST connecté, il n'a juste pas ce droit-là.
+async function requireDirectionTechniqueAuth(){
+  try{
+    const session = await CurieuxDB.getSession();
+    if(session){
+      if(!(await CurieuxDB.hasAppAccess())){
+        const here = location.pathname.split('/').pop() + location.search;
+        location.replace('admin-login.html?redirect=' + encodeURIComponent(here));
+        return;
+      }
+      if(await CurieuxDB.hasDirectionTechniqueAccess()){
+        const hideStyle = document.getElementById('curieux-lock-hide');
+        if(hideStyle) hideStyle.remove();
+        try{ injectAdminLogoutButton(session.user.email); }catch(e){}
+        return;
+      }
+      location.replace('accueil.html');
+      return;
+    }
+  }catch(e){ console.warn('[requireDirectionTechniqueAuth]', e); }
+  const here = location.pathname.split('/').pop() + location.search;
+  location.replace('admin-login.html?redirect=' + encodeURIComponent(here));
+}
+
 // Bouton de déconnexion — inséré comme dernière pastille de .page-nav (même
 // style que les autres liens de nav) plutôt qu'en coin de page fixe : un
 // élément position:fixed superposait le texte du nav sur les pages où celui-ci
