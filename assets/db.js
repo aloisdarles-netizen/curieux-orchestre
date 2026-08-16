@@ -77,81 +77,107 @@ const CurieuxDB = (()=>{
     // Ce que la salle fournit, date par date (B2). "id" = `${tourneeId}::${dateId}`,
     // pour réutiliser upsertOne/removeOne malgré la clé composite.
     // Ce que la salle fournit, date par date. Miroir de lots_materiel : l'un
-    // décrit ce qu'on amène, l'autre ce qu'on demande en local. Pour tout ce
-    // qui se négocie (roadies, caristes, chariots), demande et validation
-    // restent deux valeurs distinctes — ce qu'on a obtenu n'est pas forcément
-    // ce qu'on a demandé.
+    // décrit ce qu'on amène, l'autre ce qu'on demande en local.
     moyens_salle: {
       toDb: (m)=> ({
         id: m.id, tournee_id: m.tourneeId, date_id: m.dateId,
         statut: m.statut || 'non_demande',
         plan_statut: m.planStatut || 'non_demande', plan_url: m.planUrl || '',
-        semis_places: m.semisPlaces != null ? m.semisPlaces : null,
+        plan_valide: !!m.planValide,
+        plan_charge_statut: m.planChargeStatut || 'non_envoye',
+        bureau_controle_sur_place: !!m.bureauControleSurPlace,
+        bureau_controle_horaire: m.bureauControleHoraire || '',
+        bureau_controle_contact: m.bureauControleContact || '',
+        nombre_semis_simultanees: m.nombreSemisSimultanees != null ? m.nombreSemisSimultanees : null,
+        // [{emplacement:'scene'|'cote_scene'|'fosse'|'autre'}, ...] — une entrée par semi simultanée.
+        emplacements_dechargement: m.emplacementsDechargement || [],
         niveau_dechargement: m.niveauDechargement || 'inconnu',
         acces_notes: m.accesNotes || '',
-        roadies_demande: m.roadiesDemande != null ? m.roadiesDemande : null,
-        roadies_valide: m.roadiesValide != null ? m.roadiesValide : null,
-        roadies_horaire: m.roadiesHoraire || '',
-        caristes_demande: m.caristesDemande != null ? m.caristesDemande : null,
-        caristes_valide: m.caristesValide != null ? m.caristesValide : null,
-        // Un élément par chariot demandé — voir fromDb.
-        chariots: m.chariots || [],
+        // [{horaireDebut, horaireFin, nombreDemande, nombrePropose, nombreValide, notes}, ...]
+        roadies_vacations: m.roadiesVacations || [],
+        // [{horaireDebut, horaireFin, nombreChariotsDemande, nombreChariotsPropose, nombreChariotsValide,
+        //   fourches:[{fourche,valide}], nombreCaristesDemande, nombreCaristesPropose, nombreCaristesValide, notes}, ...]
+        chariots_vacations: m.chariotsVacations || [],
         hauteur_grill: m.hauteurGrill || '', ouverture_scene: m.ouvertureScene || '',
-        puissance: m.puissance || '',
-        contact_nom: m.contactNom || '', contact_tel: m.contactTel || '', contact_email: m.contactEmail || '',
+        profondeur_scene: m.profondeurScene || '',
+        puissance: m.puissance || '', type_courant: m.typeCourant || '',
+        nombre_circuits: m.nombreCircuits || '', charge_max_accroche: m.chargeMaxAccroche || '',
+        type_sol: m.typeSol || '',
+        // [{nom, role, tel, email}, ...]
+        contacts_salle: m.contactsSalle || [],
+        // sous-ensemble de techniciensAssignes de la date, à exposer côté salle
+        contacts_techniciens_ids: m.contactsTechniciensIds || [],
+        plan_image_path: m.planImagePath || '',
+        // [{vehiculeId, label, xPct, yPct}, ...]
+        semis_positions: m.semisPositions || [],
         notes: m.notes || ''
       }),
       fromDb: (r)=> ({
         id: r.id, tourneeId: r.tournee_id, dateId: r.date_id,
         statut: r.statut || 'non_demande',
         planStatut: r.plan_statut || 'non_demande', planUrl: r.plan_url || '',
-        semisPlaces: r.semis_places, niveauDechargement: r.niveau_dechargement || 'inconnu',
+        planValide: !!r.plan_valide,
+        planChargeStatut: r.plan_charge_statut || 'non_envoye',
+        bureauControleSurPlace: !!r.bureau_controle_sur_place,
+        bureauControleHoraire: r.bureau_controle_horaire || '',
+        bureauControleContact: r.bureau_controle_contact || '',
+        nombreSemisSimultanees: r.nombre_semis_simultanees,
+        emplacementsDechargement: r.emplacements_dechargement || [],
+        niveauDechargement: r.niveau_dechargement || 'inconnu',
         accesNotes: r.acces_notes || '',
-        roadiesDemande: r.roadies_demande, roadiesValide: r.roadies_valide,
-        roadiesHoraire: r.roadies_horaire || '',
-        caristesDemande: r.caristes_demande, caristesValide: r.caristes_valide,
-        // [{fourche:'longues'|'courtes'|'inconnu', valide:bool}, ...] — la
-        // longueur du tableau EST le nombre demandé, valide=true compte les
-        // confirmés. Chaque fenwick a ses propres fourches.
-        chariots: r.chariots || [],
+        roadiesVacations: r.roadies_vacations || [],
+        chariotsVacations: r.chariots_vacations || [],
         hauteurGrill: r.hauteur_grill || '', ouvertureScene: r.ouverture_scene || '',
-        puissance: r.puissance || '',
-        contactNom: r.contact_nom || '', contactTel: r.contact_tel || '', contactEmail: r.contact_email || '',
+        profondeurScene: r.profondeur_scene || '',
+        puissance: r.puissance || '', typeCourant: r.type_courant || '',
+        nombreCircuits: r.nombre_circuits || '', chargeMaxAccroche: r.charge_max_accroche || '',
+        typeSol: r.type_sol || '',
+        contactsSalle: r.contacts_salle || [],
+        contactsTechniciensIds: r.contacts_techniciens_ids || [],
+        planImagePath: r.plan_image_path || '',
+        semisPositions: r.semis_positions || [],
         notes: r.notes || ''
       })
     },
-    // Lots de matériel (B3) : ce qu'on AMÈNE — ce qui bouge, d'où ça vient,
-    // sur quelles dates c'est attendu. Sert deux fois — le récap du stage
-    // manager, et la liste douanière. Un lot est un kit ("Kit son A",
-    // "Backline cuivres") qui contient ses propres éléments, ajoutés
-    // librement plutôt que figés à la création du lot.
+    // Registre partagé des prestataires (provenance matériel, loueur véhicule).
+    prestataires: {
+      toDb: (p)=> ({ id: p.id, nom: p.nom || '', notes: p.notes || '' }),
+      fromDb: (r)=> ({ id: r.id, nom: r.nom || '', notes: r.notes || '' })
+    },
+    // Lots de matériel (B3) : ce qu'on AMÈNE. Un lot peut contenir d'autres
+    // lots (parentId) — "Kit lumière" peut contenir "Barres LED sol" comme
+    // lot à part entière — en plus de ses éléments simples.
     lots_materiel: {
       toDb: (l)=> ({
         id: l.id, nom: l.nom || '', categorie: l.categorie || 'autre',
-        provenance: l.provenance || '', tournee_id: l.tourneeId || null,
+        parent_id: l.parentId || null,
+        provenance_id: l.provenanceId || null,
+        tournee_id: l.tourneeId || null,
         dates_ids: l.datesIds || [],
         // [{nom, quantite, numeroSerie, notes}, ...]
         elements: l.elements || [],
-        nb_colis: l.nbColis != null ? l.nbColis : null,
-        poids_kg: l.poidsKg != null ? l.poidsKg : null,
-        valeur: l.valeur != null ? l.valeur : null,
+        description: l.description || '',
+        date_prepa: l.datePrepa || null,
+        date_pickup: l.datePickup || null,
         retour_le: l.retourLe || null, notes: l.notes || ''
       }),
       fromDb: (r)=> ({
         id: r.id, nom: r.nom, categorie: r.categorie || 'autre',
-        provenance: r.provenance || '', tourneeId: r.tournee_id || '',
+        parentId: r.parent_id || '',
+        provenanceId: r.provenance_id || '',
+        tourneeId: r.tournee_id || '',
         datesIds: r.dates_ids || [],
         elements: r.elements || [],
-        nbColis: r.nb_colis, poidsKg: r.poids_kg, valeur: r.valeur,
+        description: r.description || '',
+        datePrepa: r.date_prepa || '', datePickup: r.date_pickup || '',
         retourLe: r.retour_le || '', notes: r.notes || ''
       })
     },
-    // Un carnet ATA est attribué à une semi, pour toute la tournée — pas date
-    // par date : l'avoir pour une semi, c'est l'avoir pour tout ce qu'elle
-    // transporte sur la tournée.
+    // Un carnet ATA est attribué à une semi, pour toute la tournée — valable
+    // dans toute l'Europe, pas de notion de pays.
     carnets_ata: {
       toDb: (c)=> ({
-        id: c.id, numero: c.numero || '', pays: c.pays || '',
+        id: c.id, numero: c.numero || '',
         tournee_id: c.tourneeId || null, vehicule_id: c.vehiculeId || null,
         emis_le: c.emisLe || null, expire_le: c.expireLe || null,
         statut: c.statut || 'a_demander',
@@ -159,7 +185,7 @@ const CurieuxDB = (()=>{
         notes: c.notes || ''
       }),
       fromDb: (r)=> ({
-        id: r.id, numero: r.numero || '', pays: r.pays || '',
+        id: r.id, numero: r.numero || '',
         tourneeId: r.tournee_id || '', vehiculeId: r.vehicule_id || '',
         emisLe: r.emis_le || '', expireLe: r.expire_le || '',
         statut: r.statut || 'a_demander',
@@ -173,55 +199,79 @@ const CurieuxDB = (()=>{
       toDb: (v)=> ({
         id: v.id, nom: v.nom || '', type: v.type || 'semi',
         immatriculation: v.immatriculation || '', hayon: !!v.hayon,
-        capacite: v.capacite || '', prestataire: v.prestataire || '', notes: v.notes || ''
+        hauteur_m: v.hauteurM != null ? v.hauteurM : null,
+        largeur_m: v.largeurM != null ? v.largeurM : null,
+        profondeur_m: v.profondeurM != null ? v.profondeurM : null,
+        capacite: v.capacite || '', prestataire_id: v.prestataireId || null, notes: v.notes || ''
       }),
       fromDb: (r)=> ({
         id: r.id, nom: r.nom || '', type: r.type || 'semi',
         immatriculation: r.immatriculation || '', hayon: !!r.hayon,
-        capacite: r.capacite || '', prestataire: r.prestataire || '', notes: r.notes || ''
+        hauteurM: r.hauteur_m, largeurM: r.largeur_m, profondeurM: r.profondeur_m,
+        capacite: r.capacite || '', prestataireId: r.prestataire_id || '', notes: r.notes || ''
       })
     },
     chauffeurs: {
       toDb: (c)=> ({
         id: c.id, prenom: c.prenom || '', nom: c.nom || '',
         telephone: c.telephone || '', email: c.email || '',
-        permis: c.permis || '', prestataire: c.prestataire || '', notes: c.notes || ''
+        prestataire: c.prestataire || '', notes: c.notes || ''
       }),
       fromDb: (r)=> ({
         id: r.id, prenom: r.prenom || '', nom: r.nom || '',
         telephone: r.telephone || '', email: r.email || '',
-        permis: r.permis || '', prestataire: r.prestataire || '', notes: r.notes || ''
+        prestataire: r.prestataire || '', notes: r.notes || ''
       })
     },
-    // Fiches techniques (B1) : Drive reste l'atelier, l'appli est la vitrine.
+    // Affectation souple d'un chauffeur à une semi, par date — jamais figée :
+    // un chauffeur peut changer de semi d'une date à l'autre.
+    affectations_transport: {
+      toDb: (a)=> ({
+        id: a.id, tournee_id: a.tourneeId, date_id: a.dateId,
+        vehicule_id: a.vehiculeId || null, chauffeur_id: a.chauffeurId || null,
+        notes: a.notes || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, tourneeId: r.tournee_id, dateId: r.date_id,
+        vehiculeId: r.vehicule_id || '', chauffeurId: r.chauffeur_id || '',
+        notes: r.notes || ''
+      })
+    },
+    // Fiches techniques (B1) : drive_url pointe directement sur le fichier
+    // Drive partagé — toujours à jour, sans synchronisation. version_actuelle
+    // est une étiquette libre mise à jour manuellement.
     fiches_techniques: {
       toDb: (f)=> ({
         id: f.id, nom: f.nom || '', tournee_id: f.tourneeId || null,
         drive_url: f.driveUrl || '',
-        version_courante: f.versionCourante != null ? f.versionCourante : null
+        version_actuelle: f.versionActuelle || '',
+        version_le: f.versionLe || null
       }),
       fromDb: (r)=> ({
         id: r.id, nom: r.nom || '', tourneeId: r.tournee_id || '',
         driveUrl: r.drive_url || '', token: r.token,
-        versionCourante: r.version_courante
+        versionActuelle: r.version_actuelle || '', versionLe: r.version_le || ''
       })
     },
+    // Simple journal (plus de fichier associé — voir fiches_techniques.drive_url).
     fiches_techniques_versions: {
-      toDb: (v)=> ({
-        id: v.id, fiche_id: v.ficheId, version: v.version,
-        fichier_chemin: v.fichierChemin || '', fichier_nom: v.fichierNom || '',
-        changelog: v.changelog || ''
+      toDb: (v)=> ({ id: v.id, fiche_id: v.ficheId, label: v.label || '', changelog: v.changelog || '' }),
+      fromDb: (r)=> ({ id: r.id, ficheId: r.fiche_id, label: r.label || '', changelog: r.changelog || '', createdAt: r.created_at })
+    },
+    // Accès à la logistique (B4) — "id" est le jeton du lien. type distingue
+    // trois audiences (stage manager / technicien / salle) ; une salle est
+    // scopée à une ou plusieurs dates précises, pas à toute la tournée.
+    acces_logistique: {
+      toDb: (a)=> ({
+        id: a.id, libelle: a.libelle || '', tournee_id: a.tourneeId || null,
+        type: a.type || 'stage_manager', dates_ids: a.datesIds || [],
+        actif: a.actif !== false
       }),
       fromDb: (r)=> ({
-        id: r.id, ficheId: r.fiche_id, version: r.version,
-        fichierChemin: r.fichier_chemin || '', fichierNom: r.fichier_nom || '',
-        changelog: r.changelog || '', createdAt: r.created_at
+        id: r.id, libelle: r.libelle || '', tourneeId: r.tournee_id || '',
+        type: r.type || 'stage_manager', datesIds: r.dates_ids || [],
+        actif: r.actif !== false, createdAt: r.created_at
       })
-    },
-    // Accès en lecture seule à la logistique (B4) — "id" est le jeton du lien.
-    acces_logistique: {
-      toDb: (a)=> ({ id: a.id, libelle: a.libelle || '', tournee_id: a.tourneeId || null, actif: a.actif !== false }),
-      fromDb: (r)=> ({ id: r.id, libelle: r.libelle || '', tourneeId: r.tournee_id || '', actif: r.actif !== false, createdAt: r.created_at })
     },
     // Exceptions par personne au cachet standard d'une tournée (voir tournees.cachet_montant) —
     // table à part, verrouillée (RLS "admin access" ci-dessous) : contrairement au cachet
@@ -605,6 +655,15 @@ const CurieuxDB = (()=>{
   async function isSuperAdmin(){
     return (await getMyRole()) === 'admin';
   }
+  // Direction technique (août 2026) : espace réservé à des comptes désignés
+  // explicitement, en plus des comptes 'admin' qui y ont accès de toute façon
+  // (voir has_direction_technique_access() dans migrations.sql).
+  async function hasDirectionTechniqueAccess(){
+    if(!supabaseClient) return false;
+    const { data, error } = await supabaseClient.rpc('has_direction_technique_access');
+    if(error){ console.warn('[CurieuxDB] hasDirectionTechniqueAccess', error.message); return false; }
+    return !!data;
+  }
 
   // --- Gestion des comptes (page admin-dashboard.html, réservée aux comptes
   // 'admin') : liste/ajoute/retire des lignes dans infos_sociales_admins. Ne
@@ -614,7 +673,7 @@ const CurieuxDB = (()=>{
   async function listAccounts(){
     if(!supabaseClient) return [];
     const { data, error } = await supabaseClient
-      .from('infos_sociales_admins').select('email, role').order('email');
+      .from('infos_sociales_admins').select('email, role, direction_technique').order('email');
     if(error){ console.warn('[CurieuxDB] listAccounts', error.message); return []; }
     return data || [];
   }
@@ -623,6 +682,13 @@ const CurieuxDB = (()=>{
     const { error } = await supabaseClient
       .from('infos_sociales_admins').upsert({ email, role }, { onConflict: 'email' });
     if(error) console.warn('[CurieuxDB] setAccountRole', error.message);
+    return { error };
+  }
+  async function setDirectionTechniqueAccess(email, actif){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient
+      .from('infos_sociales_admins').update({ direction_technique: !!actif }).eq('email', email);
+    if(error) console.warn('[CurieuxDB] setDirectionTechniqueAccess', error.message);
     return { error };
   }
   async function removeAccount(email){
@@ -996,64 +1062,42 @@ const CurieuxDB = (()=>{
   }
 
   // ——— B1 · fiches techniques ———————————————————————————————————————
-  // Publier une version : on dépose le fichier dans le bucket, on enregistre la
-  // version, puis seulement on fait pointer la fiche dessus. Dans cet ordre —
-  // si le dépôt échoue, la fiche continue de servir l'ancienne version plutôt
-  // que de pointer vers un fichier absent.
-  async function publierVersionFiche(ficheId, fichier, changelog){
+  // drive_url reste la source : ce lien pointe directement sur le fichier
+  // partagé, donc toujours à jour sans rien à synchroniser. Publier une
+  // "version" ne fait que journaliser une étiquette et horodater — aucun
+  // fichier ne transite par ici.
+  async function publierVersionFiche(ficheId, label, changelog){
     if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-
-    const dernieres = await supabaseClient.from('fiches_techniques_versions')
-      .select('version').eq('fiche_id', ficheId).order('version', { ascending: false }).limit(1);
-    if(dernieres.error) return { error: dernieres.error };
-    const version = ((dernieres.data || [])[0]?.version || 0) + 1;
-
-    const suffixe = (fichier.name.match(/\.[a-z0-9]+$/i) || ['.pdf'])[0].toLowerCase();
-    const chemin = `${ficheId}/v${version}-${_identifiant()}${suffixe}`;
-
-    const depot = await supabaseClient.storage.from('fiches-techniques')
-      .upload(chemin, fichier, { contentType: fichier.type || 'application/pdf', upsert: false });
-    if(depot.error) return { error: depot.error };
-
-    const insertion = await supabaseClient.from('fiches_techniques_versions').insert({
-      id: _identifiant(), fiche_id: ficheId, version,
-      fichier_chemin: chemin, fichier_nom: fichier.name, changelog: changelog || ''
-    });
-    if(insertion.error) return { error: insertion.error };
-
+    const maintenant = new Date().toISOString();
     const maj = await supabaseClient.from('fiches_techniques')
-      .update({ version_courante: version }).eq('id', ficheId);
+      .update({ version_actuelle: label || '', version_le: maintenant }).eq('id', ficheId);
     if(maj.error) return { error: maj.error };
 
-    return { version };
+    const insertion = await supabaseClient.from('fiches_techniques_versions').insert({
+      id: _identifiant(), fiche_id: ficheId, label: label || '', changelog: changelog || ''
+    });
+    if(insertion.error) return { error: insertion.error };
+    return { label };
   }
   async function fetchVersionsFiche(ficheId){
     if(!supabaseClient) return [];
     const { data, error } = await supabaseClient.from('fiches_techniques_versions')
-      .select('*').eq('fiche_id', ficheId).order('version', { ascending: false });
+      .select('*').eq('fiche_id', ficheId).order('created_at', { ascending: false });
     if(error){ console.warn('[CurieuxDB] fetchVersionsFiche', error.message); return []; }
     return (data || []).map(adapterFor('fiches_techniques_versions').fromDb);
   }
-  // Lecture publique du lien canonique : la version courante, et rien d'autre.
+  // Lecture publique du lien canonique : nom, lien Drive vivant, étiquette de
+  // version — et rien d'autre.
   async function getFicheTechniqueByToken(token){
     if(!supabaseClient) return null;
     const { data, error } = await supabaseClient.rpc('get_fiche_technique_by_token', { p_token: token });
     if(error){ console.warn('[CurieuxDB] getFicheTechniqueByToken', error.message); return null; }
     const row = (data || [])[0];
     if(!row) return null;
-    return {
-      nom: row.nom, version: row.version, fichierNom: row.fichier_nom,
-      publieeLe: row.publiee_le,
-      url: urlPubliqueFiche(row.fichier_chemin)
-    };
-  }
-  function urlPubliqueFiche(chemin){
-    if(!chemin) return '';
-    const { data } = supabaseClient.storage.from('fiches-techniques').getPublicUrl(chemin);
-    return (data && data.publicUrl) || '';
+    return { nom: row.nom, driveUrl: row.drive_url, versionActuelle: row.version_actuelle, versionLe: row.version_le };
   }
 
-  // ——— B4 · récapitulatif logistique ————————————————————————————————
+  // ——— B4 · récapitulatif logistique (trois audiences) ————————————————
   // Un seul aller-retour, côté base, qui ne renvoie que la logistique : ni le
   // répertoire, ni les informations d'embauche ne passent par ce jeton.
   async function getRecapLogistique(token){
@@ -1061,6 +1105,43 @@ const CurieuxDB = (()=>{
     const { data, error } = await supabaseClient.rpc('get_recap_logistique', { p_token: token });
     if(error){ console.warn('[CurieuxDB] getRecapLogistique', error.message); return null; }
     return data || null;
+  }
+  // Une salle (jeton type='salle') répond à un créneau précis, avec
+  // confirmation ou contre-proposition justifiée.
+  async function repondreVacationSalle(token, dateId, typeVacation, index, reponse){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { data, error } = await supabaseClient.rpc('repondre_vacation_salle', {
+      p_token: token, p_date_id: dateId, p_type_vacation: typeVacation, p_index: index, p_reponse: reponse
+    });
+    if(error){ console.warn('[CurieuxDB] repondreVacationSalle', error.message); return { error }; }
+    return { ok: !!data };
+  }
+  // Le stage manager (jeton type='stage_manager') positionne ses semis sur
+  // le plan d'une date.
+  async function enregistrerPositionsSemis(token, dateId, positions){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { data, error } = await supabaseClient.rpc('enregistrer_positions_semis', {
+      p_token: token, p_date_id: dateId, p_positions: positions
+    });
+    if(error){ console.warn('[CurieuxDB] enregistrerPositionsSemis', error.message); return { error }; }
+    return { ok: !!data };
+  }
+  // Dépôt d'une image de plan de salle (bucket réutilisé, append-only :
+  // chaque dépôt prend un chemin distinct plutôt que d'écraser le précédent,
+  // pour ne pas dépendre des policies UPDATE/DELETE du bucket).
+  async function deposerPlanSalle(dateKey, fichier){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const suffixe = (fichier.name.match(/\.[a-z0-9]+$/i) || ['.jpg'])[0].toLowerCase();
+    const chemin = `plans/${dateKey}-${_identifiant()}${suffixe}`;
+    const depot = await supabaseClient.storage.from('fiches-techniques')
+      .upload(chemin, fichier, { contentType: fichier.type || 'image/jpeg', upsert: false });
+    if(depot.error) return { error: depot.error };
+    return { chemin };
+  }
+  function urlPubliquePlanSalle(chemin){
+    if(!chemin || !supabaseClient) return '';
+    const { data } = supabaseClient.storage.from('fiches-techniques').getPublicUrl(chemin);
+    return (data && data.publicUrl) || '';
   }
 
   function _identifiant(){
@@ -1072,12 +1153,13 @@ const CurieuxDB = (()=>{
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
     fetchReglages, setPhaseTest, compterLignesPurgeables, purgerDonneesEssai,
-    publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken, urlPubliqueFiche,
-    getRecapLogistique,
+    publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
+    getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis,
+    deposerPlanSalle, urlPubliquePlanSalle,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,
-    getMyRole, hasAppAccess, isSuperAdmin,
-    listAccounts, setAccountRole, removeAccount,
+    getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,
+    listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
     fetchCorbeille, restaurerDepuisCorbeille,
     getInfosSocialesByToken, upsertInfosSocialesByToken,

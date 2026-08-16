@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Matériel</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:900px; margin:0 auto; font-variant-numeric:tabular-nums;}
+  button{ cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700; padding:9px 15px; font-family:inherit; }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-sm{padding:7px 11px; font-size:12px;}
+
+  input[type=text], input[type=number], input[type=date], select, textarea{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  textarea{min-height:56px; resize:vertical;}
+  label{font-size:12px; color:var(--muted); font-weight:600;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .field-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .field-row .field{flex:1; min-width:140px;}
+
+  .toolbar{display:flex; justify-content:flex-end; margin-bottom:16px;}
+  .lot-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; margin-bottom:10px;}
+  .lot-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .lot-nom{font-weight:800; font-size:14.5px;}
+  .lot-sub{color:var(--muted); font-size:12px; margin-top:2px;}
+  .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap; background:var(--accent-tint); color:var(--accent-dark);}
+  .lot-dates{font-size:11.5px; color:var(--muted); margin-top:6px; display:flex; gap:12px; flex-wrap:wrap;}
+  .lot-actions{display:flex; gap:6px; margin-top:10px; border-top:1px solid var(--border); padding-top:9px;}
+  .sous-lots{margin:10px 0 0 20px; padding-left:14px; border-left:2px solid var(--border);}
+
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(20,15,10,.5); align-items:center; justify-content:center; padding:20px; z-index:50; overflow-y:auto;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--card); border-radius:14px; padding:24px; max-width:640px; width:100%; max-height:88vh; overflow-y:auto; margin:auto;}
+  .modal h2{font-size:17px; margin:0 0 16px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
+  fieldset.groupe{border:1px solid var(--border); border-radius:8px; padding:12px 13px 4px; margin:0 0 14px;}
+  fieldset.groupe legend{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); padding:0 6px; font-weight:700;}
+  .sous-ligne{display:flex; gap:8px; align-items:flex-start; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:9px 10px; margin-bottom:8px;}
+  .sous-ligne > *{flex:1; min-width:0;}
+  .sous-retirer{flex:0 0 auto !important;}
+  @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-header">
+    <a href="technique.html">← Direction technique</a>
+    <nav class="page-nav" data-curieux-nav></nav>
+  </div>
+  <h1>Matériel</h1>
+  <p class="subtitle">Ce qu'on amène — kits, et ce qu'ils contiennent.</p>
+
+  <div class="toolbar"><button type="button" class="btn-secondary" id="addLotBtn">+ Ajouter un lot</button></div>
+  <div id="lotsListe"></div>
+  <div class="empty-hint" id="lotsEmpty" style="display:none;">Aucun lot enregistré.</div>
+</div>
+
+<div class="modal-overlay" id="lotModalOverlay">
+  <div class="modal">
+    <h2 id="lotModalTitle">Ajouter un lot</h2>
+    <input type="hidden" id="lEditId">
+    <input type="hidden" id="lParentId">
+    <p class="subtitle" id="lParentInfo" style="display:none; margin:-10px 0 14px;"></p>
+    <div class="field-row">
+      <div class="field"><label for="lNom">Nom</label><input type="text" id="lNom" placeholder="Ex: Kit lumière, Barres LED sol…"></div>
+      <div class="field"><label for="lCategorie">Catégorie</label>
+        <select id="lCategorie">
+          <option value="son">Son</option>
+          <option value="lumiere">Lumière</option>
+          <option value="video">Vidéo</option>
+          <option value="structure">Structure</option>
+          <option value="backline">Backline</option>
+          <option value="partitions">Partitions</option>
+          <option value="costumes">Costumes</option>
+          <option value="prod">Prod</option>
+          <option value="autre" selected>Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label for="lProvenance">Provenance</label><select id="lProvenance"></select></div>
+    <div class="field"><label for="lDescription">Description</label><textarea id="lDescription" placeholder="Ce que contient ce lot, en clair"></textarea></div>
+    <div class="field-row">
+      <div class="field"><label for="lDatePrepa">Préparation</label><input type="date" id="lDatePrepa"></div>
+      <div class="field"><label for="lDatePickup">Récupération</label><input type="date" id="lDatePickup"></div>
+      <div class="field"><label for="lRetourLe">Retour</label><input type="date" id="lRetourLe"></div>
+    </div>
+
+    <fieldset class="groupe">
+      <legend>Éléments</legend>
+      <div class="sous-liste" id="elementsListe"></div>
+      <button type="button" class="btn-secondary btn-sm" id="addElementBtn">+ Ajouter un élément</button>
+    </fieldset>
+
+    <div class="field"><label for="lNotes">Notes</label><textarea id="lNotes"></textarea></div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="lotModalCancel">Annuler</button>
+      <button type="button" class="btn-secondary" id="lotModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let lotsCache = [];
+let prestatairesCache = [];
+let elementsEnEdition = [];
+const CATEGORIE_LABEL = { son:'Son', lumiere:'Lumière', video:'Vidéo', structure:'Structure', backline:'Backline', partitions:'Partitions', costumes:'Costumes', prod:'Prod', autre:'Autre' };
+
+function fillProvenanceSelect(){
+  const sel = document.getElementById('lProvenance');
+  sel.innerHTML = '<option value="">— Aucune —</option>'
+    + prestatairesCache.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')
+    + `<option value="__nouveau__">+ Nouveau prestataire…</option>`;
+}
+document.getElementById('lProvenance').addEventListener('change', async (e)=>{
+  if(e.target.value !== '__nouveau__') return;
+  const nom = prompt('Nom du prestataire :');
+  if(!nom || !nom.trim()){ e.target.value = ''; return; }
+  const obj = { id: genId('prest'), nom: nom.trim(), notes: '' };
+  await CurieuxDB.upsertOne('prestataires', obj);
+  prestatairesCache.push(obj);
+  fillProvenanceSelect();
+  document.getElementById('lProvenance').value = obj.id;
+});
+
+function renderElementsEdition(){
+  document.getElementById('elementsListe').innerHTML = elementsEnEdition.map((el,i)=>`
+    <div class="sous-ligne">
+      <input type="text" data-i="${i}" data-f="nom" value="${escapeHtml(el.nom||'')}" placeholder="Ex: Console façade">
+      <input type="number" min="0" step="1" style="flex:0 0 80px;" data-i="${i}" data-f="quantite" value="${el.quantite != null ? el.quantite : ''}" placeholder="Qté">
+      <input type="text" data-i="${i}" data-f="numeroSerie" value="${escapeHtml(el.numeroSerie||'')}" placeholder="N° série">
+      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer="${i}">Retirer</button>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun élément.</p>`;
+  document.querySelectorAll('#elementsListe input[data-f]').forEach(inp=> inp.addEventListener('input', ()=>{
+    const val = inp.dataset.f === 'quantite' ? (inp.value === '' ? null : Number(inp.value)) : inp.value;
+    elementsEnEdition[inp.dataset.i][inp.dataset.f] = val;
+  }));
+  document.querySelectorAll('#elementsListe [data-retirer]').forEach(btn=> btn.addEventListener('click', ()=>{
+    elementsEnEdition.splice(Number(btn.dataset.retirer), 1);
+    renderElementsEdition();
+  }));
+}
+document.getElementById('addElementBtn').addEventListener('click', ()=>{
+  elementsEnEdition.push({ nom:'', quantite:null, numeroSerie:'', notes:'' });
+  renderElementsEdition();
+});
+
+function joursDe(l){
+  const bits = [];
+  if(l.datePrepa) bits.push('préparation ' + new Date(l.datePrepa+'T00:00:00').toLocaleDateString('fr-FR'));
+  if(l.datePickup) bits.push('récupération ' + new Date(l.datePickup+'T00:00:00').toLocaleDateString('fr-FR'));
+  if(l.retourLe) bits.push('retour ' + new Date(l.retourLe+'T00:00:00').toLocaleDateString('fr-FR'));
+  return bits;
+}
+function carteLot(l){
+  const provenance = prestatairesCache.find(p=>p.id === l.provenanceId);
+  const enfants = lotsCache.filter(x=> x.parentId === l.id);
+  return `
+    <div class="lot-card">
+      <div class="lot-top">
+        <div>
+          <div class="lot-nom">${escapeHtml(l.nom || 'Sans nom')}</div>
+          <div class="lot-sub">${(l.elements||[]).length} élément${(l.elements||[]).length>1?'s':''}${provenance ? ' · ' + escapeHtml(provenance.nom) : ''}</div>
+          ${l.description ? `<div class="lot-sub">${escapeHtml(l.description)}</div>` : ''}
+        </div>
+        <span class="badge">${CATEGORIE_LABEL[l.categorie]||'Autre'}</span>
+      </div>
+      ${joursDe(l).length ? `<div class="lot-dates">${joursDe(l).map(escapeHtml).join(' · ')}</div>` : ''}
+      <div class="lot-actions">
+        <button type="button" class="btn-ghost btn-sm" data-edit="${l.id}">Modifier</button>
+        <button type="button" class="btn-ghost btn-sm" data-sous-lot="${l.id}">+ Sous-lot</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${l.id}">Supprimer</button>
+      </div>
+      ${enfants.length ? `<div class="sous-lots">${enfants.map(carteLot).join('')}</div>` : ''}
+    </div>
+  `;
+}
+function render(){
+  const racines = lotsCache.filter(l=> !l.parentId);
+  const box = document.getElementById('lotsListe');
+  const empty = document.getElementById('lotsEmpty');
+  if(racines.length === 0){ box.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+  box.innerHTML = racines.map(carteLot).join('');
+  box.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openLotModal(b.dataset.edit)));
+  box.querySelectorAll('[data-sous-lot]').forEach(b=> b.addEventListener('click', ()=> openLotModal(null, b.dataset.sousLot)));
+  box.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
+    const l = lotsCache.find(x=>x.id===b.dataset.del);
+    const enfants = lotsCache.filter(x=>x.parentId===b.dataset.del);
+    if(!l) return;
+    const msg = enfants.length
+      ? `Supprimer « ${l.nom || 'ce lot'} » et ses ${enfants.length} sous-lot${enfants.length>1?'s':''} ?`
+      : `Supprimer « ${l.nom || 'ce lot'} » ?`;
+    if(!confirm(msg)) return;
+    const idsASupprimer = [b.dataset.del, ...enfants.map(e=>e.id)];
+    lotsCache = lotsCache.filter(x=> !idsASupprimer.includes(x.id));
+    CurieuxDB.removeMany('lots_materiel', idsASupprimer);
+    render();
+  }));
+}
+
+function openLotModal(id, parentId){
+  document.getElementById('lEditId').value = id || '';
+  document.getElementById('lParentId').value = parentId || '';
+  const parentInfo = document.getElementById('lParentInfo');
+  if(parentId){
+    const parent = lotsCache.find(x=>x.id===parentId);
+    parentInfo.style.display = 'block';
+    parentInfo.textContent = 'Sous-lot de : ' + (parent ? (parent.nom || 'Sans nom') : '');
+  } else {
+    parentInfo.style.display = 'none';
+  }
+  fillProvenanceSelect();
+  if(id){
+    const l = lotsCache.find(x=>x.id===id);
+    if(!l) return;
+    document.getElementById('lotModalTitle').textContent = 'Modifier ' + (l.nom || 'ce lot');
+    document.getElementById('lNom').value = l.nom || '';
+    document.getElementById('lCategorie').value = l.categorie || 'autre';
+    document.getElementById('lProvenance').value = l.provenanceId || '';
+    document.getElementById('lDescription').value = l.description || '';
+    document.getElementById('lDatePrepa').value = l.datePrepa || '';
+    document.getElementById('lDatePickup').value = l.datePickup || '';
+    document.getElementById('lRetourLe').value = l.retourLe || '';
+    document.getElementById('lNotes').value = l.notes || '';
+    elementsEnEdition = (l.elements||[]).map(e=>({...e}));
+  } else {
+    document.getElementById('lotModalTitle').textContent = parentId ? 'Ajouter un sous-lot' : 'Ajouter un lot';
+    ['lNom','lDescription','lDatePrepa','lDatePickup','lRetourLe','lNotes'].forEach(fid=> document.getElementById(fid).value = '');
+    document.getElementById('lCategorie').value = 'autre';
+    document.getElementById('lProvenance').value = '';
+    elementsEnEdition = [];
+  }
+  renderElementsEdition();
+  document.getElementById('lotModalOverlay').classList.add('open');
+}
+document.getElementById('addLotBtn').addEventListener('click', ()=> openLotModal(null));
+document.getElementById('lotModalCancel').addEventListener('click', ()=> document.getElementById('lotModalOverlay').classList.remove('open'));
+document.getElementById('lotModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='lotModalOverlay') document.getElementById('lotModalOverlay').classList.remove('open'); });
+document.getElementById('lotModalSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('lEditId').value || genId('lot');
+  const nom = document.getElementById('lNom').value.trim();
+  if(!nom){ alert('Donne un nom au lot.'); return; }
+  const obj = {
+    id, nom, categorie: document.getElementById('lCategorie').value,
+    parentId: document.getElementById('lParentId').value || '',
+    provenanceId: document.getElementById('lProvenance').value || '',
+    tourneeId: '', datesIds: [],
+    description: document.getElementById('lDescription').value.trim(),
+    elements: elementsEnEdition,
+    datePrepa: document.getElementById('lDatePrepa').value || '',
+    datePickup: document.getElementById('lDatePickup').value || '',
+    retourLe: document.getElementById('lRetourLe').value || '',
+    notes: document.getElementById('lNotes').value.trim(),
+  };
+  const idx = lotsCache.findIndex(x=>x.id===id);
+  if(idx>=0) lotsCache[idx]=obj; else lotsCache.push(obj);
+  await CurieuxDB.upsertOne('lots_materiel', obj);
+  document.getElementById('lotModalOverlay').classList.remove('open');
+  render();
+});
+
+async function initData(){
+  [lotsCache, prestatairesCache] = await Promise.all([
+    CurieuxDB.fetchAll('lots_materiel'), CurieuxDB.fetchAll('prestataires'),
+  ]);
+  render();
+}
+CurieuxDB.subscribe('lots_materiel', ()=> CurieuxDB.fetchAll('lots_materiel').then(l=>{ lotsCache=l; curieuxRafraichir(render); }));
+CurieuxDB.subscribe('prestataires', ()=> CurieuxDB.fetchAll('prestataires').then(l=>{ prestatairesCache=l; }));
+
+injectCurieuxFonts();
+initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+initData();
+</script>
+</body>
+</html>

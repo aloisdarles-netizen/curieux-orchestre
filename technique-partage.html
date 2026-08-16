@@ -8,16 +8,19 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<!-- Page volontairement PUBLIQUE : pas de hideCurieuxPageUntilAuth()/requireAdminAuth()
-     ici — ce lien est envoyé à un stage manager ou un chauffeur sans compte admin.
-     L'identification se fait par le jeton imprévisible dans l'URL (acces_logistique.id),
-     révocable à tout moment depuis technique.html. -->
+<!-- Page volontairement PUBLIQUE : pas de compte requis, identification par le
+     jeton dans l'URL (acces_logistique.id), révocable depuis partage.html.
+     Trois gabarits selon acces_logistique.type — stage manager, technicien,
+     salle — rendus par la même page à partir de la même réponse serveur. -->
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:680px; margin:0 auto; font-variant-numeric:tabular-nums;}
+  .wrap{max-width:720px; margin:0 auto; font-variant-numeric:tabular-nums;}
   .brand-logo-img{height:30px; width:auto; display:block; margin:0 0 18px;}
   .state-box{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:26px 20px; text-align:center; color:var(--muted); font-size:14px;}
+
+  input[type=text], input[type=number]{ padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-size:13.5px; background:var(--card); color:var(--text); font-family:inherit; }
+  button{ cursor:pointer; border:none; border-radius:8px; font-size:12.5px; font-weight:700; padding:8px 13px; font-family:inherit; background:var(--accent-tint); color:var(--accent-dark); }
 
   .entete{margin-bottom:22px;}
   .entete .qui{color:var(--muted); font-size:13px; margin-top:2px;}
@@ -36,15 +39,27 @@
   .champ .v{font-weight:700; text-align:right;}
   .vide-champ{color:var(--old-champagne); font-size:12.5px;}
 
-  .banniere-alerte{display:flex; gap:10px; align-items:flex-start; background:var(--danger-tint); border-radius:8px; padding:11px 13px;}
-  .banniere-alerte .sig{color:var(--danger); font-weight:900; flex:0 0 auto;}
-  .banniere-alerte p{margin:0; font-size:13px; line-height:1.48;}
+  .vacation-pub{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:13px;}
+  .vacation-pub .h{font-weight:700; margin-bottom:6px;}
+  .vacation-pub .demande{color:var(--muted); font-size:12px; margin-bottom:8px;}
+  .reponse-form{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .reponse-form input[type=number]{width:70px;}
+  .reponse-form input[type=text]{flex:1; min-width:120px;}
+  .reponse-ok{font-size:12px; color:var(--ok); font-weight:700;}
 
   .section-registre{margin-top:26px;}
   .section-registre h2{font-size:15px; margin:0 0 10px;}
   .registre-item{background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 13px; margin-bottom:8px; font-size:13px;}
   .registre-item .nom{font-weight:700;}
   .registre-item .sub{color:var(--muted); font-size:12px; margin-top:2px;}
+
+  .plan-zone{position:relative; display:inline-block; max-width:100%; border-radius:8px; overflow:hidden; border:1px solid var(--border); margin-top:8px;}
+  .plan-zone img{max-width:100%; display:block;}
+  .pin{position:absolute; transform:translate(-50%,-100%); touch-action:none; display:flex; flex-direction:column; align-items:center; gap:2px;}
+  .pin-tete{background:var(--accent-solid); color:#fff; font-size:10px; font-weight:800; padding:3px 7px; border-radius:20px; white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,.25);}
+  .pin-pointe{width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent; border-top:7px solid var(--accent-solid);}
+  .pin.dragging{cursor:grabbing; opacity:.85;}
+  .plan-statut{font-size:12px; color:var(--muted); margin-top:6px;}
 </style>
 </head>
 <body>
@@ -54,26 +69,137 @@
 </div>
 <script>
 const NIVEAU_LABEL = { scene:'sur scène', sol:'au sol', les_deux:'les deux', inconnu:'inconnu' };
-const CATEGORIE_LABEL = { son:'Son', lumiere:'Lumière', structure:'Structure', backline:'Backline', partitions:'Partitions', costumes:'Costumes', autre:'Autre' };
-
-function afficherEtat(html){
-  document.getElementById('content').innerHTML = `<div class="state-box">${html}</div>`;
-}
+const EMPLACEMENT_LABEL = { scene:'sur scène', cote_scene:'côté de scène', fosse:'dans la fosse', autre:'autre', };
+let RECAP = null, TOKEN = '';
 
 function champ(label, valeur){
   const v = (valeur === null || valeur === undefined || valeur === '') ? `<span class="vide-champ">—</span>` : escapeHtml(String(valeur));
   return `<div class="champ"><span class="k">${escapeHtml(label)}</span><span class="v">${v}</span></div>`;
 }
+function jourLong(iso){ return iso ? new Date(iso+'T00:00:00').toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' }) : ''; }
 
-function ficheDate(d, m, lots, vehicules, chauffeurs){
-  const jour = d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' }) : '';
-  const chariots = (m && m.chariots) || [];
-  const chariotsValides = chariots.filter(c=>c.valide).length;
-  const alertes = [];
-  if(m && m.semis_places === 0) alertes.push("Aucune semi acceptée sur ce site.");
-  if(chariots.length && chariots.every(c=>c.fourche === 'courtes')) alertes.push("Seules des fourches courtes sont annoncées côté salle.");
-  if(!m || m.statut === 'non_demande' || m.statut === 'demande') alertes.push("La salle n'a pas encore confirmé ses moyens techniques pour cette date.");
+// ============================================================================
+// Bloc "roadies/chariots" — lecture pour technicien/stage manager, réponse
+// possible pour une salle.
+// ============================================================================
+function blocVacationsRoadies(m, editable){
+  const vacs = m.roadies_vacations || [];
+  if(vacs.length === 0) return '';
+  return `<div class="bloc" style="grid-column:1/-1;"><span class="titre">Roadies — par vacation</span>
+    ${vacs.map((v,i)=>`
+      <div class="vacation-pub">
+        <div class="h">${escapeHtml(v.horaireDebut||'?')} – ${escapeHtml(v.horaireFin||'?')}</div>
+        <div class="demande">Demandé : <strong>${v.nombreDemande ?? '—'}</strong>${v.nombrePropose!=null?` · Proposé : <strong>${v.nombrePropose}</strong>`:''}${v.nombreValide!=null?` · Confirmé : <strong>${v.nombreValide}</strong>`:''}${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>
+        ${editable ? `
+          <div class="reponse-form" data-date="${m.date_id}" data-type="roadies" data-index="${i}">
+            <input type="number" min="0" placeholder="Proposer" data-champ="nombrePropose">
+            <input type="text" placeholder="Justification si différent" data-champ="notes">
+            <button type="button" data-repondre>Envoyer</button>
+            <span class="reponse-ok" data-ok style="display:none;">✓ envoyé</span>
+          </div>` : ''}
+      </div>
+    `).join('')}
+  </div>`;
+}
+function blocVacationsChariots(m, editable){
+  const vacs = m.chariots_vacations || [];
+  if(vacs.length === 0) return '';
+  return `<div class="bloc" style="grid-column:1/-1;"><span class="titre">Chariots élévateurs — par vacation</span>
+    ${vacs.map((v,i)=>`
+      <div class="vacation-pub">
+        <div class="h">${escapeHtml(v.horaireDebut||'?')} – ${escapeHtml(v.horaireFin||'?')}</div>
+        <div class="demande">Chariots demandés : <strong>${v.nombreChariotsDemande ?? '—'}</strong>${v.nombreChariotsValide!=null?` · confirmés : <strong>${v.nombreChariotsValide}</strong>`:''} — Caristes demandés : <strong>${v.nombreCaristesDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>
+        ${editable ? `
+          <div class="reponse-form" data-date="${m.date_id}" data-type="chariots" data-index="${i}">
+            <input type="number" min="0" placeholder="Chariots proposés" data-champ="nombreChariotsPropose">
+            <input type="text" placeholder="Justification si différent" data-champ="notes">
+            <button type="button" data-repondre>Envoyer</button>
+            <span class="reponse-ok" data-ok style="display:none;">✓ envoyé</span>
+          </div>` : ''}
+      </div>
+    `).join('')}
+  </div>`;
+}
+document.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('[data-repondre]');
+  if(!btn) return;
+  const form = btn.closest('.reponse-form');
+  const reponse = {};
+  form.querySelectorAll('[data-champ]').forEach(inp=>{
+    if(inp.value === '') return;
+    reponse[inp.dataset.champ] = inp.type === 'number' ? Number(inp.value) : inp.value;
+  });
+  if(Object.keys(reponse).length === 0) return;
+  btn.disabled = true;
+  const res = await CurieuxDB.repondreVacationSalle(TOKEN, form.dataset.date, form.dataset.type, Number(form.dataset.index), reponse);
+  btn.disabled = false;
+  if(res.error || !res.ok){ alert("Échec de l'envoi — réessaie."); return; }
+  form.querySelector('[data-ok]').style.display = 'inline';
+});
 
+// ============================================================================
+// Gabarit STAGE MANAGER — tout, avec plan de salle positionnable.
+// ============================================================================
+function blocPlanSalle(m, editable){
+  if(!m.plan_image_path) return '';
+  const url = supabaseClient.storage.from('fiches-techniques').getPublicUrl(m.plan_image_path).data.publicUrl;
+  const idZone = 'plan-' + m.date_id;
+  setTimeout(()=> initPlanZone(idZone, url, m, editable), 0);
+  return `<div><span class="titre" style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700;">Plan de salle</span>
+    <div id="${idZone}"></div>
+    ${editable ? `<p class="plan-statut">Touche le plan pour poser une semi, glisse une pastille pour la déplacer. Enregistré automatiquement.</p>` : ''}
+  </div>`;
+}
+function initPlanZone(containerId, imgUrl, m, editable){
+  const wrap = document.getElementById(containerId);
+  if(!wrap) return;
+  wrap.innerHTML = `<div class="plan-zone" id="${containerId}Zone"><img src="${imgUrl}" alt="Plan de salle" draggable="false"></div>`;
+  const zone = document.getElementById(containerId + 'Zone');
+  const img = zone.querySelector('img');
+  let positions = m.semis_positions || [];
+
+  async function sauvegarder(){
+    await CurieuxDB.enregistrerPositionsSemis(TOKEN, m.date_id, positions);
+  }
+  function placerPin(pos){
+    const pin = document.createElement('div');
+    pin.className = 'pin';
+    pin.style.left = pos.xPct + '%'; pin.style.top = pos.yPct + '%';
+    pin.innerHTML = `<span class="pin-tete">${escapeHtml(pos.label || 'Semi')}</span><span class="pin-pointe"></span>`;
+    if(editable){
+      let dragging = false;
+      pin.addEventListener('pointerdown', (e)=>{ dragging = true; pin.classList.add('dragging'); pin.setPointerCapture(e.pointerId); });
+      pin.addEventListener('pointermove', (e)=>{
+        if(!dragging) return;
+        const rect = zone.getBoundingClientRect();
+        pos.xPct = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+        pos.yPct = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+        pin.style.left = pos.xPct + '%'; pin.style.top = pos.yPct + '%';
+      });
+      pin.addEventListener('pointerup', ()=>{ dragging = false; pin.classList.remove('dragging'); sauvegarder(); });
+      pin.addEventListener('dblclick', ()=>{ positions = positions.filter(p=>p!==pos); pin.remove(); sauvegarder(); });
+    }
+    zone.appendChild(pin);
+  }
+  positions.forEach(placerPin);
+  if(editable){
+    img.style.cursor = 'crosshair';
+    img.addEventListener('click', (e)=>{
+      const rect = zone.getBoundingClientRect();
+      const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+      const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+      const label = prompt('Nom de la semi :', 'Semi') || 'Semi';
+      const pos = { vehiculeId:'', label, xPct, yPct };
+      positions.push(pos);
+      placerPin(pos);
+      sauvegarder();
+    });
+  }
+}
+
+function ficheDateComplete(d, m, editableSalle, editableStageManager){
+  if(!m) m = { date_id: d.id };
+  const jour = jourLong(d.date);
   return `
     <div class="fiche-date">
       <div class="fiche-date-head">
@@ -81,101 +207,101 @@ function ficheDate(d, m, lots, vehicules, chauffeurs){
         <span class="quand">${escapeHtml(jour)}</span>
       </div>
       <div class="fiche-date-body">
-        ${alertes.length ? `<div class="banniere-alerte"><span class="sig">!</span><p>${alertes.map(escapeHtml).join(' ')}</p></div>` : ''}
         <div class="fiche-grille">
-          <div class="bloc">
-            <span class="titre">Moyens de la salle</span>
-            ${champ('Roadies', m ? (m.roadies_valide != null ? `${m.roadies_valide} confirmés / ${m.roadies_demande != null ? m.roadies_demande : '—'} demandés` : (m.roadies_demande != null ? m.roadies_demande + ' demandés' : null)) : null)}
-            ${champ('À partir de', m && m.roadies_horaire)}
-            ${champ('Caristes', m && m.caristes_valide != null ? `${m.caristes_valide} confirmés` : (m && m.caristes_demande != null ? m.caristes_demande + ' demandés' : null))}
-            ${champ('Chariots', chariots.length ? `${chariotsValides}/${chariots.length} confirmés` : null)}
+          <div class="bloc"><span class="titre">Accès</span>
+            ${champ('Semis en simultané', m.nombre_semis_simultanees)}
+            ${champ('Déchargement', m.niveau_dechargement && m.niveau_dechargement!=='inconnu' ? NIVEAU_LABEL[m.niveau_dechargement] : null)}
+            ${(m.emplacements_dechargement||[]).length ? champ('Emplacements', m.emplacements_dechargement.map(e=>EMPLACEMENT_LABEL[e.emplacement]||e.emplacement).join(', ')) : ''}
           </div>
-          <div class="bloc">
-            <span class="titre">Accès</span>
-            ${champ('Semis acceptées', m && m.semis_places)}
-            ${champ('Déchargement', m && m.niveau_dechargement && m.niveau_dechargement !== 'inconnu' ? NIVEAU_LABEL[m.niveau_dechargement] : null)}
-            ${champ('Hauteur de grill', m && m.hauteur_grill)}
-            ${champ('Puissance', m && m.puissance)}
+          <div class="bloc"><span class="titre">Faits techniques</span>
+            ${champ('Hauteur de grill', m.hauteur_grill)}
+            ${champ('Ouverture de scène', m.ouverture_scene)}
+            ${champ('Puissance', m.puissance)}
           </div>
-          <div class="bloc">
-            <span class="titre">Contact technique</span>
-            ${champ('Nom', m && m.contact_nom)}
-            ${champ('Téléphone', m && m.contact_tel)}
-            ${champ('Email', m && m.contact_email)}
+          <div class="bloc"><span class="titre">Bureau de contrôle</span>
+            ${champ('Sur place', m.bureau_controle_sur_place ? 'oui' : 'non')}
+            ${m.bureau_controle_sur_place ? champ('Horaire', m.bureau_controle_horaire) : ''}
+            ${m.bureau_controle_sur_place ? champ('Contact', m.bureau_controle_contact) : ''}
           </div>
-          ${(m && m.plan_url) ? `<div class="bloc"><span class="titre">Documents</span>${champ('Plan de scène', 'ouvrir le lien ↗')}</div>` : ''}
+          ${(m.contacts_salle||[]).length ? `<div class="bloc"><span class="titre">Contacts salle</span>
+            ${m.contacts_salle.map(c=>champ(c.role || 'Contact', [c.nom, c.tel].filter(Boolean).join(' · '))).join('')}
+          </div>` : ''}
+          ${m.plan_url ? `<div class="bloc"><span class="titre">Documents</span>
+            <div class="champ"><span class="k">Plan de scène</span><span class="v"><a href="${escapeHtml(m.plan_url)}" target="_blank" rel="noopener">Ouvrir ↗</a></span></div>
+          </div>` : ''}
+          ${blocVacationsRoadies(m, editableSalle)}
+          ${blocVacationsChariots(m, editableSalle)}
         </div>
-        ${(m && m.acces_notes) ? `<p style="font-size:13px; color:var(--muted); margin:0;">${escapeHtml(m.acces_notes)}</p>` : ''}
-        ${(m && m.notes) ? `<p style="font-size:13px; margin:0;">${escapeHtml(m.notes)}</p>` : ''}
+        ${editableStageManager ? blocPlanSalle(m, true) : (m.plan_image_path ? blocPlanSalle(m, false) : '')}
+        ${m.acces_notes ? `<p style="font-size:13px; color:var(--muted); margin:0;">${escapeHtml(m.acces_notes)}</p>` : ''}
       </div>
     </div>
   `;
 }
 
+// ============================================================================
+// Init
+// ============================================================================
 async function init(){
-  const token = new URLSearchParams(location.search).get('jeton');
-  if(!token){ afficherEtat("Lien incomplet — il manque le jeton d'accès."); return; }
+  TOKEN = new URLSearchParams(location.search).get('jeton');
+  const box = document.getElementById('content');
+  if(!TOKEN){ box.innerHTML = `<div class="state-box">Lien incomplet — il manque le jeton.</div>`; return; }
 
-  const recap = await CurieuxDB.getRecapLogistique(token);
-  if(!recap){ afficherEtat("Ce lien n'est plus actif, ou n'existe pas. Demande un nouveau lien à la production."); return; }
-  if(!recap.tournee){ afficherEtat("Aucune tournée associée à cet accès pour l'instant."); return; }
+  RECAP = await CurieuxDB.getRecapLogistique(TOKEN);
+  if(!RECAP || !RECAP.tournee){ box.innerHTML = `<div class="state-box">Ce lien n'est plus actif, ou n'existe pas. Demande un nouveau lien à la production.</div>`; return; }
 
   const today = new Date().toISOString().slice(0,10);
-  const dates = (recap.tournee.dates || []).filter(d=> !d.date || d.date >= today).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
-  const moyensParDate = {};
-  (recap.moyens || []).forEach(m=> { moyensParDate[m.date_id] = m; });
+  let dates = (RECAP.tournee.dates || []).filter(d=> !d.date || d.date >= today);
+  if(RECAP.type === 'salle' && (RECAP.datesIds||[]).length){
+    dates = dates.filter(d=> RECAP.datesIds.includes(d.id));
+  }
+  dates.sort((a,b)=> (a.date||'').localeCompare(b.date||''));
 
-  let html = `
-    <div class="entete">
-      <h1 style="font-size:21px; margin:0 0 4px; font-weight:900;">${escapeHtml(recap.tournee.nom || 'Tournée')}</h1>
-      <p class="qui">Logistique transmise à ${escapeHtml(recap.libelle || 'vous')} — ${dates.length} date${dates.length>1?'s':''} à venir.</p>
-    </div>
-  `;
+  const moyensParDate = {};
+  (RECAP.moyens||[]).forEach(m=> moyensParDate[m.date_id] = m);
+
+  let html = `<div class="entete">
+    <h1 style="font-size:21px; margin:0 0 4px; font-weight:900;">${escapeHtml(RECAP.tournee.nom || 'Tournée')}</h1>
+    <p class="qui">${escapeHtml(RECAP.libelle || 'Accès')} — ${dates.length} date${dates.length>1?'s':''}.</p>
+  </div>`;
 
   if(dates.length === 0){
-    html += `<div class="state-box">Aucune date à venir pour l'instant.</div>`;
+    html += `<div class="state-box">Aucune date pour l'instant.</div>`;
   } else {
-    html += dates.map(d=> ficheDate(d, moyensParDate[d.id], recap.lots, recap.vehicules, recap.chauffeurs)).join('');
+    const editableSalle = RECAP.type === 'salle';
+    const editableSM = RECAP.type === 'stage_manager';
+    html += dates.map(d=> ficheDateComplete(d, moyensParDate[d.id], editableSalle, editableSM)).join('');
   }
 
-  if((recap.lots || []).length){
-    html += `
-      <div class="section-registre">
-        <h2>Matériel apporté par la tournée</h2>
-        ${recap.lots.map(l=>`
-          <div class="registre-item">
-            <div class="nom">${escapeHtml(l.nom || 'Sans nom')} <span style="font-weight:400; color:var(--muted);">— ${CATEGORIE_LABEL[l.categorie]||'Autre'}</span></div>
-            <div class="sub">${(l.elements||[]).length} élément${(l.elements||[]).length>1?'s':''}${l.provenance ? ' · ' + escapeHtml(l.provenance) : ''}${l.retour_le ? ' · retour le ' + new Date(l.retour_le+'T00:00:00').toLocaleDateString('fr-FR') : ''}</div>
-          </div>
-        `).join('')}
-      </div>
-    `;
+  if((RECAP.type === 'salle' || RECAP.type === 'technicien') && (RECAP.fichesTechniques||[]).length){
+    html += `<div class="section-registre"><h2>Fiche technique</h2>
+      ${RECAP.fichesTechniques.map(f=> f.drive_url ? `
+        <div class="registre-item">
+          <div class="nom">${escapeHtml(f.nom||'Fiche technique')}</div>
+          <div class="sub"><a href="${escapeHtml(f.drive_url)}" target="_blank" rel="noopener">Ouvrir ↗</a>${f.version_actuelle ? ' · ' + escapeHtml(f.version_actuelle) : ''}</div>
+        </div>` : '').join('')}
+    </div>`;
   }
 
-  const vehiculesEtChauffeurs = [...(recap.vehicules||[]), ...(recap.chauffeurs||[])];
-  if((recap.vehicules||[]).length || (recap.chauffeurs||[]).length){
-    html += `
-      <div class="section-registre">
-        <h2>Véhicules &amp; chauffeurs</h2>
-        ${(recap.vehicules||[]).map(v=>`
-          <div class="registre-item">
-            <div class="nom">${escapeHtml(v.nom || 'Sans nom')}${v.type === 'semi' ? (v.hayon ? ' · avec hayon' : ' · sans hayon') : ''}</div>
-            <div class="sub">${[v.immatriculation, v.capacite].filter(Boolean).map(escapeHtml).join(' · ')}</div>
-          </div>
+  if(RECAP.type === 'stage_manager'){
+    if((RECAP.lots||[]).length){
+      html += `<div class="section-registre"><h2>Matériel apporté</h2>
+        ${RECAP.lots.filter(l=>!l.parent_id).map(l=>`
+          <div class="registre-item"><div class="nom">${escapeHtml(l.nom||'Sans nom')}</div>
+          <div class="sub">${l.description ? escapeHtml(l.description) : ''}${l.retour_le ? ' · retour le ' + new Date(l.retour_le+'T00:00:00').toLocaleDateString('fr-FR') : ''}</div></div>
         `).join('')}
-        ${(recap.chauffeurs||[]).map(c=>`
-          <div class="registre-item">
-            <div class="nom">${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ') || 'Sans nom')}</div>
-            <div class="sub">${[c.telephone, c.email].filter(Boolean).map(escapeHtml).join(' · ') || 'Pas de contact enregistré'}</div>
-          </div>
-        `).join('')}
-      </div>
-    `;
+      </div>`;
+    }
+    if((RECAP.vehicules||[]).length || (RECAP.chauffeurs||[]).length){
+      html += `<div class="section-registre"><h2>Véhicules &amp; chauffeurs</h2>
+        ${RECAP.vehicules.map(v=>`<div class="registre-item"><div class="nom">${escapeHtml(v.nom||'Sans nom')}${v.type==='semi'?(v.hayon?' · avec hayon':' · sans hayon'):''}</div></div>`).join('')}
+        ${RECAP.chauffeurs.map(c=>`<div class="registre-item"><div class="nom">${escapeHtml([c.prenom,c.nom].filter(Boolean).join(' ')||'Sans nom')}</div><div class="sub">${[c.telephone,c.email].filter(Boolean).map(escapeHtml).join(' · ')}</div></div>`).join('')}
+      </div>`;
+    }
   }
 
   document.getElementById('content').innerHTML = html;
 }
-
 applyBrandLogo();
 init();
 </script>

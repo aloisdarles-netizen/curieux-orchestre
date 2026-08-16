@@ -9,8 +9,8 @@
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <!-- Page volontairement PUBLIQUE : envoyée aux salles, pas de compte requis.
-     Le jeton dans l'URL (fiches_techniques.token) résout toujours la version
-     courante — jamais une liste de versions, jamais le lien Drive de travail. -->
+     Le jeton dans l'URL (fiches_techniques.token) résout le lien Drive
+     actuel — toujours à jour, sans synchronisation à faire. -->
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); injectBugReportWidget(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
@@ -39,15 +39,15 @@ async function init(){
   if(!token){ box.innerHTML = `<div class="state-box">Lien incomplet — il manque le jeton.</div>`; return; }
 
   const fiche = await CurieuxDB.getFicheTechniqueByToken(token);
-  if(!fiche || !fiche.url){
-    box.innerHTML = `<div class="state-box">Ce lien n'a pas encore de version publiée, ou n'est plus actif.</div>`;
+  if(!fiche || !fiche.driveUrl){
+    box.innerHTML = `<div class="state-box">Ce lien n'a pas encore de fichier associé, ou n'est plus actif.</div>`;
     return;
   }
   box.innerHTML = `
     <div class="fiche-card">
       <h1>${escapeHtml(fiche.nom || 'Fiche technique')}</h1>
-      <p class="version">Version ${fiche.version}${fiche.publieeLe ? ' · publiée le ' + new Date(fiche.publieeLe).toLocaleDateString('fr-FR') : ''}</p>
-      <a class="btn-primary" href="${fiche.url}" target="_blank" rel="noopener">Ouvrir le PDF</a>
+      <p class="version">${fiche.versionActuelle ? 'Version ' + escapeHtml(fiche.versionActuelle) : 'Version courante'}${fiche.versionLe ? ' · mise à jour le ' + new Date(fiche.versionLe).toLocaleDateString('fr-FR') : ''}</p>
+      <a class="btn-primary" href="${fiche.driveUrl}" target="_blank" rel="noopener">Ouvrir la fiche technique</a>
     </div>
   `;
 }

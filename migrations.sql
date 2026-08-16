@@ -1737,3 +1737,419 @@ begin
 end;
 $$;
 grant execute on function get_recap_logistique(text) to anon, authenticated;
+
+
+-- ============================================================================
+-- Curieux orchestre — Direction technique v2
+-- Août 2026.
+--
+-- Rejouable. Les colonnes remplacées transportent leur ancien contenu vers
+-- leur nouvelle forme avant d'être retirées (rejouer ne perd donc rien),
+-- mais une fois une colonne "drop column"-ée, un second passage n'a plus
+-- rien à transporter — c'est attendu, pas une erreur.
+-- ============================================================================
+
+
+-- ----------------------------------------------------------------------------
+-- Accès réservé : Direction technique n'est plus ouvert à tout compte ayant
+-- accès à l'appli, seulement aux comptes explicitement désignés (+ les
+-- comptes 'admin', qui ont de toute façon accès à tout).
+-- ----------------------------------------------------------------------------
+alter table infos_sociales_admins add column if not exists direction_technique boolean not null default false;
+
+create or replace function has_direction_technique_access()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists(
+    select 1 from infos_sociales_admins
+    where email = auth.jwt()->>'email'
+      and (role = 'admin' or direction_technique = true)
+  );
+$$;
+grant execute on function has_direction_technique_access() to anon, authenticated;
+
+drop policy if exists "moyens salle acces" on moyens_salle;
+create policy "moyens salle acces" on moyens_salle for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());
+drop policy if exists "lots materiel acces" on lots_materiel;
+create policy "lots materiel acces" on lots_materiel for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());
+drop policy if exists "vehicules acces" on vehicules;
+create policy "vehicules acces" on vehicules for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());
+drop policy if exists "chauffeurs acces" on chauffeurs;
+create policy "chauffeurs acces" on chauffeurs for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());
+drop policy if exists "carnets ata acces" on carnets_ata;
+create policy "carnets ata acces" on carnets_ata for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());
+drop policy if exists "fiches techniques acces" on fiches_techniques;
+create policy "fiches techniques acces" on fiches_techniques for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());
+drop policy if exists "fiches techniques versions acces" on fiches_techniques_versions;
+create policy "fiches techniques versions acces" on fiches_techniques_versions for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());
+drop policy if exists "acces logistique acces" on acces_logistique;
+create policy "acces logistique acces" on acces_logistique for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());
+
+drop policy if exists "fiches techniques depot" on storage.objects;
+create policy "fiches techniques depot" on storage.objects for insert to authenticated
+  with check (bucket_id = 'fiches-techniques' and has_direction_technique_access());
+drop policy if exists "fiches techniques remplacement" on storage.objects;
+create policy "fiches techniques remplacement" on storage.objects for update to authenticated
+  using (bucket_id = 'fiches-techniques' and has_direction_technique_access());
+drop policy if exists "fiches techniques retrait" on storage.objects;
+create policy "fiches techniques retrait" on storage.objects for delete to authenticated
+  using (bucket_id = 'fiches-techniques' and has_direction_technique_access());
+
+
+-- ----------------------------------------------------------------------------
+-- Registre des prestataires — partagé entre matériel (provenance) et
+-- véhicules (loueur/transporteur), pour ne pas ressaisir le même nom en texte
+-- libre à chaque fois. Un menu déroulant y ajoute une entrée à la volée.
+-- ----------------------------------------------------------------------------
+create table if not exists prestataires (
+  id text primary key,
+  nom text not null default '',
+  notes text default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_prestataires_updated_at on prestataires;
+create trigger trg_prestataires_updated_at before update on prestataires
+  for each row execute function set_updated_at();
+alter table prestataires enable row level security;
+drop policy if exists "prestataires acces" on prestataires;
+create policy "prestataires acces" on prestataires for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());
+
+
+-- ----------------------------------------------------------------------------
+-- Matériel — lots imbriqués (un lot peut contenir d'autres lots), catégories
+-- élargies, description libre plutôt que colis/poids/valeur, trois dates
+-- possibles (préparation, récupération, retour).
+-- ----------------------------------------------------------------------------
+alter table lots_materiel drop constraint if exists lots_materiel_categorie_check;
+alter table lots_materiel add constraint lots_materiel_categorie_check
+  check (categorie in ('son','lumiere','video','structure','backline','partitions','costumes','prod','autre'));
+alter table lots_materiel add column if not exists parent_id text references lots_materiel(id) on delete set null;
+alter table lots_materiel add column if not exists date_prepa date;
+alter table lots_materiel add column if not exists date_pickup date;
+alter table lots_materiel add column if not exists description text default '';
+alter table lots_materiel add column if not exists provenance_id text references prestataires(id) on delete set null;
+
+-- Gardé par une vérification d'existence de colonne : "provenance" disparaît
+-- à la fin de ce bloc, donc un second passage n'a plus rien à transporter.
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='lots_materiel' and column_name='provenance') then
+    insert into prestataires (id, nom)
+      select 'prest' || substr(md5(random()::text || s.provenance), 1, 20), s.provenance
+      from (select distinct provenance from lots_materiel where provenance is not null and provenance <> '') s
+      where not exists (select 1 from prestataires p where p.nom = s.provenance);
+    update lots_materiel l set provenance_id = p.id
+      from prestataires p
+      where p.nom = l.provenance and l.provenance_id is null and l.provenance is not null and l.provenance <> '';
+  end if;
+end $$;
+
+alter table lots_materiel drop column if exists nb_colis;
+alter table lots_materiel drop column if exists poids_kg;
+alter table lots_materiel drop column if exists valeur;
+alter table lots_materiel drop column if exists provenance;
+create index if not exists idx_lots_materiel_parent on lots_materiel(parent_id);
+create index if not exists idx_lots_materiel_tournee on lots_materiel(tournee_id);
+
+
+-- ----------------------------------------------------------------------------
+-- Véhicules — dimensions, prestataire en registre plutôt qu'en texte libre.
+-- ----------------------------------------------------------------------------
+alter table vehicules add column if not exists hauteur_m numeric;
+alter table vehicules add column if not exists largeur_m numeric;
+alter table vehicules add column if not exists profondeur_m numeric;
+alter table vehicules add column if not exists prestataire_id text references prestataires(id) on delete set null;
+
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='vehicules' and column_name='prestataire') then
+    insert into prestataires (id, nom)
+      select 'prest' || substr(md5(random()::text || s.prestataire), 1, 20), s.prestataire
+      from (select distinct prestataire from vehicules where prestataire is not null and prestataire <> '') s
+      where not exists (select 1 from prestataires p where p.nom = s.prestataire);
+    update vehicules v set prestataire_id = p.id
+      from prestataires p
+      where p.nom = v.prestataire and v.prestataire_id is null and v.prestataire is not null and v.prestataire <> '';
+  end if;
+end $$;
+
+alter table vehicules drop column if exists prestataire;
+
+
+-- ----------------------------------------------------------------------------
+-- Chauffeurs — le permis ne sert pas ; carnets ATA — pas de pays, valables
+-- dans toute l'Europe.
+-- ----------------------------------------------------------------------------
+alter table chauffeurs drop column if exists permis;
+alter table carnets_ata drop column if exists pays;
+
+
+-- ----------------------------------------------------------------------------
+-- Affectation chauffeur ↔ semi, souple : par date, jamais figée sur le
+-- véhicule — un chauffeur peut changer de semi d'une date à l'autre.
+-- ----------------------------------------------------------------------------
+create table if not exists affectations_transport (
+  id text primary key,
+  tournee_id text not null,
+  date_id text not null,
+  vehicule_id text references vehicules(id) on delete cascade,
+  chauffeur_id text references chauffeurs(id) on delete set null,
+  notes text default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_affectations_transport_date on affectations_transport(tournee_id, date_id);
+drop trigger if exists trg_affectations_transport_updated_at on affectations_transport;
+create trigger trg_affectations_transport_updated_at before update on affectations_transport
+  for each row execute function set_updated_at();
+alter table affectations_transport enable row level security;
+drop policy if exists "affectations transport acces" on affectations_transport;
+create policy "affectations transport acces" on affectations_transport for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());
+
+
+-- ----------------------------------------------------------------------------
+-- Fiches techniques — le lien pointe directement sur le fichier Drive
+-- partagé : toujours à jour, sans synchronisation à construire. La "version"
+-- devient une étiquette qu'on met à jour soi-même en un clic ; l'historique
+-- un simple journal (plus de fichier hébergé, plus de bucket nécessaire pour
+-- ça).
+-- ----------------------------------------------------------------------------
+alter table fiches_techniques add column if not exists version_actuelle text default '';
+alter table fiches_techniques add column if not exists version_le timestamptz;
+alter table fiches_techniques drop column if exists version_courante;
+
+alter table fiches_techniques_versions drop column if exists fichier_chemin;
+alter table fiches_techniques_versions drop column if exists fichier_nom;
+alter table fiches_techniques_versions drop column if exists version;
+alter table fiches_techniques_versions add column if not exists label text default '';
+
+drop function if exists get_fiche_technique_by_token(text);
+create function get_fiche_technique_by_token(p_token text)
+returns table(nom text, drive_url text, version_actuelle text, version_le timestamptz)
+language sql
+security definer
+set search_path = public
+as $$
+  select f.nom, f.drive_url, f.version_actuelle, f.version_le
+  from fiches_techniques f
+  where f.token = p_token
+  limit 1;
+$$;
+grant execute on function get_fiche_technique_by_token(text) to anon, authenticated;
+
+
+-- ----------------------------------------------------------------------------
+-- Fiche de date — précisions demandées : plan de scène (envoi ≠ validation à
+-- l'échelle), plan de charge (bureau de contrôle), bureau de contrôle sur
+-- place, déchargement à plusieurs semis avec emplacement par semi, roadies et
+-- chariots en vacations (créneaux, demandé/proposé/validé), faits techniques
+-- enrichis, contacts salle multiples + technicien·nes exposé·es comme
+-- contacts, plan de salle positionnable.
+-- ----------------------------------------------------------------------------
+alter table moyens_salle add column if not exists plan_valide boolean not null default false;
+alter table moyens_salle add column if not exists plan_charge_statut text not null default 'non_envoye'
+  check (plan_charge_statut in ('non_envoye','envoye','valide_bureau_controle'));
+alter table moyens_salle add column if not exists bureau_controle_sur_place boolean not null default false;
+alter table moyens_salle add column if not exists bureau_controle_horaire text default '';
+alter table moyens_salle add column if not exists bureau_controle_contact text default '';
+
+alter table moyens_salle add column if not exists nombre_semis_simultanees int;
+alter table moyens_salle add column if not exists emplacements_dechargement jsonb not null default '[]'::jsonb;
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='moyens_salle' and column_name='semis_places') then
+    update moyens_salle set nombre_semis_simultanees = semis_places
+      where semis_places is not null and nombre_semis_simultanees is null;
+  end if;
+end $$;
+alter table moyens_salle drop column if exists semis_places;
+
+alter table moyens_salle add column if not exists roadies_vacations jsonb not null default '[]'::jsonb;
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='moyens_salle' and column_name='roadies_demande') then
+    update moyens_salle
+      set roadies_vacations = jsonb_build_array(jsonb_build_object(
+            'horaireDebut', coalesce(roadies_horaire,''), 'horaireFin', '',
+            'nombreDemande', roadies_demande, 'nombreValide', roadies_valide, 'notes', ''))
+      where (roadies_demande is not null or roadies_valide is not null or coalesce(roadies_horaire,'') <> '')
+        and roadies_vacations = '[]'::jsonb;
+  end if;
+end $$;
+alter table moyens_salle drop column if exists roadies_demande;
+alter table moyens_salle drop column if exists roadies_valide;
+alter table moyens_salle drop column if exists roadies_horaire;
+
+alter table moyens_salle add column if not exists chariots_vacations jsonb not null default '[]'::jsonb;
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='moyens_salle' and column_name='chariots') then
+    update moyens_salle
+      set chariots_vacations = jsonb_build_array(jsonb_build_object(
+            'horaireDebut', '', 'horaireFin', '',
+            'nombreChariotsDemande', jsonb_array_length(chariots),
+            'nombreChariotsValide', (select count(*) from jsonb_array_elements(chariots) e where (e->>'valide')::boolean),
+            'fourches', chariots,
+            'nombreCaristesDemande', caristes_demande, 'nombreCaristesValide', caristes_valide,
+            'notes', ''))
+      where jsonb_array_length(chariots) > 0 and chariots_vacations = '[]'::jsonb;
+  end if;
+end $$;
+alter table moyens_salle drop column if exists chariots;
+alter table moyens_salle drop column if exists caristes_demande;
+alter table moyens_salle drop column if exists caristes_valide;
+
+alter table moyens_salle add column if not exists profondeur_scene text default '';
+alter table moyens_salle add column if not exists type_courant text default '';
+alter table moyens_salle add column if not exists nombre_circuits text default '';
+alter table moyens_salle add column if not exists charge_max_accroche text default '';
+alter table moyens_salle add column if not exists type_sol text default '';
+
+alter table moyens_salle add column if not exists contacts_salle jsonb not null default '[]'::jsonb;
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='moyens_salle' and column_name='contact_nom') then
+    update moyens_salle
+      set contacts_salle = jsonb_build_array(jsonb_build_object(
+            'nom', coalesce(contact_nom,''), 'role', '', 'tel', coalesce(contact_tel,''), 'email', coalesce(contact_email,'')))
+      where (coalesce(contact_nom,'') <> '' or coalesce(contact_tel,'') <> '' or coalesce(contact_email,'') <> '')
+        and contacts_salle = '[]'::jsonb;
+  end if;
+end $$;
+alter table moyens_salle drop column if exists contact_nom;
+alter table moyens_salle drop column if exists contact_tel;
+alter table moyens_salle drop column if exists contact_email;
+alter table moyens_salle add column if not exists contacts_techniciens_ids jsonb not null default '[]'::jsonb;
+
+alter table moyens_salle add column if not exists plan_image_path text default '';
+alter table moyens_salle add column if not exists semis_positions jsonb not null default '[]'::jsonb;
+
+
+-- ----------------------------------------------------------------------------
+-- Partage à trois audiences : stage manager (tout + plan positionnable),
+-- technicien (récap doc de salle + particularités), salle (notre demande +
+-- FT à jour, avec réponse possible aux vacations). Un accès salle est scopé
+-- à une ou plusieurs dates précises, pas à toute la tournée.
+-- ----------------------------------------------------------------------------
+alter table acces_logistique add column if not exists type text not null default 'stage_manager'
+  check (type in ('stage_manager','technicien','salle'));
+alter table acces_logistique add column if not exists dates_ids jsonb not null default '[]'::jsonb;
+
+-- Une salle répond à UN créneau (roadies ou chariots) d'UNE de ses dates,
+-- jamais en dehors de son propre périmètre.
+create or replace function repondre_vacation_salle(
+  p_token text, p_date_id text, p_type_vacation text, p_index int, p_reponse jsonb
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces acces_logistique%rowtype;
+  ms moyens_salle%rowtype;
+  liste jsonb;
+begin
+  select * into acces from acces_logistique where id = p_token and actif and type = 'salle' limit 1;
+  if not found then return false; end if;
+  if not (acces.dates_ids ? p_date_id) then return false; end if;
+  if p_type_vacation not in ('roadies','chariots') then return false; end if;
+
+  select * into ms from moyens_salle where tournee_id = acces.tournee_id and date_id = p_date_id limit 1;
+  if not found then return false; end if;
+
+  liste := case when p_type_vacation = 'roadies' then ms.roadies_vacations else ms.chariots_vacations end;
+  if p_index < 0 or p_index >= jsonb_array_length(liste) then return false; end if;
+  liste := jsonb_set(liste, array[p_index::text], (liste->p_index) || p_reponse);
+
+  if p_type_vacation = 'roadies' then
+    update moyens_salle set roadies_vacations = liste where id = ms.id;
+  else
+    update moyens_salle set chariots_vacations = liste where id = ms.id;
+  end if;
+  return true;
+end;
+$$;
+grant execute on function repondre_vacation_salle(text, text, text, int, jsonb) to anon, authenticated;
+
+-- Le stage manager positionne ses semis sur le plan d'une date de sa tournée.
+create or replace function enregistrer_positions_semis(
+  p_token text, p_date_id text, p_positions jsonb
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces acces_logistique%rowtype;
+  n int;
+begin
+  select * into acces from acces_logistique where id = p_token and actif and type = 'stage_manager' limit 1;
+  if not found then return false; end if;
+  update moyens_salle set semis_positions = p_positions
+    where tournee_id = acces.tournee_id and date_id = p_date_id;
+  get diagnostics n = row_count;
+  return n > 0;
+end;
+$$;
+grant execute on function enregistrer_positions_semis(text, text, jsonb) to anon, authenticated;
+
+create or replace function get_recap_logistique(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces acces_logistique%rowtype;
+  resultat jsonb;
+begin
+  select * into acces from acces_logistique where id = p_token and actif limit 1;
+  if not found then
+    return null;
+  end if;
+
+  select jsonb_build_object(
+    'libelle', acces.libelle,
+    'type', acces.type,
+    'datesIds', acces.dates_ids,
+    'tournee', (select jsonb_build_object('id', t.id, 'nom', t.nom, 'dates', t.dates)
+                from tournees t where t.id = acces.tournee_id),
+    'moyens', coalesce((select jsonb_agg(to_jsonb(m))
+                from moyens_salle m where m.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'lots', coalesce((select jsonb_agg(to_jsonb(l))
+                from lots_materiel l where l.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'carnets', coalesce((select jsonb_agg(to_jsonb(c))
+                from carnets_ata c where c.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'vehicules', coalesce((select jsonb_agg(to_jsonb(v)) from vehicules v), '[]'::jsonb),
+    'chauffeurs', coalesce((select jsonb_agg(to_jsonb(ch)) from chauffeurs ch), '[]'::jsonb),
+    'affectationsTransport', coalesce((select jsonb_agg(to_jsonb(a))
+                from affectations_transport a where a.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'fichesTechniques', coalesce((select jsonb_agg(to_jsonb(f))
+                from fiches_techniques f where f.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'techniciensContacts', coalesce((
+                select jsonb_agg(jsonb_build_object('id', tc.id, 'prenom', tc.prenom, 'nom', tc.nom, 'poste', tc.poste))
+                from techniciens tc
+                where tc.id in (
+                  select jsonb_array_elements_text(m.contacts_techniciens_ids)
+                  from moyens_salle m where m.tournee_id = acces.tournee_id
+                )), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
