@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Curieux orchestre — Mon accès</title>
-<!-- Page volontairement PUBLIQUE : c'est l'adresse de retour du lien magique.
-     La session s'établit ici, puis la liaison est demandée au serveur, qui
-     vérifie lui-même le jeton et l'adresse email. -->
+<!-- Page volontairement PUBLIQUE : c'est l'adresse de retour de l'email de
+     confirmation d'adresse. La session s'établit ici, puis la liaison est
+     demandée au serveur, qui vérifie le jeton et l'adresse email. -->
 <script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
@@ -43,7 +43,7 @@
   <div class="carte">
     <img class="brand-logo-img" alt="Curieux orchestre">
     <h1 id="titre">Finalisation…</h1>
-    <div class="etat attente" id="etat">Vérification de ton lien de connexion…</div>
+    <div class="etat attente" id="etat">Activation de ton accès…</div>
     <div id="suite"></div>
   </div>
 </div>
@@ -67,7 +67,7 @@ function etat(texte, genre){
 }
 
 const MOTIFS = {
-  non_connecte:        "La connexion n'a pas abouti. Le lien a peut-être expiré — il est valable une heure.",
+  non_connecte:        "L'activation n'a pas abouti. Le lien de confirmation a peut-être expiré.",
   jeton_invalide:      "Ce lien personnel n'est plus valable. Demande-nous de t'en renvoyer un.",
   compte_sans_email:   "Ton compte n'a pas d'adresse email associée. Contacte-nous.",
   personne_deja_prise: "Un accès existe déjà pour cette fiche, avec une autre adresse email. Si c'est bien toi, contacte-nous.",
@@ -78,7 +78,7 @@ const MOTIFS = {
 };
 
 async function finaliser(){
-  // Le SDK Supabase lit le lien magique et pose la session au chargement.
+  // Le SDK Supabase lit le lien de confirmation et pose la session au chargement.
   let session = await CurieuxDB.getSession();
   // Petit délai de grâce : selon le navigateur, la session s'établit juste après.
   for(let i = 0; i < 10 && !session; i++){
@@ -87,10 +87,10 @@ async function finaliser(){
   }
 
   if(!session){
-    titreEl.textContent = 'Connexion non aboutie';
+    titreEl.textContent = 'Activation non aboutie';
     etat(MOTIFS.non_connecte, 'ko');
     suiteEl.innerHTML = TOKEN
-      ? `<a class="bouton" href="creer-acces.html?token=${encodeURIComponent(TOKEN)}">Redemander un lien</a>`
+      ? `<a class="bouton" href="creer-acces.html?token=${encodeURIComponent(TOKEN)}">Reprendre la création</a>`
       : '';
     return;
   }
@@ -106,12 +106,12 @@ async function finaliser(){
   if(r && r.ok){
     try{ localStorage.removeItem('curieux-jeton-liaison'); }catch(e){}
     const qui = [r.prenom, r.nom].filter(Boolean).join(' ');
-    titreEl.textContent = r.motif === 'deja_lie' ? 'Tu es déjà connecté·e' : 'Ton accès est créé';
+    titreEl.textContent = r.motif === 'deja_lie' ? 'Tu es déjà connecté·e' : 'Ton accès est activé';
     etat(qui ? `Bienvenue ${qui} — ton compte est bien rattaché à ta fiche.` : 'Ton compte est bien rattaché à ta fiche.', 'ok');
     suiteEl.innerHTML = `
-      <p class="fort">Tes informations personnelles ne sont désormais accessibles qu'en passant par ta boîte mail.</p>
-      <p>Ton ancien lien continue de fonctionner pour l'instant, le temps que tout le monde ait créé son accès.</p>
-      <a class="bouton" href="mes-infos.html?token=${encodeURIComponent(TOKEN)}">Voir mes informations</a>`;
+      <p class="fort">Tes informations personnelles ne sont désormais accessibles qu'avec ton mot de passe.</p>
+      <p>Désormais, ton mot de passe suffit pour revenir. Ton ancien lien continue de fonctionner le temps que tout le monde ait basculé.</p>
+      <a class="bouton" href="mon-espace.html?token=${encodeURIComponent(TOKEN)}">Aller à mon espace</a>`;
     return;
   }
 
