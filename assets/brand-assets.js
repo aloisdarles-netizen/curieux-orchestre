@@ -116,15 +116,30 @@ function applyCurieuxFavicon(){
 // l'injection au chargement suffit et il n'y a qu'un seul endroit à corriger.
 function initCurieuxPWA(){
   if(typeof document === 'undefined' || !document.head) return;
-  if(document.getElementById('curieux-manifest')) return;
+  if(document.getElementById('curieux-pwa-pose')) return;
 
   const balise = (tag, attrs)=>{
     const el = document.createElement(tag);
     Object.entries(attrs).forEach(([k, v])=> el.setAttribute(k, v));
     document.head.appendChild(el);
   };
+  balise('meta', { id:'curieux-pwa-pose', name:'curieux-pwa', content:'1' });
 
-  balise('link', { id:'curieux-manifest', rel:'manifest', href:'/manifest.json' });
+  // Pages ouvertes par un lien personnel (musicien·ne, salle, technicien·ne,
+  // stage manager) : on n'annonce PAS le manifeste de l'équipe. Son start_url
+  // est "/", qui mène à l'écran de connexion — une icône installée depuis un
+  // de ces liens serait donc inutilisable pour la personne concernée.
+  //
+  // Sans manifeste, iOS retient l'adresse réellement ouverte : « Sur l'écran
+  // d'accueil » depuis leur lien fonctionne donc correctement. Android ne
+  // proposera pas d'installation, ce qui vaut mieux qu'une installation qui
+  // ne mène nulle part. Le reste (couleurs, icône, hors-ligne) s'applique.
+  const params = new URLSearchParams(location.search);
+  const pageALienPersonnel = params.has('token') || params.has('jeton');
+
+  if(!pageALienPersonnel){
+    balise('link', { id:'curieux-manifest', rel:'manifest', href:'/manifest.json' });
+  }
   balise('link', { rel:'apple-touch-icon', href:'/assets/images/apple-touch-icon.png' });
 
   // Couleur de la barre système, accordée au thème clair/sombre de l'app.
