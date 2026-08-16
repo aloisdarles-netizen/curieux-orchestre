@@ -2357,6 +2357,8 @@ grant execute on function enregistrer_horaires_journee(text, text, jsonb) to ano
 
 -- get_recap_logistique : expose désormais equipes_road (noms d'équipes pour
 -- l'affichage des vacations roadies côté salle/technicien/stage manager).
+-- NB : cette définition est corrigée plus bas (section « Correctif sécurité »)
+-- pour ne plus fuiter l'intégralité des véhicules et chauffeurs.
 create or replace function get_recap_logistique(p_token text)
 returns jsonb
 language plpgsql
@@ -2386,6 +2388,94 @@ begin
                 from carnets_ata c where c.tournee_id = acces.tournee_id), '[]'::jsonb),
     'vehicules', coalesce((select jsonb_agg(to_jsonb(v)) from vehicules v), '[]'::jsonb),
     'chauffeurs', coalesce((select jsonb_agg(to_jsonb(ch)) from chauffeurs ch), '[]'::jsonb),
+    'affectationsTransport', coalesce((select jsonb_agg(to_jsonb(a))
+                from affectations_transport a where a.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'fichesTechniques', coalesce((select jsonb_agg(to_jsonb(f))
+                from fiches_techniques f where f.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'techniciensContacts', coalesce((
+                select jsonb_agg(jsonb_build_object('id', tc.id, 'prenom', tc.prenom, 'nom', tc.nom, 'poste', tc.poste))
+                from techniciens tc
+                where tc.id in (
+                  select jsonb_array_elements_text(m.contacts_techniciens_ids)
+                  from moyens_salle m where m.tournee_id = acces.tournee_id
+                )), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
+
+-- ============================================================================
+-- Correctif sécurité — récapitulatif logistique : ne partager que les
+-- véhicules et chauffeurs réellement affectés à la tournée du jeton.
+--
+-- Auparavant, get_recap_logistique renvoyait la TOTALITÉ des tables vehicules
+-- et chauffeurs (to_jsonb sans filtre) à n'importe quel lien de partage —
+-- donc les coordonnées et notes internes de tous les chauffeurs, toutes
+-- tournées confondues. On restreint désormais aux seuls véhicules et
+-- chauffeurs liés à cette tournée (via affectations_transport et le chauffeur
+-- habituel des véhicules concernés), et on n'expose que les champs utiles à
+-- l'affichage — jamais le champ "notes", qui est interne.
+-- ============================================================================
+create or replace function get_recap_logistique(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces acces_logistique%rowtype;
+  resultat jsonb;
+begin
+  select * into acces from acces_logistique where id = p_token and actif limit 1;
+  if not found then
+    return null;
+  end if;
+
+  select jsonb_build_object(
+    'libelle', acces.libelle,
+    'type', acces.type,
+    'datesIds', acces.dates_ids,
+    'tournee', (select jsonb_build_object('id', t.id, 'nom', t.nom, 'dates', t.dates, 'equipesRoad', t.equipes_road)
+                from tournees t where t.id = acces.tournee_id),
+    'moyens', coalesce((select jsonb_agg(to_jsonb(m))
+                from moyens_salle m where m.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'lots', coalesce((select jsonb_agg(to_jsonb(l))
+                from lots_materiel l where l.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'carnets', coalesce((select jsonb_agg(to_jsonb(c))
+                from carnets_ata c where c.tournee_id = acces.tournee_id), '[]'::jsonb),
+    -- Véhicules affectés à cette tournée uniquement, sans le champ notes.
+    'vehicules', coalesce((
+                select jsonb_agg(jsonb_build_object(
+                  'id', v.id, 'nom', v.nom, 'type', v.type,
+                  'immatriculation', v.immatriculation, 'hayon', v.hayon,
+                  'capacite', v.capacite, 'prestataire_id', v.prestataire_id,
+                  'hauteur_m', v.hauteur_m, 'largeur_m', v.largeur_m,
+                  'profondeur_m', v.profondeur_m,
+                  'chauffeur_defaut_id', v.chauffeur_defaut_id))
+                from vehicules v
+                where v.id in (
+                  select af.vehicule_id from affectations_transport af
+                  where af.tournee_id = acces.tournee_id and af.vehicule_id is not null
+                )), '[]'::jsonb),
+    -- Chauffeurs de la tournée : ceux d'une affectation, plus le chauffeur
+    -- habituel des véhicules concernés. Sans le champ notes.
+    'chauffeurs', coalesce((
+                select jsonb_agg(jsonb_build_object(
+                  'id', ch.id, 'prenom', ch.prenom, 'nom', ch.nom,
+                  'telephone', ch.telephone, 'email', ch.email,
+                  'prestataire', ch.prestataire))
+                from chauffeurs ch
+                where ch.id in (
+                  select af.chauffeur_id from affectations_transport af
+                  where af.tournee_id = acces.tournee_id and af.chauffeur_id is not null
+                  union
+                  select v.chauffeur_defaut_id from vehicules v
+                  where v.chauffeur_defaut_id is not null and v.id in (
+                    select af2.vehicule_id from affectations_transport af2
+                    where af2.tournee_id = acces.tournee_id and af2.vehicule_id is not null
+                  )
+                )), '[]'::jsonb),
     'affectationsTransport', coalesce((select jsonb_agg(to_jsonb(a))
                 from affectations_transport a where a.tournee_id = acces.tournee_id), '[]'::jsonb),
     'fichesTechniques', coalesce((select jsonb_agg(to_jsonb(f))
