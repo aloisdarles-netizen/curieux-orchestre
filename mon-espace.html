@@ -139,8 +139,28 @@ async function init(){
 
   const moi = await CurieuxDB.mesDemandesDispo(TOKEN);
   if(!moi){
+    // Le lien ne montre plus rien par lui-même. Deux cas à distinguer, sans
+    // rien dévoiler ni dans l'un ni dans l'autre : soit il attend la création
+    // d'un accès, soit il n'est plus valable.
+    const aActiver = await CurieuxDB.jetonAttendCreation(TOKEN);
     document.getElementById('sousTitre').textContent = '';
-    etat("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau.");
+    if(aActiver){
+      document.getElementById('titre').textContent = 'Un pas et c\'est à toi';
+      document.getElementById('contenu').innerHTML = `
+        <div class="acces">
+          <b>Crée ton accès pour continuer</b>
+          <p>Cet espace contient tes informations personnelles — RIB, numéro de
+          sécurité sociale. Il ne s'ouvre plus sur simple lien : il te faut un
+          accès à ton nom, avec un mot de passe.</p>
+          <p>C'est à faire une seule fois. Ensuite, ton mot de passe suffira.</p>
+          <a href="creer-acces.html?token=${encodeURIComponent(TOKEN)}&retour=mon-espace.html">Créer mon accès</a>
+        </div>
+        <div class="section-titre">Sur mon téléphone</div>
+        <div id="blocInstallation"></div>`;
+      injecterModeEmploiApp('blocInstallation', { nom: 'Mon espace' });
+      return;
+    }
+    etat("Ce lien n'est plus valide, ou tu es connecté·e avec une autre adresse. Contacte la production.");
     return;
   }
 

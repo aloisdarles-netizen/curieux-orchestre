@@ -826,6 +826,16 @@ const CurieuxDB = (()=>{
     return data || null;
   }
 
+  // Le lien est-il valide mais en attente de création d'accès ? Ne renvoie
+  // qu'un booléen — aucune donnée personnelle — ce qui permet de distinguer
+  // « lien à activer » de « lien invalide » sans rien dévoiler.
+  async function jetonAttendCreation(token){
+    if(!supabaseClient) return false;
+    const { data, error } = await supabaseClient.rpc('jeton_attend_creation', { p_token: token });
+    if(error){ console.warn('[CurieuxDB] jetonAttendCreation', error.message); return false; }
+    return !!data;
+  }
+
   // Rattache le compte connecté à la personne désignée par le jeton.
   async function lierCompteAPersonne(token){
     if(!supabaseClient) return { ok:false, motif:'indisponible' };
@@ -1290,7 +1300,7 @@ const CurieuxDB = (()=>{
     listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
     creerAccesAvecMotDePasse, connexionAcces, reinitialiserMotDePasseAcces,
-    lierCompteAPersonne, maPersonne, mesDemandesDispo,
+    lierCompteAPersonne, maPersonne, mesDemandesDispo, jetonAttendCreation,
     listeComptesPersonnes, delierComptePersonne,
     fetchCorbeille, restaurerDepuisCorbeille,
     getInfosSocialesByToken, upsertInfosSocialesByToken,

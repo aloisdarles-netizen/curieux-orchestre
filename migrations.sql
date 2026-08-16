@@ -2788,3 +2788,222 @@ end;
 $$;
 revoke execute on function delier_compte_personne(text, text) from public;
 grant execute on function delier_compte_personne(text, text) to authenticated;
+
+-- ============================================================================
+-- Verrouillage des liens personnels
+--
+-- Jusqu'ici le lien personnel donnait accès aux données par lui-même. Il est
+-- permanent, il circule par messagerie et il se transfère : quiconque le
+-- recevait pouvait lire et modifier l'IBAN et le numéro de sécurité sociale
+-- de la personne.
+--
+-- Désormais le lien ne sert plus qu'à UNE chose : créer son accès ou se
+-- connecter. Les données ne s'ouvrent qu'à une session rattachée à la
+-- personne concernée.
+--
+-- Conséquence assumée : tant qu'une personne n'a pas créé son accès, son lien
+-- ne montre rien — pas même ses disponibilités.
+--
+-- Presque toutes les fonctions passent par resolve_person_token : le verrou
+-- tient donc en un point unique. Les trois qui interrogeaient dispo_demandes
+-- en direct sont reprises juste après.
+-- ============================================================================
+
+-- Le résolveur brut, sans contrôle de session. Réservé à la création d'accès :
+-- à cet instant, la personne n'a par définition pas encore de compte.
+create or replace function resolve_person_token_brut(p_token text)
+returns table(person_id text, person_type text)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select a.person_id, a.person_type from acces_personnels a where a.token = p_token
+  union all
+  select d.person_id, d.person_type from dispo_demandes d where d.id = p_token
+  limit 1;
+$$;
+revoke execute on function resolve_person_token_brut(text) from public;
+
+-- Le résolveur utilisé partout ailleurs : il ne rend la personne que si la
+-- session en cours lui est rattachée.
+create or replace function resolve_person_token(p_token text)
+returns table(person_id text, person_type text)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select b.person_id, b.person_type
+  from resolve_person_token_brut(p_token) b
+  join comptes_personnes c
+    on c.person_id = b.person_id and c.person_type = b.person_type
+  where c.user_id = auth.uid();
+$$;
+grant execute on function resolve_person_token(text) to anon, authenticated;
+
+-- La création d'accès doit continuer de fonctionner sans session rattachée.
+create or replace function lier_compte_a_personne(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cible record;
+  email_compte text;
+  email_fiche text;
+  existante comptes_personnes%rowtype;
+  prenom text; nom text;
+begin
+  if auth.uid() is null then
+    return jsonb_build_object('ok', false, 'motif', 'non_connecte');
+  end if;
+
+  select * into cible from resolve_person_token_brut(p_token);
+  if not found or cible.person_id is null then
+    return jsonb_build_object('ok', false, 'motif', 'jeton_invalide');
+  end if;
+
+  email_compte := lower(trim(coalesce(auth.jwt()->>'email', '')));
+  if email_compte = '' then
+    return jsonb_build_object('ok', false, 'motif', 'compte_sans_email');
+  end if;
+
+  select * into existante from comptes_personnes
+   where person_id = cible.person_id and person_type = cible.person_type;
+  if found then
+    if existante.user_id = auth.uid() then
+      return jsonb_build_object('ok', true, 'motif', 'deja_lie');
+    end if;
+    return jsonb_build_object('ok', false, 'motif', 'personne_deja_prise');
+  end if;
+
+  if exists (select 1 from comptes_personnes where user_id = auth.uid()) then
+    return jsonb_build_object('ok', false, 'motif', 'compte_deja_lie');
+  end if;
+
+  if cible.person_type = 'musicien' then
+    select lower(trim(coalesce(m.email,''))), m.prenom, m.nom into email_fiche, prenom, nom
+      from musiciens m where m.id = cible.person_id;
+  else
+    select lower(trim(coalesce(t.email,''))), t.prenom, t.nom into email_fiche, prenom, nom
+      from techniciens t where t.id = cible.person_id;
+  end if;
+
+  if email_fiche is not null and email_fiche <> '' and email_fiche <> email_compte then
+    return jsonb_build_object('ok', false, 'motif', 'email_different');
+  end if;
+
+  insert into comptes_personnes (user_id, person_id, person_type, email)
+  values (auth.uid(), cible.person_id, cible.person_type, email_compte);
+
+  return jsonb_build_object('ok', true, 'motif', 'cree', 'prenom', prenom, 'nom', nom);
+end;
+$$;
+revoke execute on function lier_compte_a_personne(text) from public;
+grant execute on function lier_compte_a_personne(text) to authenticated;
+
+-- Les trois fonctions qui lisaient dispo_demandes sans passer par le pivot.
+create or replace function get_dispo_demande_by_token(p_token text)
+returns setof dispo_demandes
+language sql
+security definer
+set search_path = public
+as $$
+  select d.* from dispo_demandes d
+  where d.id = p_token
+    and exists (select 1 from resolve_person_token(p_token));
+$$;
+
+create or replace function mark_dispo_responded_by_token(p_token text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from resolve_person_token(p_token)) then
+    raise exception 'Accès refusé';
+  end if;
+  update dispo_demandes set last_responded_at = now() where id = p_token;
+end;
+$$;
+
+create or replace function update_own_disponibilites_by_token(
+  p_token text, p_disponibilites jsonb, p_disponibilites_commentaires jsonb, p_telephone text, p_email text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_person_id text;
+  v_person_type text;
+begin
+  select person_id, person_type into v_person_id, v_person_type
+  from resolve_person_token(p_token);
+  if v_person_id is null then
+    raise exception 'Lien invalide';
+  end if;
+  if v_person_type = 'musicien' then
+    update musiciens set
+      disponibilites = p_disponibilites, disponibilites_commentaires = p_disponibilites_commentaires,
+      telephone = p_telephone, email = p_email
+    where id = v_person_id;
+  else
+    update techniciens set
+      disponibilites = p_disponibilites, disponibilites_commentaires = p_disponibilites_commentaires,
+      telephone = p_telephone, email = p_email
+    where id = v_person_id;
+  end if;
+end;
+$$;
+
+-- Savoir, sans rien dévoiler, si un lien attend encore la création d'un accès.
+-- Ne renvoie qu'un booléen : aucune donnée personnelle.
+create or replace function jeton_attend_creation(p_token text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (select 1 from resolve_person_token_brut(p_token))
+     and not exists (
+       select 1 from resolve_person_token_brut(p_token) b
+       join comptes_personnes c
+         on c.person_id = b.person_id and c.person_type = b.person_type);
+$$;
+grant execute on function jeton_attend_creation(text) to anon, authenticated;
+
+-- get_tournee_by_token interrogeait dispo_demandes en direct, sans passer par
+-- le pivot : elle rendait donc encore le nom de la tournée à un lien nu.
+create or replace function get_tournee_by_token(p_token text)
+returns setof tournees
+language sql
+security definer
+set search_path = public
+as $$
+  select t.* from tournees t
+    join dispo_demandes d on d.tournee_id = t.id
+   where d.id = p_token
+     and exists (select 1 from resolve_person_token(p_token));
+$$;
+
+-- Le cachet individualisé passait lui aussi par dispo_demandes en direct.
+create or replace function get_cachet_override_by_token(p_token text)
+returns table(montant numeric)
+language sql
+security definer
+set search_path = public
+as $$
+  select co.montant from cachet_overrides co
+  join dispo_demandes d
+    on d.tournee_id = co.tournee_id
+    and d.person_type = co.person_type
+    and d.person_id = co.person_id
+  where d.id = p_token
+    and exists (select 1 from resolve_person_token(p_token));
+$$;
