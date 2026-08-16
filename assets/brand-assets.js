@@ -125,21 +125,37 @@ function initCurieuxPWA(){
   };
   balise('meta', { id:'curieux-pwa-pose', name:'curieux-pwa', content:'1' });
 
-  // Pages ouvertes par un lien personnel (musicien·ne, salle, technicien·ne,
-  // stage manager) : on n'annonce PAS le manifeste de l'équipe. Son start_url
-  // est "/", qui mène à l'écran de connexion — une icône installée depuis un
-  // de ces liens serait donc inutilisable pour la personne concernée.
+  // Quel manifeste annoncer ?
   //
-  // Sans manifeste, iOS retient l'adresse réellement ouverte : « Sur l'écran
-  // d'accueil » depuis leur lien fonctionne donc correctement. Android ne
-  // proposera pas d'installation, ce qui vaut mieux qu'une installation qui
-  // ne mène nulle part. Le reste (couleurs, icône, hors-ligne) s'applique.
-  const params = new URLSearchParams(location.search);
-  const pageALienPersonnel = params.has('token') || params.has('jeton');
+  // Le manifeste de l'équipe démarre sur "/", c'est-à-dire l'écran de
+  // connexion : l'annoncer sur une page ouverte par lien personnel donnerait
+  // à la personne une icône inutilisable. Ces pages reçoivent donc un
+  // manifeste fabriqué pour elles, dont l'adresse de départ est leur propre
+  // lien — voir api/manifeste.js.
+  // Les libellés doivent rester accordés à ceux de api/manifeste.js : c'est le
+  // nom que la personne verra sous l'icône.
+  const CURIEUX_PAGES_LIEN_PERSONNEL = {
+    'mes-infos.html':         { param:'token', court:'Mes infos' },
+    'dispo-titulaire.html':   { param:'token', court:'Mes dispos' },
+    'mes-remplacants.html':   { param:'token', court:'Remplaçants' },
+    'technique-partage.html': { param:'jeton', court:'Technique' },
+    'fiche-technique.html':   { param:'jeton', court:'Fiche tech' },
+  };
 
-  if(!pageALienPersonnel){
-    balise('link', { id:'curieux-manifest', rel:'manifest', href:'/manifest.json' });
-  }
+  const params = new URLSearchParams(location.search);
+  const page = location.pathname.split('/').pop() || '';
+  const def = Object.prototype.hasOwnProperty.call(CURIEUX_PAGES_LIEN_PERSONNEL, page)
+    ? CURIEUX_PAGES_LIEN_PERSONNEL[page] : null;
+  const nomParam = def ? def.param : null;
+  const jeton = nomParam ? (params.get(nomParam) || '') : '';
+
+  // Le jeton doit être plausible avant d'être recopié dans une adresse : les
+  // jetons de l'app sont alphanumériques, tout le reste est écarté.
+  const href = (jeton && /^[A-Za-z0-9_-]{1,128}$/.test(jeton))
+    ? `/api/manifeste?page=${encodeURIComponent(page)}&jeton=${encodeURIComponent(jeton)}`
+    : (nomParam ? null : '/manifest.json');
+
+  if(href) balise('link', { id:'curieux-manifest', rel:'manifest', href });
   balise('link', { rel:'apple-touch-icon', href:'/assets/images/apple-touch-icon.png' });
 
   // Couleur de la barre système, accordée au thème clair/sombre de l'app.
@@ -151,7 +167,7 @@ function initCurieuxPWA(){
   balise('meta', { name:'mobile-web-app-capable', content:'yes' });
   balise('meta', { name:'apple-mobile-web-app-capable', content:'yes' });
   balise('meta', { name:'apple-mobile-web-app-status-bar-style', content:'black-translucent' });
-  balise('meta', { name:'apple-mobile-web-app-title', content:'Curieux' });
+  balise('meta', { name:'apple-mobile-web-app-title', content: def ? def.court : 'Curieux' });
 
   if(!('serviceWorker' in navigator)) return;
   // Sur file:// (ouverture locale d'un fichier) l'enregistrement échoue : on
