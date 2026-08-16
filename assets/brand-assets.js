@@ -105,6 +105,65 @@ function applyCurieuxFavicon(){
   document.head.appendChild(link);
 }
 
+// --- Application installable (PWA) ---------------------------------------
+// Pose les balises qui font qu'un téléphone reconnaît le site comme une app :
+// icône d'écran d'accueil, ouverture en plein écran sans barre de navigateur,
+// couleur de l'interface système. Puis enregistre le service worker, qui rend
+// les pages déjà visitées consultables hors connexion (voir sw.js).
+//
+// Ces balises sont posées ici plutôt que recopiées dans les 27 pages : iOS et
+// Android lisent le DOM au moment de « Ajouter à l'écran d'accueil », donc
+// l'injection au chargement suffit et il n'y a qu'un seul endroit à corriger.
+function initCurieuxPWA(){
+  if(typeof document === 'undefined' || !document.head) return;
+  if(document.getElementById('curieux-manifest')) return;
+
+  const balise = (tag, attrs)=>{
+    const el = document.createElement(tag);
+    Object.entries(attrs).forEach(([k, v])=> el.setAttribute(k, v));
+    document.head.appendChild(el);
+  };
+
+  balise('link', { id:'curieux-manifest', rel:'manifest', href:'/manifest.json' });
+  balise('link', { rel:'apple-touch-icon', href:'/assets/images/apple-touch-icon.png' });
+
+  // Couleur de la barre système, accordée au thème clair/sombre de l'app.
+  balise('meta', { name:'theme-color', content:'#791649', media:'(prefers-color-scheme: light)' });
+  balise('meta', { name:'theme-color', content:'#141617', media:'(prefers-color-scheme: dark)' });
+
+  // Plein écran une fois installée. La balise "apple-" reste nécessaire :
+  // iOS ne lit pas encore l'équivalent standard.
+  balise('meta', { name:'mobile-web-app-capable', content:'yes' });
+  balise('meta', { name:'apple-mobile-web-app-capable', content:'yes' });
+  balise('meta', { name:'apple-mobile-web-app-status-bar-style', content:'black-translucent' });
+  balise('meta', { name:'apple-mobile-web-app-title', content:'Curieux' });
+
+  if(!('serviceWorker' in navigator)) return;
+  // Sur file:// (ouverture locale d'un fichier) l'enregistrement échoue : on
+  // s'abstient plutôt que de polluer la console.
+  if(location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('/sw.js').catch((e)=>{
+      console.warn('[Curieux] service worker non enregistré :', e && e.message);
+    });
+  });
+
+  // Quand une nouvelle version est déployée, on recharge une seule fois pour
+  // que l'équipe ne reste pas sur une version ancienne sans le savoir.
+  //
+  // Le garde-fou compte : à la toute première visite, le service worker prend
+  // le contrôle de la page (clients.claim) et déclenche le même événement.
+  // Sans ce test, chaque nouvel arrivant subirait un rechargement gratuit.
+  const avaitControleur = !!navigator.serviceWorker.controller;
+  let rechargee = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(!avaitControleur || rechargee) return;
+    rechargee = true;
+    location.reload();
+  });
+}
+
 // --- Accès admin par vrai compte Supabase (remplace l'ancien mot de passe
 // partagé "admin" en clair). Un compte doit en plus figurer dans la table
 // infos_sociales_admins pour être reconnu — même liste de confiance que la
