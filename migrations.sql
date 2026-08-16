@@ -3007,3 +3007,117 @@ as $$
   where d.id = p_token
     and exists (select 1 from resolve_person_token(p_token));
 $$;
+
+-- ============================================================================
+-- Retour aux liens personnels sans compte (musicien·nes)
+--
+-- Décision d'usage : le système de comptes compliquait trop le parcours pour
+-- l'enjeu retenu. On revient au fonctionnement d'avant — le lien personnel
+-- suffit à ouvrir l'espace, comme pour les salles et stage managers.
+--
+-- Ce qui est conservé : le lien unique mon-espace (mes_demandes_dispo), les
+-- correctifs chauffeurs et tournees, l'app installable.
+-- Ce qui est retiré : la table de liaison compte ↔ personne et toutes les
+-- fonctions de création/gestion d'accès ; le résolveur redevient direct.
+-- ============================================================================
+
+-- Le résolveur redevient le résolveur simple : détenir le jeton suffit.
+create or replace function resolve_person_token(p_token text)
+returns table(person_id text, person_type text)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select a.person_id, a.person_type from acces_personnels a where a.token = p_token
+  union all
+  select d.person_id, d.person_type from dispo_demandes d where d.id = p_token
+  limit 1;
+$$;
+grant execute on function resolve_person_token(text) to anon, authenticated;
+
+-- Les cinq fonctions qui avaient été verrouillées retrouvent leur forme d'origine.
+create or replace function get_dispo_demande_by_token(p_token text)
+returns setof dispo_demandes
+language sql
+security definer
+set search_path = public
+as $$
+  select * from dispo_demandes where id = p_token;
+$$;
+
+create or replace function mark_dispo_responded_by_token(p_token text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update dispo_demandes set last_responded_at = now() where id = p_token;
+end;
+$$;
+
+create or replace function update_own_disponibilites_by_token(
+  p_token text, p_disponibilites jsonb, p_disponibilites_commentaires jsonb, p_telephone text, p_email text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_person_id text;
+  v_person_type text;
+begin
+  select person_id, person_type into v_person_id, v_person_type
+  from dispo_demandes where id = p_token;
+  if v_person_id is null then
+    raise exception 'Lien invalide';
+  end if;
+  if v_person_type = 'musicien' then
+    update musiciens set
+      disponibilites = p_disponibilites, disponibilites_commentaires = p_disponibilites_commentaires,
+      telephone = p_telephone, email = p_email
+    where id = v_person_id;
+  else
+    update techniciens set
+      disponibilites = p_disponibilites, disponibilites_commentaires = p_disponibilites_commentaires,
+      telephone = p_telephone, email = p_email
+    where id = v_person_id;
+  end if;
+end;
+$$;
+
+create or replace function get_tournee_by_token(p_token text)
+returns setof tournees
+language sql
+security definer
+set search_path = public
+as $$
+  select t.* from tournees t
+    join dispo_demandes d on d.tournee_id = t.id
+   where d.id = p_token;
+$$;
+
+create or replace function get_cachet_override_by_token(p_token text)
+returns table(montant numeric)
+language sql
+security definer
+set search_path = public
+as $$
+  select co.montant from cachet_overrides co
+  join dispo_demandes d
+    on d.tournee_id = co.tournee_id
+    and d.person_type = co.person_type
+    and d.person_id = co.person_id
+  where d.id = p_token;
+$$;
+
+-- Démontage de la mécanique de comptes.
+drop function if exists jeton_attend_creation(text);
+drop function if exists lier_compte_a_personne(text);
+drop function if exists ma_personne();
+drop function if exists liste_comptes_personnes();
+drop function if exists delier_compte_personne(text, text);
+drop function if exists resolve_person_token_brut(text);
+drop table if exists comptes_personnes;
