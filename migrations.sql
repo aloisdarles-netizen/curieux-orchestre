@@ -1469,7 +1469,19 @@ create table if not exists fiches_techniques_versions (
   changelog text default '',
   created_at timestamptz not null default now()
 );
-create index if not exists idx_ft_versions_fiche on fiches_techniques_versions(fiche_id, version desc);
+-- La colonne "version" est supprimée plus bas par la refonte des fiches
+-- techniques. Sur une base déjà migrée, cet index la référencerait dans le
+-- vide et ferait échouer tout le reste du fichier : on ne le crée que si la
+-- colonne est encore là.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public'
+               and table_name = 'fiches_techniques_versions'
+               and column_name = 'version') then
+    create index if not exists idx_ft_versions_fiche on fiches_techniques_versions(fiche_id, version desc);
+  end if;
+end $$;
 
 alter table fiches_techniques enable row level security;
 alter table fiches_techniques_versions enable row level security;
@@ -1480,22 +1492,14 @@ drop policy if exists "fiches techniques versions acces" on fiches_techniques_ve
 create policy "fiches techniques versions acces" on fiches_techniques_versions for all to authenticated
   using (has_access()) with check (has_access());
 
--- Résolution publique du lien canonique : renvoie la version courante, et
--- rien d'autre — ni la liste des versions, ni le lien Drive de travail.
-create or replace function get_fiche_technique_by_token(p_token text)
-returns table(nom text, version int, fichier_chemin text, fichier_nom text, publiee_le timestamptz)
-language sql
-security definer
-set search_path = public
-as $$
-  select f.nom, v.version, v.fichier_chemin, v.fichier_nom, v.created_at
-  from fiches_techniques f
-  join fiches_techniques_versions v
-    on v.fiche_id = f.id and v.version = f.version_courante
-  where f.token = p_token
-  limit 1;
-$$;
-grant execute on function get_fiche_technique_by_token(text) to anon, authenticated;
+-- Résolution publique du lien canonique d'une fiche technique.
+--
+-- La définition qui se trouvait ici lisait fiches_techniques_versions.version
+-- et .fichier_chemin, colonnes supprimées depuis par la refonte des fiches
+-- techniques. Elle était remplacée quelques centaines de lignes plus bas, mais
+-- sur une base déjà migrée elle ne compilait plus et faisait échouer tout le
+-- reste du fichier. Elle est donc retirée : la seule définition en vigueur est
+-- celle de la refonte, plus bas (« Fiches techniques : lien Drive vivant »).
 
 -- Bucket de stockage des PDF publiés. Public en lecture : le chemin contient
 -- un identifiant aléatoire, et une fiche technique a de toute façon vocation à
@@ -2492,3 +2496,151 @@ begin
   return resultat;
 end;
 $$;
+
+-- ============================================================================
+-- Étape 1 — comptes personnels pour les musicien·nes
+--
+-- Aujourd'hui, un lien personnel EST le mot de passe : il est permanent, il
+-- circule par messagerie, il se transfère, et il ouvre infos_sociales — donc
+-- IBAN, numéro de sécurité sociale, date de naissance et adresse. On adosse
+-- donc ces accès à de vrais comptes, créés par la personne elle-même depuis
+-- son lien, avec une connexion par lien magique (pas de mot de passe).
+--
+-- Cette étape pose la fondation SANS rien casser : les jetons continuent de
+-- fonctionner exactement comme avant. Elle ajoute la liaison compte ↔ personne
+-- et de quoi la créer et la lire.
+-- ============================================================================
+
+-- Au passage, fermeture d'une lecture publique restée ouverte : tournees était
+-- lisible par la clé anonyme, qui est publique par construction. Elle expose
+-- cachet_montant, la nomenclature et, dans "dates", musiciensAssignes et
+-- techniciensAssignes. Les dix pages qui lisent cette table en direct sont
+-- toutes authentifiées, et les pages à jeton passent par get_tournee_by_token
+-- (security definer, insensible aux policies) : la lecture publique ne servait
+-- donc plus personne. Ce verrou compte double maintenant qu'on va multiplier
+-- les comptes "authenticated" qui ne doivent, seuls, ouvrir aucune donnée.
+drop policy if exists "public read" on tournees;
+drop policy if exists "admin read" on tournees;
+create policy "admin read" on tournees for select using (has_access());
+
+-- Liaison entre un compte Supabase et une personne du répertoire. Une personne
+-- ne peut être rattachée qu'à un seul compte, et inversement.
+create table if not exists comptes_personnes (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  person_id text not null,
+  person_type text not null check (person_type in ('musicien','technicien')),
+  email text not null,
+  cree_le timestamptz not null default now(),
+  unique (person_id, person_type)
+);
+create index if not exists idx_comptes_personnes_personne on comptes_personnes(person_id, person_type);
+
+alter table comptes_personnes enable row level security;
+-- Chacun·e voit sa propre liaison ; les comptes de l'équipe voient tout.
+drop policy if exists "sa propre liaison" on comptes_personnes;
+create policy "sa propre liaison" on comptes_personnes for select to authenticated
+  using (user_id = auth.uid() or has_access());
+-- L'écriture ne passe que par lier_compte_a_personne() ci-dessous : personne ne
+-- doit pouvoir se rattacher à la personne de son choix par une requête directe.
+drop policy if exists "gestion equipe" on comptes_personnes;
+create policy "gestion equipe" on comptes_personnes for all to authenticated
+  using (has_access()) with check (has_access());
+
+-- Rattache le compte connecté à la personne désignée par son jeton personnel.
+--
+-- Deux garde-fous : il faut être connecté (donc avoir prouvé l'accès à sa boîte
+-- mail via le lien magique) ET détenir le jeton personnel. Quand la fiche de la
+-- personne porte déjà une adresse email, celle du compte doit correspondre —
+-- sans quoi un lien transféré permettrait à un tiers de s'approprier
+-- durablement l'identité de quelqu'un.
+create or replace function lier_compte_a_personne(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cible record;
+  email_compte text;
+  email_fiche text;
+  existante comptes_personnes%rowtype;
+  prenom text; nom text;
+begin
+  if auth.uid() is null then
+    return jsonb_build_object('ok', false, 'motif', 'non_connecte');
+  end if;
+
+  select * into cible from resolve_person_token(p_token);
+  if not found or cible.person_id is null then
+    return jsonb_build_object('ok', false, 'motif', 'jeton_invalide');
+  end if;
+
+  email_compte := lower(trim(coalesce(auth.jwt()->>'email', '')));
+  if email_compte = '' then
+    return jsonb_build_object('ok', false, 'motif', 'compte_sans_email');
+  end if;
+
+  -- Déjà rattaché ? On distingue "c'est déjà toi" de "c'est quelqu'un d'autre".
+  select * into existante from comptes_personnes
+   where person_id = cible.person_id and person_type = cible.person_type;
+  if found then
+    if existante.user_id = auth.uid() then
+      return jsonb_build_object('ok', true, 'motif', 'deja_lie');
+    end if;
+    return jsonb_build_object('ok', false, 'motif', 'personne_deja_prise');
+  end if;
+
+  -- Ce compte est-il déjà rattaché à quelqu'un d'autre ?
+  if exists (select 1 from comptes_personnes where user_id = auth.uid()) then
+    return jsonb_build_object('ok', false, 'motif', 'compte_deja_lie');
+  end if;
+
+  if cible.person_type = 'musicien' then
+    select lower(trim(coalesce(m.email,''))), m.prenom, m.nom into email_fiche, prenom, nom
+      from musiciens m where m.id = cible.person_id;
+  else
+    select lower(trim(coalesce(t.email,''))), t.prenom, t.nom into email_fiche, prenom, nom
+      from techniciens t where t.id = cible.person_id;
+  end if;
+
+  if email_fiche is not null and email_fiche <> '' and email_fiche <> email_compte then
+    return jsonb_build_object('ok', false, 'motif', 'email_different');
+  end if;
+
+  insert into comptes_personnes (user_id, person_id, person_type, email)
+  values (auth.uid(), cible.person_id, cible.person_type, email_compte);
+
+  return jsonb_build_object('ok', true, 'motif', 'cree', 'prenom', prenom, 'nom', nom);
+end;
+$$;
+grant execute on function lier_compte_a_personne(text) to authenticated;
+
+-- Qui suis-je ? Renvoie la personne rattachée au compte connecté, ou null.
+-- C'est ce que le futur routage lira pour ouvrir le bon espace.
+create or replace function ma_personne()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  lien comptes_personnes%rowtype;
+  prenom text; nom text;
+begin
+  if auth.uid() is null then return null; end if;
+  select * into lien from comptes_personnes where user_id = auth.uid();
+  if not found then return null; end if;
+
+  if lien.person_type = 'musicien' then
+    select m.prenom, m.nom into prenom, nom from musiciens m where m.id = lien.person_id;
+  else
+    select t.prenom, t.nom into prenom, nom from techniciens t where t.id = lien.person_id;
+  end if;
+
+  return jsonb_build_object(
+    'personId', lien.person_id, 'personType', lien.person_type,
+    'prenom', prenom, 'nom', nom, 'email', lien.email
+  );
+end;
+$$;
+grant execute on function ma_personne() to authenticated;
