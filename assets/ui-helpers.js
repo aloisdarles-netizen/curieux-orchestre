@@ -304,3 +304,90 @@ if(typeof document !== 'undefined'){
   document.addEventListener('click', ()=> setTimeout(_curieuxRejouerSiLibre, 150));
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) _curieuxRejouerSiLibre(); });
 }
+
+// ============================================================================
+// Mode d'emploi d'installation sur téléphone
+//
+// Les gestes diffèrent selon l'appareil et ne sont devinables par personne :
+// sur iPhone il faut passer par le bouton Partager, sur Android le navigateur
+// propose lui-même l'installation. On affiche donc les instructions de la
+// plateforme réellement utilisée — et rien du tout si l'app est déjà installée.
+// ============================================================================
+function curieuxAppInstallee(){
+  try{
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || window.navigator.standalone === true;
+  }catch(e){ return false; }
+}
+
+function injecterModeEmploiApp(conteneur, options){
+  const boite = typeof conteneur === 'string' ? document.getElementById(conteneur) : conteneur;
+  if(!boite) return;
+  const opt = options || {};
+  const nomApp = opt.nom || 'Mon espace';
+
+  if(curieuxAppInstallee()){
+    boite.innerHTML = `<div class="app-install app-install-ok">
+      <b>C'est installé.</b> Retrouve « ${escapeHtml(nomApp)} » sur ton écran d'accueil.
+    </div>`;
+    return;
+  }
+
+  const ua = navigator.userAgent || '';
+  const estIOS = /iPad|iPhone|iPod/.test(ua) || (/Mac/.test(ua) && navigator.maxTouchPoints > 1);
+  const estAndroid = /Android/.test(ua);
+  // Sur iPhone, seul Safari sait installer : ni Chrome ni Firefox n'ont le geste.
+  const safariIOS = estIOS && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+
+  const iconePartage = `<svg width="15" height="15" viewBox="0 0 24 24" style="vertical-align:-3px;" aria-hidden="true">
+    <path d="M12 3.5v11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+    <polyline points="8.5,7 12,3.5 15.5,7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline>
+    <path d="M7 11H5.8A1.8 1.8 0 0 0 4 12.8v6.4A1.8 1.8 0 0 0 5.8 21h12.4a1.8 1.8 0 0 0 1.8-1.8v-6.4A1.8 1.8 0 0 0 18.2 11H17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>`;
+
+  let etapes;
+  if(estIOS && !safariIOS){
+    etapes = `<p class="app-install-note">Ouvre cette page dans <b>Safari</b> pour pouvoir l'installer — les autres navigateurs ne le permettent pas sur iPhone.</p>`;
+  } else if(estIOS){
+    etapes = `<ol class="app-install-etapes">
+      <li>Touche ${iconePartage} <b>Partager</b>, en bas de l'écran.</li>
+      <li>Fais défiler puis choisis <b>Sur l'écran d'accueil</b>.</li>
+      <li>Touche <b>Ajouter</b>, en haut à droite.</li>
+    </ol>`;
+  } else if(estAndroid){
+    etapes = `<ol class="app-install-etapes">
+      <li>Ouvre le menu <b>⋮</b>, en haut à droite.</li>
+      <li>Choisis <b>Installer l'application</b> (ou « Ajouter à l'écran d'accueil »).</li>
+    </ol>`;
+  } else {
+    etapes = `<p class="app-install-note">Ouvre ce lien sur ton téléphone pour l'installer et l'avoir sous la main comme une application.</p>`;
+  }
+
+  boite.innerHTML = `<div class="app-install">
+    <b class="app-install-titre">Garde-le sous la main</b>
+    <p class="app-install-intro">Installe cette page sur ton téléphone : tu la retrouveras comme une application, et elle restera consultable même sans réseau.</p>
+    ${etapes}
+    <button type="button" class="app-install-btn" id="installerAppBtn" style="display:none;">Installer l'application</button>
+  </div>`;
+
+  // Android propose l'installation par un événement : quand il se déclenche, on
+  // remplace les instructions manuelles par un vrai bouton.
+  const btn = document.getElementById('installerAppBtn');
+  let invite = null;
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    invite = e;
+    if(btn) btn.style.display = 'block';
+    const liste = boite.querySelector('.app-install-etapes');
+    if(liste) liste.style.display = 'none';
+  });
+  if(btn){
+    btn.addEventListener('click', async ()=>{
+      if(!invite) return;
+      invite.prompt();
+      await invite.userChoice;
+      invite = null;
+      btn.style.display = 'none';
+    });
+  }
+  window.addEventListener('appinstalled', ()=> injecterModeEmploiApp(boite, opt));
+}

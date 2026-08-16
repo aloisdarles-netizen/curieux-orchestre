@@ -135,6 +135,7 @@ function initCurieuxPWA(){
   // Les libellés doivent rester accordés à ceux de api/manifeste.js : c'est le
   // nom que la personne verra sous l'icône.
   const CURIEUX_PAGES_LIEN_PERSONNEL = {
+    'mon-espace.html':        { param:'token', court:'Mon espace' },
     'mes-infos.html':         { param:'token', court:'Mes infos' },
     'dispo-titulaire.html':   { param:'token', court:'Mes dispos' },
     'mes-remplacants.html':   { param:'token', court:'Remplaçants' },

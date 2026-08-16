@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Mon espace</title>
+<!-- Page volontairement PUBLIQUE : c'est le lien personnel unique envoyé aux
+     musicien·nes. Elle accepte le jeton permanent comme un ancien jeton de
+     demande de dispo, pour que les liens déjà envoyés continuent de marcher. -->
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:560px; margin:0 auto; padding:0 22px 90px;}
+  .entete{padding:26px 0 20px;}
+  .entete img.brand-logo-img{height:30px; margin-bottom:18px; display:block;}
+  h1{font-size:23px; margin:0 0 5px; color:var(--text);}
+  .sous{color:var(--muted); font-size:14px; margin:0;}
+
+  .etat-boite{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:24px 22px; text-align:center; color:var(--muted); font-size:14.5px; line-height:1.6;
+  }
+
+  .menu{display:flex; flex-direction:column; gap:10px; margin-bottom:22px;}
+  a.tuile{
+    display:flex; align-items:center; gap:14px; text-decoration:none;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 17px; color:var(--text); transition:border-color .15s, transform .1s;
+  }
+  a.tuile:hover{border-color:var(--accent); }
+  a.tuile:active{transform:scale(.995);}
+  .tuile-icone{
+    flex:0 0 auto; width:42px; height:42px; border-radius:11px; display:grid; place-items:center;
+    background:var(--accent-tint); color:var(--accent-dark);
+  }
+  .tuile-texte{flex:1; min-width:0;}
+  .tuile-titre{display:block; font-weight:700; font-size:15px;}
+  .tuile-sous{display:block; font-size:12.5px; color:var(--muted); margin-top:2px;}
+  .tuile-fleche{flex:0 0 auto; color:var(--muted);}
+  .pastille{
+    display:inline-block; font-size:10.5px; font-weight:800; text-transform:uppercase;
+    letter-spacing:.04em; padding:2px 7px; border-radius:20px; margin-left:7px;
+    background:var(--maybe-tint); color:var(--maybe); vertical-align:1px;
+  }
+  .pastille.faite{background:var(--ok-tint); color:var(--ok);}
+
+  .section-titre{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+    font-weight:800; margin:24px 0 9px;
+  }
+
+  .acces{
+    background:var(--card); border:1px solid var(--accent); border-left-width:4px;
+    border-radius:var(--radius); padding:15px 17px; margin-bottom:20px;
+  }
+  .acces b{display:block; color:var(--text); font-size:14.5px; margin-bottom:4px;}
+  .acces p{color:var(--muted); font-size:13.5px; line-height:1.55; margin:0 0 11px;}
+  .acces a{
+    display:inline-block; background:var(--accent-solid); color:#fff; text-decoration:none;
+    border-radius:8px; padding:9px 15px; font-weight:700; font-size:13px;
+  }
+  .acces a:hover{background:var(--accent-dark);}
+  .acces.connecte{border-color:var(--ok);}
+  .acces.connecte b{color:var(--ok);}
+
+  /* Mode d'emploi d'installation (injecté par ui-helpers.js) */
+  .app-install{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 18px;
+  }
+  .app-install-titre{display:block; font-size:14.5px; color:var(--text); margin-bottom:5px;}
+  .app-install-intro{color:var(--muted); font-size:13.5px; line-height:1.55; margin:0 0 12px;}
+  .app-install-etapes{margin:0; padding-left:20px; color:var(--muted); font-size:13.5px; line-height:1.9;}
+  .app-install-etapes b{color:var(--text);}
+  .app-install-note{color:var(--muted); font-size:13.5px; line-height:1.55; margin:0;}
+  .app-install-note b{color:var(--text);}
+  .app-install-btn{
+    width:100%; margin-top:12px; cursor:pointer; border:none; border-radius:8px;
+    font-size:14px; font-weight:700; padding:11px; font-family:inherit;
+    background:var(--accent-solid); color:#fff;
+  }
+  .app-install-btn:hover{background:var(--accent-dark);}
+  .app-install-ok{
+    background:var(--ok-tint); color:var(--ok); border-radius:var(--radius);
+    padding:14px 16px; font-size:13.5px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="entete">
+    <img class="brand-logo-img" alt="Curieux orchestre">
+    <h1 id="titre">Mon espace</h1>
+    <p class="sous" id="sousTitre">Chargement…</p>
+  </div>
+
+  <div id="contenu"></div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const TOKEN = params.get('token') || '';
+
+const FLECHE = `<svg class="tuile-fleche" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+  <polyline points="9,5 16,12 9,19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>`;
+
+const ICONES = {
+  dispos: `<svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.7"></rect><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><polyline points="8.5,14 11,16.3 15.5,12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>`,
+  infos: `<svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"></rect><path d="M8 11V7.5a4 4 0 0 1 8 0V11" fill="none" stroke="currentColor" stroke-width="1.7"></path><circle cx="12" cy="15.6" r="1.35" fill="currentColor"></circle></svg>`,
+  remplacants: `<svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h11a4 4 0 0 1 4 4v1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><polyline points="12,4.3 15.2,7.5 12,10.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></polyline><path d="M20 16.5H9a4 4 0 0 1-4-4v-1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><polyline points="12,13.3 8.8,16.5 12,19.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>`,
+};
+
+function etat(html){
+  document.getElementById('contenu').innerHTML = `<div class="etat-boite">${html}</div>`;
+}
+
+function tuile(href, icone, titre, sous, pastille){
+  return `<a class="tuile" href="${href}">
+    <span class="tuile-icone">${icone}</span>
+    <span class="tuile-texte">
+      <span class="tuile-titre">${escapeHtml(titre)}${pastille || ''}</span>
+      <span class="tuile-sous">${escapeHtml(sous)}</span>
+    </span>
+    ${FLECHE}
+  </a>`;
+}
+
+async function init(){
+  if(!window.supabase){ etat("La page n'a pas pu se charger. Réessaie dans un instant."); return; }
+  if(!TOKEN){
+    document.getElementById('sousTitre').textContent = '';
+    etat("Ce lien est incomplet. Reprends celui qu'on t'a envoyé, ou demande-nous de te le renvoyer.");
+    return;
+  }
+
+  const moi = await CurieuxDB.mesDemandesDispo(TOKEN);
+  if(!moi){
+    document.getElementById('sousTitre').textContent = '';
+    etat("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau.");
+    return;
+  }
+
+  const prenom = (moi.prenom || '').trim();
+  document.getElementById('titre').textContent = prenom ? `Bonjour ${prenom}` : 'Mon espace';
+  document.getElementById('sousTitre').textContent = 'Ton espace personnel — reviens-y quand tu veux.';
+
+  const jeton = encodeURIComponent(TOKEN);
+  const demandes = moi.demandes || [];
+  const enAttente = demandes.filter(d => !d.repondu);
+
+  // Disponibilités : une entrée par demande en cours, pour que le lien unique
+  // couvre plusieurs tournées sans que la personne ait à jongler entre liens.
+  let blocDispos = '';
+  if(demandes.length === 0){
+    blocDispos = `<div class="etat-boite" style="text-align:left; padding:15px 17px;">
+      Aucune demande de disponibilité en cours. Tu recevras un message quand une tournée se prépare.
+    </div>`;
+  } else {
+    blocDispos = demandes.map(d => tuile(
+      `dispo-titulaire.html?token=${encodeURIComponent(d.token)}`,
+      ICONES.dispos,
+      d.tourneeNom || 'Tournée',
+      d.repondu ? 'Tu as déjà répondu — modifiable' : 'À compléter',
+      d.repondu ? '<span class="pastille faite">Répondu</span>' : '<span class="pastille">À faire</span>'
+    )).join('');
+  }
+
+  const estTitulaire = (moi.statutPoste || 'titulaire') === 'titulaire';
+
+  document.getElementById('contenu').innerHTML = `
+    <div id="blocAcces"></div>
+
+    <div class="section-titre">Mes disponibilités${enAttente.length ? ` — ${enAttente.length} à compléter` : ''}</div>
+    <div class="menu">${blocDispos}</div>
+
+    <div class="section-titre">Mon dossier</div>
+    <div class="menu">
+      ${tuile(`mes-infos.html?token=${jeton}`, ICONES.infos, 'Mes informations', 'Identité, RIB, numéro de sécurité sociale…')}
+      ${estTitulaire ? tuile(`mes-remplacants.html?token=${jeton}`, ICONES.remplacants, 'Mes remplaçant·es', 'Par ordre de préférence') : ''}
+    </div>
+
+    <div class="section-titre">Sur mon téléphone</div>
+    <div id="blocInstallation"></div>
+  `;
+
+  injecterModeEmploiApp('blocInstallation', { nom: 'Mon espace' });
+  await renderAcces();
+}
+
+// Invitation à créer un accès nominatif — le lien seul ouvre le RIB et le
+// numéro de sécurité sociale à quiconque le reçoit.
+async function renderAcces(){
+  const boite = document.getElementById('blocAcces');
+  if(!boite) return;
+  let deja = null;
+  try{ deja = await CurieuxDB.maPersonne(); }catch(e){}
+
+  if(deja){
+    boite.innerHTML = `<div class="acces connecte">
+      <b>Ton accès est actif</b>
+      <p>Tu es connecté·e avec ${escapeHtml(deja.email || 'ton adresse email')}. Tes informations sont protégées.</p>
+    </div>`;
+    return;
+  }
+
+  boite.innerHTML = `<div class="acces">
+    <b>Protège tes informations</b>
+    <p>Ce lien ouvre ton RIB et ton numéro de sécurité sociale à quiconque le reçoit. Crée un accès à ton nom : tu te connecteras par ta boîte mail, sans mot de passe.</p>
+    <a href="creer-acces.html?token=${encodeURIComponent(TOKEN)}&retour=mon-espace.html">Créer mon accès</a>
+  </div>`;
+}
+
+init();
+applyBrandLogo();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+</script>
+</body>
+</html>

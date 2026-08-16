@@ -12,6 +12,7 @@
 // Liste blanche : la page demandée doit figurer ici. Sans cela, n'importe qui
 // pourrait faire pointer un manifeste vers une adresse de son choix.
 const PAGES = {
+  'mon-espace.html':       { param: 'token', nom: 'Mon espace',         court: 'Mon espace' },
   'mes-infos.html':        { param: 'token', nom: 'Mes infos',          court: 'Mes infos' },
   'dispo-titulaire.html':  { param: 'token', nom: 'Mes disponibilités', court: 'Mes dispos' },
   'mes-remplacants.html':  { param: 'token', nom: 'Mes remplaçants',    court: 'Remplaçants' },
