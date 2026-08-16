@@ -90,21 +90,15 @@ function puceDechargement(m){
   if(!m || m.nombreSemisSimultanees == null) return puce('neutre', 'déchargement —');
   return puce('ok', `${m.nombreSemisSimultanees} semi${m.nombreSemisSimultanees>1?'s':''} en simultané`);
 }
-function sommeVacations(vacs, champDemande, champValide){
-  let demande = 0, valide = 0;
-  (vacs||[]).forEach(v=>{ demande += Number(v[champDemande]||0); valide += Number(v[champValide]||0); });
-  return { demande, valide };
+function puceVacations(vacs, prefixe){
+  const liste = vacs || [];
+  if(!liste.length) return puce('neutre', `${prefixe} —`);
+  const confirmees = liste.filter(v=>v.confirme).length;
+  return puce(confirmees >= liste.length ? 'ok' : 'att', `${prefixe} ${confirmees}/${liste.length} confirmées`);
 }
-function puceRoadies(m){
-  if(!m || !(m.roadiesVacations||[]).length) return puce('neutre', 'roadies —');
-  const { demande, valide } = sommeVacations(m.roadiesVacations, 'nombreDemande', 'nombreValide');
-  return puce(valide >= demande ? 'ok' : 'att', `roadies ${valide}/${demande}`);
-}
-function puceChariots(m){
-  if(!m || !(m.chariotsVacations||[]).length) return puce('neutre', 'chariots —');
-  const { demande, valide } = sommeVacations(m.chariotsVacations, 'nombreChariotsDemande', 'nombreChariotsValide');
-  return puce(valide >= demande ? 'ok' : 'att', `chariots ${valide}/${demande}`);
-}
+function puceRoadies(m){ return puceVacations(m && m.roadiesVacations, 'roadies'); }
+function puceChariots(m){ return puceVacations(m && m.chariotsVacations, 'chariots'); }
+function puceRigg(m){ return puceVacations(m && m.riggVacations, 'rigg'); }
 function puceBureauControle(m){
   if(!m || m.planChargeStatut === 'non_envoye') return puce('non', 'plan de charge —');
   if(m.planChargeStatut === 'envoye') return puce('att', 'plan de charge envoyé');
@@ -139,6 +133,7 @@ function render(){
           ${puceDechargement(m)}
           ${puceRoadies(m)}
           ${puceChariots(m)}
+          ${puceRigg(m)}
         </div>
       </a>
     `;

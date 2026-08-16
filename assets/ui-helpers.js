@@ -11,6 +11,23 @@
 function escapeHtml(str){ return String(str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escapeAttr(str){ return escapeHtml(str); }
 function fullName(p){ return [p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom'; }
+
+// Répartition par défaut des roadies en équipes, par département — couleur de
+// base pour repérer chaque équipe sur les vacations (direction technique).
+const DEPARTEMENTS_ROAD = [
+  { cle:'lumiere', label:'Lumière', couleur:'#F5C518' },
+  { cle:'son', label:'Son', couleur:'#2F6FED' },
+  { cle:'backline', label:'Backline', couleur:'#F2994A' },
+  { cle:'rigg', label:'Rigg', couleur:'#27AE60' },
+  { cle:'video', label:'Vidéo', couleur:'#E85DA0' },
+];
+function nouvellesEquipesRoadDefaut(){
+  return DEPARTEMENTS_ROAD.map(d=> ({ departement:d.cle, couleur:d.couleur, nombre:null }));
+}
+function labelDepartementRoad(cle){
+  const d = DEPARTEMENTS_ROAD.find(x=>x.cle===cle);
+  return d ? d.label : (cle || 'Équipe');
+}
 // Le suffixe aléatoire sert aussi de token imprévisible pour les liens perso
 // (dispo_demandes.id) : crypto.getRandomValues plutôt que Math.random(), qui
 // n'offre aucune garantie d'imprévisibilité.

@@ -53,15 +53,27 @@
   .emplacement-ligne{display:flex; align-items:center; gap:8px;}
   .emplacement-ligne span{font-size:12.5px; color:var(--muted); width:60px; flex:0 0 auto;}
 
+  .equipe-ligne{display:flex; gap:8px; align-items:center; background:var(--card); border:1px solid var(--border); border-radius:6px; padding:6px 8px; margin-bottom:6px;}
+  .equipe-ligne input[type=color]{width:34px; height:34px; padding:2px; flex:0 0 auto; border-radius:6px;}
+  .equipe-ligne .equipe-label{flex:1; font-size:12.5px; font-weight:700;}
+  .equipe-ligne input[type=text].equipe-label-libre{flex:1;}
+  .equipe-ligne input[type=number]{width:70px; flex:0 0 auto;}
+
+  .horaire-ligne{display:flex; gap:8px; align-items:center; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin-bottom:8px;}
+  .horaire-ligne input[type=time]{flex:0 0 110px;}
+
   .plan-zone{position:relative; display:inline-block; max-width:100%; border-radius:8px; overflow:hidden; border:1px solid var(--border);}
   .plan-zone img{max-width:100%; display:block; cursor:crosshair;}
   .pin{
     position:absolute; transform:translate(-50%,-100%); cursor:grab; user-select:none; touch-action:none;
     display:flex; flex-direction:column; align-items:center; gap:2px;
   }
-  .pin-tete{background:var(--accent-solid); color:#fff; font-size:10px; font-weight:800; padding:3px 7px; border-radius:20px; white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,.25);}
-  .pin-pointe{width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent; border-top:7px solid var(--accent-solid);}
+  .pin-tete{background:var(--accent-solid); color:#fff; font-size:13px; font-weight:800; padding:6px 12px; border-radius:20px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3);}
+  .pin-pointe{width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:9px solid var(--accent-solid);}
   .pin.dragging{cursor:grabbing; opacity:.85;}
+  .pin.note .pin-tete{background:#F5C518; color:#2b2200; max-width:220px; white-space:normal; text-align:center; font-weight:700;}
+  .pin.note .pin-pointe{border-top-color:#F5C518;}
+  .plan-outils{display:flex; gap:8px; margin-bottom:10px;}
 
   .fixed-save{position:sticky; bottom:0; left:0; right:0; background:var(--bg); border-top:1px solid var(--border); padding:12px 0; margin-top:8px; display:flex; gap:10px; align-items:center; justify-content:flex-end;}
   #saveStatus{font-size:12.5px; color:var(--muted); margin-right:auto;}
@@ -109,19 +121,32 @@
   </fieldset>
 
   <fieldset class="groupe">
-    <legend>Plan de charge &amp; bureau de contrôle</legend>
+    <legend>Plan de charge</legend>
     <div class="field">
-      <label for="fPlanCharge">Plan de charge</label>
+      <label for="fPlanCharge">Statut</label>
       <select id="fPlanCharge">
         <option value="non_envoye">Pas encore envoyé</option>
         <option value="envoye">Envoyé, en attente</option>
         <option value="valide_bureau_controle">Validé par le bureau de contrôle</option>
       </select>
     </div>
-    <div class="field"><label class="chk"><input type="checkbox" id="fBureauSurPlace"> Le bureau de contrôle est prévu sur place</label></div>
-    <div class="field-row" id="bureauDetailRow" style="display:none;">
-      <div class="field"><label for="fBureauHoraire">À quelle heure</label><input type="text" id="fBureauHoraire" placeholder="Ex: 14h00"></div>
-      <div class="field"><label for="fBureauContact">Avec quel contact</label><input type="text" id="fBureauContact" placeholder="Nom, téléphone…"></div>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Bureau d'étude électrique</legend>
+    <div class="field"><label class="chk"><input type="checkbox" id="fBureauElecSurPlace"> Prévu sur place</label></div>
+    <div class="field-row" id="bureauElecDetailRow" style="display:none;">
+      <div class="field"><label for="fBureauElecHoraire">À quelle heure</label><input type="text" id="fBureauElecHoraire" placeholder="Ex: 14h00"></div>
+      <div class="field"><label for="fBureauElecContact">Avec quel contact</label><input type="text" id="fBureauElecContact" placeholder="Nom, téléphone…"></div>
+    </div>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Bureau d'étude accroche</legend>
+    <div class="field"><label class="chk"><input type="checkbox" id="fBureauAccrocheSurPlace"> Prévu sur place</label></div>
+    <div class="field-row" id="bureauAccrocheDetailRow" style="display:none;">
+      <div class="field"><label for="fBureauAccrocheHoraire">À quelle heure</label><input type="text" id="fBureauAccrocheHoraire" placeholder="Ex: 14h00"></div>
+      <div class="field"><label for="fBureauAccrocheContact">Avec quel contact</label><input type="text" id="fBureauAccrocheContact" placeholder="Nom, téléphone…"></div>
     </div>
   </fieldset>
 
@@ -143,8 +168,15 @@
   </fieldset>
 
   <fieldset class="groupe">
+    <legend>Horaires de la journée</legend>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Repères de la journée — load in, get in… libre.</p>
+    <div id="horairesListe"></div>
+    <button type="button" class="btn-secondary btn-sm" id="addHoraireBtn">+ Ajouter un repère</button>
+  </fieldset>
+
+  <fieldset class="groupe">
     <legend>Roadies</legend>
-    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">En vacations plutôt qu'en demande globale — chaque créneau a son propre effectif demandé, proposé par la salle et confirmé.</p>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">En vacations plutôt qu'en demande globale — chaque créneau a son effectif demandé, une confirmation, et peut être réparti en équipes par département.</p>
     <div id="roadiesListe"></div>
     <button type="button" class="btn-secondary btn-sm" id="addRoadiesBtn">+ Ajouter une vacation</button>
   </fieldset>
@@ -153,6 +185,12 @@
     <legend>Chariots élévateurs</legend>
     <div id="chariotsListe"></div>
     <button type="button" class="btn-secondary btn-sm" id="addChariotsBtn">+ Ajouter une vacation</button>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Rigg</legend>
+    <div id="riggListe"></div>
+    <button type="button" class="btn-secondary btn-sm" id="addRiggBtn">+ Ajouter une vacation</button>
   </fieldset>
 
   <fieldset class="groupe">
@@ -165,7 +203,6 @@
     <div class="field-row">
       <div class="field"><label for="fPuissance">Puissance disponible</label><input type="text" id="fPuissance" placeholder="Ex: 400 A"></div>
       <div class="field"><label for="fTypeCourant">Type de courant</label><input type="text" id="fTypeCourant" placeholder="Mono / Tri"></div>
-      <div class="field"><label for="fNombreCircuits">Nombre de circuits</label><input type="text" id="fNombreCircuits"></div>
     </div>
     <div class="field-row">
       <div class="field"><label for="fChargeAccroche">Charge max à l'accroche</label><input type="text" id="fChargeAccroche" placeholder="Ex: 3 t / point"></div>
@@ -187,7 +224,11 @@
   <fieldset class="groupe">
     <legend>Plan de salle — positionner les semis</legend>
     <div class="field"><label for="fPlanImage">Importer une image (vue du dessus, à l'échelle)</label><input type="file" id="fPlanImage" accept="image/*"></div>
-    <p style="font-size:12px; color:var(--muted); margin:-6px 0 10px;">Une fois l'image importée : clique dessus pour placer une semi, glisse une pastille pour la repositionner.</p>
+    <p style="font-size:12px; color:var(--muted); margin:-6px 0 10px;">Choisis un mode puis clique sur le plan pour poser une pastille ; glisse-la pour la repositionner, double-clique pour la retirer.</p>
+    <div class="plan-outils" id="planOutils" style="display:none;">
+      <button type="button" class="btn-secondary btn-sm" data-mode="semi">+ Semi</button>
+      <button type="button" class="btn-ghost btn-sm" data-mode="note">+ Note</button>
+    </div>
     <div id="planZoneWrap"></div>
   </fieldset>
 
@@ -211,11 +252,38 @@ let techniciensCache = [], vehiculesCache = [];
 function numOrNull(id){ const v = document.getElementById(id).value; return v === '' ? null : Number(v); }
 
 // ============================================================================
-// Vacations (roadies / chariots)
+// Vacations (roadies / chariots / rigg)
 // ============================================================================
-function nouvelleVacationRoadies(){ return { horaireDebut:'', horaireFin:'', nombreDemande:null, nombrePropose:null, nombreValide:null, notes:'' }; }
-function nouvelleVacationChariots(){ return { horaireDebut:'', horaireFin:'', nombreChariotsDemande:null, nombreChariotsPropose:null, nombreChariotsValide:null, fourches:[], nombreCaristesDemande:null, nombreCaristesPropose:null, nombreCaristesValide:null, notes:'' }; }
+function nouvelleVacationRoadies(){ return { horaireDebut:'', horaireFin:'', nombreDemande:null, confirme:false, notes:'', equipes: nouvellesEquipesRoadDefaut() }; }
+function nouvelleVacationChariots(){ return { horaireDebut:'', horaireFin:'', nombreChariotsDemande:null, confirme:false, fourches:[], nombreCaristesDemande:null, notes:'' }; }
+function nouvelleVacationRigg(){ return { horaireDebut:'', horaireFin:'', nombreDemande:null, confirme:false, notes:'' }; }
 
+function renderEquipesEdition(vacationIndex){
+  const v = moyens.roadiesVacations[vacationIndex];
+  const box = document.querySelector(`[data-equipes-de="${vacationIndex}"]`);
+  if(!box) return;
+  v.equipes = v.equipes || [];
+  box.innerHTML = v.equipes.map((eq,ei)=>{
+    const estDefaut = DEPARTEMENTS_ROAD.some(d=>d.cle===eq.departement);
+    return `
+    <div class="equipe-ligne">
+      <input type="color" data-ei="${ei}" data-ef="couleur" value="${eq.couleur || '#888888'}">
+      ${estDefaut
+        ? `<span class="equipe-label">${escapeHtml(labelDepartementRoad(eq.departement))}</span>`
+        : `<input type="text" class="equipe-label-libre" data-ei="${ei}" data-ef="departement" value="${escapeAttr(eq.departement||'')}" placeholder="Nom de l'équipe">`}
+      <input type="number" min="0" data-ei="${ei}" data-ef="nombre" value="${eq.nombre!=null?eq.nombre:''}" placeholder="Nb">
+      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-equipe="${ei}">×</button>
+    </div>
+  `;}).join('') || `<p style="font-size:12px; color:var(--muted); margin:0;">Aucune équipe.</p>`;
+  box.querySelectorAll('input[data-ef]').forEach(inp=> inp.addEventListener('input', ()=>{
+    const val = inp.dataset.ef === 'nombre' ? (inp.value === '' ? null : Number(inp.value)) : inp.value;
+    v.equipes[inp.dataset.ei][inp.dataset.ef] = val;
+  }));
+  box.querySelectorAll('[data-retirer-equipe]').forEach(btn=> btn.addEventListener('click', ()=>{
+    v.equipes.splice(Number(btn.dataset.retirerEquipe), 1);
+    renderEquipesEdition(vacationIndex);
+  }));
+}
 function renderRoadiesListe(){
   const box = document.getElementById('roadiesListe');
   const liste = moyens.roadiesVacations;
@@ -225,25 +293,32 @@ function renderRoadiesListe(){
       <div class="field-row">
         <div class="field"><label>Début</label><input type="time" data-f="horaireDebut" value="${v.horaireDebut||''}"></div>
         <div class="field"><label>Fin</label><input type="time" data-f="horaireFin" value="${v.horaireFin||''}"></div>
-      </div>
-      <div class="field-row">
         <div class="field"><label>Demandé</label><input type="number" min="0" data-f="nombreDemande" value="${v.nombreDemande!=null?v.nombreDemande:''}"></div>
-        <div class="field"><label>Proposé par la salle</label><input type="number" min="0" data-f="nombrePropose" value="${v.nombrePropose!=null?v.nombrePropose:''}"></div>
-        <div class="field"><label>Confirmé</label><input type="number" min="0" data-f="nombreValide" value="${v.nombreValide!=null?v.nombreValide:''}"></div>
+        <div class="field" style="justify-content:flex-end;"><label class="chk"><input type="checkbox" data-f="confirme" ${v.confirme?'checked':''}> Confirmée</label></div>
       </div>
-      <div class="field"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
+      <label style="display:block; margin:6px 0 4px;">Équipes (par département)</label>
+      <div data-equipes-de="${i}"></div>
+      <button type="button" class="btn-ghost btn-sm" data-add-equipe="${i}">+ Ajouter une équipe</button>
+      <div class="field" style="margin-top:10px;"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
     </div>
   `).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
   box.querySelectorAll('.vacation').forEach(card=>{
     const i = Number(card.dataset.i);
-    card.querySelectorAll('[data-f]').forEach(inp=> inp.addEventListener('input', ()=>{
-      const val = inp.type === 'number' ? (inp.value === '' ? null : Number(inp.value)) : inp.value;
+    card.querySelectorAll(':scope > .field-row [data-f], :scope > .field [data-f]').forEach(inp=> inp.addEventListener(inp.type==='checkbox'?'change':'input', ()=>{
+      const val = inp.type === 'checkbox' ? inp.checked : (inp.type === 'number' ? (inp.value === '' ? null : Number(inp.value)) : inp.value);
       liste[i][inp.dataset.f] = val;
     }));
+    renderEquipesEdition(i);
   });
   box.querySelectorAll('[data-retirer-roadies]').forEach(btn=> btn.addEventListener('click', ()=>{
     liste.splice(Number(btn.dataset.retirerRoadies), 1);
     renderRoadiesListe();
+  }));
+  box.querySelectorAll('[data-add-equipe]').forEach(btn=> btn.addEventListener('click', ()=>{
+    const i = Number(btn.dataset.addEquipe);
+    liste[i].equipes = liste[i].equipes || [];
+    liste[i].equipes.push({ departement:'', couleur:'#888888', nombre:null });
+    renderEquipesEdition(i);
   }));
 }
 document.getElementById('addRoadiesBtn').addEventListener('click', ()=>{ moyens.roadiesVacations.push(nouvelleVacationRoadies()); renderRoadiesListe(); });
@@ -259,12 +334,10 @@ function renderFourchesEdition(vacationIndex){
         <option value="longues" ${f.fourche==='longues'?'selected':''}>Fourches longues</option>
         <option value="courtes" ${f.fourche==='courtes'?'selected':''}>Fourches courtes</option>
       </select>
-      <label class="chk"><input type="checkbox" data-fi="${fi}" data-ff="valide" ${f.valide?'checked':''}> Confirmé</label>
       <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-fourche="${fi}">×</button>
     </div>
   `).join('') || `<p style="font-size:12px; color:var(--muted); margin:0;">Aucun chariot détaillé.</p>`;
   box.querySelectorAll('select[data-ff]').forEach(el=> el.addEventListener('change', ()=>{ v.fourches[el.dataset.fi].fourche = el.value; }));
-  box.querySelectorAll('input[type=checkbox][data-ff]').forEach(el=> el.addEventListener('change', ()=>{ v.fourches[el.dataset.fi].valide = el.checked; }));
   box.querySelectorAll('[data-retirer-fourche]').forEach(btn=> btn.addEventListener('click', ()=>{
     v.fourches.splice(Number(btn.dataset.retirerFourche), 1);
     renderFourchesEdition(vacationIndex);
@@ -279,27 +352,22 @@ function renderChariotsListe(){
       <div class="field-row">
         <div class="field"><label>Début</label><input type="time" data-f="horaireDebut" value="${v.horaireDebut||''}"></div>
         <div class="field"><label>Fin</label><input type="time" data-f="horaireFin" value="${v.horaireFin||''}"></div>
-      </div>
-      <div class="field-row">
         <div class="field"><label>Chariots demandés</label><input type="number" min="0" data-f="nombreChariotsDemande" value="${v.nombreChariotsDemande!=null?v.nombreChariotsDemande:''}"></div>
-        <div class="field"><label>Proposés par la salle</label><input type="number" min="0" data-f="nombreChariotsPropose" value="${v.nombreChariotsPropose!=null?v.nombreChariotsPropose:''}"></div>
-        <div class="field"><label>Confirmés</label><input type="number" min="0" data-f="nombreChariotsValide" value="${v.nombreChariotsValide!=null?v.nombreChariotsValide:''}"></div>
+        <div class="field" style="justify-content:flex-end;"><label class="chk"><input type="checkbox" data-f="confirme" ${v.confirme?'checked':''}> Confirmée</label></div>
       </div>
       <label style="display:block; margin:6px 0 4px;">Détail par chariot</label>
       <div data-fourches-de="${i}"></div>
       <button type="button" class="btn-ghost btn-sm" data-add-fourche="${i}">+ Ajouter un chariot</button>
       <div class="field-row" style="margin-top:10px;">
         <div class="field"><label>Caristes demandés</label><input type="number" min="0" data-f="nombreCaristesDemande" value="${v.nombreCaristesDemande!=null?v.nombreCaristesDemande:''}"></div>
-        <div class="field"><label>Proposés</label><input type="number" min="0" data-f="nombreCaristesPropose" value="${v.nombreCaristesPropose!=null?v.nombreCaristesPropose:''}"></div>
-        <div class="field"><label>Confirmés</label><input type="number" min="0" data-f="nombreCaristesValide" value="${v.nombreCaristesValide!=null?v.nombreCaristesValide:''}"></div>
       </div>
       <div class="field"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
     </div>
   `).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
   box.querySelectorAll('.vacation').forEach(card=>{
     const i = Number(card.dataset.i);
-    card.querySelectorAll(':scope > .field-row [data-f], :scope > .field [data-f]').forEach(inp=> inp.addEventListener('input', ()=>{
-      const val = inp.type === 'number' ? (inp.value === '' ? null : Number(inp.value)) : inp.value;
+    card.querySelectorAll(':scope > .field-row [data-f], :scope > .field [data-f]').forEach(inp=> inp.addEventListener(inp.type==='checkbox'?'change':'input', ()=>{
+      const val = inp.type === 'checkbox' ? inp.checked : (inp.type === 'number' ? (inp.value === '' ? null : Number(inp.value)) : inp.value);
       liste[i][inp.dataset.f] = val;
     }));
     renderFourchesEdition(i);
@@ -311,11 +379,67 @@ function renderChariotsListe(){
   box.querySelectorAll('[data-add-fourche]').forEach(btn=> btn.addEventListener('click', ()=>{
     const i = Number(btn.dataset.addFourche);
     liste[i].fourches = liste[i].fourches || [];
-    liste[i].fourches.push({ fourche:'inconnu', valide:false });
+    liste[i].fourches.push({ fourche:'inconnu' });
     renderFourchesEdition(i);
   }));
 }
 document.getElementById('addChariotsBtn').addEventListener('click', ()=>{ moyens.chariotsVacations.push(nouvelleVacationChariots()); renderChariotsListe(); });
+
+function renderRiggListe(){
+  const box = document.getElementById('riggListe');
+  const liste = moyens.riggVacations;
+  box.innerHTML = liste.map((v,i)=>`
+    <div class="vacation" data-i="${i}">
+      <div class="vacation-head"><b>Vacation ${i+1}</b><button type="button" class="btn-danger btn-sm" data-retirer-rigg="${i}">Retirer</button></div>
+      <div class="field-row">
+        <div class="field"><label>Début</label><input type="time" data-f="horaireDebut" value="${v.horaireDebut||''}"></div>
+        <div class="field"><label>Fin</label><input type="time" data-f="horaireFin" value="${v.horaireFin||''}"></div>
+        <div class="field"><label>Demandé</label><input type="number" min="0" data-f="nombreDemande" value="${v.nombreDemande!=null?v.nombreDemande:''}"></div>
+        <div class="field" style="justify-content:flex-end;"><label class="chk"><input type="checkbox" data-f="confirme" ${v.confirme?'checked':''}> Confirmée</label></div>
+      </div>
+      <div class="field"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
+  box.querySelectorAll('.vacation').forEach(card=>{
+    const i = Number(card.dataset.i);
+    card.querySelectorAll(':scope > .field-row [data-f], :scope > .field [data-f]').forEach(inp=> inp.addEventListener(inp.type==='checkbox'?'change':'input', ()=>{
+      const val = inp.type === 'checkbox' ? inp.checked : (inp.type === 'number' ? (inp.value === '' ? null : Number(inp.value)) : inp.value);
+      liste[i][inp.dataset.f] = val;
+    }));
+  });
+  box.querySelectorAll('[data-retirer-rigg]').forEach(btn=> btn.addEventListener('click', ()=>{
+    liste.splice(Number(btn.dataset.retirerRigg), 1);
+    renderRiggListe();
+  }));
+}
+document.getElementById('addRiggBtn').addEventListener('click', ()=>{ moyens.riggVacations.push(nouvelleVacationRigg()); renderRiggListe(); });
+
+// ============================================================================
+// Horaires de la journée
+// ============================================================================
+function renderHorairesListe(){
+  const box = document.getElementById('horairesListe');
+  const liste = moyens.horairesJournee;
+  box.innerHTML = liste.map((h,i)=>`
+    <div class="horaire-ligne" data-i="${i}">
+      <input type="time" data-f="heure" value="${h.heure||''}">
+      <input type="text" data-f="label" value="${escapeAttr(h.label||'')}" placeholder="Ex: Load in, Get in…">
+      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-horaire="${i}">×</button>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun repère.</p>`;
+  box.querySelectorAll('.horaire-ligne').forEach(row=>{
+    const i = Number(row.dataset.i);
+    row.querySelectorAll('[data-f]').forEach(inp=> inp.addEventListener('input', ()=>{ liste[i][inp.dataset.f] = inp.value; }));
+  });
+  box.querySelectorAll('[data-retirer-horaire]').forEach(btn=> btn.addEventListener('click', ()=>{
+    liste.splice(Number(btn.dataset.retirerHoraire), 1);
+    renderHorairesListe();
+  }));
+}
+document.getElementById('addHoraireBtn').addEventListener('click', ()=>{
+  moyens.horairesJournee.push({ id: genId('horaire'), label:'', heure:'' });
+  renderHorairesListe();
+});
 
 // ============================================================================
 // Emplacements de déchargement (un select par semi simultanée)
@@ -394,8 +518,35 @@ function renderContactsTechniciens(){
 // Plan de salle positionnable
 // ============================================================================
 let planImageUrl = '';
+let modePlacement = 'semi';
+function placerPin(zone, pos){
+  const pin = document.createElement('div');
+  pin.className = 'pin' + (pos.type === 'note' ? ' note' : '');
+  pin.style.left = pos.xPct + '%'; pin.style.top = pos.yPct + '%';
+  pin.innerHTML = `<span class="pin-tete">${escapeHtml(pos.label || (pos.type==='note' ? 'Note' : 'Semi'))}</span><span class="pin-pointe"></span>`;
+  let dragging = false;
+  pin.addEventListener('pointerdown', (e)=>{
+    dragging = true; pin.classList.add('dragging'); pin.setPointerCapture(e.pointerId);
+  });
+  pin.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const rect = zone.getBoundingClientRect();
+    const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+    pin.style.left = x + '%'; pin.style.top = y + '%';
+    pos.xPct = x; pos.yPct = y;
+  });
+  pin.addEventListener('pointerup', ()=>{ dragging = false; pin.classList.remove('dragging'); });
+  pin.addEventListener('dblclick', (e)=>{
+    e.stopPropagation();
+    moyens.semisPositions = moyens.semisPositions.filter(p=> p !== pos);
+    pin.remove();
+  });
+  zone.appendChild(pin);
+}
 function renderPlanZone(){
   const wrap = document.getElementById('planZoneWrap');
+  document.getElementById('planOutils').style.display = planImageUrl ? 'flex' : 'none';
   if(!planImageUrl){
     wrap.innerHTML = `<p class="empty-hint" style="padding:20px 0;">Aucune image importée pour l'instant.</p>`;
     return;
@@ -404,44 +555,31 @@ function renderPlanZone(){
   const zone = document.getElementById('planZone');
   const img = zone.querySelector('img');
 
-  function placerPin(xPct, yPct, pos){
-    const pin = document.createElement('div');
-    pin.className = 'pin';
-    pin.style.left = xPct + '%'; pin.style.top = yPct + '%';
-    pin.innerHTML = `<span class="pin-tete">${escapeHtml(pos.label || 'Semi')}</span><span class="pin-pointe"></span>`;
-    let dragging = false;
-    pin.addEventListener('pointerdown', (e)=>{
-      dragging = true; pin.classList.add('dragging'); pin.setPointerCapture(e.pointerId);
-    });
-    pin.addEventListener('pointermove', (e)=>{
-      if(!dragging) return;
-      const rect = zone.getBoundingClientRect();
-      const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
-      const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
-      pin.style.left = x + '%'; pin.style.top = y + '%';
-      pos.xPct = x; pos.yPct = y;
-    });
-    pin.addEventListener('pointerup', ()=>{ dragging = false; pin.classList.remove('dragging'); });
-    pin.addEventListener('dblclick', ()=>{
-      moyens.semisPositions = moyens.semisPositions.filter(p=> p !== pos);
-      pin.remove();
-    });
-    zone.appendChild(pin);
-  }
-  (moyens.semisPositions||[]).forEach(pos=> placerPin(pos.xPct, pos.yPct, pos));
+  (moyens.semisPositions||[]).forEach(pos=> placerPin(zone, pos));
 
   img.addEventListener('click', (e)=>{
     const rect = zone.getBoundingClientRect();
     const xPct = ((e.clientX - rect.left) / rect.width) * 100;
     const yPct = ((e.clientY - rect.top) / rect.height) * 100;
-    const label = vehiculesCache.length
-      ? (prompt('Nom de la semi (' + vehiculesCache.map(v=>v.nom).join(', ') + ') :', vehiculesCache[0].nom) || 'Semi')
-      : (prompt('Nom de la semi :', 'Semi') || 'Semi');
-    const pos = { vehiculeId:'', label, xPct, yPct };
+    let pos;
+    if(modePlacement === 'note'){
+      const texte = prompt('Note à afficher sur le plan :', '');
+      if(!texte) return;
+      pos = { type:'note', label: texte, xPct, yPct };
+    } else {
+      const label = vehiculesCache.length
+        ? (prompt('Nom de la semi (' + vehiculesCache.map(v=>v.nom).join(', ') + ') :', vehiculesCache[0].nom) || 'Semi')
+        : (prompt('Nom de la semi :', 'Semi') || 'Semi');
+      pos = { type:'semi', vehiculeId:'', label, xPct, yPct };
+    }
     moyens.semisPositions.push(pos);
-    placerPin(xPct, yPct, pos);
+    placerPin(zone, pos);
   });
 }
+document.querySelectorAll('#planOutils [data-mode]').forEach(btn=> btn.addEventListener('click', ()=>{
+  modePlacement = btn.dataset.mode;
+  document.querySelectorAll('#planOutils [data-mode]').forEach(b=> b.className = b===btn ? 'btn-secondary btn-sm' : 'btn-ghost btn-sm');
+}));
 document.getElementById('fPlanImage').addEventListener('change', async (e)=>{
   const fichier = e.target.files[0];
   if(!fichier) return;
@@ -464,10 +602,12 @@ function moyensVierge(){
   return {
     id: `${tourneeId}::${dateId}`, tourneeId, dateId,
     statut:'non_demande', planStatut:'non_demande', planUrl:'', planValide:false,
-    planChargeStatut:'non_envoye', bureauControleSurPlace:false, bureauControleHoraire:'', bureauControleContact:'',
+    planChargeStatut:'non_envoye',
+    bureauElectriqueSurPlace:false, bureauElectriqueHoraire:'', bureauElectriqueContact:'',
+    bureauAccrocheSurPlace:false, bureauAccrocheHoraire:'', bureauAccrocheContact:'',
     nombreSemisSimultanees:null, emplacementsDechargement:[], niveauDechargement:'inconnu', accesNotes:'',
-    roadiesVacations:[], chariotsVacations:[],
-    hauteurGrill:'', ouvertureScene:'', profondeurScene:'', puissance:'', typeCourant:'', nombreCircuits:'', chargeMaxAccroche:'', typeSol:'',
+    horairesJournee:[], roadiesVacations:[], chariotsVacations:[], riggVacations:[],
+    hauteurGrill:'', ouvertureScene:'', profondeurScene:'', puissance:'', typeCourant:'', chargeMaxAccroche:'', typeSol:'',
     contactsSalle:[], contactsTechniciensIds:[], planImagePath:'', semisPositions:[], notes:''
   };
 }
@@ -477,10 +617,14 @@ function peupler(){
   document.getElementById('fPlanValide').checked = moyens.planValide;
   document.getElementById('fPlanUrl').value = moyens.planUrl;
   document.getElementById('fPlanCharge').value = moyens.planChargeStatut;
-  document.getElementById('fBureauSurPlace').checked = moyens.bureauControleSurPlace;
-  document.getElementById('bureauDetailRow').style.display = moyens.bureauControleSurPlace ? 'flex' : 'none';
-  document.getElementById('fBureauHoraire').value = moyens.bureauControleHoraire;
-  document.getElementById('fBureauContact').value = moyens.bureauControleContact;
+  document.getElementById('fBureauElecSurPlace').checked = moyens.bureauElectriqueSurPlace;
+  document.getElementById('bureauElecDetailRow').style.display = moyens.bureauElectriqueSurPlace ? 'flex' : 'none';
+  document.getElementById('fBureauElecHoraire').value = moyens.bureauElectriqueHoraire;
+  document.getElementById('fBureauElecContact').value = moyens.bureauElectriqueContact;
+  document.getElementById('fBureauAccrocheSurPlace').checked = moyens.bureauAccrocheSurPlace;
+  document.getElementById('bureauAccrocheDetailRow').style.display = moyens.bureauAccrocheSurPlace ? 'flex' : 'none';
+  document.getElementById('fBureauAccrocheHoraire').value = moyens.bureauAccrocheHoraire;
+  document.getElementById('fBureauAccrocheContact').value = moyens.bureauAccrocheContact;
   document.getElementById('fNombreSemis').value = moyens.nombreSemisSimultanees != null ? moyens.nombreSemisSimultanees : '';
   document.getElementById('fNiveau').value = moyens.niveauDechargement;
   document.getElementById('fAccesNotes').value = moyens.accesNotes;
@@ -489,14 +633,15 @@ function peupler(){
   document.getElementById('fProfondeurScene').value = moyens.profondeurScene;
   document.getElementById('fPuissance').value = moyens.puissance;
   document.getElementById('fTypeCourant').value = moyens.typeCourant;
-  document.getElementById('fNombreCircuits').value = moyens.nombreCircuits;
   document.getElementById('fChargeAccroche').value = moyens.chargeMaxAccroche;
   document.getElementById('fTypeSol').value = moyens.typeSol;
   document.getElementById('fNotes').value = moyens.notes;
 
   renderEmplacements();
+  renderHorairesListe();
   renderRoadiesListe();
   renderChariotsListe();
+  renderRiggListe();
   renderContactsSalle();
   renderContactsTechniciens();
 
@@ -506,8 +651,11 @@ function peupler(){
   }
   renderPlanZone();
 }
-document.getElementById('fBureauSurPlace').addEventListener('change', (e)=>{
-  document.getElementById('bureauDetailRow').style.display = e.target.checked ? 'flex' : 'none';
+document.getElementById('fBureauElecSurPlace').addEventListener('change', (e)=>{
+  document.getElementById('bureauElecDetailRow').style.display = e.target.checked ? 'flex' : 'none';
+});
+document.getElementById('fBureauAccrocheSurPlace').addEventListener('change', (e)=>{
+  document.getElementById('bureauAccrocheDetailRow').style.display = e.target.checked ? 'flex' : 'none';
 });
 
 async function enregistrer(){
@@ -516,9 +664,12 @@ async function enregistrer(){
   moyens.planValide = document.getElementById('fPlanValide').checked;
   moyens.planUrl = document.getElementById('fPlanUrl').value.trim();
   moyens.planChargeStatut = document.getElementById('fPlanCharge').value;
-  moyens.bureauControleSurPlace = document.getElementById('fBureauSurPlace').checked;
-  moyens.bureauControleHoraire = document.getElementById('fBureauHoraire').value.trim();
-  moyens.bureauControleContact = document.getElementById('fBureauContact').value.trim();
+  moyens.bureauElectriqueSurPlace = document.getElementById('fBureauElecSurPlace').checked;
+  moyens.bureauElectriqueHoraire = document.getElementById('fBureauElecHoraire').value.trim();
+  moyens.bureauElectriqueContact = document.getElementById('fBureauElecContact').value.trim();
+  moyens.bureauAccrocheSurPlace = document.getElementById('fBureauAccrocheSurPlace').checked;
+  moyens.bureauAccrocheHoraire = document.getElementById('fBureauAccrocheHoraire').value.trim();
+  moyens.bureauAccrocheContact = document.getElementById('fBureauAccrocheContact').value.trim();
   moyens.niveauDechargement = document.getElementById('fNiveau').value;
   moyens.accesNotes = document.getElementById('fAccesNotes').value.trim();
   moyens.hauteurGrill = document.getElementById('fHauteurGrill').value.trim();
@@ -526,7 +677,6 @@ async function enregistrer(){
   moyens.profondeurScene = document.getElementById('fProfondeurScene').value.trim();
   moyens.puissance = document.getElementById('fPuissance').value.trim();
   moyens.typeCourant = document.getElementById('fTypeCourant').value.trim();
-  moyens.nombreCircuits = document.getElementById('fNombreCircuits').value.trim();
   moyens.chargeMaxAccroche = document.getElementById('fChargeAccroche').value.trim();
   moyens.typeSol = document.getElementById('fTypeSol').value.trim();
   moyens.notes = document.getElementById('fNotes').value.trim();

@@ -100,8 +100,11 @@
 
   <div class="section-block">
     <h2 class="section-title">Qui conduit quoi</h2>
-    <p class="section-lead">Souple, par date — un chauffeur peut changer de semi d'une date à l'autre.</p>
-    <select class="tournee-select" id="tourneeSelect"></select>
+    <p class="section-lead">Souple, par date — un chauffeur peut changer de semi d'une date à l'autre. Rattache un chauffeur directement depuis une carte véhicule ci-dessus, ou ajoute une affectation ici.</p>
+    <div class="field-row">
+      <select class="tournee-select" id="tourneeSelect" style="flex:1;"></select>
+      <select class="tournee-select" id="affectationDateSelect" style="flex:1;"></select>
+    </div>
     <div id="affectationsListe"></div>
     <button type="button" class="btn-secondary btn-sm" id="addAffectationBtn">+ Ajouter une affectation</button>
   </div>
@@ -237,12 +240,15 @@ function renderVehicules(){
       ${dims ? `<div class="r-sub">${dims}</div>` : ''}
       ${v.type === 'semi' ? `<span class="badge ${v.hayon ? 'badge-hayon' : 'badge-sans-hayon'}" style="align-self:flex-start;">${v.hayon ? 'Avec hayon' : 'Sans hayon'}</span>` : ''}
       ${prest ? `<div class="r-sub">${escapeHtml(prest.nom)}</div>` : ''}
+      ${chauffeurCourantHtml(v.id)}
       <div class="r-actions">
         <button type="button" class="btn-ghost btn-sm" data-edit="${v.id}">Modifier</button>
+        <button type="button" class="btn-ghost btn-sm" data-chauffeur="${v.id}">+ Chauffeur</button>
         <button type="button" class="btn-danger btn-sm" data-del="${v.id}">Supprimer</button>
       </div>
     </div>
   `;}).join('');
+  grid.querySelectorAll('[data-chauffeur]').forEach(b=> b.addEventListener('click', ()=> attacherChauffeurRapide(b.dataset.chauffeur)));
   grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openVehiculeModal(b.dataset.edit)));
   grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
     const v = vehiculesCache.find(x=>x.id===b.dataset.del);
@@ -479,6 +485,49 @@ function libelleDateCourt(d){
   const jour = d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}) : '—';
   return `${jour} · ${d.ville || d.lieu || '—'}`;
 }
+function fillAffectationDateSelect(){
+  const sel = document.getElementById('affectationDateSelect');
+  const dates = datesFuturesTournee();
+  sel.innerHTML = dates.length
+    ? dates.map(d=>`<option value="${d.id}">${escapeHtml(libelleDateCourt(d))}</option>`).join('')
+    : '<option value="">Aucune date à venir</option>';
+}
+// Affectation la plus proche (aujourd'hui ou après) pour ce véhicule, toutes tournées confondues.
+function prochaineAffectation(vehiculeId){
+  const today = new Date().toISOString().slice(0,10);
+  const candidats = affectationsCache
+    .filter(a=> a.vehiculeId === vehiculeId && a.chauffeurId)
+    .map(a=>{
+      const t = tourneesCache.find(x=>x.id===a.tourneeId);
+      const d = t ? (t.dates||[]).find(x=>x.id===a.dateId) : null;
+      return { a, d };
+    })
+    .filter(x=> x.d && (!x.d.date || x.d.date >= today))
+    .sort((x,y)=> (x.d.date||'').localeCompare(y.d.date||''));
+  return candidats[0] || null;
+}
+function chauffeurCourantHtml(vehiculeId){
+  const prochaine = prochaineAffectation(vehiculeId);
+  if(!prochaine) return '';
+  const chauffeur = chauffeursCache.find(c=>c.id===prochaine.a.chauffeurId);
+  if(!chauffeur) return '';
+  return `<div class="r-sub">Chauffeur (${escapeHtml(libelleDateCourt(prochaine.d))}) : ${escapeHtml(fullName(chauffeur))}</div>`;
+}
+async function attacherChauffeurRapide(vehiculeId){
+  const dateId = document.getElementById('affectationDateSelect').value;
+  if(!dateId){ alert("Choisis d'abord une date dans « Qui conduit quoi », en bas de page."); return; }
+  const tourneeId = activeTourneeId();
+  let obj = affectationsCache.find(a=> a.tourneeId===tourneeId && a.dateId===dateId && a.vehiculeId===vehiculeId);
+  if(!obj){
+    obj = { id: genId('affect'), tourneeId, dateId, vehiculeId, chauffeurId:'', notes:'' };
+    affectationsCache.push(obj);
+    await CurieuxDB.upsertOne('affectations_transport', obj);
+    renderAffectations();
+  }
+  document.getElementById('affectationsListe').scrollIntoView({ behavior:'smooth', block:'center' });
+  const row = document.querySelector(`.affectation-row[data-id="${obj.id}"] select[data-f="chauffeurId"]`);
+  if(row) row.focus();
+}
 function renderAffectations(){
   const box = document.getElementById('affectationsListe');
   const tourneeId = activeTourneeId();
@@ -516,18 +565,14 @@ function renderAffectations(){
   });
 }
 document.getElementById('addAffectationBtn').addEventListener('click', async ()=>{
-  const dates = datesFuturesTournee();
-  if(dates.length === 0){ alert('Aucune date à venir pour cette tournée.'); return; }
-  const libelles = dates.map((d,i)=> `${i+1}. ${libelleDateCourt(d)}`).join('\n');
-  const choix = prompt('Quelle date ? (numéro)\n' + libelles);
-  const idx = parseInt(choix, 10) - 1;
-  if(!(idx >= 0 && idx < dates.length)) return;
-  const obj = { id: genId('affect'), tourneeId: activeTourneeId(), dateId: dates[idx].id, vehiculeId:'', chauffeurId:'', notes:'' };
+  const dateId = document.getElementById('affectationDateSelect').value;
+  if(!dateId){ alert('Aucune date à venir pour cette tournée.'); return; }
+  const obj = { id: genId('affect'), tourneeId: activeTourneeId(), dateId, vehiculeId:'', chauffeurId:'', notes:'' };
   affectationsCache.push(obj);
   await CurieuxDB.upsertOne('affectations_transport', obj);
   renderAffectations();
 });
-document.getElementById('tourneeSelect').addEventListener('change', renderAffectations);
+document.getElementById('tourneeSelect').addEventListener('change', ()=>{ fillAffectationDateSelect(); renderAffectations(); });
 
 async function initData(){
   [vehiculesCache, chauffeursCache, carnetsCache, prestatairesCache, lotsCache, tourneesCache, affectationsCache] = await Promise.all([
@@ -539,12 +584,13 @@ async function initData(){
   sel.innerHTML = tourneesCache.length
     ? tourneesCache.map(t=>`<option value="${t.id}">${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('')
     : '<option value="">Aucune tournée</option>';
+  fillAffectationDateSelect();
   renderVehicules(); renderChauffeurs(); renderCarnets(); renderAffectations();
 }
 CurieuxDB.subscribe('vehicules', ()=> CurieuxDB.fetchAll('vehicules').then(l=>{ vehiculesCache=l; curieuxRafraichir(()=>{renderVehicules();renderCarnets();renderAffectations();}); }));
 CurieuxDB.subscribe('chauffeurs', ()=> CurieuxDB.fetchAll('chauffeurs').then(l=>{ chauffeursCache=l; curieuxRafraichir(()=>{renderChauffeurs();renderAffectations();}); }));
 CurieuxDB.subscribe('carnets_ata', ()=> CurieuxDB.fetchAll('carnets_ata').then(l=>{ carnetsCache=l; curieuxRafraichir(renderCarnets); }));
-CurieuxDB.subscribe('affectations_transport', ()=> CurieuxDB.fetchAll('affectations_transport').then(l=>{ affectationsCache=l; curieuxRafraichir(renderAffectations); }));
+CurieuxDB.subscribe('affectations_transport', ()=> CurieuxDB.fetchAll('affectations_transport').then(l=>{ affectationsCache=l; curieuxRafraichir(()=>{renderAffectations();renderVehicules();}); }));
 
 injectCurieuxFonts();
 initNavDropdowns();
