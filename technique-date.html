@@ -62,6 +62,23 @@
   .horaire-ligne{display:flex; gap:8px; align-items:center; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin-bottom:8px;}
   .horaire-ligne input[type=time]{flex:0 0 110px;}
 
+  .ana-bloc{margin-bottom:14px;}
+  .ana-bloc > h4{font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 7px; font-weight:800;}
+  .ana-ligne{display:flex; gap:9px; align-items:flex-start; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:9px 10px; margin-bottom:6px;}
+  .ana-ligne input[type=checkbox]{width:18px; height:18px; accent-color:var(--accent); flex:0 0 auto; margin-top:1px;}
+  .ana-ligne .ana-corps{flex:1; min-width:0;}
+  .ana-ligne .ana-champ{font-size:11.5px; color:var(--muted); font-weight:600;}
+  .ana-ligne .ana-valeur{font-size:13.5px; word-break:break-word;}
+  .ana-ligne .ana-actuel{font-size:12px; color:var(--muted); margin-top:2px;}
+  .ana-point{display:flex; gap:9px; align-items:flex-start; border-radius:8px; padding:9px 10px; margin-bottom:6px; border:1px solid var(--border); background:var(--bg);}
+  .ana-point .ana-pastille{flex:0 0 auto; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:3px 8px; border-radius:20px;}
+  .ana-point.manquant{border-color:var(--danger);}
+  .ana-point.manquant .ana-pastille{background:var(--secondary-tint); color:var(--danger);}
+  .ana-point.attention .ana-pastille{background:#F5C518; color:#2b2200;}
+  .ana-point.info .ana-pastille{background:var(--accent-tint); color:var(--accent-dark);}
+  .ana-point b{font-size:13px; display:block;}
+  .ana-point span.ana-detail{font-size:12.5px; color:var(--muted);}
+
   .plan-zone{position:relative; display:inline-block; max-width:100%; border-radius:8px; overflow:hidden; border:1px solid var(--border);}
   .plan-zone img{max-width:100%; display:block; cursor:crosshair;}
   .pin{
@@ -89,6 +106,15 @@
   </div>
   <h1 id="titre">Fiche de date</h1>
   <p class="subtitle" id="sousTitre"></p>
+
+  <fieldset class="groupe">
+    <legend>Lire une fiche technique de salle</legend>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Dépose le PDF (ou une photo) envoyé par la salle : les informations utiles sont extraites et les manques signalés. Rien n'est écrit tant que tu n'as pas coché puis appliqué.</p>
+    <div class="field"><label for="fAnalyseFichier">Fichier — PDF, PNG ou JPEG, 3 Mo maximum</label><input type="file" id="fAnalyseFichier" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"></div>
+    <button type="button" class="btn-secondary btn-sm" id="analyserBtn" disabled>Analyser la fiche</button>
+    <span id="analyseStatut" style="margin-left:10px; font-size:12.5px; color:var(--muted);"></span>
+    <div id="analyseResultat" style="display:none; margin-top:14px;"></div>
+  </fieldset>
 
   <fieldset class="groupe">
     <legend>Réponse de la salle</legend>
@@ -739,6 +765,207 @@ document.getElementById('fBureauElecSurPlace').addEventListener('change', (e)=>{
 document.getElementById('fBureauAccrocheSurPlace').addEventListener('change', (e)=>{
   document.getElementById('bureauAccrocheDetailRow').style.display = e.target.checked ? 'flex' : 'none';
 });
+
+// ============================================================================
+// Lecture d'une fiche technique de salle par Claude
+// La clé API vit côté serveur (fonction Vercel /api/analyser-fiche) — la page
+// n'envoie que le fichier et son propre jeton de session. Rien n'est écrit :
+// l'extraction est proposée, on coche ce qu'on garde, on applique, puis on
+// enregistre comme d'habitude.
+// ============================================================================
+const ANALYSE_TAILLE_MAX = 3 * 1024 * 1024;
+let analyseExtraction = null;
+
+const ANALYSE_CHAMPS = [
+  { groupe:'salle',       champ:'nom',                 label:'Nom de la salle', cible:null },
+  { groupe:'scene',       champ:'hauteur_grill',       label:'Hauteur de grill', cible:'fHauteurGrill' },
+  { groupe:'scene',       champ:'ouverture_scene',     label:'Ouverture de scène', cible:'fOuvertureScene' },
+  { groupe:'scene',       champ:'profondeur_scene',    label:'Profondeur de scène', cible:'fProfondeurScene' },
+  { groupe:'scene',       champ:'charge_max_accroche', label:"Charge max à l'accroche", cible:'fChargeAccroche' },
+  { groupe:'scene',       champ:'type_sol',            label:'Type de sol', cible:'fTypeSol' },
+  { groupe:'electricite', champ:'puissance',           label:'Puissance disponible', cible:'fPuissance' },
+  { groupe:'electricite', champ:'type_courant',        label:'Type de courant', cible:'fTypeCourant' },
+  { groupe:'acces',       champ:'nombre_semis_simultanees', label:'Semis en simultané', cible:'fNombreSemis' },
+  { groupe:'acces',       champ:'niveau_dechargement', label:'Niveau de déchargement', cible:'fNiveau' },
+  { groupe:'acces',       champ:'notes',               label:"Notes d'accès", cible:'fAccesNotes' },
+];
+const NIVEAU_LABEL = { inconnu:'Inconnu', scene:'Sur scène', sol:'Au sol', les_deux:'Les deux' };
+
+document.getElementById('fAnalyseFichier').addEventListener('change', (e)=>{
+  const fichier = e.target.files[0];
+  document.getElementById('analyserBtn').disabled = !fichier;
+  document.getElementById('analyseStatut').textContent = (fichier && fichier.size > ANALYSE_TAILLE_MAX)
+    ? `Trop lourd (${(fichier.size/1024/1024).toFixed(1)} Mo) — il faut le compresser sous 3 Mo.`
+    : '';
+});
+
+function lireBase64(fichier){
+  return new Promise((resolve, reject)=>{
+    const lecteur = new FileReader();
+    lecteur.onload = ()=> resolve(String(lecteur.result).split(',')[1] || '');
+    lecteur.onerror = ()=> reject(new Error('Fichier illisible.'));
+    lecteur.readAsDataURL(fichier);
+  });
+}
+
+async function analyserFiche(){
+  const fichier = document.getElementById('fAnalyseFichier').files[0];
+  const statutEl = document.getElementById('analyseStatut');
+  const btn = document.getElementById('analyserBtn');
+  if(!fichier) return;
+  if(fichier.size > ANALYSE_TAILLE_MAX){ statutEl.textContent = 'Trop lourd — 3 Mo maximum.'; return; }
+
+  const session = await CurieuxDB.getSession();
+  if(!session){ statutEl.textContent = 'Session expirée — reconnecte-toi.'; return; }
+
+  btn.disabled = true;
+  document.getElementById('analyseResultat').style.display = 'none';
+  statutEl.textContent = 'Lecture en cours — compte une minute…';
+  try{
+    const base64 = await lireBase64(fichier);
+    const rep = await fetch('/api/analyser-fiche', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token },
+      body: JSON.stringify({ fichier: base64, mediaType: fichier.type, nomFichier: fichier.name })
+    });
+    const data = await rep.json().catch(()=> ({}));
+    if(!rep.ok) throw new Error(data.erreur || `Erreur ${rep.status}.`);
+    analyseExtraction = data.extraction;
+    statutEl.textContent = '';
+    renderAnalyse();
+  }catch(e){
+    statutEl.textContent = e.message || "L'analyse a échoué.";
+  }finally{
+    btn.disabled = false;
+  }
+}
+document.getElementById('analyserBtn').addEventListener('click', analyserFiche);
+
+function renderAnalyse(){
+  const box = document.getElementById('analyseResultat');
+  const ex = analyseExtraction;
+  if(!ex){ box.style.display = 'none'; return; }
+  const blocs = [];
+
+  const lignes = ANALYSE_CHAMPS.map((def, i)=>{
+    const brut = String(((ex[def.groupe]||{})[def.champ]) || '').trim();
+    if(!brut) return '';
+    if(def.champ === 'niveau_dechargement' && brut === 'inconnu') return '';
+    let actuel = def.cible ? String(document.getElementById(def.cible).value || '').trim() : '';
+    if(def.cible === 'fNiveau') actuel = actuel === 'inconnu' ? '' : (NIVEAU_LABEL[actuel] || actuel);
+    const affiche = def.champ === 'niveau_dechargement' ? (NIVEAU_LABEL[brut] || brut) : brut;
+    const proposable = !!def.cible;
+    const coche = proposable && !actuel;
+    return `
+      <div class="ana-ligne">
+        <input type="checkbox" data-champ="${i}" ${coche ? 'checked' : ''} ${proposable ? '' : 'disabled'}>
+        <div class="ana-corps">
+          <div class="ana-champ">${escapeHtml(def.label)}</div>
+          <div class="ana-valeur">${escapeHtml(affiche)}</div>
+          ${actuel ? `<div class="ana-actuel">Actuellement : ${escapeHtml(actuel)} — décoche pour garder.</div>` : ''}
+          ${proposable ? '' : `<div class="ana-actuel">Pour information, pas de champ correspondant.</div>`}
+        </div>
+      </div>`;
+  }).filter(Boolean).join('');
+  if(lignes) blocs.push(`<div class="ana-bloc"><h4>Informations trouvées</h4>${lignes}</div>`);
+
+  const contacts = (ex.contacts||[]).filter(c=> (c.nom||c.tel||c.email));
+  if(contacts.length){
+    blocs.push(`<div class="ana-bloc"><h4>Contacts salle</h4>${contacts.map((c,i)=>`
+      <div class="ana-ligne">
+        <input type="checkbox" data-contact="${i}" checked>
+        <div class="ana-corps">
+          <div class="ana-valeur">${escapeHtml([c.nom, c.role].filter(Boolean).join(' — ')) || 'Contact'}</div>
+          <div class="ana-actuel">${escapeHtml([c.tel, c.email].filter(Boolean).join(' · ')) || 'Pas de coordonnées'}</div>
+        </div>
+      </div>`).join('')}</div>`);
+  }
+
+  const horaires = (ex.horaires||[]).filter(h=> h.heure);
+  if(horaires.length){
+    blocs.push(`<div class="ana-bloc"><h4>Repères horaires</h4>${horaires.map((h,i)=>`
+      <div class="ana-ligne">
+        <input type="checkbox" data-horaire="${i}" checked>
+        <div class="ana-corps">
+          <div class="ana-valeur">${escapeHtml(h.heure)} — ${escapeHtml(h.label||'')}</div>
+        </div>
+      </div>`).join('')}</div>`);
+  }
+
+  const points = ex.points_attention || [];
+  if(points.length){
+    const ordre = { manquant:0, attention:1, info:2 };
+    const etiquette = { manquant:'Manquant', attention:'Attention', info:'Info' };
+    const tries = points.slice().sort((a,b)=> (ordre[a.niveau] ?? 3) - (ordre[b.niveau] ?? 3));
+    blocs.push(`<div class="ana-bloc"><h4>Points à vérifier</h4>${tries.map(p=>`
+      <div class="ana-point ${p.niveau === 'manquant' || p.niveau === 'attention' ? p.niveau : 'info'}">
+        <span class="ana-pastille">${etiquette[p.niveau] || 'Info'}</span>
+        <div>
+          <b>${escapeHtml(p.libelle||'')}</b>
+          ${p.detail ? `<span class="ana-detail">${escapeHtml(p.detail)}</span>` : ''}
+        </div>
+      </div>`).join('')}</div>`);
+  }
+
+  if(blocs.length === 0){
+    box.innerHTML = `<p class="empty-hint" style="padding:8px 0;">Rien d'exploitable n'a été trouvé dans ce document.</p>`;
+    box.style.display = 'block';
+    return;
+  }
+
+  box.innerHTML = blocs.join('') + `
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <button type="button" class="btn-secondary btn-sm" id="appliquerAnalyseBtn">Appliquer ce qui est coché</button>
+      <button type="button" class="btn-ghost btn-sm" id="fermerAnalyseBtn">Fermer</button>
+      <span style="font-size:12px; color:var(--muted);">Puis « Enregistrer » en bas de page.</span>
+    </div>`;
+  box.style.display = 'block';
+  document.getElementById('appliquerAnalyseBtn').addEventListener('click', appliquerAnalyse);
+  document.getElementById('fermerAnalyseBtn').addEventListener('click', ()=>{
+    analyseExtraction = null;
+    box.style.display = 'none';
+  });
+}
+
+function appliquerAnalyse(){
+  const box = document.getElementById('analyseResultat');
+  const ex = analyseExtraction;
+  if(!ex) return;
+
+  box.querySelectorAll('[data-champ]:checked').forEach(chk=>{
+    const def = ANALYSE_CHAMPS[Number(chk.dataset.champ)];
+    if(!def || !def.cible) return;
+    const valeur = String(((ex[def.groupe]||{})[def.champ]) || '').trim();
+    const cible = document.getElementById(def.cible);
+    if(def.cible === 'fNiveau' && !NIVEAU_LABEL[valeur]) return;
+    if(def.cible === 'fNombreSemis'){
+      const n = parseInt(valeur, 10);
+      if(!Number.isFinite(n)) return;
+      cible.value = n;
+      cible.dispatchEvent(new Event('input'));
+      return;
+    }
+    cible.value = valeur;
+  });
+
+  box.querySelectorAll('[data-contact]:checked').forEach(chk=>{
+    const c = (ex.contacts||[])[Number(chk.dataset.contact)];
+    if(!c) return;
+    moyens.contactsSalle.push({ nom:c.nom||'', role:c.role||'', tel:c.tel||'', email:c.email||'' });
+  });
+  renderContactsSalle();
+
+  box.querySelectorAll('[data-horaire]:checked').forEach(chk=>{
+    const h = (ex.horaires||[])[Number(chk.dataset.horaire)];
+    if(!h) return;
+    moyens.horairesJournee.push({ id: genId('horaire'), label:h.label||'', heure:h.heure||'' });
+  });
+  renderHorairesListe();
+
+  analyseExtraction = null;
+  box.style.display = 'none';
+  document.getElementById('analyseStatut').textContent = "Appliqué — pense à enregistrer en bas de page.";
+}
 
 async function enregistrer(){
   moyens.statut = document.getElementById('fStatut').value;
