@@ -184,28 +184,6 @@
       <div id="accountsEmpty" class="empty-hint">Chargement…</div>
 
 
-      <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border);">
-        <h2 style="margin-bottom:8px;">Accès des musicien·nes</h2>
-        <p style="font-size:12px; color:var(--muted); margin:0 0 12px;">
-          Comptes créés depuis les liens personnels. « Retirer » libère la fiche —
-          le geste à faire quand quelqu'un change d'adresse ou perd sa boîte mail,
-          sinon la personne reste bloquée. « Réinitialiser » lui envoie un email
-          pour choisir un nouveau mot de passe.
-        </p>
-        <div id="accesPersoResume" class="empty-hint" style="text-align:left; padding:0 0 10px;">Chargement…</div>
-        <div class="table-scroll">
-          <table id="accesPersoTable">
-            <thead><tr><th>Personne</th><th>Adresse du compte</th><th>Créé le</th><th></th></tr></thead>
-            <tbody id="accesPersoBody"></tbody>
-          </table>
-        </div>
-        <div id="accesPersoEmpty" class="empty-hint" style="display:none;">Personne n'a encore créé son accès.</div>
-        <details style="margin-top:12px;">
-          <summary style="cursor:pointer; font-size:12.5px; color:var(--muted);">Qui n'a pas encore créé son accès</summary>
-          <div id="accesPersoSans" style="margin-top:8px; font-size:12.5px; color:var(--muted); line-height:1.7;"></div>
-        </details>
-      </div>
-
       <details class="add-account-form" style="margin-top:16px;">
         <summary style="cursor:pointer; font-weight:700; font-size:14px; color:var(--accent-dark); margin-bottom:10px;">Ajouter un compte d'équipe</summary>
         <div class="method-toggle">
@@ -394,83 +372,6 @@ async function loadStats(){
 
   accountsCache = accounts;
   renderAccounts();
-  chargerAccesPersonnels();
-}
-
-// --- Accès des musicien·nes -------------------------------------------------
-// Sans le bouton « Retirer », un rattachement est définitif : la fiche reste
-// prise et la personne ne peut plus jamais créer d'accès. C'est la raison
-// d'être de cette section, autant que le suivi de qui a basculé.
-async function chargerAccesPersonnels(){
-  const corps = document.getElementById('accesPersoBody');
-  const vide = document.getElementById('accesPersoEmpty');
-  const resume = document.getElementById('accesPersoResume');
-  const sans = document.getElementById('accesPersoSans');
-  if(!corps) return;
-
-  const data = await CurieuxDB.listeComptesPersonnes();
-  const lies = data.lies || [];
-  const restants = data.sansCompte || [];
-  const total = lies.length + restants.length;
-
-  resume.innerHTML = total
-    ? `<b style="color:var(--text);">${lies.length}</b> sur ${total} ont créé leur accès.`
-    : 'Aucun·e musicien·ne dans le répertoire.';
-
-  const nomDe = (p)=> [p.prenom, p.nom].filter(Boolean).join(' ') || '(sans nom)';
-
-  if(lies.length === 0){
-    corps.innerHTML = '';
-    vide.style.display = 'block';
-  } else {
-    vide.style.display = 'none';
-    corps.innerHTML = lies.map(p => {
-      // Une adresse de compte différente de celle du dossier n'est pas une
-      // erreur — la fiche a pu être mise à jour après coup — mais elle mérite
-      // d'être signalée à l'œil.
-      const ecart = p.emailFiche && p.emailFiche.toLowerCase() !== (p.emailCompte||'').toLowerCase();
-      const date = p.creeLe ? new Date(p.creeLe).toLocaleDateString('fr-FR') : '—';
-      return `<tr>
-        <td>${escapeHtml(nomDe(p))}</td>
-        <td>${escapeHtml(p.emailCompte || '')}${ecart ? ` <span title="Le dossier indique ${escapeHtml(p.emailFiche)}" style="color:var(--maybe); font-size:11px; font-weight:700;">≠ dossier</span>` : ''}</td>
-        <td>${date}</td>
-        <td style="text-align:right; white-space:nowrap;">
-          <button type="button" class="btn-ghost btn-sm"
-              data-reinit="${escapeHtml(p.emailCompte || '')}" data-nom="${escapeHtml(nomDe(p))}">Réinitialiser</button>
-          <button type="button" class="btn-danger btn-sm"
-              data-delier="${escapeHtml(p.personId)}" data-type="${escapeHtml(p.personType)}"
-              data-nom="${escapeHtml(nomDe(p))}">Retirer</button>
-        </td>
-      </tr>`;
-    }).join('');
-
-    // Réinitialisation : on envoie à la personne un email pour choisir un
-    // nouveau mot de passe. C'est le geste courant — le retrait ne sert que
-    // lorsque l'adresse elle-même n'est plus la bonne.
-    corps.querySelectorAll('[data-reinit]').forEach(btn => btn.addEventListener('click', async ()=>{
-      const email = btn.dataset.reinit;
-      if(!email){ alert("Ce compte n'a pas d'adresse email enregistrée."); return; }
-      if(!confirm(`Envoyer à ${btn.dataset.nom} un email pour choisir un nouveau mot de passe ?\n\nIl partira à ${email}.`)) return;
-      btn.disabled = true;
-      const { error } = await CurieuxDB.reinitialiserMotDePasseAcces(email);
-      btn.disabled = false;
-      alert(error ? "L'envoi a échoué : " + error.message
-                  : `Email envoyé à ${email}.`);
-    }));
-
-    corps.querySelectorAll('[data-delier]').forEach(btn => btn.addEventListener('click', async ()=>{
-      const nom = btn.dataset.nom;
-      if(!confirm(`Retirer l'accès de ${nom} ?\n\nSa fiche sera de nouveau libre : la personne pourra recréer un accès depuis son lien personnel, avec l'adresse email de son dossier.`)) return;
-      btn.disabled = true;
-      const r = await CurieuxDB.delierComptePersonne(btn.dataset.delier, btn.dataset.type);
-      if(r && r.error){ alert("Le retrait a échoué : " + r.error.message); btn.disabled = false; return; }
-      chargerAccesPersonnels();
-    }));
-  }
-
-  sans.innerHTML = restants.length
-    ? restants.map(p => `${escapeHtml(nomDe(p))}${p.emailFiche ? '' : ' <span style="color:var(--danger); font-size:11px; font-weight:700;">pas d\'email au dossier</span>'}`).join(' · ')
-    : 'Tout le monde a créé son accès.';
 }
 
 let bugReportsCache = [];
@@ -628,12 +529,19 @@ document.getElementById('addAccountForm').addEventListener('submit', async (e)=>
       btn.disabled = false; btn.textContent = 'Ajouter';
       return;
     }
-    result = await CurieuxDB.createAccountWithPassword(email, password);
+    // D'abord la fonction serveur : compte créé déjà confirmé, aucun email
+    // envoyé, donc aucune limite — on peut enchaîner les créations. Si elle
+    // n'est pas configurée, on retombe sur la création classique.
+    result = await CurieuxDB.creerCompteEquipeSansEmail(email, password);
+    if(result.fallback){
+      result = await CurieuxDB.createAccountWithPassword(email, password);
+    }
   } else {
     result = await CurieuxDB.sendMagicLinkInvite(email);
   }
 
-  const alreadyRegistered = result.error && /already registered|already exists/i.test(result.error.message);
+  const alreadyRegistered = (result.error && /already registered|already exists/i.test(result.error.message))
+    || result.existait === true;
   if(result.error && !alreadyRegistered){
     errorEl.textContent = translateAuthError(result.error.message);
     errorEl.style.display = 'block';

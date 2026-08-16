@@ -139,28 +139,8 @@ async function init(){
 
   const moi = await CurieuxDB.mesDemandesDispo(TOKEN);
   if(!moi){
-    // Le lien ne montre plus rien par lui-même. Deux cas à distinguer, sans
-    // rien dévoiler ni dans l'un ni dans l'autre : soit il attend la création
-    // d'un accès, soit il n'est plus valable.
-    const aActiver = await CurieuxDB.jetonAttendCreation(TOKEN);
     document.getElementById('sousTitre').textContent = '';
-    if(aActiver){
-      document.getElementById('titre').textContent = 'Un pas et c\'est à toi';
-      document.getElementById('contenu').innerHTML = `
-        <div class="acces">
-          <b>Crée ton accès pour continuer</b>
-          <p>Cet espace contient tes informations personnelles — RIB, numéro de
-          sécurité sociale. Il ne s'ouvre plus sur simple lien : il te faut un
-          accès à ton nom, avec un mot de passe.</p>
-          <p>C'est à faire une seule fois. Ensuite, ton mot de passe suffira.</p>
-          <a href="creer-acces.html?token=${encodeURIComponent(TOKEN)}&retour=mon-espace.html">Créer mon accès</a>
-        </div>
-        <div class="section-titre">Sur mon téléphone</div>
-        <div id="blocInstallation"></div>`;
-      injecterModeEmploiApp('blocInstallation', { nom: 'Mon espace' });
-      return;
-    }
-    etat("Ce lien n'est plus valide, ou tu es connecté·e avec une autre adresse. Contacte la production.");
+    etat("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau.");
     return;
   }
 
@@ -192,8 +172,6 @@ async function init(){
   const estTitulaire = (moi.statutPoste || 'titulaire') === 'titulaire';
 
   document.getElementById('contenu').innerHTML = `
-    <div id="blocAcces"></div>
-
     <div class="section-titre">Mes disponibilités${enAttente.length ? ` — ${enAttente.length} à compléter` : ''}</div>
     <div class="menu">${blocDispos}</div>
 
@@ -208,30 +186,6 @@ async function init(){
   `;
 
   injecterModeEmploiApp('blocInstallation', { nom: 'Mon espace' });
-  await renderAcces();
-}
-
-// Invitation à créer un accès nominatif — le lien seul ouvre le RIB et le
-// numéro de sécurité sociale à quiconque le reçoit.
-async function renderAcces(){
-  const boite = document.getElementById('blocAcces');
-  if(!boite) return;
-  let deja = null;
-  try{ deja = await CurieuxDB.maPersonne(); }catch(e){}
-
-  if(deja){
-    boite.innerHTML = `<div class="acces connecte">
-      <b>Ton accès est actif</b>
-      <p>Tu es connecté·e avec ${escapeHtml(deja.email || 'ton adresse email')}. Tes informations sont protégées.</p>
-    </div>`;
-    return;
-  }
-
-  boite.innerHTML = `<div class="acces">
-    <b>Protège tes informations</b>
-    <p>Ce lien ouvre ton RIB et ton numéro de sécurité sociale à quiconque le reçoit. Crée un accès à ton nom, avec un mot de passe à toi.</p>
-    <a href="creer-acces.html?token=${encodeURIComponent(TOKEN)}&retour=mon-espace.html">Créer mon accès</a>
-  </div>`;
 }
 
 init();

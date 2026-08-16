@@ -771,50 +771,28 @@ const CurieuxDB = (()=>{
     return supabaseClient.auth.signInWithOtp({ email, options });
   }
 
-  // --- Comptes personnels (musicien·nes) -----------------------------------
-  // Un lien personnel est aujourd'hui un mot de passe permanent qui ouvre
-  // infos_sociales — IBAN, numéro de sécurité sociale. On l'adosse donc à un
-  // vrai compte, créé par la personne depuis son propre lien, avec une
-  // connexion par lien magique.
-
-  // Création du compte avec mot de passe. Le lien magique imposait d'ouvrir sa
-  // boîte mail à CHAQUE connexion, ce qui n'a pas tenu à l'usage : ici l'email
-  // n'intervient qu'une fois, à la création, et seulement si le projet Supabase
-  // exige la confirmation d'adresse.
-  //
-  // Deux issues possibles selon ce réglage, toutes deux gérées par l'appelant :
-  //  - confirmation désactivée : une session est ouverte immédiatement, on peut
-  //    rattacher le compte dans la foulée ;
-  //  - confirmation activée : pas de session, un email de confirmation part et
-  //    ramène sur lier-acces.html.
-  async function creerAccesAvecMotDePasse(email, motDePasse, token){
-    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    const options = {};
-    if(typeof location !== 'undefined' && /^https?:$/.test(location.protocol)){
-      options.emailRedirectTo = location.origin + '/lier-acces.html?token=' + encodeURIComponent(token);
+  // Création d'un compte d'équipe sans envoi d'email, via la fonction serveur
+  // (voir api/creer-compte-equipe.js). Le compte est créé déjà confirmé :
+  // aucune limite d'envoi ne s'applique, on peut en ajouter à la chaîne.
+  // Renvoie { fallback: true } si la fonction n'est pas configurée côté
+  // serveur — l'appelant retombe alors sur la création classique.
+  async function creerCompteEquipeSansEmail(email, motDePasse){
+    const session = await getSession();
+    if(!session) return { error: { message: 'Session expirée — reconnecte-toi.' } };
+    let rep;
+    try{
+      rep = await fetch('/api/creer-compte-equipe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+        body: JSON.stringify({ email, motDePasse })
+      });
+    }catch(e){
+      return { fallback: true };
     }
-    try{ localStorage.setItem('curieux-jeton-liaison', token); }catch(e){}
-    const { data, error } = await supabaseClient.auth.signUp({ email, password: motDePasse, options });
-    if(error) return { error };
-    return { session: (data && data.session) || null, user: (data && data.user) || null };
-  }
-
-  // Connexion d'une personne qui a déjà un compte.
-  async function connexionAcces(email, motDePasse){
-    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: motDePasse });
-    if(error) return { error };
-    return { session: (data && data.session) || null };
-  }
-
-  // Réinitialisation, seul cas où un email reste indispensable.
-  async function reinitialiserMotDePasseAcces(email){
-    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    const options = {};
-    if(typeof location !== 'undefined' && /^https?:$/.test(location.protocol)){
-      options.redirectTo = location.origin + '/definir-mot-de-passe.html';
-    }
-    return supabaseClient.auth.resetPasswordForEmail(email, options);
+    if(rep.status === 501 || rep.status === 404) return { fallback: true };
+    const data = await rep.json().catch(()=> ({}));
+    if(!rep.ok) return { error: { message: data.erreur || `Erreur ${rep.status}.` } };
+    return data;
   }
 
   // Espace personnel : identité + demandes de dispo en cours, depuis le jeton
@@ -824,51 +802,6 @@ const CurieuxDB = (()=>{
     const { data, error } = await supabaseClient.rpc('mes_demandes_dispo', { p_token: token });
     if(error){ console.warn('[CurieuxDB] mesDemandesDispo', error.message); return null; }
     return data || null;
-  }
-
-  // Le lien est-il valide mais en attente de création d'accès ? Ne renvoie
-  // qu'un booléen — aucune donnée personnelle — ce qui permet de distinguer
-  // « lien à activer » de « lien invalide » sans rien dévoiler.
-  async function jetonAttendCreation(token){
-    if(!supabaseClient) return false;
-    const { data, error } = await supabaseClient.rpc('jeton_attend_creation', { p_token: token });
-    if(error){ console.warn('[CurieuxDB] jetonAttendCreation', error.message); return false; }
-    return !!data;
-  }
-
-  // Rattache le compte connecté à la personne désignée par le jeton.
-  async function lierCompteAPersonne(token){
-    if(!supabaseClient) return { ok:false, motif:'indisponible' };
-    const { data, error } = await supabaseClient.rpc('lier_compte_a_personne', { p_token: token });
-    if(error){ console.warn('[CurieuxDB] lierCompteAPersonne', error.message); return { ok:false, motif:'erreur' }; }
-    return data || { ok:false, motif:'erreur' };
-  }
-
-  // La personne rattachée au compte connecté, ou null s'il n'y en a pas.
-  async function maPersonne(){
-    if(!supabaseClient) return null;
-    const { data, error } = await supabaseClient.rpc('ma_personne');
-    if(error){ console.warn('[CurieuxDB] maPersonne', error.message); return null; }
-    return data || null;
-  }
-
-  // Administration des accès personnels : qui a créé son accès, qui pas encore.
-  async function listeComptesPersonnes(){
-    if(!supabaseClient) return { lies: [], sansCompte: [] };
-    const { data, error } = await supabaseClient.rpc('liste_comptes_personnes');
-    if(error){ console.warn('[CurieuxDB] listeComptesPersonnes', error.message); return { lies: [], sansCompte: [] }; }
-    return data || { lies: [], sansCompte: [] };
-  }
-
-  // Défait un rattachement — indispensable quand quelqu'un change d'adresse ou
-  // perd l'accès à sa boîte : sans cela, sa fiche resterait prise pour toujours.
-  async function delierComptePersonne(personId, personType){
-    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    const { data, error } = await supabaseClient.rpc('delier_compte_personne', {
-      p_person_id: personId, p_person_type: personType
-    });
-    if(error){ console.warn('[CurieuxDB] delierComptePersonne', error.message); return { error }; }
-    return { ok: !!data };
   }
 
   // --- Historique des modifications (audit_log, réservé aux comptes 'admin'
@@ -1299,9 +1232,7 @@ const CurieuxDB = (()=>{
     getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,
     listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
-    creerAccesAvecMotDePasse, connexionAcces, reinitialiserMotDePasseAcces,
-    lierCompteAPersonne, maPersonne, mesDemandesDispo, jetonAttendCreation,
-    listeComptesPersonnes, delierComptePersonne,
+    mesDemandesDispo, creerCompteEquipeSansEmail,
     fetchCorbeille, restaurerDepuisCorbeille,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,
