@@ -771,6 +771,41 @@ const CurieuxDB = (()=>{
     return supabaseClient.auth.signInWithOtp({ email, options });
   }
 
+  // --- Comptes personnels (musicien·nes) -----------------------------------
+  // Un lien personnel est aujourd'hui un mot de passe permanent qui ouvre
+  // infos_sociales — IBAN, numéro de sécurité sociale. On l'adosse donc à un
+  // vrai compte, créé par la personne depuis son propre lien, avec une
+  // connexion par lien magique.
+
+  // Envoie le lien de connexion. Le jeton voyage dans l'adresse de retour pour
+  // survivre à un changement d'appareil (demande sur le téléphone, ouverture
+  // de l'email sur l'ordinateur), avec le stockage local en second recours.
+  async function envoyerLienAcces(email, token){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const options = { shouldCreateUser: true };
+    if(typeof location !== 'undefined' && /^https?:$/.test(location.protocol)){
+      options.emailRedirectTo = location.origin + '/lier-acces.html?token=' + encodeURIComponent(token);
+    }
+    try{ localStorage.setItem('curieux-jeton-liaison', token); }catch(e){}
+    return supabaseClient.auth.signInWithOtp({ email, options });
+  }
+
+  // Rattache le compte connecté à la personne désignée par le jeton.
+  async function lierCompteAPersonne(token){
+    if(!supabaseClient) return { ok:false, motif:'indisponible' };
+    const { data, error } = await supabaseClient.rpc('lier_compte_a_personne', { p_token: token });
+    if(error){ console.warn('[CurieuxDB] lierCompteAPersonne', error.message); return { ok:false, motif:'erreur' }; }
+    return data || { ok:false, motif:'erreur' };
+  }
+
+  // La personne rattachée au compte connecté, ou null s'il n'y en a pas.
+  async function maPersonne(){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('ma_personne');
+    if(error){ console.warn('[CurieuxDB] maPersonne', error.message); return null; }
+    return data || null;
+  }
+
   // --- Historique des modifications (audit_log, réservé aux comptes 'admin'
   // par RLS — voir migrations.sql). tableName optionnel pour filtrer. ---
   async function fetchAuditLog(tableName, limit){
@@ -1199,6 +1234,7 @@ const CurieuxDB = (()=>{
     getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,
     listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
+    envoyerLienAcces, lierCompteAPersonne, maPersonne,
     fetchCorbeille, restaurerDepuisCorbeille,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,

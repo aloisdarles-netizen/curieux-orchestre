@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Créer mon accès</title>
+<!-- Page volontairement PUBLIQUE : elle s'atteint depuis un lien personnel et
+     sert justement à créer le compte. Le jeton reste requis. -->
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:520px; margin:0 auto; padding:0 22px 80px;}
+  .carte{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:28px 26px; margin-top:8vh;
+  }
+  .carte img.brand-logo-img{height:34px; margin-bottom:20px;}
+  h1{font-size:21px; margin:0 0 12px; color:var(--text);}
+  p{color:var(--muted); font-size:14.5px; line-height:1.6; margin:0 0 14px;}
+  .pourquoi{
+    background:var(--bg); border:1px solid var(--border); border-radius:8px;
+    padding:13px 15px; font-size:13.5px; color:var(--muted); line-height:1.55; margin-bottom:18px;
+  }
+  .pourquoi b{color:var(--text);}
+  label{display:block; font-size:12px; color:var(--muted); font-weight:600; margin-bottom:5px;}
+  input[type=email]{
+    width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px;
+    font-size:16px; background:var(--card); color:var(--text); font-family:inherit;
+  }
+  button{
+    width:100%; margin-top:16px; cursor:pointer; border:none; border-radius:8px;
+    font-size:14.5px; font-weight:700; padding:12px; font-family:inherit;
+    background:var(--accent-solid); color:#fff;
+  }
+  button:hover{background:var(--accent-dark);}
+  button:disabled{opacity:.6; cursor:default;}
+  .message{margin-top:16px; font-size:13.5px; line-height:1.55; border-radius:8px; padding:12px 14px; display:none;}
+  .message.ok{background:var(--ok-tint); color:var(--ok); display:block;}
+  .message.ko{background:var(--danger-tint); color:var(--danger); display:block;}
+  .retour{display:block; margin-top:18px; font-size:12.5px; color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="carte">
+    <img class="brand-logo-img" alt="Curieux orchestre">
+    <h1 id="titre">Créer mon accès</h1>
+
+    <div class="pourquoi">
+      Ton lien personnel donne aujourd'hui accès à tes informations les plus
+      sensibles — <b>IBAN, numéro de sécurité sociale, adresse</b> — à
+      quiconque le reçoit. Un accès à ton nom protège ces données : seule ta
+      boîte mail permettra d'y entrer.
+    </div>
+
+    <p>Indique ton adresse email. Tu recevras un lien de connexion à ouvrir depuis ta boîte : pas de mot de passe à choisir ni à retenir.</p>
+
+    <div id="formulaire">
+      <label for="fEmail">Ton adresse email</label>
+      <input type="email" id="fEmail" placeholder="prenom.nom@exemple.fr" autocomplete="email" inputmode="email">
+      <button type="button" id="envoyerBtn">Recevoir mon lien de connexion</button>
+    </div>
+
+    <div class="message" id="message"></div>
+    <a class="retour" id="retour" href="#">← Revenir à mes informations</a>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const TOKEN = params.get('token') || '';
+const RETOUR = params.get('retour') || 'mes-infos.html';
+
+const messageEl = document.getElementById('message');
+function afficher(texte, ok){
+  messageEl.textContent = texte;
+  messageEl.className = 'message ' + (ok ? 'ok' : 'ko');
+}
+
+document.getElementById('retour').href = TOKEN
+  ? `${RETOUR}?token=${encodeURIComponent(TOKEN)}`
+  : 'mentions-legales.html';
+
+if(!TOKEN){
+  document.getElementById('formulaire').style.display = 'none';
+  document.getElementById('titre').textContent = 'Lien incomplet';
+  afficher("Cette page s'ouvre depuis ton lien personnel. Reprends le lien qu'on t'a envoyé.", false);
+}
+
+async function envoyer(){
+  const btn = document.getElementById('envoyerBtn');
+  const email = document.getElementById('fEmail').value.trim();
+  if(!email || !email.includes('@')){
+    afficher('Indique une adresse email valide.', false);
+    return;
+  }
+  btn.disabled = true;
+  afficher('Envoi en cours…', true);
+  const { error } = await CurieuxDB.envoyerLienAcces(email, TOKEN);
+  if(error){
+    afficher(translateAuthError(error.message) || "L'envoi a échoué. Réessaie dans un instant.", false);
+    btn.disabled = false;
+    return;
+  }
+  document.getElementById('formulaire').style.display = 'none';
+  afficher(`Un lien de connexion vient d'être envoyé à ${email}. Ouvre-le depuis ta boîte mail pour terminer — il est valable une heure.`, true);
+}
+
+document.getElementById('envoyerBtn').addEventListener('click', envoyer);
+document.getElementById('fEmail').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') envoyer(); });
+
+applyBrandLogo();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+</script>
+</body>
+</html>
