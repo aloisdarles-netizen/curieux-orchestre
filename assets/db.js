@@ -85,30 +85,37 @@ const CurieuxDB = (()=>{
         plan_statut: m.planStatut || 'non_demande', plan_url: m.planUrl || '',
         plan_valide: !!m.planValide,
         plan_charge_statut: m.planChargeStatut || 'non_envoye',
-        bureau_controle_sur_place: !!m.bureauControleSurPlace,
-        bureau_controle_horaire: m.bureauControleHoraire || '',
-        bureau_controle_contact: m.bureauControleContact || '',
+        bureau_electrique_sur_place: !!m.bureauElectriqueSurPlace,
+        bureau_electrique_horaire: m.bureauElectriqueHoraire || '',
+        bureau_electrique_contact: m.bureauElectriqueContact || '',
+        bureau_accroche_sur_place: !!m.bureauAccrocheSurPlace,
+        bureau_accroche_horaire: m.bureauAccrocheHoraire || '',
+        bureau_accroche_contact: m.bureauAccrocheContact || '',
         nombre_semis_simultanees: m.nombreSemisSimultanees != null ? m.nombreSemisSimultanees : null,
         // [{emplacement:'scene'|'cote_scene'|'fosse'|'autre'}, ...] — une entrée par semi simultanée.
         emplacements_dechargement: m.emplacementsDechargement || [],
         niveau_dechargement: m.niveauDechargement || 'inconnu',
         acces_notes: m.accesNotes || '',
-        // [{horaireDebut, horaireFin, nombreDemande, nombrePropose, nombreValide, notes}, ...]
+        // [{horaireDebut, horaireFin, nombreDemande, confirme, notes, equipes:[{departement,couleur,nombre}]}, ...]
         roadies_vacations: m.roadiesVacations || [],
-        // [{horaireDebut, horaireFin, nombreChariotsDemande, nombreChariotsPropose, nombreChariotsValide,
-        //   fourches:[{fourche,valide}], nombreCaristesDemande, nombreCaristesPropose, nombreCaristesValide, notes}, ...]
+        // [{horaireDebut, horaireFin, nombreChariotsDemande, confirme,
+        //   fourches:[{fourche}], nombreCaristesDemande, notes}, ...]
         chariots_vacations: m.chariotsVacations || [],
+        // [{horaireDebut, horaireFin, nombreDemande, confirme, notes}, ...]
+        rigg_vacations: m.riggVacations || [],
+        // [{id, label, heure}, ...] — repères libres de la journée (load in, get in…)
+        horaires_journee: m.horairesJournee || [],
         hauteur_grill: m.hauteurGrill || '', ouverture_scene: m.ouvertureScene || '',
         profondeur_scene: m.profondeurScene || '',
         puissance: m.puissance || '', type_courant: m.typeCourant || '',
-        nombre_circuits: m.nombreCircuits || '', charge_max_accroche: m.chargeMaxAccroche || '',
+        charge_max_accroche: m.chargeMaxAccroche || '',
         type_sol: m.typeSol || '',
         // [{nom, role, tel, email}, ...]
         contacts_salle: m.contactsSalle || [],
         // sous-ensemble de techniciensAssignes de la date, à exposer côté salle
         contacts_techniciens_ids: m.contactsTechniciensIds || [],
         plan_image_path: m.planImagePath || '',
-        // [{vehiculeId, label, xPct, yPct}, ...]
+        // [{type:'semi'|'note', vehiculeId, label, xPct, yPct}, ...]
         semis_positions: m.semisPositions || [],
         notes: m.notes || ''
       }),
@@ -118,19 +125,24 @@ const CurieuxDB = (()=>{
         planStatut: r.plan_statut || 'non_demande', planUrl: r.plan_url || '',
         planValide: !!r.plan_valide,
         planChargeStatut: r.plan_charge_statut || 'non_envoye',
-        bureauControleSurPlace: !!r.bureau_controle_sur_place,
-        bureauControleHoraire: r.bureau_controle_horaire || '',
-        bureauControleContact: r.bureau_controle_contact || '',
+        bureauElectriqueSurPlace: !!r.bureau_electrique_sur_place,
+        bureauElectriqueHoraire: r.bureau_electrique_horaire || '',
+        bureauElectriqueContact: r.bureau_electrique_contact || '',
+        bureauAccrocheSurPlace: !!r.bureau_accroche_sur_place,
+        bureauAccrocheHoraire: r.bureau_accroche_horaire || '',
+        bureauAccrocheContact: r.bureau_accroche_contact || '',
         nombreSemisSimultanees: r.nombre_semis_simultanees,
         emplacementsDechargement: r.emplacements_dechargement || [],
         niveauDechargement: r.niveau_dechargement || 'inconnu',
         accesNotes: r.acces_notes || '',
         roadiesVacations: r.roadies_vacations || [],
         chariotsVacations: r.chariots_vacations || [],
+        riggVacations: r.rigg_vacations || [],
+        horairesJournee: r.horaires_journee || [],
         hauteurGrill: r.hauteur_grill || '', ouvertureScene: r.ouverture_scene || '',
         profondeurScene: r.profondeur_scene || '',
         puissance: r.puissance || '', typeCourant: r.type_courant || '',
-        nombreCircuits: r.nombre_circuits || '', chargeMaxAccroche: r.charge_max_accroche || '',
+        chargeMaxAccroche: r.charge_max_accroche || '',
         typeSol: r.type_sol || '',
         contactsSalle: r.contacts_salle || [],
         contactsTechniciensIds: r.contacts_techniciens_ids || [],
@@ -154,12 +166,14 @@ const CurieuxDB = (()=>{
         provenance_id: l.provenanceId || null,
         tournee_id: l.tourneeId || null,
         dates_ids: l.datesIds || [],
-        // [{nom, quantite, numeroSerie, notes}, ...]
+        // [{nom, notes}, ...]
         elements: l.elements || [],
         description: l.description || '',
         date_prepa: l.datePrepa || null,
         date_pickup: l.datePickup || null,
-        retour_le: l.retourLe || null, notes: l.notes || ''
+        // [{id, date, type:'sortie'|'entree', description}, ...] — journal des allers-retours
+        mouvements: l.mouvements || [],
+        notes: l.notes || ''
       }),
       fromDb: (r)=> ({
         id: r.id, nom: r.nom, categorie: r.categorie || 'autre',
@@ -170,7 +184,7 @@ const CurieuxDB = (()=>{
         elements: r.elements || [],
         description: r.description || '',
         datePrepa: r.date_prepa || '', datePickup: r.date_pickup || '',
-        retourLe: r.retour_le || '', notes: r.notes || ''
+        mouvements: r.mouvements || [], notes: r.notes || ''
       })
     },
     // Un carnet ATA est attribué à une semi, pour toute la tournée — valable

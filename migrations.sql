@@ -2153,3 +2153,159 @@ begin
   return resultat;
 end;
 $$;
+
+
+-- ============================================================================
+-- Direction technique v3 — retours d'usage après premier tour :
+-- matériel en mouvements plutôt qu'une date de retour unique, vacations
+-- simplifiées à une confirmation, vacations de rigg, bureau d'étude
+-- électrique et accroche distincts, horaires de journée et équipes road
+-- colorées par département.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- Matériel — un lot peut avoir plusieurs allers-retours (échange de console,
+-- retour de matériel non utilisé…) : un journal de mouvements plutôt qu'une
+-- seule date de retour. Quantité et numéro de série des éléments ne servent
+-- pas — restent en place dans le jsonb mais ne sont plus affichés/saisis.
+-- ----------------------------------------------------------------------------
+alter table lots_materiel add column if not exists mouvements jsonb not null default '[]'::jsonb;
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='lots_materiel' and column_name='retour_le') then
+    update lots_materiel
+      set mouvements = jsonb_build_array(jsonb_build_object(
+            'id', 'mig' || substr(md5(random()::text || id), 1, 12),
+            'date', to_char(retour_le, 'YYYY-MM-DD'), 'type', 'entree', 'description', 'Retour'))
+      where retour_le is not null and mouvements = '[]'::jsonb;
+  end if;
+end $$;
+alter table lots_materiel drop column if exists retour_le;
+
+
+-- ----------------------------------------------------------------------------
+-- Fiche de date — simplifications et ajouts.
+-- ----------------------------------------------------------------------------
+
+-- Nombre de circuits ne voulait rien dire dans l'usage — retiré.
+alter table moyens_salle drop column if exists nombre_circuits;
+
+-- Bureau de contrôle devient deux bureaux distincts : électrique et accroche.
+-- Les données existantes (génériques) sont reprises côté accroche, le plus
+-- proche de leur usage réel (plan de charge / structure).
+alter table moyens_salle add column if not exists bureau_electrique_sur_place boolean not null default false;
+alter table moyens_salle add column if not exists bureau_electrique_horaire text default '';
+alter table moyens_salle add column if not exists bureau_electrique_contact text default '';
+alter table moyens_salle add column if not exists bureau_accroche_sur_place boolean not null default false;
+alter table moyens_salle add column if not exists bureau_accroche_horaire text default '';
+alter table moyens_salle add column if not exists bureau_accroche_contact text default '';
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='moyens_salle' and column_name='bureau_controle_sur_place') then
+    update moyens_salle set
+      bureau_accroche_sur_place = bureau_controle_sur_place,
+      bureau_accroche_horaire = bureau_controle_horaire,
+      bureau_accroche_contact = bureau_controle_contact
+      where bureau_controle_sur_place = true
+        or coalesce(bureau_controle_horaire,'') <> '' or coalesce(bureau_controle_contact,'') <> '';
+  end if;
+end $$;
+alter table moyens_salle drop column if exists bureau_controle_sur_place;
+alter table moyens_salle drop column if exists bureau_controle_horaire;
+alter table moyens_salle drop column if exists bureau_controle_contact;
+
+-- Vacations roadies : demandé/proposé/validé remplacé par une simple
+-- confirmation, plus une répartition en équipes colorées par département.
+do $$
+begin
+  if exists (
+    select 1 from moyens_salle m, jsonb_array_elements(m.roadies_vacations) elem
+    where elem ? 'nombrePropose' or elem ? 'nombreValide'
+  ) then
+    update moyens_salle
+      set roadies_vacations = (
+        select coalesce(jsonb_agg(
+          (elem - 'nombrePropose' - 'nombreValide') || jsonb_build_object(
+            'confirme', coalesce((elem->>'nombreValide') is not null, false),
+            'equipes', coalesce(elem->'equipes', '[]'::jsonb)
+          )
+        ), '[]'::jsonb)
+        from jsonb_array_elements(roadies_vacations) elem
+      )
+      where jsonb_array_length(roadies_vacations) > 0;
+  end if;
+end $$;
+
+-- Vacations chariots : même simplification, et la case "confirmé" par
+-- chariot détaillé (inutile en pratique) disparaît du détail des fourches.
+do $$
+begin
+  if exists (
+    select 1 from moyens_salle m, jsonb_array_elements(m.chariots_vacations) elem
+    where elem ? 'nombreChariotsPropose' or elem ? 'nombreChariotsValide'
+       or elem ? 'nombreCaristesPropose' or elem ? 'nombreCaristesValide'
+  ) then
+    update moyens_salle
+      set chariots_vacations = (
+        select coalesce(jsonb_agg(
+          (elem - 'nombreChariotsPropose' - 'nombreChariotsValide' - 'nombreCaristesPropose' - 'nombreCaristesValide')
+          || jsonb_build_object(
+               'confirme', coalesce((elem->>'nombreChariotsValide') is not null, false),
+               'fourches', coalesce((
+                 select jsonb_agg(f - 'valide')
+                 from jsonb_array_elements(coalesce(elem->'fourches', '[]'::jsonb)) f
+               ), '[]'::jsonb)
+             )
+        ), '[]'::jsonb)
+        from jsonb_array_elements(chariots_vacations) elem
+      )
+      where jsonb_array_length(chariots_vacations) > 0;
+  end if;
+end $$;
+
+-- Vacations de rigg — même logique que roadies, en plus simple (pas d'équipes).
+alter table moyens_salle add column if not exists rigg_vacations jsonb not null default '[]'::jsonb;
+
+-- Horaires de la journée (load in, get in…) — une liste libre de repères.
+alter table moyens_salle add column if not exists horaires_journee jsonb not null default '[]'::jsonb;
+
+-- Étend repondre_vacation_salle au rigg (nouveau type de vacation).
+create or replace function repondre_vacation_salle(
+  p_token text, p_date_id text, p_type_vacation text, p_index int, p_reponse jsonb
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces acces_logistique%rowtype;
+  ms moyens_salle%rowtype;
+  liste jsonb;
+begin
+  select * into acces from acces_logistique where id = p_token and actif and type = 'salle' limit 1;
+  if not found then return false; end if;
+  if not (acces.dates_ids ? p_date_id) then return false; end if;
+  if p_type_vacation not in ('roadies','chariots','rigg') then return false; end if;
+
+  select * into ms from moyens_salle where tournee_id = acces.tournee_id and date_id = p_date_id limit 1;
+  if not found then return false; end if;
+
+  liste := case p_type_vacation
+    when 'roadies' then ms.roadies_vacations
+    when 'chariots' then ms.chariots_vacations
+    else ms.rigg_vacations
+  end;
+  if p_index < 0 or p_index >= jsonb_array_length(liste) then return false; end if;
+  liste := jsonb_set(liste, array[p_index::text], (liste->p_index) || p_reponse);
+
+  if p_type_vacation = 'roadies' then
+    update moyens_salle set roadies_vacations = liste where id = ms.id;
+  elsif p_type_vacation = 'chariots' then
+    update moyens_salle set chariots_vacations = liste where id = ms.id;
+  else
+    update moyens_salle set rigg_vacations = liste where id = ms.id;
+  end if;
+  return true;
+end;
+$$;
+grant execute on function repondre_vacation_salle(text, text, text, int, jsonb) to anon, authenticated;
