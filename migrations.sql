@@ -2644,3 +2644,60 @@ begin
 end;
 $$;
 grant execute on function ma_personne() to authenticated;
+
+-- ============================================================================
+-- Espace personnel : un lien unique pour les musicien·nes
+--
+-- Jusqu'ici une personne recevait plusieurs liens — un par demande de dispo,
+-- plus un lien permanent pour ses infos. On en fait un seul, permanent, qui
+-- regroupe tout. Il faut donc pouvoir retrouver, depuis le jeton permanent,
+-- les demandes de disponibilité en cours : c'est l'objet de cette fonction.
+--
+-- Elle accepte indifféremment un jeton permanent (acces_personnels) ou un
+-- jeton de demande (dispo_demandes), via resolve_person_token — les anciens
+-- liens continuent donc de mener au même endroit.
+-- ============================================================================
+create or replace function mes_demandes_dispo(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cible record;
+  resultat jsonb;
+begin
+  select * into cible from resolve_person_token(p_token);
+  if not found or cible.person_id is null then
+    return null;
+  end if;
+
+  select jsonb_build_object(
+    'personId', cible.person_id,
+    'personType', cible.person_type,
+    'prenom', coalesce(
+      (select m.prenom from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.prenom from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'), ''),
+    'nom', coalesce(
+      (select m.nom from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.nom from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'), ''),
+    'statutPoste', coalesce(
+      (select m.statut_poste from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      'titulaire'),
+    'demandes', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'token', d.id,
+               'tourneeNom', t.nom,
+               'repondu', d.last_responded_at is not null,
+               'creeLe', d.created_at)
+             order by d.created_at desc)
+      from dispo_demandes d
+      join tournees t on t.id = d.tournee_id
+      where d.person_id = cible.person_id and d.person_type = cible.person_type
+    ), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
+grant execute on function mes_demandes_dispo(text) to anon, authenticated;

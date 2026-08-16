@@ -790,6 +790,15 @@ const CurieuxDB = (()=>{
     return supabaseClient.auth.signInWithOtp({ email, options });
   }
 
+  // Espace personnel : identité + demandes de dispo en cours, depuis le jeton
+  // permanent comme depuis un ancien jeton de demande.
+  async function mesDemandesDispo(token){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('mes_demandes_dispo', { p_token: token });
+    if(error){ console.warn('[CurieuxDB] mesDemandesDispo', error.message); return null; }
+    return data || null;
+  }
+
   // Rattache le compte connecté à la personne désignée par le jeton.
   async function lierCompteAPersonne(token){
     if(!supabaseClient) return { ok:false, motif:'indisponible' };
@@ -1234,7 +1243,7 @@ const CurieuxDB = (()=>{
     getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,
     listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
-    envoyerLienAcces, lierCompteAPersonne, maPersonne,
+    envoyerLienAcces, lierCompteAPersonne, maPersonne, mesDemandesDispo,
     fetchCorbeille, restaurerDepuisCorbeille,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,
