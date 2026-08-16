@@ -777,17 +777,44 @@ const CurieuxDB = (()=>{
   // vrai compte, créé par la personne depuis son propre lien, avec une
   // connexion par lien magique.
 
-  // Envoie le lien de connexion. Le jeton voyage dans l'adresse de retour pour
-  // survivre à un changement d'appareil (demande sur le téléphone, ouverture
-  // de l'email sur l'ordinateur), avec le stockage local en second recours.
-  async function envoyerLienAcces(email, token){
+  // Création du compte avec mot de passe. Le lien magique imposait d'ouvrir sa
+  // boîte mail à CHAQUE connexion, ce qui n'a pas tenu à l'usage : ici l'email
+  // n'intervient qu'une fois, à la création, et seulement si le projet Supabase
+  // exige la confirmation d'adresse.
+  //
+  // Deux issues possibles selon ce réglage, toutes deux gérées par l'appelant :
+  //  - confirmation désactivée : une session est ouverte immédiatement, on peut
+  //    rattacher le compte dans la foulée ;
+  //  - confirmation activée : pas de session, un email de confirmation part et
+  //    ramène sur lier-acces.html.
+  async function creerAccesAvecMotDePasse(email, motDePasse, token){
     if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    const options = { shouldCreateUser: true };
+    const options = {};
     if(typeof location !== 'undefined' && /^https?:$/.test(location.protocol)){
       options.emailRedirectTo = location.origin + '/lier-acces.html?token=' + encodeURIComponent(token);
     }
     try{ localStorage.setItem('curieux-jeton-liaison', token); }catch(e){}
-    return supabaseClient.auth.signInWithOtp({ email, options });
+    const { data, error } = await supabaseClient.auth.signUp({ email, password: motDePasse, options });
+    if(error) return { error };
+    return { session: (data && data.session) || null, user: (data && data.user) || null };
+  }
+
+  // Connexion d'une personne qui a déjà un compte.
+  async function connexionAcces(email, motDePasse){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: motDePasse });
+    if(error) return { error };
+    return { session: (data && data.session) || null };
+  }
+
+  // Réinitialisation, seul cas où un email reste indispensable.
+  async function reinitialiserMotDePasseAcces(email){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const options = {};
+    if(typeof location !== 'undefined' && /^https?:$/.test(location.protocol)){
+      options.redirectTo = location.origin + '/definir-mot-de-passe.html';
+    }
+    return supabaseClient.auth.resetPasswordForEmail(email, options);
   }
 
   // Espace personnel : identité + demandes de dispo en cours, depuis le jeton
@@ -813,6 +840,25 @@ const CurieuxDB = (()=>{
     const { data, error } = await supabaseClient.rpc('ma_personne');
     if(error){ console.warn('[CurieuxDB] maPersonne', error.message); return null; }
     return data || null;
+  }
+
+  // Administration des accès personnels : qui a créé son accès, qui pas encore.
+  async function listeComptesPersonnes(){
+    if(!supabaseClient) return { lies: [], sansCompte: [] };
+    const { data, error } = await supabaseClient.rpc('liste_comptes_personnes');
+    if(error){ console.warn('[CurieuxDB] listeComptesPersonnes', error.message); return { lies: [], sansCompte: [] }; }
+    return data || { lies: [], sansCompte: [] };
+  }
+
+  // Défait un rattachement — indispensable quand quelqu'un change d'adresse ou
+  // perd l'accès à sa boîte : sans cela, sa fiche resterait prise pour toujours.
+  async function delierComptePersonne(personId, personType){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { data, error } = await supabaseClient.rpc('delier_compte_personne', {
+      p_person_id: personId, p_person_type: personType
+    });
+    if(error){ console.warn('[CurieuxDB] delierComptePersonne', error.message); return { error }; }
+    return { ok: !!data };
   }
 
   // --- Historique des modifications (audit_log, réservé aux comptes 'admin'
@@ -1243,7 +1289,9 @@ const CurieuxDB = (()=>{
     getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,
     listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
-    envoyerLienAcces, lierCompteAPersonne, maPersonne, mesDemandesDispo,
+    creerAccesAvecMotDePasse, connexionAcces, reinitialiserMotDePasseAcces,
+    lierCompteAPersonne, maPersonne, mesDemandesDispo,
+    listeComptesPersonnes, delierComptePersonne,
     fetchCorbeille, restaurerDepuisCorbeille,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,

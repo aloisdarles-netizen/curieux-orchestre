@@ -2701,3 +2701,90 @@ begin
 end;
 $$;
 grant execute on function mes_demandes_dispo(text) to anon, authenticated;
+
+-- ============================================================================
+-- Administration des accès personnels
+--
+-- Sans ces deux fonctions, la création de compte est une impasse : si une
+-- personne change d'adresse email, perd l'accès à sa boîte, ou se rattache
+-- par erreur, plus rien ne peut être défait — sa fiche reste prise et elle ne
+-- peut plus jamais créer d'accès. On donne donc à l'équipe de quoi voir et
+-- défaire les rattachements.
+--
+-- Au passage : ma_personne() et lier_compte_a_personne() restaient appelables
+-- par tout le monde. Elles refusent correctement les appels anonymes, mais le
+-- droit par défaut que PostgreSQL accorde à PUBLIC rendait le grant précédent
+-- décoratif. On le retire pour que la restriction repose sur deux barrières.
+-- ============================================================================
+revoke execute on function ma_personne() from public;
+revoke execute on function lier_compte_a_personne(text) from public;
+grant execute on function ma_personne() to authenticated;
+grant execute on function lier_compte_a_personne(text) to authenticated;
+
+-- Qui a créé son accès, et qui ne l'a pas encore fait.
+create or replace function liste_comptes_personnes()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare resultat jsonb;
+begin
+  if not has_access() then
+    raise exception 'Réservé aux comptes autorisés';
+  end if;
+
+  select jsonb_build_object(
+    'lies', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'personId', c.person_id, 'personType', c.person_type,
+               'prenom', coalesce(m.prenom, t.prenom, ''),
+               'nom', coalesce(m.nom, t.nom, ''),
+               'emailCompte', c.email,
+               'emailFiche', coalesce(m.email, t.email, ''),
+               'creeLe', c.cree_le)
+             order by coalesce(m.nom, t.nom, ''), coalesce(m.prenom, t.prenom, ''))
+      from comptes_personnes c
+      left join musiciens m on m.id = c.person_id and c.person_type = 'musicien'
+      left join techniciens t on t.id = c.person_id and c.person_type = 'technicien'
+    ), '[]'::jsonb),
+    'sansCompte', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'personId', m.id, 'personType', 'musicien',
+               'prenom', m.prenom, 'nom', m.nom, 'emailFiche', coalesce(m.email,''))
+             order by m.nom, m.prenom)
+      from musiciens m
+      where not exists (
+        select 1 from comptes_personnes c
+        where c.person_id = m.id and c.person_type = 'musicien')
+    ), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
+revoke execute on function liste_comptes_personnes() from public;
+grant execute on function liste_comptes_personnes() to authenticated;
+
+-- Défait un rattachement, pour que la personne puisse en recréer un. Le compte
+-- Supabase lui-même subsiste mais n'ouvre plus rien : il ne donne accès à
+-- aucune donnée tant qu'il n'est rattaché à personne.
+create or replace function delier_compte_personne(p_person_id text, p_person_type text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare n int;
+begin
+  if not has_access() then
+    raise exception 'Réservé aux comptes autorisés';
+  end if;
+  delete from comptes_personnes
+   where person_id = p_person_id and person_type = p_person_type;
+  get diagnostics n = row_count;
+  return n > 0;
+end;
+$$;
+revoke execute on function delier_compte_personne(text, text) from public;
+grant execute on function delier_compte_personne(text, text) to authenticated;
