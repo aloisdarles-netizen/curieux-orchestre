@@ -162,12 +162,14 @@
   </section>
 
   <section>
-    <h2>Corbeille</h2>
-    <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">Ce qui a été supprimé et peut encore être rétabli. Reconstruit à partir du journal des modifications, qui conserve l'état complet d'avant chaque suppression — rien n'est réellement perdu tant que le journal n'a pas été purgé.</p>
-    <div class="card">
+    <details class="card" id="corbeilleBloc" style="padding:14px 18px;">
+      <summary style="cursor:pointer; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);">
+        Corbeille <span id="corbeilleCompteur" style="text-transform:none; letter-spacing:0; color:var(--muted); font-weight:600;">…</span>
+      </summary>
+      <p style="font-size:12px; color:var(--muted); margin:12px 0;">Reconstruite à partir du journal, qui garde l'état d'avant chaque suppression.</p>
       <div id="corbeilleList"></div>
       <div id="corbeilleEmpty" class="empty-hint">Chargement…</div>
-    </div>
+    </details>
   </section>
 
   <section>
@@ -181,8 +183,31 @@
       </div>
       <div id="accountsEmpty" class="empty-hint">Chargement…</div>
 
-      <div class="add-account-form">
-        <h2 style="margin-bottom:10px;">Ajouter un compte</h2>
+
+      <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border);">
+        <h2 style="margin-bottom:8px;">Accès des musicien·nes</h2>
+        <p style="font-size:12px; color:var(--muted); margin:0 0 12px;">
+          Comptes créés depuis les liens personnels. « Retirer » libère la fiche —
+          le geste à faire quand quelqu'un change d'adresse ou perd sa boîte mail,
+          sinon la personne reste bloquée. « Réinitialiser » lui envoie un email
+          pour choisir un nouveau mot de passe.
+        </p>
+        <div id="accesPersoResume" class="empty-hint" style="text-align:left; padding:0 0 10px;">Chargement…</div>
+        <div class="table-scroll">
+          <table id="accesPersoTable">
+            <thead><tr><th>Personne</th><th>Adresse du compte</th><th>Créé le</th><th></th></tr></thead>
+            <tbody id="accesPersoBody"></tbody>
+          </table>
+        </div>
+        <div id="accesPersoEmpty" class="empty-hint" style="display:none;">Personne n'a encore créé son accès.</div>
+        <details style="margin-top:12px;">
+          <summary style="cursor:pointer; font-size:12.5px; color:var(--muted);">Qui n'a pas encore créé son accès</summary>
+          <div id="accesPersoSans" style="margin-top:8px; font-size:12.5px; color:var(--muted); line-height:1.7;"></div>
+        </details>
+      </div>
+
+      <details class="add-account-form" style="margin-top:16px;">
+        <summary style="cursor:pointer; font-weight:700; font-size:14px; color:var(--accent-dark); margin-bottom:10px;">Ajouter un compte d'équipe</summary>
         <div class="method-toggle">
           <button type="button" id="methodPasswordBtn" class="active">Mot de passe</button>
           <button type="button" id="methodMagicBtn">Lien par email</button>
@@ -217,32 +242,10 @@
         </p>
         <div class="msg error" id="addAccountError"></div>
         <div class="msg ok" id="addAccountSuccess"></div>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <h2>Accès des musicien·nes</h2>
-    <div class="card">
-      <p class="empty-hint" style="margin:0 0 12px; padding:0; text-align:left;">
-        Comptes créés depuis les liens personnels. Retirer un accès libère la fiche :
-        c'est le geste à faire quand quelqu'un change d'adresse email ou perd
-        l'accès à sa boîte, sinon la personne reste bloquée.
-      </p>
-      <div id="accesPersoResume" class="empty-hint" style="text-align:left; padding:0 0 12px;">Chargement…</div>
-      <div class="table-scroll">
-        <table id="accesPersoTable">
-          <thead><tr><th>Personne</th><th>Adresse du compte</th><th>Créé le</th><th></th></tr></thead>
-          <tbody id="accesPersoBody"></tbody>
-        </table>
-      </div>
-      <div id="accesPersoEmpty" class="empty-hint" style="display:none;">Personne n'a encore créé son accès.</div>
-      <details style="margin-top:14px;">
-        <summary style="cursor:pointer; font-size:13px; color:var(--muted);">Voir qui n'a pas encore créé son accès</summary>
-        <div id="accesPersoSans" style="margin-top:10px; font-size:13px; color:var(--muted); line-height:1.7;"></div>
       </details>
     </div>
   </section>
+
 
   <section>
     <h2>Historique des modifications</h2>
@@ -431,11 +434,29 @@ async function chargerAccesPersonnels(){
         <td>${escapeHtml(nomDe(p))}</td>
         <td>${escapeHtml(p.emailCompte || '')}${ecart ? ` <span title="Le dossier indique ${escapeHtml(p.emailFiche)}" style="color:var(--maybe); font-size:11px; font-weight:700;">≠ dossier</span>` : ''}</td>
         <td>${date}</td>
-        <td style="text-align:right;"><button type="button" class="btn-danger btn-sm"
+        <td style="text-align:right; white-space:nowrap;">
+          <button type="button" class="btn-ghost btn-sm"
+              data-reinit="${escapeHtml(p.emailCompte || '')}" data-nom="${escapeHtml(nomDe(p))}">Réinitialiser</button>
+          <button type="button" class="btn-danger btn-sm"
               data-delier="${escapeHtml(p.personId)}" data-type="${escapeHtml(p.personType)}"
-              data-nom="${escapeHtml(nomDe(p))}">Retirer</button></td>
+              data-nom="${escapeHtml(nomDe(p))}">Retirer</button>
+        </td>
       </tr>`;
     }).join('');
+
+    // Réinitialisation : on envoie à la personne un email pour choisir un
+    // nouveau mot de passe. C'est le geste courant — le retrait ne sert que
+    // lorsque l'adresse elle-même n'est plus la bonne.
+    corps.querySelectorAll('[data-reinit]').forEach(btn => btn.addEventListener('click', async ()=>{
+      const email = btn.dataset.reinit;
+      if(!email){ alert("Ce compte n'a pas d'adresse email enregistrée."); return; }
+      if(!confirm(`Envoyer à ${btn.dataset.nom} un email pour choisir un nouveau mot de passe ?\n\nIl partira à ${email}.`)) return;
+      btn.disabled = true;
+      const { error } = await CurieuxDB.reinitialiserMotDePasseAcces(email);
+      btn.disabled = false;
+      alert(error ? "L'envoi a échoué : " + error.message
+                  : `Email envoyé à ${email}.`);
+    }));
 
     corps.querySelectorAll('[data-delier]').forEach(btn => btn.addEventListener('click', async ()=>{
       const nom = btn.dataset.nom;
@@ -838,6 +859,14 @@ async function loadCorbeille(){
 function renderCorbeille(){
   const list = document.getElementById('corbeilleList');
   const empty = document.getElementById('corbeilleEmpty');
+  const compteur = document.getElementById('corbeilleCompteur');
+  // Le compte dans le titre évite d'ouvrir le bloc pour rien : la corbeille
+  // est presque toujours vide et prenait la moitié de l'écran.
+  if(compteur){
+    compteur.textContent = corbeilleCache.length === 0
+      ? '— rien à restaurer'
+      : `— ${corbeilleCache.length} élément${corbeilleCache.length > 1 ? 's' : ''} restaurable${corbeilleCache.length > 1 ? 's' : ''}`;
+  }
   if(corbeilleCache.length === 0){
     list.innerHTML = '';
     empty.textContent = 'Rien à restaurer — aucune suppression récente.';
