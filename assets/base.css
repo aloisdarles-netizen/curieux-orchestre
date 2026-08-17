@@ -332,70 +332,6 @@ input[pattern]:not(:placeholder-shown):invalid + .champ-repere{ display:block; }
   table.grid-table tr td:last-child{ border-bottom:none; }
 }
 
-/* ============================================================================
-   Le même repli, pour les deux grilles de la refonte.
-
-   Les règles ci-dessus visent des <table>. En portant la matrice sur .co-matrix
-   et les dates de tournée sur .date-row, je leur ai fait perdre d'un coup tout
-   leur comportement mobile : elles imposaient un défilement horizontal de
-   1 000 px sur un téléphone, ce qui rendait ces deux écrans inutilisables.
-
-   Le principe reste celui d'au-dessus : une carte par personne ou par date, un
-   libellé par ligne, plus aucun défilement latéral. L'attribut data-jour porte
-   la date de chaque case, restituée en ::before puisque l'en-tête de colonnes
-   disparaît.
-   ============================================================================ */
-@media (max-width:760px){
-  /* --- Matrice (vue d'ensemble, disponibilités) --- */
-  .co-matrix{ overflow-x:visible; border:none; background:transparent; border-radius:0; }
-  .co-matrix-in{ min-width:0; }
-  .co-matrix-head{ display:none; }
-  .co-matrix-row{
-    display:block; background:var(--card); border:1px solid var(--border);
-    border-radius:var(--radius); margin-bottom:12px; overflow:hidden;
-  }
-  .co-matrix-name{
-    position:static; width:auto; padding:11px 14px 9px;
-    border-right:none; border-bottom:1px solid var(--border); background:var(--bg);
-  }
-  .co-matrix-cell{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-    width:auto; padding:7px 14px; border-right:none;
-    border-bottom:1px solid var(--border);
-    background:transparent !important;   /* la couleur de tournée passe sur la pastille */
-  }
-  .co-matrix-row .co-matrix-cell:last-child{ border-bottom:none; }
-  .co-matrix-cell::before{
-    content:attr(data-jour);
-    font-size:12.5px; color:var(--muted); font-weight:600;
-    white-space:nowrap; flex:1 1 auto; min-width:0;
-  }
-  .co-matrix-cell > *{ flex:0 0 auto; }
-
-  /* --- Dates d'une tournée ---
-     !important sur les deux règles qui perdraient sinon : tournees.html déclare
-     .dates-rows et .col-lieu à une classe, dans son propre <style> chargé après
-     ce socle. Les autres passent sans, .co-row.date-row et .co-rows-head.date-row
-     étant à deux classes. Portée strictement limitée à cette media query. */
-  .dates-rows{ overflow-x:visible !important; }
-  .co-rows-head.date-row{ display:none; }
-  .co-row.date-row{
-    display:block; min-width:0; background:var(--card);
-    border:1px solid var(--border); border-radius:var(--radius);
-    margin-bottom:12px; padding:4px 0 8px;
-  }
-  .co-row.date-row > span{
-    display:flex; align-items:center; flex-wrap:wrap; gap:8px;
-    padding:8px 14px; border-bottom:1px solid var(--border);
-  }
-  .co-row.date-row > span:last-child{ border-bottom:none; }
-  .co-row.date-row > span:empty{ display:none; }
-  .col-lieu{ flex-direction:column; align-items:stretch !important; }
-  .col-lieu .sep{ display:none; }
-  .col-lieu .saisie-ville, .col-lieu .saisie-lieu{ width:100%; flex:none; }
-  /* Le filet de bloc passe du bord gauche de la ligne à celui de la carte. */
-  .co-row.date-row.bloc-row{ padding-left:0; border-left-width:4px; }
-}
 
 /* ============================================================================
    REFONTE 2026 — couche de composants partagée (préfixe « co- »).
@@ -806,4 +742,73 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
 :root[data-theme="dark"] .co-stats-charte > *:nth-child(5n+5){ background:#7e2a0c; }
 @media (prefers-reduced-motion: reduce){
   .co-stats-charte > *, .co-stats-charte > a:hover{ transform:none; transition:none; }
+}
+
+/* ============================================================================
+   Repli mobile des deux grilles de la refonte.
+
+   Ce bloc est en fin de fichier, et il doit y rester : ses règles et celles
+   qu'elles corrigent sont toutes à une seule classe, donc à spécificité égale.
+   Placé plus haut — ce qu'il était — il perdait contre les définitions de
+   .co-matrix déclarées après lui, et le repli ne s'appliquait qu'à moitié :
+   l'en-tête de colonnes restait affiché et les cases se chevauchaient.
+
+   Le principe est celui du repli des tableaux plus haut : une carte par
+   personne ou par date, un libellé par ligne, plus aucun défilement latéral.
+   L'attribut data-jour porte la date de chaque case, restituée en ::before
+   puisque l'en-tête de colonnes disparaît.
+   ============================================================================ */
+@media (max-width:760px){
+  /* --- Matrice (vue d'ensemble, disponibilités) --- */
+  .co-matrix{ overflow-x:visible; border:none; background:transparent; border-radius:0; }
+  .co-matrix-in{ min-width:0; }
+  /* Deux classes, et non .co-matrix-head seule : l'en-tête porte aussi
+     .co-matrix-row, dont le display:block ci-dessous l'emporterait sinon —
+     elles sont à égalité de spécificité et il est déclaré après. */
+  .co-matrix-row.co-matrix-head{ display:none; }
+  .co-matrix-row{
+    display:block; background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius); margin-bottom:12px; overflow:hidden;
+  }
+  .co-matrix-name{
+    position:static; width:auto; padding:11px 14px 9px;
+    border-right:none; border-bottom:1px solid var(--border); background:var(--bg);
+  }
+  .co-matrix-cell{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    width:auto; padding:7px 14px; border-right:none;
+    border-bottom:1px solid var(--border);
+    background:transparent !important;   /* la couleur de tournée passe sur la pastille */
+  }
+  .co-matrix-row .co-matrix-cell:last-child{ border-bottom:none; }
+  .co-matrix-cell::before{
+    content:attr(data-jour);
+    font-size:12.5px; color:var(--muted); font-weight:600;
+    white-space:nowrap; flex:1 1 auto; min-width:0;
+  }
+  .co-matrix-cell > *{ flex:0 0 auto; }
+
+  /* --- Dates d'une tournée ---
+     !important sur les deux règles qui perdraient sinon : tournees.html déclare
+     .dates-rows et .col-lieu à une classe, dans son propre <style> chargé après
+     ce socle. Les autres passent sans, .co-row.date-row et .co-rows-head.date-row
+     étant à deux classes. Portée strictement limitée à cette media query. */
+  .dates-rows{ overflow-x:visible !important; }
+  .co-rows-head.date-row{ display:none; }
+  .co-row.date-row{
+    display:block; min-width:0; background:var(--card);
+    border:1px solid var(--border); border-radius:var(--radius);
+    margin-bottom:12px; padding:4px 0 8px;
+  }
+  .co-row.date-row > span{
+    display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+    padding:8px 14px; border-bottom:1px solid var(--border);
+  }
+  .co-row.date-row > span:last-child{ border-bottom:none; }
+  .co-row.date-row > span:empty{ display:none; }
+  .col-lieu{ flex-direction:column; align-items:stretch !important; }
+  .col-lieu .sep{ display:none; }
+  .col-lieu .saisie-ville, .col-lieu .saisie-lieu{ width:100%; flex:none; }
+  /* Le filet de bloc passe du bord gauche de la ligne à celui de la carte. */
+  .co-row.date-row.bloc-row{ padding-left:0; border-left-width:4px; }
 }

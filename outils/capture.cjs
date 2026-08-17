@@ -86,10 +86,12 @@ const CurieuxDB = new Proxy({
   mesDemandesDispo: async () => null,
   getFicheTechniqueByToken: async () => null,
 }, {
-  // Toute méthode non prévue renvoie un résultat vide plutôt que de lever :
-  // les pages en appellent une bonne trentaine, les énumérer serait autant
-  // d'occasions d'en oublier une et de capturer un écran d'erreur.
-  get: (c, p) => p in c ? c[p] : async () => null,
+  // Toute méthode non prévue renvoie une liste vide plutôt que de lever : les
+  // pages en appellent une bonne trentaine, les énumérer serait autant
+  // d'occasions d'en oublier une et de capturer un écran d'erreur. La liste
+  // vide plutôt que null, car la plupart de ces méthodes rendent des
+  // collections et les appelants enchaînent aussitôt sur .length ou .map.
+  get: (c, p) => p in c ? c[p] : async () => [],
 });
 window.CurieuxDB = CurieuxDB;
 `,
@@ -118,10 +120,21 @@ window.CurieuxDB = CurieuxDB;
         }
         return false;
       };
+      // La chaîne d'ancêtres, pas seulement la balise : « SPAN. » ne dit rien,
+      // « div.legend > span > svg » désigne le fautif du premier coup d'œil.
+      const chaine = e => {
+        const c = [];
+        for (let a = e; a && a !== document.body; a = a.parentElement) {
+          const cls = typeof a.className === 'string' && a.className.trim()
+            ? '.' + a.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
+          c.unshift(a.tagName.toLowerCase() + cls);
+        }
+        return c.slice(-3).join(' > ');
+      };
       return { defile, largeurDoc, largeurVue: innerWidth,
         coupables: [...document.querySelectorAll('body *')]
           .filter(e => e.getBoundingClientRect().right > innerWidth + 2 && !clippe(e))
-          .slice(0, 4).map(e => (e.tagName + '.' + [...e.classList].slice(0,2).join('.')).slice(0, 48)) };
+          .slice(0, 3).map(e => `${chaine(e)} (→${Math.round(e.getBoundingClientRect().right)}px)`) };
     });
     const f = `${OUT}/${nom}-${format}.png`;
     await page.screenshot({ path:f, fullPage:true });
