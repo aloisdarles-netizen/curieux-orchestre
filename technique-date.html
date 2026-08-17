@@ -28,17 +28,19 @@
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
   }
-  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-secondary:hover{background:#a8c9e6;}
-  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
-  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
-  .btn-danger:hover{background:var(--secondary-tint);}
-  .btn-sm{padding:7px 11px; font-size:12px;}
+  /* Les cinq règles de bouton qui vivaient ici sont parties : le markup emploie
+     désormais .co-btn de base.css, qui les rendait mortes. */
 
+  /* Champs au gabarit de la charte, appliqué à la balise plutôt qu'à une
+     classe : cet écran compte vingt-huit champs, les marquer un par un aurait
+     été vingt-huit occasions d'en oublier un. Les valeurs sont celles de
+     .co-input — le rayon passe de 6 à 8 px et le fond du blanc de carte au fond
+     de page, comme partout ailleurs dans la maquette. */
   input[type=text], input[type=email], input[type=tel], input[type=number], input[type=time], input[type=url], input[type=file], select, textarea{
-    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%;
-    background:var(--card); color:var(--text); font-family:inherit;
+    padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:13px; width:100%;
+    background:var(--bg); color:var(--text); font-family:var(--font-body); outline:none;
   }
+  input:focus, select:focus, textarea:focus{border-color:var(--accent);}
   textarea{min-height:56px; resize:vertical;}
   label.chk{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--text); font-weight:400; cursor:pointer; margin:0;}
   label.chk input{width:18px; height:18px; accent-color:var(--accent);}
@@ -104,10 +106,13 @@
   .pin.note .pin-pointe{border-top-color:#F5C518;}
   .plan-outils{display:flex; gap:8px; margin-bottom:10px;}
 
-  .fixed-save{position:sticky; bottom:0; left:0; right:0; background:var(--bg); border-top:1px solid var(--border); padding:12px 0; margin-top:8px; display:flex; gap:10px; align-items:center; justify-content:flex-end;}
-  #saveStatus{font-size:12.5px; color:var(--muted); margin-right:auto;}
+  /* La barre d'enregistrement vient de base.css (.co-savebar) : elle était
+     redéfinie ici alors que la charte la fournit, et son statut se poussait à
+     gauche par un margin-right:auto au lieu du flex:1 prévu. */
+  .co-savebar{justify-content:flex-end;}
 
-  @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
+  /* Le confort de saisie sur téléphone (16 px minimum, sinon iOS zoome) est
+     déjà traité pour toutes les pages dans base.css. */
 </style>
 </head>
 <body>
@@ -301,10 +306,10 @@
   <div class="field"><label for="fNotes">Notes libres</label><textarea id="fNotes"></textarea></div>
 </div>
 
-<div class="fixed-save">
+<div class="co-savebar">
   <div class="wrap" style="display:flex; align-items:center; gap:10px; padding:0 16px;">
-    <span id="saveStatus"></span>
-    <button type="button" class="co-btn secondary" id="saveBtn">Enregistrer</button>
+    <span class="co-savebar-status" id="saveStatus"></span>
+    <button type="button" class="co-btn primary" id="saveBtn">Enregistrer</button>
   </div>
 </div>
 
