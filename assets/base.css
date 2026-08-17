@@ -185,19 +185,25 @@ label{font-size:12px; color:var(--muted); font-weight:600;}
    sans corbeille pour rattraper une frappe de travers.
    ============================================================================ */
 @media (max-width:820px){
-  /* 44 px est le seuil de confort recommandé par Apple comme par Google. */
-  button, .btn-sm, .btn-ghost, .btn-secondary, .btn-primary, .btn-danger,
-  a.btn-sm, a.btn-ghost, a.btn-secondary{
+  /* 44 px est le seuil de confort recommandé par Apple comme par Google.
+     .co-btn et ses variantes sont visées explicitement : la liste ne nommait
+     que les anciennes classes .btn-*, si bien qu'au passage à la charte tous
+     les boutons du site ont perdu d'un coup leur cible tactile. */
+  button, a.co-btn, .co-btn, .btn-sm, .btn-ghost, .btn-secondary, .btn-primary,
+  .btn-danger, a.btn-sm, a.btn-ghost, a.btn-secondary{
     min-height:44px;
   }
-  button, a.btn-sm, a.btn-ghost{
+  button, a.co-btn, a.btn-sm, a.btn-ghost{
     display:inline-flex; align-items:center; justify-content:center;
   }
+  /* Le format compact reste compact à l'œil — rembourrage et corps inchangés —
+     mais gagne la hauteur nécessaire au pouce. */
+  .co-btn.sm, .co-btn.md{ padding-top:0; padding-bottom:0; }
   /* Une action destructrice ne doit pas être collée à une action anodine :
      on l'écarte franchement. Un margin-left:auto la collerait au bord droit,
      donc sous le bouton flottant « Un retour ? » — c'est un écart fixe qu'il
      faut ici, pas un alignement en fin de ligne. */
-  .btn-danger, [data-delete-link], [data-delete], .remove-account-btn{
+  .co-btn.danger, .btn-danger, [data-delete-link], [data-delete], .remove-account-btn{
     min-width:44px;
     margin-left:18px;
   }
@@ -324,6 +330,71 @@ input[pattern]:not(:placeholder-shown):invalid + .champ-repere{ display:block; }
     border-bottom:1px solid var(--border);
   }
   table.grid-table tr td:last-child{ border-bottom:none; }
+}
+
+/* ============================================================================
+   Le même repli, pour les deux grilles de la refonte.
+
+   Les règles ci-dessus visent des <table>. En portant la matrice sur .co-matrix
+   et les dates de tournée sur .date-row, je leur ai fait perdre d'un coup tout
+   leur comportement mobile : elles imposaient un défilement horizontal de
+   1 000 px sur un téléphone, ce qui rendait ces deux écrans inutilisables.
+
+   Le principe reste celui d'au-dessus : une carte par personne ou par date, un
+   libellé par ligne, plus aucun défilement latéral. L'attribut data-jour porte
+   la date de chaque case, restituée en ::before puisque l'en-tête de colonnes
+   disparaît.
+   ============================================================================ */
+@media (max-width:760px){
+  /* --- Matrice (vue d'ensemble, disponibilités) --- */
+  .co-matrix{ overflow-x:visible; border:none; background:transparent; border-radius:0; }
+  .co-matrix-in{ min-width:0; }
+  .co-matrix-head{ display:none; }
+  .co-matrix-row{
+    display:block; background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius); margin-bottom:12px; overflow:hidden;
+  }
+  .co-matrix-name{
+    position:static; width:auto; padding:11px 14px 9px;
+    border-right:none; border-bottom:1px solid var(--border); background:var(--bg);
+  }
+  .co-matrix-cell{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    width:auto; padding:7px 14px; border-right:none;
+    border-bottom:1px solid var(--border);
+    background:transparent !important;   /* la couleur de tournée passe sur la pastille */
+  }
+  .co-matrix-row .co-matrix-cell:last-child{ border-bottom:none; }
+  .co-matrix-cell::before{
+    content:attr(data-jour);
+    font-size:12.5px; color:var(--muted); font-weight:600;
+    white-space:nowrap; flex:1 1 auto; min-width:0;
+  }
+  .co-matrix-cell > *{ flex:0 0 auto; }
+
+  /* --- Dates d'une tournée ---
+     !important sur les deux règles qui perdraient sinon : tournees.html déclare
+     .dates-rows et .col-lieu à une classe, dans son propre <style> chargé après
+     ce socle. Les autres passent sans, .co-row.date-row et .co-rows-head.date-row
+     étant à deux classes. Portée strictement limitée à cette media query. */
+  .dates-rows{ overflow-x:visible !important; }
+  .co-rows-head.date-row{ display:none; }
+  .co-row.date-row{
+    display:block; min-width:0; background:var(--card);
+    border:1px solid var(--border); border-radius:var(--radius);
+    margin-bottom:12px; padding:4px 0 8px;
+  }
+  .co-row.date-row > span{
+    display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+    padding:8px 14px; border-bottom:1px solid var(--border);
+  }
+  .co-row.date-row > span:last-child{ border-bottom:none; }
+  .co-row.date-row > span:empty{ display:none; }
+  .col-lieu{ flex-direction:column; align-items:stretch !important; }
+  .col-lieu .sep{ display:none; }
+  .col-lieu .saisie-ville, .col-lieu .saisie-lieu{ width:100%; flex:none; }
+  /* Le filet de bloc passe du bord gauche de la ligne à celui de la carte. */
+  .co-row.date-row.bloc-row{ padding-left:0; border-left-width:4px; }
 }
 
 /* ============================================================================
