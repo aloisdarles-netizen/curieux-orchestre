@@ -55,10 +55,15 @@ insert into vehicules (id, nom, type, immatriculation, hayon) values
   ('demo-veh-03', 'Sprinter', 'camion', 'IJ-789-KL', false);
 
 -- --- Chauffeurs ------------------------------------------------------------
-insert into chauffeurs (id, prenom, nom, permis, telephone, email) values
-  ('demo-chauf-01', 'Karim', 'Haddad', 'SPL', '06 42 61 82 100', 'karim.haddad@mail.com'),
-  ('demo-chauf-02', 'Paul', 'Renault', 'SPL', '06 43 62 83 101', 'paul.renault@mail.com'),
-  ('demo-chauf-03', 'Nadia', 'Benali', 'VL', '06 44 63 84 102', 'nadia.benali@mail.com');
+-- La maquette donne un permis par chauffeur (SPL, SPL, VL), mais la colonne
+-- n'existe plus : migrations.sql la retire (« le permis ne sert pas ») après
+-- l'avoir créée. Le create table plus haut dans ce même fichier la montre
+-- encore — c'est un journal cumulatif, seul le dernier état fait foi.
+-- L'information est reportée en notes pour ne pas la perdre.
+insert into chauffeurs (id, prenom, nom, telephone, email, notes) values
+  ('demo-chauf-01', 'Karim', 'Haddad', '06 42 61 82 100', 'karim.haddad@mail.com', 'Permis SPL'),
+  ('demo-chauf-02', 'Paul', 'Renault', '06 43 62 83 101', 'paul.renault@mail.com', 'Permis SPL'),
+  ('demo-chauf-03', 'Nadia', 'Benali', '06 44 63 84 102', 'nadia.benali@mail.com', 'Permis VL');
 
 commit;
 
