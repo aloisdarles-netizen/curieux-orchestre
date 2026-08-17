@@ -24,6 +24,18 @@ const MUS = [
   disponibilites:{'2027-01-22':'dispo','2027-03-12':'dispo','2027-03-15':'indispo','2027-03-18':'incertain'},
 }));
 
+// Deux remplaçant·es, disponibles là où des titulaires manquent : sans eux, la
+// section « Remplaçant·es proposé·es » du panneau d'affectation ne peut pas
+// s'afficher, et une capture ne dirait rien de ce qu'elle vaut.
+MUS.push(
+  { id:'demo-mus-15', prenom:'Camille', nom:'Durand', instrument:'Violon', pupitre:'Cordes',
+    statutPoste:'remplacant', rang:1, telephone:'06 26 45 66 84', email:'camille@mail.com',
+    disponibilites:{'2027-03-15':'dispo','2027-03-13':'dispo'} },
+  { id:'demo-mus-16', prenom:'Jules', nom:'Moreau', instrument:'Violoncelle', pupitre:'Cordes',
+    statutPoste:'remplacant', rang:2, telephone:'06 27 46 67 85', email:'jules@mail.com',
+    disponibilites:{'2027-03-15':'dispo'} },
+);
+
 const DATES = [
   ['2027-01-22','Paris','Studio Ferber — répétitions','validee','Amener les conducteurs v2'],
   ['2027-03-12','Lyon','Salle 3000','validee',''],
@@ -104,6 +116,14 @@ window.CurieuxDB = CurieuxDB;
     page.on('console', m => { if (m.type() === 'error') erreurs.push(m.text().slice(0, 160)); });
     await page.goto(`${BASE}/${nom}.html`, { waitUntil:'networkidle', timeout:20000 }).catch(()=>{});
     await page.waitForTimeout(900);
+    // Quatrième argument : un sélecteur à cliquer avant la capture. Sans lui,
+    // les panneaux et fenêtres qui ne s'ouvrent qu'au clic — l'affectation, les
+    // liens de dispo — resteraient invisibles à la relecture.
+    if (process.argv[4]) {
+      const cible = await page.$(process.argv[4]);
+      if (cible) { await cible.click(); await page.waitForTimeout(700); }
+      else console.log(`  (rien à cliquer pour « ${process.argv[4]} »)`);
+    }
     await page.evaluate(() => { document.documentElement.style.visibility = 'visible'; document.body.style.visibility = 'visible'; });
 
     // Un défilement horizontal sur téléphone est un défaut en soi : on le mesure.
