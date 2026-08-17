@@ -361,13 +361,33 @@ function renderDashboard(){
     }
   ];
 
-  holder.innerHTML = cards.map(c=> `
-    <a class="kpi-card" href="${c.href}">
-      <div class="kpi-icon">${c.icon}</div>
-      <div class="kpi-value ${c.valueClass||''}">${c.value}</div>
-      <div class="kpi-label">${c.label}</div>
+  // Les chiffres clés en étiquettes de charte, comme la maquette : un aplat
+  // plein par tuile, le nombre en police d'affichage, le libellé dessous, et
+  // une légère inclinaison alternée qui donne l'effet « collé à la main ».
+  // Pas d'icône : dans la maquette c'est le chiffre qui porte la tuile.
+  //
+  // Les six couleurs tournent dans l'ordre de la charte. L'encre est portée par
+  // la tuile et non par le chiffre — sur un aplat prune ou orange, un chiffre
+  // en vert d'alerte devenait illisible, c'est pourquoi valueClass ne sert plus
+  // à colorer mais seulement à choisir entre aplat calme et aplat d'alerte.
+  const APLATS = [
+    { fond:'var(--prune)',          encre:'var(--blanc)' },
+    { fond:'var(--bleu)',           encre:'var(--noir)'  },
+    { fond:'var(--noir)',           encre:'var(--blanc)' },
+    { fond:'var(--rose-spectacle)', encre:'var(--noir)'  },
+    { fond:'var(--orange)',         encre:'var(--blanc)' },
+    { fond:'var(--bleu)',           encre:'var(--noir)'  },
+  ];
+  const TILTS = ['-1.4deg', '.9deg', '-.5deg', '1.2deg', '-1deg', '.6deg'];
+  holder.innerHTML = cards.map((c, i)=> {
+    const a = APLATS[i % APLATS.length];
+    return `
+    <a class="co-stat" href="${c.href}"
+       style="--co-tilt:${TILTS[i % TILTS.length]}; background:${a.fond}; color:${a.encre};">
+      <div class="co-stat-num">${c.value}</div>
+      <div class="co-stat-label">${c.label}</div>
     </a>
-  `).join('');
+  `;}).join('');
 }
 document.getElementById('musicienStatutFilter').addEventListener('change', renderAll);
 document.getElementById('showPastDates').addEventListener('change', e=>{ showPastDates = e.target.checked; renderAll(); });
