@@ -185,18 +185,53 @@
   }
   .modal h2{font-size:16px; margin:0 0 4px;}
   .modal .modal-sub{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
-  .assign-row{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding:8px 4px; border-bottom:1px solid var(--border); font-size:13.5px;
+  /* Panneau d'affectation : une tuile cliquable par personne, à la place des
+     lignes à cocher. L'état se lit dans la marque (✓ affecté·e, + affectable,
+     ✕ indisponible donc non affectable, ? dispo à renseigner) et le point de
+     couleur reprend le code de la grille des dispos. */
+  .aff-legende{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent); margin:12px 0 6px;
   }
-  .assign-row:last-child{border-bottom:none;}
-  .assign-row label{display:flex; align-items:center; gap:8px; cursor:pointer;}
-  .assign-row input[type=checkbox]{width:16px; height:16px;}
+  .aff-legende:first-child{margin-top:6px;}
+  .aff-legende.aff-remplacants{color:var(--ko);}
+  .aff-grille{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:7px;}
+  .aff-grille.aff-remplacants{grid-template-columns:repeat(auto-fill, minmax(230px, 1fr));}
+  .aff-tuile{
+    display:flex; align-items:center; gap:10px; text-align:left; cursor:pointer;
+    font-family:inherit; padding:8px 12px; border-radius:var(--radius);
+    border:1px solid var(--border); background:var(--card); color:var(--text); width:100%;
+  }
+  .aff-tuile.remplacant{border-style:dashed;}
+  .aff-tuile:hover{border-color:var(--accent);}
+  .aff-tuile.affecte{background:var(--accent-solid); border-color:var(--accent-solid); color:#fff;}
+  .aff-tuile.affecte:hover{filter:brightness(1.08);}
+  /* Indisponible : la tuile est éteinte et le curseur dit qu'on ne peut pas. */
+  .aff-tuile.bloque{opacity:.5; cursor:not-allowed;}
+  .aff-tuile.bloque:hover{border-color:var(--border);}
+  .aff-marque{
+    width:20px; height:20px; border-radius:6px; flex:0 0 20px; display:grid; place-items:center;
+    font-size:13px; font-weight:800; border:1px solid var(--border); background:rgba(252,242,240,.2);
+  }
+  .aff-tuile.affecte .aff-marque{border-color:rgba(255,255,255,.5);}
+  .aff-corps{flex:1; min-width:0;}
+  .aff-nom{display:block; font-size:13px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .aff-sous{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted);}
+  .aff-tuile.affecte .aff-sous{color:rgba(255,255,255,.78);}
+  .aff-point{width:8px; height:8px; border-radius:50%; flex:0 0 8px;}
+  .aff-dispo{text-decoration:underline;}
+  .aff-pour{
+    display:inline-block; margin-top:3px; font-size:11px; font-weight:800;
+    padding:2px 8px; border-radius:999px; background:var(--ko-tint); color:var(--ko);
+  }
+  .aff-tuile.affecte .aff-pour{background:rgba(255,255,255,.22); color:#fff;}
+
+  /* Les règles .assign-row de l'ancienne liste à cocher sont parties avec
+     elle : le panneau ne rend plus que des tuiles. */
   .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
   @media (max-width:600px){
     input, select, textarea{ font-size:16px !important; }
     [data-toggle-link], [data-toggle-chips]{ padding:7px 10px !important; font-size:12px !important; }
-    .assign-row input[type=checkbox]{ width:20px; height:20px; }
   }
 </style>
 </head>
@@ -635,68 +670,114 @@ function contradictionBadge(noms){
   return `<span class="chip" style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;" title="${escapeAttr(liste)} — affecté·e${noms.length>1?'s':''} alors qu'iel${noms.length>1?'s se sont':' s\'est'} déclaré·e${noms.length>1?'s':''} indisponible${noms.length>1?'s':''} sur cette date">\u26A0 ${noms.length} indisponible${noms.length>1?'s':''} affecté·e${noms.length>1?'s':''}</span>`;
 }
 
+function familleInstrument(instrument){
+  return (instrument || '').split(' ')[0].toLowerCase();
+}
+
+// Dispos posées à la main dans le panneau, en attente d'enregistrement.
+let assignDisposEnAttente = {};
+
+function dispoDe(personne){
+  if(assignDisposEnAttente[personne.id]) return assignDisposEnAttente[personne.id];
+  return (personne.disponibilites || {})[assignDateIso] || '';
+}
+
+const DISPO_LIBELLE = {
+  '': 'dispo non renseignée', dispo: 'disponible',
+  indispo: 'indisponible', incertain: 'à confirmer',
+};
+const DISPO_POINT = {
+  '': 'var(--border)', dispo: 'var(--ok)',
+  indispo: 'var(--ko)', incertain: 'var(--maybe)',
+};
+
+// Une tuile de personne. `pour` porte le·la titulaire remplacé·e, le cas échéant.
+function tuileAffectation(personne, role, selection, conflicts, pour){
+  const dispo = dispoDe(personne);
+  const affecte = selection.has(personne.id);
+  const bloque = !affecte && dispo === 'indispo';
+  const sansDispo = !affecte && dispo === '';
+  const metier = role === 'musicien' ? (personne.instrument || 'Musicien·ne') : (personne.poste || 'Technicien·ne');
+
+  const marque = affecte ? '✓' : bloque ? '✕' : sansDispo ? '?' : '+';
+  const titre = affecte ? 'Affecté·e — clique pour retirer'
+    : bloque ? 'Indisponible à cette date — affectation impossible'
+    : sansDispo ? 'Dispo non renseignée — clique pour ajouter une dispo à la main, puis affecter'
+    : 'Non affecté·e — ' + DISPO_LIBELLE[dispo] + ' à cette date. Clique pour affecter.';
+
+  return `
+    <button type="button" class="aff-tuile${affecte ? ' affecte' : ''}${bloque ? ' bloque' : ''}${pour ? ' remplacant' : ''}"
+      data-aff-role="${role}" data-aff-id="${escapeAttr(personne.id)}"
+      data-aff-etat="${bloque ? 'bloque' : sansDispo ? 'sans-dispo' : 'ok'}"
+      ${bloque ? 'aria-disabled="true"' : ''}
+      title="${escapeAttr(titre)}">
+      <span class="aff-marque">${marque}</span>
+      <span class="aff-corps">
+        <span class="aff-nom">${escapeHtml(fullName(personne))}</span>
+        <span class="aff-sous">
+          <span class="aff-point" style="background:${DISPO_POINT[dispo]};"></span>
+          ${escapeHtml(metier)} ·
+          <span class="aff-dispo" data-aff-suivi="1" title="Ouvrir le suivi des demandes de dispo">${escapeHtml(DISPO_LIBELLE[dispo])}</span>
+        </span>
+        ${pour ? `<span class="aff-pour">↔ remplace ${escapeHtml(pour)}</span>` : ''}
+        ${conflictBadge(conflicts, personne.id)}
+      </span>
+    </button>
+  `;
+}
+
 function renderAssignList(search){
   const q = (search || '').toLowerCase().trim();
   const listEl = document.getElementById('assignList');
   const conflicts = computeDoubleBookings(assignDateIso, assignContext.tourneeId, assignContext.dateId);
 
-  const musiciansFiltered = assignMusicians.filter(m=>{
-    if(!q) return true;
-    return [m.prenom, m.nom, m.instrument, m.pupitre].filter(Boolean).join(' ').toLowerCase().includes(q);
-  });
-  const techniciansFiltered = assignTechnicians.filter(m=>{
-    if(!q) return true;
-    return [m.prenom, m.nom, m.poste, m.pole].filter(Boolean).join(' ').toLowerCase().includes(q);
-  });
+  const correspond = (p, champs)=> !q || champs.filter(Boolean).join(' ').toLowerCase().includes(q);
 
-  const musicianRows = assignMusicians.length === 0
-    ? `<div class="empty-hint">Aucun·e musicien·ne dans l'<a href="annuaire.html">annuaire</a> pour l'instant.</div>`
-    : musiciansFiltered.length === 0
-    ? `<div class="empty-hint">Aucun résultat.</div>`
-    : musiciansFiltered.map(m=>{
-        const state = (m.disponibilites || {})[assignDateIso] || '';
-        const stateLabel = state === 'dispo' ? 'Disponible' : state === 'indispo' ? 'Indisponible' : state === 'incertain' ? 'À confirmer' : 'Non renseigné';
-        const chipClass = state || 'none';
-        return `
-          <div class="assign-row">
-            <label>
-              <input type="checkbox" data-role="musicien" value="${m.id}" ${assignSelectedM.has(m.id) ? 'checked' : ''}>
-              ${escapeHtml(fullName(m))} <span style="color:var(--muted); font-weight:400;">— ${escapeHtml(m.instrument || '')}</span>
-            </label>
-            ${conflictBadge(conflicts, m.id)}
-            <span class="chip ${chipClass}">${stateLabel}</span>
-          </div>
-        `;
-      }).join('');
+  const titulaires = assignMusicians.filter(m=> (m.statutPoste || 'titulaire') === 'titulaire');
+  const remplacants = assignMusicians.filter(m=> (m.statutPoste || 'titulaire') === 'remplacant');
 
-  const technicianRows = assignTechnicians.length === 0
-    ? `<div class="empty-hint">Aucun·e technicien·ne dans l'<a href="techniciens.html">annuaire technicien·nes</a> pour l'instant.</div>`
-    : techniciansFiltered.length === 0
-    ? `<div class="empty-hint">Aucun résultat.</div>`
-    : techniciansFiltered.map(m=>`
-        <div class="assign-row">
-          <label>
-            <input type="checkbox" data-role="technicien" value="${m.id}" ${assignSelectedT.has(m.id) ? 'checked' : ''}>
-            ${escapeHtml(fullName(m))} <span style="color:var(--muted); font-weight:400;">— ${escapeHtml(m.poste || '')}</span>
-          </label>
-          ${conflictBadge(conflicts, m.id)}
-        </div>
-      `).join('');
+  // Remplaçant·es proposé·es : celles et ceux dont la famille d'instrument
+  // correspond à un·e titulaire indisponible sur cette date. Sans ça, il fallait
+  // savoir de tête qui remplace qui.
+  const indisponibles = titulaires.filter(m=> dispoDe(m) === 'indispo');
+  const proposes = remplacants.map(r=>{
+    const pour = indisponibles.filter(t=> familleInstrument(t.instrument) === familleInstrument(r.instrument));
+    return pour.length ? { personne:r, pour: pour.map(fullName).join(', ') } : null;
+  }).filter(Boolean);
+  const idsProposes = new Set(proposes.map(x=> x.personne.id));
 
-  listEl.innerHTML = `
-    <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:14px 0 6px;">Musicien·nes (${assignSelectedM.size} sélectionné·e${assignSelectedM.size>1?'s':''})</h3>
-    ${musicianRows}
-    <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:14px 0 6px;">Technicien·nes (${assignSelectedT.size} sélectionné·e${assignSelectedT.size>1?'s':''})</h3>
-    ${technicianRows}
-  `;
+  const musiciensAffichables = [
+    ...titulaires,
+    ...remplacants.filter(r=> !idsProposes.has(r.id)),
+  ].filter(m=> correspond(m, [m.prenom, m.nom, m.instrument, m.pupitre]));
 
-  listEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
-    cb.addEventListener('change', ()=>{
-      const set = cb.dataset.role === 'musicien' ? assignSelectedM : assignSelectedT;
-      if(cb.checked) set.add(cb.value); else set.delete(cb.value);
-    });
-  });
+  const techniciensAffichables = assignTechnicians
+    .filter(t=> correspond(t, [t.prenom, t.nom, t.poste, t.pole]));
+
+  const proposesAffichables = proposes
+    .filter(x=> correspond(x.personne, [x.personne.prenom, x.personne.nom, x.personne.instrument]));
+
+  const bloc = (titre, contenu, classe)=> contenu
+    ? `<div class="aff-legende${classe ? ' ' + classe : ''}">${titre}</div><div class="aff-grille${classe ? ' ' + classe : ''}">${contenu}</div>`
+    : '';
+
+  listEl.innerHTML = [
+    assignMusicians.length === 0
+      ? `<div class="empty-hint">Aucun·e musicien·ne dans l'<a href="annuaire.html">annuaire</a> pour l'instant.</div>`
+      : bloc('Musicien·nes',
+          musiciensAffichables.map(m=> tuileAffectation(m, 'musicien', assignSelectedM, conflicts, null)).join('')
+          || `<div class="empty-hint">Aucun résultat.</div>`),
+    bloc('Remplaçant·es proposé·es — titulaires indisponibles',
+      proposesAffichables.map(x=> tuileAffectation(x.personne, 'musicien', assignSelectedM, conflicts, x.pour)).join(''),
+      'aff-remplacants'),
+    assignTechnicians.length === 0
+      ? `<div class="empty-hint">Aucun·e technicien·ne dans l'<a href="techniciens.html">annuaire technicien·nes</a> pour l'instant.</div>`
+      : bloc('Technicien·nes',
+          techniciensAffichables.map(t=> tuileAffectation(t, 'technicien', assignSelectedT, conflicts, null)).join('')
+          || `<div class="empty-hint">Aucun résultat.</div>`),
+  ].join('');
 }
+
 function closeAssignModal(){
   document.getElementById('assignOverlay').classList.remove('open');
   assignContext = null;
@@ -705,6 +786,31 @@ function closeAssignModal(){
 document.getElementById('assignCancel').addEventListener('click', closeAssignModal);
 document.getElementById('assignOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'assignOverlay') closeAssignModal(); });
 document.getElementById('assignSearch').addEventListener('input', (e)=> renderAssignList(e.target.value));
+document.getElementById('assignList').addEventListener('click', (e)=>{
+  if(e.target.closest('[data-aff-suivi]')){
+    window.open('suivi-dispo.html', '_blank', 'noopener');
+    return;
+  }
+  const tuile = e.target.closest('[data-aff-id]');
+  if(!tuile) return;
+  const id = tuile.dataset.affId;
+  const role = tuile.dataset.affRole;
+  const etat = tuile.dataset.affEtat;
+
+  if(etat === 'bloque') return;   // indisponible : non affectable
+
+  if(etat === 'sans-dispo'){
+    // On pose la dispo à la main ; elle sera enregistrée avec l'affectation.
+    assignDisposEnAttente[id] = 'dispo';
+    renderAssignList(document.getElementById('assignSearch').value);
+    return;
+  }
+
+  const selection = role === 'musicien' ? assignSelectedM : assignSelectedT;
+  if(selection.has(id)) selection.delete(id); else selection.add(id);
+  renderAssignList(document.getElementById('assignSearch').value);
+});
+
 document.getElementById('assignSave').addEventListener('click', ()=>{
   if(!assignContext) return;
   const checkedMusiciens = Array.from(assignSelectedM);
