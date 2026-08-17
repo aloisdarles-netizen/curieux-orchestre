@@ -490,3 +490,31 @@ function applyAutoTheme(){
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyAutoTheme);
   }
 }
+
+// =============================================================================
+// Vercel Speed Insights
+// =============================================================================
+// Initialise le suivi des performances via Vercel Speed Insights.
+// Consulter : https://vercel.com/docs/speed-insights
+let __curieuxSpeedInsightsInjected = false;
+
+function initCurieuxSpeedInsights(){
+  if(typeof window === 'undefined' || typeof document === 'undefined') return;
+  if(__curieuxSpeedInsightsInjected) return;
+  __curieuxSpeedInsightsInjected = true;
+
+  // Initialise la file d'attente pour les événements Speed Insights
+  window.si = window.si || function(){
+    (window.siq = window.siq || []).push(arguments);
+  };
+
+  // Injecte le script de suivi Vercel Speed Insights
+  const script = document.createElement('script');
+  script.defer = true;
+  script.src = '/_vercel/speed-insights/script.js';
+  
+  // Ajoute le script au head
+  if(document.head){
+    document.head.appendChild(script);
+  }
+}
