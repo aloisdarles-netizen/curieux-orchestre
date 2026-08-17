@@ -45,6 +45,20 @@
 
   /* Bandeau d'outils de tête de tournée — cachet à gauche, effectif à droite,
      posé sur le fond de page pour se distinguer du tableau des dates. */
+  /* Le bloc des cachets d'exception vivait entre l'encart d'outils et la ligne
+     d'ajout de date, à la largeur de la carte et sans rembourrage : il
+     débordait sur la ligne suivante. Il est maintenant dans la colonne Cachet,
+     là où la maquette le place, replié en encart discret sous le bouton qui le
+     déplie. */
+  .cachet-overrides{
+    margin-top:10px; padding:10px 12px; border-radius:10px;
+    background:var(--card); border:1px solid var(--border);
+  }
+  .cachet-overrides input[type=text]{width:100%; max-width:none;}
+  .cachet-override-row{gap:8px; flex-wrap:wrap;}
+  .cachet-override-row span:first-child{width:auto !important; flex:1 1 120px; min-width:0;}
+  .cachet-override-row input{width:84px !important; flex:0 0 auto;}
+
   .tournee-outils{
     padding:14px 20px 16px; border-bottom:1px solid var(--border); background:var(--bg);
     display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;
@@ -57,6 +71,37 @@
   .tournee-outils .cachet-row select{flex:1; min-width:150px;}
   .cachet-montant{display:inline-flex; align-items:center; gap:6px; flex-shrink:0;}
   .cachet-montant input[type=number]{width:74px;}
+  /* Effectif attendu au gabarit de la maquette : le pupitre et son compte se
+     lisent comme une phrase, les contrôles ne se dessinent qu'au survol et à la
+     saisie. Le bouton « Retirer » ne se montre qu'au survol de sa ligne : la
+     maquette n'en affiche aucun, et six croix rouges en permanence sur un
+     réglage qu'on consulte plus qu'on ne modifie détournaient l'œil. */
+  .nomenclature-item{display:flex; align-items:center; gap:10px; margin-bottom:2px; padding:3px 0;}
+  .nomen-pupitre{
+    flex:1; min-width:0; border:1px solid transparent; background:transparent;
+    font-size:13.5px; color:var(--text); padding:3px 6px; border-radius:6px; cursor:pointer;
+  }
+  .nomen-pupitre:hover{background:var(--bg);}
+  .nomen-pupitre:focus{border-color:var(--accent); background:var(--card);}
+  .nomen-etat{
+    display:inline-flex; align-items:baseline; gap:4px; white-space:nowrap;
+    font-size:13px; font-weight:700; font-variant-numeric:tabular-nums;
+  }
+  .nomen-etat.ok{color:var(--ok);}
+  .nomen-etat.manque{color:var(--maybe);}
+  .nomen-nombre{
+    width:44px; border:1px solid transparent; background:transparent; color:inherit;
+    font:inherit; text-align:right; padding:2px 4px; border-radius:6px;
+    /* Le nombre attendu se saisit là où il se lit ; la flèche du champ
+       numérique doublerait la largeur pour rien. */
+    -moz-appearance:textfield; appearance:textfield;
+  }
+  .nomen-nombre::-webkit-outer-spin-button, .nomen-nombre::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+  .nomen-nombre:hover{background:var(--card);}
+  .nomen-nombre:focus{border-color:var(--accent); background:var(--card);}
+  .nomen-retirer{opacity:0; transition:opacity .15s;}
+  .nomenclature-item:hover .nomen-retirer, .nomen-retirer:focus{opacity:1;}
+
   .nomenclature-panel{min-width:0;}
   .cachet-row{display:flex; align-items:center; gap:8px; margin:-6px 0 14px; flex-wrap:wrap;}
   .cachet-row label{font-size:12.5px; color:var(--muted); font-weight:600;}
@@ -886,15 +931,39 @@ function manqueBadgeHtml(t, d, musicianById){
 function renderNomenclatureRowsHtml(t){
   const rows = t.nomenclature || [];
   if(rows.length === 0) return `<div class="empty-hint" style="font-size:12.5px; padding:4px 0;">Aucun pupitre défini pour l'instant.</div>`;
-  return rows.map((row, i)=>`
-    <div class="nomenclature-item" data-nomenclature-tournee="${escapeAttr(t.id)}" data-nomenclature-index="${i}" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-      <select data-nomenclature-field="pupitre" style="width:170px;">
+  // La maquette lit la nomenclature comme un état — « Cordes  5/5 affecté·es »,
+  // vert quand c'est complet, orange sinon — là où l'écran la donnait en
+  // formulaire. Le réglage reste possible : le pupitre et le nombre attendu
+  // sont des contrôles sans cadre ni fond tant qu'on ne les touche pas, comme
+  // Ville · lieu sur les lignes de date. On lit d'abord, on modifie ensuite.
+  //
+  // L'affecté·es compté est celui d'effectifPourDate, plafonné par pupitre :
+  // un violon en trop ne masque pas un manque de cuivres.
+  const parPupitre = {};
+  (t.dates || []).forEach(d => (d.musiciensAssignes || []).forEach(id => {
+    const m = musiciansCache.find(x => x.id === id);
+    if(!m) return;
+    const p = m.pupitre || 'Autre';
+    parPupitre[p] = parPupitre[p] || new Set();
+    parPupitre[p].add(id);
+  }));
+  return rows.map((row, i)=>{
+    const attendu = Number(row.nombre) || 0;
+    const affecte = Math.min((parPupitre[row.pupitre] || new Set()).size, attendu || Infinity);
+    const complet = attendu > 0 && affecte >= attendu;
+    return `
+    <div class="nomenclature-item" data-nomenclature-tournee="${escapeAttr(t.id)}" data-nomenclature-index="${i}">
+      <select data-nomenclature-field="pupitre" class="nomen-pupitre">
         ${PUPITRE_ORDER.map(p=>`<option value="${escapeAttr(p)}" ${row.pupitre===p?'selected':''}>${escapeHtml(p)}</option>`).join('')}
       </select>
-      <input type="number" min="0" step="1" data-nomenclature-field="nombre" value="${row.nombre != null ? escapeAttr(String(row.nombre)) : ''}" placeholder="Nombre" style="width:90px;">
-      <button type="button" class="co-btn danger sm" data-remove-nomenclature-row style="padding:5px 9px;">Retirer</button>
+      <span class="nomen-etat ${complet ? 'ok' : 'manque'}">
+        <input type="number" min="0" step="1" data-nomenclature-field="nombre" class="nomen-nombre"
+          value="${row.nombre != null ? escapeAttr(String(row.nombre)) : ''}" title="Effectif attendu pour ce pupitre">
+        <b>${affecte}/${attendu}</b> affecté·es
+      </span>
+      <button type="button" class="co-btn danger sm nomen-retirer" data-remove-nomenclature-row>Retirer</button>
     </div>
-  `).join('');
+  `;}).join('');
 }
 function renderNomenclaturePanel(tourneeId){
   const t = loadTournees().find(x=>x.id === tourneeId);
@@ -1069,7 +1138,11 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
               <button type="button" class="co-btn danger sm" data-del-tournee="${escapeAttr(t.id)}">Supprimer la tournée</button>
             </div>
           </div>
-          <div class="tournee-meta">${dates.length} date${dates.length>1?'s':''}</div>
+          <div class="tournee-meta">${[
+            `${dates.length} date${dates.length>1?'s':''}`,
+            dates.filter(d=>d.statut==='validee').length ? `${dates.filter(d=>d.statut==='validee').length} validée${dates.filter(d=>d.statut==='validee').length>1?'s':''}` : '',
+            dates.filter(d=>(d.statut||'option')==='option').length ? `${dates.filter(d=>(d.statut||'option')==='option').length} option${dates.filter(d=>(d.statut||'option')==='option').length>1?'s':''}` : '',
+          ].filter(Boolean).join(' · ')}</div>
           <!-- Cachet et effectif attendu sont désormais toujours affichés côte à
                côte, et non repliés derrière un bouton : ce sont deux réglages de
                tête de tournée qu'on consulte en même temps que les dates. -->
@@ -1089,14 +1162,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
               </div>
               <button type="button" class="co-btn ghost sm" data-toggle-cachet-overrides="${escapeAttr(t.id)}"
                 style="${t.cachetStatut === 'defini' ? 'margin-top:8px; padding-left:0;' : 'display:none;'}">Cachet différent pour certaines personnes${overrideCount ? ` (${overrideCount})` : ''}</button>
-            </div>
-            <div class="nomenclature-panel" id="nomenclature-${escapeAttr(t.id)}">
-              <div class="outils-legend">Effectif attendu (nomenclature)</div>
-              <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
-              <button type="button" class="co-btn tint sm" style="margin-top:8px;" data-add-nomenclature-row="${escapeAttr(t.id)}">+ Ajouter un pupitre</button>
-            </div>
-          </div>
-          <div class="cachet-overrides" id="cachet-overrides-${escapeAttr(t.id)}" style="display:none; margin:-6px 0 14px;">
+          <div class="cachet-overrides" id="cachet-overrides-${escapeAttr(t.id)}" style="display:none;">
             ${rosterPeople.length === 0
               ? `<div style="font-size:12.5px; color:var(--muted);">Le répertoire est vide.</div>`
               : `
@@ -1116,6 +1182,13 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
                 </div>
                 <div class="empty-hint" data-cachet-override-empty="${escapeAttr(t.id)}" style="display:none; font-size:12.5px; padding:4px 0;">Aucune personne trouvée.</div>
               `}
+          </div>
+            </div>
+            <div class="nomenclature-panel" id="nomenclature-${escapeAttr(t.id)}">
+              <div class="outils-legend">Effectif attendu (nomenclature)</div>
+              <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
+              <button type="button" class="co-btn tint sm" style="margin-top:8px;" data-add-nomenclature-row="${escapeAttr(t.id)}">+ Ajouter un pupitre</button>
+            </div>
           </div>
           <div class="add-date-row">
             <input type="date" data-new-date="${escapeAttr(t.id)}">
