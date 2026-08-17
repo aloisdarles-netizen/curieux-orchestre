@@ -10,11 +10,12 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:1280px; margin:0 auto;}
+  .wrap{max-width:1240px; margin:0 auto;}
   h2.section-title{
     font-size:15.5px; margin:36px 0 4px; display:flex; align-items:center; gap:9px;
     text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
@@ -29,14 +30,14 @@
   table.recap-table tr:last-child td{border-bottom:none;}
   table.recap-table tr:hover td{background:var(--accent-tint);}
   .tournee-tag{
-    display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px;
-    background:var(--champagne); color:#7a1f52; white-space:nowrap; text-decoration:none;
+    display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;
+    background:var(--champagne); color:var(--prune); white-space:nowrap; text-decoration:none;
   }
-  :root[data-theme="dark"] .tournee-tag{color:#f8d9e8;}
+  :root[data-theme="dark"] .tournee-tag{color:var(--rose-spectacle);}
   .chips{display:flex; flex-wrap:wrap; gap:4px;}
   .chip{
     display:inline-flex; align-items:center; font-size:11px; font-weight:700;
-    padding:3px 8px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); white-space:nowrap;
+    padding:3px 8px; border-radius:999px; background:var(--accent-tint); color:var(--accent-dark); white-space:nowrap;
   }
 
   .matrix-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--card);}
@@ -71,11 +72,11 @@
     text-decoration:none; color:var(--text); display:block; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
   }
   a.kpi-card:hover{transform:translateY(-2px); box-shadow:0 10px 24px rgba(20,15,10,.1); border-color:var(--accent);}
-  .kpi-icon{margin-bottom:6px; color:var(--accent-dark);}
-  .kpi-value{font-size:20px; font-weight:900; line-height:1.15; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .kpi-icon{margin-bottom:6px; opacity:.85;}
+  .kpi-value{font-size:30px; font-weight:500; line-height:1; font-family:var(--font-display);}
   .kpi-value.warn{color:var(--maybe, #b8792a);}
   .kpi-value.ok{color:var(--ok, #2f8f5b);}
-  .kpi-label{font-size:11.5px; color:var(--muted); margin-top:2px; line-height:1.35;}
+  .kpi-label{font-size:11.5px; margin-top:5px; line-height:1.35; font-weight:700; opacity:.9;}
   .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin:10px 0 4px;}
   .legend span{display:inline-flex; align-items:center; gap:6px;}
   .swatch{width:14px; height:14px; border-radius:4px; display:inline-block; border:1px solid var(--border);}
@@ -85,7 +86,7 @@
   .swatch.incertain{background:var(--maybe); border-color:var(--maybe);}
   .remplacant-tag{
     font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
-    padding:1px 6px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); margin-left:6px; vertical-align:middle;
+    padding:1px 6px; border-radius:999px; background:var(--accent-tint); color:var(--accent-dark); margin-left:6px; vertical-align:middle;
   }
   .dispo-filter-row{display:flex; gap:8px; align-items:center; margin:-2px 0 10px; flex-wrap:wrap;}
   .dispo-filter-row label{font-size:12px; color:var(--muted); font-weight:600;}
@@ -94,18 +95,34 @@
     background:var(--card); color:var(--text); font-family:inherit;
   }
   
+
+  /* Titres de section au gabarit de la maquette : capitales tracées, couleur
+     d'accent, filet tonique — le même repère sur tous les écrans. */
+  h2, h2.section-title{
+    font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--accent); display:flex; align-items:center; gap:8px;
+  }
+  h2::before, h2.section-title::before{
+    content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); flex-shrink:0;
+  }
+  /* Les titres de fenêtre modale gardent leur rendu : ce ne sont pas des
+     titres de section. */
+  .modal h2, .modal h2::before, .modal-card h2, .modal-card h2::before{
+    all:revert;
+  }
+  .modal h2, .modal-card h2{font-size:17px; font-weight:800; color:var(--text); text-transform:none; letter-spacing:0;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="brand-header">
-    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
-    <nav class="page-nav" data-curieux-nav></nav>
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Vue d'ensemble</h1>
+      <p class="subtitle">Qui joue où, toutes tournées confondues — case pleine = affecté·e, le contour indique la disponibilité renseignée.</p>
+    </div>
   </div>
-  <h1>Vue d'ensemble</h1>
-  <p class="subtitle">Qui joue où, toutes tournées confondues — case pleine = affecté·e, le contour indique la disponibilité renseignée.</p>
 
-  <div class="dashboard-strip" id="dashboardStrip"></div>
+  <div class="dashboard-strip co-stats-charte" id="dashboardStrip"></div>
 
   <div class="legend">
     <span><span class="swatch assigned"></span> Affecté·e</span>
@@ -372,8 +389,6 @@ document.getElementById('musicienStatutFilter').addEventListener('change', rende
 document.getElementById('showPastDates').addEventListener('change', e=>{ showPastDates = e.target.checked; renderAll(); });
 
 injectCurieuxFonts();
-initNavDropdowns();
-initGlobalSearch(document.querySelector('.page-nav'));
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

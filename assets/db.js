@@ -104,7 +104,10 @@ const CurieuxDB = (()=>{
         // [{horaireDebut, horaireFin, nombreChariotsDemande, confirme,
         //   fourches:[{fourche}], nombreCaristesDemande, notes}, ...]
         chariots_vacations: m.chariotsVacations || [],
-        // [{horaireDebut, horaireFin, nombreDemande, confirme, notes}, ...]
+        // [{horaireDebut, horaireFin, nombreDemande, confirme, nombreSol, nombreGrill, notes}, ...]
+        // nombreSol/nombreGrill : répartition des riggers demandés (un rigger au sol
+        // et un rigger au grill ne font pas le même travail) ; leur somme doit
+        // retomber sur nombreDemande, contrôlé côté technique-date.html.
         rigg_vacations: m.riggVacations || [],
         // [{id, label, heure}, ...] — repères libres de la journée (load in, get in…)
         horaires_journee: m.horairesJournee || [],

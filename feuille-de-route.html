@@ -10,6 +10,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -26,15 +27,50 @@
   }
   .fdr-conflict-banner button{background:var(--secondary-dark); color:#fff; padding:7px 14px; font-size:12.5px;}
   .card{
-    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-    padding:20px 22px; margin-bottom:18px; box-shadow:0 1px 2px rgba(20,15,10,.03), 0 8px 20px rgba(20,15,10,.03);
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:20px 24px; margin-bottom:14px; box-shadow:0 1px 2px rgba(20,15,10,.03), 0 8px 20px rgba(20,15,10,.03);
     transition:box-shadow .15s;
+  }
+
+  /* Encarts de la feuille de route à la composition de la maquette : un
+     pictogramme incliné de 48 px aux couleurs de la charte tient la gauche, le
+     titre passe en Ufficio capitales, et chaque info se pose sur un fond blanc
+     cassé arrondi plutôt que de s'aligner à nu.
+
+     Le pictogramme est posé en position absolue plutôt qu'en enfant de flex :
+     ça évite d'aller réenvelopper le contenu des sept sections, et le résultat
+     est le même à l'écran. */
+  .card.fdr-section{position:relative; padding-left:84px;}
+  .card.fdr-section::before{
+    content:attr(data-icone);
+    position:absolute; left:22px; top:20px;
+    width:48px; height:48px; border-radius:13px;
+    display:grid; place-items:center; font-size:23px; line-height:1;
+    background:var(--sec-fond); color:var(--sec-encre);
+    transform:rotate(var(--sec-tilt)); box-shadow:0 2px 6px rgba(20,22,23,.12);
+  }
+  .card.fdr-section > .card-head > h2,
+  .card.fdr-section > h2{
+    font-family:var(--font-display); font-weight:500; font-size:17px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--accent);
+  }
+  /* Chaque champ devient une ligne posée sur un fond doux. Les filets fins
+     avaient été jugés « moches » : on garde la séparation, sans le trait. */
+  .card.fdr-section .field{
+    background:var(--bg); border-radius:9px; padding:9px 12px; margin-bottom:6px;
+  }
+  .card.fdr-section .field-row{gap:6px;}
+  .card.fdr-section .field-row .field{margin-bottom:0;}
+  .card.fdr-section .card-sub{margin-bottom:10px;}
+  @media (max-width:640px){
+    .card.fdr-section{padding-left:24px;}
+    .card.fdr-section::before{position:static; margin-bottom:12px;}
   }
   .card h2{
     font-size:15.5px; margin:0; display:flex; align-items:center; gap:9px;
     text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
   }
-  .card h2::before{content:''; width:5px; height:16px; border-radius:3px; background:var(--accent); display:inline-block;}
+  .card h2::before{content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); display:inline-block; flex-shrink:0;}
   .card h3{font-size:14px; margin:0 0 10px; color:var(--text);}
   .card .card-sub{color:var(--muted); font-size:12.5px; margin:-8px 0 14px;}
   .card-head{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;}
@@ -60,15 +96,15 @@
   .btn-primary{background:var(--accent-solid); color:#fff; box-shadow:0 2px 8px rgba(121,22,73,.25);}
   .btn-primary:hover{background:var(--accent-dark); box-shadow:0 4px 12px rgba(121,22,73,.32);}
   .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-secondary:hover{background:color-mix(in srgb, var(--bleu) 78%, var(--prune));}
   .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
   .btn-danger:hover{background:var(--secondary-tint);}
   .btn-ghost{background:transparent; color:var(--accent); padding:4px 8px;}
   .btn-ghost:hover{text-decoration:underline;}
-  .btn-import{background:#0a2540; color:#fff;}
-  .btn-import:hover{background:#08182b;}
+  .btn-import{background:var(--noir); color:#fff;}
+  .btn-import:hover{background:var(--noir);}
   .small-del{background:transparent; color:var(--danger); font-size:16px; padding:2px 6px; line-height:1;}
-  .small-del:hover{background:#fdeceb; border-radius:4px;}
+  .small-del:hover{background:var(--champagne); border-radius:4px;}
   .actions-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;}
   .toolbar{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;}
   .toolbar .btn-primary{padding:10px 18px; font-size:14px;}
@@ -119,8 +155,8 @@
   /* Mode nuit : les fonds suivent déjà var(--card)/var(--text) depuis les
      règles de base ci-dessus ; il ne reste que des ajustements ponctuels. */
   :root[data-theme="dark"] .modal-card{ box-shadow:0 20px 60px rgba(0,0,0,.6); }
-  :root[data-theme="dark"] .small-del:hover{ background:#3a1f22; }
-  :root[data-theme="dark"] .trip-import-group{ background:#1a1822; }
+  :root[data-theme="dark"] .small-del:hover{ background:var(--champagne); }
+  :root[data-theme="dark"] .trip-import-group{ background:var(--noir); }
   @media (max-width:600px){
     input, select, textarea{ font-size:16px !important; }
     .highlight-toggle input, .trip-import-option input{ width:18px; height:18px; }
@@ -129,19 +165,19 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="brand-header">
-    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
-    <nav class="page-nav" data-curieux-nav></nav>
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Feuille de route</h1>
+      <p class="subtitle">Prépare la feuille de route complète d'une date (contacts, trajets confirmés, planning, lieu, hôtel), puis génère le PDF.</p>
+    </div>
   </div>
-  <h1>Feuille de route</h1>
-  <p class="subtitle">Prépare la feuille de route complète d'une date (contacts, trajets confirmés, planning, lieu, hôtel), puis génère le PDF.</p>
   <div id="fdrSaveStatus" class="fdr-save-status">Chargement…</div>
   <div id="fdrConflictBanner" class="fdr-conflict-banner" style="display:none;">
     <svg width="16" height="16" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:5px;"><path d="M12 3.5 22 20.5H2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><line x1="12" y1="9.5" x2="12" y2="14.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><circle cx="12" cy="17.2" r="1" fill="currentColor"></circle></svg>Cette feuille de route a été modifiée par quelqu'un d'autre pendant que tu l'éditais. Tes derniers changements n'ont <strong>pas</strong> été enregistrés pour éviter d'écraser les siens.
     <button type="button" id="fdrReloadBtn">Recharger la page</button>
   </div>
 
-  <div class="card">
+  <div class="card fdr-section" data-icone="✦" style="--sec-fond:#141617; --sec-encre:#FCF2F0; --sec-tilt:-5deg;">
     <h2>Informations générales</h2>
     <div class="field-row">
       <div class="field">
@@ -172,7 +208,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card fdr-section" data-icone="☎" style="--sec-fond:#CEE1F4; --sec-encre:#791649; --sec-tilt:4deg;">
     <div class="card-head">
       <h2>Contacts production</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="contacts" checked> Inclure cette section</label>
@@ -201,7 +237,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card fdr-section" data-icone="⇄" style="--sec-fond:#FEC9E0; --sec-encre:#791649; --sec-tilt:-5deg;">
     <div class="card-head">
       <h2>Voyage</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="voyage" checked> Inclure cette section</label>
@@ -232,7 +268,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card fdr-section" data-icone="◷" style="--sec-fond:#791649; --sec-encre:#FCF2F0; --sec-tilt:4deg;">
     <div class="card-head">
       <h2>Planning du jour</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="planning" checked> Inclure cette section</label>
@@ -259,7 +295,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card fdr-section" data-icone="⌖" style="--sec-fond:#EC4B15; --sec-encre:#FCF2F0; --sec-tilt:-5deg;">
     <div class="card-head">
       <h2>Lieu</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="lieu" checked> Inclure cette section</label>
@@ -276,7 +312,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card fdr-section" data-icone="☾" style="--sec-fond:#CEE1F4; --sec-encre:#791649; --sec-tilt:4deg;">
     <div class="card-head">
       <h2>Hôtel</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="hotel" checked> Inclure cette section</label>
@@ -319,7 +355,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card fdr-section" data-icone="★" style="--sec-fond:#791649; --sec-encre:#FCF2F0; --sec-tilt:-5deg;">
     <div class="card-head">
       <h2>Bonus / Notes</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="bonus" checked> Inclure cette section</label>
@@ -1440,8 +1476,6 @@ function generateFdrPDF(){
 document.getElementById('generateFdrBtn').addEventListener('click', generateFdrPDF);
 
 injectCurieuxFonts();
-initNavDropdowns();
-initGlobalSearch(document.querySelector('.page-nav'));
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

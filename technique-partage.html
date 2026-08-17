@@ -17,58 +17,76 @@
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:720px; margin:0 auto; font-variant-numeric:tabular-nums;}
-  .brand-logo-img{height:30px; width:auto; display:block; margin:0 0 18px;}
+  .wrap{max-width:980px; margin:0 auto; font-variant-numeric:tabular-nums; padding-top:28px;}
+  .brand-logo-img{height:38px; width:auto; display:block; margin:0 0 20px;}
   .state-box{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:26px 20px; text-align:center; color:var(--muted); font-size:14px;}
 
   input[type=text], input[type=number]{ padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-size:13.5px; background:var(--card); color:var(--text); font-family:inherit; }
-  button{ cursor:pointer; border:none; border-radius:8px; font-size:12.5px; font-weight:700; padding:8px 13px; font-family:inherit; background:var(--accent-tint); color:var(--accent-dark); }
+  button{ cursor:pointer; border:none; border-radius:8px; font-size:12.5px; font-weight:800; padding:8px 13px; font-family:inherit; background:var(--accent-tint); color:var(--tint-ink); }
+  /* Sélecteur de langue en pilules, comme sur la page salle côté production. */
+  .langues{display:flex; gap:5px; flex-wrap:wrap; margin-bottom:16px;}
+  .langues button{border:1px solid var(--border); background:var(--card); color:var(--muted); border-radius:8px; padding:6px 10px; font-size:11.5px;}
 
-  .entete{margin-bottom:22px;}
-  .entete .qui{color:var(--muted); font-size:13px; margin-top:2px;}
+  .entete{margin-bottom:18px;}
+  .entete h1{font-family:var(--font-display); font-size:28px; font-weight:500; margin:0 0 4px; color:var(--accent);}
+  .entete .qui{color:var(--muted); font-size:13.5px; margin-top:0;}
 
-  .fiche-date{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:16px; overflow:hidden;}
-  .fiche-date-head{padding:14px 16px; background:var(--bg); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;}
+  .fiche-date{background:var(--card); border:1px solid var(--border); border-radius:14px; margin-bottom:12px; overflow:hidden;}
+  .fiche-date-head{padding:14px 18px; background:var(--bg); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap;}
   .fiche-date-head h2{margin:0; font-size:16px; font-weight:800;}
-  .fiche-date-head .quand{font-size:12px; color:var(--muted);}
-  .fiche-date-body{padding:14px 16px; display:flex; flex-direction:column; gap:12px;}
+  .fiche-date-head .quand{font-size:12.5px; color:var(--muted); font-weight:700;}
+  .fiche-date-body{padding:14px 18px 18px; display:flex; flex-direction:column; gap:14px;}
 
-  .fiche-grille{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:8px; overflow:hidden;}
-  .bloc{background:var(--card); padding:11px 13px 13px; display:flex; flex-direction:column; gap:6px;}
-  .bloc .titre{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700;}
-  .champ{display:flex; justify-content:space-between; gap:10px; font-size:13px; align-items:baseline;}
-  .champ .k{color:var(--muted);}
-  .champ .v{font-weight:700; text-align:right;}
-  .vide-champ{color:var(--old-champagne); font-size:12.5px;}
+  .fiche-grille{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:12px;}
+  .bloc{
+    background:var(--bg); border:1px solid var(--border); border-radius:12px;
+    padding:14px 16px 15px; display:grid; grid-template-columns:repeat(auto-fit, minmax(96px, 1fr)); gap:12px 16px;
+  }
+  .bloc .titre{
+    grid-column:1/-1; font-size:10px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--accent); font-weight:800; margin-bottom:-2px;
+  }
+  .champ{display:block; min-width:0;}
+  .champ .k{
+    display:block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.04em; color:var(--muted); margin-bottom:2px;
+  }
+  .champ .v{display:block; font-size:16px; font-weight:800; line-height:1.25; text-align:left;}
+  .vide-champ{color:var(--old-champagne); font-size:14px; font-weight:700;}
 
-  .vacation-pub{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:13px;}
-  .vacation-pub .h{font-weight:700; margin-bottom:6px;}
-  .vacation-pub .demande{color:var(--muted); font-size:12px; margin-bottom:8px;}
+  .vacation-pub{background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:11px 13px; margin-bottom:8px; font-size:13px;}
+  .vacation-pub .h{font-size:16.5px; font-weight:800; margin-bottom:6px; font-variant-numeric:tabular-nums;}
+  .vacation-pub .demande{font-size:13px; margin-bottom:9px; font-weight:700; color:var(--accent);}
+  .vacation-pub .demande strong{font-size:22px; line-height:1; font-variant-numeric:tabular-nums;}
   .reponse-form{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
   .reponse-form input[type=number]{width:70px;}
   .reponse-form input[type=text]{flex:1; min-width:120px;}
   .reponse-ok{font-size:12px; color:var(--ok); font-weight:700;}
 
   .section-registre{margin-top:26px;}
-  .section-registre h2{font-size:15px; margin:0 0 10px;}
-  .registre-item{background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 13px; margin-bottom:8px; font-size:13px;}
-  .registre-item .nom{font-weight:700;}
-  .registre-item .sub{color:var(--muted); font-size:12px; margin-top:2px;}
+  .section-registre h2{
+    font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--accent); display:flex; align-items:center; gap:8px;
+  }
+  .section-registre h2::before{content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); flex-shrink:0;}
+  .registre-item{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:11px 13px; margin-bottom:8px; font-size:13px;}
+  .registre-item .nom{font-weight:800; font-size:14.5px;}
+  .registre-item .sub{color:var(--muted); font-size:11.5px; margin-top:2px; font-weight:700;}
 
   .plan-zone{position:relative; display:inline-block; max-width:100%; border-radius:8px; overflow:hidden; border:1px solid var(--border); margin-top:8px;}
   .plan-zone img{max-width:100%; display:block;}
   .pin{position:absolute; transform:translate(-50%,-100%); touch-action:none; display:flex; flex-direction:column; align-items:center; gap:2px;}
-  .pin-tete{background:var(--accent-solid); color:#fff; font-size:13px; font-weight:800; padding:6px 12px; border-radius:20px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3);}
+  .pin-tete{background:var(--accent-solid); color:#fff; font-size:13px; font-weight:800; padding:6px 12px; border-radius:999px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3);}
   .pin-pointe{width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:9px solid var(--accent-solid);}
   .pin.dragging{cursor:grabbing; opacity:.85;}
   .pin.note .pin-tete{background:#F5C518; color:#2b2200; max-width:220px; white-space:normal; text-align:center; font-weight:700;}
   .pin.note .pin-pointe{border-top-color:#F5C518;}
   .plan-outils{display:flex; gap:8px; margin:8px 0;}
   .plan-statut{font-size:12px; color:var(--muted); margin-top:6px;}
-  .equipe-chip{display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px 3px 6px; border-radius:20px; background:var(--bg); border:1px solid var(--border); margin:2px 4px 2px 0;}
-  .equipe-chip .pastille{width:9px; height:9px; border-radius:50%; flex:0 0 auto;}
+  .equipe-chip{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; padding:3px 11px 3px 7px; border-radius:999px; background:var(--card); border:1px solid var(--border); margin:2px 4px 2px 0;}
+  .equipe-chip .pastille{width:9px; height:9px; border-radius:50%; flex:0 0 9px;}
   .horaires-liste{display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;}
-  .horaire-chip{font-size:12px; background:var(--bg); border:1px solid var(--border); border-radius:20px; padding:4px 10px;}
+  .horaire-chip{font-size:12px; font-weight:700; background:var(--bg); border:1px solid var(--border); border-radius:999px; padding:5px 12px; font-variant-numeric:tabular-nums;}
 </style>
 </head>
 <body>
@@ -85,12 +103,13 @@ let RECAP = null, TOKEN = '';
 // ============================================================================
 const TR = {
   fr: {
+    rigg_sol:'au sol', rigg_grill:'au grill',
     chargement:'Chargement…', lien_incomplet:"Lien incomplet — il manque le jeton.",
     lien_inactif:"Ce lien n'est plus actif, ou n'existe pas. Demande un nouveau lien à la production.",
     aucune_date:"Aucune date pour l'instant.",
     bloc_acces:'Accès', bloc_faits_techniques:'Faits techniques',
     bloc_bureau_elec:"Bureau d'étude électrique", bloc_bureau_accroche:"Bureau d'étude accroche",
-    bloc_contacts_salle:'Contacts salle', bloc_documents:'Documents', bloc_horaires:'Horaires de la journée',
+    bloc_contacts_salle:'Contacts salle', bloc_documents:'Documents', bloc_horaires:'Horaires de la journée (heure locale)',
     bloc_roadies:'Roadies — par vacation', bloc_chariots:'Chariots élévateurs — par vacation', bloc_rigg:'Rigg — par vacation',
     bloc_plan_salle:'Plan de salle',
     champ_semis_simultanes:'Semis en simultané', champ_dechargement:'Déchargement', champ_emplacements:'Emplacements',
@@ -107,12 +126,13 @@ const TR = {
     dates_suffixe: n => n>1 ? 'dates' : 'date',
   },
   en: {
+    rigg_sol:'on the ground', rigg_grill:'on the grid',
     chargement:'Loading…', lien_incomplet:"Incomplete link — the token is missing.",
     lien_inactif:"This link is no longer active, or doesn't exist. Ask production for a new link.",
     aucune_date:'No date for now.',
     bloc_acces:'Access', bloc_faits_techniques:'Technical facts',
     bloc_bureau_elec:'Electrical engineering office', bloc_bureau_accroche:'Rigging engineering office',
-    bloc_contacts_salle:'Venue contacts', bloc_documents:'Documents', bloc_horaires:'Day schedule',
+    bloc_contacts_salle:'Venue contacts', bloc_documents:'Documents', bloc_horaires:'Day schedule (local time)',
     bloc_roadies:'Roadies — by shift', bloc_chariots:'Forklifts — by shift', bloc_rigg:'Rigging — by shift',
     bloc_plan_salle:'Venue floor plan',
     champ_semis_simultanes:'Trucks at once', champ_dechargement:'Unloading', champ_emplacements:'Unloading spots',
@@ -129,12 +149,13 @@ const TR = {
     dates_suffixe: n => n>1 ? 'dates' : 'date',
   },
   de: {
+    rigg_sol:'am Boden', rigg_grill:'an der Traverse',
     chargement:'Wird geladen…', lien_incomplet:'Unvollständiger Link — das Token fehlt.',
     lien_inactif:'Dieser Link ist nicht mehr aktiv oder existiert nicht. Bitte einen neuen Link bei der Produktion anfragen.',
     aucune_date:'Derzeit kein Termin.',
     bloc_acces:'Zugang', bloc_faits_techniques:'Technische Daten',
     bloc_bureau_elec:'Elektro-Planungsbüro', bloc_bureau_accroche:'Statik-/Rigging-Planungsbüro',
-    bloc_contacts_salle:'Kontakte vor Ort', bloc_documents:'Dokumente', bloc_horaires:'Tagesablauf',
+    bloc_contacts_salle:'Kontakte vor Ort', bloc_documents:'Dokumente', bloc_horaires:'Tagesablauf (Ortszeit)',
     bloc_roadies:'Roadies — nach Schicht', bloc_chariots:'Gabelstapler — nach Schicht', bloc_rigg:'Rigging — nach Schicht',
     bloc_plan_salle:'Saalplan',
     champ_semis_simultanes:'Sattelzüge gleichzeitig', champ_dechargement:'Entladung', champ_emplacements:'Entladestellen',
@@ -150,13 +171,37 @@ const TR = {
     plan_hint:'Modus wählen und den Plan antippen, um eine Markierung zu setzen; ziehen zum Verschieben, doppelt antippen zum Entfernen. Wird automatisch gespeichert.',
     dates_suffixe: n => n>1 ? 'Termine' : 'Termin',
   },
+  es: {
+    rigg_sol:'en el suelo', rigg_grill:'en la parrilla',
+    chargement:'Cargando…', lien_incomplet:'Enlace incompleto — falta el token.',
+    lien_inactif:'Este enlace ya no está activo o no existe. Solicite un nuevo enlace a producción.',
+    aucune_date:'Ninguna fecha por ahora.',
+    bloc_acces:'Acceso', bloc_faits_techniques:'Datos técnicos',
+    bloc_bureau_elec:'Oficina de estudio eléctrico', bloc_bureau_accroche:'Oficina de estudio de suspensión',
+    bloc_contacts_salle:'Contactos de la sala', bloc_documents:'Documentos', bloc_horaires:'Horario del día (hora local)',
+    bloc_roadies:'Roadies — por turno', bloc_chariots:'Carretillas elevadoras — por turno', bloc_rigg:'Rigging — por turno',
+    bloc_plan_salle:'Plano de la sala',
+    champ_semis_simultanes:'Tráileres simultáneos', champ_dechargement:'Descarga', champ_emplacements:'Puntos de descarga',
+    champ_hauteur_grill:'Altura de parrilla', champ_ouverture_scene:'Boca de escena', champ_puissance:'Potencia disponible',
+    champ_sur_place:'En el lugar', champ_horaire:'Hora', champ_contact:'Contacto', champ_plan_scene:'Plano de escena',
+    oui:'sí', non:'no', ouvrir:'Abrir ↗',
+    demande_label:'Solicitado', confirmee:'confirmado',
+    chariots_demandes:'Carretillas solicitadas', caristes_demandes:'Operarios solicitados',
+    confirmer:'Confirmar', justification:'Justificación si difiere', envoyer:'Enviar', envoye_ok:'✓ enviado',
+    fiche_technique_title:'Ficha técnica',
+    niveau_scene:'en el escenario', niveau_sol:'en el suelo', niveau_les_deux:'ambos', niveau_inconnu:'desconocido',
+    emplacement_scene:'en el escenario', emplacement_cote_scene:'al lado del escenario', emplacement_fosse:'en el foso', emplacement_autre:'otro',
+    plan_hint:'Elija un modo y toque el plano para colocar un marcador; arrástrelo para moverlo, doble toque para quitarlo. Se guarda automáticamente.',
+    dates_suffixe: n => n>1 ? 'fechas' : 'fecha',
+  },
   nl: {
+    rigg_sol:'op de grond', rigg_grill:'aan de rijg',
     chargement:'Laden…', lien_incomplet:'Onvolledige link — het token ontbreekt.',
     lien_inactif:'Deze link is niet meer actief of bestaat niet. Vraag de productie om een nieuwe link.',
     aucune_date:'Voorlopig geen datum.',
     bloc_acces:'Toegang', bloc_faits_techniques:'Technische gegevens',
     bloc_bureau_elec:'Elektrisch ontwerpbureau', bloc_bureau_accroche:'Rigging-ontwerpbureau',
-    bloc_contacts_salle:'Contacten locatie', bloc_documents:'Documenten', bloc_horaires:'Dagschema',
+    bloc_contacts_salle:'Contacten locatie', bloc_documents:'Documenten', bloc_horaires:'Dagschema (lokale tijd)',
     bloc_roadies:'Roadies — per shift', bloc_chariots:'Vorkheftrucks — per shift', bloc_rigg:'Rigging — per shift',
     bloc_plan_salle:'Plattegrond',
     champ_semis_simultanes:'Trucks tegelijk', champ_dechargement:'Lossen', champ_emplacements:'Losplekken',
@@ -244,6 +289,10 @@ function blocVacationsRigg(m, editable){
       <div class="vacation-pub">
         <div class="h">${escapeHtml(v.horaireDebut||'?')} – ${escapeHtml(v.horaireFin||'?')} ${v.confirme ? '· <span style="color:var(--ok);">' + t('confirmee') + '</span>' : ''}</div>
         <div class="demande">${t('demande_label')} : <strong>${v.nombreDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>
+        ${(v.nombreSol || v.nombreGrill) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+          ${v.nombreSol ? `<span class="equipe-chip">${escapeHtml(String(v.nombreSol))} × ${t('rigg_sol')}</span>` : ''}
+          ${v.nombreGrill ? `<span class="equipe-chip">${escapeHtml(String(v.nombreGrill))} × ${t('rigg_grill')}</span>` : ''}
+        </div>` : ''}
         ${editable ? reponseForm(m, 'rigg', i, v) : ''}
       </div>
     `).join('')}
@@ -443,7 +492,7 @@ function ficheDateComplete(d, m, editableSalle, editableStageManager){
 // ============================================================================
 // Init
 // ============================================================================
-const LANGUES = { fr:'FR', en:'EN', de:'DE', nl:'NL' };
+const LANGUES = { fr:'FR', en:'EN', de:'DE', es:'ES', nl:'NL' };
 function switcherLangue(){
   return `<div style="display:flex; gap:6px; margin:-6px 0 16px;">
     ${Object.entries(LANGUES).map(([code,label])=>`<button type="button" data-lang="${code}" style="padding:5px 11px; font-size:12px; ${LANG===code?'background:var(--accent-solid); color:#fff;':'background:var(--card); color:var(--muted); border:1px solid var(--border);'}">${label}</button>`).join('')}

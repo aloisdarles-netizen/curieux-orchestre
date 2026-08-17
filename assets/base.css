@@ -30,7 +30,9 @@
   --ok: #2f8f5b;
   --ok-tint: #e2f4ea;
   --old-champagne: #c98aa0;
-  --radius: 10px;
+  /* Rayon d'encart de la maquette. Il valait 10 px ; le régler ici aligne
+     toutes les pages, y compris celles qui utilisent encore var(--radius). */
+  --radius: 14px;
   --secondary: #EC4B15;
   --secondary-dark: #c13d0f;
   --secondary-tint: #FEC9E0;
@@ -43,6 +45,35 @@
   --tour-5: #e3e0f5;
   --tour-6: #dcece9;
   --tour-7: #f0e0d4;
+
+  /* --- Refonte 2026 : compléments de la charte ---------------------------
+     Les six couleurs de la charte Les Alfredines, disponibles en littéral :
+     les « stickers » de la refonte les posent en aplat, indépendamment du
+     thème (une étiquette prune reste prune la nuit, seul son contour suit
+     la couleur de carte). Les variables ci-dessus, elles, basculent. */
+  --prune: #791649;
+  --bleu: #CEE1F4;
+  --orange: #EC4B15;
+  --rose-spectacle: #FEC9E0;
+  --noir: #141617;
+  --blanc: #FCF2F0;
+
+  /* Encre lisible sur un aplat Bleu Piscine — le bleu de la charte est trop
+     clair pour porter du texte blanc, et le prune dessus manque de contraste
+     sur les petits corps. */
+  --tint-ink: #3d5876;
+  /* Alias de nommage de la maquette, pour que --tonic/--rose se lisent comme
+     dans la charte sans dupliquer les valeurs. */
+  --tonic: var(--secondary);
+  --rose: var(--secondary-tint);
+  /* Bandeau de navigation : prune plein en clair, prune assombri la nuit. */
+  --topbar: #791649;
+  /* Alternance de blancs des grandes listes (lisibilité des lignes). */
+  --row-alt: #faf3f0;
+  /* Densité des lignes de tableau — un seul point de réglage. */
+  --row-pad: 10px;
+  --font-display: 'Ufficio Display', 'Host Grotesk', Impact, sans-serif;
+  --font-body: 'Host Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 /* Le thème sombre bascule l'accent du prune au glacier : voir applyAutoTheme(). */
@@ -77,6 +108,10 @@
   --tour-5: #2a2740;
   --tour-6: #1f302c;
   --tour-7: #332821;
+
+  --tint-ink: #CEE1F4;
+  --topbar: #4a0e2d;
+  --row-alt: #26292c;
 }
 
 *{box-sizing:border-box;}
@@ -86,12 +121,12 @@ body{margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Sego
 .brand-logo-img{height:30px; width:auto; display:block;}
 .page-nav{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
 .page-nav > a{color:var(--accent-dark); font-weight:700; font-size:12.5px; text-decoration:none; background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s; white-space:nowrap; display:inline-flex; align-items:center; gap:5px;}
-.page-nav > a:hover{background:#a8c9e6;}
+.page-nav > a:hover{background:color-mix(in srgb, var(--bleu) 78%, var(--prune));}
 .page-nav > a.ghost{background:transparent; color:var(--muted);}
 .page-nav > a.ghost:hover{background:var(--border); color:var(--text);}
 .nav-group{position:relative;}
 .nav-group-btn{font-family:inherit; cursor:pointer; border:none; color:var(--accent-dark); font-weight:700; font-size:12.5px; background:var(--accent-tint); padding:7px 13px; border-radius:20px; transition:background .15s; display:flex; align-items:center; gap:4px; white-space:nowrap;}
-.nav-group-btn:hover{background:#a8c9e6;}
+.nav-group-btn:hover{background:color-mix(in srgb, var(--bleu) 78%, var(--prune));}
 .nav-caret{font-size:9px; transition:transform .2s ease;}
 .nav-group.open .nav-caret{transform:rotate(180deg);}
 .nav-group.open .nav-group-btn{background:var(--accent-solid); color:#fff;}
@@ -267,4 +302,425 @@ input[pattern]:not(:placeholder-shown):invalid + .champ-repere{ display:block; }
     border-bottom:1px solid var(--border);
   }
   table.grid-table tr td:last-child{ border-bottom:none; }
+}
+
+/* ============================================================================
+   REFONTE 2026 — couche de composants partagée (préfixe « co- »).
+
+   Pourquoi une couche et non un restylage page par page : la maquette
+   « Refonte Curieux.dc.html » réutilise partout la même dizaine de formes
+   (bandeau prune, sous-menu contextuel, encart à légende, pastille d'état,
+   étiquette « sticker », tuile de chiffre clé, ligne de liste alternée).
+   Décrites une fois ici, elles s'appliquent aux dix-neuf écrans sans que
+   chaque page reparte de zéro — c'est ce qui manquait avant la refonte, où
+   la même correction devait être refaite dix-sept fois.
+
+   Ces classes s'ajoutent, elles ne remplacent rien : le <style> de chaque
+   page est chargé après ce socle et continue de l'emporter.
+   ============================================================================ */
+
+/* --- 1. Bandeau de navigation ---------------------------------------------
+   Le bandeau et le sous-menu sont collants et pleine largeur. Le rembourrage
+   horizontal passe donc du <body> au .wrap : sans ça, le bandeau s'arrêtait
+   à 16 px des bords et le collant se décalait du haut de la fenêtre. */
+/* Le pied de page était simplement ajouté après le contenu : sur un écran court
+   (une page presque vide, un filtre qui ne renvoie rien) les mentions légales se
+   retrouvaient collées sous le dernier paragraphe, au milieu de la fenêtre. Le
+   corps devient une colonne d'au moins une hauteur d'écran et le pied est poussé
+   vers le bas. */
+body.co-has-topbar{
+  padding:0; min-height:100vh;
+  display:flex; flex-direction:column;
+}
+body.co-has-topbar > .wrap{ flex:1 0 auto; }
+body.co-has-topbar > .co-footer{ margin-top:auto; padding-top:40px; padding-bottom:28px; }
+body.co-has-topbar > .wrap{ padding-left:16px; padding-right:16px; padding-top:24px; }
+body.co-has-topbar > .co-footer{ padding-left:16px; padding-right:16px; }
+
+.co-topbar{
+  position:sticky; top:0; z-index:40;
+  background:var(--topbar); color:var(--blanc);
+  font-family:var(--font-body);
+}
+.co-topbar-in{
+  max-width:1240px; margin:0 auto; padding:0 20px;
+  display:flex; align-items:center; gap:18px; height:56px;
+}
+/* Le lockup droit est fourni en noir : inversé, il devient blanc et se pose
+   directement sur le prune, sans cartouche blanc autour (retour d'Aloïs). */
+.co-topbar-logo{ height:40px; width:auto; display:block; flex-shrink:0; filter:invert(1) brightness(1.08); }
+.co-topbar-logo-link{ display:block; flex-shrink:0; line-height:0; }
+
+.co-topnav{ display:flex; gap:4px; align-items:center; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
+.co-topnav::-webkit-scrollbar{ display:none; }
+.co-topnav > a{
+  font-family:inherit; text-decoration:none; white-space:nowrap;
+  font-size:13px; font-weight:700; padding:8px 11px; border-radius:999px;
+  color:var(--blanc); background:transparent; transition:background .15s;
+}
+.co-topnav > a:hover{ background:rgba(252,242,240,.16); color:var(--blanc); }
+/* La section courante est une pastille pleine — le prune du bandeau ne peut
+   pas servir de fond actif, on prend donc le blanc cassé de la charte. */
+.co-topnav > a[aria-current]{ background:var(--blanc); color:var(--prune); }
+.co-topnav > a[aria-current]:hover{ background:var(--blanc); color:var(--prune); }
+
+.co-topbar .gsearch-wrap{ margin-left:0; flex-shrink:1; min-width:0; }
+.co-topbar .gsearch-input{
+  background:rgba(252,242,240,.12); border:1px solid rgba(252,242,240,.25);
+  color:var(--blanc); border-radius:999px; padding:7px 14px; font-size:12.5px;
+  width:150px; min-width:80px;
+}
+.co-topbar .gsearch-input::placeholder{ color:rgba(252,242,240,.7); }
+.co-topbar .gsearch-input:focus{ width:210px; outline:2px solid var(--bleu); outline-offset:1px; }
+/* Sous 1060 px, la recherche s'effacerait au profit des sections : « Vue
+   d'ensemble » doit rester entier, c'est l'entrée principale du menu. */
+@media (max-width:1060px){ .co-topbar .gsearch-wrap{ display:none; } }
+
+.co-theme-btn, .co-topbar-btn{
+  cursor:pointer; border:1px solid rgba(252,242,240,.35); background:transparent;
+  color:var(--blanc); border-radius:999px; padding:7px 12px;
+  font-size:12px; font-weight:700; font-family:inherit; white-space:nowrap; flex-shrink:0;
+}
+.co-theme-btn:hover, .co-topbar-btn:hover{ background:rgba(252,242,240,.16); }
+.co-avatar{
+  width:32px; height:32px; border-radius:50%; background:var(--bleu); color:var(--prune);
+  display:grid; place-items:center; font-weight:800; font-size:14px; flex-shrink:0;
+  text-decoration:none;
+}
+@media (max-width:760px){
+  .co-topbar-in{ gap:10px; padding:0 12px; }
+  .co-topbar-logo{ height:30px; }
+  .co-theme-btn{ padding:7px 10px; }
+}
+
+/* --- 2. Sous-menu contextuel ---------------------------------------------
+   Le cœur du correctif de navigation : les écrans d'une même section sont
+   atteignables entre eux, sans repasser par l'accueil. */
+.co-subnav{ background:var(--card); border-bottom:1px solid var(--border); position:sticky; top:56px; z-index:39; }
+.co-subnav-in{
+  max-width:1240px; margin:0 auto; padding:11px 20px;
+  display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+}
+.co-subnav-title{
+  font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--muted); margin-right:8px;
+}
+.co-subnav a{
+  text-decoration:none; font-family:var(--font-body);
+  border:1px solid var(--border); font-size:13.5px; font-weight:700;
+  padding:8px 17px; border-radius:999px; background:transparent; color:var(--text);
+  white-space:nowrap;
+}
+.co-subnav a:hover{ border-color:var(--prune); color:var(--text); }
+/* Prune littéral et non var(--accent) : en thème sombre l'accent devient bleu
+   clair, et la pastille active se confondait avec le fond de carte. */
+.co-subnav a[aria-current]{ background:var(--prune); color:var(--blanc); border-color:var(--prune); }
+
+/* --- 3. En-tête de page ---------------------------------------------------- */
+.co-page-head{
+  display:flex; align-items:flex-end; justify-content:space-between;
+  gap:16px; flex-wrap:wrap; margin-bottom:20px;
+}
+.co-page-head > div:first-child{ min-width:0; }
+.co-page-head h1, h1.co-h1{
+  font-family:var(--font-display); font-size:28px; line-height:1.15;
+  margin:0 0 4px; color:var(--accent); font-weight:500; letter-spacing:.01em;
+}
+.co-page-head .subtitle, .co-page-head p, p.co-sub{
+  color:var(--muted); font-size:13.5px; margin:0; line-height:1.5;
+}
+.co-back{
+  display:inline-block; cursor:pointer; border:none; background:transparent; text-decoration:none;
+  color:var(--accent); font-size:13px; font-weight:800; font-family:var(--font-body);
+  padding:0; margin-bottom:14px;
+}
+
+/* Titre de section : filet tonique + capitales tracées. */
+.co-h2{
+  font-size:13px; margin:24px 0 8px; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--accent); font-weight:800; display:flex; align-items:center; gap:8px;
+}
+.co-h2::before{ content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); flex-shrink:0; }
+.co-h2.co-h2-plain::before{ display:none; }
+.co-h2 .co-h2-count{ color:var(--muted); font-weight:700; text-transform:none; letter-spacing:0; }
+
+/* Légende d'encart (formulaires techniques). */
+.co-legend{
+  font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--accent); display:flex; align-items:center; gap:8px; margin:0 0 12px;
+}
+.co-legend::before{ content:''; width:5px; height:14px; border-radius:3px; background:var(--tonic); flex-shrink:0; }
+.co-legend-hint{ margin:0 0 10px; font-size:12.5px; color:var(--muted); line-height:1.5; }
+
+/* --- 4. Encarts ----------------------------------------------------------- */
+.co-card{ background:var(--card); border:1px solid var(--border); border-radius:14px; }
+.co-card.co-pad{ padding:15px 18px 17px; }
+.co-card.co-pad-lg{ padding:18px 22px; }
+.co-card.co-clip{ overflow:hidden; }
+.co-card + .co-card{ margin-top:14px; }
+.co-grid{ display:grid; gap:14px; }
+.co-grid-2{ grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); }
+.co-grid-cards{ grid-template-columns:repeat(auto-fill, minmax(480px, 1fr)); }
+@media (max-width:560px){ .co-grid-cards{ grid-template-columns:1fr; } }
+
+/* Carte cliquable (avancement technique, feuilles de route). */
+.co-card-btn{
+  text-align:left; cursor:pointer; font-family:var(--font-body); width:100%;
+  background:var(--card); border:1px solid var(--border); border-radius:14px;
+  padding:16px 18px; color:var(--text); text-decoration:none; display:block;
+  transition:border-color .15s, transform .1s;
+}
+.co-card-btn:hover{ border-color:var(--accent); transform:translateY(-1px); }
+
+/* --- 5. Pastilles d'état -------------------------------------------------- */
+.co-chip{
+  display:inline-flex; align-items:center; font-size:12.5px; font-weight:700;
+  padding:4px 12px; border-radius:999px; white-space:nowrap;
+  background:var(--border); color:var(--muted);
+}
+.co-chip.ok{ background:var(--ok-tint); color:var(--ok); }
+.co-chip.att{ background:var(--maybe-tint); color:var(--maybe); }
+.co-chip.ko{ background:var(--ko-tint); color:var(--ko); }
+.co-chip.info{ background:var(--accent-tint); color:var(--tint-ink); }
+.co-chip.rose{ background:var(--rose); color:var(--prune); }
+.co-pill{
+  display:inline-flex; align-items:center; font-size:10.5px; font-weight:800;
+  padding:3px 10px; border-radius:999px; white-space:nowrap;
+  text-transform:uppercase; letter-spacing:.04em;
+  background:var(--border); color:var(--muted);
+}
+.co-pill.ok{ background:var(--ok-tint); color:var(--ok); }
+.co-pill.att{ background:var(--maybe-tint); color:var(--maybe); }
+.co-pill.ko{ background:var(--ko-tint); color:var(--ko); }
+.co-pill.info{ background:var(--accent-tint); color:var(--tint-ink); }
+.co-chip-col{ display:flex; flex-direction:column; align-items:flex-start; gap:5px; }
+/* Deux colonnes « ✓ Fait » / « À faire » des cartes d'avancement. */
+.co-split{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.co-split-head{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px; }
+.co-split-head.ok{ color:var(--ok); }
+.co-split-head.todo{ color:var(--maybe); }
+
+/* --- 6. Étiquettes « sticker » -------------------------------------------
+   Langage graphique de la charte : l'étiquette découpée, posée légèrement de
+   travers, avec un contour blanc franc et une ombre portée nette. Le contour
+   reprend la couleur de carte du thème, donc les étiquettes restent découpées
+   et lisibles la nuit — y compris la noire. */
+.co-sticker{
+  border-radius:16px; padding:16px 18px 15px;
+  transform:rotate(var(--co-tilt, -.6deg));
+  box-shadow:0 0 0 4px var(--card), 7px 9px 0 rgba(20,22,23,.10);
+  transition:transform .22s cubic-bezier(.34,1.5,.6,1), box-shadow .22s ease;
+}
+a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer; border:none; font-family:var(--font-body); text-decoration:none; width:100%; }
+.co-sticker:hover{
+  transform:rotate(0deg) translateY(-3px);
+  box-shadow:0 0 0 4px var(--card), 10px 13px 0 rgba(20,22,23,.13);
+}
+.co-sticker-title{
+  font-family:var(--font-display); font-size:21px; line-height:1.1; margin:0;
+  letter-spacing:.02em; text-transform:uppercase; font-weight:500;
+}
+/* Pastille d'icône inclinée, en tête d'étiquette et de ligne d'annuaire. */
+.co-badge{
+  width:38px; height:38px; border-radius:11px; flex-shrink:0;
+  display:grid; place-items:center; font-family:var(--font-display); font-size:19px;
+  transform:rotate(var(--co-tilt, -5deg)); box-shadow:0 3px 8px rgba(20,22,23,.18);
+}
+.co-badge.co-badge-sm{ width:34px; height:34px; border-radius:10px; font-size:16px; box-shadow:0 2px 6px rgba(20,22,23,.14); }
+.co-badge.co-badge-lg{ width:48px; height:48px; border-radius:13px; font-size:23px; }
+
+/* --- 7. Chiffres clés ----------------------------------------------------- */
+.co-stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+.co-stats.co-stats-sm{ grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); }
+.co-stat{
+  border-radius:14px; padding:14px 16px;
+  transform:rotate(var(--co-tilt, -1deg)); box-shadow:0 3px 10px rgba(20,22,23,.16);
+}
+.co-stat-num{ font-family:var(--font-display); font-size:32px; line-height:1; font-weight:500; }
+.co-stat-label{ font-size:11.5px; margin-top:5px; font-weight:700; opacity:.9; }
+/* Mini-format des chiffres clés repris sur l'accueil (chiffre au-dessus du
+   libellé, grille égale qui remplit la largeur de la tuile). */
+.co-mini-stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:8px; margin-bottom:12px; }
+.co-mini-stat{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; gap:2px; border-radius:10px; padding:9px 8px;
+  transform:rotate(var(--co-tilt, 0deg)); box-shadow:0 2px 6px rgba(20,22,23,.18);
+}
+.co-mini-stat b{ font-family:var(--font-display); font-size:21px; line-height:1; font-weight:500; }
+.co-mini-stat span{ font-size:10.5px; font-weight:700; opacity:.9; text-wrap:pretty; }
+
+/* --- 8. Listes ------------------------------------------------------------
+   Alternance de blancs : sur les longues listes de personnes, une ligne sur
+   deux est posée sur un blanc légèrement cassé. */
+.co-rows > .co-row:nth-child(even){ background:var(--row-alt); }
+.co-row{
+  display:flex; align-items:center; gap:14px;
+  padding:var(--row-pad) 20px; border-bottom:1px solid var(--border); flex-wrap:wrap;
+}
+.co-row:last-child{ border-bottom:none; }
+.co-row-name{ flex:1; min-width:170px; }
+.co-row-name b{ font-weight:800; font-size:13.5px; }
+.co-row-name small{ display:block; font-size:11.5px; color:var(--muted); }
+.co-rows-head{
+  display:flex; align-items:center; gap:8px; padding:8px 16px;
+  font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--muted); border-bottom:1px solid var(--border);
+}
+.co-group-title{
+  padding:10px 20px 4px; font-size:10.5px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+}
+
+/* --- 9. Boutons ----------------------------------------------------------- */
+.co-btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  cursor:pointer; font-family:var(--font-body); font-size:13px; font-weight:700;
+  padding:9px 18px; border-radius:999px; border:1px solid transparent;
+  background:transparent; color:var(--text); text-decoration:none; white-space:nowrap;
+}
+.co-btn.primary{ background:var(--accent-solid); color:#fff; }
+.co-btn.primary:hover{ background:var(--accent-dark); color:#fff; }
+/* Variante rose plutôt que prune clair : en thème sombre, un fond prune pâle
+   n'était plus lisible sous du texte prune. */
+.co-btn.secondary{ background:var(--rose); color:var(--prune); }
+.co-btn.secondary:hover{ filter:brightness(.96); }
+.co-btn.tonic{ background:var(--tonic); color:var(--blanc); }
+.co-btn.tint{ background:var(--accent-tint); color:var(--tint-ink); border-radius:8px; }
+.co-btn.ghost{ border-color:var(--border); color:var(--text); }
+.co-btn.ghost:hover{ background:var(--border); }
+.co-btn.link{ background:transparent; padding:0; color:var(--accent); text-decoration:underline; border:none; }
+.co-btn.danger{ background:transparent; color:var(--ko); }
+.co-btn.sm{ font-size:11.5px; font-weight:800; padding:5px 12px; }
+.co-btn.md{ font-size:12.5px; padding:7px 14px; }
+.co-btn.block{ width:100%; }
+.co-btn[disabled]{ opacity:.45; cursor:default; }
+.co-actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+
+/* --- 10. Champs ---------------------------------------------------------- */
+.co-label{
+  display:block; font-size:11.5px; color:var(--muted); font-weight:700; margin-bottom:4px;
+}
+.co-input, .co-select, .co-textarea{
+  width:100%; box-sizing:border-box; padding:8px 10px;
+  border:1px solid var(--border); border-radius:8px; font-size:13px;
+  background:var(--bg); color:var(--text); font-family:var(--font-body); outline:none;
+}
+.co-textarea{ min-height:56px; resize:vertical; }
+.co-select{ cursor:pointer; }
+.co-input:focus, .co-select:focus, .co-textarea:focus{ border-color:var(--accent); }
+.co-input.co-num, .co-num{ font-variant-numeric:tabular-nums; }
+.co-field{ min-width:0; }
+.co-field-row{ display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+.co-check{ display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; color:var(--text); font-weight:600; }
+.co-check input[type=checkbox]{ width:17px; height:17px; accent-color:#791649; flex-shrink:0; }
+/* Zone de dépôt de fichier (fiches techniques de salle, plans). */
+.co-drop{
+  flex:1; min-width:220px; border:1.5px dashed var(--border); border-radius:10px;
+  padding:11px 14px; font-size:12.5px; color:var(--muted); background:var(--bg);
+}
+.co-inset{ background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px; }
+
+/* --- 11. Jauges et bandeaux --------------------------------------------- */
+.co-progress{ height:8px; border-radius:999px; background:var(--border); overflow:hidden; }
+.co-progress > i{ display:block; height:100%; border-radius:999px; background:var(--ok); }
+.co-progress.co-progress-thin{ height:6px; }
+.co-note{
+  background:var(--maybe-tint); color:var(--maybe); border-radius:10px;
+  padding:10px 14px; font-size:13px; font-weight:600; line-height:1.5;
+}
+.co-note.info{ background:var(--accent-tint); color:var(--tint-ink); }
+/* Barre d'enregistrement collante des formulaires longs. */
+.co-savebar{
+  position:sticky; bottom:0; margin-top:14px; padding:12px 0;
+  background:var(--bg); border-top:1px solid var(--border);
+  display:flex; align-items:center; gap:10px; z-index:20;
+}
+.co-savebar-status{ flex:1; font-size:12.5px; color:var(--muted); }
+
+/* --- 12. Grands tableaux croisés (dispos, vue d'ensemble) ---------------- */
+.co-matrix{ overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--card); }
+.co-matrix-in{ min-width:max-content; }
+.co-matrix-row{ display:flex; border-bottom:1px solid var(--border); align-items:stretch; }
+.co-matrix-row:last-child{ border-bottom:none; }
+.co-matrix-name{
+  position:sticky; left:0; z-index:2; background:var(--card);
+  width:210px; flex-shrink:0; padding:var(--row-pad) 14px; border-right:1px solid var(--border);
+}
+.co-matrix-name b{ font-weight:800; font-size:13px; display:block; }
+.co-matrix-name small{ font-size:11px; color:var(--muted); }
+.co-matrix-head .co-matrix-name{
+  z-index:3; padding:9px 14px; font-size:10.5px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
+}
+.co-matrix-date{
+  width:76px; flex-shrink:0; padding:7px 4px; text-align:center; font-size:11px;
+  color:var(--muted); font-weight:800; border-right:1px solid var(--border);
+}
+.co-matrix-date small{ font-weight:600; font-size:10px; display:block; }
+.co-matrix-cell{
+  width:76px; flex-shrink:0; display:grid; place-items:center;
+  padding:5px 0; border-right:1px solid var(--border);
+}
+.co-matrix-btn{
+  width:38px; height:30px; border-radius:7px; cursor:pointer; font-size:14px; font-weight:800;
+  font-family:var(--font-body); display:grid; place-items:center;
+  border:1px solid var(--border); background:var(--card); color:var(--muted);
+}
+.co-matrix-btn.dispo{ background:var(--ok); border-color:var(--ok); color:#fff; }
+.co-matrix-btn.indispo{ background:var(--ko); border-color:var(--ko); color:#fff; }
+.co-matrix-btn.incertain{ background:var(--maybe); border-color:var(--maybe); color:#fff; }
+.co-matrix-total{ background:var(--row-alt); }
+.co-matrix-total .co-matrix-name{ background:var(--row-alt); }
+.co-legend-row{ display:flex; gap:16px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:var(--muted); }
+.co-swatch{ width:13px; height:13px; border-radius:4px; display:inline-block; flex-shrink:0; }
+
+/* --- 13. Pied de page --------------------------------------------------- */
+.co-footer{
+  max-width:1240px; margin:0 auto; padding:0 20px 80px;
+  font-size:11.5px; font-weight:600; letter-spacing:.02em; color:var(--muted); text-align:center;
+}
+.co-footer a{ color:var(--muted); text-decoration:none; border-bottom:1px solid var(--border); }
+
+/* Apparition douce du contenu à l'ouverture, comme dans la maquette. */
+@keyframes coFadeUp{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:translateY(0); } }
+.co-fade{ animation:coFadeUp .4s ease both; }
+@media (prefers-reduced-motion: reduce){
+  .co-fade{ animation:none; }
+  .co-sticker, .co-sticker:hover{ transition:none; transform:none; }
+}
+
+/* --- Chiffres clés en étiquettes de charte -------------------------------
+   Les chiffres clés étaient des cartes blanches à chiffre prune : justes, mais
+   ternes, et rien n'y accrochait l'œil. Ils reprennent ici les cinq couleurs de
+   la charte, qui tournent d'une tuile à l'autre avec leur propre inclinaison —
+   deux tuiles voisines ne portent donc jamais la même teinte.
+
+   Les couleurs sont posées ici, pas dans chaque page : la vue d'ensemble et
+   l'administration partagent la même bande de chiffres. */
+.co-stats-charte > *{
+  border-radius:14px; padding:14px 16px; border:none; text-decoration:none;
+  transform:rotate(var(--co-tilt, -1deg)); box-shadow:0 3px 10px rgba(20,22,23,.16);
+  transition:transform .2s cubic-bezier(.34,1.5,.6,1), box-shadow .2s ease;
+}
+.co-stats-charte > a:hover{
+  transform:rotate(0deg) translateY(-3px); box-shadow:0 8px 20px rgba(20,22,23,.22);
+}
+/* Sur un aplat de charte, un chiffre en « vert d'alerte » ou en prune se perd :
+   tout le contenu de la tuile suit donc l'encre de la tuile. */
+.co-stats-charte > * *{ color:inherit !important; }
+.co-stats-charte > *:nth-child(5n+1){ background:#791649; color:#FCF2F0; --co-tilt:-1.3deg; }
+.co-stats-charte > *:nth-child(5n+2){ background:#CEE1F4; color:#791649; --co-tilt:1deg; }
+.co-stats-charte > *:nth-child(5n+3){ background:#141617; color:#FCF2F0; --co-tilt:-.8deg; }
+.co-stats-charte > *:nth-child(5n+4){ background:#FEC9E0; color:#791649; --co-tilt:1.2deg; }
+.co-stats-charte > *:nth-child(5n+5){ background:#EC4B15; color:#FCF2F0; --co-tilt:-1deg; }
+/* La nuit, les aplats de charte sont trop saturés sur de grandes surfaces : on
+   les assombrit et toutes les encres passent au blanc cassé. */
+:root[data-theme="dark"] .co-stats-charte > *{ color:#FCF2F0; }
+:root[data-theme="dark"] .co-stats-charte > *:nth-child(5n+1){ background:#4c0f2e; }
+:root[data-theme="dark"] .co-stats-charte > *:nth-child(5n+2){ background:#26364a; }
+:root[data-theme="dark"] .co-stats-charte > *:nth-child(5n+3){ background:#101112; }
+:root[data-theme="dark"] .co-stats-charte > *:nth-child(5n+4){ background:#4e2a3c; }
+:root[data-theme="dark"] .co-stats-charte > *:nth-child(5n+5){ background:#7e2a0c; }
+@media (prefers-reduced-motion: reduce){
+  .co-stats-charte > *, .co-stats-charte > a:hover{ transform:none; transition:none; }
 }

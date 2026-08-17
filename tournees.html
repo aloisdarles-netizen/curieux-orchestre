@@ -10,6 +10,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -21,7 +22,7 @@
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
   }
   .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-secondary:hover{background:color-mix(in srgb, var(--bleu) 78%, var(--prune));}
   .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
   .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
   .btn-danger:hover{background:var(--secondary-tint);}
@@ -34,24 +35,41 @@
   textarea{resize:vertical; min-height:38px; width:100%;}
 
   .new-tournee-card{
-    background:var(--card); border:1px dashed var(--border); border-radius:var(--radius);
-    padding:16px 18px; margin-bottom:22px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+    background:var(--card); border:1.5px dashed var(--border); border-radius:14px;
+    padding:14px 18px; margin-bottom:20px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;
   }
   .new-tournee-card input{flex:1 1 240px;}
 
   .tournee-card{
-    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-    padding:18px 20px; margin-bottom:20px; box-shadow:0 1px 2px rgba(20,15,10,.03);
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:0 0 4px; margin-bottom:20px; overflow:hidden;
   }
-  .tournee-head{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px; flex-wrap:wrap;}
-  .tournee-name{font-size:17px; font-weight:800;}
-  .tournee-meta{color:var(--muted); font-size:12.5px; margin-bottom:14px;}
+  .tournee-head{display:flex; justify-content:space-between; align-items:center; gap:14px; padding:16px 20px 0; flex-wrap:wrap;}
+  .tournee-name{font-family:var(--font-display); font-size:18px; font-weight:500; letter-spacing:.01em;}
+  .tournee-meta{color:var(--muted); font-size:12px; font-weight:700; padding:2px 20px 14px; border-bottom:1px solid var(--border);}
+  .tournee-card > .grid-table-wrap, .tournee-card > .add-date-row{padding-left:20px; padding-right:20px;}
+
+  /* Bandeau d'outils de tête de tournée — cachet à gauche, effectif à droite,
+     posé sur le fond de page pour se distinguer du tableau des dates. */
+  .tournee-outils{
+    padding:14px 20px 16px; border-bottom:1px solid var(--border); background:var(--bg);
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;
+  }
+  .outils-legend{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent); margin-bottom:8px;
+  }
+  .tournee-outils .cachet-row{margin:0;}
+  .tournee-outils .cachet-row select{flex:1; min-width:150px;}
+  .cachet-montant{display:inline-flex; align-items:center; gap:6px; flex-shrink:0;}
+  .cachet-montant input[type=number]{width:74px;}
+  .nomenclature-panel{min-width:0;}
   .cachet-row{display:flex; align-items:center; gap:8px; margin:-6px 0 14px; flex-wrap:wrap;}
   .cachet-row label{font-size:12.5px; color:var(--muted); font-weight:600;}
   .cachet-row select{padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
   .cachet-row input[type=number]{padding:6px 9px; font-size:12.5px; width:110px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
-  .cachet-row .cachet-unit{font-size:12.5px; color:var(--muted);}
-  .manque-badge{display:inline-block; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:20px; margin-left:6px; font-variant-numeric:tabular-nums; vertical-align:middle;}
+  .cachet-row .cachet-unit{font-size:12px; color:var(--muted); white-space:nowrap;}
+  .manque-badge{display:inline-block; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; margin-left:6px; font-variant-numeric:tabular-nums; vertical-align:middle;}
   .manque-badge.ok{background:var(--ok-tint); color:var(--ok);}
   .manque-badge.warn{background:var(--danger-tint); color:var(--danger);}
   .nomenclature-panel select, .nomenclature-panel input[type=number]{
@@ -70,19 +88,19 @@
   .col-lieu input{width:100%;}
   .col-comment textarea{font-size:12.5px;}
 
-  .statut-group{display:flex; flex-direction:column; border-radius:8px; overflow:hidden; border:1px solid var(--border); width:100%; max-width:96px;}
-  .statut-opt{
-    padding:4px 9px; font-size:10.5px; font-weight:700; border:none; cursor:pointer; font-family:inherit;
-    background:var(--card); color:var(--muted); white-space:nowrap; border-bottom:1px solid var(--border); text-align:left;
+  /* Statut de date : une pastille unique qui tourne au clic (maquette). */
+  .statut-pastille{
+    cursor:pointer; border:none; font-family:inherit; font-size:11px; font-weight:800;
+    padding:4px 11px; border-radius:999px; white-space:nowrap;
+    background:var(--border); color:var(--muted);
   }
-  .statut-opt:last-child{border-bottom:none;}
-  .statut-opt:hover{background:var(--border);}
-  .statut-opt.active.option{background:var(--maybe-tint); color:var(--maybe);}
-  .statut-opt.active.validee{background:var(--ok-tint); color:var(--ok);}
-  .statut-opt.active.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
+  .statut-pastille.option{background:var(--maybe-tint); color:var(--maybe);}
+  .statut-pastille.validee{background:var(--ok-tint); color:var(--ok);}
+  .statut-pastille.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
+  .statut-pastille:hover{filter:brightness(.95);}
   .bloc-badge{
     display:inline-flex; align-items:center; gap:4px; margin-top:5px; font-size:10.5px; font-weight:700; white-space:normal;
-    padding:2px 8px; border-radius:20px; background:var(--border); color:var(--muted); max-width:170px;
+    padding:2px 8px; border-radius:999px; background:var(--border); color:var(--muted); max-width:170px;
   }
   tr.bloc-row td.col-date{padding-left:6px;}
   tr.bloc-row.bloc-alt-0 td.col-date{border-left:3px solid var(--old-champagne);}
@@ -96,9 +114,9 @@
   .chips{display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px;}
   .chip{
     display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
-    padding:3px 8px; border-radius:20px; background:var(--champagne); color:#7a1f52; white-space:nowrap;
+    padding:3px 8px; border-radius:999px; background:var(--champagne); color:var(--prune); white-space:nowrap;
   }
-  :root[data-theme="dark"] .chip{color:#f8d9e8;}
+  :root[data-theme="dark"] .chip{color:var(--rose-spectacle);}
   .chip.dispo{background:var(--ok); color:#fff;}
   .chip.indispo{background:var(--ko); color:#fff;}
   .chip.incertain{background:var(--maybe); color:#fff;}
@@ -115,6 +133,47 @@
   }
   .modal h2{font-size:16px; margin:0 0 4px;}
   .modal .modal-sub{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
+  /* Panneau d'affectation : une tuile cliquable par personne, à la place des
+     lignes à cocher. L'état se lit dans la marque (✓ affecté·e, + affectable,
+     ✕ indisponible donc non affectable, ? dispo à renseigner) et le point de
+     couleur reprend le code de la grille des dispos. */
+  .aff-legende{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent); margin:12px 0 6px;
+  }
+  .aff-legende:first-child{margin-top:6px;}
+  .aff-legende.aff-remplacants{color:var(--ko);}
+  .aff-grille{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:7px;}
+  .aff-grille.aff-remplacants{grid-template-columns:repeat(auto-fill, minmax(230px, 1fr));}
+  .aff-tuile{
+    display:flex; align-items:center; gap:10px; text-align:left; cursor:pointer;
+    font-family:inherit; padding:8px 12px; border-radius:var(--radius);
+    border:1px solid var(--border); background:var(--card); color:var(--text); width:100%;
+  }
+  .aff-tuile.remplacant{border-style:dashed;}
+  .aff-tuile:hover{border-color:var(--accent);}
+  .aff-tuile.affecte{background:var(--accent-solid); border-color:var(--accent-solid); color:#fff;}
+  .aff-tuile.affecte:hover{filter:brightness(1.08);}
+  /* Indisponible : la tuile est éteinte et le curseur dit qu'on ne peut pas. */
+  .aff-tuile.bloque{opacity:.5; cursor:not-allowed;}
+  .aff-tuile.bloque:hover{border-color:var(--border);}
+  .aff-marque{
+    width:20px; height:20px; border-radius:6px; flex:0 0 20px; display:grid; place-items:center;
+    font-size:13px; font-weight:800; border:1px solid var(--border); background:rgba(252,242,240,.2);
+  }
+  .aff-tuile.affecte .aff-marque{border-color:rgba(255,255,255,.5);}
+  .aff-corps{flex:1; min-width:0;}
+  .aff-nom{display:block; font-size:13px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .aff-sous{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted);}
+  .aff-tuile.affecte .aff-sous{color:rgba(255,255,255,.78);}
+  .aff-point{width:8px; height:8px; border-radius:50%; flex:0 0 8px;}
+  .aff-dispo{text-decoration:underline;}
+  .aff-pour{
+    display:inline-block; margin-top:3px; font-size:11px; font-weight:800;
+    padding:2px 8px; border-radius:999px; background:var(--ko-tint); color:var(--ko);
+  }
+  .aff-tuile.affecte .aff-pour{background:rgba(255,255,255,.22); color:#fff;}
+
   .assign-row{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
     padding:8px 4px; border-bottom:1px solid var(--border); font-size:13.5px;
@@ -132,12 +191,12 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="brand-header">
-    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
-    <nav class="page-nav" data-curieux-nav></nav>
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Tournées</h1>
+      <p class="subtitle">Une tournée par production — dates, commentaires, et musicien·nes affecté·es selon leurs disponibilités.</p>
+    </div>
   </div>
-  <h1>Tournées</h1>
-  <p class="subtitle">Une tournée par production — dates, commentaires, et musicien·nes affecté·es selon leurs disponibilités.</p>
 
   <div class="new-tournee-card">
     <input type="text" id="newTourneeName" placeholder="Nom de la nouvelle tournée (ex: Tournée Automne 2026)">
@@ -188,7 +247,7 @@
 </div>
 
 <div class="modal-overlay" id="assignOverlay">
-  <div class="modal">
+  <div class="modal" style="max-width:900px;">
     <h2 id="assignTitle">Affecter des musicien·nes</h2>
     <p class="modal-sub" id="assignSub"></p>
     <input type="text" id="assignSearch" placeholder="Chercher un nom, un instrument, un poste…" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13.5px; margin-bottom:6px; background:var(--bg); color:var(--text); font-family:inherit;">
@@ -479,6 +538,7 @@ function openAssignModal(tourneeId, dateId){
   assignTechnicians = loadTechnicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
   assignSelectedM = new Set(dateEntry.musiciensAssignes || []);
   assignSelectedT = new Set(dateEntry.techniciensAssignes || []);
+  assignDisposEnAttente = {};
   assignDateIso = dateEntry.date;
 
   // Bloc = dates liées (linkedToNext) à celle-ci — propose de répercuter la
@@ -565,80 +625,165 @@ function contradictionBadge(noms){
   return `<span class="chip" style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;" title="${escapeAttr(liste)} — affecté·e${noms.length>1?'s':''} alors qu'iel${noms.length>1?'s se sont':' s\'est'} déclaré·e${noms.length>1?'s':''} indisponible${noms.length>1?'s':''} sur cette date">\u26A0 ${noms.length} indisponible${noms.length>1?'s':''} affecté·e${noms.length>1?'s':''}</span>`;
 }
 
+// Famille d'instrument : « Violon solo » et « Violon » partagent la famille
+// « Violon », ce qui permet de proposer les bons remplaçant·es.
+function familleInstrument(instrument){
+  return (instrument || '').split(' ')[0].toLowerCase();
+}
+
+// Dispos posées à la main dans le panneau, en attente d'enregistrement.
+let assignDisposEnAttente = {};
+
+function dispoDe(personne){
+  if(assignDisposEnAttente[personne.id]) return assignDisposEnAttente[personne.id];
+  return (personne.disponibilites || {})[assignDateIso] || '';
+}
+
+const DISPO_LIBELLE = {
+  '': 'dispo non renseignée', dispo: 'disponible',
+  indispo: 'indisponible', incertain: 'à confirmer',
+};
+const DISPO_POINT = {
+  '': 'var(--border)', dispo: 'var(--ok)',
+  indispo: 'var(--ko)', incertain: 'var(--maybe)',
+};
+
+// Une tuile de personne. `pour` porte le·la titulaire remplacé·e, le cas échéant.
+function tuileAffectation(personne, role, selection, conflicts, pour){
+  const dispo = dispoDe(personne);
+  const affecte = selection.has(personne.id);
+  const bloque = !affecte && dispo === 'indispo';
+  const sansDispo = !affecte && dispo === '';
+  const metier = role === 'musicien' ? (personne.instrument || 'Musicien·ne') : (personne.poste || 'Technicien·ne');
+
+  const marque = affecte ? '✓' : bloque ? '✕' : sansDispo ? '?' : '+';
+  const titre = affecte ? 'Affecté·e — clique pour retirer'
+    : bloque ? 'Indisponible à cette date — affectation impossible'
+    : sansDispo ? 'Dispo non renseignée — clique pour ajouter une dispo à la main, puis affecter'
+    : 'Non affecté·e — ' + DISPO_LIBELLE[dispo] + ' à cette date. Clique pour affecter.';
+
+  return `
+    <button type="button" class="aff-tuile${affecte ? ' affecte' : ''}${bloque ? ' bloque' : ''}${pour ? ' remplacant' : ''}"
+      data-aff-role="${role}" data-aff-id="${escapeAttr(personne.id)}"
+      data-aff-etat="${bloque ? 'bloque' : sansDispo ? 'sans-dispo' : 'ok'}"
+      ${bloque ? 'aria-disabled="true"' : ''}
+      title="${escapeAttr(titre)}">
+      <span class="aff-marque">${marque}</span>
+      <span class="aff-corps">
+        <span class="aff-nom">${escapeHtml(fullName(personne))}</span>
+        <span class="aff-sous">
+          <span class="aff-point" style="background:${DISPO_POINT[dispo]};"></span>
+          ${escapeHtml(metier)} ·
+          <span class="aff-dispo" data-aff-suivi="1" title="Ouvrir le suivi des demandes de dispo">${escapeHtml(DISPO_LIBELLE[dispo])}</span>
+        </span>
+        ${pour ? `<span class="aff-pour">↔ remplace ${escapeHtml(pour)}</span>` : ''}
+        ${conflictBadge(conflicts, personne.id)}
+      </span>
+    </button>
+  `;
+}
+
 function renderAssignList(search){
   const q = (search || '').toLowerCase().trim();
   const listEl = document.getElementById('assignList');
   const conflicts = computeDoubleBookings(assignDateIso, assignContext.tourneeId, assignContext.dateId);
 
-  const musiciansFiltered = assignMusicians.filter(m=>{
-    if(!q) return true;
-    return [m.prenom, m.nom, m.instrument, m.pupitre].filter(Boolean).join(' ').toLowerCase().includes(q);
-  });
-  const techniciansFiltered = assignTechnicians.filter(m=>{
-    if(!q) return true;
-    return [m.prenom, m.nom, m.poste, m.pole].filter(Boolean).join(' ').toLowerCase().includes(q);
-  });
+  const correspond = (p, champs)=> !q || champs.filter(Boolean).join(' ').toLowerCase().includes(q);
 
-  const musicianRows = assignMusicians.length === 0
-    ? `<div class="empty-hint">Aucun·e musicien·ne dans l'<a href="annuaire.html">annuaire</a> pour l'instant.</div>`
-    : musiciansFiltered.length === 0
-    ? `<div class="empty-hint">Aucun résultat.</div>`
-    : musiciansFiltered.map(m=>{
-        const state = (m.disponibilites || {})[assignDateIso] || '';
-        const stateLabel = state === 'dispo' ? 'Disponible' : state === 'indispo' ? 'Indisponible' : state === 'incertain' ? 'À confirmer' : 'Non renseigné';
-        const chipClass = state || 'none';
-        return `
-          <div class="assign-row">
-            <label>
-              <input type="checkbox" data-role="musicien" value="${m.id}" ${assignSelectedM.has(m.id) ? 'checked' : ''}>
-              ${escapeHtml(fullName(m))} <span style="color:var(--muted); font-weight:400;">— ${escapeHtml(m.instrument || '')}</span>
-            </label>
-            ${conflictBadge(conflicts, m.id)}
-            <span class="chip ${chipClass}">${stateLabel}</span>
-          </div>
-        `;
-      }).join('');
+  const titulaires = assignMusicians.filter(m=> (m.statutPoste || 'titulaire') === 'titulaire');
+  const remplacants = assignMusicians.filter(m=> (m.statutPoste || 'titulaire') === 'remplacant');
 
-  const technicianRows = assignTechnicians.length === 0
-    ? `<div class="empty-hint">Aucun·e technicien·ne dans l'<a href="techniciens.html">annuaire technicien·nes</a> pour l'instant.</div>`
-    : techniciansFiltered.length === 0
-    ? `<div class="empty-hint">Aucun résultat.</div>`
-    : techniciansFiltered.map(m=>`
-        <div class="assign-row">
-          <label>
-            <input type="checkbox" data-role="technicien" value="${m.id}" ${assignSelectedT.has(m.id) ? 'checked' : ''}>
-            ${escapeHtml(fullName(m))} <span style="color:var(--muted); font-weight:400;">— ${escapeHtml(m.poste || '')}</span>
-          </label>
-          ${conflictBadge(conflicts, m.id)}
-        </div>
-      `).join('');
+  // Remplaçant·es proposé·es : celles et ceux dont la famille d'instrument
+  // correspond à un·e titulaire indisponible sur cette date. Sans ça, il fallait
+  // savoir de tête qui remplace qui.
+  const indisponibles = titulaires.filter(m=> dispoDe(m) === 'indispo');
+  const proposes = remplacants.map(r=>{
+    const pour = indisponibles.filter(t=> familleInstrument(t.instrument) === familleInstrument(r.instrument));
+    return pour.length ? { personne:r, pour: pour.map(fullName).join(', ') } : null;
+  }).filter(Boolean);
+  const idsProposes = new Set(proposes.map(x=> x.personne.id));
 
-  listEl.innerHTML = `
-    <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:14px 0 6px;">Musicien·nes (${assignSelectedM.size} sélectionné·e${assignSelectedM.size>1?'s':''})</h3>
-    ${musicianRows}
-    <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:14px 0 6px;">Technicien·nes (${assignSelectedT.size} sélectionné·e${assignSelectedT.size>1?'s':''})</h3>
-    ${technicianRows}
-  `;
+  const musiciensAffichables = [
+    ...titulaires,
+    ...remplacants.filter(r=> !idsProposes.has(r.id)),
+  ].filter(m=> correspond(m, [m.prenom, m.nom, m.instrument, m.pupitre]));
 
-  listEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
-    cb.addEventListener('change', ()=>{
-      const set = cb.dataset.role === 'musicien' ? assignSelectedM : assignSelectedT;
-      if(cb.checked) set.add(cb.value); else set.delete(cb.value);
-    });
-  });
+  const techniciensAffichables = assignTechnicians
+    .filter(t=> correspond(t, [t.prenom, t.nom, t.poste, t.pole]));
+
+  const proposesAffichables = proposes
+    .filter(x=> correspond(x.personne, [x.personne.prenom, x.personne.nom, x.personne.instrument]));
+
+  const bloc = (titre, contenu, classe)=> contenu
+    ? `<div class="aff-legende${classe ? ' ' + classe : ''}">${titre}</div><div class="aff-grille${classe ? ' ' + classe : ''}">${contenu}</div>`
+    : '';
+
+  listEl.innerHTML = [
+    assignMusicians.length === 0
+      ? `<div class="empty-hint">Aucun·e musicien·ne dans l'<a href="annuaire.html">annuaire</a> pour l'instant.</div>`
+      : bloc('Musicien·nes',
+          musiciensAffichables.map(m=> tuileAffectation(m, 'musicien', assignSelectedM, conflicts, null)).join('')
+          || `<div class="empty-hint">Aucun résultat.</div>`),
+    bloc('Remplaçant·es proposé·es — titulaires indisponibles',
+      proposesAffichables.map(x=> tuileAffectation(x.personne, 'musicien', assignSelectedM, conflicts, x.pour)).join(''),
+      'aff-remplacants'),
+    assignTechnicians.length === 0
+      ? `<div class="empty-hint">Aucun·e technicien·ne dans l'<a href="techniciens.html">annuaire technicien·nes</a> pour l'instant.</div>`
+      : bloc('Technicien·nes',
+          techniciensAffichables.map(t=> tuileAffectation(t, 'technicien', assignSelectedT, conflicts, null)).join('')
+          || `<div class="empty-hint">Aucun résultat.</div>`),
+  ].join('');
 }
-function closeAssignModal(){
-  document.getElementById('assignOverlay').classList.remove('open');
-  assignContext = null;
-  assignBlocOtherDates = [];
-}
-document.getElementById('assignCancel').addEventListener('click', closeAssignModal);
-document.getElementById('assignOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'assignOverlay') closeAssignModal(); });
+
+// La recherche refiltre les trois grilles à la frappe.
 document.getElementById('assignSearch').addEventListener('input', (e)=> renderAssignList(e.target.value));
-document.getElementById('assignSave').addEventListener('click', ()=>{
+
+// Clic sur une tuile : retirer, affecter, ou poser une dispo manquante. Un clic
+// sur le libellé de dispo part vers le suivi des demandes plutôt que d'affecter.
+document.getElementById('assignList').addEventListener('click', (e)=>{
+  if(e.target.closest('[data-aff-suivi]')){
+    window.open('suivi-dispo.html', '_blank', 'noopener');
+    return;
+  }
+  const tuile = e.target.closest('[data-aff-id]');
+  if(!tuile) return;
+  const id = tuile.dataset.affId;
+  const role = tuile.dataset.affRole;
+  const etat = tuile.dataset.affEtat;
+
+  if(etat === 'bloque') return;   // indisponible : non affectable
+
+  if(etat === 'sans-dispo'){
+    // On pose la dispo à la main ; elle sera enregistrée avec l'affectation.
+    assignDisposEnAttente[id] = 'dispo';
+    renderAssignList(document.getElementById('assignSearch').value);
+    return;
+  }
+
+  const selection = role === 'musicien' ? assignSelectedM : assignSelectedT;
+  if(selection.has(id)) selection.delete(id); else selection.add(id);
+  renderAssignList(document.getElementById('assignSearch').value);
+});
+
+document.getElementById('assignSave').addEventListener('click', async ()=>{
   if(!assignContext) return;
   const checkedMusiciens = Array.from(assignSelectedM);
   const checkedTechniciens = Array.from(assignSelectedT);
+
+  // Dispos renseignées à la main pendant l'affectation : on les écrit dans la
+  // fiche de la personne, pour que la grille des dispos dise la même chose.
+  const aEcrire = Object.entries(assignDisposEnAttente);
+  if(aEcrire.length && assignDateIso){
+    const musiciens = loadMusicians(), techniciens = loadTechnicians();
+    for(const [personId, valeur] of aEcrire){
+      const m = musiciens.find(x=> x.id === personId);
+      const t = m ? null : techniciens.find(x=> x.id === personId);
+      const personne = m || t;
+      if(!personne) continue;
+      personne.disponibilites = { ...(personne.disponibilites || {}), [assignDateIso]: valeur };
+      await CurieuxDB.upsertOne(m ? 'musiciens' : 'techniciens', personne);
+    }
+  }
   const tournees = loadTournees();
   const tournee = tournees.find(t=>t.id === assignContext.tourneeId);
   if(tournee){
@@ -717,8 +862,8 @@ function renderNomenclaturePanel(tourneeId){
   if(!t) return;
   const holder = document.querySelector(`[data-nomenclature-rows="${CSS.escape(tourneeId)}"]`);
   if(holder) holder.innerHTML = renderNomenclatureRowsHtml(t);
-  const toggleBtn = document.querySelector(`[data-toggle-nomenclature="${CSS.escape(tourneeId)}"]`);
-  if(toggleBtn) toggleBtn.textContent = (t.nomenclature||[]).length ? `Modifier (${t.nomenclature.length} pupitre${t.nomenclature.length>1?'s':''})` : 'Définir la nomenclature';
+  // Le panneau n'est plus replié derrière un bouton dont il fallait tenir le
+  // libellé à jour : il est toujours affiché, les lignes suffisent.
   updateManqueBadges(tourneeId);
 }
 function updateManqueBadges(tourneeId){
@@ -746,12 +891,6 @@ document.addEventListener('change', (e)=>{
   updateManqueBadges(tourneeId);
 });
 document.addEventListener('click', (e)=>{
-  const toggleBtn = e.target.closest('[data-toggle-nomenclature]');
-  if(toggleBtn){
-    const panel = document.getElementById(`nomenclature-${toggleBtn.dataset.toggleNomenclature}`);
-    if(panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    return;
-  }
   const addBtn = e.target.closest('[data-add-nomenclature-row]');
   if(addBtn){
     const tourneeId = addBtn.dataset.addNomenclatureRow;
@@ -826,12 +965,16 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <option value="avion" ${travelMode==='avion'?'selected':''}>Avion</option>
           </select>
         `;
+        // Une seule pastille qui tourne au clic : option → validée → annulée,
+        // comme dans la maquette. La cible suivante est portée par l'attribut,
+        // et le titre l'annonce pour qu'on sache où l'on va avant de cliquer.
+        const SUITE = { option:'validee', validee:'annulee', annulee:'option' };
+        const LIBELLE = { option:'Option', validee:'Validée', annulee:'Annulée' };
         const statutGroup = `
-          <div class="statut-group">
-            <button type="button" class="statut-opt ${statut==='option'?'active option':''}" data-set-statut="${escapeAttr(d.id)}" data-statut-value="option">Option</button>
-            <button type="button" class="statut-opt ${statut==='validee'?'active validee':''}" data-set-statut="${escapeAttr(d.id)}" data-statut-value="validee">Validée</button>
-            <button type="button" class="statut-opt ${statut==='annulee'?'active annulee':''}" data-set-statut="${escapeAttr(d.id)}" data-statut-value="annulee">Annulée</button>
-          </div>
+          <button type="button" class="statut-pastille ${statut}"
+            data-set-statut="${escapeAttr(d.id)}" data-statut-value="${SUITE[statut]}"
+            title="Statut : ${LIBELLE[statut]}. Clique pour passer à « ${LIBELLE[SUITE[statut]]} » (option → validée → annulée)"
+            aria-label="Statut ${LIBELLE[statut]} — changer pour ${LIBELLE[SUITE[statut]]}">${LIBELLE[statut]}</button>
         `;
         const blocInfo = blocMap.get(d.id);
         const hasNext = dIdx < dates.length - 1;
@@ -896,27 +1039,31 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             </div>
           </div>
           <div class="tournee-meta">${dates.length} date${dates.length>1?'s':''}</div>
-          <div class="cachet-row">
-            <label>Cachet brut :</label>
-            <select data-cachet-statut="${escapeAttr(t.id)}">
-              <option value="non_defini" ${t.cachetStatut !== 'defini' ? 'selected' : ''}>Non défini pour l'instant</option>
-              <option value="defini" ${t.cachetStatut === 'defini' ? 'selected' : ''}>Montant défini</option>
-            </select>
-            <input type="number" data-cachet-montant="${escapeAttr(t.id)}" placeholder="Montant" min="0" step="0.01"
-              value="${t.cachetMontant != null ? escapeAttr(String(t.cachetMontant)) : ''}"
-              style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">
-            <span class="cachet-unit" style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">€ brut</span>
-            <button type="button" class="btn-ghost btn-sm" data-toggle-cachet-overrides="${escapeAttr(t.id)}"
-              style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">Cachet différent pour certaines personnes${overrideCount ? ` (${overrideCount})` : ''}</button>
-          </div>
-          <div class="cachet-row" style="margin-top:-10px;">
-            <label>Effectif attendu :</label>
-            <button type="button" class="btn-ghost btn-sm" data-toggle-nomenclature="${escapeAttr(t.id)}">${(t.nomenclature||[]).length ? `Modifier (${t.nomenclature.length} pupitre${t.nomenclature.length>1?'s':''})` : 'Définir la nomenclature'}</button>
-          </div>
-          <div class="nomenclature-panel" id="nomenclature-${escapeAttr(t.id)}" style="display:none; margin:-6px 0 14px;">
-            <p style="font-size:12.5px; color:var(--muted); margin:0 0 8px;">Le nombre de musicien·nes attendu par pupitre pour cette tournée — sert à afficher ce qui manque sur chaque date, une fois les affectations faites.</p>
-            <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
-            <button type="button" class="btn-secondary btn-sm" data-add-nomenclature-row="${escapeAttr(t.id)}">+ Ajouter un pupitre</button>
+          <!-- Cachet et effectif attendu sont désormais toujours affichés côte à
+               côte, et non repliés derrière un bouton : ce sont deux réglages de
+               tête de tournée qu'on consulte en même temps que les dates. -->
+          <div class="tournee-outils">
+            <div>
+              <div class="outils-legend">Cachet</div>
+              <div class="cachet-row">
+                <select data-cachet-statut="${escapeAttr(t.id)}">
+                  <option value="non_defini" ${t.cachetStatut !== 'defini' ? 'selected' : ''}>Non défini pour l'instant</option>
+                  <option value="defini" ${t.cachetStatut === 'defini' ? 'selected' : ''}>Montant défini</option>
+                </select>
+                <span class="cachet-montant" style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">
+                  <input type="number" data-cachet-montant="${escapeAttr(t.id)}" placeholder="Montant" min="0" step="0.01"
+                    value="${t.cachetMontant != null ? escapeAttr(String(t.cachetMontant)) : ''}">
+                  <span class="cachet-unit">€ brut / date</span>
+                </span>
+              </div>
+              <button type="button" class="btn-ghost btn-sm" data-toggle-cachet-overrides="${escapeAttr(t.id)}"
+                style="${t.cachetStatut === 'defini' ? 'margin-top:8px; padding-left:0;' : 'display:none;'}">Cachet différent pour certaines personnes${overrideCount ? ` (${overrideCount})` : ''}</button>
+            </div>
+            <div class="nomenclature-panel" id="nomenclature-${escapeAttr(t.id)}">
+              <div class="outils-legend">Effectif attendu (nomenclature)</div>
+              <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
+              <button type="button" class="co-btn tint sm" style="margin-top:8px;" data-add-nomenclature-row="${escapeAttr(t.id)}">+ Ajouter un pupitre</button>
+            </div>
           </div>
           <div class="cachet-overrides" id="cachet-overrides-${escapeAttr(t.id)}" style="display:none; margin:-6px 0 14px;">
             ${rosterPeople.length === 0
@@ -1215,12 +1362,12 @@ function renderDispoLinksModal(tourneeId){
     }
     const isRemplacant = (person.statutPoste || 'titulaire') === 'remplacant';
     const datesTag = existing && existing.dates && existing.dates.length > 0
-      ? `<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--border); color:var(--muted); vertical-align:middle;" title="Lien restreint à ${existing.dates.length} date${existing.dates.length>1?'s':''}">${existing.dates.length} date${existing.dates.length>1?'s':''}</span>`
+      ? `<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:999px; background:var(--border); color:var(--muted); vertical-align:middle;" title="Lien restreint à ${existing.dates.length} date${existing.dates.length>1?'s':''}">${existing.dates.length} date${existing.dates.length>1?'s':''}</span>`
       : '';
     return `
       <div style="display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid var(--border);">
         <div style="flex:1; min-width:0;">
-          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? '<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;">Remplaçant·e</span>' : ''} ${datesTag}</div>
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? '<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:999px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;">Remplaçant·e</span>' : ''} ${datesTag}</div>
           <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
         </div>
         ${statusHtml}
@@ -1510,7 +1657,7 @@ function bindTourneeEvents(){
       const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.setStatut);
       if(!d) return;
       const current = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
-      if(current === value) return;
+      if(current === value) return;   // sécurité : la pastille vise toujours le statut suivant
 
       // Si la date fait partie d'un bloc, le changement de statut s'applique à tout le
       // bloc (départ/retour groupés) — les affectations musiciens/techniciens, elles,
@@ -1607,8 +1754,6 @@ document.getElementById('addTourneeBtn').addEventListener('click', ()=>{
 });
 
 injectCurieuxFonts();
-initNavDropdowns();
-initGlobalSearch(document.querySelector('.page-nav'));
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

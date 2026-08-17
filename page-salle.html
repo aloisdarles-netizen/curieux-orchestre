@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Page salle</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  /* ==========================================================================
+     Page salle — la demande faite à la salle, telle que la salle la lit.
+
+     Ce que la salle reçoit vraiment est technique-partage.html, ouvert par un
+     lien à jeton, sans compte. Cette page en est la vue côté production : même
+     contenu, mêmes cinq langues, mais accessible depuis l'outil, pour vérifier
+     avant d'envoyer et pour sortir le PDF. Les commandes de réponse y sont donc
+     désactivées — c'est la salle qui répond, pas nous.
+
+     Plus large que les autres écrans (980 px) : les valeurs techniques sont
+     posées en libellé au-dessus / valeur en gros, ce qui demande de la place.
+     ========================================================================== */
+  .wrap{max-width:980px; margin:0 auto;}
+
+  .salle-langues{display:flex; gap:5px; flex-wrap:wrap;}
+  .salle-langues button{
+    cursor:pointer; border:1px solid var(--border); background:var(--card); color:var(--muted);
+    border-radius:8px; padding:6px 10px; font-size:11.5px; font-weight:800; font-family:inherit;
+  }
+  .salle-langues button[aria-pressed="true"]{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
+
+  .salle-date{background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:12px;}
+  .salle-date-head{
+    width:100%; text-align:left; cursor:pointer; border:none; background:var(--bg);
+    font-family:inherit; padding:14px 18px; display:flex; align-items:baseline; gap:12px; color:var(--text);
+  }
+  .salle-date-head .titre{flex:1; min-width:0; font-weight:800; font-size:16px;}
+  .salle-date-head .quand{font-size:12.5px; color:var(--muted); font-weight:700; white-space:nowrap;}
+  .salle-date-head .chev{font-size:13px; color:var(--accent); font-weight:800;}
+  .salle-date-corps{padding:14px 18px 18px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:14px;}
+
+  .salle-blocs{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px;}
+  .salle-bloc{background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:14px 16px 15px;}
+  .salle-bloc-titre{
+    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--accent); margin-bottom:11px;
+  }
+  /* Libellé au-dessus, valeur en gros dessous : en liste clé-valeur alignée à
+     droite, les valeurs techniques se lisaient mal d'un coup d'œil. */
+  .salle-champs{display:grid; grid-template-columns:repeat(auto-fit, minmax(96px, 1fr)); gap:12px 16px;}
+  .salle-champ .k{
+    display:block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--muted); margin-bottom:2px;
+  }
+  .salle-champ .v{display:block; font-size:16px; font-weight:800; line-height:1.25;}
+
+  .salle-sous-titre{
+    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); margin-bottom:7px;
+  }
+  /* Les contacts sortent de la liste clé-valeur pour devenir des cartes à
+     initiales : un numéro à appeler dans l'urgence doit se voir. */
+  .salle-contacts{display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:10px;}
+  .salle-contact{display:flex; gap:11px; align-items:center; background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:11px 13px;}
+  .salle-contact-init{
+    width:36px; height:36px; border-radius:11px; flex-shrink:0; background:var(--accent-tint); color:var(--tint-ink);
+    display:grid; place-items:center; font-family:var(--font-display); font-size:14px; font-weight:500;
+  }
+  .salle-contact-corps{flex:1; min-width:0;}
+  .salle-contact-corps .nom{display:block; font-size:14.5px; font-weight:800;}
+  .salle-contact-corps .role{display:block; font-size:11.5px; color:var(--muted); font-weight:700;}
+  .salle-contact-corps .coord{display:block; font-size:12.5px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
+  .salle-horaires{display:flex; flex-wrap:wrap; gap:8px;}
+  .salle-horaire{
+    font-size:12px; font-weight:700; background:var(--bg); border:1px solid var(--border);
+    border-radius:999px; padding:5px 12px; font-variant-numeric:tabular-nums;
+  }
+
+  .salle-vac{background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:11px 13px;}
+  .salle-vac + .salle-vac{margin-top:8px;}
+  .salle-vac-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:8px;}
+  /* Le créneau est aussi important que le nombre demandé : même corps, même
+     graisse, même couleur de texte principal. */
+  .salle-vac-creneau{flex:1; min-width:0; font-size:16.5px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .salle-vac-dem{display:flex; flex-direction:column; align-items:flex-end; gap:3px; white-space:nowrap;}
+  .salle-vac-dem-ligne{display:inline-flex; align-items:baseline; gap:6px;}
+  .salle-vac-dem-mot{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;}
+  .salle-vac-dem-nb{font-size:22px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums;}
+  .salle-vac-dem-poste{font-size:13px; font-weight:800;}
+  .salle-vac-detail{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:9px;}
+  .salle-vac-detail span{font-size:11.5px; font-weight:700; background:var(--card); border:1px solid var(--border); border-radius:999px; padding:4px 11px;}
+  .salle-equipe{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; background:var(--card); border:1px solid var(--border); border-radius:999px; padding:3px 11px 3px 7px;}
+  .salle-equipe .pastille{width:9px; height:9px; border-radius:50%; flex:0 0 9px;}
+  .salle-reponse{display:flex; gap:8px; align-items:center; flex-wrap:wrap; opacity:.75;}
+  .salle-reponse input[type=text], .salle-reponse input[type=number]{
+    padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-size:12.5px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  .salle-reponse input[type=number]{width:62px;}
+  .salle-reponse input[type=text]{flex:1; min-width:140px;}
+  @media (max-width:600px){ input, select{ font-size:16px !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1 id="salleTitre">Page salle</h1>
+      <p class="subtitle" id="salleSousTitre">La demande faite à la salle, telle que la salle la lit.</p>
+    </div>
+    <div class="co-actions">
+      <select id="tourneeSelect" class="co-select" style="width:auto;" aria-label="Tournée"></select>
+      <div class="salle-langues" id="salleLangues" role="group" aria-label="Langue"></div>
+      <button type="button" class="co-btn primary md" id="pdfBtn">Exporter en PDF</button>
+    </div>
+  </div>
+
+  <div class="co-note info co-fade" id="apercuNote" style="margin-bottom:16px;"></div>
+
+  <div class="salle-sous-titre" id="datesLabel"></div>
+  <div id="holder"><div class="empty-hint">Chargement…</div></div>
+</div>
+
+<script>
+// ============================================================================
+// Traductions. Mêmes clés que technique-partage.html — la salle et la production
+// doivent lire exactement les mêmes intitulés.
+// ============================================================================
+const T = {
+  fr: {
+    titre:'Logistique de tournée', qui:'Accès salle', dates:'Vos dates',
+    apercu:"Aperçu — c'est la page que la salle reçoit par son lien de partage. Les réponses sont désactivées ici : c'est la salle qui confirme, depuis son propre lien.",
+    acces:'Accès', faits:'Techniques', horaires:'Horaires de la journée (heure locale)',
+    vacs:'Moyens demandés — à confirmer', contacts:'Vos contacts côté production',
+    semis:'Semis en simultané', dech:'Déchargement', plan:'Plan de scène', ouvrir:'Ouvrir ↗',
+    grill:'Hauteur de grill', ouv:'Ouverture de scène', puis:'Puissance',
+    vac:'Vacation', dem:'Demandé', valide:'Validé', conf:'Confirmer',
+    possible:'Nombre possible', just:'Justification si différent', env:'Envoyer',
+    roadies:'roadies', chariots:'chariots élévateurs', caristes:'cariste', rigg:'rigg',
+    sol:'au sol', grillPos:'au grill', fourchesLongues:'fourches longues', fourchesCourtes:'fourches courtes',
+    niveau:{scene:'sur scène', sol:'au sol', les_deux:'les deux', inconnu:'inconnu'},
+    aucuneDate:'Aucune date à envoyer à une salle pour cette tournée.',
+  },
+  en: {
+    titre:'Tour logistics', qui:'Venue access', dates:'Your dates',
+    apercu:"Preview — this is the page the venue receives through its share link. Replies are disabled here: the venue confirms from its own link.",
+    acces:'Access', faits:'Technical facts', horaires:'Day schedule (local time)',
+    vacs:'Requested resources — to confirm', contacts:'Your production contacts',
+    semis:'Trucks at once', dech:'Unloading', plan:'Stage plan', ouvrir:'Open ↗',
+    grill:'Grid height', ouv:'Stage opening', puis:'Power available',
+    vac:'Shift', dem:'Requested', valide:'Confirmed', conf:'Confirm',
+    possible:'Number available', just:'Note if different', env:'Send',
+    roadies:'roadies', chariots:'forklifts', caristes:'operator', rigg:'rigging',
+    sol:'on the ground', grillPos:'on the grid', fourchesLongues:'long forks', fourchesCourtes:'short forks',
+    niveau:{scene:'on stage', sol:'on the ground', les_deux:'both', inconnu:'unknown'},
+    aucuneDate:'No date to send to a venue for this tour.',
+  },
+  de: {
+    titre:'Tourlogistik', qui:'Zugang für die Spielstätte', dates:'Ihre Termine',
+    apercu:'Vorschau — diese Seite erhält die Spielstätte über ihren Freigabelink. Antworten sind hier deaktiviert: die Spielstätte bestätigt über ihren eigenen Link.',
+    acces:'Zugang', faits:'Technische Daten', horaires:'Tagesablauf (Ortszeit)',
+    vacs:'Angefragte Mittel — bitte bestätigen', contacts:'Ihre Ansprechpartner der Produktion',
+    semis:'Sattelzüge gleichzeitig', dech:'Entladung', plan:'Bühnenplan', ouvrir:'Öffnen ↗',
+    grill:'Traversenhöhe', ouv:'Bühnenöffnung', puis:'Verfügbare Leistung',
+    vac:'Schicht', dem:'Angefragt', valide:'Bestätigt', conf:'Bestätigen',
+    possible:'Mögliche Anzahl', just:'Anmerkung falls abweichend', env:'Senden',
+    roadies:'Roadies', chariots:'Gabelstapler', caristes:'Staplerfahrer', rigg:'Rigging',
+    sol:'am Boden', grillPos:'an der Traverse', fourchesLongues:'lange Gabeln', fourchesCourtes:'kurze Gabeln',
+    niveau:{scene:'auf der Bühne', sol:'am Boden', les_deux:'beides', inconnu:'unbekannt'},
+    aucuneDate:'Kein Termin für eine Spielstätte in dieser Tour.',
+  },
+  es: {
+    titre:'Logística de gira', qui:'Acceso para la sala', dates:'Sus fechas',
+    apercu:'Vista previa — esta es la página que la sala recibe con su enlace. Las respuestas están desactivadas aquí: es la sala quien confirma, desde su propio enlace.',
+    acces:'Acceso', faits:'Datos técnicos', horaires:'Horario del día (hora local)',
+    vacs:'Medios solicitados — a confirmar', contacts:'Sus contactos de producción',
+    semis:'Tráileres simultáneos', dech:'Descarga', plan:'Plano de escena', ouvrir:'Abrir ↗',
+    grill:'Altura de parrilla', ouv:'Boca de escena', puis:'Potencia disponible',
+    vac:'Turno', dem:'Solicitado', valide:'Confirmado', conf:'Confirmar',
+    possible:'Número posible', just:'Justificación si difiere', env:'Enviar',
+    roadies:'roadies', chariots:'carretillas elevadoras', caristes:'operario', rigg:'rigging',
+    sol:'en el suelo', grillPos:'en la parrilla', fourchesLongues:'horquillas largas', fourchesCourtes:'horquillas cortas',
+    niveau:{scene:'en el escenario', sol:'en el suelo', les_deux:'ambos', inconnu:'desconocido'},
+    aucuneDate:'Ninguna fecha para enviar a una sala en esta gira.',
+  },
+  nl: {
+    titre:'Tourlogistiek', qui:'Toegang voor de zaal', dates:'Uw data',
+    apercu:'Voorbeeld — dit is de pagina die de zaal via haar deellink ontvangt. Antwoorden zijn hier uitgeschakeld: de zaal bevestigt via haar eigen link.',
+    acces:'Toegang', faits:'Technische gegevens', horaires:'Dagschema (lokale tijd)',
+    vacs:'Gevraagde middelen — te bevestigen', contacts:'Uw contactpersonen bij de productie',
+    semis:'Trucks tegelijk', dech:'Lossen', plan:'Podiumplan', ouvrir:'Openen ↗',
+    grill:'Rijghoogte', ouv:'Podiumopening', puis:'Beschikbaar vermogen',
+    vac:'Shift', dem:'Aangevraagd', valide:'Bevestigd', conf:'Bevestigen',
+    possible:'Mogelijk aantal', just:'Toelichting indien anders', env:'Versturen',
+    roadies:'roadies', chariots:'vorkheftrucks', caristes:'heftruckchauffeur', rigg:'rigging',
+    sol:'op de grond', grillPos:'aan de rijg', fourchesLongues:'lange vorken', fourchesCourtes:'korte vorken',
+    niveau:{scene:'op het podium', sol:'op de grond', les_deux:'beide', inconnu:'onbekend'},
+    aucuneDate:'Geen datum om naar een zaal te sturen in deze tour.',
+  },
+};
+const LANGUES = { fr:'FR', en:'EN', de:'DE', es:'ES', nl:'NL' };
+
+const params = new URLSearchParams(location.search);
+let LANG = LANGUES[params.get('lang')] ? params.get('lang') : 'fr';
+let tourneesCache = [];
+let moyensCache = [];
+let techniciensCache = [];
+let dateOuverte = params.get('d') || '';
+
+function tr(){ return T[LANG] || T.fr; }
+function tourneeCourante(){
+  return tourneesCache.find(t=> t.id === document.getElementById('tourneeSelect').value) || null;
+}
+function moyensDe(dateId){
+  const t = tourneeCourante();
+  return t ? moyensCache.find(m=> m.id === `${t.id}::${dateId}`) : null;
+}
+
+// Une date apparaît sur la page salle dès qu'une demande a été saisie pour elle :
+// sans moyens, la salle n'aurait rien à confirmer.
+function datesAEnvoyer(){
+  const t = tourneeCourante();
+  if(!t) return [];
+  return (t.dates || [])
+    .filter(d=> d.date && d.statut !== 'annulee' && moyensDe(d.id))
+    .sort((a, b)=> (a.date || '').localeCompare(b.date || ''));
+}
+
+function jourLong(iso){
+  if(!iso) return '';
+  const locales = { fr:'fr-FR', en:'en-GB', de:'de-DE', es:'es-ES', nl:'nl-NL' };
+  return new Date(iso + 'T00:00:00').toLocaleDateString(locales[LANG] || 'fr-FR',
+    { weekday:'long', day:'numeric', month:'long' });
+}
+
+function initiales(nom){
+  return (nom || '').trim().split(/\s+/).map(x=> x.charAt(0).toUpperCase()).slice(0, 2).join('') || '·';
+}
+
+function champ(cle, valeur){
+  return `<div class="salle-champ"><span class="k">${escapeHtml(cle)}</span><span class="v">${escapeHtml(valeur || '—')}</span></div>`;
+}
+
+// --- Moyens demandés ------------------------------------------------------
+// Une ligne par vacation, numérotée par type de moyen : « Vacation 1 » existe
+// pour les roadies, pour les chariots et pour le rigg — c'est la nomenclature
+// retenue par l'équipe technique.
+function ligneVacation(vac, index, type, equipesRoad){
+  const L = tr();
+  const creneau = [vac.horaireDebut, vac.horaireFin].filter(Boolean).join(' – ') || '—';
+  const confirme = !!vac.confirme;
+  const mot = confirme ? L.valide : L.dem;
+  const couleur = confirme ? 'var(--ok)' : 'var(--accent)';
+
+  let nombre, poste, second = '';
+  if(type === 'chariots'){
+    nombre = vac.nombreChariotsDemande;
+    poste = L.chariots;
+    // La demande de caristes s'affiche sous celle des chariots, même taille et
+    // même style : ce sont deux nombres à confirmer, pas un détail de l'autre.
+    if(vac.nombreCaristesDemande){
+      second = `<span class="salle-vac-dem-ligne">
+        <span class="salle-vac-dem-mot">${escapeHtml(mot)}</span>
+        <span class="salle-vac-dem-nb">${escapeHtml(String(vac.nombreCaristesDemande))}</span>
+        <span class="salle-vac-dem-poste">${escapeHtml(L.caristes)}</span></span>`;
+    }
+  } else {
+    nombre = vac.nombreDemande;
+    poste = type === 'roadies' ? L.roadies : L.rigg;
+  }
+
+  // Détails : pales de fourches pour les chariots, position pour le rigg.
+  const details = [];
+  if(type === 'chariots'){
+    (vac.fourches || []).forEach(f=>{
+      if(f.fourche === 'longues') details.push('1 × ' + L.fourchesLongues);
+      else if(f.fourche === 'courtes') details.push('1 × ' + L.fourchesCourtes);
+    });
+  }
+  if(type === 'rigg'){
+    if(vac.nombreSol) details.push(vac.nombreSol + ' × ' + L.sol);
+    if(vac.nombreGrill) details.push(vac.nombreGrill + ' × ' + L.grillPos);
+  }
+
+  // Répartition par équipe de la tournée, avec la couleur de l'équipe.
+  const equipes = (vac.equipes || [])
+    .filter(e=> e.nombre)
+    .map(e=>{
+      const eq = (equipesRoad || []).find(x=> x.id === e.equipeId) || {};
+      return `<span class="salle-equipe"><span class="pastille" style="background:${escapeAttr(eq.couleur || '#888888')};"></span>${escapeHtml(eq.label || '—')} · ${escapeHtml(String(e.nombre))}</span>`;
+    });
+
+  return `
+    <div class="salle-vac">
+      <div class="salle-vac-head">
+        <span class="salle-vac-creneau">${escapeHtml(L.vac)} ${index + 1} : ${escapeHtml(creneau)}</span>
+        <span class="salle-vac-dem" style="color:${couleur};">
+          <span class="salle-vac-dem-ligne">
+            <span class="salle-vac-dem-mot">${escapeHtml(mot)}</span>
+            <span class="salle-vac-dem-nb">${escapeHtml(String(nombre != null ? nombre : '—'))}</span>
+            <span class="salle-vac-dem-poste">${escapeHtml(poste)}</span>
+          </span>
+          ${second}
+        </span>
+      </div>
+      ${equipes.length ? `<div class="salle-vac-detail">${equipes.join('')}</div>` : ''}
+      ${details.length ? `<div class="salle-vac-detail">${details.map(d=> `<span>${escapeHtml(d)}</span>`).join('')}</div>` : ''}
+      ${vac.notes ? `<div class="co-sub" style="margin-bottom:9px;">${escapeHtml(vac.notes)}</div>` : ''}
+      <div class="salle-reponse">
+        <label class="co-check"><input type="checkbox" ${confirme ? 'checked' : ''} disabled> ${escapeHtml(L.conf)}</label>
+        <span style="display:inline-flex; align-items:center; gap:6px;">
+          <span class="co-sub" style="font-weight:700; white-space:nowrap;">${escapeHtml(L.possible)}</span>
+          <input type="number" placeholder="${escapeAttr(String(nombre != null ? nombre : ''))}" disabled>
+        </span>
+        <input type="text" placeholder="${escapeAttr(L.just)}" disabled>
+        <button type="button" class="co-btn tint sm" disabled>${escapeHtml(L.env)}</button>
+      </div>
+    </div>
+  `;
+}
+
+function corpsDate(d){
+  const L = tr();
+  const m = moyensDe(d.id);
+  const t = tourneeCourante();
+  if(!m) return '';
+
+  const niveau = L.niveau[m.niveauDechargement] || L.niveau.inconnu;
+  const blocAcces = `<div class="salle-bloc">
+      <div class="salle-bloc-titre">${escapeHtml(L.acces)}</div>
+      <div class="salle-champs">
+        ${champ(L.semis, m.nombreSemisSimultanees != null ? String(m.nombreSemisSimultanees) : '')}
+        ${champ(L.dech, niveau)}
+        ${m.planUrl
+          ? `<div class="salle-champ"><span class="k">${escapeHtml(L.plan)}</span><a class="v" href="${escapeAttr(m.planUrl)}" target="_blank" rel="noopener">${escapeHtml(L.ouvrir)}</a></div>`
+          : champ(L.plan, '')}
+      </div>
+    </div>`;
+
+  const blocFaits = `<div class="salle-bloc">
+      <div class="salle-bloc-titre">${escapeHtml(L.faits)}</div>
+      <div class="salle-champs">
+        ${champ(L.grill, m.hauteurGrill)}
+        ${champ(L.ouv, m.ouvertureScene)}
+        ${champ(L.puis, m.puissance)}
+      </div>
+    </div>`;
+
+  // Ce sont NOS contacts que la salle doit avoir sous les yeux, pas les siens :
+  // elle connaît déjà son régisseur. On expose les technicien·nes de la tournée
+  // explicitement cochés côté détail technique.
+  const contacts = techniciensCache
+    .filter(p=> (m.contactsTechniciensIds || []).includes(p.id))
+    .map(p=> `<div class="salle-contact">
+        <span class="salle-contact-init" aria-hidden="true">${escapeHtml(initiales(fullName(p)))}</span>
+        <span class="salle-contact-corps">
+          <span class="nom">${escapeHtml(fullName(p))}</span>
+          <span class="role">${escapeHtml([p.poste, 'Curieux orchestre'].filter(Boolean).join(' — '))}</span>
+          ${p.telephone ? `<span class="coord">${escapeHtml(p.telephone)}</span>` : ''}
+          ${p.email ? `<span class="coord">${escapeHtml(p.email)}</span>` : ''}
+        </span>
+      </div>`);
+
+  const horaires = (m.horairesJournee || []).filter(h=> h.heure || h.label);
+  const equipesRoad = (t && t.equipesRoad) || [];
+  const vacations = [
+    ...(m.roadiesVacations || []).map((v, i)=> ligneVacation(v, i, 'roadies', equipesRoad)),
+    ...(m.chariotsVacations || []).map((v, i)=> ligneVacation(v, i, 'chariots', equipesRoad)),
+    ...(m.riggVacations || []).map((v, i)=> ligneVacation(v, i, 'rigg', equipesRoad)),
+  ];
+
+  return `
+    <div class="salle-date-corps">
+      <div class="salle-blocs">${blocAcces}${blocFaits}</div>
+      ${contacts.length ? `<div>
+        <div class="salle-bloc-titre">${escapeHtml(L.contacts)}</div>
+        <div class="salle-contacts">${contacts.join('')}</div>
+      </div>` : ''}
+      ${horaires.length ? `<div>
+        <div class="salle-sous-titre">${escapeHtml(L.horaires)}</div>
+        <div class="salle-horaires">${horaires.map(h=>
+          `<span class="salle-horaire">${escapeHtml(h.heure || '—')} — ${escapeHtml(h.label || '')}</span>`).join('')}</div>
+      </div>` : ''}
+      ${vacations.length ? `<div>
+        <div class="salle-sous-titre">${escapeHtml(L.vacs)}</div>
+        <div>${vacations.join('')}</div>
+      </div>` : ''}
+    </div>
+  `;
+}
+
+function render(){
+  const L = tr();
+  const t = tourneeCourante();
+  document.getElementById('salleTitre').textContent = L.titre;
+  document.getElementById('salleSousTitre').textContent =
+    [t ? t.nom : '', L.qui].filter(Boolean).join(' · ');
+  document.getElementById('apercuNote').textContent = L.apercu;
+  document.getElementById('datesLabel').textContent = L.dates;
+
+  document.getElementById('salleLangues').innerHTML = Object.entries(LANGUES).map(([code, label])=>
+    `<button type="button" data-lang="${code}" aria-pressed="${code === LANG}">${label}</button>`).join('');
+
+  const dates = datesAEnvoyer();
+  const holder = document.getElementById('holder');
+  if(dates.length === 0){
+    holder.innerHTML = `<div class="empty-hint">${escapeHtml(L.aucuneDate)}</div>`;
+    return;
+  }
+  if(!dates.some(d=> d.id === dateOuverte)) dateOuverte = dates[0].id;
+
+  holder.innerHTML = dates.map(d=>{
+    const ouvert = d.id === dateOuverte;
+    const titre = [d.ville, d.lieu].filter(Boolean).join(' — ') || 'Date';
+    return `
+      <section class="salle-date">
+        <button type="button" class="salle-date-head" data-ouvrir="${escapeAttr(d.id)}" aria-expanded="${ouvert}">
+          <span class="titre">${escapeHtml(titre)}</span>
+          <span class="quand">${escapeHtml(jourLong(d.date))}</span>
+          <span class="chev" aria-hidden="true">${ouvert ? '▴' : '▾'}</span>
+        </button>
+        ${ouvert ? corpsDate(d) : ''}
+      </section>
+    `;
+  }).join('');
+
+  holder.querySelectorAll('[data-ouvrir]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      dateOuverte = btn.dataset.ouvrir === dateOuverte ? '' : btn.dataset.ouvrir;
+      render();
+    });
+  });
+}
+
+// --- Export PDF -----------------------------------------------------------
+// Le PDF reprend la page dans la langue choisie : c'est ce document que la
+// production envoie quand la salle préfère une pièce jointe à un lien.
+function exporterPdf(){
+  const L = tr();
+  const t = tourneeCourante();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  registerHostFont(doc);
+  const largeur = doc.internal.pageSize.getWidth();
+  drawCurieuxPdfHeader(doc, largeur, L.titre, 22);
+  let y = 30;
+
+  doc.setFont('Host', 'bold'); doc.setFontSize(12);
+  doc.text((t && t.nom) || '', 12, y); y += 7;
+
+  datesAEnvoyer().forEach(d=>{
+    const m = moyensDe(d.id);
+    if(!m) return;
+    if(y > 250){ doc.addPage(); y = 20; }
+
+    doc.setFont('Host', 'bold'); doc.setFontSize(11);
+    doc.setTextColor(121, 22, 73);
+    doc.text([d.ville, d.lieu].filter(Boolean).join(' — ') + '  ·  ' + jourLong(d.date), 12, y);
+    doc.setTextColor(20, 22, 23);
+    y += 5;
+
+    const lignes = [
+      [L.semis, m.nombreSemisSimultanees != null ? String(m.nombreSemisSimultanees) : '—'],
+      [L.dech, L.niveau[m.niveauDechargement] || L.niveau.inconnu],
+      [L.grill, m.hauteurGrill || '—'],
+      [L.ouv, m.ouvertureScene || '—'],
+      [L.puis, m.puissance || '—'],
+    ];
+    (m.horairesJournee || []).filter(h=> h.heure || h.label)
+      .forEach(h=> lignes.push([L.horaires, `${h.heure || '—'} — ${h.label || ''}`]));
+
+    const vac = (v, i, type)=>{
+      const creneau = [v.horaireDebut, v.horaireFin].filter(Boolean).join(' – ') || '—';
+      const nb = type === 'chariots' ? v.nombreChariotsDemande : v.nombreDemande;
+      const poste = type === 'roadies' ? L.roadies : type === 'chariots' ? L.chariots : L.rigg;
+      lignes.push([`${L.vac} ${i + 1} · ${creneau}`,
+        `${v.confirme ? L.valide : L.dem} ${nb != null ? nb : '—'} ${poste}`]);
+      if(type === 'chariots' && v.nombreCaristesDemande){
+        lignes.push(['', `${v.confirme ? L.valide : L.dem} ${v.nombreCaristesDemande} ${L.caristes}`]);
+      }
+    };
+    (m.roadiesVacations || []).forEach((v, i)=> vac(v, i, 'roadies'));
+    (m.chariotsVacations || []).forEach((v, i)=> vac(v, i, 'chariots'));
+    (m.riggVacations || []).forEach((v, i)=> vac(v, i, 'rigg'));
+
+    doc.autoTable({
+      startY: y, body: lignes, theme:'plain',
+      styles:{ font:'Host', fontSize:9, cellPadding:1.6 },
+      columnStyles:{ 0:{ cellWidth:58, textColor:[122, 102, 118] }, 1:{ fontStyle:'bold' } },
+      margin:{ left:12, right:12 },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+  });
+
+  doc.save(`page-salle-${LANG}-${(t && t.nom ? t.nom : 'tournee').replace(/[^\w-]+/g, '-').toLowerCase()}.pdf`);
+}
+
+document.getElementById('salleLangues').addEventListener('click', (e)=>{
+  const btn = e.target.closest('[data-lang]');
+  if(!btn) return;
+  LANG = btn.dataset.lang;
+  document.documentElement.lang = LANG;
+  render();
+});
+document.getElementById('tourneeSelect').addEventListener('change', ()=>{ dateOuverte = ''; render(); });
+document.getElementById('pdfBtn').addEventListener('click', exporterPdf);
+
+async function initData(){
+  [tourneesCache, moyensCache, techniciensCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('moyens_salle'),
+    CurieuxDB.fetchAll('techniciens'),
+  ]);
+  const sel = document.getElementById('tourneeSelect');
+  sel.innerHTML = tourneesCache.length
+    ? tourneesCache.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('')
+    : '<option value="">Aucune tournée</option>';
+  // Ouverte sur la bonne tournée quand on arrive depuis le détail technique.
+  const voulue = params.get('t');
+  if(voulue && tourneesCache.some(t=> t.id === voulue)) sel.value = voulue;
+  document.documentElement.lang = LANG;
+  render();
+  // Arrivée avec &pdf=1 depuis « Exporter la page salle en PDF » : on produit le
+  // document tout de suite, la page servant alors juste de gabarit.
+  if(params.get('pdf') === '1') setTimeout(exporterPdf, 300);
+}
+CurieuxDB.subscribe('moyens_salle', ()=> CurieuxDB.fetchAll('moyens_salle').then(l=>{ moyensCache = l; curieuxRafraichir(render); }));
+
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+initData();
+</script>
+</body>
+</html>

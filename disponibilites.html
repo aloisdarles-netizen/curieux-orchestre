@@ -10,37 +10,39 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:1200px; margin:0 auto;}
+  .wrap{max-width:1240px; margin:0 auto;}
   .subtitle{color:var(--muted); margin:0 0 18px; font-size:14px;}
   h2.section-title{
-    font-size:15.5px; margin:32px 0 4px; display:flex; align-items:center; gap:9px;
-    text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
+    font-size:13px; margin:26px 0 8px; display:flex; align-items:center; gap:8px; font-weight:800;
+    text-transform:uppercase; letter-spacing:.08em; color:var(--accent);
   }
-  h2.section-title::before{content:''; width:5px; height:16px; border-radius:3px; background:var(--accent); display:inline-block;}
+  h2.section-title::before{content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); display:inline-block; flex-shrink:0;}
+  h2.section-title .compte{color:var(--muted); font-weight:700; text-transform:none; letter-spacing:0;}
 
   button{
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
   }
   .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-secondary:hover{background:color-mix(in srgb, var(--bleu) 78%, var(--prune));}
   .btn-ghost{background:transparent; color:var(--muted); padding:6px 8px; font-size:14px;}
   .btn-ghost:hover{color:var(--danger, var(--ko));}
   .btn-sm{padding:7px 11px; font-size:12px;}
 
   .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--muted); margin-bottom:16px;}
   .legend span{display:inline-flex; align-items:center; gap:6px;}
-  .swatch{width:14px; height:14px; border-radius:4px; display:inline-block;}
+  .swatch{width:13px; height:13px; border-radius:4px; display:inline-block; flex-shrink:0;}
   .swatch.ok{background:var(--ok); border:1px solid var(--ok);}
   .swatch.ko{background:var(--ko); border:1px solid var(--ko);}
   .swatch.maybe{background:var(--maybe); border:1px solid var(--maybe);}
   .swatch.none{background:var(--card); border:1px solid var(--border);}
 
-  .table-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--card);}
+  .table-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--card);}
   table.dispo-table{border-collapse:collapse; min-width:100%;}
   table.dispo-table th, table.dispo-table td{border-bottom:1px solid var(--border); border-right:1px solid var(--border);}
   table.dispo-table th:last-child, table.dispo-table td:last-child{border-right:none;}
@@ -48,16 +50,17 @@
   .col-name{
     position:sticky; left:0; background:var(--card); z-index:2;
     text-align:left; padding:10px 14px; font-size:13px; font-weight:700; white-space:nowrap;
-    min-width:160px;
+    min-width:210px;
   }
   th.col-name{z-index:3; color:var(--muted); text-transform:uppercase; font-size:10.5px; letter-spacing:.03em;}
   .col-date{
-    padding:8px 4px; text-align:center; font-size:11px; color:var(--muted); font-weight:700;
-    white-space:nowrap; min-width:64px;
+    padding:7px 4px; text-align:center; font-size:11px; color:var(--muted); font-weight:800;
+    white-space:nowrap; min-width:76px;
   }
+  .col-date .ville{display:block; font-weight:600; font-size:10px;}
   .cell{padding:6px; text-align:center;}
   .dispo-btn{
-    width:34px; height:30px; border-radius:6px; border:1px solid var(--border); background:var(--card);
+    width:38px; height:30px; border-radius:7px; border:1px solid var(--border); background:var(--card);
     font-size:14px; font-weight:800; cursor:pointer; color:var(--muted);
   }
   .dispo-btn.ok{background:var(--ok); border-color:var(--ok); color:#fff;}
@@ -71,7 +74,7 @@
   .m-instrument-sub{font-weight:500; color:var(--muted); font-size:11px;}
   .remplacant-tag{
     font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
-    padding:1px 6px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); margin-left:5px;
+    padding:1px 6px; border-radius:999px; background:var(--accent-tint); color:var(--accent-dark); margin-left:5px;
   }
   .dispo-filter-row{display:flex; gap:8px; align-items:center; margin:-2px 0 10px; flex-wrap:wrap;}
   .dispo-filter-row label{font-size:12px; color:var(--muted); font-weight:600;}
@@ -92,7 +95,7 @@
   .modal h2{font-size:17px; margin:0 0 4px;}
   .modal .modal-sub{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
   .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
-  .role-toggle{display:inline-flex; border-radius:20px; overflow:hidden; border:1px solid var(--border); margin-bottom:12px;}
+  .role-toggle{display:inline-flex; border-radius:999px; overflow:hidden; border:1px solid var(--border); margin-bottom:12px;}
   .role-opt{
     padding:7px 14px; font-size:12.5px; font-weight:700; border:none; cursor:pointer; font-family:inherit;
     background:var(--card); color:var(--muted); border-right:1px solid var(--border);
@@ -123,12 +126,16 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="brand-header">
-    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
-    <nav class="page-nav" data-curieux-nav></nav>
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Disponibilités</h1>
+      <p class="subtitle">Clique une cellule pour faire tourner le statut : non renseigné → disponible → indisponible → à confirmer. Les dates viennent des <a href="tournees.html">tournées</a>.</p>
+    </div>
+    <div class="co-actions">
+      <button type="button" class="co-btn secondary md" id="importAvailBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="10.5" width="17" height="9" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="6.5" y1="14.5" x2="9.5" y2="14.5" stroke="currentColor" stroke-width="1.3"></line><line x1="14.5" y1="14.5" x2="17.5" y2="14.5" stroke="currentColor" stroke-width="1.3"></line><line x1="12" y1="2.5" x2="12" y2="12.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="7.8,9 12,13.2 16.2,9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Importer des réponses (coller)</button>
+      <button type="button" class="co-btn primary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
+    </div>
   </div>
-  <h1>Disponibilités</h1>
-  <p class="subtitle">Clique une cellule pour faire tourner le statut : non renseigné → disponible → indisponible → à confirmer. Les dates viennent des <a href="tournees.html">tournées</a>.</p>
 
   <div class="legend">
     <span><span class="swatch ok"></span> Disponible</span>
@@ -138,21 +145,16 @@
     <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:var(--muted);">
       <input type="checkbox" id="showPastDates"> Afficher aussi les dates passées
     </label>
-    <span style="margin-left:auto; display:flex; gap:8px;">
-      <button type="button" class="btn-secondary btn-sm" id="importAvailBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="10.5" width="17" height="9" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="6.5" y1="14.5" x2="9.5" y2="14.5" stroke="currentColor" stroke-width="1.3"></line><line x1="14.5" y1="14.5" x2="17.5" y2="14.5" stroke="currentColor" stroke-width="1.3"></line><line x1="12" y1="2.5" x2="12" y2="12.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="7.8,9 12,13.2 16.2,9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Importer des réponses (coller)</button>
-      <button type="button" class="btn-primary" id="exportPdfBtn" style="padding:7px 13px; font-size:12.5px;"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
-    </span>
-  </div>
-
-  <h2 class="section-title">Musicien·nes</h2>
-  <div class="dispo-filter-row">
-    <label for="musicienStatutFilter">Afficher :</label>
-    <select id="musicienStatutFilter">
+    <span style="flex:1;"></span>
+    <label for="musicienStatutFilter" style="font-weight:700;">Afficher :</label>
+    <select id="musicienStatutFilter" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; background:var(--card); color:var(--text); font-family:inherit;">
       <option value="titulaire" selected>Titulaires uniquement</option>
       <option value="">Tou·tes (titulaires en premier)</option>
       <option value="remplacant">Remplaçant·es uniquement</option>
     </select>
   </div>
+
+  <h2 class="section-title">Musicien·nes <span class="compte" id="musicienCompte"></span></h2>
   <div id="tableHolderMusiciens"><div class="empty-hint">Chargement…</div></div>
 
   <h2 class="section-title">Technicien·nes</h2>
@@ -217,6 +219,16 @@ function hasAnyDateEver(){
   return loadTournees().some(t=> (t.dates||[]).some(d=> d.date));
 }
 
+// Ville de la date, pour l'en-tête de colonne. Si deux tournées jouent le même
+// jour, on garde la première : la colonne est de toute façon partagée.
+function villePourDate(iso){
+  for(const t of loadTournees()){
+    const d = (t.dates||[]).find(x=> x.date === iso && x.ville);
+    if(d) return d.ville;
+  }
+  return '';
+}
+
 function allDates(){
   const set = new Set();
   loadTournees().forEach(t=> (t.dates||[]).forEach(d=>{ if(d.date) set.add(d.date); }));
@@ -260,7 +272,7 @@ function renderDispoGrid(people, saveFn, holderId, roleAttr, emptyLinkHref, empt
     <tr>
       <th class="col-name">${nameLabel}</th>
       ${dates.map(d=>`
-        <th class="col-date">${escapeHtml(fmtDateFR(d))}</th>
+        <th class="col-date">${escapeHtml(fmtDateFR(d))}<span class="ville">${escapeHtml(villePourDate(d))}</span></th>
       `).join('')}
     </tr>
   `;
@@ -316,6 +328,9 @@ function renderDispoGrid(people, saveFn, holderId, roleAttr, emptyLinkHref, empt
 function renderAll(){
   const statutFilter = document.getElementById('musicienStatutFilter').value;
   const filteredMusicians = loadMusicians().filter(m=> !statutFilter || (m.statutPoste || 'titulaire') === statutFilter);
+  // Le filtre peut masquer la moitié du roster : le compte dit combien de lignes
+  // la grille montre réellement, sinon on croit voir tout le monde.
+  document.getElementById('musicienCompte').textContent = '· ' + filteredMusicians.length + ' affiché·es';
   renderDispoGrid(filteredMusicians, saveMusicians, 'tableHolderMusiciens', 'musiciens', 'annuaire.html', 'annuaire musicien·nes', 'instrument', "Musicien·ne");
   renderDispoGrid(loadTechnicians(), saveTechnicians, 'tableHolderTechniciens', 'techniciens', 'techniciens.html', 'annuaire technicien·nes', 'poste', "Technicien·ne");
 }
@@ -565,8 +580,6 @@ document.getElementById('importAvailConfirmBtn').addEventListener('click', ()=>{
 });
 
 injectCurieuxFonts();
-initNavDropdowns();
-initGlobalSearch(document.querySelector('.page-nav'));
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

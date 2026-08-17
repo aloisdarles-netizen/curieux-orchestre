@@ -8,11 +8,12 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:900px; margin:0 auto; font-variant-numeric:tabular-nums;}
+  .wrap{max-width:1000px; margin:0 auto; font-variant-numeric:tabular-nums;}
   button{ cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700; padding:9px 15px; font-family:inherit; }
   .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
   .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
@@ -37,12 +38,61 @@
   .section-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px;}
 
   .cardgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:14px;}
-  .r-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; display:flex; flex-direction:column; gap:8px;}
+  .r-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; display:flex; flex-direction:column; gap:8px;}
+
+  /* Cartes véhicule en étiquettes de charte, comme la maquette : aplat plein,
+     contour blanc découpé, ombre franche, posées légèrement de travers. Elles
+     portent des commandes que la maquette n'a pas (chauffeur habituel, actions) :
+     celles-ci sont réhabillées plus bas pour rester lisibles sur l'aplat. */
+  .r-card.vehicule{
+    padding:16px 18px 15px; overflow:hidden; gap:9px; border:none;
+    border-radius:16px;
+    transform:rotate(var(--co-tilt, -.7deg));
+    box-shadow:0 0 0 4px var(--card), 6px 8px 0 rgba(20,22,23,.10);
+    transition:transform .22s cubic-bezier(.34,1.5,.6,1), box-shadow .22s ease;
+  }
+  .r-card.vehicule:hover{
+    transform:rotate(0deg) translateY(-3px);
+    box-shadow:0 0 0 4px var(--card), 9px 12px 0 rgba(20,22,23,.13);
+  }
+  .vehicule-bandeau{display:flex; align-items:center; gap:11px; margin-bottom:2px;}
+  .vehicule-bandeau .r-name{
+    font-family:var(--font-display); font-size:19px; font-weight:500; line-height:1.1;
+    text-transform:uppercase; letter-spacing:.02em; flex:1; min-width:0;
+  }
+  .vehicule-bandeau .r-sub{opacity:.88;}
+  /* La plaque reprend le rendu d'une vraie immatriculation : fond clair, liseré
+     noir, chiffres tabulaires. */
+  .vehicule-plaque{
+    font-size:11.5px; font-weight:800; font-variant-numeric:tabular-nums;
+    background:#FCF2F0; color:#141617; border:1.5px solid #141617; border-radius:6px;
+    padding:3px 8px; letter-spacing:.06em; white-space:nowrap; flex-shrink:0;
+  }
+  .vehicule-corps{display:flex; flex-direction:column; gap:8px;}
+  /* Sur aplat de charte : les commandes reprennent l'encre de l'étiquette, sur un
+     voile translucide clair. En blanc sur blanc ou en prune sur prune, elles
+     disparaissaient. */
+  .r-card.vehicule .r-sub, .r-card.vehicule .r-dims, .r-card.vehicule .lien-label,
+  .r-card.vehicule .r-dims b{color:inherit; opacity:.88;}
+  .r-card.vehicule .r-dims{background:rgba(252,242,240,.16);}
+  .r-card.vehicule .lien-chauffeur{background:rgba(252,242,240,.16); border-color:rgba(252,242,240,.3);}
+  .r-card.vehicule .lien-avatar{background:rgba(252,242,240,.28); color:inherit;}
+  .r-card.vehicule select{
+    background:rgba(252,242,240,.92); color:#141617; border:1px solid rgba(252,242,240,.5);
+  }
+  .r-card.vehicule .r-actions{border-top:1px solid rgba(252,242,240,.28); padding-top:10px;}
+  .r-card.vehicule .r-actions button{color:inherit; opacity:.9;}
+  .r-card.vehicule .r-actions button:hover{opacity:1; background:rgba(252,242,240,.18);}
+  .r-card.vehicule .badge-hayon, .r-card.vehicule .badge-sans-hayon{
+    background:rgba(252,242,240,.22); color:inherit;
+  }
+  .r-card.vehicule .exception-note{background:rgba(252,242,240,.16); color:inherit;}
+  @media (prefers-reduced-motion: reduce){ .r-card.vehicule, .r-card.vehicule:hover{ transform:none; transition:none; } }
   .r-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
   .r-name{font-weight:800; font-size:15.5px;}
   .r-sub{color:var(--muted); font-size:12.5px;}
   .r-actions{display:flex; gap:6px; margin-top:8px; border-top:1px solid var(--border); padding-top:10px;}
-  .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap;}
+  .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:999px; white-space:nowrap;}
   .badge-accent{background:var(--accent-tint); color:var(--accent-dark);}
   .badge-hayon{background:var(--ok-tint); color:var(--ok);}
   .badge-sans-hayon{background:var(--border); color:var(--muted);}
@@ -51,7 +101,7 @@
 
   .lien-chauffeur{
     display:flex; align-items:center; gap:9px; background:var(--bg); border:1px dashed var(--border);
-    border-radius:10px; padding:9px 11px; margin-top:2px;
+    border-radius:var(--radius); padding:9px 11px; margin-top:2px;
   }
   .lien-chauffeur .lien-avatar{
     flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--accent-tint); color:var(--accent-dark);
@@ -75,16 +125,32 @@
   .affectation-row select{width:auto; flex:1; min-width:140px;}
   .tournee-select{padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; background:var(--card); color:var(--text); font-family:inherit; margin-bottom:14px;}
   @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
+
+  /* Titres de section au gabarit de la maquette : capitales tracées, couleur
+     d'accent, filet tonique — le même repère sur tous les écrans. */
+  h2, h2.section-title{
+    font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--accent); display:flex; align-items:center; gap:8px;
+  }
+  h2::before, h2.section-title::before{
+    content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); flex-shrink:0;
+  }
+  /* Les titres de fenêtre modale gardent leur rendu : ce ne sont pas des
+     titres de section. */
+  .modal h2, .modal h2::before, .modal-card h2, .modal-card h2::before{
+    all:revert;
+  }
+  .modal h2, .modal-card h2{font-size:17px; font-weight:800; color:var(--text); text-transform:none; letter-spacing:0;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="brand-header">
-    <a href="technique.html">← Direction technique</a>
-    <nav class="page-nav" data-curieux-nav></nav>
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Véhicules &amp; chauffeurs</h1>
+      <p class="subtitle">Le parc, les chauffeurs, et qui conduit quoi — date par date.</p>
+    </div>
   </div>
-  <h1>Véhicules &amp; chauffeurs</h1>
-  <p class="subtitle">Le parc, les chauffeurs, et qui conduit quoi — date par date.</p>
 
   <div class="section-block">
     <div class="section-head">
@@ -243,22 +309,35 @@ function initiales(personne){
   const p = (personne.prenom||'')[0] || ''; const n = (personne.nom||'')[0] || '';
   return (p+n).toUpperCase() || '?';
 }
+// [fond, encre, fond de pastille, encre de pastille]
+const VEHICULE_COULEURS = [
+  ['#791649', '#FCF2F0', '#FEC9E0', '#791649'],
+  ['#CEE1F4', '#791649', '#791649', '#FCF2F0'],
+  ['#EC4B15', '#FCF2F0', '#FCF2F0', '#EC4B15'],
+];
+
 function renderVehicules(){
   const grid = document.getElementById('vehiculesGrid');
   const empty = document.getElementById('vehiculesEmpty');
   if(vehiculesCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
-  grid.innerHTML = vehiculesCache.map(v=>{
+  grid.innerHTML = vehiculesCache.map((v, index)=>{
+    const [fond, encre, chipFond, chipEncre] = VEHICULE_COULEURS[index % VEHICULE_COULEURS.length];
     const prest = prestatairesCache.find(p=>p.id===v.prestataireId);
     const dims = [v.hauteurM,v.largeurM,v.profondeurM].some(x=>x!=null)
       ? `${v.hauteurM ?? '—'} × ${v.largeurM ?? '—'} × ${v.profondeurM ?? '—'} m` : '';
     const defaut = chauffeursCache.find(c=>c.id===v.chauffeurDefautId);
     const exception = prochaineException(v.id, v.chauffeurDefautId);
     return `
-    <div class="r-card">
+    <div class="r-card vehicule" style="--co-tilt:${index % 2 ? '.8deg' : '-.7deg'}; background:${fond}; color:${encre};">
+      <div class="vehicule-bandeau">
+        <span class="co-badge co-badge-sm" aria-hidden="true" style="background:${chipFond}; color:${chipEncre};">⛟</span>
+        <span class="r-name">${escapeHtml(v.nom || 'Sans nom')}</span>
+        ${v.immatriculation ? `<span class="vehicule-plaque">${escapeHtml(v.immatriculation)}</span>` : ''}
+      </div>
+      <div class="vehicule-corps">
       <div class="r-card-top">
-        <div><div class="r-name">${escapeHtml(v.nom || 'Sans nom')}</div><div class="r-sub">${v.immatriculation ? escapeHtml(v.immatriculation) : ''}${v.capacite ? ' · ' + escapeHtml(v.capacite) : ''}</div></div>
-        <span class="badge badge-accent">${TYPE_VEHICULE_LABEL[v.type]||v.type}</span>
+        <div class="r-sub">${escapeHtml(TYPE_VEHICULE_LABEL[v.type]||v.type)}${v.capacite ? ' · ' + escapeHtml(v.capacite) : ''}</div>
       </div>
       ${dims ? `<div class="r-dims">${escapeHtml(dims)}</div>` : ''}
       ${v.type === 'semi' ? `<span class="badge ${v.hayon ? 'badge-hayon' : 'badge-sans-hayon'}" style="align-self:flex-start;">${v.hayon ? 'Avec hayon' : 'Sans hayon'}</span>` : ''}
@@ -278,6 +357,7 @@ function renderVehicules(){
         <button type="button" class="btn-ghost btn-sm" data-edit="${v.id}">Modifier</button>
         <button type="button" class="btn-ghost btn-sm" data-chauffeur="${v.id}">+ Exception</button>
         <button type="button" class="btn-danger btn-sm" data-del="${v.id}">Supprimer</button>
+      </div>
       </div>
     </div>
   `;}).join('');
@@ -636,8 +716,6 @@ CurieuxDB.subscribe('carnets_ata', ()=> CurieuxDB.fetchAll('carnets_ata').then(l
 CurieuxDB.subscribe('affectations_transport', ()=> CurieuxDB.fetchAll('affectations_transport').then(l=>{ affectationsCache=l; curieuxRafraichir(()=>{renderAffectations();renderVehicules();}); }));
 
 injectCurieuxFonts();
-initNavDropdowns();
-initGlobalSearch(document.querySelector('.page-nav'));
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 initData();

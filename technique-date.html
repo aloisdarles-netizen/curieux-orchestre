@@ -8,17 +8,28 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:900px; margin:0 auto; font-variant-numeric:tabular-nums; padding-bottom:120px;}
+  .wrap{max-width:1100px; margin:0 auto; font-variant-numeric:tabular-nums; padding-bottom:120px;}
+
+  /* L'architecture de cette page est conservée telle quelle — mêmes blocs, même
+     ordre, mêmes outils : l'équipe technique l'a explicitement demandé, la mise
+     en page est trop spécifique pour être réinventée. Seul l'habillage change,
+     pour rejoindre la charte : l'encart devient une carte à coins doux et la
+     légende reprend le filet tonique des titres de section. */
+  fieldset.groupe legend::before{
+    content:''; display:inline-block; width:5px; height:13px; border-radius:3px;
+    background:var(--tonic); margin-right:8px; vertical-align:-1px;
+  }
 
   button{
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
   }
   .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-secondary:hover{background:color-mix(in srgb, var(--bleu) 78%, var(--prune));}
   .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
   .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
   .btn-danger:hover{background:var(--secondary-tint);}
@@ -32,8 +43,8 @@
   label.chk{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--text); font-weight:400; cursor:pointer; margin:0;}
   label.chk input{width:18px; height:18px; accent-color:var(--accent);}
 
-  fieldset.groupe{border:1px solid var(--border); border-radius:var(--radius); padding:16px 17px 17px; margin:0 0 16px; background:var(--card);}
-  fieldset.groupe legend{font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--accent-dark); padding:0 6px; font-weight:800;}
+  fieldset.groupe{border:1px solid var(--border); border-radius:14px; padding:15px 18px 17px; margin:0 0 14px; background:var(--card);}
+  fieldset.groupe legend{font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); padding:0 6px 0 0; font-weight:800;}
   .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
   .field-row{display:flex; gap:12px; flex-wrap:wrap;}
   .field-row .field{flex:1; min-width:150px;}
@@ -42,6 +53,7 @@
   .vacation{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 13px; margin-bottom:10px;}
   .vacation-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
   .vacation-head b{font-size:12.5px;}
+  .rigg-somme{margin:6px 0 0; font-size:12px; font-weight:800;}
   .fourche-ligne{display:flex; gap:8px; align-items:center; background:var(--card); border:1px solid var(--border); border-radius:6px; padding:6px 8px; margin-bottom:6px;}
   .fourche-ligne select{width:auto; flex:1;}
 
@@ -71,7 +83,7 @@
   .ana-ligne .ana-valeur{font-size:13.5px; word-break:break-word;}
   .ana-ligne .ana-actuel{font-size:12px; color:var(--muted); margin-top:2px;}
   .ana-point{display:flex; gap:9px; align-items:flex-start; border-radius:8px; padding:9px 10px; margin-bottom:6px; border:1px solid var(--border); background:var(--bg);}
-  .ana-point .ana-pastille{flex:0 0 auto; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:3px 8px; border-radius:20px;}
+  .ana-point .ana-pastille{flex:0 0 auto; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:3px 8px; border-radius:999px;}
   .ana-point.manquant{border-color:var(--danger);}
   .ana-point.manquant .ana-pastille{background:var(--secondary-tint); color:var(--danger);}
   .ana-point.attention .ana-pastille{background:#F5C518; color:#2b2200;}
@@ -85,7 +97,7 @@
     position:absolute; transform:translate(-50%,-100%); cursor:grab; user-select:none; touch-action:none;
     display:flex; flex-direction:column; align-items:center; gap:2px;
   }
-  .pin-tete{background:var(--accent-solid); color:#fff; font-size:13px; font-weight:800; padding:6px 12px; border-radius:20px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3);}
+  .pin-tete{background:var(--accent-solid); color:#fff; font-size:13px; font-weight:800; padding:6px 12px; border-radius:999px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3);}
   .pin-pointe{width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:9px solid var(--accent-solid);}
   .pin.dragging{cursor:grabbing; opacity:.85;}
   .pin.note .pin-tete{background:#F5C518; color:#2b2200; max-width:220px; white-space:normal; text-align:center; font-weight:700;}
@@ -100,12 +112,21 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="brand-header">
-    <a href="technique.html">← Direction technique</a>
-    <nav class="page-nav" data-curieux-nav></nav>
+  <a class="co-back" href="technique.html">← Avancement par date</a>
+  <div class="co-card co-pad-lg co-fade" style="margin-bottom:20px; display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:220px;">
+      <h1 id="titre" class="co-h1" style="font-size:26px; margin-bottom:2px;">Fiche de date</h1>
+      <span class="subtitle" id="sousTitre" style="font-size:13px; font-weight:700;"></span>
+    </div>
+    <div class="co-actions">
+      <select id="salleLangue" class="co-select" style="width:auto;" title="Langue de la page salle et du PDF envoyé à la salle">
+        <option value="fr">Français</option><option value="en">English</option>
+        <option value="de">Deutsch</option><option value="es">Español</option><option value="nl">Nederlands</option>
+      </select>
+      <button type="button" class="co-btn ghost" id="apercuSalleBtn" title="Prévisualiser la page salle telle que la salle la voit">Prévisualiser la page salle</button>
+      <button type="button" class="co-btn primary" id="exportSalleBtn" title="Générer le PDF de la demande faite à la salle, dans la langue choisie">Exporter la page salle en PDF</button>
+    </div>
   </div>
-  <h1 id="titre">Fiche de date</h1>
-  <p class="subtitle" id="sousTitre"></p>
 
   <!-- Analyse des fiches techniques par Claude — en sommeil tant qu'aucune
        clé API n'est configurée (fonction /api/analyser-fiche conservée).
@@ -306,7 +327,7 @@ function nouvelleVacationRoadies(){
   };
 }
 function nouvelleVacationChariots(){ return { horaireDebut:'', horaireFin:'', nombreChariotsDemande:null, confirme:false, fourches:[], nombreCaristesDemande:null, notes:'' }; }
-function nouvelleVacationRigg(){ return { horaireDebut:'', horaireFin:'', nombreDemande:null, confirme:false, notes:'' }; }
+function nouvelleVacationRigg(){ return { horaireDebut:'', horaireFin:'', nombreDemande:null, confirme:false, nombreSol:null, nombreGrill:null, notes:'' }; }
 
 // ============================================================================
 // Équipes de la tournée (registre nommé, réutilisé par chaque vacation roadies)
@@ -504,6 +525,15 @@ function renderChariotsListe(){
 }
 document.getElementById('addChariotsBtn').addEventListener('click', ()=>{ moyens.chariotsVacations.push(nouvelleVacationChariots()); renderChariotsListe(); });
 
+// Contrôle : sol + grill doit retomber sur le nombre demandé.
+function sommeRiggHtml(v){
+  const demande = v.nombreDemande;
+  if(demande == null) return '';
+  const total = (v.nombreSol || 0) + (v.nombreGrill || 0);
+  const ok = total === demande;
+  return `<span style="color:${ok ? 'var(--ok)' : 'var(--maybe)'};">Sol + grill : ${total} / ${demande} demandé${demande > 1 ? 's' : ''}</span>`;
+}
+
 function renderRiggListe(){
   const box = document.getElementById('riggListe');
   const liste = moyens.riggVacations;
@@ -516,6 +546,11 @@ function renderRiggListe(){
         <div class="field"><label>Demandé</label><input type="number" min="0" data-f="nombreDemande" value="${v.nombreDemande!=null?v.nombreDemande:''}"></div>
         <div class="field" style="justify-content:flex-end;"><label class="chk"><input type="checkbox" data-f="confirme" ${v.confirme?'checked':''}> Confirmée</label></div>
       </div>
+      <div class="field-row">
+        <div class="field"><label>Riggers au sol</label><input type="number" min="0" data-f="nombreSol" value="${v.nombreSol!=null?v.nombreSol:''}"></div>
+        <div class="field"><label>Riggers au grill</label><input type="number" min="0" data-f="nombreGrill" value="${v.nombreGrill!=null?v.nombreGrill:''}"></div>
+      </div>
+      <p class="rigg-somme" data-somme="${i}">${sommeRiggHtml(v)}</p>
       <div class="field"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
     </div>
   `).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
@@ -524,6 +559,10 @@ function renderRiggListe(){
     card.querySelectorAll(':scope > .field-row [data-f], :scope > .field [data-f]').forEach(inp=> inp.addEventListener(inp.type==='checkbox'?'change':'input', ()=>{
       const val = inp.type === 'checkbox' ? inp.checked : (inp.type === 'number' ? (inp.value === '' ? null : Number(inp.value)) : inp.value);
       liste[i][inp.dataset.f] = val;
+      // La somme de contrôle se met à jour à la frappe, sans redessiner la carte
+      // (le champ en cours de saisie perdrait le focus).
+      const somme = card.querySelector('[data-somme]');
+      if(somme) somme.innerHTML = sommeRiggHtml(liste[i]);
     }));
   });
   box.querySelectorAll('[data-retirer-rigg]').forEach(btn=> btn.addEventListener('click', ()=>{
@@ -1035,8 +1074,28 @@ async function init(){
   peupler();
 }
 
+// --- Page salle : aperçu et export ----------------------------------------
+// La demande faite à la salle est déjà saisie ici ; les deux boutons ci-dessous
+// n'ajoutent aucune saisie, ils publient la même demande vers la page salle —
+// l'un l'ouvre telle que la salle la voit, l'autre en sort le PDF dans la langue
+// choisie. L'aperçu passe par page-salle.html, qui rend la vue publique à partir
+// des mêmes données (moyens_salle) sans réclamer de jeton de partage.
+function urlPageSalle(){
+  const lang = document.getElementById('salleLangue').value || 'fr';
+  return `page-salle.html?t=${encodeURIComponent(tourneeId)}&d=${encodeURIComponent(dateId)}&lang=${encodeURIComponent(lang)}`;
+}
+
+document.getElementById('apercuSalleBtn').addEventListener('click', ()=>{
+  window.open(urlPageSalle(), '_blank', 'noopener');
+});
+
+document.getElementById('exportSalleBtn').addEventListener('click', ()=>{
+  // Le PDF est produit par page-salle.html : le gabarit de la page salle y est
+  // déjà décrit dans les cinq langues, le dupliquer ici le ferait diverger.
+  window.open(urlPageSalle() + '&pdf=1', '_blank', 'noopener');
+});
+
 injectCurieuxFonts();
-initNavDropdowns();
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 init();

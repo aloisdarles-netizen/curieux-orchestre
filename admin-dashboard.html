@@ -8,6 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -16,18 +17,19 @@
   .nav-icon{width:18px; height:18px; flex-shrink:0; display:block;}
   .subtitle{color:var(--muted); font-size:14px; margin:0 0 28px;}
   h2{
-    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
-    color:var(--accent-dark); margin:0 0 12px;
+    font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--accent); margin:0 0 8px; display:flex; align-items:center; gap:8px;
   }
+  h2::before{content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); flex-shrink:0;}
 
-  section{margin-bottom:34px;}
+  section{margin-bottom:26px;}
 
   .stats-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px;}
-  .stat-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px;}
-  .stat-card .num{font-size:26px; font-weight:800; color:var(--accent);}
-  .stat-card .label{font-size:12px; color:var(--muted); margin-top:2px;}
+  .stat-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px;}
+  .stat-card .num{font-size:30px; font-weight:500; line-height:1; font-family:var(--font-display);}
+  .stat-card .label{font-size:11.5px; margin-top:5px; font-weight:700; opacity:.9;}
 
-  .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px;}
 
   table{width:100%; border-collapse:collapse; font-size:13.5px;}
   th, td{text-align:left; padding:8px 6px; border-bottom:1px solid var(--border);}
@@ -50,7 +52,7 @@
   .field-row{display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;}
   .field-row .field{flex:1 1 160px;}
 
-  .role-badge{font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 8px; border-radius:20px;}
+  .role-badge{font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 8px; border-radius:999px;}
   .role-badge.admin{background:var(--accent-tint); color:var(--accent-dark);}
   .role-badge.user{background:var(--secondary-tint); color:var(--secondary-dark);}
 
@@ -91,13 +93,13 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="brand-header">
-    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
-    <nav class="page-nav" data-curieux-nav></nav>
-  </div>
 
-  <h1><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:6px;"><path d="M20.2 7a4.5 4.5 0 0 1-5.7 5.7L7 20.2 3.8 17l7.5-7.5A4.5 4.5 0 0 1 17 3.8l-3 3 1.7 1.7 3-3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Administration</h1>
-  <p class="subtitle">Vue d'ensemble, gestion des comptes et historique des modifications.</p>
+  <div class="co-page-head co-fade">
+    <div>
+      <h1><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:6px;"><path d="M20.2 7a4.5 4.5 0 0 1-5.7 5.7L7 20.2 3.8 17l7.5-7.5A4.5 4.5 0 0 1 17 3.8l-3 3 1.7 1.7 3-3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Administration</h1>
+      <p class="subtitle">Vue d'ensemble, gestion des comptes et historique des modifications.</p>
+    </div>
+  </div>
 
   <section>
     <h2>Mon compte</h2>
@@ -128,7 +130,7 @@
 
   <section>
     <h2>Vue d'ensemble</h2>
-    <div class="stats-grid" id="statsGrid">
+    <div class="stats-grid co-stats-charte" id="statsGrid">
       <div class="stat-card"><div class="num">…</div><div class="label">Musicien·nes</div></div>
       <div class="stat-card"><div class="num">…</div><div class="label">Technicien·nes</div></div>
       <div class="stat-card"><div class="num">…</div><div class="label">Tournées à venir</div></div>
@@ -285,8 +287,6 @@ applyBrandLogo();
 injectCurieuxFonts();
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
-initNavDropdowns();
-initGlobalSearch(document.querySelector('.page-nav'));
 
 let accountsCache = [];
 let logCache = [];

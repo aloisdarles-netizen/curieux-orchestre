@@ -288,7 +288,14 @@ function injectAdminLogoutButton(email){
   btn.id = 'curieuxAdminLogout';
   btn.title = 'Connecté·e en tant que ' + email;
   btn.textContent = 'Déconnexion';
-  if(nav){
+  // Depuis la refonte, .page-nav est le groupe d'actions du bandeau prune : le
+  // bouton y prend le rendu des commandes du bandeau (contour clair sur prune)
+  // au lieu du gris sur blanc, illisible à cet endroit.
+  const dansBandeau = nav && nav.closest('.co-topbar');
+  if(dansBandeau){
+    btn.className = 'co-topbar-btn';
+    nav.appendChild(btn);
+  } else if(nav){
     // Le sélecteur .page-nav > a.ghost de chaque page ne cible que des <a> —
     // ce bouton reprend donc le même rendu directement en style inline.
     btn.style.cssText = 'color:var(--muted); font-weight:700; font-size:12.5px; background:transparent; border:none; padding:7px 13px; border-radius:20px; cursor:pointer; font-family:inherit; white-space:nowrap; transition:background .15s, color .15s;';
@@ -465,7 +472,14 @@ function drawCurieuxPdfHeader(doc, pageWidth, title, headerH){
 // --- Mode nuit automatique (suit le mode sombre/clair du système, pas l'heure) ---
 let __curieuxThemeListenerAdded = false;
 function applyAutoTheme(){
-  const dark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  // La refonte ajoute une bascule manuelle dans le bandeau (voir nav.js). Un
+  // choix explicite l'emporte sur le système : sans ça, le premier appel de
+  // applyAutoTheme() — au chargement, ou toutes les 5 min sur les pages qui le
+  // rappellent — écrasait aussitôt la bascule de l'utilisateur.
+  let choix = '';
+  try{ choix = localStorage.getItem('curieuxTheme') || ''; }catch(e){}
+  const dark = choix ? choix === 'dark'
+    : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
   try{ applyBrandLogo(); }catch(e){}
   // Le navigateur/OS peut basculer le thème pendant que la page est ouverte (heure
