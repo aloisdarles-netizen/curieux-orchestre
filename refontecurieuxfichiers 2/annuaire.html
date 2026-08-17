@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Annuaire musicien·nes</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:1100px; margin:0 auto;}
+
+  .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:20px;}
+  .toolbar input[type=text], .toolbar select{
+    padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:13.5px;
+    background:var(--card); color:var(--text); font-family:inherit;
+    width:auto;
+  }
+  .toolbar input[type=text]{flex:1 1 240px; min-width:0;}
+  .toolbar select{flex:0 0 auto;}
+  .spacer{flex:1;}
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-danger:hover{background:var(--secondary-tint);}
+  .btn-sm{padding:7px 11px; font-size:12px;}
+
+  /* L'annuaire passe de grille de cartes à liste de lignes, comme la maquette :
+     une personne par ligne, alternance de blancs, et les mêmes colonnes de bout
+     en bout — pastille d'initiales, nom, pupitre, téléphone, email, lien vers
+     ses remplaçant·es, actions. On lit une colonne du regard, ce qu'une grille
+     de cartes ne permet pas. */
+  .m-row.selected{background:var(--accent-tint) !important;}
+  .co-row.m-row{gap:10px;}
+  .m-identite{flex:1; min-width:150px;}
+  .m-nom{font-weight:800; font-size:13.5px;}
+  .m-role{display:block; font-size:11.5px; color:var(--muted);}
+  .m-pupitre{width:110px; flex-shrink:0;}
+  .m-tel{width:122px; flex-shrink:0; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .m-mail{flex:1; min-width:130px; font-size:12.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .m-rempl{width:116px; flex-shrink:0;}
+  .m-rempl-lien{
+    cursor:pointer; border:none; background:transparent; color:var(--accent);
+    font-size:11.5px; font-weight:700; font-family:inherit; text-decoration:underline; padding:0; text-align:left;
+  }
+  .m-actions{display:flex; gap:5px; align-items:center; flex-shrink:0;}
+  /* Pilules de filtre de la maquette, à la place du menu déroulant de statut. */
+  .ann-filtres{display:flex; gap:6px; flex-wrap:wrap;}
+  .ann-filtres button{
+    cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text);
+    border-radius:999px; padding:6px 13px; font-size:12px; font-weight:700; font-family:inherit;
+  }
+  .ann-filtres button[aria-pressed="true"]{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
+  .m-actions .co-btn.disabled{opacity:.4; pointer-events:none;}
+  .m-icone{
+    cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted);
+    border-radius:8px; width:28px; height:28px; font-weight:800; font-size:13px; font-family:inherit;
+    display:grid; place-items:center; flex-shrink:0;
+  }
+  .m-icone:hover{border-color:var(--accent); color:var(--accent);}
+  .m-icone.danger:hover{border-color:var(--ko); color:var(--ko);}
+  /* Sous 1100 px les colonnes de contact se replient sous le nom plutôt que de
+     comprimer tout le monde. */
+  @media (max-width:1100px){
+    .m-tel, .m-mail, .m-rempl{width:auto; flex:0 0 auto; min-width:0;}
+    .co-row.m-row{row-gap:6px;}
+  }
+  .m-select-checkbox{margin-top:4px; width:16px; height:16px; accent-color:var(--accent); cursor:pointer; flex:0 0 auto;}
+  .select-all-row{display:flex; align-items:center; gap:8px; margin:-6px 0 12px;}
+  .select-all-row label{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); cursor:pointer; font-weight:600;}
+  .select-all-row input{width:16px; height:16px; accent-color:var(--accent); cursor:pointer;}
+  .bulk-bar{
+    display:none; align-items:center; gap:10px; flex-wrap:wrap;
+    background:var(--champagne); border:1px solid var(--old-champagne); border-radius:10px;
+    padding:10px 14px; margin:0 0 16px;
+  }
+  .bulk-bar.open{display:flex;}
+  .bulk-count{font-size:13px; font-weight:700; color:var(--accent-dark);}
+  .bulk-bar select{padding:7px 10px; font-size:12.5px;}
+  .pupitre-badge{
+    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    padding:3px 10px; border-radius:999px; white-space:nowrap;
+    display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; vertical-align:middle;
+  }
+  /* Pastille d'initiales par personne, aux couleurs du pupitre — l'annuaire
+     était juste mais trop sobre : rien n'y distinguait un pupitre d'un autre.
+     La couleur est portée à la fois par la pastille et par l'étiquette de
+     pupitre, donc un même pupitre se repère d'un bout à l'autre de la liste. */
+  .m-avatar{
+    width:36px; height:36px; border-radius:11px; flex:0 0 auto;
+    display:grid; place-items:center; font-family:var(--font-display); font-size:14px; font-weight:500;
+    transform:rotate(var(--co-tilt, -5deg)); box-shadow:0 2px 6px rgba(20,22,23,.12);
+  }
+
+  .remplacant-tag{
+    font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;
+  }
+  .titulaire-tag{
+    font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 7px; border-radius:20px; background:#f6ead2; color:#b8792a; vertical-align:middle;
+  }
+  :root[data-theme="dark"] .titulaire-tag{background:#4a3a1c; color:#f0c988;}
+  .m-notes{font-size:12.5px; color:var(--muted); line-height:1.4; max-height:2.8em; overflow:hidden;}
+  .m-contact-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;}
+  .contact-btn{
+    display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+    font-size:12.5px; font-weight:700; padding:7px 12px; border-radius:8px;
+  }
+  .contact-btn.whatsapp{background:#e2f4ea; color:#1f7a4d;}
+  :root[data-theme="dark"] .contact-btn.whatsapp{background:#1c3327; color:#7fd9a6;}
+  .contact-btn.mail{background:var(--secondary-tint); color:var(--secondary-dark);}
+  .contact-btn.disabled{opacity:.4; pointer-events:none; background:var(--border); color:var(--muted);}
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(20,15,10,.5);
+    align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--card); border-radius:14px; padding:24px; max-width:480px; width:100%;
+    max-height:88vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.25);
+  }
+  .modal h2{font-size:17px; margin:0 0 16px;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .field-row{display:flex; gap:12px;}
+  .field-row .field{flex:1;}
+  input[type=text], input[type=email], input[type=tel], select, textarea{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;
+    width:100%; background:var(--bg); color:var(--text); font-family:inherit;
+  }
+  textarea{min-height:60px; resize:vertical;}
+  input:focus, textarea:focus, select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
+  @media (max-width:600px){
+    input, select, textarea{ font-size:16px !important; }
+    .m-select-checkbox, .select-all-row input{ width:20px; height:20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Annuaire musicien·nes</h1>
+      <p class="subtitle" id="annCount">Contact en un clic, remplaçant·es par ordre de préférence.</p>
+    </div>
+    <div class="ann-filtres" id="statutFiltres" role="group" aria-label="Filtrer">
+      <button type="button" data-statut="">Tou·tes</button>
+      <button type="button" data-statut="titulaire" aria-pressed="true">Titulaires</button>
+      <button type="button" data-statut="remplacant">Remplaçant·es</button>
+    </div>
+    <div class="co-actions">
+    <button type="button" class="co-btn secondary md" id="importBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Importer (coller)</button>
+    <button type="button" class="co-btn secondary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
+    <button type="button" class="co-btn primary md" id="addBtn">+ Ajouter un·e musicien·ne</button>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="Chercher un nom ou un instrument…">
+    <select id="pupitreFilter">
+      <option value="">Tous les pupitres</option>
+      <option value="Chef d'orchestre">Chef d'orchestre</option>
+      <option value="Cordes">Cordes</option>
+      <option value="Bois">Bois</option>
+      <option value="Cuivres">Cuivres</option>
+      <option value="Percussions">Percussions</option>
+      <option value="Autre">Autre</option>
+    </select>
+    <select id="statutFilter" hidden>
+      <option value="titulaire" selected>Titulaire</option>
+      <option value="">Titulaire + remplaçant·e</option>
+      <option value="remplacant">Remplaçant·e</option>
+    </select>
+  </div>
+
+  <div class="select-all-row">
+    <label><input type="checkbox" id="selectAllCheckbox"> Tout sélectionner (résultats affichés)</label>
+  </div>
+  <div class="bulk-bar" id="bulkBar">
+    <span class="bulk-count" id="bulkCount"></span>
+    <div class="spacer"></div>
+    <select id="bulkPupitre">
+      <option value="">Changer le pupitre…</option>
+      <option value="Chef d'orchestre">Chef d'orchestre</option>
+      <option value="Cordes">Cordes</option>
+      <option value="Bois">Bois</option>
+      <option value="Cuivres">Cuivres</option>
+      <option value="Percussions">Percussions</option>
+      <option value="Autre">Autre</option>
+    </select>
+    <button type="button" class="btn-secondary btn-sm" id="bulkPupitreBtn">Appliquer</button>
+    <select id="bulkStatut">
+      <option value="">Changer le statut…</option>
+      <option value="titulaire">Titulaire</option>
+      <option value="remplacant">Remplaçant·e</option>
+    </select>
+    <button type="button" class="btn-secondary btn-sm" id="bulkStatutBtn">Appliquer</button>
+    <button type="button" class="btn-secondary btn-sm" id="bulkExportBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter la sélection</button>
+    <button type="button" class="btn-danger btn-sm" id="bulkDeleteBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg> Supprimer la sélection</button>
+    <button type="button" class="btn-ghost btn-sm" id="bulkClearBtn">Désélectionner tout</button>
+  </div>
+
+  <section class="co-card co-clip co-rows" id="grid"><div class="empty-hint">Chargement…</div></section>
+  <div class="empty-hint" id="emptyHint" style="display:none;">Aucun·e musicien·ne pour l'instant — ajoute-en un·e avec le bouton ci-dessus.</div>
+</div>
+
+<div class="modal-overlay" id="importOverlay">
+  <div class="modal" style="max-width:720px;">
+    <h2>Importer des musicien·nes (copier-coller)</h2>
+    <p style="color:var(--muted); font-size:12.5px; margin:-8px 0 12px;">Colle une liste depuis un tableur ou une ligne par personne. Vérifie et corrige chaque ligne avant d'importer.</p>
+    <textarea id="importTextarea" rows="6" style="width:100%; font-size:12.5px; font-family:ui-monospace,monospace; padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text);" placeholder="Alice Martin	Violon solo	06 12 34 56 78	alice.martin@mail.com&#10;Julien Petit	Violoncelle	06 98 76 54 32	julien.petit@mail.com"></textarea>
+    <div style="margin-top:10px;">
+      <button type="button" class="btn-secondary btn-sm" id="importAnalyzeBtn">Analyser</button>
+    </div>
+    <div id="importPreview"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="importCancelBtn">Annuler</button>
+      <button type="button" class="btn-primary" id="importConfirmBtn" style="display:none;">Importer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">Ajouter un·e musicien·ne</h2>
+    <p style="font-size:12px; color:var(--muted); margin:-6px 0 14px;">Prénom ou nom obligatoire (les deux, idéalement) — le reste est facultatif.</p>
+    <input type="hidden" id="editId">
+    <div class="field-row">
+      <div class="field"><label for="fPrenom">Prénom</label><input type="text" id="fPrenom"></div>
+      <div class="field"><label for="fNom">Nom</label><input type="text" id="fNom"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="fInstrument">Instrument</label><input type="text" id="fInstrument" placeholder="Ex: Violon solo"></div>
+      <div class="field">
+        <label for="fPupitre">Pupitre</label>
+        <select id="fPupitre">
+          <option value="Chef d'orchestre">Chef d'orchestre</option>
+          <option value="Cordes">Cordes</option>
+          <option value="Bois">Bois</option>
+          <option value="Cuivres">Cuivres</option>
+          <option value="Percussions">Percussions</option>
+          <option value="Autre">Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="fStatutPoste">Statut</label>
+        <select id="fStatutPoste">
+          <option value="titulaire">Titulaire</option>
+          <option value="remplacant">Remplaçant·e</option>
+        </select>
+      </div>
+      <div class="field" id="fRangField" style="display:none;">
+        <label for="fRang">Rang de priorité</label>
+        <input type="number" id="fRang" min="1" step="1" placeholder="1 = à contacter en premier">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="fTelephone">Téléphone (WhatsApp)</label><input type="tel" id="fTelephone" placeholder="06 12 34 56 78"></div>
+      <div class="field"><label for="fEmail">Email</label><input type="email" id="fEmail" placeholder="prenom.nom@mail.com"></div>
+    </div>
+    <div class="field"><label for="fNotes">Notes</label><textarea id="fNotes" placeholder="Notes libres…"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="cancelBtn">Annuler</button>
+      <button type="button" class="btn-primary" id="saveBtn">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="remplacantsModalOverlay">
+  <div class="modal">
+    <h2 id="remplacantsModalTitle">Remplaçant·es</h2>
+    <p style="font-size:12px; color:var(--muted); margin:-6px 0 14px;">Liste choisie par la personne elle-même depuis son lien personnel (rang 1 = à contacter en premier) — lecture seule ici.</p>
+    <div id="remplacantsModalBody"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-primary" id="remplacantsModalCloseBtn">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Cache mémoire synchronisé avec Supabase (table "musiciens") : toute l'UI lit/écrit
+// via loadMusicians()/saveMusicians() de façon synchrone comme avant, la sync réseau
+// se fait en tâche de fond dans saveMusicians() et à la réception d'événements realtime.
+let musiciansCache = [];
+function loadMusicians(){
+  return musiciansCache;
+}
+function saveMusicians(list){
+  musiciansCache = list;
+  CurieuxDB.syncCollection('musiciens', list);
+}
+// Technicien·nes + listes de remplaçant·es (mes-remplacants.html) : chargés en lecture
+// seule ici, uniquement pour afficher "Voir ses remplaçants" sur les fiches titulaires
+// (la table remplacant_prefs référence indifféremment des musicien·nes ou technicien·nes,
+// voir migrations.sql).
+let allTechniciansCache = [];
+let remplacantPrefsCache = [];
+function rosterPersonById(id){
+  return musiciansCache.find(p=> p.id === id) || allTechniciansCache.find(p=> p.id === id) || null;
+}
+function remplacantPrefsFor(personId){
+  return remplacantPrefsCache.find(r=> r.id === personId) || null;
+}
+
+function normalizeWhatsappPhone(phone){
+  let digits = (phone || '').replace(/[^\d+]/g, '');
+  if(digits.startsWith('+')) digits = digits.slice(1);
+  else if(digits.startsWith('0') && digits.length === 10) digits = '33' + digits.slice(1);
+  return digits;
+}
+
+// Quand on affiche uniquement les remplaçant·es, on classe par instrument puis par rang
+// de priorité (1 = à contacter en premier) plutôt que par ordre alphabétique, pour que
+// le rang serve vraiment à savoir qui appeler en premier sur un instrument donné.
+function compareForRemplacantRanking(a, b){
+  const ia = (a.instrument||'').localeCompare(b.instrument||'');
+  if(ia !== 0) return ia;
+  const ra = a.rang || Infinity, rb = b.rang || Infinity;
+  if(ra !== rb) return ra - rb;
+  return fullName(a).localeCompare(fullName(b));
+}
+
+// Pour les titulaires, on classe par pupitre (ordre de l'orchestre, pas alphabétique)
+// puis par nom — plus simple à parcourir qu'un ordre alphabétique pur.
+const PUPITRE_ORDER = ["Chef d'orchestre", 'Cordes', 'Bois', 'Cuivres', 'Percussions', 'Autre'];
+function compareByPupitreThenName(a, b){
+  const ia = PUPITRE_ORDER.indexOf(a.pupitre || 'Autre');
+  const ib = PUPITRE_ORDER.indexOf(b.pupitre || 'Autre');
+  if(ia !== ib) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  return fullName(a).localeCompare(fullName(b));
+}
+
+// Sélection multiple pour l'édition groupée (pupitre / statut uniquement) — persiste
+// tant qu'on ne vide pas explicitement la sélection, y compris si on change les filtres.
+const selectedIds = new Set();
+let lastFilteredIds = [];
+
+function updateBulkBar(){
+  const bar = document.getElementById('bulkBar');
+  const count = selectedIds.size;
+  bar.classList.toggle('open', count > 0);
+  document.getElementById('bulkCount').textContent = `${count} sélectionné·e${count>1?'s':''}`;
+  document.getElementById('selectAllCheckbox').checked = lastFilteredIds.length > 0 && lastFilteredIds.every(id=>selectedIds.has(id));
+}
+
+// Couleurs de la charte par pupitre — [fond, encre]. Le bleu piscine et le rose
+// spectacle portent du prune ; l'orange pop et le prune portent du blanc cassé.
+const PUPITRE_COULEURS = {
+  "Chef d'orchestre": ['#141617', '#FCF2F0'],
+  'Cordes':           ['#CEE1F4', '#791649'],
+  'Bois':             ['#FEC9E0', '#791649'],
+  'Cuivres':          ['#EC4B15', '#FCF2F0'],
+  'Percussions':      ['#791649', '#FCF2F0'],
+  'Autre':            ['var(--border)', 'var(--muted)'],
+};
+function couleurPupitre(pupitre){
+  return PUPITRE_COULEURS[pupitre] || PUPITRE_COULEURS.Autre;
+}
+function initialesDe(personne){
+  return [personne.prenom, personne.nom].filter(Boolean)
+    .map(x=> x.trim().charAt(0).toUpperCase()).slice(0, 2).join('') || '·';
+}
+
+function render(){
+  const list = loadMusicians();
+  const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+  const pupitre = document.getElementById('pupitreFilter').value;
+  const statutPoste = document.getElementById('statutFilter').value;
+
+  const filtered = list.filter(m=>{
+    if(pupitre && m.pupitre !== pupitre) return false;
+    if(statutPoste && (m.statutPoste || 'titulaire') !== statutPoste) return false;
+    if(!search) return true;
+    const haystack = [m.prenom, m.nom, m.instrument, m.pupitre].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(search);
+  }).sort(statutPoste === 'remplacant' ? compareForRemplacantRanking : statutPoste === 'titulaire' ? compareByPupitreThenName : (a,b)=> fullName(a).localeCompare(fullName(b)));
+
+  const grid = document.getElementById('grid');
+  const emptyHint = document.getElementById('emptyHint');
+
+  if(list.length === 0){
+    grid.innerHTML = '';
+    emptyHint.style.display = 'block';
+    emptyHint.textContent = "Aucun·e musicien·ne pour l'instant — ajoute-en un·e avec le bouton ci-dessus.";
+    lastFilteredIds = [];
+    updateBulkBar();
+    return;
+  }
+  if(filtered.length === 0){
+    grid.innerHTML = '';
+    emptyHint.style.display = 'block';
+    emptyHint.textContent = 'Aucun résultat pour cette recherche.';
+    lastFilteredIds = [];
+    updateBulkBar();
+    return;
+  }
+  emptyHint.style.display = 'none';
+  lastFilteredIds = filtered.map(m=>m.id);
+  document.getElementById('annCount').textContent =
+    `${filtered.length} fiche${filtered.length > 1 ? 's' : ''} — contact en un clic, remplaçant·es par ordre de préférence.`;
+
+  grid.innerHTML = filtered.map((m, index)=>{
+    const [pupFond, pupEncre] = couleurPupitre(m.pupitre);
+    const waDigits = normalizeWhatsappPhone(m.telephone);
+    const waHref = waDigits ? `https://wa.me/${encodeURIComponent(waDigits)}` : null;
+    const mailHref = m.email ? `mailto:${encodeURIComponent(m.email)}` : null;
+    const isSelected = selectedIds.has(m.id);
+    const prefs = m.statutPoste !== 'remplacant' ? remplacantPrefsFor(m.id) : null;
+    const nbRempl = prefs ? prefs.items.length : 0;
+    return `
+      <div class="co-row m-row ${isSelected ? 'selected' : ''}">
+        <input type="checkbox" class="m-select-checkbox" data-select="${m.id}" ${isSelected ? 'checked' : ''} aria-label="Sélectionner ${escapeHtml(fullName(m))}">
+        <span class="m-avatar" aria-hidden="true" style="--co-tilt:${index % 2 ? '4deg' : '-5deg'}; background:${pupFond}; color:${pupEncre};">${escapeHtml(initialesDe(m))}</span>
+        <span class="m-identite">
+          <span class="m-nom">${escapeHtml(fullName(m))}${m.statutPoste === 'remplacant' ? `<span class="remplacant-tag">Rempl.${m.rang ? ' ' + m.rang : ''}</span>` : ''}</span>
+          <span class="m-role">${escapeHtml(m.instrument || '—')}</span>
+        </span>
+        <span class="m-pupitre"><span class="pupitre-badge" style="background:${pupFond}; color:${pupEncre};">${escapeHtml(m.pupitre || 'Autre')}</span></span>
+        <span class="m-tel">${escapeHtml(m.telephone || '')}</span>
+        <span class="m-mail">${escapeHtml(m.email || '')}</span>
+        <span class="m-rempl">${nbRempl > 0
+          ? `<button type="button" class="m-rempl-lien" data-view-remplacants="${m.id}" title="Voir ses remplaçant·es par ordre de préférence">${nbRempl} remplaçant·e${nbRempl > 1 ? 's' : ''} →</button>`
+          : ''}</span>
+        <span class="m-actions">
+          <a class="co-btn ghost sm ${waHref ? '' : 'disabled'}" ${waHref ? `href="${waHref}" target="_blank" rel="noopener"` : ''} title="Appeler ou écrire sur WhatsApp">Appeler</a>
+          <a class="co-btn ghost sm ${mailHref ? '' : 'disabled'}" ${mailHref ? `href="${mailHref}"` : ''} title="Écrire par email">Écrire</a>
+          <button type="button" class="m-icone" data-edit="${m.id}" title="Modifier la fiche" aria-label="Modifier ${escapeHtml(fullName(m))}">✎</button>
+          <button type="button" class="m-icone danger" data-del="${m.id}" title="Supprimer la fiche" aria-label="Supprimer ${escapeHtml(fullName(m))}">🗑</button>
+        </span>
+      </div>
+    `;
+  }).join('');
+
+  grid.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openModal(btn.dataset.edit));
+  });
+  grid.querySelectorAll('[data-view-remplacants]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openRemplacantsModal(btn.dataset.viewRemplacants));
+  });
+  grid.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const list = loadMusicians();
+      const m = list.find(x=>x.id === btn.dataset.del);
+      if(m && confirm(`Supprimer ${fullName(m)} de l'annuaire ?`)){
+        musiciansCache = list.filter(x=>x.id !== btn.dataset.del);
+        CurieuxDB.removePerson('musiciens', btn.dataset.del);
+        selectedIds.delete(btn.dataset.del);
+        render();
+      }
+    });
+  });
+  grid.querySelectorAll('[data-select]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      if(cb.checked) selectedIds.add(cb.dataset.select); else selectedIds.delete(cb.dataset.select);
+      cb.closest('.m-row').classList.toggle('selected', cb.checked);
+      updateBulkBar();
+    });
+  });
+  updateBulkBar();
+}
+
+function updateRangFieldVisibility(){
+  document.getElementById('fRangField').style.display = document.getElementById('fStatutPoste').value === 'remplacant' ? 'flex' : 'none';
+}
+document.getElementById('fStatutPoste').addEventListener('change', updateRangFieldVisibility);
+
+function openModal(id){
+  const overlay = document.getElementById('modalOverlay');
+  document.getElementById('editId').value = id || '';
+  if(id){
+    const m = loadMusicians().find(x=>x.id === id);
+    if(!m) return;
+    document.getElementById('modalTitle').textContent = 'Modifier ' + fullName(m);
+    document.getElementById('fPrenom').value = m.prenom || '';
+    document.getElementById('fNom').value = m.nom || '';
+    document.getElementById('fInstrument').value = m.instrument || '';
+    document.getElementById('fPupitre').value = m.pupitre || 'Cordes';
+    document.getElementById('fStatutPoste').value = m.statutPoste || 'titulaire';
+    document.getElementById('fRang').value = m.rang || '';
+    document.getElementById('fTelephone').value = m.telephone || '';
+    document.getElementById('fEmail').value = m.email || '';
+    document.getElementById('fNotes').value = m.notes || '';
+  } else {
+    document.getElementById('modalTitle').textContent = "Ajouter un·e musicien·ne";
+    ['fPrenom','fNom','fInstrument','fTelephone','fEmail','fNotes','fRang'].forEach(id=> document.getElementById(id).value = '');
+    document.getElementById('fPupitre').value = 'Cordes';
+    document.getElementById('fStatutPoste').value = 'titulaire';
+  }
+  updateRangFieldVisibility();
+  overlay.classList.add('open');
+  document.getElementById('fPrenom').focus();
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function openRemplacantsModal(personId){
+  const person = loadMusicians().find(x=> x.id === personId);
+  if(!person) return;
+  document.getElementById('remplacantsModalTitle').textContent = `Remplaçant·es de ${fullName(person)}`;
+  const prefs = remplacantPrefsFor(personId);
+  const items = prefs ? [...prefs.items].sort((a,b)=> a.rang - b.rang) : [];
+  const body = document.getElementById('remplacantsModalBody');
+  if(items.length === 0){
+    body.innerHTML = `<p class="empty-hint" style="padding:20px 4px;">Aucun·e remplaçant·e choisi·e pour l'instant — la personne peut le faire depuis son lien perso ("Gérer mes remplaçant·es").</p>`;
+  } else {
+    body.innerHTML = items.map(it=>{
+      const roster = it.source === 'roster' ? rosterPersonById(it.personId) : null;
+      const name = roster ? fullName(roster) : `${it.prenom || ''} ${it.nom || ''}`.trim();
+      const sub = roster
+        ? escapeHtml(roster.instrument || roster.poste || '')
+        : [it.telephone, it.email].filter(Boolean).map(escapeHtml).join(' · ');
+      const tag = it.source === 'new' ? `<span class="remplacant-tag" style="margin-left:6px;">Pas encore au répertoire</span>` : '';
+      return `
+        <div style="display:flex; align-items:center; gap:12px; padding:9px 4px; border-bottom:1px solid var(--border);">
+          <div style="flex-shrink:0; width:26px; height:26px; border-radius:50%; background:var(--accent-tint); color:var(--accent-dark); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px;">${it.rang}</div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; font-size:14px;">${escapeHtml(name || 'Sans nom')}${tag}</div>
+            ${sub ? `<div style="font-size:12px; color:var(--muted); margin-top:1px;">${sub}</div>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+  document.getElementById('remplacantsModalOverlay').classList.add('open');
+}
+function closeRemplacantsModal(){
+  document.getElementById('remplacantsModalOverlay').classList.remove('open');
+}
+document.getElementById('remplacantsModalCloseBtn').addEventListener('click', closeRemplacantsModal);
+document.getElementById('remplacantsModalOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'remplacantsModalOverlay') closeRemplacantsModal(); });
+
+function stripAccents(str){ return (str||'').normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+function pupitreForSection(section){
+  const s = stripAccents(section||'').toUpperCase();
+  if(/CHEF D.?ORCHESTRE|DIRECTION/.test(s)) return "Chef d'orchestre";
+  if(/VIOLON|ALTO|VIOLONCELLE|CONTREBASSE|HARPE/.test(s)) return 'Cordes';
+  if(/FLUTE|HAUTBOIS|CLARINETTE|BASSON|SAXOPHONE/.test(s)) return 'Bois';
+  if(/\bCOR\b|TROMPETTE|TROMBONE|TUBA|SAXHORN/.test(s)) return 'Cuivres';
+  if(/PERCUSSION|BATTERIE|TIMBALE/.test(s)) return 'Percussions';
+  return 'Autre';
+}
+
+// Parse d'un roster structuré type "trombinoscope" : ligne d'en-tête NOM/PRÉNOM/...,
+// des lignes de section (une seule cellule non vide, ex. "Violons") qui deviennent
+// l'instrument/pupitre de tou·tes les musicien·nes en dessous jusqu'à la section
+// suivante, et un "*" devant le nom pour repérer les titulaires (le reste étant
+// remplaçant·e). Retourne null si le texte collé ne correspond pas à ce format
+// (auquel cas on retombe sur parseContactsPaste, plus permissif).
+function parseMusicianRosterPaste(text){
+  const lines = text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim() !== '');
+  if(lines.length < 2) return null;
+  const headerCells = lines[0].split('\t').map(c=>c.trim());
+  const norm = s => stripAccents(s||'').toUpperCase().trim();
+  const nomIdx = headerCells.findIndex(h => norm(h) === 'NOM');
+  const prenomIdx = headerCells.findIndex(h => norm(h).startsWith('PRENOM'));
+  if(nomIdx === -1 || prenomIdx === -1) return null;
+  const telIdx = headerCells.findIndex(h => norm(h).includes('TEL'));
+  const mailIdx = headerCells.findIndex(h => norm(h).includes('MAIL'));
+  const amiIdx = headerCells.findIndex(h => norm(h).includes('AMI'));
+
+  const rows = [];
+  let currentSection = '';
+  for(let li = 1; li < lines.length; li++){
+    const cells = lines[li].split('\t').map(c=>c.trim());
+    if(cells.filter(c=>c).length === 0) continue;
+    if(cells.filter(c=>c).length === 1 && cells[nomIdx]){
+      currentSection = cells[nomIdx];
+      continue;
+    }
+    const nomRaw = (cells[nomIdx] || '').trim();
+    const prenom = (cells[prenomIdx] || '').trim();
+    if(!nomRaw && !prenom) continue;
+    const isTitulaire = nomRaw.startsWith('*');
+    const nom = isTitulaire ? nomRaw.slice(1).trim() : nomRaw;
+    const amiDe = amiIdx >= 0 ? (cells[amiIdx] || '').trim() : '';
+    rows.push({
+      prenom, nom,
+      field3: currentSection,
+      pupitre: pupitreForSection(currentSection),
+      statutPoste: isTitulaire ? 'titulaire' : 'remplacant',
+      telephone: telIdx >= 0 ? (cells[telIdx] || '').trim() : '',
+      email: mailIdx >= 0 ? (cells[mailIdx] || '').trim() : '',
+      notes: amiDe ? `Ami de : ${amiDe}` : ''
+    });
+  }
+  return rows;
+}
+
+// Parse souple d'une liste de contacts collée (tableur ou texte libre) : détecte
+// email/téléphone où qu'ils soient, et prend les tokens restants comme prénom/nom/instrument.
+function parseContactsPaste(text){
+  const rows = [];
+  const rejected = [];
+  text.split('\n').forEach(raw=>{
+    const line = raw.trim();
+    if(!line) return;
+    let tokens;
+    if(line.includes('\t')) tokens = line.split('\t');
+    else if(line.includes(';')) tokens = line.split(';');
+    else if(line.includes(',')) tokens = line.split(',');
+    else tokens = line.split(/\s{2,}|\s-\s/);
+    tokens = tokens.map(t=>t.trim()).filter(t=>t !== '');
+    if(tokens.length === 0){ rejected.push(raw); return; }
+
+    let email = '', telephone = '';
+    const rest = [];
+    tokens.forEach(tok=>{
+      if(!email && /\S+@\S+\.\S+/.test(tok)) email = tok;
+      else if(!telephone && /^[+\d][\d\s().-]{5,}$/.test(tok)) telephone = tok;
+      else rest.push(tok);
+    });
+
+    let prenom = '', nom = '', field3 = '';
+    if(rest.length >= 1 && /\s/.test(rest[0])){
+      // premier token du genre "Prenom Nom" deja combine dans une seule colonne/cellule
+      const parts = rest[0].split(/\s+/);
+      prenom = parts[0]; nom = parts.slice(1).join(' ');
+      field3 = rest.slice(1).join(' ');
+    } else if(rest.length >= 2){
+      prenom = rest[0]; nom = rest[1]; field3 = rest.slice(2).join(' ');
+    } else if(rest.length === 1){
+      prenom = rest[0];
+    }
+    if(!prenom && !nom && !email && !telephone){ rejected.push(raw); return; }
+    rows.push({ prenom, nom, field3, telephone, email });
+  });
+  return { rows, rejected };
+}
+
+const PUPITRE_OPTIONS = ["Chef d'orchestre",'Cordes','Bois','Cuivres','Percussions','Autre'];
+
+function renderContactPreview(){
+  const text = document.getElementById('importTextarea').value;
+  // Le roster structuré (NOM/PRÉNOM en en-tête + sections par instrument + "*" =
+  // titulaire) est essayé en premier ; s'il ne matche pas, on retombe sur le parseur
+  // libre habituel (une ligne = un contact, sans structure imposée).
+  const rosterRows = parseMusicianRosterPaste(text);
+  const isRoster = !!rosterRows;
+  const rows = rosterRows || parseContactsPaste(text).rows;
+  const rejected = rosterRows ? [] : parseContactsPaste(text).rejected;
+  const preview = document.getElementById('importPreview');
+  const confirmBtn = document.getElementById('importConfirmBtn');
+  if(rows.length === 0){
+    preview.innerHTML = `<div class="empty-hint">Aucun contact reconnu.</div>`;
+    confirmBtn.style.display = 'none';
+    return;
+  }
+  preview.innerHTML = `
+    ${isRoster ? `<div style="font-size:12px; color:var(--muted); margin:8px 0;">Roster détecté : instrument/pupitre et statut (titulaires marqué·es d'un ✻) déduits automatiquement — vérifie avant d'importer.</div>` : ''}
+    <div class="grid-table-wrap" style="overflow-x:auto; margin-top:12px; max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
+      <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+        <thead><tr>
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Prénom</th>
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Nom</th>
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Instrument</th>
+          ${isRoster ? `<th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Pupitre</th>
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Statut</th>` : ''}
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Téléphone</th>
+          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Email</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map((r,i)=>`
+            <tr style="border-top:1px solid var(--border);">
+              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="prenom" value="${escapeHtml(r.prenom)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="nom" value="${escapeHtml(r.nom)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="field3" value="${escapeHtml(r.field3)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+              ${isRoster ? `
+              <td style="padding:3px;">
+                <select data-i="${i}" data-f="pupitre" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;">
+                  ${PUPITRE_OPTIONS.map(p=>`<option value="${p}" ${r.pupitre===p?'selected':''}>${p}</option>`).join('')}
+                </select>
+              </td>
+              <td style="padding:3px;">
+                <select data-i="${i}" data-f="statutPoste" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;">
+                  <option value="titulaire" ${r.statutPoste==='titulaire'?'selected':''}>Titulaire</option>
+                  <option value="remplacant" ${r.statutPoste==='remplacant'?'selected':''}>Remplaçant·e</option>
+                </select>
+              </td>` : ''}
+              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="telephone" value="${escapeHtml(r.telephone)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="email" value="${escapeHtml(r.email)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${rejected.length ? `<div style="margin-top:8px; font-size:12px; color:var(--muted);">${rejected.length} ligne(s) non reconnue(s) et ignorée(s).</div>` : ''}
+  `;
+  preview.querySelectorAll('[data-i]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{ rows[inp.dataset.i][inp.dataset.f] = inp.value; });
+    inp.addEventListener('change', ()=>{ rows[inp.dataset.i][inp.dataset.f] = inp.value; });
+  });
+  confirmBtn.textContent = `Importer ${rows.length} musicien·ne${rows.length>1?'s':''}`;
+  confirmBtn.style.display = 'inline-block';
+  confirmBtn.dataset.pending = 'true';
+  window.__importRows = rows;
+}
+
+function openImportModal(){
+  document.getElementById('importTextarea').value = '';
+  document.getElementById('importPreview').innerHTML = '';
+  document.getElementById('importConfirmBtn').style.display = 'none';
+  document.getElementById('importOverlay').classList.add('open');
+  document.getElementById('importTextarea').focus();
+}
+function closeImportModal(){ document.getElementById('importOverlay').classList.remove('open'); }
+
+document.getElementById('importBtn').addEventListener('click', openImportModal);
+document.getElementById('importCancelBtn').addEventListener('click', closeImportModal);
+document.getElementById('importOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'importOverlay') closeImportModal(); });
+document.getElementById('importAnalyzeBtn').addEventListener('click', renderContactPreview);
+document.getElementById('importConfirmBtn').addEventListener('click', ()=>{
+  const rows = window.__importRows || [];
+  if(rows.length === 0) return;
+  const list = loadMusicians();
+  rows.forEach(r=>{
+    if(!r.prenom && !r.nom) return;
+    list.push({
+      id: genId('mus'), prenom: r.prenom, nom: r.nom,
+      instrument: r.field3, pupitre: r.pupitre || 'Autre', statutPoste: r.statutPoste || 'titulaire',
+      telephone: r.telephone, email: r.email, notes: r.notes || '', disponibilites: {}
+    });
+  });
+  saveMusicians(list);
+  closeImportModal();
+  render();
+  alert(`${rows.length} musicien·ne${rows.length>1?'s':''} importé·e${rows.length>1?'s':''}. Pense à vérifier le pupitre de chacun·e.`);
+});
+
+function exportMusiciansPdf(onlySelection){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const list = loadMusicians();
+  let filtered;
+  if(onlySelection){
+    if(selectedIds.size === 0){ alert('Sélectionne au moins une fiche à exporter.'); return; }
+    filtered = list.filter(m=>selectedIds.has(m.id)).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  } else {
+    const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+    const pupitre = document.getElementById('pupitreFilter').value;
+    const statutPoste = document.getElementById('statutFilter').value;
+    filtered = list.filter(m=>{
+      if(pupitre && m.pupitre !== pupitre) return false;
+      if(statutPoste && (m.statutPoste || 'titulaire') !== statutPoste) return false;
+      if(!search) return true;
+      return [m.prenom, m.nom, m.instrument, m.pupitre].filter(Boolean).join(' ').toLowerCase().includes(search);
+    }).sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
+  registerHostFont(doc);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  drawCurieuxPdfHeader(doc, pageWidth, onlySelection ? 'SÉLECTION MUSICIENS' : 'ANNUAIRE MUSICIENS');
+
+  const totalTitulaires = filtered.filter(m=>(m.statutPoste||'titulaire')==='titulaire').length;
+  const totalRemplacants = filtered.length - totalTitulaires;
+  doc.setFont('Host', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(120, 105, 113);
+  doc.text(
+    `${filtered.length} musicien·ne${filtered.length>1?'s':''}  ·  ${totalTitulaires} titulaire${totalTitulaires>1?'s':''}  ·  ${totalRemplacants} remplaçant·e${totalRemplacants>1?'s':''}`,
+    12, 24
+  );
+
+  // Un tableau par pupitre plutôt qu'une liste plate : le pupitre devient un bandeau de
+  // section (plus besoin d'une colonne dédiée), ce qui laisse de la place aux colonnes
+  // utiles (statut en badge, téléphone, email) et rend le document plus lisible qu'avant.
+  let y = 30;
+  PUPITRE_OPTIONS.forEach(section=>{
+    // Titulaires par ordre alphabétique, puis remplaçant·es classé·es par instrument et
+    // rang de priorité (1 = à contacter en premier) plutôt que par ordre alphabétique.
+    const sectionTitulaires = filtered.filter(m=>(m.pupitre || 'Autre') === section && (m.statutPoste||'titulaire') === 'titulaire');
+    const sectionRemplacants = filtered.filter(m=>(m.pupitre || 'Autre') === section && m.statutPoste === 'remplacant').sort(compareForRemplacantRanking);
+    const group = [...sectionTitulaires, ...sectionRemplacants];
+    if(group.length === 0) return;
+
+    if(y > pageHeight - 35){ doc.addPage(); y = 20; }
+    doc.setFillColor(253, 227, 238);
+    doc.rect(12, y, pageWidth - 24, 7.5, 'F');
+    doc.setFont('Host', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(121, 22, 73);
+    doc.text(`${section.toUpperCase()} — ${group.length}`, 15, y + 5.3);
+    y += 10.5;
+
+    doc.autoTable({
+      startY: y,
+      margin: { left: 12, right: 12 },
+      head: [['Nom', 'Instrument', 'Statut', 'Téléphone', 'Email']],
+      body: group.map(m=>[
+        fullName(m), m.instrument || '',
+        m.statutPoste === 'remplacant' ? `Remplaçant·e${m.rang ? ' · Rang ' + m.rang : ''}` : 'Titulaire',
+        m.telephone || '', m.email || ''
+      ]),
+      styles: { font:'Host', fontSize:9, cellPadding:3, textColor:[20,22,23] },
+      columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 55 }, 2: { cellWidth: 40 }, 3: { cellWidth: 38 } },
+      headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold' },
+      alternateRowStyles: { fillColor:[253,248,246] },
+      didParseCell: (data)=>{
+        if(data.section === 'body' && data.column.index === 2){
+          data.cell.styles.fontStyle = 'bold';
+          if(data.cell.raw === 'Titulaire'){ data.cell.styles.fillColor = [226,244,234]; data.cell.styles.textColor = [47,143,91]; }
+          else { data.cell.styles.fillColor = [246,234,210]; data.cell.styles.textColor = [184,121,42]; }
+        }
+      }
+    });
+    y = doc.lastAutoTable.finalY + 9;
+  });
+
+  doc.save(onlySelection ? `Selection_musiciens_Curieux_orchestre.pdf` : `Annuaire_musiciens_Curieux_orchestre.pdf`);
+}
+document.getElementById('exportPdfBtn').addEventListener('click', ()=> exportMusiciansPdf(false));
+
+document.getElementById('addBtn').addEventListener('click', ()=> openModal(null));
+document.getElementById('cancelBtn').addEventListener('click', closeModal);
+document.getElementById('modalOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'modalOverlay') closeModal(); });
+
+document.getElementById('saveBtn').addEventListener('click', ()=>{
+  const id = document.getElementById('editId').value;
+  const prenomInput = document.getElementById('fPrenom');
+  const nomInput = document.getElementById('fNom');
+  const prenom = prenomInput.value.trim();
+  const nom = nomInput.value.trim();
+  if(!prenom && !nom){
+    prenomInput.style.outline = nomInput.style.outline = '2px solid var(--danger, #a5313f)';
+    prenomInput.focus();
+    setTimeout(()=>{ prenomInput.style.outline = nomInput.style.outline = ''; }, 1500);
+    return;
+  }
+
+  const statutPoste = document.getElementById('fStatutPoste').value;
+  const rangRaw = document.getElementById('fRang').value.trim();
+  const rang = statutPoste === 'remplacant' && rangRaw ? parseInt(rangRaw, 10) : undefined;
+
+  const list = loadMusicians();
+  let person;
+  if(id){
+    person = list.find(x=>x.id === id);
+    if(person){
+      person.prenom = prenom; person.nom = nom;
+      person.instrument = document.getElementById('fInstrument').value.trim();
+      person.pupitre = document.getElementById('fPupitre').value;
+      person.statutPoste = statutPoste;
+      person.rang = rang;
+      person.telephone = document.getElementById('fTelephone').value.trim();
+      person.email = document.getElementById('fEmail').value.trim();
+      person.notes = document.getElementById('fNotes').value.trim();
+    }
+  } else {
+    person = {
+      id: genId('mus'),
+      prenom, nom,
+      instrument: document.getElementById('fInstrument').value.trim(),
+      pupitre: document.getElementById('fPupitre').value,
+      statutPoste,
+      rang,
+      telephone: document.getElementById('fTelephone').value.trim(),
+      email: document.getElementById('fEmail').value.trim(),
+      notes: document.getElementById('fNotes').value.trim(),
+      disponibilites: {}
+    };
+    list.push(person);
+  }
+  // upsertOne (une seule fiche) plutôt que saveMusicians (toute la liste) — voir la
+  // grille de dispo pour le même correctif et son explication.
+  if(person) CurieuxDB.upsertOne('musiciens', person);
+  closeModal();
+  render();
+});
+
+document.getElementById('searchInput').addEventListener('input', render);
+document.getElementById('pupitreFilter').addEventListener('change', render);
+document.getElementById('statutFilter').addEventListener('change', render);
+
+// Pilules de filtre : elles écrivent dans le <select> masqué et déclenchent le
+// même rendu. Un seul état, deux façons de le poser.
+document.getElementById('statutFiltres').addEventListener('click', (e)=>{
+  const btn = e.target.closest('[data-statut]');
+  if(!btn) return;
+  document.getElementById('statutFilter').value = btn.dataset.statut;
+  document.querySelectorAll('#statutFiltres button').forEach(b=>
+    b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+  render();
+});
+
+document.getElementById('selectAllCheckbox').addEventListener('change', (e)=>{
+  if(e.target.checked) lastFilteredIds.forEach(id=>selectedIds.add(id));
+  else lastFilteredIds.forEach(id=>selectedIds.delete(id));
+  render();
+});
+document.getElementById('bulkClearBtn').addEventListener('click', ()=>{
+  selectedIds.clear();
+  render();
+});
+document.getElementById('bulkPupitreBtn').addEventListener('click', ()=>{
+  const value = document.getElementById('bulkPupitre').value;
+  if(!value || selectedIds.size === 0) return;
+  const list = loadMusicians();
+  list.forEach(m=>{ if(selectedIds.has(m.id)) m.pupitre = value; });
+  saveMusicians(list);
+  document.getElementById('bulkPupitre').value = '';
+  render();
+});
+document.getElementById('bulkStatutBtn').addEventListener('click', ()=>{
+  const value = document.getElementById('bulkStatut').value;
+  if(!value || selectedIds.size === 0) return;
+  const list = loadMusicians();
+  list.forEach(m=>{ if(selectedIds.has(m.id)) m.statutPoste = value; });
+  saveMusicians(list);
+  document.getElementById('bulkStatut').value = '';
+  render();
+});
+document.getElementById('bulkExportBtn').addEventListener('click', ()=> exportMusiciansPdf(true));
+document.getElementById('bulkDeleteBtn').addEventListener('click', ()=>{
+  if(selectedIds.size === 0) return;
+  const list = loadMusicians();
+  const toDelete = list.filter(m=>selectedIds.has(m.id));
+  if(!confirm(`Supprimer définitivement ${toDelete.length} fiche${toDelete.length>1?'s':''} de l'annuaire ?\n\n${toDelete.map(fullName).join(', ')}`)) return;
+  const idsToDelete = toDelete.map(m=>m.id);
+  musiciansCache = list.filter(m=>!selectedIds.has(m.id));
+  CurieuxDB.removeMany('musiciens', idsToDelete);
+  idsToDelete.forEach(id=>{
+    supabaseClient.from('infos_sociales').delete().eq('id', id);
+    supabaseClient.from('dispo_demandes').delete().eq('person_id', id);
+  });
+  selectedIds.clear();
+  render();
+});
+
+injectCurieuxFonts();
+
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+async function initData(){
+  [musiciansCache, allTechniciansCache, remplacantPrefsCache] = await Promise.all([
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('remplacant_prefs'),
+  ]);
+  // Arrivée depuis la recherche globale (voir assets/global-search.js) : préremplit
+  // la recherche locale avec le nom cliqué.
+  const q = new URLSearchParams(location.search).get('q');
+  if(q) document.getElementById('searchInput').value = q;
+  render();
+}
+CurieuxDB.subscribe('musiciens', ()=>{
+  CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; curieuxRafraichir(render); });
+});
+CurieuxDB.subscribe('techniciens', ()=>{
+  CurieuxDB.fetchAll('techniciens').then(list=>{ allTechniciansCache = list; curieuxRafraichir(render); });
+});
+CurieuxDB.subscribe('remplacant_prefs', ()=>{
+  CurieuxDB.fetchAll('remplacant_prefs').then(list=>{ remplacantPrefsCache = list; curieuxRafraichir(render); });
+});
+initData();
+</script>
+</body>
+</html>

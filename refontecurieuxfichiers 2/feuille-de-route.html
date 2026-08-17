@@ -1,0 +1,1502 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Feuille de route</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:1040px; margin:0 auto;}
+  .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between;}
+  .subtitle{color:var(--muted); margin:0 0 8px; font-size:14px;}
+  .fdr-save-status{font-size:12.5px; color:var(--muted); margin-bottom:18px; min-height:16px;}
+  .fdr-save-status.saved{color:var(--accent-dark);}
+  .fdr-save-status.error{color:var(--danger); font-weight:700;}
+  .fdr-conflict-banner{
+    background:var(--secondary-tint); color:var(--secondary-dark); border-radius:var(--radius);
+    padding:14px 18px; margin-bottom:20px; font-size:13.5px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  .fdr-conflict-banner button{background:var(--secondary-dark); color:#fff; padding:7px 14px; font-size:12.5px;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:20px 24px; margin-bottom:14px; box-shadow:0 1px 2px rgba(20,15,10,.03), 0 8px 20px rgba(20,15,10,.03);
+    transition:box-shadow .15s;
+  }
+
+  /* Encarts de la feuille de route à la composition de la maquette : un
+     pictogramme incliné de 48 px aux couleurs de la charte tient la gauche, le
+     titre passe en Ufficio capitales, et chaque info se pose sur un fond blanc
+     cassé arrondi plutôt que de s'aligner à nu.
+
+     Le pictogramme est posé en position absolue plutôt qu'en enfant de flex :
+     ça évite d'aller réenvelopper le contenu des sept sections, et le résultat
+     est le même à l'écran. */
+  .card.fdr-section{position:relative; padding-left:84px;}
+  .card.fdr-section::before{
+    content:attr(data-icone);
+    position:absolute; left:22px; top:20px;
+    width:48px; height:48px; border-radius:13px;
+    display:grid; place-items:center; font-size:23px; line-height:1;
+    background:var(--sec-fond); color:var(--sec-encre);
+    transform:rotate(var(--sec-tilt)); box-shadow:0 2px 6px rgba(20,22,23,.12);
+  }
+  .card.fdr-section > .card-head > h2,
+  .card.fdr-section > h2{
+    font-family:var(--font-display); font-weight:500; font-size:17px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--accent);
+  }
+  /* Chaque champ devient une ligne posée sur un fond doux. Les filets fins
+     avaient été jugés « moches » : on garde la séparation, sans le trait. */
+  .card.fdr-section .field{
+    background:var(--bg); border-radius:9px; padding:9px 12px; margin-bottom:6px;
+  }
+  .card.fdr-section .field-row{gap:6px;}
+  .card.fdr-section .field-row .field{margin-bottom:0;}
+  .card.fdr-section .card-sub{margin-bottom:10px;}
+  @media (max-width:640px){
+    .card.fdr-section{padding-left:24px;}
+    .card.fdr-section::before{position:static; margin-bottom:12px;}
+  }
+  .card h2{
+    font-size:15.5px; margin:0; display:flex; align-items:center; gap:9px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
+  }
+  .card h2::before{content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); display:inline-block; flex-shrink:0;}
+  .card h3{font-size:14px; margin:0 0 10px; color:var(--text);}
+  .card .card-sub{color:var(--muted); font-size:12.5px; margin:-8px 0 14px;}
+  .card-head{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;}
+  .section-toggle{
+    display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--muted);
+    cursor:pointer; text-transform:none; letter-spacing:0; white-space:nowrap;
+  }
+  .section-toggle input{width:15px; height:15px; cursor:pointer;}
+  .card-body.section-off{display:none;}
+  .field-row{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px;}
+  .field{flex:1 1 200px; display:flex; flex-direction:column; gap:4px;}
+  input[type=text], input[type=date], input[type=time], input[type=number], textarea,
+  .field > select, table.grid-table select{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;
+    width:100%; background:var(--card); color:var(--text); font-family:inherit;
+  }
+  textarea{min-height:44px; resize:vertical;}
+  input:focus, textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s, box-shadow .15s; font-family:inherit;
+  }
+  .btn-primary{background:var(--accent-solid); color:#fff; box-shadow:0 2px 8px rgba(121,22,73,.25);}
+  .btn-primary:hover{background:var(--accent-dark); box-shadow:0 4px 12px rgba(121,22,73,.32);}
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-danger:hover{background:var(--secondary-tint);}
+  .btn-ghost{background:transparent; color:var(--accent); padding:4px 8px;}
+  .btn-ghost:hover{text-decoration:underline;}
+  .btn-import{background:#0a2540; color:#fff;}
+  .btn-import:hover{background:#08182b;}
+  .small-del{background:transparent; color:var(--danger); font-size:16px; padding:2px 6px; line-height:1;}
+  .small-del:hover{background:#fdeceb; border-radius:4px;}
+  .actions-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;}
+  .toolbar{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;}
+  .toolbar .btn-primary{padding:10px 18px; font-size:14px;}
+
+  .grid-table-wrap{overflow-x:auto; margin-bottom:4px;}
+  table.grid-table{width:100%; min-width:520px; border-collapse:collapse;}
+  table.grid-table th{font-size:11px; text-transform:uppercase; color:var(--muted); text-align:left; padding:4px 6px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  table.grid-table td{padding:4px 6px; vertical-align:top;}
+  table.grid-table input[type=text], table.grid-table input[type=time], table.grid-table select{font-size:13px; padding:6px 8px; width:100%;}
+  .col-del{width:34px; text-align:center;}
+  .highlight-toggle{display:flex; align-items:center; justify-content:center; gap:4px; cursor:pointer; font-size:13px; white-space:nowrap;}
+  .highlight-toggle input{width:15px; height:15px; cursor:pointer;}
+  tr.highlight-row{background:var(--secondary-tint);}
+  tr.highlight-row td input[type=text]{background:var(--card);}
+
+  .contacts-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 20px;}
+  @media (max-width:640px){ .contacts-grid{grid-template-columns:1fr;} }
+  .contact-pair{display:flex; gap:8px;}
+  .contact-pair .field{flex:1;}
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(20,15,10,.55);
+    align-items:flex-start; justify-content:center; z-index:100; padding:32px 16px; overflow-y:auto;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-card{
+    background:var(--card); border-radius:14px; max-width:640px; width:100%;
+    padding:24px; box-shadow:0 20px 60px rgba(0,0,0,.3);
+  }
+  .modal-card h2{margin:0 0 4px; font-size:18px;}
+  .modal-card .modal-sub{color:var(--muted); font-size:13px; margin:0 0 16px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:14px;}
+  .import-empty{color:var(--muted); font-size:13px; padding:16px 4px; text-align:center;}
+  .trip-import-group{border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:10px;}
+  .trip-import-group h4{margin:0 0 8px; font-size:13px; text-transform:uppercase; color:var(--accent-dark);}
+  .trip-import-option{display:flex; align-items:center; gap:8px; font-size:13px; padding:4px 0;}
+  .trip-import-option input{width:15px; height:15px;}
+  .carnet-list{display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto;}
+  .carnet-item{
+    display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left;
+    padding:9px 12px; border:1px solid var(--border); border-radius:8px; background:transparent;
+    cursor:pointer; font-family:inherit; transition:background .12s, border-color .12s;
+  }
+  .carnet-item:hover{background:var(--accent-tint); border-color:var(--accent);}
+  .carnet-item strong{font-size:13.5px;}
+  .carnet-item span{font-size:12px; color:var(--muted);}
+
+  /* Mode nuit : les fonds suivent déjà var(--card)/var(--text) depuis les
+     règles de base ci-dessus ; il ne reste que des ajustements ponctuels. */
+  :root[data-theme="dark"] .modal-card{ box-shadow:0 20px 60px rgba(0,0,0,.6); }
+  :root[data-theme="dark"] .small-del:hover{ background:#3a1f22; }
+  :root[data-theme="dark"] .trip-import-group{ background:#1a1822; }
+  @media (max-width:600px){
+    input, select, textarea{ font-size:16px !important; }
+    .highlight-toggle input, .trip-import-option input{ width:18px; height:18px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Feuille de route</h1>
+      <p class="subtitle">Prépare la feuille de route complète d'une date (contacts, trajets confirmés, planning, lieu, hôtel), puis génère le PDF.</p>
+    </div>
+  </div>
+  <div id="fdrSaveStatus" class="fdr-save-status">Chargement…</div>
+  <div id="fdrConflictBanner" class="fdr-conflict-banner" style="display:none;">
+    <svg width="16" height="16" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:5px;"><path d="M12 3.5 22 20.5H2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><line x1="12" y1="9.5" x2="12" y2="14.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><circle cx="12" cy="17.2" r="1" fill="currentColor"></circle></svg>Cette feuille de route a été modifiée par quelqu'un d'autre pendant que tu l'éditais. Tes derniers changements n'ont <strong>pas</strong> été enregistrés pour éviter d'écraser les siens.
+    <button type="button" id="fdrReloadBtn">Recharger la page</button>
+  </div>
+
+  <div class="card fdr-section" data-icone="✦" style="--sec-fond:#141617; --sec-encre:#FCF2F0; --sec-tilt:-5deg;">
+    <h2>Informations générales</h2>
+    <div class="field-row">
+      <div class="field">
+        <label for="artistName">Artiste / Projet</label>
+        <input type="text" id="artistName" placeholder="Nom de l'artiste">
+      </div>
+      <div class="field">
+        <label for="eventDate">Date</label>
+        <input type="date" id="eventDate">
+      </div>
+      <div class="field">
+        <label for="venueCity">Ville</label>
+        <input type="text" id="venueCity" placeholder="Ex: Clermont-Ferrand">
+      </div>
+      <div class="field">
+        <label for="venueSalle">Salle</label>
+        <input type="text" id="venueSalle" placeholder="Ex: Salle Boris Vian">
+      </div>
+    </div>
+    <h3 style="margin-top:14px;">Logo sur la feuille de route</h3>
+    <div class="actions-row" style="margin-top:0;">
+      <label class="highlight-toggle" style="font-size:14px;"><input type="radio" name="logoChoice" value="none"> Logo Curieux orchestre</label>
+      <label class="highlight-toggle" style="font-size:14px;"><input type="radio" name="logoChoice" value="custom"> Logo importé</label>
+    </div>
+    <div class="field" id="customLogoField" style="max-width:320px; margin-top:8px; display:none;">
+      <label for="customLogoInput">Importer un logo (PNG/JPG)</label>
+      <input type="file" id="customLogoInput" accept="image/*">
+    </div>
+  </div>
+
+  <div class="card fdr-section" data-icone="☎" style="--sec-fond:#CEE1F4; --sec-encre:#791649; --sec-tilt:4deg;">
+    <div class="card-head">
+      <h2>Contacts production</h2>
+      <label class="section-toggle"><input type="checkbox" data-section-toggle="contacts" checked> Inclure cette section</label>
+    </div>
+    <div class="card-body" data-section-body="contacts">
+    <p class="card-sub">Ajoute uniquement les contacts pertinents pour cette date (accueil, technique, tour manager, runner...).</p>
+    <div class="grid-table-wrap">
+      <table class="grid-table" id="contactsTable">
+        <thead>
+          <tr>
+            <th style="width:16%;">Rôle</th>
+            <th style="width:18%;">Nom</th>
+            <th style="width:10%;">Indicatif</th>
+            <th style="width:17%;">Téléphone</th>
+            <th>Email</th>
+            <th class="col-del"></th>
+          </tr>
+        </thead>
+        <tbody id="contactsBody"></tbody>
+      </table>
+    </div>
+    <div class="actions-row">
+      <button class="btn-ghost" id="addContactBtn">+ Ajouter un contact</button>
+      <button class="btn-ghost" id="fromCarnetBtn"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><rect x="2.5" y="5" width="19" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><circle cx="9" cy="11.4" r="2.1" fill="none" stroke="currentColor" stroke-width="1.4"></circle><path d="M6 16.2c0-1.6 1.3-2.6 3-2.6s3 1 3 2.6" fill="none" stroke="currentColor" stroke-width="1.4"></path><line x1="14.5" y1="10" x2="18.5" y2="10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line><line x1="14.5" y1="13" x2="18.5" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg>Depuis le carnet</button>
+    </div>
+    </div>
+  </div>
+
+  <div class="card fdr-section" data-icone="⇄" style="--sec-fond:#FEC9E0; --sec-encre:#791649; --sec-tilt:-5deg;">
+    <div class="card-head">
+      <h2>Voyage</h2>
+      <label class="section-toggle"><input type="checkbox" data-section-toggle="voyage" checked> Inclure cette section</label>
+    </div>
+    <div class="card-body" data-section-body="voyage">
+    <p class="card-sub">Les horaires définitifs retenus.</p>
+    <div class="grid-table-wrap">
+      <table class="grid-table" id="trajetsTable">
+        <thead>
+          <tr>
+            <th style="width:11%;">Trajet</th>
+            <th style="width:13%;">Voyageurs</th>
+            <th style="width:15%;">Mode / Train n°</th>
+            <th style="width:14%;">Départ</th>
+            <th style="width:14%;">Arrivée</th>
+            <th style="width:9%;">Voiture</th>
+            <th style="width:11%;">Place</th>
+            <th class="col-del"></th>
+          </tr>
+        </thead>
+        <tbody id="trajetsBody"></tbody>
+      </table>
+    </div>
+    <div class="actions-row">
+      <button class="btn-ghost" id="addTrajetBtn">+ Ajouter un trajet</button>
+      <button class="btn-import" id="importTrainInfoBtn"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><rect x="5" y="3.5" width="14" height="12" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="5" y1="9.3" x2="19" y2="9.3" stroke="currentColor" stroke-width="1.4"></line><circle cx="8.5" cy="12.4" r="1" fill="currentColor"></circle><circle cx="15.5" cy="12.4" r="1" fill="currentColor"></circle><line x1="8" y1="16" x2="6" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></line><line x1="16" y1="16" x2="18" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></line></svg>Récupérer le train (SNCF Connect)</button>
+    </div>
+    </div>
+  </div>
+
+  <div class="card fdr-section" data-icone="◷" style="--sec-fond:#791649; --sec-encre:#FCF2F0; --sec-tilt:4deg;">
+    <div class="card-head">
+      <h2>Planning du jour</h2>
+      <label class="section-toggle"><input type="checkbox" data-section-toggle="planning" checked> Inclure cette section</label>
+    </div>
+    <div class="card-body" data-section-body="planning">
+    <p class="card-sub">Coche "Mettre en évidence" pour les moments clés (ex : horaire du show).</p>
+    <div class="grid-table-wrap">
+      <table class="grid-table" id="planningTable">
+        <thead>
+          <tr>
+            <th style="width:16%;">Heure</th>
+            <th>Événement</th>
+            <th style="width:130px;">Mettre en évidence</th>
+            <th style="width:120px;">Type</th>
+            <th class="col-del"></th>
+          </tr>
+        </thead>
+        <tbody id="planningBody"></tbody>
+      </table>
+    </div>
+    <div class="actions-row">
+      <button class="btn-ghost" id="addPlanningBtn">+ Ajouter une ligne</button>
+    </div>
+    </div>
+  </div>
+
+  <div class="card fdr-section" data-icone="⌖" style="--sec-fond:#EC4B15; --sec-encre:#FCF2F0; --sec-tilt:-5deg;">
+    <div class="card-head">
+      <h2>Lieu</h2>
+      <label class="section-toggle"><input type="checkbox" data-section-toggle="lieu" checked> Inclure cette section</label>
+    </div>
+    <div class="card-body" data-section-body="lieu">
+    <div class="field-row">
+      <div class="field"><label for="l_nom">Nom du lieu</label><input type="text" id="l_nom" placeholder="Ex: Salle Boris Vian - Maison de la culture"></div>
+      <div class="field"><label for="l_adresse">Adresse</label><input type="text" id="l_adresse" placeholder="Adresse complète"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="l_jauge">Jauge</label><input type="text" id="l_jauge" placeholder="Ex: 53 pax"></div>
+      <div class="field"><label for="l_billetterie">Billets vendus à ce jour (optionnel)</label><input type="number" id="l_billetterie" placeholder="Ex: 450" min="0" step="1"></div>
+    </div>
+    </div>
+  </div>
+
+  <div class="card fdr-section" data-icone="☾" style="--sec-fond:#CEE1F4; --sec-encre:#791649; --sec-tilt:4deg;">
+    <div class="card-head">
+      <h2>Hôtel</h2>
+      <label class="section-toggle"><input type="checkbox" data-section-toggle="hotel" checked> Inclure cette section</label>
+    </div>
+    <div class="card-body" data-section-body="hotel">
+    <div class="field-row">
+      <div class="field">
+        <label for="h_type">Type d'hébergement</label>
+        <select id="h_type">
+          <option value="hotel">Hôtel</option>
+          <option value="airbnb">Airbnb / location</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+      <div class="field" id="h_typeDetailField" style="display:none;">
+        <label for="h_typeDetail">Préciser</label>
+        <input type="text" id="h_typeDetail" placeholder="Ex: chez l'habitant, camping...">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="h_nom">Nom</label><input type="text" id="h_nom" placeholder="Nom de l'hébergement"></div>
+      <div class="field"><label for="h_adresse">Adresse</label><input type="text" id="h_adresse" placeholder="Adresse complète"></div>
+      <div class="field"><label for="h_tel">Réception / Téléphone</label><input type="text" id="h_tel" placeholder="Téléphone"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="h_checkin">Horaire check-in (optionnel)</label><input type="time" id="h_checkin"></div>
+      <div class="field"><label for="h_checkout">Horaire check-out (optionnel)</label><input type="time" id="h_checkout"></div>
+      <div class="field"><label for="h_mapsLink">Lien Google Maps (optionnel)</label><input type="text" id="h_mapsLink" placeholder="https://maps.app.goo.gl/..."></div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="h_breakfast">Petit-déjeuner</label>
+        <select id="h_breakfast">
+          <option value="">Non précisé</option>
+          <option value="inclus">Inclus</option>
+          <option value="non-inclus">Non inclus</option>
+        </select>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="card fdr-section" data-icone="★" style="--sec-fond:#791649; --sec-encre:#FCF2F0; --sec-tilt:-5deg;">
+    <div class="card-head">
+      <h2>Bonus / Notes</h2>
+      <label class="section-toggle"><input type="checkbox" data-section-toggle="bonus" checked> Inclure cette section</label>
+    </div>
+    <div class="card-body" data-section-body="bonus">
+    <p class="card-sub">Ex : petit-déjeuner inclus...</p>
+    <textarea id="bonusNotes" style="min-height:70px; margin-bottom:14px;" placeholder="Notes libres..."></textarea>
+
+    <h3>Billets de train (liens Drive)</h3>
+    <p class="card-sub">Un lien par personne si besoin (artiste, accompagnant·es...).</p>
+    <div class="grid-table-wrap">
+      <table class="grid-table" id="ticketLinksTable">
+        <thead>
+          <tr>
+            <th style="width:28%;">Personne</th>
+            <th>Lien Drive</th>
+            <th class="col-del"></th>
+          </tr>
+        </thead>
+        <tbody id="ticketLinksBody"></tbody>
+      </table>
+    </div>
+    <div class="actions-row" style="margin-bottom:14px;">
+      <button class="btn-ghost" id="addTicketLinkBtn">+ Ajouter un lien</button>
+    </div>
+
+    <label class="highlight-toggle" style="justify-content:flex-start; font-size:14px;">
+      <input type="checkbox" id="merchandisingOk"> <svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M6 8.5h12l-1 11.5a1.5 1.5 0 0 1-1.5 1.4H8.5A1.5 1.5 0 0 1 7 20l-1-11.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><path d="M9 8.5V6.8a3 3 0 0 1 6 0v1.7" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg>Espace merchandising OK
+    </label>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn-primary" id="generateFdrBtn">Générer le PDF</button>
+    <button class="btn-ghost" id="newFdrBtn">+ Nouvelle feuille de route</button>
+    <button class="btn-ghost" id="resetFdrBtn">Réinitialiser le formulaire</button>
+    <button class="btn-danger" id="deleteFdrBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg> Supprimer cette feuille de route</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="carnetModal">
+  <div class="modal-card">
+    <h2>Carnet de contacts</h2>
+    <p class="modal-sub">Réutilise un contact déjà renseigné sur une autre feuille de route.</p>
+    <div id="carnetModalBody"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="carnetModalCloseBtn">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="trainModal">
+  <div class="modal-card">
+    <h2>Récupérer le train depuis SNCF Connect</h2>
+    <p class="modal-sub">
+      Colle le texte copié depuis la liste de résultats SNCF Connect. On en extrait le type de train
+      (et son numéro si présent) pour le trajet de ton choix — uniquement dans la feuille de route.
+    </p>
+    <div class="field" style="margin-bottom:10px;">
+      <label for="trainTargetSelect">Trajet à compléter</label>
+      <select id="trainTargetSelect" style="padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;"></select>
+    </div>
+    <textarea id="trainTextarea" style="width:100%; min-height:120px; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:13px; font-family:inherit; resize:vertical;" placeholder="Colle ici le texte copié depuis SNCF Connect..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="trainCloseBtn">Annuler</button>
+      <button class="btn-import" id="trainParseBtn">Analyser le texte</button>
+    </div>
+    <div id="trainResults" style="margin-top:14px;"></div>
+    <div class="modal-actions" id="trainApplyRow" style="display:none;">
+      <button class="btn-primary" id="trainApplyBtn">Utiliser ce train</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'feuille-de-route-state-v1'; // ancienne clé mono-FDR, conservée pour migration
+const FDR_LAST_ID_KEY = 'fdr-last-id';
+let uidCounter = 1;
+// Identifiant stable inter-sessions (contrairement à uid(), dont le compteur repart de 1
+// à chaque chargement de page) — utilisé pour les entrées de collection FDR et le carnet.
+const uid = () => 'id' + (uidCounter++);
+
+// Normalise une heure vers le format HH:MM exigé par <input type="time"> (ex: "8:5" -> "08:05")
+function padTime(v){
+  if(!v) return '';
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(v).trim());
+  if(!m) return '';
+  return `${m[1].padStart(2,'0')}:${m[2]}`;
+}
+function defaultPassenger(nom, voiture, place){
+  return { id: uid(), nom: nom || '', voiture: voiture || '', place: place || '' };
+}
+function defaultTrajet(label){
+  return { id: uid(), label: label || '', mode:'train', train:'', departVille:'', departHeure:'', arriveeVille:'', arriveeHeure:'', passengers:[defaultPassenger()] };
+}
+function defaultPlanningRow(heure, texte){
+  return { id: uid(), heure: heure || '', texte: texte || '', highlight:false, tag:'' };
+}
+// Migre les anciennes lignes (cases meal/run/voyage séparées) vers le champ unique `tag`.
+function migratePlanningRow(row){
+  if(row.tag === undefined){
+    row.tag = row.meal ? 'repas' : row.run ? 'run' : row.voyage ? 'voyage' : '';
+  }
+  delete row.meal; delete row.run; delete row.voyage;
+  return row;
+}
+function defaultContact(role, nom, indicatif, tel, email){
+  return { id: uid(), role: role || '', nom: nom || '', indicatif: indicatif || '+33', tel: tel || '', email: email || '' };
+}
+function defaultContactsList(){
+  return [
+    defaultContact('Régisseur artiste', 'Aloïs Darles', '+33', '6 48 44 82 63', 'alois.darles@lessoudaines.fr'),
+    defaultContact('Production', 'Clémentine Tavernier', '+33', '6 40 48 02 48', 'ctavernier@l-productions.fr')
+  ];
+}
+function defaultTicketLink(nom, lien){
+  return { id: uid(), nom: nom || '', lien: lien || '' };
+}
+function buildDefaultState(){
+  return {
+    id: genId('fdr'),
+    artistName:'', eventDate:'', venueCity:'', venueSalle:'',
+    logoChoice:'none', customLogoDataUrl:'',
+    contacts: defaultContactsList(),
+    merchandisingOk:false,
+    trajets: [ defaultTrajet('Aller'), defaultTrajet('Retour') ],
+    planning: [ defaultPlanningRow(), defaultPlanningRow() ],
+    lieu:{ nom:'', adresse:'', jauge:'', billetterie:'' },
+    hotel:{ nom:'', adresse:'', tel:'', checkin:'', checkout:'', mapsLink:'', breakfast:'', type:'hotel', typeDetail:'' },
+    ticketLinks: [ defaultTicketLink() ],
+    bonus:'',
+    // Sections optionnelles : décochées, une section ne s'affiche ni dans le
+    // formulaire (repliée) ni dans le PDF généré, même si elle contient des
+    // données (ex : "Voyage" pour une date sans trajet à organiser).
+    sectionsEnabled:{ contacts:true, voyage:true, planning:true, lieu:true, hotel:true, bonus:true }
+  };
+}
+
+let state = buildDefaultState();
+
+// --- Collection de feuilles de route (une par date/venue, identifiables par id) ---
+// Cache mémoire synchronisé avec Supabase (table "feuilles_route") — voir annuaire.html
+// pour le pattern général. saveState() (appelé à chaque frappe clavier sur le formulaire)
+// ne resynchronise QUE l'entrée courante via CurieuxDB.upsertOne, avec un debounce, plutôt
+// que de repousser toute la collection à chaque caractère tapé (voir scheduleStateSync()).
+let fdrsCache = [];
+function loadFdrCollection(){ return fdrsCache; }
+function saveFdrCollection(list){
+  fdrsCache = list;
+  return CurieuxDB.syncCollection('feuilles_route', list);
+}
+// Applique la même fusion défensive qu'avant (tableaux/sous-objets absents -> valeurs par
+// défaut) à une entrée quelconque de la collection, qu'elle vienne du stockage normal ou
+// de la migration de l'ancien blob mono-FDR.
+function normalizeFdrEntry(parsed){
+  const base = buildDefaultState();
+  return {
+    ...base, ...parsed,
+    id: parsed.id || base.id,
+    contacts: Array.isArray(parsed.contacts) ? parsed.contacts : base.contacts,
+    ticketLinks: Array.isArray(parsed.ticketLinks) ? parsed.ticketLinks : base.ticketLinks,
+    planning: (Array.isArray(parsed.planning) ? parsed.planning : base.planning).map(migratePlanningRow),
+    lieu:{...base.lieu, ...(parsed.lieu||{})},
+    hotel:{...base.hotel, ...(parsed.hotel||{})},
+    sectionsEnabled:{...base.sectionsEnabled, ...(parsed.sectionsEnabled||{})}
+  };
+}
+
+function loadState(){
+  let collection = loadFdrCollection();
+
+  // Migration ponctuelle : l'ancien blob mono-FDR devient la 1ère entrée de la collection.
+  if(collection.length === 0){
+    try{
+      const oldRaw = localStorage.getItem(STORAGE_KEY);
+      if(oldRaw){
+        const oldParsed = JSON.parse(oldRaw);
+        if(oldParsed){
+          collection = [ normalizeFdrEntry({ ...oldParsed, id: oldParsed.id || genId('fdr') }) ];
+          saveFdrCollection(collection);
+        }
+      }
+    }catch(e){ console.warn('migration FDR impossible', e); }
+  }
+
+  const urlId = new URLSearchParams(location.search).get('id');
+  const lastId = localStorage.getItem(FDR_LAST_ID_KEY);
+  let entry = collection.find(f => f.id === urlId) || collection.find(f => f.id === lastId) || collection[0];
+
+  if(!entry){
+    entry = buildDefaultState();
+    saveFdrCollection([entry]);
+  } else {
+    entry = normalizeFdrEntry(entry);
+  }
+
+  state = entry;
+  fdrLastKnownUpdatedAt = entry._updatedAt || null;
+  fdrConflict = false;
+  localStorage.setItem(FDR_LAST_ID_KEY, state.id);
+}
+
+// Détection de conflit : si quelqu'un d'autre a enregistré cette même feuille de
+// route depuis notre dernier chargement/enregistrement (updated_at différent de
+// ce qu'on a vu en dernier), on n'écrase pas — on prévient plutôt que de faire
+// disparaître silencieusement le travail de l'autre personne (voir aussi
+// syncCollection dans assets/db.js pour le même principe côté rosters).
+let fdrLastKnownUpdatedAt = null;
+let fdrConflict = false;
+function setFdrSaveStatus(kind, text){
+  const el = document.getElementById('fdrSaveStatus');
+  if(!el) return;
+  el.className = 'fdr-save-status' + (kind ? ' ' + kind : '');
+  el.textContent = text || '';
+}
+async function checkConflictAndSave(){
+  if(!supabaseClient || fdrConflict) return;
+  const { data } = await supabaseClient.from('feuilles_route').select('updated_at').eq('id', state.id).maybeSingle();
+  const serverUpdatedAt = data ? data.updated_at : null;
+  if(fdrLastKnownUpdatedAt && serverUpdatedAt && serverUpdatedAt !== fdrLastKnownUpdatedAt){
+    fdrConflict = true;
+    document.getElementById('fdrConflictBanner').style.display = 'flex';
+    setFdrSaveStatus('error', '');
+    return;
+  }
+  setFdrSaveStatus('', 'Enregistrement…');
+  const { error } = await CurieuxDB.upsertOne('feuilles_route', state);
+  if(error){
+    setFdrSaveStatus('error', "Échec de l'enregistrement, réessaie.");
+    return;
+  }
+  const { data: after } = await supabaseClient.from('feuilles_route').select('updated_at').eq('id', state.id).maybeSingle();
+  fdrLastKnownUpdatedAt = after ? after.updated_at : null;
+  setFdrSaveStatus('saved', 'Enregistré ✓');
+}
+document.getElementById('fdrReloadBtn').addEventListener('click', ()=> location.reload());
+
+let saveStateTimer = null;
+function scheduleStateSync(){
+  clearTimeout(saveStateTimer);
+  saveStateTimer = setTimeout(checkConflictAndSave, 600);
+}
+function flushStateSync(){
+  clearTimeout(saveStateTimer);
+  if(!fdrConflict) CurieuxDB.upsertOne('feuilles_route', state);
+}
+window.addEventListener('beforeunload', flushStateSync);
+
+function saveState(){
+  const collection = loadFdrCollection();
+  const idx = collection.findIndex(f => f.id === state.id);
+  if(idx >= 0) collection[idx] = state; else collection.push(state);
+  fdrsCache = collection;
+  localStorage.setItem(FDR_LAST_ID_KEY, state.id);
+  scheduleStateSync();
+}
+async function createNewFdr(){
+  const fresh = buildDefaultState();
+  fdrsCache = [...loadFdrCollection(), fresh];
+  await CurieuxDB.upsertOne('feuilles_route', fresh);
+  localStorage.setItem(FDR_LAST_ID_KEY, fresh.id);
+  location.href = 'feuille-de-route.html?id=' + encodeURIComponent(fresh.id);
+}
+function bindSimpleField(elId, getter, setter){
+  const el = document.getElementById(elId);
+  el.value = getter();
+  el.addEventListener('input', e=>{ setter(e.target.value); saveState(); });
+}
+
+function bindTopFields(){
+  bindSimpleField('artistName', ()=>state.artistName, v=>state.artistName=v);
+  bindSimpleField('eventDate', ()=>state.eventDate, v=>state.eventDate=v);
+  bindSimpleField('venueCity', ()=>state.venueCity, v=>state.venueCity=v);
+  bindSimpleField('venueSalle', ()=>state.venueSalle, v=>state.venueSalle=v);
+
+  bindSimpleField('l_nom', ()=>state.lieu.nom, v=>state.lieu.nom=v);
+  bindSimpleField('l_adresse', ()=>state.lieu.adresse, v=>state.lieu.adresse=v);
+  bindSimpleField('l_jauge', ()=>state.lieu.jauge, v=>state.lieu.jauge=v);
+  bindSimpleField('l_billetterie', ()=>state.lieu.billetterie, v=>state.lieu.billetterie=v);
+
+  bindSimpleField('h_nom', ()=>state.hotel.nom, v=>state.hotel.nom=v);
+  bindSimpleField('h_adresse', ()=>state.hotel.adresse, v=>state.hotel.adresse=v);
+  bindSimpleField('h_tel', ()=>state.hotel.tel, v=>state.hotel.tel=v);
+  bindSimpleField('h_checkin', ()=>state.hotel.checkin, v=>state.hotel.checkin=v);
+  bindSimpleField('h_checkout', ()=>state.hotel.checkout, v=>state.hotel.checkout=v);
+  bindSimpleField('h_mapsLink', ()=>state.hotel.mapsLink, v=>state.hotel.mapsLink=v);
+  bindSimpleField('h_breakfast', ()=>state.hotel.breakfast, v=>state.hotel.breakfast=v);
+  bindSimpleField('h_type', ()=>state.hotel.type, v=>state.hotel.type=v);
+  bindSimpleField('h_typeDetail', ()=>state.hotel.typeDetail, v=>state.hotel.typeDetail=v);
+  const toggleHotelTypeDetail = ()=>{
+    document.getElementById('h_typeDetailField').style.display = state.hotel.type === 'autre' ? '' : 'none';
+  };
+  document.getElementById('h_type').addEventListener('input', toggleHotelTypeDetail);
+  toggleHotelTypeDetail();
+
+  bindSimpleField('bonusNotes', ()=>state.bonus, v=>state.bonus=v);
+
+  const merchEl = document.getElementById('merchandisingOk');
+  merchEl.checked = !!state.merchandisingOk;
+  merchEl.addEventListener('change', e=>{ state.merchandisingOk = e.target.checked; saveState(); });
+
+  document.querySelectorAll('input[name="logoChoice"]').forEach(radio=>{
+    radio.checked = radio.value === state.logoChoice;
+    radio.addEventListener('change', e=>{
+      if(e.target.checked){
+        state.logoChoice = e.target.value;
+        document.getElementById('customLogoField').style.display = state.logoChoice === 'custom' ? 'flex' : 'none';
+        saveState();
+      }
+    });
+  });
+  document.getElementById('customLogoField').style.display = state.logoChoice === 'custom' ? 'flex' : 'none';
+
+  document.getElementById('customLogoInput').addEventListener('change', e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      state.customLogoDataUrl = ev.target.result;
+      saveState();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Cases "Inclure cette section" (Contacts, Voyage, Planning, Lieu, Hôtel,
+// Bonus/Notes) : repliées dans le formulaire ET exclues du PDF quand
+// décochées, indépendamment du contenu déjà saisi (voir garde-fous dans
+// generatePdf plus bas). "Informations générales" n'est pas concernée, elle
+// définit l'identité même de la feuille de route.
+function bindSectionToggles(){
+  document.querySelectorAll('[data-section-toggle]').forEach(cb=>{
+    const key = cb.dataset.sectionToggle;
+    const body = document.querySelector(`[data-section-body="${key}"]`);
+    const apply = ()=> body.classList.toggle('section-off', !cb.checked);
+    cb.checked = state.sectionsEnabled[key] !== false;
+    apply();
+    cb.addEventListener('change', ()=>{
+      state.sectionsEnabled[key] = cb.checked;
+      apply();
+      saveState();
+    });
+  });
+}
+
+// --- Carnet de contacts partagé (réutilisé entre feuilles de route) ---
+// Cache mémoire synchronisé avec Supabase (table "carnet_contacts"). musiciensCache/
+// techniciensCache sont en lecture seule ici — la modale "Depuis le carnet" pioche
+// aussi dedans, pour ne pas ressaisir à la main les infos déjà dans les annuaires.
+let carnetCache = [];
+let musiciansCache = [];
+let techniciansCache = [];
+function loadCarnet(){ return carnetCache; }
+function loadMusicians(){ return musiciansCache; }
+function loadTechnicians(){ return techniciansCache; }
+// Ajoute ou met à jour une entrée du carnet, dédoublonnée par nom (insensible à la casse/aux espaces).
+// Un seul contact change à la fois ici (pas de saisie à haute fréquence comme saveState),
+// upsertOne suffit — pas besoin de resynchroniser tout le carnet.
+function upsertCarnetContact(c){
+  if(!c.nom || !c.nom.trim()) return;
+  const key = c.nom.trim().toLowerCase();
+  const carnet = loadCarnet();
+  const idx = carnet.findIndex(e => e.nom.trim().toLowerCase() === key);
+  const entry = { id: idx >= 0 ? carnet[idx].id : genId('c'), role: c.role, nom: c.nom, indicatif: c.indicatif, tel: c.tel, email: c.email };
+  if(idx >= 0) carnet[idx] = entry; else carnet.push(entry);
+  carnetCache = carnet;
+  CurieuxDB.upsertOne('carnet_contacts', entry);
+}
+
+function renderContacts(){
+  const tbody = document.getElementById('contactsBody');
+  tbody.innerHTML = '';
+  state.contacts.forEach((c, idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" data-f="role" placeholder="Ex: Technique" value="${escapeAttr(c.role)}"></td>
+      <td><input type="text" data-f="nom" placeholder="Nom" value="${escapeAttr(c.nom)}"></td>
+      <td><input type="text" data-f="indicatif" placeholder="+33" value="${escapeAttr(c.indicatif)}"></td>
+      <td><input type="text" data-f="tel" placeholder="6 00 00 00 00" value="${escapeAttr(c.tel)}"></td>
+      <td><input type="text" data-f="email" placeholder="email@exemple.fr" value="${escapeAttr(c.email)}"></td>
+      <td class="col-del"><button class="small-del" title="Supprimer">✕</button></td>
+    `;
+    tr.querySelectorAll('[data-f]').forEach(inp=>{
+      inp.addEventListener('input', e=>{ c[e.target.dataset.f] = e.target.value; saveState(); });
+    });
+    tr.addEventListener('focusout', (e)=>{
+      if(tr.contains(e.relatedTarget)) return; // reste dans la même ligne
+      upsertCarnetContact(c);
+    });
+    tr.querySelector('.small-del').addEventListener('click', ()=>{
+      if(!confirm(`Supprimer le contact ${c.nom || 'sans nom'} ?`)) return;
+      state.contacts.splice(idx,1);
+      saveState(); renderContacts();
+    });
+    tbody.appendChild(tr);
+  });
+}
+document.getElementById('addContactBtn').addEventListener('click', ()=>{
+  state.contacts.push(defaultContact());
+  saveState(); renderContacts();
+});
+
+const CARNET_SOURCE_LABEL = { carnet: 'Carnet', musicien: 'Musicien·ne', technicien: 'Technicien·ne' };
+
+// Liste combinée : le carnet de contacts (alimenté au fil des FDR) + les annuaires
+// musiciens/techniciens — évite de ressaisir à la main des infos déjà connues de l'app.
+function combinedCarnetEntries(){
+  const carnet = loadCarnet().map(c => ({ id: 'carnet:'+c.id, nom: c.nom, role: c.role, indicatif: c.indicatif, tel: c.tel, email: c.email, source: 'carnet' }));
+  const musiciens = loadMusicians().map(m => ({ id: 'musicien:'+m.id, nom: fullName(m), role: m.instrument || '', indicatif: '+33', tel: m.telephone || '', email: m.email || '', source: 'musicien' }));
+  const techniciens = loadTechnicians().map(t => ({ id: 'technicien:'+t.id, nom: fullName(t), role: t.poste || '', indicatif: '+33', tel: t.telephone || '', email: t.email || '', source: 'technicien' }));
+  return [...carnet, ...musiciens, ...techniciens].sort((a,b)=> a.nom.localeCompare(b.nom));
+}
+
+function openCarnetModal(){
+  const entries = combinedCarnetEntries();
+  const body = document.getElementById('carnetModalBody');
+  if(entries.length === 0){
+    body.innerHTML = '<p class="modal-sub">Rien pour l\'instant — le carnet se remplit automatiquement dès que tu renseignes un contact, et les annuaires musicien·nes/technicien·nes apparaîtront ici dès qu\'ils auront des entrées.</p>';
+  } else {
+    body.innerHTML = `
+      <input type="text" id="carnetSearch" placeholder="Rechercher un nom ou un rôle..." style="margin-bottom:10px;">
+      <div id="carnetList" class="carnet-list"></div>
+    `;
+    const listEl = document.getElementById('carnetList');
+    const renderList = (filter)=>{
+      const f = (filter||'').trim().toLowerCase();
+      const filtered = entries.filter(c => !f || c.nom.toLowerCase().includes(f) || (c.role||'').toLowerCase().includes(f));
+      listEl.innerHTML = filtered.map(c => `
+        <button type="button" class="carnet-item" data-id="${c.id}">
+          <strong>${escapeAttr(c.nom)}</strong>
+          <span>${escapeAttr(c.role || 'Sans rôle')}${c.tel ? ' · ' + escapeAttr(c.tel) : ''} · <em>${escapeAttr(CARNET_SOURCE_LABEL[c.source])}</em></span>
+        </button>
+      `).join('') || '<p class="modal-sub">Aucun résultat.</p>';
+      listEl.querySelectorAll('.carnet-item').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const entry = entries.find(c => c.id === btn.dataset.id);
+          if(!entry) return;
+          state.contacts.push(defaultContact(entry.role, entry.nom, entry.indicatif, entry.tel, entry.email));
+          saveState(); renderContacts();
+          document.getElementById('carnetModal').classList.remove('open');
+        });
+      });
+    };
+    renderList('');
+    document.getElementById('carnetSearch').addEventListener('input', e=>renderList(e.target.value));
+  }
+  document.getElementById('carnetModal').classList.add('open');
+}
+document.getElementById('fromCarnetBtn').addEventListener('click', openCarnetModal);
+document.getElementById('carnetModalCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('carnetModal').classList.remove('open');
+});
+document.getElementById('carnetModal').addEventListener('click', (e)=>{
+  if(e.target.id === 'carnetModal') document.getElementById('carnetModal').classList.remove('open');
+});
+
+function renderTicketLinks(){
+  const tbody = document.getElementById('ticketLinksBody');
+  tbody.innerHTML = '';
+  state.ticketLinks.forEach((tl, idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" data-f="nom" placeholder="Ex: Rosa" value="${escapeAttr(tl.nom)}"></td>
+      <td><input type="text" data-f="lien" placeholder="https://drive.google.com/..." value="${escapeAttr(tl.lien)}"></td>
+      <td class="col-del"><button class="small-del" title="Supprimer">✕</button></td>
+    `;
+    tr.querySelectorAll('[data-f]').forEach(inp=>{
+      inp.addEventListener('input', e=>{ tl[e.target.dataset.f] = e.target.value; saveState(); });
+    });
+    tr.querySelector('.small-del').addEventListener('click', ()=>{
+      if(!confirm(`Supprimer le lien ${tl.nom || 'sans nom'} ?`)) return;
+      state.ticketLinks.splice(idx,1);
+      if(state.ticketLinks.length===0) state.ticketLinks.push(defaultTicketLink());
+      saveState(); renderTicketLinks();
+    });
+    tbody.appendChild(tr);
+  });
+}
+document.getElementById('addTicketLinkBtn').addEventListener('click', ()=>{
+  state.ticketLinks.push(defaultTicketLink());
+  saveState(); renderTicketLinks();
+});
+
+function renderTrajets(){
+  const tbody = document.getElementById('trajetsBody');
+  tbody.innerHTML = '';
+  state.trajets.forEach((t, idx)=>{
+    if(!t.passengers || !t.passengers.length) t.passengers = [defaultPassenger()];
+    const tr = document.createElement('tr');
+    const passengerInputs = (field, placeholder) => t.passengers.map((p, pi) =>
+      `<input type="text" data-passenger="${pi}" data-pf="${field}" placeholder="${placeholder}" value="${escapeAttr(p[field])}" style="margin-bottom:4px;">`
+    ).join('');
+    tr.innerHTML = `
+      <td><input type="text" data-f="label" placeholder="Aller" value="${escapeAttr(t.label)}"></td>
+      <td>
+        ${passengerInputs('nom', 'Nom voyageur')}
+        <button type="button" class="btn-ghost" data-action="add-passenger" style="padding:2px 4px; font-size:12px;">+ voyageur</button>
+      </td>
+      <td>
+        <select data-f="mode" style="margin-bottom:4px; width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px; background:var(--card); color:var(--text);">
+          <option value="train" ${t.mode!=='voiture' && t.mode!=='avion' ?'selected':''}>Train</option>
+          <option value="voiture" ${t.mode==='voiture'?'selected':''}>Voiture</option>
+          <option value="avion" ${t.mode==='avion'?'selected':''}>Avion</option>
+        </select>
+        <input type="text" data-f="train" placeholder="${t.mode==='voiture' ? 'Ex: Van de prod' : t.mode==='avion' ? 'Ex: AF1234' : 'INTERCITÉS 5963'}" value="${escapeAttr(t.train)}">
+      </td>
+      <td><input type="text" data-f="departVille" placeholder="Ville départ" value="${escapeAttr(t.departVille)}" style="margin-bottom:4px;"><input type="time" data-f="departHeure" value="${escapeAttr(t.departHeure)}"></td>
+      <td><input type="text" data-f="arriveeVille" placeholder="Ville arrivée" value="${escapeAttr(t.arriveeVille)}" style="margin-bottom:4px;"><input type="time" data-f="arriveeHeure" value="${escapeAttr(t.arriveeHeure)}"></td>
+      <td>${passengerInputs('voiture', 'N°')}</td>
+      <td>${passengerInputs('place', 'N°')}</td>
+      <td class="col-del"><button class="small-del" title="Supprimer">✕</button></td>
+    `;
+    tr.querySelectorAll('input[data-f]').forEach(inp=>{
+      inp.addEventListener('input', e=>{ t[e.target.dataset.f] = e.target.value; saveState(); });
+    });
+    tr.querySelector('select[data-f="mode"]').addEventListener('change', e=>{
+      t.mode = e.target.value; saveState(); renderTrajets();
+    });
+    tr.querySelectorAll('[data-passenger]').forEach(inp=>{
+      inp.addEventListener('input', e=>{
+        const pi = parseInt(e.target.dataset.passenger, 10);
+        t.passengers[pi][e.target.dataset.pf] = e.target.value;
+        saveState();
+      });
+    });
+    const addPassengerBtn = tr.querySelector('[data-action="add-passenger"]');
+    if(addPassengerBtn){
+      addPassengerBtn.addEventListener('click', ()=>{
+        t.passengers.push(defaultPassenger());
+        saveState(); renderTrajets();
+      });
+    }
+    tr.querySelector('.small-del').addEventListener('click', ()=>{
+      if(!confirm(`Supprimer le trajet ${t.label || 'sans nom'} ?`)) return;
+      state.trajets.splice(idx,1);
+      if(state.trajets.length===0) state.trajets.push(defaultTrajet());
+      saveState(); renderTrajets();
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function renderPlanning(){
+  const tbody = document.getElementById('planningBody');
+  tbody.innerHTML = '';
+  state.planning.forEach((row, idx)=>{
+    const tr = document.createElement('tr');
+    if(row.highlight) tr.classList.add('highlight-row');
+    tr.innerHTML = `
+      <td><input type="time" data-f="heure" value="${escapeAttr(row.heure)}"></td>
+      <td><input type="text" data-f="texte" placeholder="Ex: Ouverture des portes" value="${escapeAttr(row.texte)}"></td>
+      <td><label class="highlight-toggle"><input type="checkbox" data-f="highlight" ${row.highlight ? 'checked' : ''}> Important</label></td>
+      <td>
+        <select data-f="tag">
+          <option value="" ${!row.tag ? 'selected':''}>—</option>
+          <option value="repas" ${row.tag==='repas' ? 'selected':''}>Repas</option>
+          <option value="run" ${row.tag==='run' ? 'selected':''}>Run</option>
+          <option value="voyage" ${row.tag==='voyage' ? 'selected':''}>Voyage</option>
+          <option value="balances" ${row.tag==='balances' ? 'selected':''}>Balances</option>
+          <option value="presse" ${row.tag==='presse' ? 'selected':''}>Presse</option>
+          <option value="repos" ${row.tag==='repos' ? 'selected':''}>Repos</option>
+        </select>
+      </td>
+      <td class="col-del"><button class="small-del" title="Supprimer">✕</button></td>
+    `;
+    tr.querySelector('[data-f="heure"]').addEventListener('input', e=>{ row.heure = e.target.value; saveState(); });
+    tr.querySelector('[data-f="texte"]').addEventListener('input', e=>{ row.texte = e.target.value; saveState(); });
+    tr.querySelector('[data-f="tag"]').addEventListener('input', e=>{ row.tag = e.target.value; saveState(); });
+    tr.querySelector('[data-f="highlight"]').addEventListener('change', e=>{
+      row.highlight = e.target.checked;
+      tr.classList.toggle('highlight-row', row.highlight);
+      saveState();
+    });
+    tr.querySelector('.small-del').addEventListener('click', ()=>{
+      if(!confirm(`Supprimer cette ligne de planning${row.texte ? ' ("' + row.texte + '")' : ''} ?`)) return;
+      state.planning.splice(idx,1);
+      if(state.planning.length===0) state.planning.push(defaultPlanningRow());
+      saveState(); renderPlanning();
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById('addTrajetBtn').addEventListener('click', ()=>{
+  state.trajets.push(defaultTrajet()); saveState(); renderTrajets();
+});
+document.getElementById('addPlanningBtn').addEventListener('click', ()=>{
+  state.planning.push(defaultPlanningRow()); saveState(); renderPlanning();
+});
+
+document.getElementById('resetFdrBtn').addEventListener('click', ()=>{
+  if(confirm('Réinitialiser cette feuille de route ? Cette action est irréversible.')){
+    const keepId = state.id;
+    state = buildDefaultState();
+    state.id = keepId;
+    saveState();
+    bindTopFields(); bindSectionToggles(); renderContacts(); renderTrajets(); renderPlanning(); renderTicketLinks();
+  }
+});
+document.getElementById('newFdrBtn').addEventListener('click', createNewFdr);
+
+document.getElementById('deleteFdrBtn').addEventListener('click', async ()=>{
+  const desc = [state.artistName || 'Feuille de route sans titre', state.eventDate ? fmtDateFRLong(state.eventDate) : ''].filter(Boolean).join(' — ');
+  if(!confirm(`Supprimer DÉFINITIVEMENT la feuille de route "${desc}" ?\n\nCette action est irréversible : contacts, trajets, planning et toutes les infos saisies pour cette date seront perdus.`)) return;
+  fdrsCache = loadFdrCollection().filter(f => f.id !== state.id);
+  await CurieuxDB.removeOne('feuilles_route', state.id);
+  if(localStorage.getItem(FDR_LAST_ID_KEY) === state.id) localStorage.removeItem(FDR_LAST_ID_KEY);
+  location.href = 'feuilles-de-route.html';
+});
+
+// --- Récupérer le train depuis SNCF Connect (uniquement pour la feuille de route) ---
+const TRAIN_TYPE_PATTERNS_FDR = [
+  'TGV INOUI', 'TGV MAX', 'TGV LYRIA', 'TGV', 'OUIGO TRAIN CLASSIQUE', 'OUIGO',
+  'INTERCITÉS DE NUIT', 'INTERCITES DE NUIT', 'INTERCITÉS', 'INTERCITES',
+  'EUROSTAR', 'THALYS', 'IZY', 'TER', 'RER'
+];
+let lastTrainRows = [];
+
+function parseSNCFTrainInfo(raw){
+  const text = (raw || '').replace(/\r/g, '');
+  const anchorRe = /Départ de\s+(.+?)\s+(\d{1,2}:\d{2})\s+à destination de\s+(.+?)\s+(\d{1,2}:\d{2})/g;
+  const anchors = [];
+  let m;
+  while((m = anchorRe.exec(text)) !== null){
+    anchors.push({ index: m.index, from: m[1].trim(), depart: m[2], to: m[3].trim(), arrivee: m[4] });
+  }
+  return anchors.map((a, i) => {
+    const end = i + 1 < anchors.length ? anchors[i+1].index : Math.min(text.length, a.index + 1200);
+    const block = text.slice(a.index, end);
+    let type = '';
+    for(const t of TRAIN_TYPE_PATTERNS_FDR){
+      if(block.toUpperCase().includes(t)){ type = t; break; }
+    }
+    let numero = '';
+    const numMatch = block.match(/(?:n[°o]\s*)(\d{2,5})/i) || block.match(new RegExp(type.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\s*(\\d{2,5})', 'i'));
+    if(numMatch) numero = numMatch[1];
+    return {
+      from: a.from, to: a.to, depart: a.depart, arrivee: a.arrivee,
+      train: [type, numero].filter(Boolean).join(' ')
+    };
+  });
+}
+
+function refreshTrainTargetSelect(){
+  const sel = document.getElementById('trainTargetSelect');
+  sel.innerHTML = state.trajets.map((t, i) => {
+    const info = [t.label, [t.departVille, t.departHeure].filter(Boolean).join(' '), t.arriveeVille ? '→ ' + t.arriveeVille : ''].filter(Boolean).join(' — ');
+    return `<option value="${i}">${escapeAttr(info || `Trajet ${i+1}`)}</option>`;
+  }).join('');
+}
+
+document.getElementById('importTrainInfoBtn').addEventListener('click', ()=>{
+  refreshTrainTargetSelect();
+  document.getElementById('trainTextarea').value = '';
+  document.getElementById('trainResults').innerHTML = '';
+  document.getElementById('trainApplyRow').style.display = 'none';
+  document.getElementById('trainModal').classList.add('open');
+});
+document.getElementById('trainCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('trainModal').classList.remove('open');
+});
+document.getElementById('trainModal').addEventListener('click', (e)=>{
+  if(e.target.id === 'trainModal') document.getElementById('trainModal').classList.remove('open');
+});
+
+document.getElementById('trainParseBtn').addEventListener('click', ()=>{
+  lastTrainRows = parseSNCFTrainInfo(document.getElementById('trainTextarea').value);
+  const resultsEl = document.getElementById('trainResults');
+  const applyRow = document.getElementById('trainApplyRow');
+  resultsEl.innerHTML = '';
+  if(lastTrainRows.length === 0){
+    resultsEl.innerHTML = '<div class="import-empty">Aucun horaire détecté dans le texte collé.</div>';
+    applyRow.style.display = 'none';
+    return;
+  }
+  lastTrainRows.forEach((row, idx)=>{
+    const label = document.createElement('label');
+    label.className = 'trip-import-option';
+    label.innerHTML = `
+      <input type="radio" name="trainRowPick" value="${idx}" ${idx===0?'checked':''}>
+      <strong>${row.depart} ${escapeAttr(row.from)} → ${row.arrivee} ${escapeAttr(row.to)}</strong>
+      &nbsp;·&nbsp; ${escapeAttr(row.train || 'type de train non détecté')}
+    `;
+    resultsEl.appendChild(label);
+  });
+  applyRow.style.display = 'flex';
+});
+
+document.getElementById('trainApplyBtn').addEventListener('click', ()=>{
+  const picked = document.querySelector('input[name="trainRowPick"]:checked');
+  const targetIdx = parseInt(document.getElementById('trainTargetSelect').value, 10);
+  if(!picked || !state.trajets[targetIdx]) { document.getElementById('trainModal').classList.remove('open'); return; }
+  const row = lastTrainRows[parseInt(picked.value, 10)];
+  state.trajets[targetIdx].train = row.train || state.trajets[targetIdx].train;
+  saveState();
+  renderTrajets();
+  document.getElementById('trainModal').classList.remove('open');
+});
+
+// --- Génération PDF --- (palette officielle Curieux orchestre : Prune, Orange Pop, Rose, Bleu piscine, Noir/Blanc)
+const PUMPKIN = [236, 75, 21];       // Orange Pop
+const PALATINATE = [121, 22, 73];    // Prune Harmonie
+const DARK_PALATINATE = [90, 16, 55];
+const CHAMPAGNE = [254, 201, 224];   // Rose spectacle vivant
+const OLD_CHAMPAGNE = [201, 138, 160];
+const CHAMPAGNE_LIGHT = [253, 227, 238];
+const ACCENT_TINT = [206, 225, 244]; // Bleu piscine
+const SECONDARY_TINT = [254, 201, 224];
+const NOIR = [20, 22, 23];           // Noir noire
+const MUTED = [138, 118, 134];
+
+function registerBrandFont(doc){
+  doc.addFileToVFS('JakartaSans-Regular.ttf', HOST_REGULAR_B64);
+  doc.addFont('JakartaSans-Regular.ttf', 'JakartaSans', 'normal');
+  doc.addFileToVFS('JakartaSans-Bold.ttf', HOST_BOLD_B64);
+  doc.addFont('JakartaSans-Bold.ttf', 'JakartaSans', 'bold');
+  doc.setFont('JakartaSans', 'normal');
+}
+
+function fmtDateFRLong(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} ${y}`;
+}
+
+function sectionTitle(doc, text, x, y, width, scale){
+  const s = scale || 1;
+  const sf = Math.min(s, FONT_SCALE_CAP);
+  doc.setFont('JakartaSans','bold');
+  doc.setFontSize(9.5*sf);
+  const barW = 1.3*sf, barH = 4.3*sf;
+  doc.setFillColor(...PALATINATE);
+  doc.rect(x, y - barH*0.8, barW, barH, 'F');
+  doc.setTextColor(...PALATINATE);
+  doc.text(text.toUpperCase(), x + barW + 2.4*sf, y);
+  const ruleY = y + 2.8*s;
+  doc.setDrawColor(...CHAMPAGNE);
+  doc.setLineWidth(0.28);
+  doc.line(x, ruleY, x + width, ruleY);
+  doc.setTextColor(...NOIR);
+  return ruleY + 5.4*s;
+}
+
+// Ligne fine sous chaque rangée d'un tableau (remplace les grilles pleines par un style éditorial)
+function rowRule(doc, data, left, width, color){
+  if(data.column.index !== 0) return;
+  doc.setDrawColor(...(color || CHAMPAGNE));
+  doc.setLineWidth(0.2);
+  const lineY = data.cell.y + data.cell.height;
+  doc.line(left, lineY, left + width, lineY);
+}
+
+// Encadré bleu léger pour mettre en valeur un nom (lieu, hébergement) — volontairement
+// différent du style "gras bleu" utilisé pour les tags du planning, pour ne pas confondre
+// les deux mises en évidence.
+function highlightedName(doc, text, x, y, width, s){
+  const sf = Math.min(s, FONT_SCALE_CAP);
+  doc.setFont('JakartaSans','bold');
+  doc.setFontSize(10.5*sf);
+  const lines = doc.splitTextToSize(text, width - 6*s);
+  const lineH = 4.6*s;
+  const boxH = lines.length*lineH + 2.6*s;
+  doc.setFillColor(...ACCENT_TINT);
+  doc.roundedRect(x - 2*s, y - 3.4*s, width, boxH, 1.4, 1.4, 'F');
+  doc.setTextColor(...NOIR);
+  doc.text(lines, x, y + 3.6*s);
+  return y + boxH + 1.8*s;
+}
+
+const HEADER_H = 26;
+// Les tailles de texte ne grandissent que jusqu'à ce plafond, même quand le contenu est
+// très léger : au-delà, c'est l'espacement (interlignes, marges, paddings) qui absorbe
+// l'espace en trop, pour éviter un texte démesuré ou des colonnes qui débordent.
+const FONT_SCALE_CAP = 1.25;
+
+// Dessine tout le corps de la FDR à l'échelle `s` et renvoie la position y finale.
+// `s` pilote l'espacement (toujours proportionnel) ; la taille du texte suit `s` mais
+// plafonne à FONT_SCALE_CAP. Appelée une 1ère fois "à blanc" (scale=1) sur un doc jetable
+// pour mesurer le contenu, puis une 2nde fois pour de vrai avec l'échelle calculée par
+// measureContentScale().
+function layoutBody(doc, pageWidth, marginX, s){
+  const sf = Math.min(s, FONT_SCALE_CAP);
+  let y = HEADER_H + 11*s;
+
+  // Titre : masthead éditorial — grand nom d'artiste, sous-titre date/lieu, filet fin
+  const venueLine = [state.venueCity, state.venueSalle].filter(Boolean).join(' · ');
+  const sub = [fmtDateFRLong(state.eventDate), venueLine].filter(Boolean).join('   —   ');
+  if(state.artistName || sub){
+    doc.setFont('JakartaSans','bold');
+    doc.setFontSize(24*sf);
+    doc.setTextColor(...NOIR);
+    if(state.artistName) doc.text(state.artistName, pageWidth/2, y, { align:'center' });
+    y += 6.5*s;
+    if(sub){
+      doc.setFont('JakartaSans','bold');
+      doc.setFontSize(10*sf);
+      doc.setTextColor(...DARK_PALATINATE);
+      doc.text(sub.toUpperCase(), pageWidth/2, y, { align:'center' });
+      y += 4*s;
+    }
+    y += 2*s;
+    doc.setDrawColor(...PALATINATE);
+    doc.setLineWidth(0.6);
+    const ruleW = 26*sf;
+    doc.line(pageWidth/2 - ruleW/2, y, pageWidth/2 + ruleW/2, y);
+    y += 9*s;
+  }
+
+  // Contacts production
+  const contactsWithData = state.contacts.filter(c => (c.role||'').trim() || (c.nom||'').trim() || (c.tel||'').trim() || (c.email||'').trim());
+  const contactLines = (c) => {
+    const lines = [];
+    if(c.nom) lines.push(c.nom);
+    const phone = [c.indicatif, c.tel].filter(Boolean).join(' ');
+    if(phone) lines.push(phone);
+    if(c.email) lines.push(c.email);
+    return lines.join('\n');
+  };
+  if(state.sectionsEnabled.contacts && contactsWithData.length){
+    y = sectionTitle(doc, 'Contacts production', marginX, y, pageWidth - marginX*2, s);
+    const contactRows = [];
+    for(let i=0; i<contactsWithData.length; i+=2){
+      const a = contactsWithData[i], b = contactsWithData[i+1];
+      contactRows.push([
+        a.role || '', contactLines(a),
+        b ? (b.role || '') : '', b ? contactLines(b) : ''
+      ]);
+    }
+    const roleColW = 30*sf;
+    doc.autoTable({
+      startY: y,
+      margin: { left: marginX, right: marginX },
+      body: contactRows,
+      theme: 'plain',
+      styles: { font:'JakartaSans', fontSize:9*sf, cellPadding:{top:3*s,bottom:3*s,left:0,right:2*s}, textColor:NOIR },
+      columnStyles: {
+        0:{ fontStyle:'bold', textColor:DARK_PALATINATE, cellWidth:roleColW },
+        1:{ cellWidth: (pageWidth - marginX*2)/2 - roleColW },
+        2:{ fontStyle:'bold', textColor:DARK_PALATINATE, cellWidth:roleColW },
+        3:{ cellWidth: (pageWidth - marginX*2)/2 - roleColW }
+      },
+      didDrawCell: (data) => rowRule(doc, data, marginX, pageWidth - marginX*2)
+    });
+    y = doc.lastAutoTable.finalY + 7*s;
+  }
+
+  // Voyage
+  const trajetHasPassengerData = (t, field) => (t.passengers||[]).some(p => (p[field]||'').trim() !== '');
+  const trajetsWithData = state.trajets.filter(t => t.departVille || t.arriveeVille || t.departHeure || t.arriveeHeure || trajetHasPassengerData(t,'nom'));
+  if(state.sectionsEnabled.voyage && trajetsWithData.length){
+    y = sectionTitle(doc, 'Voyage', marginX, y, pageWidth - marginX*2, s);
+    const trajetCols = [
+      { key:'label', label:'Trajet' },
+      { key:'voyageurs', label:'Voyageurs' },
+      { key:'train', label:'Train / Véhicule' },
+      { key:'depart', label:'Départ' },
+      { key:'arrivee', label:'Arrivée' },
+      { key:'voiture', label:'Voiture' },
+      { key:'place', label:'Place' }
+    ].filter(col => trajetsWithData.some(t => {
+      if(col.key==='depart') return (t.departVille||t.departHeure);
+      if(col.key==='arrivee') return (t.arriveeVille||t.arriveeHeure);
+      if(col.key==='voyageurs') return trajetHasPassengerData(t,'nom');
+      if(col.key==='voiture') return trajetHasPassengerData(t,'voiture');
+      if(col.key==='place') return trajetHasPassengerData(t,'place');
+      return (t[col.key]||'').trim() !== '';
+    }));
+    const rows = trajetsWithData.map(t => trajetCols.map(col=>{
+      if(col.key==='depart') return [t.departVille, t.departHeure].filter(Boolean).join('\n');
+      if(col.key==='arrivee') return [t.arriveeVille, t.arriveeHeure].filter(Boolean).join('\n');
+      if(col.key==='voyageurs') return (t.passengers||[]).map(p=>p.nom||'').join('\n');
+      if(col.key==='voiture') return (t.passengers||[]).map(p=>p.voiture||'').join('\n');
+      if(col.key==='place') return (t.passengers||[]).map(p=>p.place||'').join('\n');
+      if(col.key==='train') return t.mode==='voiture' ? (t.train ? t.train : 'Voiture') : (t.train || '');
+      return t[col.key] || '';
+    }));
+    const trajetColumnStyles = {};
+    trajetCols.forEach((col, i) => {
+      if(col.key === 'label') trajetColumnStyles[i] = { fontStyle:'bold' };
+      else if(['depart','arrivee','voiture','place'].includes(col.key)) trajetColumnStyles[i] = { halign:'center' };
+    });
+    doc.autoTable({
+      startY: y,
+      margin: { left: marginX, right: marginX },
+      head: [trajetCols.map(c=>c.label)],
+      body: rows,
+      theme:'plain',
+      styles: { font:'JakartaSans', fontSize:8.5*sf, cellPadding:{top:2.2*s,bottom:2.2*s,left:0,right:2*s}, textColor:NOIR, valign:'middle' },
+      headStyles: { textColor:MUTED, fontStyle:'bold', font:'JakartaSans', fontSize:7.3*sf },
+      columnStyles: trajetColumnStyles,
+      didDrawCell: (data) => {
+        if(data.section === 'head') rowRule(doc, data, marginX, pageWidth - marginX*2, OLD_CHAMPAGNE);
+        else rowRule(doc, data, marginX, pageWidth - marginX*2);
+      }
+    });
+    y = doc.lastAutoTable.finalY + 6*s;
+  }
+
+  // Planning du jour (gauche, ~62%) + Lieu (droite, ~38%) côte à côte, comme le modèle
+  const planningWithData = state.planning.filter(p => p.heure || p.texte);
+  const lieuHasData = state.lieu.nom || state.lieu.adresse || state.lieu.jauge || state.lieu.billetterie;
+
+  if((state.sectionsEnabled.planning && planningWithData.length) || (state.sectionsEnabled.lieu && lieuHasData)){
+    const gap = 8;
+    const leftW = (pageWidth - marginX*2 - gap) * 0.62;
+    const rightX = marginX + leftW + gap;
+    const rightW = pageWidth - marginX*2 - leftW - gap;
+    const blockTop = y;
+    let leftY = blockTop, rightY = blockTop;
+
+    if(state.sectionsEnabled.planning && planningWithData.length){
+      leftY = sectionTitle(doc, 'Planning du jour', marginX, leftY, leftW, s);
+      doc.autoTable({
+        startY: leftY,
+        margin: { left: marginX, right: pageWidth - (marginX + leftW) },
+        body: planningWithData.map(p => {
+          const tagLabels = { repas:'Repas', run:'Run', voyage:'Voyage', balances:'Balances', presse:'Presse', repos:'Repos' };
+          const tagLabel = tagLabels[p.tag] || '';
+          const prefix = tagLabel ? `[${tagLabel}] ` : '';
+          return [p.heure || '', prefix + (p.texte || '')];
+        }),
+        theme:'plain',
+        styles: { font:'JakartaSans', fontSize:8.7*sf, cellPadding:{top:2.4*s,bottom:2.4*s,left:0,right:2*s}, textColor:NOIR },
+        columnStyles: { 0:{ cellWidth:18*sf, fontStyle:'bold' } },
+        didParseCell: function(data){
+          const row = planningWithData[data.row.index];
+          if(row && row.highlight){
+            data.cell.styles.textColor = PUMPKIN;
+            data.cell.styles.fontStyle = 'bold';
+          } else if(row && row.tag){
+            data.cell.styles.textColor = DARK_PALATINATE;
+            data.cell.styles.fontStyle = 'bold';
+          }
+        },
+        didDrawCell: (data) => rowRule(doc, data, marginX, leftW)
+      });
+      leftY = doc.lastAutoTable.finalY;
+    }
+
+    if(state.sectionsEnabled.lieu && lieuHasData){
+      rightY = sectionTitle(doc, 'Lieu', rightX, rightY, rightW, s);
+      doc.setTextColor(...NOIR);
+      if(state.lieu.nom){
+        rightY = highlightedName(doc, state.lieu.nom, rightX, rightY, rightW, s);
+      }
+      doc.setFont('JakartaSans','normal'); doc.setFontSize(8.7*sf);
+      const lieuLines = [];
+      if(state.lieu.adresse) lieuLines.push(...doc.splitTextToSize(state.lieu.adresse, rightW));
+      if(state.lieu.jauge) lieuLines.push(`Jauge : ${state.lieu.jauge}`);
+      if(state.lieu.billetterie) lieuLines.push(`Billetterie : ${state.lieu.billetterie} billet${state.lieu.billetterie > 1 ? 's' : ''} vendu${state.lieu.billetterie > 1 ? 's' : ''} à ce jour`);
+      if(lieuLines.length){
+        doc.text(lieuLines, rightX, rightY + 3.5*s);
+        rightY += lieuLines.length * 4.3*s + 3*s;
+      }
+    }
+
+    y = Math.max(leftY, rightY) + 7*s;
+  }
+
+  // Hôtel (gauche, ~42%) + Bonus / Notes (droite, ~58%) côte à côte
+  const hotelHasData = state.hotel.nom || state.hotel.adresse || state.hotel.tel || state.hotel.checkin || state.hotel.checkout || state.hotel.mapsLink || state.hotel.breakfast;
+  const ticketLinksWithData = state.ticketLinks.filter(tl => (tl.nom||'').trim() && (tl.lien||'').trim());
+  const bonusHasData = (state.bonus && state.bonus.trim()) || state.merchandisingOk || ticketLinksWithData.length;
+
+  if((state.sectionsEnabled.hotel && hotelHasData) || (state.sectionsEnabled.bonus && bonusHasData)){
+    const gap2 = 8;
+    const leftW2 = (pageWidth - marginX*2 - gap2) * 0.42;
+    const rightX2 = marginX + leftW2 + gap2;
+    const rightW2 = pageWidth - marginX*2 - leftW2 - gap2;
+    const blockTop2 = y;
+    let leftY2 = blockTop2, rightY2 = blockTop2;
+
+    if(state.sectionsEnabled.hotel && hotelHasData){
+      const hotelTypeLabel = state.hotel.type === 'airbnb' ? 'Airbnb'
+        : state.hotel.type === 'autre' ? (state.hotel.typeDetail.trim() || 'Hébergement')
+        : 'Hôtel';
+      leftY2 = sectionTitle(doc, hotelTypeLabel, marginX, leftY2, leftW2, s);
+      doc.setTextColor(...NOIR);
+      if(state.hotel.nom){
+        leftY2 = highlightedName(doc, state.hotel.nom, marginX, leftY2, leftW2, s);
+      }
+      doc.setFont('JakartaSans','normal'); doc.setFontSize(8.7*sf);
+      const hotelLines = [];
+      if(state.hotel.adresse) hotelLines.push(...doc.splitTextToSize(state.hotel.adresse, leftW2));
+      if(state.hotel.tel) hotelLines.push(`Tél : ${state.hotel.tel}`);
+      if(state.hotel.checkin) hotelLines.push(`Check-in : ${state.hotel.checkin}`);
+      if(state.hotel.checkout) hotelLines.push(`Check-out : ${state.hotel.checkout}`);
+      if(state.hotel.breakfast) hotelLines.push(state.hotel.breakfast === 'inclus' ? 'Petit-déjeuner inclus' : 'Petit-déjeuner non inclus');
+      if(hotelLines.length){
+        doc.text(hotelLines, marginX, leftY2 + 3.5*s);
+        leftY2 += hotelLines.length * 4.3*s + 3*s;
+      }
+      if(state.hotel.mapsLink && state.hotel.mapsLink.trim()){
+        doc.setFontSize(8.7*sf);
+        doc.setTextColor(...PALATINATE);
+        doc.textWithLink('Voir sur Google Maps', marginX, leftY2, { url: state.hotel.mapsLink.trim() });
+        doc.setTextColor(...NOIR);
+        leftY2 += 4.3*s;
+      }
+    }
+
+    if(state.sectionsEnabled.bonus && bonusHasData){
+      rightY2 = sectionTitle(doc, 'Bonus / Notes', rightX2, rightY2, rightW2, s);
+      doc.setFont('JakartaSans','normal'); doc.setFontSize(8.7*sf); doc.setTextColor(...NOIR);
+      const bonusLines = state.bonus && state.bonus.trim() ? doc.splitTextToSize(state.bonus.trim(), rightW2) : [];
+      if(bonusLines.length){ doc.text(bonusLines, rightX2, rightY2 + 3.5*s); rightY2 += bonusLines.length * 4.3*s + 1.5*s; }
+      if(ticketLinksWithData.length){
+        doc.setFont('JakartaSans','bold');
+        doc.setFontSize(8.7*sf);
+        doc.setTextColor(...NOIR);
+        doc.text('Billets de train :', rightX2, rightY2 + 3.5*s);
+        rightY2 += 4.3*s;
+        ticketLinksWithData.forEach(tl=>{
+          doc.setFont('JakartaSans','normal');
+          doc.setTextColor(...NOIR);
+          doc.text(`${tl.nom} — `, rightX2, rightY2 + 3.5*s);
+          const nameW = doc.getTextWidth(`${tl.nom} — `);
+          doc.setTextColor(...PALATINATE);
+          doc.textWithLink('billet', rightX2 + nameW, rightY2 + 3.5*s, { url: tl.lien.trim() });
+          doc.setTextColor(...NOIR);
+          rightY2 += 4.3*s;
+        });
+        rightY2 += 1*s;
+      }
+      if(state.merchandisingOk){
+        doc.setFont('JakartaSans','bold');
+        doc.setFontSize(8.7*sf);
+        doc.setTextColor(...PUMPKIN);
+        doc.text('ESPACE MERCHANDISING OK', rightX2, rightY2 + 3.5*s);
+        doc.setTextColor(...NOIR);
+        rightY2 += 5*s;
+      }
+    }
+
+    y = Math.max(leftY2, rightY2) + 4*s;
+  }
+
+  return y;
+}
+
+// Trouve, par dichotomie sur des rendus jetables, l'échelle qui amène le bas du contenu
+// juste au bord bas de la page — pour qu'une journée légère remplisse vraiment la feuille
+// (espacement plus généreux) et qu'une journée dense se resserre pour tenir sur une page.
+// La taille du texte est plafonnée en interne (FONT_SCALE_CAP) : au-delà du plafond, seule
+// la dichotomie sur l'espacement continue de faire grandir/rétrécir le contenu — d'où la
+// mesure directe plutôt qu'une simple extrapolation linéaire.
+function measureContentScale(pageWidth, marginX){
+  const { jsPDF } = window.jspdf;
+  const target = 278;
+  const endYFor = (s) => {
+    const probe = new jsPDF({ unit:'mm', format:'a4' });
+    registerBrandFont(probe);
+    return layoutBody(probe, pageWidth, marginX, s);
+  };
+  let lo = 0.45, hi = 2.6;
+  for(let i=0; i<10; i++){
+    const mid = (lo + hi) / 2;
+    if(endYFor(mid) < target) lo = mid; else hi = mid;
+  }
+  return Math.max(0.45, Math.min(2.6, (lo + hi) / 2));
+}
+
+function generateFdrPDF(){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée (vérifie ta connexion internet)."); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  registerBrandFont(doc);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const marginX = 14;
+  const s = measureContentScale(pageWidth, marginX);
+
+  const headerH = HEADER_H;
+  doc.setFillColor(...CHAMPAGNE_LIGHT);
+  doc.rect(0, 0, pageWidth, headerH, 'F');
+  doc.setFillColor(...PALATINATE);
+  doc.rect(0, headerH, pageWidth, 1.1, 'F');
+
+  const logoSrc = state.logoChoice === 'custom' ? (state.customLogoDataUrl || null) : CURIEUX_LOGO_PRUNE_PNG;
+  if(logoSrc){
+    try{
+      const props = doc.getImageProperties(logoSrc);
+      const ratio = props.width / props.height;
+      let wmH = headerH * 0.62;
+      let wmW = wmH * ratio;
+      const maxW = pageWidth * 0.55;
+      if(wmW > maxW){ wmW = maxW; wmH = wmW / ratio; }
+      doc.saveGraphicsState();
+      doc.setGState(new doc.GState({ opacity: 0.16 }));
+      doc.addImage(logoSrc, (pageWidth - wmW)/2, (headerH - wmH)/2, wmW, wmH);
+      doc.restoreGraphicsState();
+    }catch(e){ console.warn('logo indisponible', e); }
+  }
+
+  const today = new Date();
+  doc.setFont('JakartaSans','bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...PALATINATE);
+  doc.text('FEUILLE DE ROUTE', pageWidth - marginX, 13, { align:'right' });
+
+  layoutBody(doc, pageWidth, marginX, s);
+
+  const pageCount = doc.internal.getNumberOfPages();
+  for(let p=1; p<=pageCount; p++){
+    doc.setPage(p);
+    doc.setFont('JakartaSans','normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...OLD_CHAMPAGNE);
+    doc.text('Curieux orchestre', marginX, 290);
+    doc.text(`${p} / ${pageCount}`, pageWidth - marginX, 290, { align:'right' });
+  }
+
+  const fileArtist = (state.artistName || 'feuille-de-route').trim().replace(/[^a-z0-9]+/gi,'_');
+  const fileDate = (state.eventDate || today.toISOString().slice(0,10));
+  doc.save(`Feuille_de_route_${fileArtist}_${fileDate}.pdf`);
+}
+
+document.getElementById('generateFdrBtn').addEventListener('click', generateFdrPDF);
+
+injectCurieuxFonts();
+
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+async function initData(){
+  [fdrsCache, carnetCache, musiciansCache, techniciansCache] = await Promise.all([
+    CurieuxDB.fetchAll('feuilles_route'),
+    CurieuxDB.fetchAll('carnet_contacts'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+  ]);
+  loadState();
+  bindTopFields();
+  bindSectionToggles();
+  renderContacts();
+  renderTrajets();
+  renderPlanning();
+  renderTicketLinks();
+  setFdrSaveStatus('', '');
+}
+initData();
+</script>
+</body>
+</html>

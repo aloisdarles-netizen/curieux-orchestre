@@ -1,0 +1,1661 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Tournées</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:1380px; margin:0 auto;}
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-danger:hover{background:var(--secondary-tint);}
+  .btn-sm{padding:6px 10px; font-size:12px;}
+
+  input[type=text], input[type=date], textarea{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13.5px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  textarea{resize:vertical; min-height:38px; width:100%;}
+
+  .new-tournee-card{
+    background:var(--card); border:1.5px dashed var(--border); border-radius:14px;
+    padding:14px 18px; margin-bottom:20px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+  }
+  .new-tournee-card input{flex:1 1 240px;}
+
+  .tournee-card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:0 0 4px; margin-bottom:20px; overflow:hidden;
+  }
+  .tournee-head{display:flex; justify-content:space-between; align-items:center; gap:14px; padding:16px 20px 0; flex-wrap:wrap;}
+  .tournee-name{font-family:var(--font-display); font-size:18px; font-weight:500; letter-spacing:.01em;}
+  .tournee-meta{color:var(--muted); font-size:12px; font-weight:700; padding:2px 20px 14px; border-bottom:1px solid var(--border);}
+  .tournee-card > .grid-table-wrap, .tournee-card > .add-date-row{padding-left:20px; padding-right:20px;}
+
+  /* Bandeau d'outils de tête de tournée — cachet à gauche, effectif à droite,
+     posé sur le fond de page pour se distinguer du tableau des dates. */
+  .tournee-outils{
+    padding:14px 20px 16px; border-bottom:1px solid var(--border); background:var(--bg);
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;
+  }
+  .outils-legend{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent); margin-bottom:8px;
+  }
+  .tournee-outils .cachet-row{margin:0;}
+  .tournee-outils .cachet-row select{flex:1; min-width:150px;}
+  .cachet-montant{display:inline-flex; align-items:center; gap:6px; flex-shrink:0;}
+  .cachet-montant input[type=number]{width:74px;}
+  .nomenclature-panel{min-width:0;}
+  .cachet-row{display:flex; align-items:center; gap:8px; margin:-6px 0 14px; flex-wrap:wrap;}
+  .cachet-row label{font-size:12.5px; color:var(--muted); font-weight:600;}
+  .cachet-row select{padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
+  .cachet-row input[type=number]{padding:6px 9px; font-size:12.5px; width:110px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
+  .cachet-row .cachet-unit{font-size:12px; color:var(--muted); white-space:nowrap;}
+  .manque-badge{display:inline-block; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:20px; margin-left:6px; font-variant-numeric:tabular-nums; vertical-align:middle;}
+  .manque-badge.ok{background:var(--ok-tint); color:var(--ok);}
+  .manque-badge.warn{background:var(--danger-tint); color:var(--danger);}
+  .nomenclature-panel select, .nomenclature-panel input[type=number]{
+    padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  .add-date-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--border);}
+  .add-date-row input{flex:1 1 140px;}
+
+  .grid-table-wrap{overflow-x:auto;}
+  table.grid-table{width:100%; min-width:1120px; border-collapse:collapse;}
+  table.grid-table th{font-size:10.5px; text-transform:uppercase; color:var(--muted); text-align:left; padding:6px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  table.grid-table td{padding:8px 6px; vertical-align:top; border-bottom:1px solid var(--border); font-size:13px;}
+  table.grid-table tr:last-child td{border-bottom:none;}
+  .col-date{white-space:nowrap; font-weight:700;}
+  .col-lieu input{width:100%;}
+  .col-comment textarea{font-size:12.5px;}
+
+  /* Statut de date : une pastille unique qui tourne au clic (maquette). */
+  .statut-pastille{
+    cursor:pointer; border:none; font-family:inherit; font-size:11px; font-weight:800;
+    padding:4px 11px; border-radius:999px; white-space:nowrap;
+    background:var(--border); color:var(--muted);
+  }
+  .statut-pastille.option{background:var(--maybe-tint); color:var(--maybe);}
+  .statut-pastille.validee{background:var(--ok-tint); color:var(--ok);}
+  .statut-pastille.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
+  .statut-pastille:hover{filter:brightness(.95);}
+  .bloc-badge{
+    display:inline-flex; align-items:center; gap:4px; margin-top:5px; font-size:10.5px; font-weight:700; white-space:normal;
+    padding:2px 8px; border-radius:20px; background:var(--border); color:var(--muted); max-width:170px;
+  }
+  tr.bloc-row td.col-date{padding-left:6px;}
+  tr.bloc-row.bloc-alt-0 td.col-date{border-left:3px solid var(--old-champagne);}
+  tr.bloc-row.bloc-alt-1 td.col-date{border-left:3px solid var(--accent);}
+  .type-select{
+    padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;
+    background:var(--card); color:var(--text); font-family:inherit; width:100%; min-width:118px;
+  }
+  .row-actions{display:flex; gap:6px; flex-wrap:wrap;}
+
+  .chips{display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px;}
+  .chip{
+    display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
+    padding:3px 8px; border-radius:20px; background:var(--champagne); color:#7a1f52; white-space:nowrap;
+  }
+  :root[data-theme="dark"] .chip{color:#f8d9e8;}
+  .chip.dispo{background:var(--ok); color:#fff;}
+  .chip.indispo{background:var(--ko); color:#fff;}
+  .chip.incertain{background:var(--maybe); color:#fff;}
+  .chip.tech{background:var(--secondary-tint); color:var(--secondary-dark);}
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(20,15,10,.5);
+    align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--card); border-radius:14px; padding:22px; max-width:460px; width:100%;
+    max-height:82vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.25);
+  }
+  .modal h2{font-size:16px; margin:0 0 4px;}
+  .modal .modal-sub{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
+  .assign-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:8px 4px; border-bottom:1px solid var(--border); font-size:13.5px;
+  }
+  .assign-row:last-child{border-bottom:none;}
+  .assign-row label{display:flex; align-items:center; gap:8px; cursor:pointer;}
+  .assign-row input[type=checkbox]{width:16px; height:16px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+  @media (max-width:600px){
+    input, select, textarea{ font-size:16px !important; }
+    [data-toggle-link], [data-toggle-chips]{ padding:7px 10px !important; font-size:12px !important; }
+    .assign-row input[type=checkbox]{ width:20px; height:20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Tournées</h1>
+      <p class="subtitle">Une tournée par production — dates, commentaires, et musicien·nes affecté·es selon leurs disponibilités.</p>
+    </div>
+  </div>
+
+  <div class="new-tournee-card">
+    <input type="text" id="newTourneeName" placeholder="Nom de la nouvelle tournée (ex: Tournée Automne 2026)">
+    <button type="button" class="btn-primary" id="addTourneeBtn">+ Créer la tournée</button>
+  </div>
+
+  <div id="tourneesHolder"><div class="empty-hint">Chargement…</div></div>
+
+  <details id="pastTourneesWrap" style="display:none; margin-bottom:20px;">
+    <summary style="cursor:pointer; font-weight:700; color:var(--muted); padding:10px 4px;">Tournées passées (<span id="pastTourneesCount">0</span>)</summary>
+    <div id="pastTourneesHolder"></div>
+  </details>
+</div>
+
+<div class="modal-overlay" id="importOverlay">
+  <div class="modal" style="max-width:640px;">
+    <h2>Importer des dates (copier-coller)</h2>
+    <p class="modal-sub" id="importSub"></p>
+    <p class="modal-sub" style="margin-top:-10px;">Une ligne par date, format <code>JJ/MM/AAAA - (PAYS) Ville, Lieu</code>. Les lignes vides sont ignorées.</p>
+    <textarea id="importTextarea" rows="8" style="width:100%; font-size:12.5px; font-family:ui-monospace,monospace;" placeholder="23/01/2027 - (FR) Épernay, Le Millenium&#10;24/01/2027 - (FR) Épernay, Le Millenium&#10;..."></textarea>
+    <div class="modal-actions" style="justify-content:flex-start;">
+      <button type="button" class="btn-secondary btn-sm" id="importAnalyzeBtn">Analyser</button>
+    </div>
+    <div id="importPreview"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="importCancel">Annuler</button>
+      <button type="button" class="btn-primary" id="importConfirm" style="display:none;">Importer les dates</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="dispoLinksOverlay">
+  <div class="modal" style="max-width:640px;">
+    <h2>Demandes titulaires — liens personnels</h2>
+    <p class="modal-sub">Un lien personnel par titulaire (musicien·nes et technicien·nes) — les remplaçant·es ne sont sollicité·es qu'à la demande (ci-dessous), sinon on les contacte via le rang de priorité dans l'annuaire quand un·e titulaire décline.</p>
+    <div class="modal-actions" style="justify-content:flex-start;">
+      <button type="button" class="btn-secondary btn-sm" id="dispoLinksCopyAllBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>
+    </div>
+    <div id="dispoLinksList" style="max-height:55vh; overflow-y:auto; margin-top:10px;"></div>
+    <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+      <input type="text" id="addRemplacantSearch" placeholder="Ajouter un·e remplaçant·e à la demande…" style="width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit; box-sizing:border-box;">
+      <div id="addRemplacantResults" style="margin-top:6px; max-height:160px; overflow-y:auto;"></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="dispoLinksCloseBtn">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="assignOverlay">
+  <div class="modal">
+    <h2 id="assignTitle">Affecter des musicien·nes</h2>
+    <p class="modal-sub" id="assignSub"></p>
+    <input type="text" id="assignSearch" placeholder="Chercher un nom, un instrument, un poste…" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13.5px; margin-bottom:6px; background:var(--bg); color:var(--text); font-family:inherit;">
+    <div id="assignList" style="max-height:50vh; overflow-y:auto;"></div>
+    <div id="assignBlocSection" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
+        <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:0;"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:3px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line></svg>Aussi affecter sur ce bloc</h3>
+        <label style="font-size:12px; font-weight:600; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="assignBlocSelectAll"> Toutes les dates du bloc
+        </label>
+      </div>
+      <div id="assignBlocDatesList" style="max-height:20vh; overflow-y:auto;"></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="assignCancel">Annuler</button>
+      <button type="button" class="btn-primary" id="assignSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const FDR_LAST_ID_KEY = 'fdr-last-id';
+
+// Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
+// musiciens/techniciens sont en lecture seule ici (juste pour affichage/affectation) ;
+// tournees et feuilles_route sont aussi écrits depuis cette page.
+let tourneesCache = [];
+let fdrsCache = [];
+let musiciansCache = [];
+let techniciansCache = [];
+let dispoDemandesCache = [];
+let cachetOverridesCache = [];
+
+function loadDispoDemandes(){ return dispoDemandesCache; }
+
+// Exceptions de cachet d'une tournée : { personId: montant }. Table à part
+// (voir cachet_overrides dans migrations.sql), pas un champ du cachetStatut/
+// cachetMontant global de la tournée — un montant individualisé est une
+// donnée de paie sensible, cloisonnée côté lien perso (voir dispo-titulaire.html).
+function cachetOverridesForTournee(tourneeId){
+  const map = {};
+  cachetOverridesCache.forEach(o=>{ if(o.tourneeId === tourneeId) map[o.personId] = o.montant; });
+  return map;
+}
+
+// Affiche une ligne du panneau "Cachet différent" si elle correspond à la recherche en
+// cours, ou si elle a déjà une valeur saisie (même une fois la recherche vidée).
+function applyCachetOverrideFilter(tourneeId){
+  const searchInp = document.querySelector(`[data-cachet-override-search="${CSS.escape(tourneeId)}"]`);
+  const rowsHolder = document.querySelector(`[data-cachet-override-rows="${CSS.escape(tourneeId)}"]`);
+  if(!searchInp || !rowsHolder) return;
+  const search = searchInp.value.trim().toLowerCase();
+  let visibleCount = 0;
+  rowsHolder.querySelectorAll('.cachet-override-row').forEach(row=>{
+    const input = row.querySelector('[data-cachet-override-person]');
+    const hasValue = input && input.value.trim() !== '';
+    const matches = search && row.dataset.personName.includes(search);
+    const visible = hasValue || matches;
+    row.style.display = visible ? 'flex' : 'none';
+    if(visible) visibleCount++;
+  });
+  const emptyHint = document.querySelector(`[data-cachet-override-empty="${CSS.escape(tourneeId)}"]`);
+  if(emptyHint) emptyHint.style.display = (search && visibleCount === 0) ? 'block' : 'none';
+}
+
+function loadFdrCollection(){ return fdrsCache; }
+function saveFdrCollection(list){
+  fdrsCache = list;
+  return CurieuxDB.syncCollection('feuilles_route', list);
+}
+function loadTournees(){ return tourneesCache; }
+function saveTournees(list){
+  tourneesCache = list;
+  CurieuxDB.syncCollection('tournees', list);
+}
+function loadMusicians(){ return musiciansCache; }
+function loadTechnicians(){ return techniciansCache; }
+
+function fmtDateFR(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  const months = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} ${y}`;
+}
+// Construit un contact de FDR à partir d'un·e musicien·ne/technicien·ne de l'annuaire
+// (roleField = 'instrument' ou 'poste' selon le roster d'origine).
+function buildFdrContactFromPerson(p, roleField){
+  return {
+    id: genId('contact'),
+    role: p[roleField] || '',
+    nom: fullName(p),
+    indicatif: '+33',
+    tel: p.telephone || '',
+    email: p.email || ''
+  };
+}
+
+// Pré-remplit la nouvelle FDR avec la date/ville/salle et les contacts des
+// musicien·nes/technicien·nes déjà affecté·es à cette date de tournée.
+async function createFdrForDate(d, tourneeName){
+  const id = genId('fdr');
+  const musicianById = new Map(loadMusicians().map(m=>[m.id, m]));
+  const technicianById = new Map(loadTechnicians().map(m=>[m.id, m]));
+  const contacts = [
+    ...(d.musiciensAssignes||[]).map(mid => musicianById.get(mid)).filter(Boolean).map(m => buildFdrContactFromPerson(m, 'instrument')),
+    ...(d.techniciensAssignes||[]).map(tid => technicianById.get(tid)).filter(Boolean).map(t => buildFdrContactFromPerson(t, 'poste')),
+  ];
+  const collection = loadFdrCollection();
+  const entry = { id, artistName: tourneeName || '', eventDate: d.date, venueCity: d.ville || '', venueSalle: d.lieu || '' };
+  // Si personne n'est encore affecté à cette date, on laisse le champ absent pour que
+  // la FDR reprenne les 2 contacts de base (régisseur/prod) au lieu d'une liste vide.
+  if(contacts.length > 0) entry.contacts = contacts;
+  collection.push(entry);
+  // On attend que l'écriture Supabase soit bien passée avant de naviguer : sinon
+  // feuille-de-route.html peut recharger sa collection AVANT que cette nouvelle entrée
+  // n'y soit encore, et créer une FDR vierge à la place (date/ville perdues).
+  await saveFdrCollection(collection);
+  localStorage.setItem(FDR_LAST_ID_KEY, id);
+  location.href = 'feuille-de-route.html?id=' + encodeURIComponent(id);
+}
+
+// Parse des lignes "JJ/MM/AAAA - (PAYS) Ville, Lieu" collées depuis un routing de tournée.
+const FR_MONTHS = {
+  janvier:1, fevrier:2, mars:3, avril:4, mai:5, juin:6, juillet:7, aout:8,
+  septembre:9, octobre:10, novembre:11, decembre:12,
+  jan:1, fev:2, avr:4, jui:6, jul:7, sep:9, oct:10, nov:11, dec:12
+};
+function stripAccents(str){ return str.normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+// Essaie plusieurs formats de date en début de ligne : JJ/MM/AAAA (séparateur / . ou -),
+// AAAA-MM-JJ (ISO), ou "23 janvier 2027" — pour tolérer des collages pas parfaitement homogènes.
+function extractLeadingDate(line){
+  let m = line.match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{4})\s*(.*)$/);
+  if(m){
+    const day = parseInt(m[1],10), month = parseInt(m[2],10), year = parseInt(m[3],10);
+    if(month>=1 && month<=12 && day>=1 && day<=31) return { day, month, year, rest: m[4] };
+  }
+  m = line.match(/^(\d{4})[\/\.\-](\d{1,2})[\/\.\-](\d{1,2})\s*(.*)$/);
+  if(m){
+    const year = parseInt(m[1],10), month = parseInt(m[2],10), day = parseInt(m[3],10);
+    if(month>=1 && month<=12 && day>=1 && day<=31) return { day, month, year, rest: m[4] };
+  }
+  m = line.match(/^(\d{1,2})\s+([A-Za-zéûîôâêàèç]+)\.?\s+(\d{4})\s*(.*)$/i);
+  if(m){
+    const monthKey = stripAccents(m[2].toLowerCase());
+    if(FR_MONTHS[monthKey]) return { day: parseInt(m[1],10), month: FR_MONTHS[monthKey], year: parseInt(m[3],10), rest: m[4] };
+  }
+  return null;
+}
+
+// Parse des lignes de type "23/01/2027 - (FR) Épernay, Le Millenium", en restant souple
+// sur le séparateur de date, la présence du code pays, et le séparateur ville/lieu
+// (virgule ou tiret) — le collage n'est jamais parfaitement homogène d'une tournée à l'autre.
+function parseDatesPaste(text){
+  const parsed = [];
+  const rejected = [];
+  text.split('\n').forEach(rawLine=>{
+    const line = rawLine.trim();
+    if(!line) return;
+    const dateInfo = extractLeadingDate(line);
+    if(!dateInfo){ rejected.push(rawLine); return; }
+
+    let remainder = (dateInfo.rest || '').trim();
+    remainder = remainder.replace(/^[-–—:|]\s*/, '').trim();
+
+    let country = '';
+    const countryMatch = remainder.match(/^[\(\[]([A-Za-z]{2,4})[\)\]]\s*(.*)$/);
+    if(countryMatch){ country = countryMatch[1].toUpperCase(); remainder = countryMatch[2].trim(); }
+
+    let ville, lieu;
+    const commaIdx = remainder.indexOf(',');
+    if(commaIdx >= 0){
+      ville = remainder.slice(0, commaIdx).trim();
+      lieu = remainder.slice(commaIdx + 1).trim();
+    } else {
+      const dashParts = remainder.split(/\s+[-–—]\s+/);
+      if(dashParts.length >= 2){ ville = dashParts[0].trim(); lieu = dashParts.slice(1).join(' - ').trim(); }
+      else { ville = remainder.trim(); lieu = ''; }
+    }
+    ville = ville.replace(/\*+\s*$/, '').trim();
+    lieu = lieu.replace(/\*+\s*$/, '').trim();
+    if(!ville && !lieu){ rejected.push(rawLine); return; }
+    if(country) ville = ville ? `${ville} (${country})` : `(${country})`;
+
+    const dd = String(dateInfo.day).padStart(2, '0');
+    const mm = String(dateInfo.month).padStart(2, '0');
+    parsed.push({ date: `${dateInfo.year}-${mm}-${dd}`, ville, lieu });
+  });
+  return { parsed, rejected };
+}
+
+let importContext = null;
+
+function openImportModal(tourneeId){
+  const tournees = loadTournees();
+  const tournee = tournees.find(t=>t.id === tourneeId);
+  if(!tournee) return;
+  importContext = { tourneeId };
+  document.getElementById('importSub').textContent = tournee.nom;
+  document.getElementById('importTextarea').value = '';
+  document.getElementById('importPreview').innerHTML = '';
+  document.getElementById('importConfirm').style.display = 'none';
+  document.getElementById('importOverlay').classList.add('open');
+  document.getElementById('importTextarea').focus();
+}
+function closeImportModal(){
+  document.getElementById('importOverlay').classList.remove('open');
+  importContext = null;
+}
+document.getElementById('importCancel').addEventListener('click', closeImportModal);
+document.getElementById('importOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'importOverlay') closeImportModal(); });
+
+document.getElementById('importAnalyzeBtn').addEventListener('click', ()=>{
+  if(!importContext) return;
+  const tournees = loadTournees();
+  const tournee = tournees.find(t=>t.id === importContext.tourneeId);
+  const existingDates = new Set((tournee.dates||[]).map(d=>d.date));
+  const text = document.getElementById('importTextarea').value;
+  const { parsed, rejected } = parseDatesPaste(text);
+  const preview = document.getElementById('importPreview');
+  const confirmBtn = document.getElementById('importConfirm');
+
+  if(parsed.length === 0){
+    preview.innerHTML = `<div class="empty-hint">Aucune date reconnue. Vérifie le format (JJ/MM/AAAA - (PAYS) Ville, Lieu).</div>`;
+    confirmBtn.style.display = 'none';
+    return;
+  }
+
+  const rows = parsed.map(p=>{
+    const dup = existingDates.has(p.date);
+    return `<tr style="${dup ? 'opacity:.5;' : ''}"><td style="padding:4px 8px; white-space:nowrap;">${escapeHtml(fmtDateFR(p.date))}</td><td style="padding:4px 8px;">${escapeHtml(p.ville)}</td><td style="padding:4px 8px;">${escapeHtml(p.lieu)}</td><td style="padding:4px 8px; font-size:11px; color:var(--muted);">${dup ? 'déjà présente — ignorée' : ''}</td></tr>`;
+  }).join('');
+  const rejectedHtml = rejected.length
+    ? `<div style="margin-top:10px; font-size:12px; color:var(--muted);">${rejected.length} ligne(s) non reconnue(s) et ignorée(s).</div>`
+    : '';
+
+  preview.innerHTML = `
+    <div class="grid-table-wrap" style="margin-top:12px; max-height:280px; overflow-y:auto;">
+      <table class="grid-table" style="min-width:0;"><tbody>${rows}</tbody></table>
+    </div>
+    ${rejectedHtml}
+  `;
+  const newCount = parsed.filter(p=>!existingDates.has(p.date)).length;
+  confirmBtn.textContent = `Importer ${newCount} date${newCount>1?'s':''}`;
+  confirmBtn.style.display = newCount > 0 ? 'inline-block' : 'none';
+  confirmBtn.dataset.parsed = JSON.stringify(parsed);
+});
+
+document.getElementById('importConfirm').addEventListener('click', (e)=>{
+  if(!importContext) return;
+  const parsed = JSON.parse(e.target.dataset.parsed || '[]');
+  const tournees = loadTournees();
+  const tournee = tournees.find(t=>t.id === importContext.tourneeId);
+  if(!tournee) return;
+  if(!tournee.dates) tournee.dates = [];
+  const existingDates = new Set(tournee.dates.map(d=>d.date));
+  let added = 0;
+  parsed.forEach(p=>{
+    if(existingDates.has(p.date)) return;
+    tournee.dates.push({ id: genId('date'), date: p.date, ville: p.ville, lieu: p.lieu, commentaire:'', statut:'option', type:'concert', travelMode:'tourbus', musiciensAssignes:[], techniciensAssignes:[] });
+    existingDates.add(p.date);
+    added++;
+  });
+  saveTournees(tournees);
+  closeImportModal();
+  render();
+  alert(`${added} date${added>1?'s':''} importée${added>1?'s':''}.`);
+});
+
+let assignContext = null;
+let assignMusicians = [], assignTechnicians = [];
+let assignSelectedM = new Set(), assignSelectedT = new Set();
+let assignDateIso = '';
+let assignBlocOtherDates = [];
+
+function openAssignModal(tourneeId, dateId){
+  const tournees = loadTournees();
+  const tournee = tournees.find(t=>t.id === tourneeId);
+  if(!tournee) return;
+  const dateEntry = (tournee.dates||[]).find(d=>d.id === dateId);
+  if(!dateEntry) return;
+
+  assignContext = { tourneeId, dateId };
+  document.getElementById('assignTitle').textContent = 'Affecter des musicien·nes et technicien·nes';
+  document.getElementById('assignSub').textContent = `${tournee.nom} — ${fmtDateFR(dateEntry.date)}`;
+
+  assignMusicians = loadMusicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  assignTechnicians = loadTechnicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  assignSelectedM = new Set(dateEntry.musiciensAssignes || []);
+  assignSelectedT = new Set(dateEntry.techniciensAssignes || []);
+  assignDateIso = dateEntry.date;
+
+  // Bloc = dates liées (linkedToNext) à celle-ci — propose de répercuter la
+  // même affectation sur les autres dates du bloc, au choix (voir
+  // assignBlocSection), plutôt que de devoir rouvrir la modale pour chacune.
+  const sortedDates = (tournee.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const blocInfo = computeBlocMap(sortedDates).get(dateId);
+  assignBlocOtherDates = blocInfo ? blocInfo.blocDates.filter(d=> d.id !== dateId) : [];
+  renderAssignBlocSection();
+
+  document.getElementById('assignSearch').value = '';
+  renderAssignList('');
+  document.getElementById('assignOverlay').classList.add('open');
+  document.getElementById('assignSearch').focus();
+}
+
+function renderAssignBlocSection(){
+  const section = document.getElementById('assignBlocSection');
+  const selectAll = document.getElementById('assignBlocSelectAll');
+  selectAll.checked = false;
+  if(assignBlocOtherDates.length === 0){
+    section.style.display = 'none';
+    document.getElementById('assignBlocDatesList').innerHTML = '';
+    return;
+  }
+  section.style.display = 'block';
+  document.getElementById('assignBlocDatesList').innerHTML = assignBlocOtherDates.map(d=> `
+    <label style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; cursor:pointer;">
+      <input type="checkbox" data-bloc-date="${escapeAttr(d.id)}">
+      ${escapeHtml(fmtDateFR(d.date))}${d.ville ? ' — ' + escapeHtml(d.ville) : ''}
+    </label>
+  `).join('');
+}
+document.getElementById('assignBlocSelectAll').addEventListener('change', (e)=>{
+  document.querySelectorAll('#assignBlocDatesList input[type=checkbox]').forEach(cb=> cb.checked = e.target.checked);
+});
+
+// Signale (sans bloquer — certains chevauchements sont volontaires) les personnes déjà
+// affectées ailleurs à cette même date calendaire, tournée exclue. personId -> nom de
+// l'autre tournée.
+function computeDoubleBookings(dateIso, excludeTourneeId, excludeDateId){
+  const conflicts = new Map();
+  loadTournees().forEach(t=>{
+    (t.dates || []).forEach(d=>{
+      if(d.statut === 'annulee') return;
+      if(d.date !== dateIso) return;
+      if(t.id === excludeTourneeId && d.id === excludeDateId) return;
+      const tourneeName = t.nom || 'une autre tournée';
+      (d.musiciensAssignes || []).forEach(id=>{ if(!conflicts.has(id)) conflicts.set(id, tourneeName); });
+      (d.techniciensAssignes || []).forEach(id=>{ if(!conflicts.has(id)) conflicts.set(id, tourneeName); });
+    });
+  });
+  return conflicts;
+}
+function conflictBadge(conflicts, personId){
+  const tourneeName = conflicts.get(personId);
+  if(!tourneeName) return '';
+  return `<span class="chip" style="background:var(--secondary-tint); color:var(--secondary-dark);" title="Déjà affecté·e le ${escapeAttr(fmtDateFR(assignDateIso))} sur « ${escapeAttr(tourneeName)} »">⚠ ${escapeHtml(tourneeName)}</span>`;
+}
+
+// Contradiction : une personne affectée à une date où elle s'est déclarée
+// indisponible. La modale d'affectation affiche déjà la disponibilité au moment
+// de cocher, mais rien ne le rappelait ensuite : une fois l'affectation faite,
+// ou si la personne changeait sa réponse APRÈS avoir été affectée, plus aucun
+// écran ne signalait le problème — on ne s'en apercevait que le jour J.
+function contradictionsPourDate(dateEntry, musicianById, technicianById){
+  const iso = dateEntry.date;
+  if(!iso) return [];
+  const gens = [];
+  (dateEntry.musiciensAssignes || []).forEach(id=>{
+    const m = musicianById.get(id);
+    if(m && (m.disponibilites || {})[iso] === 'indispo') gens.push(fullName(m));
+  });
+  (dateEntry.techniciensAssignes || []).forEach(id=>{
+    const t = technicianById.get(id);
+    if(t && (t.disponibilites || {})[iso] === 'indispo') gens.push(fullName(t));
+  });
+  return gens;
+}
+
+function contradictionBadge(noms){
+  if(noms.length === 0) return '';
+  const liste = noms.join(', ');
+  return `<span class="chip" style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;" title="${escapeAttr(liste)} — affecté·e${noms.length>1?'s':''} alors qu'iel${noms.length>1?'s se sont':' s\'est'} déclaré·e${noms.length>1?'s':''} indisponible${noms.length>1?'s':''} sur cette date">\u26A0 ${noms.length} indisponible${noms.length>1?'s':''} affecté·e${noms.length>1?'s':''}</span>`;
+}
+
+function renderAssignList(search){
+  const q = (search || '').toLowerCase().trim();
+  const listEl = document.getElementById('assignList');
+  const conflicts = computeDoubleBookings(assignDateIso, assignContext.tourneeId, assignContext.dateId);
+
+  const musiciansFiltered = assignMusicians.filter(m=>{
+    if(!q) return true;
+    return [m.prenom, m.nom, m.instrument, m.pupitre].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+  const techniciansFiltered = assignTechnicians.filter(m=>{
+    if(!q) return true;
+    return [m.prenom, m.nom, m.poste, m.pole].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+
+  const musicianRows = assignMusicians.length === 0
+    ? `<div class="empty-hint">Aucun·e musicien·ne dans l'<a href="annuaire.html">annuaire</a> pour l'instant.</div>`
+    : musiciansFiltered.length === 0
+    ? `<div class="empty-hint">Aucun résultat.</div>`
+    : musiciansFiltered.map(m=>{
+        const state = (m.disponibilites || {})[assignDateIso] || '';
+        const stateLabel = state === 'dispo' ? 'Disponible' : state === 'indispo' ? 'Indisponible' : state === 'incertain' ? 'À confirmer' : 'Non renseigné';
+        const chipClass = state || 'none';
+        return `
+          <div class="assign-row">
+            <label>
+              <input type="checkbox" data-role="musicien" value="${m.id}" ${assignSelectedM.has(m.id) ? 'checked' : ''}>
+              ${escapeHtml(fullName(m))} <span style="color:var(--muted); font-weight:400;">— ${escapeHtml(m.instrument || '')}</span>
+            </label>
+            ${conflictBadge(conflicts, m.id)}
+            <span class="chip ${chipClass}">${stateLabel}</span>
+          </div>
+        `;
+      }).join('');
+
+  const technicianRows = assignTechnicians.length === 0
+    ? `<div class="empty-hint">Aucun·e technicien·ne dans l'<a href="techniciens.html">annuaire technicien·nes</a> pour l'instant.</div>`
+    : techniciansFiltered.length === 0
+    ? `<div class="empty-hint">Aucun résultat.</div>`
+    : techniciansFiltered.map(m=>`
+        <div class="assign-row">
+          <label>
+            <input type="checkbox" data-role="technicien" value="${m.id}" ${assignSelectedT.has(m.id) ? 'checked' : ''}>
+            ${escapeHtml(fullName(m))} <span style="color:var(--muted); font-weight:400;">— ${escapeHtml(m.poste || '')}</span>
+          </label>
+          ${conflictBadge(conflicts, m.id)}
+        </div>
+      `).join('');
+
+  listEl.innerHTML = `
+    <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:14px 0 6px;">Musicien·nes (${assignSelectedM.size} sélectionné·e${assignSelectedM.size>1?'s':''})</h3>
+    ${musicianRows}
+    <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:14px 0 6px;">Technicien·nes (${assignSelectedT.size} sélectionné·e${assignSelectedT.size>1?'s':''})</h3>
+    ${technicianRows}
+  `;
+
+  listEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const set = cb.dataset.role === 'musicien' ? assignSelectedM : assignSelectedT;
+      if(cb.checked) set.add(cb.value); else set.delete(cb.value);
+    });
+  });
+}
+function closeAssignModal(){
+  document.getElementById('assignOverlay').classList.remove('open');
+  assignContext = null;
+  assignBlocOtherDates = [];
+}
+document.getElementById('assignCancel').addEventListener('click', closeAssignModal);
+document.getElementById('assignOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'assignOverlay') closeAssignModal(); });
+document.getElementById('assignSearch').addEventListener('input', (e)=> renderAssignList(e.target.value));
+document.getElementById('assignSave').addEventListener('click', ()=>{
+  if(!assignContext) return;
+  const checkedMusiciens = Array.from(assignSelectedM);
+  const checkedTechniciens = Array.from(assignSelectedT);
+  const tournees = loadTournees();
+  const tournee = tournees.find(t=>t.id === assignContext.tourneeId);
+  if(tournee){
+    const applyTo = dateId=>{
+      const dateEntry = (tournee.dates||[]).find(d=>d.id === dateId);
+      if(dateEntry){
+        dateEntry.musiciensAssignes = checkedMusiciens;
+        dateEntry.techniciensAssignes = checkedTechniciens;
+      }
+    };
+    applyTo(assignContext.dateId);
+    document.querySelectorAll('#assignBlocDatesList input[type=checkbox]:checked').forEach(cb=> applyTo(cb.dataset.blocDate));
+    saveTournees(tournees);
+  }
+  closeAssignModal();
+  render();
+});
+
+// ============================================================================
+// A3 — Effectif attendu (nomenclature). Optionnelle : tant qu'aucun pupitre
+// n'est défini pour une tournée, aucun badge ne s'affiche sur ses dates — pas
+// de saisie forcée. Une date peut la surcharger via d.nomenclature (même
+// forme), mais cette surcharge se règle pour l'instant directement en base :
+// aucun éditeur dédié par date dans cette version.
+// ============================================================================
+const PUPITRE_ORDER = ["Chef d'orchestre", 'Cordes', 'Bois', 'Cuivres', 'Percussions', 'Autre'];
+
+function nomenclatureActive(t, d){
+  return (d && d.nomenclature && d.nomenclature.length) ? d.nomenclature : (t.nomenclature || []);
+}
+// Le nombre d'affecté·es compté par pupitre est plafonné au nombre attendu
+// de ce pupitre : un violon affecté en trop ne doit pas masquer un manque de
+// cuivres. affecte est donc "ce qui compte comme couvert", pas un simple total.
+function effectifPourDate(t, d, musicianById){
+  const nomen = nomenclatureActive(t, d);
+  if(!nomen.length) return null;
+  const parPupitre = {};
+  (d.musiciensAssignes||[]).forEach(id=>{
+    const m = musicianById.get(id);
+    if(!m) return;
+    const p = m.pupitre || 'Autre';
+    parPupitre[p] = (parPupitre[p]||0) + 1;
+  });
+  let attendu = 0, affecte = 0;
+  const detail = nomen.map(row=>{
+    const a = parPupitre[row.pupitre] || 0;
+    const n = row.nombre || 0;
+    attendu += n;
+    affecte += Math.min(a, n);
+    return { pupitre: row.pupitre, attendu: n, affecte: a };
+  });
+  return { attendu, affecte, detail };
+}
+function manqueBadgeHtml(t, d, musicianById){
+  const eff = effectifPourDate(t, d, musicianById);
+  if(!eff || eff.attendu === 0) return `<span id="manque-${escapeAttr(d.id)}"></span>`;
+  const complet = eff.affecte >= eff.attendu;
+  const titre = eff.detail.map(x=>`${x.pupitre} ${x.affecte}/${x.attendu}`).join(' · ');
+  return `<span id="manque-${escapeAttr(d.id)}" class="manque-badge ${complet?'ok':'warn'}" title="${escapeAttr(titre)}">${eff.affecte}/${eff.attendu} effectif</span>`;
+}
+function renderNomenclatureRowsHtml(t){
+  const rows = t.nomenclature || [];
+  if(rows.length === 0) return `<div class="empty-hint" style="font-size:12.5px; padding:4px 0;">Aucun pupitre défini pour l'instant.</div>`;
+  return rows.map((row, i)=>`
+    <div class="nomenclature-item" data-nomenclature-tournee="${escapeAttr(t.id)}" data-nomenclature-index="${i}" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+      <select data-nomenclature-field="pupitre" style="width:170px;">
+        ${PUPITRE_ORDER.map(p=>`<option value="${escapeAttr(p)}" ${row.pupitre===p?'selected':''}>${escapeHtml(p)}</option>`).join('')}
+      </select>
+      <input type="number" min="0" step="1" data-nomenclature-field="nombre" value="${row.nombre != null ? escapeAttr(String(row.nombre)) : ''}" placeholder="Nombre" style="width:90px;">
+      <button type="button" class="btn-danger btn-sm" data-remove-nomenclature-row style="padding:5px 9px;">Retirer</button>
+    </div>
+  `).join('');
+}
+function renderNomenclaturePanel(tourneeId){
+  const t = loadTournees().find(x=>x.id === tourneeId);
+  if(!t) return;
+  const holder = document.querySelector(`[data-nomenclature-rows="${CSS.escape(tourneeId)}"]`);
+  if(holder) holder.innerHTML = renderNomenclatureRowsHtml(t);
+  // Le panneau n'est plus replié derrière un bouton dont il fallait tenir le
+  // libellé à jour : il est toujours affiché, les lignes suffisent.
+  updateManqueBadges(tourneeId);
+}
+function updateManqueBadges(tourneeId){
+  const t = loadTournees().find(x=>x.id === tourneeId);
+  if(!t) return;
+  const musicianById = new Map(loadMusicians().map(m=>[m.id, m]));
+  (t.dates||[]).forEach(d=>{
+    const el = document.getElementById(`manque-${d.id}`);
+    if(el) el.outerHTML = manqueBadgeHtml(t, d, musicianById);
+  });
+}
+// Délégué une fois pour toutes sur le conteneur stable — survit aux
+// remplacements d'innerHTML de render(), contrairement à un binding par
+// élément qu'il aurait fallu reposer après chaque rendu.
+document.addEventListener('change', (e)=>{
+  const item = e.target.closest('[data-nomenclature-tournee]');
+  if(!item || !e.target.dataset.nomenclatureField) return;
+  const tourneeId = item.dataset.nomenclatureTournee;
+  const idx = Number(item.dataset.nomenclatureIndex);
+  const t = loadTournees().find(x=>x.id === tourneeId);
+  if(!t || !t.nomenclature || !t.nomenclature[idx]) return;
+  if(e.target.dataset.nomenclatureField === 'pupitre') t.nomenclature[idx].pupitre = e.target.value;
+  else t.nomenclature[idx].nombre = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0);
+  saveTournees(loadTournees());
+  updateManqueBadges(tourneeId);
+});
+document.addEventListener('click', (e)=>{
+  const addBtn = e.target.closest('[data-add-nomenclature-row]');
+  if(addBtn){
+    const tourneeId = addBtn.dataset.addNomenclatureRow;
+    const t = loadTournees().find(x=>x.id === tourneeId);
+    if(!t) return;
+    t.nomenclature = t.nomenclature || [];
+    t.nomenclature.push({ pupitre: 'Cordes', nombre: 1 });
+    saveTournees(loadTournees());
+    renderNomenclaturePanel(tourneeId);
+    return;
+  }
+  const removeBtn = e.target.closest('[data-remove-nomenclature-row]');
+  if(removeBtn){
+    const item = removeBtn.closest('[data-nomenclature-tournee]');
+    const tourneeId = item.dataset.nomenclatureTournee;
+    const idx = Number(item.dataset.nomenclatureIndex);
+    const t = loadTournees().find(x=>x.id === tourneeId);
+    if(!t || !t.nomenclature) return;
+    t.nomenclature.splice(idx, 1);
+    saveTournees(loadTournees());
+    renderNomenclaturePanel(tourneeId);
+  }
+});
+
+function renderTourneeCard(t, fdrs, musicianById, technicianById){
+      const dates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+      const blocMap = computeBlocMap(dates);
+      // Tout le répertoire (pas seulement les personnes déjà affectées à une date) — un
+      // cachet différent peut se décider avant l'affectation. La recherche ci-dessous
+      // permet de retrouver n'importe qui sans dérouler toute la liste.
+      const rosterPeople = [
+        ...Array.from(musicianById.values()).map(m=>({ id: m.id, type: 'musicien', name: fullName(m) })),
+        ...Array.from(technicianById.values()).map(m=>({ id: m.id, type: 'technicien', name: fullName(m) })),
+      ].sort((a,b)=> a.name.localeCompare(b.name));
+      const cachetOverrides = cachetOverridesForTournee(t.id);
+      const overrideCount = rosterPeople.filter(p => cachetOverrides[p.id] != null).length;
+      const rows = dates.map((d, dIdx)=>{
+        const fdr = fdrs.find(f=>f.eventDate === d.date);
+        const fdrAction = fdr
+          ? `<a class="btn-secondary btn-sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}" style="text-decoration:none; display:inline-block;">Ouvrir FDR</a>`
+          : `<button type="button" class="btn-secondary btn-sm" data-create-fdr="${escapeAttr(d.id)}">Créer FDR</button>`;
+        const indispoSurDate = (p)=> !!(p && (p.disponibilites || {})[d.date] === 'indispo');
+        const marqueIndispo = ' style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;"';
+        const assignedChips = (d.musiciensAssignes||[]).map(id=>{
+          const m = musicianById.get(id);
+          if(!m) return '';
+          const ko = indispoSurDate(m);
+          return `<span class="chip"${ko ? marqueIndispo : ''}${ko ? ` title="S'est déclaré·e indisponible sur cette date"` : ''}>${ko ? '\u26A0 ' : ''}${escapeHtml(fullName(m))}</span>`;
+        }).join('') + (d.techniciensAssignes||[]).map(id=>{
+          const m = technicianById.get(id);
+          if(!m) return '';
+          return `<span class="chip tech"${indispoSurDate(m) ? marqueIndispo : ''}><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M20.2 7a4.5 4.5 0 0 1-5.7 5.7L7 20.2 3.8 17l7.5-7.5A4.5 4.5 0 0 1 17 3.8l-3 3 1.7 1.7 3-3z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>${escapeHtml(fullName(m))}</span>`;
+        }).join('');
+        const musCount = (d.musiciensAssignes||[]).length;
+        const techCount = (d.techniciensAssignes||[]).length;
+        const summaryText = (musCount + techCount) === 0
+          ? 'Aucun·e assigné·e'
+          : [musCount ? `${musCount} musicien·ne${musCount>1?'s':''}` : '', techCount ? `${techCount} technicien·ne${techCount>1?'s':''}` : ''].filter(Boolean).join(' · ');
+        const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+        const type = ['concert','residence'].includes(d.type) ? d.type : 'concert';
+        const typeSelect = `
+          <select class="type-select" data-field="type" data-date-id="${escapeAttr(d.id)}">
+            <option value="concert" ${type==='concert'?'selected':''}>Concert</option>
+            <option value="residence" ${type==='residence'?'selected':''}>Résidence</option>
+          </select>
+        `;
+        const travelMode = ['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus';
+        const travelSelect = `
+          <select class="type-select" data-field="travelMode" data-date-id="${escapeAttr(d.id)}">
+            <option value="tourbus" ${travelMode==='tourbus'?'selected':''}>Tourbus</option>
+            <option value="train" ${travelMode==='train'?'selected':''}>Train</option>
+            <option value="avion" ${travelMode==='avion'?'selected':''}>Avion</option>
+          </select>
+        `;
+        // Une seule pastille qui tourne au clic : option → validée → annulée,
+        // comme dans la maquette. La cible suivante est portée par l'attribut,
+        // et le titre l'annonce pour qu'on sache où l'on va avant de cliquer.
+        const SUITE = { option:'validee', validee:'annulee', annulee:'option' };
+        const LIBELLE = { option:'Option', validee:'Validée', annulee:'Annulée' };
+        const statutGroup = `
+          <button type="button" class="statut-pastille ${statut}"
+            data-set-statut="${escapeAttr(d.id)}" data-statut-value="${SUITE[statut]}"
+            title="Statut : ${LIBELLE[statut]}. Clique pour passer à « ${LIBELLE[SUITE[statut]]} » (option → validée → annulée)"
+            aria-label="Statut ${LIBELLE[statut]} — changer pour ${LIBELLE[SUITE[statut]]}">${LIBELLE[statut]}</button>
+        `;
+        const blocInfo = blocMap.get(d.id);
+        const hasNext = dIdx < dates.length - 1;
+        let blocBadge = '';
+        if(blocInfo){
+          let note = '';
+          if(blocInfo.isFirst) note = `depuis la veille ${fmtDateFR(blocInfo.veille)}`;
+          else if(blocInfo.isLast) note = `jusqu'au lendemain ${fmtDateFR(blocInfo.lendemain)}`;
+          blocBadge = `<div class="bloc-badge" title="Bloc de ${blocInfo.blocDates.length} dates — départ la veille (${fmtDateFR(blocInfo.veille)}), retour le lendemain (${fmtDateFR(blocInfo.lendemain)})"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></line></svg>Bloc${note ? ' — ' + note : ''}</div>`;
+        }
+        const scissorsIcon = '<svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><circle cx="6" cy="6" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle><circle cx="6" cy="18" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle><line x1="7.8" y1="7.6" x2="20" y2="18.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line><line x1="7.8" y1="16.4" x2="20" y2="5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line></svg>';
+        const linkToggle = hasNext
+          ? `<button type="button" class="btn-ghost btn-sm" data-toggle-link="${escapeAttr(d.id)}" style="padding:2px 6px; font-size:10.5px; margin-top:2px;">${d.linkedToNext ? scissorsIcon + 'Délier du bloc' : '+ Lier à la suivante'}</button>`
+          : '';
+        // Type et statut sont communs à tout un bloc : un seul contrôle par bloc
+        // (fusionné visuellement sur toutes ses lignes via rowspan), pas un par date.
+        const showTypeStatut = !blocInfo || blocInfo.isFirst;
+        const groupRowspan = blocInfo ? blocInfo.blocDates.length : 1;
+        return `
+          <tr class="${blocInfo ? `bloc-row bloc-alt-${blocInfo.groupIndex % 2}` : ''}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
+            <td class="col-date">
+              ${escapeHtml(fmtDateFR(d.date))}
+              ${blocBadge}
+              ${linkToggle}
+            </td>
+            ${showTypeStatut ? `<td rowspan="${groupRowspan}" style="vertical-align:middle;">${typeSelect}</td>` : ''}
+            <td>${travelSelect}</td>
+            ${showTypeStatut ? `<td rowspan="${groupRowspan}" style="vertical-align:middle;">${statutGroup}</td>` : ''}
+            <td class="col-lieu">
+              <input type="text" data-field="ville" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.ville||'')}" placeholder="Ville">
+            </td>
+            <td class="col-lieu">
+              <input type="text" data-field="lieu" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.lieu||'')}" placeholder="Salle">
+            </td>
+            <td class="col-comment"><textarea data-field="commentaire" data-date-id="${escapeAttr(d.id)}" placeholder="Commentaire…">${escapeHtml(d.commentaire||'')}</textarea></td>
+            <td>
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
+                <span style="font-size:12.5px; color:var(--muted);">${escapeHtml(summaryText)}</span>
+                ${manqueBadgeHtml(t, d, musicianById)}
+                ${contradictionBadge(contradictionsPourDate(d, musicianById, technicianById))}
+                ${(musCount + techCount) > 0 ? `<button type="button" class="btn-ghost btn-sm" data-toggle-chips="${escapeAttr(d.id)}" style="padding:2px 8px;"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"></circle></svg>Voir</button>` : ''}
+              </div>
+              <div class="chips" id="chips-${escapeAttr(d.id)}" style="display:none;">${assignedChips}</div>
+              <button type="button" class="btn-ghost btn-sm" data-assign="${escapeAttr(d.id)}">Affecter des musicien·nes / technicien·nes</button>
+            </td>
+            <td class="row-actions">
+              ${fdrAction}
+              <button type="button" class="btn-danger btn-sm" data-del-date="${escapeAttr(d.id)}" title="Retrait complet — n'apparaîtra plus, même dans le récap">Supprimer définitivement</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      return `
+        <div class="tournee-card" id="tournee-${escapeAttr(t.id)}" data-tournee-id="${escapeAttr(t.id)}">
+          <div class="tournee-head">
+            <div class="tournee-name" contenteditable="true" data-rename-tournee="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Tournée sans nom')}</div>
+            <div class="row-actions">
+              <button type="button" class="btn-secondary btn-sm" data-dispo-links="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line></svg>Demandes titulaires</button>
+              <button type="button" class="btn-secondary btn-sm" data-export-tournee="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
+              <button type="button" class="btn-danger btn-sm" data-del-tournee="${escapeAttr(t.id)}">Supprimer la tournée</button>
+            </div>
+          </div>
+          <div class="tournee-meta">${dates.length} date${dates.length>1?'s':''}</div>
+          <!-- Cachet et effectif attendu sont désormais toujours affichés côte à
+               côte, et non repliés derrière un bouton : ce sont deux réglages de
+               tête de tournée qu'on consulte en même temps que les dates. -->
+          <div class="tournee-outils">
+            <div>
+              <div class="outils-legend">Cachet</div>
+              <div class="cachet-row">
+                <select data-cachet-statut="${escapeAttr(t.id)}">
+                  <option value="non_defini" ${t.cachetStatut !== 'defini' ? 'selected' : ''}>Non défini pour l'instant</option>
+                  <option value="defini" ${t.cachetStatut === 'defini' ? 'selected' : ''}>Montant défini</option>
+                </select>
+                <span class="cachet-montant" style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">
+                  <input type="number" data-cachet-montant="${escapeAttr(t.id)}" placeholder="Montant" min="0" step="0.01"
+                    value="${t.cachetMontant != null ? escapeAttr(String(t.cachetMontant)) : ''}">
+                  <span class="cachet-unit">€ brut / date</span>
+                </span>
+              </div>
+              <button type="button" class="btn-ghost btn-sm" data-toggle-cachet-overrides="${escapeAttr(t.id)}"
+                style="${t.cachetStatut === 'defini' ? 'margin-top:8px; padding-left:0;' : 'display:none;'}">Cachet différent pour certaines personnes${overrideCount ? ` (${overrideCount})` : ''}</button>
+            </div>
+            <div class="nomenclature-panel" id="nomenclature-${escapeAttr(t.id)}">
+              <div class="outils-legend">Effectif attendu (nomenclature)</div>
+              <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
+              <button type="button" class="co-btn tint sm" style="margin-top:8px;" data-add-nomenclature-row="${escapeAttr(t.id)}">+ Ajouter un pupitre</button>
+            </div>
+          </div>
+          <div class="cachet-overrides" id="cachet-overrides-${escapeAttr(t.id)}" style="display:none; margin:-6px 0 14px;">
+            ${rosterPeople.length === 0
+              ? `<div style="font-size:12.5px; color:var(--muted);">Le répertoire est vide.</div>`
+              : `
+                <input type="text" placeholder="Chercher une personne à ajouter…" data-cachet-override-search="${escapeAttr(t.id)}"
+                  style="width:100%; max-width:320px; margin-bottom:8px; padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;">
+                <div data-cachet-override-rows="${escapeAttr(t.id)}">
+                  ${rosterPeople.map(p => `
+                    <div class="cachet-override-row" data-person-name="${escapeAttr(p.name.toLowerCase())}" style="display:${cachetOverrides[p.id] != null ? 'flex' : 'none'}; align-items:center; gap:8px; margin-bottom:6px;">
+                      <span style="font-size:12.5px; width:220px;">${escapeHtml(p.name)}</span>
+                      <input type="number" min="0" step="0.01" placeholder="${t.cachetMontant != null ? escapeAttr(String(t.cachetMontant)) : 'Montant'}"
+                        data-cachet-override-tournee="${escapeAttr(t.id)}" data-cachet-override-person="${escapeAttr(p.id)}" data-cachet-override-type="${escapeAttr(p.type)}"
+                        value="${cachetOverrides[p.id] != null ? escapeAttr(String(cachetOverrides[p.id])) : ''}"
+                        style="width:110px; padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;">
+                      <span style="font-size:12.5px; color:var(--muted);">€ brut — laisser vide pour le cachet standard</span>
+                    </div>
+                  `).join('')}
+                </div>
+                <div class="empty-hint" data-cachet-override-empty="${escapeAttr(t.id)}" style="display:none; font-size:12.5px; padding:4px 0;">Aucune personne trouvée.</div>
+              `}
+          </div>
+          <div class="add-date-row">
+            <input type="date" data-new-date="${escapeAttr(t.id)}">
+            <select class="type-select" data-new-type="${escapeAttr(t.id)}" style="flex:0 0 130px;">
+              <option value="concert">Concert</option>
+              <option value="residence">Résidence</option>
+            </select>
+            <select class="type-select" data-new-travel="${escapeAttr(t.id)}" style="flex:0 0 120px;">
+              <option value="tourbus">Tourbus</option>
+              <option value="train">Train</option>
+              <option value="avion">Avion</option>
+            </select>
+            <input type="text" data-new-ville="${escapeAttr(t.id)}" placeholder="Ville">
+            <input type="text" data-new-lieu="${escapeAttr(t.id)}" placeholder="Salle">
+            <button type="button" class="btn-primary btn-sm" data-add-date="${escapeAttr(t.id)}">+ Ajouter une date</button>
+            <button type="button" class="btn-secondary btn-sm" data-import-dates="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Importer des dates (coller)</button>
+          </div>
+          ${dates.length ? `
+            <div class="grid-table-wrap">
+              <table class="grid-table">
+                <thead><tr><th style="width:8%;">Date</th><th style="width:11%;">Type</th><th style="width:10%;">Transport</th><th style="width:8%;">Statut</th><th style="width:14%;">Ville</th><th style="width:14%;">Salle</th><th style="width:10%;">Commentaire</th><th style="width:14%;">Musicien·nes</th><th style="width:1%;"></th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          ` : `<div class="empty-hint">Aucune date pour l'instant.</div>`}
+        </div>
+      `;
+}
+
+function render(){
+  const tournees = loadTournees();
+  const fdrs = loadFdrCollection();
+  const musicians = loadMusicians();
+  const musicianById = new Map(musicians.map(m=>[m.id, m]));
+  const technicians = loadTechnicians();
+  const technicianById = new Map(technicians.map(m=>[m.id, m]));
+  const holder = document.getElementById('tourneesHolder');
+
+  // Une tournée "passée" a au moins une date, et toutes ses dates sont derrière
+  // nous — elle est repliée dans une section à part pour ne pas polluer la liste
+  // de travail au fil des saisons (voir aussi disponibilites.html/recap.html).
+  const today = new Date().toISOString().slice(0, 10);
+  const isPastTournee = tr => (tr.dates||[]).length > 0 && (tr.dates||[]).every(d=> d.date && d.date < today);
+  const upcoming = tournees.filter(t=> !isPastTournee(t));
+  const past = tournees.filter(isPastTournee);
+
+  if(tournees.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Aucune tournée pour l'instant — crée-en une ci-dessus.</div>`;
+  } else if(upcoming.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Aucune tournée à venir — ${past.length} tournée${past.length>1?'s':''} passée${past.length>1?'s':''} plus bas.</div>`;
+  } else {
+    holder.innerHTML = upcoming.map(t=> renderTourneeCard(t, fdrs, musicianById, technicianById)).join('');
+  }
+
+  const pastWrap = document.getElementById('pastTourneesWrap');
+  const pastHolder = document.getElementById('pastTourneesHolder');
+  const pastCount = document.getElementById('pastTourneesCount');
+  if(past.length){
+    pastWrap.style.display = 'block';
+    pastCount.textContent = past.length;
+    pastHolder.innerHTML = past.map(t=> renderTourneeCard(t, fdrs, musicianById, technicianById)).join('');
+  } else {
+    pastWrap.style.display = 'none';
+  }
+
+  bindTourneeEvents();
+}
+
+const STATUT_PDF_LABEL = { option:'Option', validee:'Validée', annulee:'ANNULÉE' };
+const TYPE_PDF_LABEL = { concert:'Concert', residence:'Résidence' };
+
+// Date courte sans année (pour la note de bloc, où l'année est déjà visible sur
+// chaque ligne et n'a pas besoin d'être répétée).
+function fmtDateFRShortNoYear(iso){
+  if(!iso) return '';
+  const [, m, d] = iso.split('-');
+  const months = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]}`;
+}
+
+// Deux teintes très pâles, alternées d'un bloc au suivant, pour que deux blocs qui se
+// suivent directement restent visuellement distincts sans jamais être criardes —
+// appliquées à TOUTES les colonnes de la ligne (pas juste un liseré) pour que la
+// limite du bloc soit lisible même sur Ville/Salle/Commentaire.
+const BLOC_TINTS = [[253, 245, 240], [244, 245, 251]];
+
+function exportTourneePdf(tourneeId){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const tournee = loadTournees().find(t=>t.id === tourneeId);
+  if(!tournee) return;
+  const dates = (tournee.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const blocMap = computeBlocMap(dates);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
+  registerHostFont(doc);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  drawCurieuxPdfHeader(doc, pageWidth, (tournee.nom || 'TOURNÉE').toUpperCase());
+
+  // Résumé en un coup d'œil sous l'en-tête : nombre de dates par statut.
+  const counts = { validee: 0, option: 0, annulee: 0 };
+  dates.forEach(d=>{ counts[['option','validee','annulee'].includes(d.statut) ? d.statut : 'option']++; });
+  doc.setFont('Host', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(120, 105, 113);
+  doc.text(
+    `${dates.length} date${dates.length>1?'s':''}  ·  ${counts.validee} validée${counts.validee>1?'s':''}  ·  ${counts.option} en option  ·  ${counts.annulee} annulée${counts.annulee>1?'s':''}`,
+    10, 24
+  );
+
+  // Lignes appartenant à un bloc, pour appliquer la teinte alternée à toutes les
+  // cellules de la ligne (didParseCell tourne par cellule, pas par ligne).
+  const blocRowInfo = new Map();
+
+  doc.autoTable({
+    startY: 29,
+    margin: { left: 10, right: 10 },
+    head: [['Date', 'Type', 'Statut', 'Dép. / Retour', 'Transport', 'Ville', 'Salle', 'Commentaire']],
+    body: dates.map((d, idx)=>{
+      const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+      const type = ['concert','residence'].includes(d.type) ? d.type : 'concert';
+      const blocInfo = blocMap.get(d.id);
+      if(blocInfo) blocRowInfo.set(idx, blocInfo);
+
+      const row = [fmtDateFR(d.date)];
+      // Type, Statut et Dép./Retour sont communs à tout le bloc : une seule cellule
+      // fusionnée (rowSpan) sur toute la hauteur du bloc plutôt qu'une valeur répétée
+      // par date. Chaque info a sa propre colonne — Statut ne mélange plus le mot
+      // (option/validée/annulée) avec les dates de trajet.
+      if(!blocInfo || blocInfo.isFirst){
+        const span = blocInfo ? blocInfo.blocDates.length : 1;
+        row.push({ content: TYPE_PDF_LABEL[type], rowSpan: span, styles: { valign: 'middle' } });
+        row.push({ content: STATUT_PDF_LABEL[statut], rowSpan: span, styles: { valign: 'middle' } });
+        const depRetour = blocInfo ? `Dép. veille ${fmtDateFRShortNoYear(blocInfo.veille)}\nRetour lend. ${fmtDateFRShortNoYear(blocInfo.lendemain)}` : '';
+        row.push({ content: depRetour, rowSpan: span, styles: { valign: 'middle', fontSize: 6.6, textColor: [120,105,113] } });
+      }
+      // Transport et Ville dans deux colonnes séparées (au lieu d'un seul texte
+      // combiné "[Bus] Lyon") pour que le lien entre les deux infos soit lisible.
+      const travelLabel = { tourbus: 'Bus', train: 'Train', avion: 'Avion' }[['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus'];
+      row.push(travelLabel, d.ville || '', d.lieu || '', d.commentaire || '');
+      return row;
+    }),
+    styles: { font:'Host', fontSize:8.5, cellPadding:3, textColor:[20,22,23] },
+    columnStyles: {
+      0: { cellWidth: 24 }, 1: { cellWidth: 18 }, 2: { cellWidth: 20 },
+      3: { cellWidth: 32 }, 4: { cellWidth: 16 }, 5: { cellWidth: 30 }, 6: { cellWidth: 30 },
+    },
+    headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold' },
+    alternateRowStyles: { fillColor:[253,248,246] },
+    didParseCell: (data)=>{
+      // Cellules fusionnées (rowSpan, colonnes Type/Statut/Dép.-Retour d'un bloc) : le
+      // contenu brut est un objet { content, rowSpan, ... } plutôt qu'une simple chaîne.
+      const raw = (data.cell.raw && typeof data.cell.raw === 'object') ? data.cell.raw.content : data.cell.raw;
+      const isStatutCol = data.column.index === 2;
+
+      // Bloc : teinte pâle alternée sur toute la ligne, posée AVANT les styles de
+      // badge (Statut/Résidence) pour que ces derniers restent prioritaires.
+      if(data.section === 'body' && blocRowInfo.has(data.row.index)){
+        data.cell.styles.fillColor = BLOC_TINTS[blocRowInfo.get(data.row.index).groupIndex % 2];
+      }
+
+      // Colonne "Statut" : badge plein (fond + texte) plutôt qu'une simple couleur de
+      // texte, pour repérer d'un coup d'œil option/validée/annulée.
+      if(data.section === 'body' && isStatutCol && typeof raw === 'string'){
+        data.cell.styles.fontStyle = 'bold';
+        if(raw === 'Validée'){ data.cell.styles.fillColor = [226,244,234]; data.cell.styles.textColor = [47,143,91]; }
+        else if(raw === 'ANNULÉE'){ data.cell.styles.fillColor = [251,230,226]; data.cell.styles.textColor = [178,59,46]; }
+        else { data.cell.styles.fillColor = [246,234,210]; data.cell.styles.textColor = [184,121,42]; }
+      }
+      if(data.section === 'body' && data.column.index === 1 && raw === 'Résidence'){
+        data.cell.styles.fillColor = [251,228,213]; data.cell.styles.textColor = [193,61,15]; data.cell.styles.fontStyle = 'bold';
+      }
+    }
+  });
+
+  doc.save(`Tournee_${(tournee.nom||'tournee').trim().replace(/[^a-z0-9]+/gi,'_')}.pdf`);
+}
+
+// --- Liens personnels de dispo (titulaires uniquement) ---------------------------
+let dispoLinksCurrentTourneeId = null;
+
+// Lien unique de l'espace personnel : il regroupe les disponibilités, les
+// infos et les remplaçant·es. Le jeton de demande y est accepté au même titre
+// que le jeton permanent, donc les liens déjà envoyés restent valables.
+function dispoLinkUrl(demandeId){
+  const base = location.href.slice(0, location.href.lastIndexOf('/') + 1);
+  return `${base}mon-espace.html?token=${encodeURIComponent(demandeId)}`;
+}
+
+function openDispoLinksModal(tourneeId){
+  dispoLinksCurrentTourneeId = tourneeId;
+  document.getElementById('addRemplacantSearch').value = '';
+  renderDispoLinksModal(tourneeId);
+  document.getElementById('dispoLinksOverlay').classList.add('open');
+}
+function closeDispoLinksModal(){
+  document.getElementById('dispoLinksOverlay').classList.remove('open');
+  dispoLinksCurrentTourneeId = null;
+}
+
+async function generateDispoLink(tourneeId, personType, personId, dates){
+  const demandes = loadDispoDemandes();
+  const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === personId);
+  if(existing) return existing;
+  const entry = { id: genId('demande'), tourneeId, personType, personId, dates: dates || [] };
+  demandes.push(entry);
+  dispoDemandesCache = demandes;
+  const { error } = await CurieuxDB.upsertOne('dispo_demandes', entry);
+  if(error){
+    dispoDemandesCache = dispoDemandesCache.filter(d=> d.id !== entry.id);
+    alert("La création du lien a échoué, réessaie. (" + error.message + ")");
+    return null;
+  }
+  return entry;
+}
+
+// Panneau de sélection de dates précises (remplaçant·es uniquement) : coché par défaut
+// = pas de restriction (dates:[] côté DB, pour rester valable si des dates sont ajoutées
+// plus tard) ; décocher certaines dates fige la liste transmise à generateDispoLink.
+function remplacantDatesPanelHtml(tourneeId){
+  const tournee = loadTournees().find(t=> t.id === tourneeId);
+  const dates = (tournee && tournee.dates || []).filter(d=> d.date && d.statut !== 'annulee')
+    .slice().sort((a,b)=> a.date.localeCompare(b.date));
+  if(dates.length === 0) return `<div class="empty-hint" style="padding:6px 0;">Aucune date pour l'instant.</div>`;
+  const items = dates.map(d=> `
+    <label style="display:flex; align-items:center; gap:6px; font-size:12px; padding:3px 0;">
+      <input type="checkbox" data-date-checkbox value="${escapeAttr(d.id)}" checked>
+      ${escapeHtml(fmtDateFR(d.date))}${d.ville ? ' · '+escapeHtml(d.ville) : ''}
+    </label>
+  `).join('');
+  return `
+    <div style="font-size:11.5px; color:var(--muted); margin-bottom:6px;">Dates proposées à cette personne :</div>
+    ${items}
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button type="button" class="btn-ghost btn-sm" data-toggle-all-dates>Tout (dé)cocher</button>
+      <button type="button" class="btn-secondary btn-sm" data-confirm-gen-dates>Générer le lien</button>
+    </div>
+  `;
+}
+
+function renderDispoLinksModal(tourneeId){
+  // Titulaires par défaut : les remplaçant·es sont contactés via le rang de priorité
+  // dans l'annuaire quand un·e titulaire décline, sauf demande ponctuelle explicite
+  // (recherche "Ajouter un·e remplaçant·e" en bas de la modale) — dans ce cas, le/la
+  // remplaçant·e reste affiché·e dans la liste une fois son lien généré.
+  const demandes = loadDispoDemandes();
+  const demandedRemplacantIds = new Set(
+    demandes.filter(d=> d.tourneeId === tourneeId).map(d=> `${d.personType}:${d.personId}`)
+  );
+  const titulaireMusiciens = loadMusicians()
+    .filter(m=> (m.statutPoste||'titulaire') === 'titulaire' || demandedRemplacantIds.has(`musicien:${m.id}`))
+    .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const titulaireTechniciens = loadTechnicians()
+    .filter(t=> (t.statutPoste||'titulaire') === 'titulaire' || demandedRemplacantIds.has(`technicien:${t.id}`))
+    .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const tournee = loadTournees().find(t=> t.id === tourneeId);
+  // Dates actuelles à répondre (hors annulées) — sert à détecter les personnes qui ont
+  // déjà répondu à un premier lot de dates mais pas encore aux dates ajoutées depuis.
+  const answerableDates = (tournee && tournee.dates || []).filter(d=> d.date && d.statut !== 'annulee');
+
+  function rowFor(person, personType, roleLabel){
+    const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === person.id);
+    const url = existing ? dispoLinkUrl(existing.id) : null;
+    const dispo = person.disponibilites || {};
+    const allAnswered = answerableDates.length > 0 && answerableDates.every(d=> dispo[d.date]);
+    let statusHtml;
+    if(!existing){
+      statusHtml = '';
+    } else if(allAnswered){
+      statusHtml = `<span style="font-size:11px; color:var(--ok); font-weight:700; white-space:nowrap;">✓ Répondu</span>`;
+    } else if(existing.lastRespondedAt){
+      statusHtml = `<span style="font-size:11px; color:var(--maybe); font-weight:700; white-space:nowrap;" title="A déjà répondu, mais de nouvelles dates ont été ajoutées depuis"><svg width="11" height="11" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle><polyline points="12,7 12,12 15.5,14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>Nouvelles dates</span>`;
+    } else {
+      statusHtml = `<span style="font-size:11px; color:var(--muted); white-space:nowrap;">En attente</span>`;
+    }
+    const isRemplacant = (person.statutPoste || 'titulaire') === 'remplacant';
+    const datesTag = existing && existing.dates && existing.dates.length > 0
+      ? `<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--border); color:var(--muted); vertical-align:middle;" title="Lien restreint à ${existing.dates.length} date${existing.dates.length>1?'s':''}">${existing.dates.length} date${existing.dates.length>1?'s':''}</span>`
+      : '';
+    return `
+      <div style="display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid var(--border);">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? '<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;">Remplaçant·e</span>' : ''} ${datesTag}</div>
+          <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
+        </div>
+        ${statusHtml}
+        ${url
+          ? `<a class="btn-ghost btn-sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line></svg> Ouvrir</a>
+             <button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>`
+          : `<button type="button" class="btn-secondary btn-sm" data-gen-link data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
+        }
+      </div>
+    `;
+  }
+
+  const html = `${titulaireMusiciens.map(m=> rowFor(m, 'musicien', m.instrument || 'Musicien·ne')).join('')}${titulaireTechniciens.map(t=> rowFor(t, 'technicien', t.poste || 'Technicien·ne')).join('')}`;
+  const list = document.getElementById('dispoLinksList');
+  list.innerHTML = html || `<div class="empty-hint">Aucun·e titulaire dans l'annuaire pour l'instant.</div>`;
+
+  list.querySelectorAll('[data-gen-link]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true; btn.textContent = '…';
+      await generateDispoLink(tourneeId, btn.dataset.personType, btn.dataset.personId);
+      renderDispoLinksModal(tourneeId);
+    });
+  });
+  list.querySelectorAll('[data-copy-link]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      navigator.clipboard.writeText(btn.dataset.copyLink).then(()=>{
+        const old = btn.textContent;
+        btn.textContent = '✓ Copié';
+        setTimeout(()=>{ btn.textContent = old; }, 1500);
+      });
+    });
+  });
+
+  renderAddRemplacantResults(tourneeId, document.getElementById('addRemplacantSearch').value);
+}
+
+// Recherche ponctuelle d'un·e remplaçant·e (musicien·ne, ou technicien·ne du pôle Régie)
+// à qui générer un lien de dispo à la demande, en dehors des titulaires sollicités par défaut.
+function renderAddRemplacantResults(tourneeId, query){
+  const holder = document.getElementById('addRemplacantResults');
+  const q = (query || '').toLowerCase().trim();
+  if(!q){ holder.innerHTML = ''; return; }
+
+  const demandes = loadDispoDemandes();
+  const alreadyDemanded = new Set(
+    demandes.filter(d=> d.tourneeId === tourneeId).map(d=> `${d.personType}:${d.personId}`)
+  );
+
+  const remplacantMusiciens = loadMusicians()
+    .filter(m=> (m.statutPoste||'titulaire') === 'remplacant' && !alreadyDemanded.has(`musicien:${m.id}`))
+    .map(m=> ({ person:m, personType:'musicien', roleLabel: m.instrument || 'Musicien·ne' }));
+  const remplacantTechniciens = loadTechnicians()
+    .filter(t=> t.pole === 'Régie générale' && (t.statutPoste||'titulaire') === 'remplacant' && !alreadyDemanded.has(`technicien:${t.id}`))
+    .map(t=> ({ person:t, personType:'technicien', roleLabel: t.poste || 'Technicien·ne' }));
+
+  const results = [...remplacantMusiciens, ...remplacantTechniciens].filter(r=>{
+    const haystack = [r.person.prenom, r.person.nom, r.roleLabel].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(q);
+  }).slice(0, 8);
+
+  if(results.length === 0){
+    holder.innerHTML = `<div class="empty-hint" style="padding:10px 4px;">Aucun·e remplaçant·e trouvé·e.</div>`;
+    return;
+  }
+  holder.innerHTML = results.map(r=> `
+    <div data-remplacant-row data-person-type="${r.personType}" data-person-id="${escapeAttr(r.person.id)}" style="padding:7px 4px; border-bottom:1px solid var(--border);">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(r.person))}</div>
+          <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(r.roleLabel)}</div>
+        </div>
+        <button type="button" class="btn-secondary btn-sm" data-toggle-dates>+ Générer</button>
+      </div>
+      <div data-dates-panel style="display:none; margin-top:8px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>
+    </div>
+  `).join('');
+
+  holder.querySelectorAll('[data-toggle-dates]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('[data-remplacant-row]');
+      const panel = row.querySelector('[data-dates-panel]');
+      const opening = panel.style.display === 'none';
+      holder.querySelectorAll('[data-dates-panel]').forEach(p=> p.style.display = 'none');
+      if(!opening) return;
+      panel.innerHTML = remplacantDatesPanelHtml(tourneeId);
+      panel.style.display = 'block';
+      const toggleAllBtn = panel.querySelector('[data-toggle-all-dates]');
+      if(toggleAllBtn) toggleAllBtn.addEventListener('click', ()=>{
+        const boxes = panel.querySelectorAll('[data-date-checkbox]');
+        const allChecked = Array.from(boxes).every(b=> b.checked);
+        boxes.forEach(b=> b.checked = !allChecked);
+      });
+      const confirmBtn = panel.querySelector('[data-confirm-gen-dates]');
+      if(confirmBtn) confirmBtn.addEventListener('click', async ()=>{
+        const boxes = Array.from(panel.querySelectorAll('[data-date-checkbox]'));
+        const checked = boxes.filter(b=> b.checked).map(b=> b.value);
+        const dates = (checked.length === boxes.length) ? [] : checked;
+        confirmBtn.disabled = true; confirmBtn.textContent = '…';
+        await generateDispoLink(tourneeId, row.dataset.personType, row.dataset.personId, dates);
+        document.getElementById('addRemplacantSearch').value = '';
+        renderDispoLinksModal(tourneeId);
+      });
+    });
+  });
+}
+document.getElementById('addRemplacantSearch').addEventListener('input', (e)=>{
+  if(dispoLinksCurrentTourneeId) renderAddRemplacantResults(dispoLinksCurrentTourneeId, e.target.value);
+});
+
+document.getElementById('dispoLinksCloseBtn').addEventListener('click', closeDispoLinksModal);
+document.getElementById('dispoLinksOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'dispoLinksOverlay') closeDispoLinksModal(); });
+document.getElementById('dispoLinksCopyAllBtn').addEventListener('click', async ()=>{
+  const tourneeId = dispoLinksCurrentTourneeId;
+  if(!tourneeId) return;
+  const people = [
+    ...loadMusicians().filter(m=> (m.statutPoste||'titulaire') === 'titulaire').map(person=>({ person, personType:'musicien' })),
+    ...loadTechnicians().map(person=>({ person, personType:'technicien' })),
+  ];
+  const lines = [];
+  for(const { person, personType } of people){
+    const entry = await generateDispoLink(tourneeId, personType, person.id);
+    if(entry) lines.push(`${fullName(person)} : ${dispoLinkUrl(entry.id)}`);
+  }
+  renderDispoLinksModal(tourneeId);
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>{
+    alert(`${lines.length} lien${lines.length>1?'s':''} copié${lines.length>1?'s':''} dans le presse-papiers.`);
+  });
+});
+
+function bindTourneeEvents(){
+  document.querySelectorAll('[data-import-dates]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openImportModal(btn.dataset.importDates));
+  });
+  document.querySelectorAll('[data-rename-tournee]').forEach(el=>{
+    el.addEventListener('blur', ()=>{
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === el.dataset.renameTournee);
+      if(t){ t.nom = el.textContent.trim() || 'Tournée sans nom'; saveTournees(tournees); }
+    });
+    el.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); el.blur(); } });
+  });
+  document.querySelectorAll('[data-cachet-statut]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const tourneeId = sel.dataset.cachetStatut;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      if(!t) return;
+      t.cachetStatut = sel.value;
+      if(sel.value !== 'defini') t.cachetMontant = null;
+      saveTournees(tournees);
+      if(sel.value !== 'defini'){
+        // Un cachet différent n'a de sens que par rapport à un cachet standard défini —
+        // on efface les exceptions plutôt que de les laisser orphelines et invisibles.
+        cachetOverridesCache = cachetOverridesCache.filter(o => o.tourneeId !== tourneeId);
+        CurieuxDB.removeCachetOverridesForTournee(tourneeId);
+      }
+      const montantInput = document.querySelector(`[data-cachet-montant="${CSS.escape(tourneeId)}"]`);
+      const unit = sel.parentElement.querySelector('.cachet-unit');
+      const overridesToggle = document.querySelector(`[data-toggle-cachet-overrides="${CSS.escape(tourneeId)}"]`);
+      const overridesPanel = document.getElementById(`cachet-overrides-${tourneeId}`);
+      if(montantInput){
+        montantInput.style.display = sel.value === 'defini' ? '' : 'none';
+        if(sel.value === 'defini') montantInput.focus();
+      }
+      if(unit) unit.style.display = sel.value === 'defini' ? '' : 'none';
+      if(overridesToggle) overridesToggle.style.display = sel.value === 'defini' ? '' : 'none';
+      if(overridesPanel && sel.value !== 'defini') overridesPanel.style.display = 'none';
+    });
+  });
+  document.querySelectorAll('[data-cachet-montant]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const tourneeId = inp.dataset.cachetMontant;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      if(!t) return;
+      const val = inp.value.trim();
+      t.cachetMontant = val ? parseFloat(val) : null;
+      saveTournees(tournees);
+    });
+  });
+  document.querySelectorAll('[data-toggle-cachet-overrides]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const panel = document.getElementById(`cachet-overrides-${btn.dataset.toggleCachetOverrides}`);
+      if(!panel) return;
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+  });
+  // Par défaut seules les personnes ayant déjà un montant sont visibles (pour ne pas
+  // dérouler tout le répertoire) ; taper une recherche fait apparaître tout le monde,
+  // et une ligne qu'on vient de remplir reste visible même une fois la recherche vidée.
+  document.querySelectorAll('[data-cachet-override-search]').forEach(searchInp=>{
+    searchInp.addEventListener('input', ()=> applyCachetOverrideFilter(searchInp.dataset.cachetOverrideSearch));
+  });
+  document.querySelectorAll('[data-cachet-override-tournee]').forEach(inp=>{
+    inp.addEventListener('input', ()=> applyCachetOverrideFilter(inp.dataset.cachetOverrideTournee));
+    inp.addEventListener('change', ()=>{
+      const tourneeId = inp.dataset.cachetOverrideTournee;
+      const personId = inp.dataset.cachetOverridePerson;
+      const personType = inp.dataset.cachetOverrideType;
+      const id = `${tourneeId}::${personType}::${personId}`;
+      const val = inp.value.trim();
+      if(val){
+        const montant = parseFloat(val);
+        const existing = cachetOverridesCache.find(o => o.id === id);
+        if(existing) existing.montant = montant;
+        else cachetOverridesCache.push({ id, tourneeId, personType, personId, montant });
+        CurieuxDB.upsertOne('cachet_overrides', { id, tourneeId, personType, personId, montant });
+      } else {
+        cachetOverridesCache = cachetOverridesCache.filter(o => o.id !== id);
+        CurieuxDB.removeOne('cachet_overrides', id);
+      }
+    });
+  });
+  document.querySelectorAll('[data-del-tournee]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === btn.dataset.delTournee);
+      if(t && confirm(`Supprimer la tournée "${t.nom}" et toutes ses dates ?`)){
+        tourneesCache = tournees.filter(x=>x.id !== btn.dataset.delTournee);
+        CurieuxDB.removeOne('tournees', btn.dataset.delTournee);
+        render();
+      }
+    });
+  });
+  document.querySelectorAll('[data-toggle-chips]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const box = document.getElementById(`chips-${btn.dataset.toggleChips}`);
+      if(!box) return;
+      const showing = box.style.display !== 'none';
+      box.style.display = showing ? 'none' : 'flex';
+      const eyeIcon = '<svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"></circle></svg>';
+      const eyeOffIcon = '<svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"></circle><line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line></svg>';
+      btn.innerHTML = showing ? eyeIcon + 'Voir' : eyeOffIcon + 'Masquer';
+    });
+  });
+  document.querySelectorAll('[data-export-tournee]').forEach(btn=>{
+    btn.addEventListener('click', ()=> exportTourneePdf(btn.dataset.exportTournee));
+  });
+  document.querySelectorAll('[data-dispo-links]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openDispoLinksModal(btn.dataset.dispoLinks));
+  });
+  document.querySelectorAll('[data-add-date]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const tourneeId = btn.dataset.addDate;
+      const dateInput = document.querySelector(`[data-new-date="${tourneeId}"]`);
+      const typeInput = document.querySelector(`[data-new-type="${tourneeId}"]`);
+      const travelInput = document.querySelector(`[data-new-travel="${tourneeId}"]`);
+      const villeInput = document.querySelector(`[data-new-ville="${tourneeId}"]`);
+      const lieuInput = document.querySelector(`[data-new-lieu="${tourneeId}"]`);
+      if(!dateInput.value){
+        dateInput.style.outline = '2px solid var(--danger, #a5313f)';
+        dateInput.focus();
+        setTimeout(()=>{ dateInput.style.outline = ''; }, 1500);
+        return;
+      }
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      if(!t) return;
+      if(!t.dates) t.dates = [];
+      t.dates.push({ id: genId('date'), date: dateInput.value, ville: villeInput.value.trim(), lieu: lieuInput.value.trim(), commentaire:'', statut:'option', type: typeInput.value || 'concert', travelMode: travelInput.value || 'tourbus', musiciensAssignes:[], techniciensAssignes:[] });
+      saveTournees(tournees);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-del-date]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const card = btn.closest('[data-tournee-id]');
+      const tourneeId = card.dataset.tourneeId;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.delDate);
+      if(!d) return;
+      const label = fmtDateFR(d.date);
+      if(!confirm(`Supprimer DÉFINITIVEMENT la date du ${label} ?\n\nElle disparaîtra complètement, y compris du récap newsletter (pas de trace d'annulation). Si tu veux garder une trace visible qu'elle est annulée, utilise plutôt le bouton "Annulée" à côté du statut.`)) return;
+      t.dates = (t.dates||[]).filter(x=>x.id !== btn.dataset.delDate);
+      saveTournees(tournees);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-set-statut]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const value = btn.dataset.statutValue;
+      const card = btn.closest('[data-tournee-id]');
+      const tourneeId = card.dataset.tourneeId;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.setStatut);
+      if(!d) return;
+      const current = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+      if(current === value) return;   // sécurité : la pastille vise toujours le statut suivant
+
+      // Si la date fait partie d'un bloc, le changement de statut s'applique à tout le
+      // bloc (départ/retour groupés) — les affectations musiciens/techniciens, elles,
+      // restent individuelles par date.
+      const sortedDates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+      const blocInfo = computeBlocMap(sortedDates).get(d.id);
+      const groupDates = blocInfo ? blocInfo.blocDates : [d];
+
+      const label = fmtDateFR(d.date);
+      const STATUT_LABELS = { option:'Option', validee:'Validée', annulee:'Annulée' };
+      const groupNote = groupDates.length > 1 ? ` Ce changement s'appliquera aux ${groupDates.length} dates du bloc.` : '';
+      const question = value === 'annulee'
+        ? `Marquer la date du ${label} comme ANNULÉE ?${groupNote}\n\nElle reste visible (barrée) et apparaîtra comme annulée dans le récap newsletter — rien n'est supprimé.`
+        : `Passer la date du ${label} de "${STATUT_LABELS[current]}" à "${STATUT_LABELS[value]}" ?${groupNote}`;
+      if(!confirm(question)) return;
+      groupDates.forEach(gd=> gd.statut = value);
+      saveTournees(tournees);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-toggle-link]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const card = btn.closest('[data-tournee-id]');
+      const tourneeId = card.dataset.tourneeId;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.toggleLink);
+      if(!d) return;
+      d.linkedToNext = !d.linkedToNext;
+
+      if(d.linkedToNext){
+        // Bloc nouvellement formé (ou agrandi) : statut et type deviennent communs à
+        // toutes les dates du groupe, alignés sur la première date du bloc.
+        const sortedDates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+        const blocInfo = computeBlocMap(sortedDates).get(d.id);
+        if(blocInfo){
+          const ref = blocInfo.blocDates[0];
+          blocInfo.blocDates.forEach(gd=>{ gd.statut = ref.statut; gd.type = ref.type; });
+        }
+      }
+      saveTournees(tournees);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-assign]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const card = btn.closest('[data-tournee-id]');
+      openAssignModal(card.dataset.tourneeId, btn.dataset.assign);
+    });
+  });
+  document.querySelectorAll('[data-create-fdr]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const card = btn.closest('[data-tournee-id]');
+      const tourneeId = card.dataset.tourneeId;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.createFdr);
+      if(d) createFdrForDate(d, t.nom);
+    });
+  });
+  document.querySelectorAll('[data-field]').forEach(el=>{
+    const handler = ()=>{
+      const card = el.closest('[data-tournee-id]');
+      const tourneeId = card.dataset.tourneeId;
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === tourneeId);
+      const d = t && (t.dates||[]).find(x=>x.id === el.dataset.dateId);
+      if(!d) return;
+      d[el.dataset.field] = el.value;
+      if(el.dataset.field === 'type'){
+        // Le type (concert/résidence) est commun à tout le bloc, comme le statut.
+        const sortedDates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+        const blocInfo = computeBlocMap(sortedDates).get(d.id);
+        if(blocInfo) blocInfo.blocDates.forEach(gd=> gd.type = el.value);
+        saveTournees(tournees);
+        render();
+      } else {
+        saveTournees(tournees);
+      }
+    };
+    el.addEventListener('change', handler);
+  });
+}
+
+document.getElementById('addTourneeBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('newTourneeName');
+  const nom = input.value.trim();
+  if(!nom){ alert('Donne un nom à la tournée.'); return; }
+  const tournees = loadTournees();
+  tournees.unshift({ id: genId('tour'), nom, dates: [], cachetStatut: 'non_defini', cachetMontant: null });
+  saveTournees(tournees);
+  input.value = '';
+  render();
+});
+
+injectCurieuxFonts();
+
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+function scrollToHash(){
+  if(location.hash){
+    const target = document.querySelector(location.hash);
+    if(target) setTimeout(()=> target.scrollIntoView({ behavior:'smooth', block:'start' }), 50);
+  }
+}
+
+async function initData(){
+  [tourneesCache, fdrsCache, musiciansCache, techniciansCache, dispoDemandesCache, cachetOverridesCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('feuilles_route'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('dispo_demandes'),
+    CurieuxDB.fetchAll('cachet_overrides'),
+  ]);
+  render();
+  scrollToHash();
+}
+CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; curieuxRafraichir(render); }); });
+CurieuxDB.subscribe('feuilles_route', ()=>{ CurieuxDB.fetchAll('feuilles_route').then(list=>{ fdrsCache = list; curieuxRafraichir(render); }); });
+CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; curieuxRafraichir(render); }); });
+CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; curieuxRafraichir(render); }); });
+CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; if(document.getElementById('dispoLinksOverlay').classList.contains('open')) renderDispoLinksModal(dispoLinksCurrentTourneeId); }); });
+initData();
+</script>
+</body>
+</html>

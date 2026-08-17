@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Infos sociales</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:900px; margin:0 auto;}
+
+  .lock-banner{
+    display:flex; align-items:center; gap:10px; background:var(--champagne); border:1px solid var(--old-champagne);
+    border-radius:10px; padding:12px 16px; margin-bottom:22px; font-size:13px; color:var(--accent-dark); font-weight:600;
+  }
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-sm{padding:7px 11px; font-size:12px;}
+  input[type=text], input[type=email], input[type=password], input[type=date], select, textarea{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;
+    width:100%; background:var(--card); color:var(--text); font-family:inherit;
+  }
+  textarea{min-height:56px; resize:vertical;}
+  input:focus, textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .field-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .field-row .field{flex:1 1 200px;}
+
+  /* --- Écran de connexion --- */
+  #loginScreen{max-width:360px; margin:60px auto 0;}
+  .login-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.1);}
+  .login-card h2{font-size:16px; margin:0 0 4px;}
+  .login-card p{color:var(--muted); font-size:12.5px; margin:0 0 18px;}
+  .login-error{color:var(--danger); font-size:12.5px; margin:10px 0 0; display:none;}
+
+  /* --- Liste des personnes --- */
+  .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:20px;}
+  .toolbar input[type=text]{flex:1 1 220px;}
+  .select-all-label{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); font-weight:600; cursor:pointer; white-space:nowrap;}
+  .select-all-label input{width:15px; height:15px; cursor:pointer; accent-color:var(--accent);}
+  .person-card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    margin-bottom:10px; overflow:hidden;
+  }
+  .person-card summary{
+    list-style:none; cursor:pointer; padding:13px 20px 15px; display:block;
+  }
+  .ps-tete{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:8px;}
+  .ps-nom{flex:1; min-width:160px;}
+  /* Grille d'aperçu alignée sur le nom, décalée de la case à cocher. */
+  .ps-apercu{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));
+    gap:6px 16px; padding-left:36px;
+  }
+  .ps-champ{min-width:0;}
+  .ps-champ .k{
+    display:block; font-size:9.5px; font-weight:800; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--muted);
+  }
+  .ps-champ .v{
+    display:block; font-size:12px; color:var(--text); font-variant-numeric:tabular-nums;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .ps-champ .v.vide{color:var(--old-champagne);}
+  .person-card summary .select-wrap{display:flex; align-items:center;}
+  .person-card summary .select-wrap input{width:22px; height:22px; cursor:pointer; accent-color:#791649;}
+  .person-card summary::-webkit-details-marker{display:none;}
+  .person-card summary .name{font-weight:800; font-size:16px;}
+  .person-card summary .role{color:var(--muted); font-size:12.5px; margin-left:8px;}
+  .ps-tete .co-pill{margin-left:auto;}
+  .person-card summary .caret{color:var(--muted); transition:transform .2s ease; margin-left:4px;}
+  .person-card[open] summary .caret{transform:rotate(180deg);}
+  .person-body{padding:4px 16px 18px; border-top:1px solid var(--border);}
+  .section-label{
+    font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
+    margin:16px 0 8px;
+  }
+  .save-hint{font-size:11.5px; color:var(--muted); margin-top:2px;}
+  .save-hint.ok{color:var(--ok);}
+
+  
+
+  .rgpd-encart{
+    background:var(--accent-tint); border-radius:8px; padding:12px 14px;
+    font-size:12.5px; line-height:1.55; color:var(--text); margin:0 0 16px;
+  }
+  .rgpd-encart a{color:var(--accent-dark); font-weight:700;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:6px;"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><path d="M8 11V7.5a4 4 0 0 1 8 0V11" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="12" cy="15.5" r="1.3" fill="currentColor"></circle></svg>Infos sociales</h1>
+      <p class="subtitle">Identité, sécurité sociale, RIB — pour les déclarations d'embauche.</p>
+    </div>
+    <div class="co-actions">
+      <button type="button" class="co-btn ghost md" id="logoutBtn" style="display:none;">Se déconnecter</button>
+    </div>
+  </div>
+      <div class="rgpd-encart">
+        <strong>Données sensibles.</strong> Identité civile, numéro de sécurité
+        sociale et coordonnées bancaires ne doivent être consultés que pour
+        établir contrats et déclarations. Chaque consultation engage la
+        structure&nbsp;: voir <a href="mentions-legales.html" target="_blank" rel="noopener">les mentions légales</a>.
+      </div>
+
+
+  <div id="loginScreen">
+    <div class="login-card">
+      <h2>Connexion requise</h2>
+      <p>Connecte-toi avec ton compte administrateur·rice pour accéder aux infos sociales.</p>
+      <form id="loginForm">
+        <div class="field">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="loginPassword">Mot de passe</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn-primary" style="width:100%;">Se connecter</button>
+        <div class="login-error" id="loginError"></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="appScreen" style="display:none;">
+    <div class="lock-banner"><svg width="15" height="15" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:4px;"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><path d="M8 11V7.5a4 4 0 0 1 8 0V11" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="12" cy="15.5" r="1.3" fill="currentColor"></circle></svg>Connecté·e en tant que <span id="userEmailLabel" style="margin-left:4px;"></span> — ces données ne sont visibles que par les comptes autorisés.</div>
+
+    <div id="notAdminNotice" class="empty-hint" style="display:none;">
+      Ce compte est connecté mais n'a pas le rôle "admin" requis pour consulter les infos sociales.<br>
+      Demande à un·e administrateur·rice de passer <strong id="notAdminEmail"></strong> en rôle "admin" depuis le <a href="admin-dashboard.html">tableau de bord admin</a>.
+    </div>
+
+    <div id="listWrap">
+      <div class="toolbar">
+        <input type="text" id="searchInput" placeholder="Chercher un nom…">
+        <label class="select-all-label">
+          <input type="checkbox" id="selectAllCheckbox"> Tout sélectionner
+        </label>
+        <button type="button" class="btn-primary btn-sm" id="exportBtn" disabled>Exporter la sélection (0)</button>
+      </div>
+      <div id="peopleHolder"><div class="empty-hint">Chargement…</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+applyBrandLogo();
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+let musiciansCache = [];
+let techniciansCache = [];
+let infosCache = [];
+let currentUser = null;
+let selectedIds = new Set();
+
+
+function showLogin(){
+  document.getElementById('loginScreen').style.display = 'block';
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('logoutBtn').style.display = 'none';
+}
+
+async function showApp(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  document.getElementById('logoutBtn').style.display = 'inline-block';
+  document.getElementById('userEmailLabel').textContent = currentUser.email;
+
+  const admin = await CurieuxDB.isSuperAdmin();
+  if(!admin){
+    document.getElementById('notAdminNotice').style.display = 'block';
+    document.getElementById('notAdminEmail').textContent = currentUser.email;
+    document.getElementById('listWrap').style.display = 'none';
+    return;
+  }
+  document.getElementById('notAdminNotice').style.display = 'none';
+  document.getElementById('listWrap').style.display = 'block';
+  await initData();
+}
+
+async function initData(){
+  [musiciansCache, techniciansCache, infosCache] = await Promise.all([
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('infos_sociales'),
+  ]);
+  render();
+}
+
+function infosFor(personId){
+  return infosCache.find(i=> i.id === personId) || { id: personId, extra: {} };
+}
+
+const EXTRA_FIELD_DEFS = [
+  ['genre', 'Genre', 'text'],
+  ['genreDetail', 'Genre — précision', 'text'],
+  ['prenomCivil', "Prénom d'état civil", 'text'],
+  ['dateNaissance', 'Date de naissance', 'date'],
+  ['lieuNaissance', 'Ville de naissance', 'text'],
+  ['nationalite', 'Nationalité', 'text'],
+  ['numSecu', 'N° de sécurité sociale (NIR)', 'text'],
+  ['iban', 'IBAN', 'text'],
+  ['bic', 'BIC', 'text'],
+  ['titulaireCompte', 'Titulaire du compte', 'text'],
+  ['numCongesSpectacles', 'N° Congés Spectacles', 'text'],
+  ['numAudiens', 'N° Audiens', 'text'],
+  ['contactUrgenceNom', "Contact d'urgence — nom", 'text'],
+  ['contactUrgenceTel', "Contact d'urgence — téléphone", 'text'],
+  ['permisConduire', 'Permis de conduire', 'text'],
+  ['permisConduireType', 'Type de permis', 'text'],
+  ['tailleVetement', 'Taille de vêtement', 'text'],
+];
+
+function isFilled(info){
+  if(!info) return false;
+  const base = EXTRA_FIELD_DEFS.some(([key])=> (info[key] || '').toString().trim());
+  const extra = Object.values(info.extra || {}).some(v=> (v || '').toString().trim());
+  return base || extra;
+}
+
+// Masque une valeur sensible : on garde de quoi la reconnaître, pas de quoi la
+// recopier. Une valeur absente s'affiche « (vide) » plutôt que rien, pour qu'un
+// trou dans un dossier se voie.
+function apercuMasque(valeur, garde){
+  const v = (valeur || '').trim();
+  if(!v) return '(vide)';
+  if(v.length <= garde) return v;
+  return v.slice(0, garde) + ' ' + '•'.repeat(Math.min(6, Math.max(3, v.length - garde)));
+}
+
+function renderPersonCard(p, personType){
+  const info = infosFor(p.id);
+  const filled = isFilled(info);
+  const roleLabel = personType === 'musicien'
+    ? escapeHtml(p.instrument || 'Musicien·ne')
+    : escapeHtml(p.poste || 'Technicien·ne');
+
+  const naissance = info.dateNaissance
+    ? new Date(info.dateNaissance + 'T00:00:00').toLocaleDateString('fr-FR')
+    : '';
+  const apercu = [
+    ['Identité civile', [naissance ? 'née le ' + naissance : '', info.lieuNaissance].filter(Boolean).join(' · ') || '(vide)'],
+    ['N° sécurité sociale', apercuMasque(info.numSecu, 5)],
+    ['IBAN', apercuMasque(info.iban, 9)],
+    ['Congés spectacles', apercuMasque(info.numCongesSpectacles, 4)],
+    ['Adresse', apercuMasque(info.adresse, 14)],
+    ['Audiens (retraite)', apercuMasque(info.numAudiens, 4)],
+    ["Contact d'urgence", info.contactUrgenceNom || info.contactUrgenceTel ? apercuMasque(info.contactUrgenceTel || info.contactUrgenceNom, 3) : '(vide)'],
+    ['Infos pratiques', info.tailleVetement ? 'taille ' + info.tailleVetement : '(vide)'],
+  ];
+
+  return `
+    <details class="person-card" data-person-id="${escapeAttr(p.id)}" data-person-type="${personType}">
+      <summary>
+        <span class="ps-tete">
+          <span class="select-wrap" onclick="event.stopPropagation()">
+            <input type="checkbox" class="person-select" data-person="${escapeAttr(p.id)}" ${selectedIds.has(p.id) ? 'checked' : ''} title="Inclure dans l'export">
+          </span>
+          <span class="ps-nom">
+            <span class="name">${escapeHtml(fullName(p))}</span>
+            <span class="role">${roleLabel}</span>
+          </span>
+          <span class="co-pill ${filled ? 'ok' : 'att'}">${filled ? 'dossier complet' : 'dossier incomplet'}</span>
+          <span class="caret">▾</span>
+        </span>
+        <span class="ps-apercu">${apercu.map(([k, v])=>
+          `<span class="ps-champ"><span class="k">${escapeHtml(k)}</span><span class="v${v === '(vide)' ? ' vide' : ''}">${escapeHtml(v)}</span></span>`
+        ).join('')}</span>
+      </summary>
+      <div class="person-body">
+        <div class="section-label">Identité civile</div>
+        <p style="font-size:12px; color:var(--muted); margin:-4px 0 10px;">Prénom d'usage affiché partout ailleurs : <strong>${escapeHtml(p.prenom || '')}</strong>. Prénom d'état civil ci-dessous seulement s'il diffère.</p>
+        <div class="field">
+          <label>Prénom d'état civil</label>
+          <input type="text" data-info-field="prenomCivil" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.prenomCivil || '')}" placeholder="Laisse vide si identique au prénom d'usage">
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Date de naissance</label><input type="date" data-info-field="dateNaissance" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.dateNaissance || '')}" autocomplete="bday"></div>
+          <div class="field"><label>Ville de naissance</label><input type="text" data-info-field="lieuNaissance" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.lieuNaissance || '')}" autocomplete="address-level2"></div>
+          <div class="field"><label>Nationalité</label><input type="text" data-info-field="nationalite" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.nationalite || '')}" autocomplete="country-name"></div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Genre</label>
+            <select data-info-field="genre" data-person="${escapeAttr(p.id)}" data-genre-select>
+              <option value="">Non renseigné</option>
+              <option value="femme" ${info.genre==='femme'?'selected':''}>Femme</option>
+              <option value="homme" ${info.genre==='homme'?'selected':''}>Homme</option>
+              <option value="non-binaire" ${info.genre==='non-binaire'?'selected':''}>Non-binaire</option>
+              <option value="autre" ${info.genre==='autre'?'selected':''}>Autre</option>
+              <option value="npr" ${info.genre==='npr'?'selected':''}>Préfère ne pas préciser</option>
+            </select>
+          </div>
+          <div class="field" data-genre-detail-field style="${info.genre==='autre' ? '' : 'display:none;'}">
+            <label>Préciser</label>
+            <input type="text" data-info-field="genreDetail" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.genreDetail || '')}">
+          </div>
+        </div>
+        <div class="field">
+          <label>Adresse postale</label>
+          <textarea data-info-field="adresse" data-person="${escapeAttr(p.id)}">${escapeHtml(info.adresse || '')}</textarea>
+        </div>
+
+        <div class="section-label">Sécurité sociale</div>
+        <div class="field">
+          <label>N° de sécurité sociale (NIR)</label>
+          <input type="text" data-info-field="numSecu" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.numSecu || '')}" inputmode="numeric" pattern="[0-9 ]{13,21}" title="13 ou 15 chiffres, espaces autorisés" placeholder=" ">
+        </div>
+
+        <div class="section-label">Coordonnées bancaires</div>
+        <div class="field-row">
+          <div class="field"><label>IBAN</label><input type="text" data-info-field="iban" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.iban || '')}" pattern="[A-Za-z]{2}[0-9]{2}[A-Za-z0-9 ]{10,34}" title="Commence par 2 lettres de pays, ex : FR76 3000 …" placeholder=" "></div>
+          <div class="field"><label>BIC</label><input type="text" data-info-field="bic" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.bic || '')}" pattern="[A-Za-z0-9]{8}|[A-Za-z0-9]{11}" title="8 ou 11 caractères" placeholder=" "></div>
+        </div>
+        <div class="field">
+          <label>Titulaire du compte</label>
+          <input type="text" data-info-field="titulaireCompte" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.titulaireCompte || '')}" autocomplete="name">
+        </div>
+
+        <div class="section-label">Statut intermittent</div>
+        <div class="field-row">
+          <div class="field"><label>N° Congés Spectacles</label><input type="text" data-info-field="numCongesSpectacles" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.numCongesSpectacles || '')}" inputmode="numeric"></div>
+          <div class="field"><label>N° Audiens</label><input type="text" data-info-field="numAudiens" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.numAudiens || '')}" inputmode="numeric"></div>
+        </div>
+
+        <div class="section-label">Contact d'urgence</div>
+        <div class="field-row">
+          <div class="field"><label>Nom</label><input type="text" data-info-field="contactUrgenceNom" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.contactUrgenceNom || '')}"></div>
+          <div class="field"><label>Téléphone</label><input type="text" data-info-field="contactUrgenceTel" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.contactUrgenceTel || '')}" inputmode="tel"></div>
+        </div>
+
+        <div class="section-label">Autres infos pratiques (facultatif)</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Permis de conduire</label>
+            <select data-info-field="permisConduire" data-person="${escapeAttr(p.id)}" data-permis-select>
+              <option value="">Non renseigné</option>
+              <option value="oui" ${info.permisConduire==='oui'?'selected':''}>Oui</option>
+              <option value="non" ${info.permisConduire==='non'?'selected':''}>Non</option>
+            </select>
+          </div>
+          <div class="field" data-permis-type-field style="${info.permisConduire==='oui' ? '' : 'display:none;'}">
+            <label>Type de permis</label>
+            <select data-info-field="permisConduireType" data-person="${escapeAttr(p.id)}" data-permis-type-select>
+              <option value="B" ${info.permisConduireType!=='autre'?'selected':''}>Permis B</option>
+              <option value="autre" ${info.permisConduireType==='autre'?'selected':''}>Autre</option>
+            </select>
+          </div>
+          <div class="field" data-permis-type-detail-field style="${info.permisConduire==='oui' && info.permisConduireType==='autre' ? '' : 'display:none;'}">
+            <label>Préciser</label>
+            <input type="text" data-info-field="permisConduireTypeDetail" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.permisConduireTypeDetail || '')}">
+          </div>
+          <div class="field"><label>Taille de vêtement</label><input type="text" data-info-field="tailleVetement" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.tailleVetement || '')}"></div>
+        </div>
+
+        <div class="save-hint" data-save-hint data-person="${escapeAttr(p.id)}"></div>
+      </div>
+    </details>
+  `;
+}
+
+function render(){
+  const query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const all = [
+    ...musiciansCache.map(m=> ({ p: m, type: 'musicien' })),
+    ...techniciansCache.map(t=> ({ p: t, type: 'technicien' })),
+  ].sort((a, b)=> fullName(a.p).localeCompare(fullName(b.p)));
+
+  const filtered = query ? all.filter(({p})=> fullName(p).toLowerCase().includes(query)) : all;
+  const holder = document.getElementById('peopleHolder');
+
+  if(filtered.length === 0){
+    holder.innerHTML = `<div class="empty-hint">${all.length === 0 ? "Ajoute d'abord des musicien·nes ou technicien·nes dans les annuaires." : 'Aucun résultat.'}</div>`;
+    return;
+  }
+
+  holder.innerHTML = filtered.map(({p, type})=> renderPersonCard(p, type)).join('');
+  bindPersonEvents();
+  updateExportToolbar();
+}
+
+function updateExportToolbar(){
+  const btn = document.getElementById('exportBtn');
+  btn.textContent = `Exporter la sélection (${selectedIds.size})`;
+  btn.disabled = selectedIds.size === 0;
+  const visibleIds = [...document.querySelectorAll('.person-select')].map(cb=> cb.dataset.person);
+  const allCb = document.getElementById('selectAllCheckbox');
+  allCb.checked = visibleIds.length > 0 && visibleIds.every(id=> selectedIds.has(id));
+  allCb.indeterminate = !allCb.checked && visibleIds.some(id=> selectedIds.has(id));
+}
+
+function genreLabel(g){
+  return { femme:'Femme', homme:'Homme', 'non-binaire':'Non-binaire', autre:'Autre', npr:'Préfère ne pas préciser' }[g] || '';
+}
+
+const EXPORT_COLUMNS = [
+  ['Nom complet', (p)=> fullName(p)],
+  ['Rôle', (p, info, type)=> type === 'musicien' ? (p.instrument || 'Musicien·ne') : (p.poste || 'Technicien·ne')],
+  ['Téléphone', (p)=> p.telephone || ''],
+  ['Email', (p)=> p.email || ''],
+  ['Genre', (p, info)=> genreLabel(info.genre)],
+  ['Genre — précision', (p, info)=> info.genreDetail || ''],
+  ["Prénom d'état civil", (p, info)=> info.prenomCivil || ''],
+  ['Date de naissance', (p, info)=> info.dateNaissance || ''],
+  ['Ville de naissance', (p, info)=> info.lieuNaissance || ''],
+  ['Nationalité', (p, info)=> info.nationalite || ''],
+  ['Adresse postale', (p, info)=> info.adresse || ''],
+  ['N° de sécurité sociale (NIR)', (p, info)=> info.numSecu || ''],
+  ['IBAN', (p, info)=> info.iban || ''],
+  ['BIC', (p, info)=> info.bic || ''],
+  ['Titulaire du compte', (p, info)=> info.titulaireCompte || ''],
+  ['N° Congés Spectacles', (p, info)=> info.numCongesSpectacles || ''],
+  ['N° Audiens', (p, info)=> info.numAudiens || ''],
+  ["Contact d'urgence — nom", (p, info)=> info.contactUrgenceNom || ''],
+  ["Contact d'urgence — téléphone", (p, info)=> info.contactUrgenceTel || ''],
+  ['Permis de conduire', (p, info)=> info.permisConduire === 'oui' ? 'Oui' : (info.permisConduire === 'non' ? 'Non' : '')],
+  ['Type de permis', (p, info)=> info.permisConduire === 'oui' ? (info.permisConduireType === 'autre' ? (info.permisConduireTypeDetail || 'Autre') : 'Permis B') : ''],
+  ['Taille de vêtement', (p, info)=> info.tailleVetement || ''],
+];
+
+function csvEscape(v){
+  const s = v == null ? '' : String(v);
+  return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportSelectedToCsv(){
+  const all = [
+    ...musiciansCache.map(m=> ({ p: m, type: 'musicien' })),
+    ...techniciansCache.map(t=> ({ p: t, type: 'technicien' })),
+  ];
+  const rows = all.filter(({p})=> selectedIds.has(p.id));
+  if(rows.length === 0) return;
+
+  const lines = [EXPORT_COLUMNS.map(([label])=> csvEscape(label)).join(';')];
+  rows.forEach(({p, type})=>{
+    const info = infosFor(p.id);
+    lines.push(EXPORT_COLUMNS.map(([, get])=> csvEscape(get(p, info, type))).join(';'));
+  });
+
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `infos-sociales-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+let saveTimers = {};
+function scheduleSave(personId, personType){
+  clearTimeout(saveTimers[personId]);
+  const hint = document.querySelector(`[data-save-hint][data-person="${CSS.escape(personId)}"]`);
+  if(hint){ hint.textContent = 'Enregistrement…'; hint.classList.remove('ok'); }
+  saveTimers[personId] = setTimeout(async ()=>{
+    const info = infosFor(personId);
+    info.personType = personType;
+    const { error } = await CurieuxDB.upsertOne('infos_sociales', info);
+    if(error){
+      if(hint){ hint.textContent = "Échec de l'enregistrement, réessaie."; hint.classList.remove('ok'); }
+      return;
+    }
+    if(!infosCache.some(i=> i.id === personId)) infosCache.push(info);
+    if(hint){ hint.textContent = 'Enregistré ✓'; hint.classList.add('ok'); }
+  }, 500);
+}
+
+function bindPersonEvents(){
+  document.querySelectorAll('.person-select').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const id = cb.dataset.person;
+      if(cb.checked) selectedIds.add(id); else selectedIds.delete(id);
+      updateExportToolbar();
+    });
+  });
+
+  document.querySelectorAll('[data-info-field]').forEach(el=>{
+    el.addEventListener('input', ()=>{
+      const personId = el.dataset.person;
+      const card = el.closest('[data-person-id]');
+      const info = infosFor(personId);
+      info[el.dataset.infoField] = el.value;
+      if(!infosCache.some(i=> i.id === personId)) infosCache.push(info);
+      scheduleSave(personId, card.dataset.personType);
+    });
+  });
+
+  // Affiche "Préciser" seulement si le genre choisi est "Autre".
+  document.querySelectorAll('[data-genre-select]').forEach(sel=>{
+    const card = sel.closest('[data-person-id]');
+    const detailField = card.querySelector('[data-genre-detail-field]');
+    sel.addEventListener('change', ()=>{
+      detailField.style.display = sel.value === 'autre' ? '' : 'none';
+    });
+  });
+
+  // Affiche "Type de permis" seulement si "Oui", et "Préciser" seulement si
+  // le type est "Autre" — sans re-render (perdrait le focus en cours de frappe).
+  document.querySelectorAll('[data-permis-select]').forEach(sel=>{
+    const card = sel.closest('[data-person-id]');
+    const typeField = card.querySelector('[data-permis-type-field]');
+    const typeSelect = card.querySelector('[data-permis-type-select]');
+    const typeDetailField = card.querySelector('[data-permis-type-detail-field]');
+    sel.addEventListener('change', ()=>{
+      typeField.style.display = sel.value === 'oui' ? '' : 'none';
+      typeDetailField.style.display = sel.value === 'oui' && typeSelect.value === 'autre' ? '' : 'none';
+    });
+    typeSelect.addEventListener('change', ()=>{
+      typeDetailField.style.display = sel.value === 'oui' && typeSelect.value === 'autre' ? '' : 'none';
+    });
+  });
+}
+
+document.getElementById('searchInput').addEventListener('input', render);
+
+document.getElementById('selectAllCheckbox').addEventListener('change', (e)=>{
+  const visibleIds = [...document.querySelectorAll('.person-select')].map(cb=> cb.dataset.person);
+  if(e.target.checked) visibleIds.forEach(id=> selectedIds.add(id));
+  else visibleIds.forEach(id=> selectedIds.delete(id));
+  render();
+});
+
+document.getElementById('exportBtn').addEventListener('click', exportSelectedToCsv);
+
+document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+  errorEl.style.display = 'none';
+  const { error } = await CurieuxDB.signIn(email, password);
+  if(error){
+    errorEl.textContent = translateAuthError(error.message);
+    errorEl.style.display = 'block';
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+  await CurieuxDB.signOut();
+});
+
+CurieuxDB.onAuthStateChange((event, session)=>{
+  if(session && session.user){ currentUser = session.user; showApp(); }
+  else { currentUser = null; showLogin(); }
+});
+
+(async ()=>{
+  const session = await CurieuxDB.getSession();
+  if(session && session.user){ currentUser = session.user; await showApp(); }
+  else { showLogin(); }
+})();
+</script>
+</body>
+</html>

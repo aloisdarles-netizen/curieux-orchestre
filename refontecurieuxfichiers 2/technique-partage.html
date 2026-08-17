@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Logistique de tournée</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<!-- Page volontairement PUBLIQUE : pas de compte requis, identification par le
+     jeton dans l'URL (acces_logistique.id), révocable depuis partage.html.
+     Trois gabarits selon acces_logistique.type — stage manager, technicien,
+     salle — rendus par la même page à partir de la même réponse serveur. -->
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:720px; margin:0 auto; font-variant-numeric:tabular-nums;}
+  .brand-logo-img{height:30px; width:auto; display:block; margin:0 0 18px;}
+  .state-box{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:26px 20px; text-align:center; color:var(--muted); font-size:14px;}
+
+  input[type=text], input[type=number]{ padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-size:13.5px; background:var(--card); color:var(--text); font-family:inherit; }
+  button{ cursor:pointer; border:none; border-radius:8px; font-size:12.5px; font-weight:700; padding:8px 13px; font-family:inherit; background:var(--accent-tint); color:var(--accent-dark); }
+
+  .entete{margin-bottom:22px;}
+  .entete .qui{color:var(--muted); font-size:13px; margin-top:2px;}
+
+  .fiche-date{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:16px; overflow:hidden;}
+  .fiche-date-head{padding:14px 16px; background:var(--bg); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;}
+  .fiche-date-head h2{margin:0; font-size:16px; font-weight:800;}
+  .fiche-date-head .quand{font-size:12px; color:var(--muted);}
+  .fiche-date-body{padding:14px 16px; display:flex; flex-direction:column; gap:12px;}
+
+  .fiche-grille{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:8px; overflow:hidden;}
+  .bloc{background:var(--card); padding:11px 13px 13px; display:flex; flex-direction:column; gap:6px;}
+  .bloc .titre{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700;}
+  .champ{display:flex; justify-content:space-between; gap:10px; font-size:13px; align-items:baseline;}
+  .champ .k{color:var(--muted);}
+  .champ .v{font-weight:700; text-align:right;}
+  .vide-champ{color:var(--old-champagne); font-size:12.5px;}
+
+  .vacation-pub{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:13px;}
+  .vacation-pub .h{font-weight:700; margin-bottom:6px;}
+  .vacation-pub .demande{color:var(--muted); font-size:12px; margin-bottom:8px;}
+  .reponse-form{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .reponse-form input[type=number]{width:70px;}
+  .reponse-form input[type=text]{flex:1; min-width:120px;}
+  .reponse-ok{font-size:12px; color:var(--ok); font-weight:700;}
+
+  .section-registre{margin-top:26px;}
+  .section-registre h2{font-size:15px; margin:0 0 10px;}
+  .registre-item{background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 13px; margin-bottom:8px; font-size:13px;}
+  .registre-item .nom{font-weight:700;}
+  .registre-item .sub{color:var(--muted); font-size:12px; margin-top:2px;}
+
+  .plan-zone{position:relative; display:inline-block; max-width:100%; border-radius:8px; overflow:hidden; border:1px solid var(--border); margin-top:8px;}
+  .plan-zone img{max-width:100%; display:block;}
+  .pin{position:absolute; transform:translate(-50%,-100%); touch-action:none; display:flex; flex-direction:column; align-items:center; gap:2px;}
+  .pin-tete{background:var(--accent-solid); color:#fff; font-size:13px; font-weight:800; padding:6px 12px; border-radius:20px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3);}
+  .pin-pointe{width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:9px solid var(--accent-solid);}
+  .pin.dragging{cursor:grabbing; opacity:.85;}
+  .pin.note .pin-tete{background:#F5C518; color:#2b2200; max-width:220px; white-space:normal; text-align:center; font-weight:700;}
+  .pin.note .pin-pointe{border-top-color:#F5C518;}
+  .plan-outils{display:flex; gap:8px; margin:8px 0;}
+  .plan-statut{font-size:12px; color:var(--muted); margin-top:6px;}
+  .equipe-chip{display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px 3px 6px; border-radius:20px; background:var(--bg); border:1px solid var(--border); margin:2px 4px 2px 0;}
+  .equipe-chip .pastille{width:9px; height:9px; border-radius:50%; flex:0 0 auto;}
+  .horaires-liste{display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;}
+  .horaire-chip{font-size:12px; background:var(--bg); border:1px solid var(--border); border-radius:20px; padding:4px 10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="brand-logo-img" alt="Curieux orchestre">
+  <div id="content"><div class="state-box">Chargement…</div></div>
+</div>
+<script>
+let RECAP = null, TOKEN = '';
+
+// ============================================================================
+// Langue — les salles peuvent lire la page en français, anglais, allemand ou
+// néerlandais. Choix mémorisé par jeton (chaque lien de salle garde le sien).
+// ============================================================================
+const TR = {
+  fr: {
+    rigg_sol:'au sol', rigg_grill:'au grill',
+    chargement:'Chargement…', lien_incomplet:"Lien incomplet — il manque le jeton.",
+    lien_inactif:"Ce lien n'est plus actif, ou n'existe pas. Demande un nouveau lien à la production.",
+    aucune_date:"Aucune date pour l'instant.",
+    bloc_acces:'Accès', bloc_faits_techniques:'Faits techniques',
+    bloc_bureau_elec:"Bureau d'étude électrique", bloc_bureau_accroche:"Bureau d'étude accroche",
+    bloc_contacts_salle:'Contacts salle', bloc_documents:'Documents', bloc_horaires:'Horaires de la journée (heure locale)',
+    bloc_roadies:'Roadies — par vacation', bloc_chariots:'Chariots élévateurs — par vacation', bloc_rigg:'Rigg — par vacation',
+    bloc_plan_salle:'Plan de salle',
+    champ_semis_simultanes:'Semis en simultané', champ_dechargement:'Déchargement', champ_emplacements:'Emplacements',
+    champ_hauteur_grill:'Hauteur de grill', champ_ouverture_scene:'Ouverture de scène', champ_puissance:'Puissance',
+    champ_sur_place:'Sur place', champ_horaire:'Horaire', champ_contact:'Contact', champ_plan_scene:'Plan de scène',
+    oui:'oui', non:'non', ouvrir:'Ouvrir ↗',
+    demande_label:'Demandé', confirmee:'confirmée',
+    chariots_demandes:'Chariots demandés', caristes_demandes:'Caristes demandés',
+    confirmer:'Confirmer', justification:'Justification si différent', envoyer:'Envoyer', envoye_ok:'✓ envoyé',
+    fiche_technique_title:'Fiche technique',
+    niveau_scene:'sur scène', niveau_sol:'au sol', niveau_les_deux:'les deux', niveau_inconnu:'inconnu',
+    emplacement_scene:'sur scène', emplacement_cote_scene:'côté de scène', emplacement_fosse:'dans la fosse', emplacement_autre:'autre',
+    plan_hint:"Choisis un mode puis touche le plan pour poser une pastille ; glisse-la pour la déplacer, double-touche pour la retirer. Enregistré automatiquement.",
+    dates_suffixe: n => n>1 ? 'dates' : 'date',
+  },
+  en: {
+    rigg_sol:'on the ground', rigg_grill:'on the grid',
+    chargement:'Loading…', lien_incomplet:"Incomplete link — the token is missing.",
+    lien_inactif:"This link is no longer active, or doesn't exist. Ask production for a new link.",
+    aucune_date:'No date for now.',
+    bloc_acces:'Access', bloc_faits_techniques:'Technical facts',
+    bloc_bureau_elec:'Electrical engineering office', bloc_bureau_accroche:'Rigging engineering office',
+    bloc_contacts_salle:'Venue contacts', bloc_documents:'Documents', bloc_horaires:'Day schedule (local time)',
+    bloc_roadies:'Roadies — by shift', bloc_chariots:'Forklifts — by shift', bloc_rigg:'Rigging — by shift',
+    bloc_plan_salle:'Venue floor plan',
+    champ_semis_simultanes:'Trucks at once', champ_dechargement:'Unloading', champ_emplacements:'Unloading spots',
+    champ_hauteur_grill:'Grid height', champ_ouverture_scene:'Stage opening', champ_puissance:'Power available',
+    champ_sur_place:'On site', champ_horaire:'Time', champ_contact:'Contact', champ_plan_scene:'Stage plan',
+    oui:'yes', non:'no', ouvrir:'Open ↗',
+    demande_label:'Requested', confirmee:'confirmed',
+    chariots_demandes:'Forklifts requested', caristes_demandes:'Forklift operators requested',
+    confirmer:'Confirm', justification:'Note if different', envoyer:'Send', envoye_ok:'✓ sent',
+    fiche_technique_title:'Technical rider',
+    niveau_scene:'on stage', niveau_sol:'on the ground', niveau_les_deux:'both', niveau_inconnu:'unknown',
+    emplacement_scene:'on stage', emplacement_cote_scene:'stage side', emplacement_fosse:'in the pit', emplacement_autre:'other',
+    plan_hint:'Pick a mode then tap the plan to drop a pin; drag a pin to move it, double-tap to remove it. Saved automatically.',
+    dates_suffixe: n => n>1 ? 'dates' : 'date',
+  },
+  de: {
+    rigg_sol:'am Boden', rigg_grill:'an der Traverse',
+    chargement:'Wird geladen…', lien_incomplet:'Unvollständiger Link — das Token fehlt.',
+    lien_inactif:'Dieser Link ist nicht mehr aktiv oder existiert nicht. Bitte einen neuen Link bei der Produktion anfragen.',
+    aucune_date:'Derzeit kein Termin.',
+    bloc_acces:'Zugang', bloc_faits_techniques:'Technische Daten',
+    bloc_bureau_elec:'Elektro-Planungsbüro', bloc_bureau_accroche:'Statik-/Rigging-Planungsbüro',
+    bloc_contacts_salle:'Kontakte vor Ort', bloc_documents:'Dokumente', bloc_horaires:'Tagesablauf (Ortszeit)',
+    bloc_roadies:'Roadies — nach Schicht', bloc_chariots:'Gabelstapler — nach Schicht', bloc_rigg:'Rigging — nach Schicht',
+    bloc_plan_salle:'Saalplan',
+    champ_semis_simultanes:'Sattelzüge gleichzeitig', champ_dechargement:'Entladung', champ_emplacements:'Entladestellen',
+    champ_hauteur_grill:'Traversenhöhe', champ_ouverture_scene:'Bühnenöffnung', champ_puissance:'Verfügbare Leistung',
+    champ_sur_place:'Vor Ort', champ_horaire:'Uhrzeit', champ_contact:'Kontakt', champ_plan_scene:'Bühnenplan',
+    oui:'ja', non:'nein', ouvrir:'Öffnen ↗',
+    demande_label:'Angefragt', confirmee:'bestätigt',
+    chariots_demandes:'Gabelstapler angefragt', caristes_demandes:'Staplerfahrer angefragt',
+    confirmer:'Bestätigen', justification:'Anmerkung falls abweichend', envoyer:'Senden', envoye_ok:'✓ gesendet',
+    fiche_technique_title:'Technischer Rider',
+    niveau_scene:'auf der Bühne', niveau_sol:'am Boden', niveau_les_deux:'beides', niveau_inconnu:'unbekannt',
+    emplacement_scene:'auf der Bühne', emplacement_cote_scene:'seitlich der Bühne', emplacement_fosse:'im Orchestergraben', emplacement_autre:'andere',
+    plan_hint:'Modus wählen und den Plan antippen, um eine Markierung zu setzen; ziehen zum Verschieben, doppelt antippen zum Entfernen. Wird automatisch gespeichert.',
+    dates_suffixe: n => n>1 ? 'Termine' : 'Termin',
+  },
+  es: {
+    rigg_sol:'en el suelo', rigg_grill:'en la parrilla',
+    chargement:'Cargando…', lien_incomplet:'Enlace incompleto — falta el token.',
+    lien_inactif:'Este enlace ya no está activo o no existe. Solicite un nuevo enlace a producción.',
+    aucune_date:'Ninguna fecha por ahora.',
+    bloc_acces:'Acceso', bloc_faits_techniques:'Datos técnicos',
+    bloc_bureau_elec:'Oficina de estudio eléctrico', bloc_bureau_accroche:'Oficina de estudio de suspensión',
+    bloc_contacts_salle:'Contactos de la sala', bloc_documents:'Documentos', bloc_horaires:'Horario del día (hora local)',
+    bloc_roadies:'Roadies — por turno', bloc_chariots:'Carretillas elevadoras — por turno', bloc_rigg:'Rigging — por turno',
+    bloc_plan_salle:'Plano de la sala',
+    champ_semis_simultanes:'Tráileres simultáneos', champ_dechargement:'Descarga', champ_emplacements:'Puntos de descarga',
+    champ_hauteur_grill:'Altura de parrilla', champ_ouverture_scene:'Boca de escena', champ_puissance:'Potencia disponible',
+    champ_sur_place:'En el lugar', champ_horaire:'Hora', champ_contact:'Contacto', champ_plan_scene:'Plano de escena',
+    oui:'sí', non:'no', ouvrir:'Abrir ↗',
+    demande_label:'Solicitado', confirmee:'confirmado',
+    chariots_demandes:'Carretillas solicitadas', caristes_demandes:'Operarios solicitados',
+    confirmer:'Confirmar', justification:'Justificación si difiere', envoyer:'Enviar', envoye_ok:'✓ enviado',
+    fiche_technique_title:'Ficha técnica',
+    niveau_scene:'en el escenario', niveau_sol:'en el suelo', niveau_les_deux:'ambos', niveau_inconnu:'desconocido',
+    emplacement_scene:'en el escenario', emplacement_cote_scene:'al lado del escenario', emplacement_fosse:'en el foso', emplacement_autre:'otro',
+    plan_hint:'Elija un modo y toque el plano para colocar un marcador; arrástrelo para moverlo, doble toque para quitarlo. Se guarda automáticamente.',
+    dates_suffixe: n => n>1 ? 'fechas' : 'fecha',
+  },
+  nl: {
+    rigg_sol:'op de grond', rigg_grill:'aan de rijg',
+    chargement:'Laden…', lien_incomplet:'Onvolledige link — het token ontbreekt.',
+    lien_inactif:'Deze link is niet meer actief of bestaat niet. Vraag de productie om een nieuwe link.',
+    aucune_date:'Voorlopig geen datum.',
+    bloc_acces:'Toegang', bloc_faits_techniques:'Technische gegevens',
+    bloc_bureau_elec:'Elektrisch ontwerpbureau', bloc_bureau_accroche:'Rigging-ontwerpbureau',
+    bloc_contacts_salle:'Contacten locatie', bloc_documents:'Documenten', bloc_horaires:'Dagschema (lokale tijd)',
+    bloc_roadies:'Roadies — per shift', bloc_chariots:'Vorkheftrucks — per shift', bloc_rigg:'Rigging — per shift',
+    bloc_plan_salle:'Plattegrond',
+    champ_semis_simultanes:'Trucks tegelijk', champ_dechargement:'Lossen', champ_emplacements:'Losplekken',
+    champ_hauteur_grill:'Rijghoogte', champ_ouverture_scene:'Podiumopening', champ_puissance:'Beschikbaar vermogen',
+    champ_sur_place:'Ter plaatse', champ_horaire:'Tijdstip', champ_contact:'Contact', champ_plan_scene:'Podiumplan',
+    oui:'ja', non:'nee', ouvrir:'Openen ↗',
+    demande_label:'Aangevraagd', confirmee:'bevestigd',
+    chariots_demandes:'Vorkheftrucks aangevraagd', caristes_demandes:'Heftruckchauffeurs aangevraagd',
+    confirmer:'Bevestigen', justification:'Toelichting indien anders', envoyer:'Versturen', envoye_ok:'✓ verstuurd',
+    fiche_technique_title:'Technische rider',
+    niveau_scene:'op het podium', niveau_sol:'op de grond', niveau_les_deux:'beide', niveau_inconnu:'onbekend',
+    emplacement_scene:'op het podium', emplacement_cote_scene:'naast het podium', emplacement_fosse:'in de bak', emplacement_autre:'anders',
+    plan_hint:'Kies een modus en tik op de plattegrond om een pin te plaatsen; sleep een pin om te verplaatsen, dubbeltik om te verwijderen. Wordt automatisch opgeslagen.',
+    dates_suffixe: n => n>1 ? "data's" : 'datum',
+  },
+};
+let LANG = 'fr';
+function t(key){ return (TR[LANG] && TR[LANG][key]) || TR.fr[key] || key; }
+const NIVEAU_LABEL = { scene:'niveau_scene', sol:'niveau_sol', les_deux:'niveau_les_deux', inconnu:'niveau_inconnu' };
+const EMPLACEMENT_LABEL = { scene:'emplacement_scene', cote_scene:'emplacement_cote_scene', fosse:'emplacement_fosse', autre:'emplacement_autre' };
+
+function champ(label, valeur){
+  const v = (valeur === null || valeur === undefined || valeur === '') ? `<span class="vide-champ">—</span>` : escapeHtml(String(valeur));
+  return `<div class="champ"><span class="k">${escapeHtml(label)}</span><span class="v">${v}</span></div>`;
+}
+function jourLong(iso){
+  const locales = { fr:'fr-FR', en:'en-GB', de:'de-DE', nl:'nl-NL' };
+  return iso ? new Date(iso+'T00:00:00').toLocaleDateString(locales[LANG]||'fr-FR', { weekday:'long', day:'numeric', month:'long' }) : '';
+}
+
+// ============================================================================
+// Blocs "roadies/chariots/rigg" — lecture pour technicien/stage manager,
+// réponse possible pour une salle (simple confirmation + justification).
+// ============================================================================
+function chipsEquipes(v){
+  const registre = (RECAP.tournee && RECAP.tournee.equipesRoad) || [];
+  const eq = (v.equipes||[]).filter(e=> e.nombre != null && e.nombre > 0);
+  if(!eq.length) return '';
+  return `<div style="margin-top:6px;">${eq.map(e=>{
+    const def = registre.find(r=>r.id===e.equipeId);
+    return `<span class="equipe-chip"><span class="pastille" style="background:${escapeHtml(def&&def.couleur||'#888')};"></span>${escapeHtml(def&&def.label||'Équipe')} · ${e.nombre}</span>`;
+  }).join('')}</div>`;
+}
+function reponseForm(m, type, i, v){
+  return `
+    <div class="reponse-form" data-date="${m.date_id}" data-type="${type}" data-index="${i}">
+      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px;"><input type="checkbox" data-champ="confirme" ${v.confirme?'checked':''}> ${t('confirmer')}</label>
+      <input type="text" placeholder="${escapeAttr(t('justification'))}" data-champ="notes">
+      <button type="button" data-repondre>${t('envoyer')}</button>
+      <span class="reponse-ok" data-ok style="display:none;">${t('envoye_ok')}</span>
+    </div>`;
+}
+function blocVacationsRoadies(m, editable){
+  const vacs = m.roadies_vacations || [];
+  if(vacs.length === 0) return '';
+  return `<div class="bloc" style="grid-column:1/-1;"><span class="titre">${t('bloc_roadies')}</span>
+    ${vacs.map((v,i)=>`
+      <div class="vacation-pub">
+        <div class="h">${escapeHtml(v.horaireDebut||'?')} – ${escapeHtml(v.horaireFin||'?')} ${v.confirme ? '· <span style="color:var(--ok);">' + t('confirmee') + '</span>' : ''}</div>
+        <div class="demande">${t('demande_label')} : <strong>${v.nombreDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>
+        ${chipsEquipes(v)}
+        ${editable ? reponseForm(m, 'roadies', i, v) : ''}
+      </div>
+    `).join('')}
+  </div>`;
+}
+function blocVacationsChariots(m, editable){
+  const vacs = m.chariots_vacations || [];
+  if(vacs.length === 0) return '';
+  return `<div class="bloc" style="grid-column:1/-1;"><span class="titre">${t('bloc_chariots')}</span>
+    ${vacs.map((v,i)=>`
+      <div class="vacation-pub">
+        <div class="h">${escapeHtml(v.horaireDebut||'?')} – ${escapeHtml(v.horaireFin||'?')} ${v.confirme ? '· <span style="color:var(--ok);">' + t('confirmee') + '</span>' : ''}</div>
+        <div class="demande">${t('chariots_demandes')} : <strong>${v.nombreChariotsDemande ?? '—'}</strong> — ${t('caristes_demandes')} : <strong>${v.nombreCaristesDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>
+        ${editable ? reponseForm(m, 'chariots', i, v) : ''}
+      </div>
+    `).join('')}
+  </div>`;
+}
+function blocVacationsRigg(m, editable){
+  const vacs = m.rigg_vacations || [];
+  if(vacs.length === 0) return '';
+  return `<div class="bloc" style="grid-column:1/-1;"><span class="titre">${t('bloc_rigg')}</span>
+    ${vacs.map((v,i)=>`
+      <div class="vacation-pub">
+        <div class="h">${escapeHtml(v.horaireDebut||'?')} – ${escapeHtml(v.horaireFin||'?')} ${v.confirme ? '· <span style="color:var(--ok);">' + t('confirmee') + '</span>' : ''}</div>
+        <div class="demande">${t('demande_label')} : <strong>${v.nombreDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>
+        ${(v.nombreSol || v.nombreGrill) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+          ${v.nombreSol ? `<span class="equipe-chip">${escapeHtml(String(v.nombreSol))} × ${t('rigg_sol')}</span>` : ''}
+          ${v.nombreGrill ? `<span class="equipe-chip">${escapeHtml(String(v.nombreGrill))} × ${t('rigg_grill')}</span>` : ''}
+        </div>` : ''}
+        ${editable ? reponseForm(m, 'rigg', i, v) : ''}
+      </div>
+    `).join('')}
+  </div>`;
+}
+document.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('[data-repondre]');
+  if(!btn) return;
+  const form = btn.closest('.reponse-form');
+  const reponse = {};
+  form.querySelectorAll('[data-champ]').forEach(inp=>{
+    if(inp.type === 'checkbox'){ reponse[inp.dataset.champ] = inp.checked; return; }
+    if(inp.value === '') return;
+    reponse[inp.dataset.champ] = inp.type === 'number' ? Number(inp.value) : inp.value;
+  });
+  btn.disabled = true;
+  const res = await CurieuxDB.repondreVacationSalle(TOKEN, form.dataset.date, form.dataset.type, Number(form.dataset.index), reponse);
+  btn.disabled = false;
+  if(res.error || !res.ok){ alert("Échec de l'envoi — réessaie."); return; }
+  form.querySelector('[data-ok]').style.display = 'inline';
+});
+
+// ============================================================================
+// Gabarit STAGE MANAGER — tout, avec plan de salle positionnable.
+// ============================================================================
+function blocPlanSalle(m, editable){
+  if(!m.plan_image_path) return '';
+  const url = supabaseClient.storage.from('fiches-techniques').getPublicUrl(m.plan_image_path).data.publicUrl;
+  const idZone = 'plan-' + m.date_id;
+  setTimeout(()=> initPlanZone(idZone, url, m, editable), 0);
+  return `<div><span class="titre" style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700;">${t('bloc_plan_salle')}</span>
+    ${editable ? `<div class="plan-outils" id="${idZone}Outils">
+      <button type="button" data-mode="semi" data-plan="${idZone}">+ Semi</button>
+      <button type="button" data-mode="note" data-plan="${idZone}">+ Note</button>
+    </div>` : ''}
+    <div id="${idZone}"></div>
+    ${editable ? `<p class="plan-statut">${t('plan_hint')}</p>` : ''}
+  </div>`;
+}
+const modesPlanParZone = {};
+function initPlanZone(containerId, imgUrl, m, editable){
+  const wrap = document.getElementById(containerId);
+  if(!wrap) return;
+  modesPlanParZone[containerId] = modesPlanParZone[containerId] || 'semi';
+  wrap.innerHTML = `<div class="plan-zone" id="${containerId}Zone"><img src="${imgUrl}" alt="Plan de salle" draggable="false"></div>`;
+  const zone = document.getElementById(containerId + 'Zone');
+  const img = zone.querySelector('img');
+  let positions = m.semis_positions || [];
+
+  async function sauvegarder(){
+    await CurieuxDB.enregistrerPositionsSemis(TOKEN, m.date_id, positions);
+  }
+  function placerPin(pos){
+    const pin = document.createElement('div');
+    pin.className = 'pin' + (pos.type === 'note' ? ' note' : '');
+    pin.style.left = pos.xPct + '%'; pin.style.top = pos.yPct + '%';
+    pin.innerHTML = `<span class="pin-tete">${escapeHtml(pos.label || (pos.type==='note'?'Note':'Semi'))}</span><span class="pin-pointe"></span>`;
+    if(editable){
+      let dragging = false;
+      pin.addEventListener('pointerdown', (e)=>{ dragging = true; pin.classList.add('dragging'); pin.setPointerCapture(e.pointerId); });
+      pin.addEventListener('pointermove', (e)=>{
+        if(!dragging) return;
+        const rect = zone.getBoundingClientRect();
+        pos.xPct = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+        pos.yPct = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+        pin.style.left = pos.xPct + '%'; pin.style.top = pos.yPct + '%';
+      });
+      pin.addEventListener('pointerup', ()=>{ dragging = false; pin.classList.remove('dragging'); sauvegarder(); });
+      pin.addEventListener('dblclick', (e)=>{ e.stopPropagation(); positions = positions.filter(p=>p!==pos); pin.remove(); sauvegarder(); });
+    }
+    zone.appendChild(pin);
+  }
+  positions.forEach(placerPin);
+  if(editable){
+    img.style.cursor = 'crosshair';
+    document.querySelectorAll(`[data-plan="${containerId}"]`).forEach(btn=> btn.addEventListener('click', ()=>{
+      modesPlanParZone[containerId] = btn.dataset.mode;
+    }));
+    img.addEventListener('click', (e)=>{
+      const rect = zone.getBoundingClientRect();
+      const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+      const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+      let pos;
+      if(modesPlanParZone[containerId] === 'note'){
+        const texte = prompt('Note à afficher sur le plan :', '');
+        if(!texte) return;
+        pos = { type:'note', label: texte, xPct, yPct };
+      } else {
+        const label = prompt('Nom de la semi :', 'Semi') || 'Semi';
+        pos = { type:'semi', vehiculeId:'', label, xPct, yPct };
+      }
+      positions.push(pos);
+      placerPin(pos);
+      sauvegarder();
+    });
+  }
+}
+
+// ============================================================================
+// Horaires de la journée — lecture pour tous, modifiable par le stage manager.
+// ============================================================================
+function blocHorairesJournee(m, editable){
+  const liste = (m.horaires_journee||[]).slice().sort((a,b)=>(a.heure||'').localeCompare(b.heure||''));
+  if(!editable){
+    if(!liste.length) return '';
+    return `<div class="bloc" style="grid-column:1/-1;"><span class="titre">${t('bloc_horaires')}</span>
+      <div class="horaires-liste">${liste.map(h=>`<span class="horaire-chip">${escapeHtml(h.heure||'?')} — ${escapeHtml(h.label||'')}</span>`).join('')}</div>
+    </div>`;
+  }
+  const idBox = 'horaires-' + m.date_id;
+  setTimeout(()=> initHorairesEdition(idBox, m), 0);
+  return `<div class="bloc" style="grid-column:1/-1;"><span class="titre">${t('bloc_horaires')}</span>
+    <div id="${idBox}"></div>
+  </div>`;
+}
+function initHorairesEdition(boxId, m){
+  const box = document.getElementById(boxId);
+  if(!box) return;
+  let horaires = m.horaires_journee || [];
+  async function sauvegarder(){
+    await CurieuxDB.enregistrerHorairesJournee(TOKEN, m.date_id, horaires);
+  }
+  function rendre(){
+    box.innerHTML = horaires.map((h,i)=>`
+      <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+        <input type="time" data-i="${i}" data-f="heure" value="${h.heure||''}" style="width:auto;">
+        <input type="text" data-i="${i}" data-f="label" value="${escapeHtml(h.label||'')}" placeholder="Ex: Load in" style="flex:1;">
+        <button type="button" data-retirer="${i}" style="background:transparent; color:var(--danger); padding:4px 8px;">×</button>
+      </div>
+    `).join('') + `<button type="button" id="${boxId}-add">+ Ajouter un repère</button>`;
+    box.querySelectorAll('[data-f]').forEach(inp=> inp.addEventListener('input', ()=>{
+      horaires[inp.dataset.i][inp.dataset.f] = inp.value;
+      sauvegarder();
+    }));
+    box.querySelectorAll('[data-retirer]').forEach(btn=> btn.addEventListener('click', ()=>{
+      horaires.splice(Number(btn.dataset.retirer), 1);
+      rendre();
+      sauvegarder();
+    }));
+    document.getElementById(`${boxId}-add`).addEventListener('click', ()=>{
+      horaires.push({ id: 'h' + Date.now().toString(36), label:'', heure:'' });
+      rendre();
+    });
+  }
+  rendre();
+}
+
+function ficheDateComplete(d, m, editableSalle, editableStageManager){
+  if(!m) m = { date_id: d.id };
+  const jour = jourLong(d.date);
+  return `
+    <div class="fiche-date">
+      <div class="fiche-date-head">
+        <h2>${escapeHtml(d.ville || d.lieu || 'Date')}${d.lieu && d.ville ? ` — ${escapeHtml(d.lieu)}` : ''}</h2>
+        <span class="quand">${escapeHtml(jour)}</span>
+      </div>
+      <div class="fiche-date-body">
+        <div class="fiche-grille">
+          <div class="bloc"><span class="titre">${t('bloc_acces')}</span>
+            ${champ(t('champ_semis_simultanes'), m.nombre_semis_simultanees)}
+            ${champ(t('champ_dechargement'), m.niveau_dechargement && m.niveau_dechargement!=='inconnu' ? t(NIVEAU_LABEL[m.niveau_dechargement]) : null)}
+            ${(m.emplacements_dechargement||[]).length ? champ(t('champ_emplacements'), m.emplacements_dechargement.map(e=>t(EMPLACEMENT_LABEL[e.emplacement])||e.emplacement).join(', ')) : ''}
+          </div>
+          <div class="bloc"><span class="titre">${t('bloc_faits_techniques')}</span>
+            ${champ(t('champ_hauteur_grill'), m.hauteur_grill)}
+            ${champ(t('champ_ouverture_scene'), m.ouverture_scene)}
+            ${champ(t('champ_puissance'), m.puissance)}
+          </div>
+          <div class="bloc"><span class="titre">${t('bloc_bureau_elec')}</span>
+            ${champ(t('champ_sur_place'), m.bureau_electrique_sur_place ? t('oui') : t('non'))}
+            ${m.bureau_electrique_sur_place ? champ(t('champ_horaire'), m.bureau_electrique_horaire) : ''}
+            ${m.bureau_electrique_sur_place ? champ(t('champ_contact'), m.bureau_electrique_contact) : ''}
+          </div>
+          <div class="bloc"><span class="titre">${t('bloc_bureau_accroche')}</span>
+            ${champ(t('champ_sur_place'), m.bureau_accroche_sur_place ? t('oui') : t('non'))}
+            ${m.bureau_accroche_sur_place ? champ(t('champ_horaire'), m.bureau_accroche_horaire) : ''}
+            ${m.bureau_accroche_sur_place ? champ(t('champ_contact'), m.bureau_accroche_contact) : ''}
+          </div>
+          ${(m.contacts_salle||[]).length ? `<div class="bloc"><span class="titre">${t('bloc_contacts_salle')}</span>
+            ${m.contacts_salle.map(c=>champ(c.role || t('champ_contact'), [c.nom, c.tel].filter(Boolean).join(' · '))).join('')}
+          </div>` : ''}
+          ${m.plan_url ? `<div class="bloc"><span class="titre">${t('bloc_documents')}</span>
+            <div class="champ"><span class="k">${t('champ_plan_scene')}</span><span class="v"><a href="${escapeHtml(m.plan_url)}" target="_blank" rel="noopener">${t('ouvrir')}</a></span></div>
+          </div>` : ''}
+          ${blocHorairesJournee(m, editableStageManager)}
+          ${blocVacationsRoadies(m, editableSalle)}
+          ${blocVacationsChariots(m, editableSalle)}
+          ${blocVacationsRigg(m, editableSalle)}
+        </div>
+        ${editableStageManager ? blocPlanSalle(m, true) : (m.plan_image_path ? blocPlanSalle(m, false) : '')}
+        ${m.acces_notes ? `<p style="font-size:13px; color:var(--muted); margin:0;">${escapeHtml(m.acces_notes)}</p>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================================
+// Init
+// ============================================================================
+const LANGUES = { fr:'FR', en:'EN', de:'DE', es:'ES', nl:'NL' };
+function switcherLangue(){
+  return `<div style="display:flex; gap:6px; margin:-6px 0 16px;">
+    ${Object.entries(LANGUES).map(([code,label])=>`<button type="button" data-lang="${code}" style="padding:5px 11px; font-size:12px; ${LANG===code?'background:var(--accent-solid); color:#fff;':'background:var(--card); color:var(--muted); border:1px solid var(--border);'}">${label}</button>`).join('')}
+  </div>`;
+}
+
+async function init(){
+  TOKEN = new URLSearchParams(location.search).get('jeton');
+  const box = document.getElementById('content');
+  if(!TOKEN){ box.innerHTML = `<div class="state-box">${t('lien_incomplet')}</div>`; return; }
+  LANG = localStorage.getItem('curieux_lang_' + TOKEN) || 'fr';
+
+  RECAP = await CurieuxDB.getRecapLogistique(TOKEN);
+  if(!RECAP || !RECAP.tournee){ box.innerHTML = `<div class="state-box">${t('lien_inactif')}</div>`; return; }
+
+  renderContenu();
+}
+
+function renderContenu(){
+  const box = document.getElementById('content');
+  const today = new Date().toISOString().slice(0,10);
+  let dates = (RECAP.tournee.dates || []).filter(d=> !d.date || d.date >= today);
+  if(RECAP.type === 'salle' && (RECAP.datesIds||[]).length){
+    dates = dates.filter(d=> RECAP.datesIds.includes(d.id));
+  }
+  dates.sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+
+  const moyensParDate = {};
+  (RECAP.moyens||[]).forEach(m=> moyensParDate[m.date_id] = m);
+
+  let html = `<div class="entete">
+    <h1 style="font-size:21px; margin:0 0 4px; font-weight:900;">${escapeHtml(RECAP.tournee.nom || 'Tournée')}</h1>
+    <p class="qui">${escapeHtml(RECAP.libelle || 'Accès')} — ${dates.length} ${t('dates_suffixe')(dates.length)}.</p>
+  </div>`;
+  if(RECAP.type === 'salle') html += switcherLangue();
+
+  const editableSalle = RECAP.type === 'salle';
+  const editableSM = RECAP.type === 'stage_manager';
+
+  if(dates.length === 0){
+    html += `<div class="state-box">${t('aucune_date')}</div>`;
+  } else {
+    html += dates.map(d=> ficheDateComplete(d, moyensParDate[d.id], editableSalle, editableSM)).join('');
+    if(editableSM){
+      html += `<div class="section-registre">${dates.map(d=>`<button type="button" data-pdf="${d.id}" style="margin:0 8px 8px 0;">📄 Export PDF — ${escapeHtml(d.ville||d.lieu||'Date')}</button>`).join('')}</div>`;
+    }
+  }
+
+  if((RECAP.fichesTechniques||[]).length){
+    html += `<div class="section-registre"><h2>${t('fiche_technique_title')}</h2>
+      ${RECAP.fichesTechniques.map(f=> f.drive_url ? `
+        <div class="registre-item">
+          <div class="nom">${escapeHtml(f.nom||'Fiche technique')}</div>
+          <div class="sub"><a href="${escapeHtml(f.drive_url)}" target="_blank" rel="noopener">${t('ouvrir')}</a>${f.version_actuelle ? ' · ' + escapeHtml(f.version_actuelle) : ''}</div>
+        </div>` : '').join('')}
+    </div>`;
+  }
+
+  if(RECAP.type === 'stage_manager'){
+    if((RECAP.lots||[]).length){
+      html += `<div class="section-registre"><h2>Matériel apporté</h2>
+        ${RECAP.lots.filter(l=>!l.parent_id).map(l=>{
+          const dernierMouvement = (l.mouvements||[]).filter(mv=>mv.date).sort((a,b)=> b.date.localeCompare(a.date))[0];
+          const mvLabel = dernierMouvement ? `${dernierMouvement.type==='sortie'?'sortie':'entrée'} le ${new Date(dernierMouvement.date+'T00:00:00').toLocaleDateString('fr-FR')}` : '';
+          return `
+          <div class="registre-item"><div class="nom">${escapeHtml(l.nom||'Sans nom')}</div>
+          <div class="sub">${l.description ? escapeHtml(l.description) : ''}${mvLabel ? ' · dernier mouvement : ' + escapeHtml(mvLabel) : ''}</div></div>
+        `;}).join('')}
+      </div>`;
+    }
+    if((RECAP.vehicules||[]).length || (RECAP.chauffeurs||[]).length){
+      html += `<div class="section-registre"><h2>Véhicules &amp; chauffeurs</h2>
+        ${RECAP.vehicules.map(v=>`<div class="registre-item"><div class="nom">${escapeHtml(v.nom||'Sans nom')}${v.type==='semi'?(v.hayon?' · avec hayon':' · sans hayon'):''}</div></div>`).join('')}
+        ${RECAP.chauffeurs.map(c=>`<div class="registre-item"><div class="nom">${escapeHtml([c.prenom,c.nom].filter(Boolean).join(' ')||'Sans nom')}</div><div class="sub">${[c.telephone,c.email].filter(Boolean).map(escapeHtml).join(' · ')}</div></div>`).join('')}
+      </div>`;
+    }
+  }
+
+  document.getElementById('content').innerHTML = html;
+}
+
+document.addEventListener('click', (e)=>{
+  const langBtn = e.target.closest('[data-lang]');
+  if(langBtn){
+    LANG = langBtn.dataset.lang;
+    localStorage.setItem('curieux_lang_' + TOKEN, LANG);
+    renderContenu();
+    return;
+  }
+  const pdfBtn = e.target.closest('[data-pdf]');
+  if(pdfBtn){ exporterJourneePdf(pdfBtn.dataset.pdf); }
+});
+
+// ============================================================================
+// Export PDF (stage manager) — horaires, véhicules/chauffeurs du jour et
+// mouvements de matériel du jour, à transmettre au responsable des chauffeurs.
+// ============================================================================
+function chauffeurDuJour(vehiculeId, dateId){
+  const exception = (RECAP.affectationsTransport||[]).find(a=> a.vehicule_id === vehiculeId && a.date_id === dateId && a.chauffeur_id);
+  const vehicule = RECAP.vehicules.find(v=>v.id===vehiculeId);
+  const chauffeurId = exception ? exception.chauffeur_id : (vehicule && vehicule.chauffeur_defaut_id);
+  return RECAP.chauffeurs.find(c=>c.id===chauffeurId) || null;
+}
+function exporterJourneePdf(dateId){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const d = RECAP.tournee.dates.find(x=>x.id===dateId);
+  const m = (RECAP.moyens||[]).find(x=>x.date_id===dateId) || {};
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+  registerHostFont(doc);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const titre = `${d.ville || d.lieu || 'Date'}${d.date ? ' — ' + new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR') : ''}`;
+  drawCurieuxPdfHeader(doc, pageWidth, titre.toUpperCase());
+  let y = 30;
+
+  const horaires = (m.horaires_journee||[]).slice().sort((a,b)=>(a.heure||'').localeCompare(b.heure||''));
+  if(horaires.length){
+    doc.setFont('Host','bold'); doc.setFontSize(11); doc.setTextColor(20,22,23);
+    doc.text('Horaires de la journée', 12, y); y += 6;
+    doc.autoTable({
+      startY: y, margin:{ left:12, right:12 },
+      head: [['Heure','Repère']],
+      body: horaires.map(h=>[h.heure||'—', h.label||'']),
+      styles:{ font:'Host', fontSize:9.5 }, headStyles:{ fillColor:[121,22,73], textColor:255 },
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  }
+
+  const vehiculesDuJour = (RECAP.vehicules||[]).map(v=>({ v, chauffeur: chauffeurDuJour(v.id, dateId) }));
+  if(vehiculesDuJour.length){
+    doc.setFont('Host','bold'); doc.setFontSize(11);
+    doc.text('Véhicules & chauffeurs', 12, y); y += 6;
+    doc.autoTable({
+      startY: y, margin:{ left:12, right:12 },
+      head: [['Véhicule','Chauffeur','Téléphone']],
+      body: vehiculesDuJour.map(x=>[x.v.nom||'Sans nom', x.chauffeur ? [x.chauffeur.prenom,x.chauffeur.nom].filter(Boolean).join(' ') : '—', x.chauffeur ? (x.chauffeur.telephone||'—') : '—']),
+      styles:{ font:'Host', fontSize:9.5 }, headStyles:{ fillColor:[121,22,73], textColor:255 },
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  }
+
+  const mouvementsDuJour = [];
+  (RECAP.lots||[]).forEach(l=> (l.mouvements||[]).forEach(mv=>{
+    if(mv.date === d.date) mouvementsDuJour.push({ lot: l.nom||'Sans nom', ...mv });
+  }));
+  if(mouvementsDuJour.length){
+    if(y > 250){ doc.addPage(); y = 20; }
+    doc.setFont('Host','bold'); doc.setFontSize(11);
+    doc.text('Matériel — mouvements du jour', 12, y); y += 6;
+    doc.autoTable({
+      startY: y, margin:{ left:12, right:12 },
+      head: [['Lot','Type','Heure','Description']],
+      body: mouvementsDuJour.map(mv=>[mv.lot, mv.type==='sortie'?'Sortie':'Entrée', mv.heure||'—', mv.description||'']),
+      styles:{ font:'Host', fontSize:9.5 }, headStyles:{ fillColor:[121,22,73], textColor:255 },
+    });
+  }
+
+  const suffixe = (d.ville||d.lieu||'date').trim().replace(/[^a-z0-9]+/gi,'_');
+  doc.save(`Journee_${suffixe}.pdf`);
+}
+
+applyBrandLogo();
+init();
+</script>
+</body>
+</html>

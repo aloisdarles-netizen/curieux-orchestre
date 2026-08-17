@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Outils de production</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  /* ==========================================================================
+     Accueil — « planche de stickers ».
+
+     L'accueil précédent était un menu d'accordéons : chaque section devait être
+     dépliée pour révéler ses liens, et c'était le seul chemin d'un écran à
+     l'autre. Deux choses changent ici :
+
+       - tous les sous-liens sont visibles d'emblée, plus rien à déplier ;
+       - « Vue d'ensemble » passe en tête, en étiquette pleine largeur, avec ses
+         chiffres clés — c'est l'élément primaire demandé.
+
+     La forme reprend le langage graphique de la charte Les Alfredines :
+     l'étiquette découpée posée de travers, contour blanc franc, ombre nette.
+     Les aplats sont les six couleurs de la charte, réparties pour qu'aucune ne
+     se touche. Au survol, l'étiquette se redresse.
+     ========================================================================== */
+  .home-hero{ display:flex; align-items:center; gap:16px; margin-bottom:18px; }
+  .home-hero img{ height:58px; width:auto; transform:rotate(-8deg); flex-shrink:0; }
+  .home-eyebrow{
+    margin:0 0 4px; font-size:12px; font-weight:800; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--tonic);
+  }
+  .home-hero h1{
+    font-family:var(--font-display); font-size:34px; margin:0; font-weight:500;
+    letter-spacing:.01em; color:var(--accent); line-height:1.1;
+  }
+
+  /* Le rembourrage de 6 px laisse respirer l'ombre portée et le contour des
+     étiquettes : sans lui, l'étiquette la plus inclinée était rognée. */
+  .home-board{
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
+    column-gap:18px; row-gap:14px; padding:6px; align-items:start;
+  }
+  .home-board .co-sticker.wide{ grid-column:1 / -1; }
+  @media (max-width:980px){ .home-board{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  @media (max-width:640px){ .home-board{ grid-template-columns:1fr; } }
+
+  .home-sticker-head{ display:flex; gap:11px; align-items:center; margin-bottom:11px; }
+  .home-links{ display:flex; flex-wrap:wrap; gap:6px; }
+  .home-links a{
+    display:inline-flex; align-items:center; cursor:pointer;
+    border:1px solid transparent; font-family:var(--font-body);
+    font-size:12.5px; font-weight:700; letter-spacing:.01em;
+    padding:8px 15px; border-radius:10px; text-decoration:none;
+    transition:transform .14s cubic-bezier(.34,1.5,.6,1), border-color .14s ease;
+  }
+  .home-links a:hover{ transform:translateY(-1px); border-color:currentColor; }
+  @media (prefers-reduced-motion: reduce){ .home-links a:hover{ transform:none; } }
+
+  .wrap{ max-width:1240px; margin:0 auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="home-hero co-fade">
+    <img src="assets/images/symbole-prune-bleu.png" alt="">
+    <div>
+      <p class="home-eyebrow">Outils de production</p>
+      <h1 id="homeGreeting">Bonjour</h1>
+    </div>
+  </div>
+
+  <div class="home-board co-fade" id="homeBoard"></div>
+</div>
+
+<script>
+// --- Structure de l'accueil -------------------------------------------------
+// Une entrée par étiquette. « teinte » et « chip » viennent de la charte ; les
+// inclinaisons sont fixées à la main plutôt que tirées au hasard, pour que la
+// planche soit toujours composée de la même façon.
+const HOME_SECTIONS = [
+  { titre:"Vue d'ensemble", wide:true, stats:true,
+    fond:'#791649', encre:'#FCF2F0', chip:'▦', chipFond:'#CEE1F4', chipEncre:'#791649',
+    chipTilt:'-6deg', tilt:'-.4deg', lienFond:'rgba(252,242,240,.16)', lienEncre:'#FCF2F0',
+    liens:[['Ouvrir le tableau croisé','recap.html']] },
+
+  { titre:'Tournées',
+    fond:'#CEE1F4', encre:'#791649', chip:'♩', chipFond:'#791649', chipEncre:'#FCF2F0',
+    chipTilt:'-6deg', tilt:'-1.1deg', lienFond:'rgba(252,242,240,.65)', lienEncre:'#791649',
+    liens:[['Gérer les tournées','tournees.html'],['Feuilles de route','feuilles-de-route.html'],['Journal des changements','newsletter.html']] },
+
+  { titre:'Disponibilités',
+    fond:'#FEC9E0', encre:'#791649', chip:'✓', chipFond:'#EC4B15', chipEncre:'#FCF2F0',
+    chipTilt:'5deg', tilt:'.9deg', lienFond:'rgba(252,242,240,.65)', lienEncre:'#791649',
+    liens:[['Grille interne','disponibilites.html'],['Demandes titulaires','suivi-dispo.html']] },
+
+  { titre:'Direction technique',
+    fond:'#141617', encre:'#FCF2F0', chip:'⚙', chipFond:'#FCF2F0', chipEncre:'#141617',
+    chipTilt:'-5deg', tilt:'-.8deg', lienFond:'rgba(252,242,240,.16)', lienEncre:'#FCF2F0',
+    liens:[['Avancement par date','technique.html'],['Matériel','materiel.html'],['Véhicules & chauffeurs','vehicules.html'],['Fiches techniques','fiches-techniques.html'],['Partage','partage.html'],['Page salle (vue publique)','page-salle.html']] },
+
+  { titre:'Annuaires',
+    fond:'#791649', encre:'#FCF2F0', chip:'☎', chipFond:'#FEC9E0', chipEncre:'#791649',
+    chipTilt:'5deg', tilt:'1deg', lienFond:'rgba(252,242,240,.16)', lienEncre:'#FCF2F0',
+    liens:[['Musicien·nes','annuaire.html'],['Technicien·nes','techniciens.html'],['Remplacements','remplacements.html'],['Infos sociales','infos-sociales.html']] },
+
+  { titre:'Administration',
+    fond:'#EC4B15', encre:'#FCF2F0', chip:'⚿', chipFond:'#FCF2F0', chipEncre:'#EC4B15',
+    chipTilt:'-5deg', tilt:'-.9deg', lienFond:'rgba(252,242,240,.2)', lienEncre:'#FCF2F0',
+    liens:[['Tableau de bord admin','admin-dashboard.html']] },
+];
+
+// En thème sombre, les aplats de la charte sont trop saturés pour couvrir un
+// écran entier : on les assombrit, et toutes les encres passent au blanc cassé.
+// Le contour, lui, suit var(--card) — l'étiquette reste découpée.
+const HOME_SOMBRE = {
+  '#791649':'#4c0f2e', '#CEE1F4':'#26364a', '#FEC9E0':'#4e2a3c',
+  '#EC4B15':'#7e2a0c', '#141617':'#101112',
+  // Le blanc cassé doit être traduit lui aussi : la nuit, toutes les encres
+  // passent au blanc cassé, donc un aplat resté blanc donnait du blanc sur
+  // blanc — c'est ce qui rendait invisibles la première tuile de chiffre clé et
+  // les pastilles d'icône blanches (⚙ technique, ⚿ administration).
+  '#FCF2F0':'#2b2023',
+};
+
+// Inclinaisons des mini-tuiles de chiffres clés, dans l'ordre.
+const STAT_TILTS = ['-1.4deg','1deg','-.8deg','1.2deg','-1deg','.9deg','-1.1deg'];
+// Couleurs des chiffres clés. Sur l'étiquette prune, le premier passe en blanc
+// cassé : un aplat prune sur un fond prune ne se voit pas.
+const STAT_COULEURS = [
+  ['#FCF2F0','#791649'], ['#CEE1F4','#791649'], ['#141617','#FCF2F0'],
+  ['#FEC9E0','#791649'], ['#EC4B15','#FCF2F0'], ['#CEE1F4','#791649'],
+  ['#FEC9E0','#791649'],
+];
+
+let statsCourantes = null;
+
+function sombre(){ return document.documentElement.getAttribute('data-theme') === 'dark'; }
+
+function statsHtml(){
+  // Avant que les chiffres ne soient chargés, la tuile garde ses libellés et
+  // affiche « — » : la planche ne saute pas à l'arrivée des données.
+  const stats = statsCourantes || [
+    ['—','tournées actives'], ['—','dates à venir'], ['—','dates validées'],
+    ['—','options à confirmer'], ['—','musicien·nes titulaires'], ['—','technicien·nes'],
+    ['—','FDR à créer'],
+  ];
+  return `<div class="co-mini-stats">${stats.map(([num, label], i)=>{
+    const [fond, encre] = STAT_COULEURS[i % STAT_COULEURS.length];
+    return `<span class="co-mini-stat" style="--co-tilt:${STAT_TILTS[i % STAT_TILTS.length]}; background:${sombre() ? HOME_SOMBRE[fond] || fond : fond}; color:${sombre() ? '#FCF2F0' : encre};">
+      <b>${escapeHtml(String(num))}</b><span>${escapeHtml(label)}</span>
+    </span>`;
+  }).join('')}</div>`;
+}
+
+function renderBoard(){
+  const nuit = sombre();
+  document.getElementById('homeBoard').innerHTML = HOME_SECTIONS.map(sec=>{
+    const fond = nuit ? (HOME_SOMBRE[sec.fond] || sec.fond) : sec.fond;
+    const encre = nuit ? '#FCF2F0' : sec.encre;
+    const lienFond = nuit ? 'rgba(252,242,240,.13)' : sec.lienFond;
+    const lienEncre = nuit ? '#FCF2F0' : sec.lienEncre;
+    const chipFond = nuit ? (HOME_SOMBRE[sec.chipFond] || sec.chipFond) : sec.chipFond;
+    const chipEncre = nuit ? '#FCF2F0' : sec.chipEncre;
+    return `<section class="co-sticker${sec.wide ? ' wide' : ''}" style="--co-tilt:${sec.tilt}; background:${fond};">
+      <div class="home-sticker-head">
+        <span class="co-badge" style="--co-tilt:${sec.chipTilt}; background:${chipFond}; color:${chipEncre};" aria-hidden="true">${sec.chip}</span>
+        <h2 class="co-sticker-title" style="color:${encre};">${escapeHtml(sec.titre)}</h2>
+      </div>
+      ${sec.stats ? statsHtml() : ''}
+      <div class="home-links">${sec.liens.map(([label, href])=>
+        `<a href="${href}" style="background:${lienFond}; color:${lienEncre};">${escapeHtml(label)}</a>`
+      ).join('')}</div>
+    </section>`;
+  }).join('');
+}
+
+// --- Chiffres clés ---------------------------------------------------------
+// Les mêmes chiffres que la vue d'ensemble, calculés ici pour que l'accueil
+// dise quelque chose de vrai plutôt que d'afficher des nombres figés.
+function iso(d){ return d.toISOString().slice(0, 10); }
+
+async function chargerStats(){
+  if(typeof CurieuxDB === 'undefined') return;
+  const [tournees, musiciens, techniciens, fdr] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('feuilles_route'),
+  ]);
+  const aujourdhui = iso(new Date());
+  // Une date « à venir » est une date non annulée dont le jour n'est pas passé :
+  // les annulées polluaient les compteurs sans qu'on puisse les distinguer.
+  const aVenir = [];
+  tournees.forEach(t => (t.dates || []).forEach(d => {
+    if(d.date && d.date >= aujourdhui && d.statut !== 'annulee') aVenir.push(d);
+  }));
+  const tourneesActives = tournees.filter(t =>
+    (t.dates || []).some(d => d.date && d.date >= aujourdhui && d.statut !== 'annulee')).length;
+  const datesAvecFdr = new Set((fdr || []).map(f => f.eventDate).filter(Boolean));
+
+  // Accord au singulier quand il n'y en a qu'un·e : « 1 tournées actives » se
+  // lisait comme une coquille.
+  const pl = (n, un, plusieurs)=> n > 1 ? plusieurs : un;
+  const validees = aVenir.filter(d => d.statut === 'validee').length;
+  const options = aVenir.filter(d => d.statut === 'option').length;
+  const titulaires = musiciens.filter(m => m.statutPoste !== 'remplacant').length;
+  const fdrAcreer = aVenir.filter(d => !datesAvecFdr.has(d.date)).length;
+  statsCourantes = [
+    [tourneesActives, pl(tourneesActives, 'tournée active', 'tournées actives')],
+    [aVenir.length, pl(aVenir.length, 'date à venir', 'dates à venir')],
+    [validees, pl(validees, 'date validée', 'dates validées')],
+    [options, pl(options, 'option à confirmer', 'options à confirmer')],
+    [titulaires, pl(titulaires, 'musicien·ne titulaire', 'musicien·nes titulaires')],
+    [techniciens.length, pl(techniciens.length, 'technicien·ne', 'technicien·nes')],
+    [fdrAcreer, pl(fdrAcreer, 'FDR à créer', 'FDR à créer')],
+  ];
+  renderBoard();
+}
+
+// --- Salutation -----------------------------------------------------------
+async function poserSalutation(){
+  if(typeof CurieuxDB === 'undefined' || !CurieuxDB.getSession) return;
+  try{
+    const session = await CurieuxDB.getSession();
+    const email = session && session.user && session.user.email;
+    if(!email) return;
+    // Le prénom se déduit de la partie locale de l'email (michel@… → Michel) :
+    // il n'y a pas de champ nom sur les comptes admin.
+    const prenom = email.split('@')[0].split(/[._-]/)[0];
+    document.getElementById('homeGreeting').textContent =
+      'Salut ' + prenom.charAt(0).toUpperCase() + prenom.slice(1);
+  }catch(e){}
+}
+
+renderBoard();
+poserSalutation();
+chargerStats();
+// Le thème peut basculer après le rendu (bascule du bandeau, thème système) :
+// les aplats de la charte sont posés en style inline, il faut donc redessiner.
+new MutationObserver(renderBoard).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+</script>
+</body>
+</html>

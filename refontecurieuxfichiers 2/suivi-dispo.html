@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Demandes titulaires</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:980px; margin:0 auto;}
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-sm{padding:7px 11px; font-size:12px;}
+
+  .tournee-card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:0; margin-bottom:20px; overflow:hidden;
+  }
+  .tournee-head{
+    display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;
+    padding:16px 20px 0;
+  }
+  .tournee-name{font-family:var(--font-display); font-size:18px; font-weight:500;}
+  .tournee-meta{color:var(--muted); font-size:12px; font-weight:700; padding:2px 20px 14px; border-bottom:1px solid var(--border);}
+  /* Alternance de blancs : sur seize lignes de personnes, l'œil perdait la ligne
+     qu'il suivait entre le nom et les boutons du bout. */
+  .dispo-row{display:flex; align-items:center; gap:12px; padding:var(--row-pad) 20px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+  .dispo-row:nth-of-type(even){background:var(--row-alt);}
+  .role-subheader{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+    padding:10px 20px 4px;
+  }
+  /* Le statut de réponse est l'information qu'on vient chercher : il passe de
+     11 px à 14 px, sur une largeur fixe pour que la colonne s'aligne. */
+  .dispo-statut{width:130px; font-size:14px; font-weight:800; white-space:nowrap;}
+  .suivi-resume{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
+  .suivi-resume .pct{font-family:var(--font-display); font-size:26px; color:var(--accent); font-weight:500;}
+  .suivi-resume .jauge{flex:1; min-width:200px;}
+  .suivi-resume .detail{font-size:12px; color:var(--muted); margin-top:6px; font-weight:600;}
+  
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Demandes titulaires</h1>
+      <p class="subtitle">Génère un lien personnel par titulaire et par tournée, et suis qui a répondu — les remplaçant·es sont contacté·es via le rang de priorité dans l'annuaire quand un·e titulaire décline.</p>
+    </div>
+  </div>
+
+  <div class="co-card co-pad-lg co-fade" id="resumeCard" style="margin-bottom:20px; display:none;">
+    <div class="suivi-resume">
+      <span class="pct" id="resumePct">—</span>
+      <div class="jauge">
+        <div class="co-progress"><i id="resumeJauge" style="width:0%;"></i></div>
+        <div class="detail" id="resumeDetail"></div>
+      </div>
+      <button type="button" class="co-btn tonic md" id="relancerTousBtn" title="Ouvrir la première relance de chaque personne encore en attente">Relancer les retardataires</button>
+    </div>
+  </div>
+
+  <div id="holder"><div class="empty-hint">Chargement…</div></div>
+</div>
+
+<script>
+let tourneesCache = [];
+let musiciansCache = [];
+let techniciansCache = [];
+let dispoDemandesCache = [];
+
+function loadTournees(){ return tourneesCache; }
+function loadMusicians(){ return musiciansCache; }
+function loadTechnicians(){ return techniciansCache; }
+function loadDispoDemandes(){ return dispoDemandesCache; }
+
+function fmtDateFR(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  const months = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} ${y}`;
+}
+
+// Lien unique de l'espace personnel : il regroupe les disponibilités, les
+// infos et les remplaçant·es. Le jeton de demande y est accepté au même titre
+// que le jeton permanent, donc les liens déjà envoyés restent valables.
+function dispoLinkUrl(demandeId){
+  const base = location.href.slice(0, location.href.lastIndexOf('/') + 1);
+  return `${base}mon-espace.html?token=${encodeURIComponent(demandeId)}`;
+}
+
+function normalizeWhatsappPhone(phone){
+  let digits = (phone || '').replace(/[^\d+]/g, '');
+  if(digits.startsWith('+')) digits = digits.slice(1);
+  else if(digits.startsWith('0') && digits.length === 10) digits = '33' + digits.slice(1);
+  return digits;
+}
+
+async function generateDispoLink(tourneeId, personType, personId, dates){
+  const demandes = loadDispoDemandes();
+  const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === personId);
+  if(existing) return existing;
+  const entry = { id: genId('demande'), tourneeId, personType, personId, dates: dates || [] };
+  demandes.push(entry);
+  dispoDemandesCache = demandes;
+  const { error } = await CurieuxDB.upsertOne('dispo_demandes', entry);
+  if(error){
+    dispoDemandesCache = dispoDemandesCache.filter(d=> d.id !== entry.id);
+    alert("La création du lien a échoué, réessaie. (" + error.message + ")");
+    return null;
+  }
+  return entry;
+}
+
+// Liste des cases à cocher pour une tournée donnée — extrait à part pour pouvoir la
+// regénérer seule quand on change de tournée dans le menu déroulant (voir bindDatesPanel).
+function datesChecklistHtml(tourneeId, checkedIds){
+  const tournee = loadTournees().find(t=> t.id === tourneeId);
+  const dates = (tournee && tournee.dates || []).filter(d=> d.date && d.statut !== 'annulee')
+    .slice().sort((a,b)=> a.date.localeCompare(b.date));
+  if(dates.length === 0) return `<div class="empty-hint" style="padding:6px 0;">Aucune date pour l'instant.</div>`;
+  const checkedSet = checkedIds ? new Set(checkedIds) : null;
+  return dates.map(d=> `
+    <label style="display:flex; align-items:center; gap:6px; font-size:12px; padding:3px 0;">
+      <input type="checkbox" data-date-checkbox value="${escapeAttr(d.id)}" ${(!checkedSet || checkedSet.has(d.id)) ? 'checked' : ''}>
+      ${escapeHtml(fmtDateFR(d.date))}${d.ville ? ' · '+escapeHtml(d.ville) : ''}
+    </label>
+  `).join('');
+}
+
+// Panneau de sélection de dates précises. checkedIds=null = pas de restriction connue,
+// tout est coché par défaut (flux "nouveau lien") ; un tableau (même vide) coche
+// exactement ces dates (flux "modifier les dates" d'un lien existant). dates:[] envoyé à
+// la sauvegarde = pas de restriction (valable pour les dates ajoutées plus tard) — on ne
+// renvoie [] que si TOUT est coché. allowTourneeSwitch affiche un menu déroulant pour
+// choisir la tournée (utile pour générer un lien sans être limité à la tournée de la
+// carte en cours) — pas proposé en modification d'un lien existant, où la tournée est
+// fixée par le lien lui-même.
+function remplacantDatesPanelHtml(tourneeId, checkedIds, confirmLabel, allowTourneeSwitch){
+  const tourneeSelectHtml = allowTourneeSwitch ? `
+    <select data-tournee-select style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--card); color:var(--text); font-family:inherit; margin-bottom:8px;">
+      ${loadTournees().map(t=> `<option value="${escapeAttr(t.id)}" ${t.id===tourneeId?'selected':''}>${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('')}
+    </select>
+  ` : '';
+  return `
+    ${tourneeSelectHtml}
+    <div style="font-size:11.5px; color:var(--muted); margin-bottom:6px;">Dates proposées à cette personne :</div>
+    <div data-dates-checklist>${datesChecklistHtml(tourneeId, checkedIds)}</div>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button type="button" class="btn-ghost btn-sm" data-toggle-all-dates>Tout (dé)cocher</button>
+      <button type="button" class="btn-secondary btn-sm" data-confirm-gen-dates>${escapeHtml(confirmLabel || 'Générer le lien')}</button>
+    </div>
+  `;
+}
+
+// Câble les interactions communes d'un panneau de dates (bascule de tournée, tout cocher,
+// confirmation) une fois injecté dans le DOM. onConfirm(selectedTourneeId, dates) reçoit
+// dates=[] quand tout est coché (pas de restriction) ; selectedTourneeId est null si le
+// panneau n'a pas de menu déroulant de tournée (flux "modifier les dates").
+function bindDatesPanel(panel, onConfirm){
+  const tourneeSelect = panel.querySelector('[data-tournee-select]');
+  if(tourneeSelect) tourneeSelect.addEventListener('change', ()=>{
+    panel.querySelector('[data-dates-checklist]').innerHTML = datesChecklistHtml(tourneeSelect.value, null);
+  });
+  const toggleAllBtn = panel.querySelector('[data-toggle-all-dates]');
+  if(toggleAllBtn) toggleAllBtn.addEventListener('click', ()=>{
+    const boxes = panel.querySelectorAll('[data-date-checkbox]');
+    const allChecked = Array.from(boxes).every(b=> b.checked);
+    boxes.forEach(b=> b.checked = !allChecked);
+  });
+  const confirmBtn = panel.querySelector('[data-confirm-gen-dates]');
+  if(confirmBtn) confirmBtn.addEventListener('click', async ()=>{
+    const boxes = Array.from(panel.querySelectorAll('[data-date-checkbox]'));
+    const checked = boxes.filter(b=> b.checked).map(b=> b.value);
+    const dates = (checked.length === boxes.length) ? [] : checked;
+    confirmBtn.disabled = true; confirmBtn.textContent = '…';
+    await onConfirm(tourneeSelect ? tourneeSelect.value : null, dates);
+  });
+}
+
+// Recherche ponctuelle d'un·e remplaçant·e (musicien·ne, ou technicien·ne du pôle Régie)
+// à qui générer un lien de dispo à la demande, en dehors des titulaires — même logique
+// que la modale de tournees.html, adaptée à une carte par tournée sur cette page.
+function renderAddRemplacantResults(tourneeId, query, holder){
+  const q = (query || '').toLowerCase().trim();
+  if(!q){ holder.innerHTML = ''; return; }
+
+  const demandes = loadDispoDemandes();
+  const alreadyDemanded = new Set(
+    demandes.filter(d=> d.tourneeId === tourneeId).map(d=> `${d.personType}:${d.personId}`)
+  );
+
+  const remplacantMusiciens = loadMusicians()
+    .filter(m=> (m.statutPoste||'titulaire') === 'remplacant' && !alreadyDemanded.has(`musicien:${m.id}`))
+    .map(m=> ({ person:m, personType:'musicien', roleLabel: m.instrument || 'Musicien·ne' }));
+  const remplacantTechniciens = loadTechnicians()
+    .filter(t=> t.pole === 'Régie générale' && (t.statutPoste||'titulaire') === 'remplacant' && !alreadyDemanded.has(`technicien:${t.id}`))
+    .map(t=> ({ person:t, personType:'technicien', roleLabel: t.poste || 'Technicien·ne' }));
+
+  const results = [...remplacantMusiciens, ...remplacantTechniciens].filter(r=>{
+    const haystack = [r.person.prenom, r.person.nom, r.roleLabel].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(q);
+  }).slice(0, 8);
+
+  if(results.length === 0){
+    holder.innerHTML = `<div class="empty-hint" style="padding:10px 4px;">Aucun·e remplaçant·e trouvé·e.</div>`;
+    return;
+  }
+  holder.innerHTML = results.map(r=> `
+    <div data-remplacant-row data-person-type="${r.personType}" data-person-id="${escapeAttr(r.person.id)}" style="padding:7px 4px; border-bottom:1px solid var(--border);">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(r.person))}</div>
+          <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(r.roleLabel)}</div>
+        </div>
+        <button type="button" class="btn-secondary btn-sm" data-toggle-dates>+ Générer</button>
+      </div>
+      <div data-dates-panel style="display:none; margin-top:8px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>
+    </div>
+  `).join('');
+
+  holder.querySelectorAll('[data-toggle-dates]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('[data-remplacant-row]');
+      const panel = row.querySelector('[data-dates-panel]');
+      const opening = panel.style.display === 'none';
+      holder.querySelectorAll('[data-dates-panel]').forEach(p=> p.style.display = 'none');
+      if(!opening) return;
+      panel.innerHTML = remplacantDatesPanelHtml(tourneeId, null, 'Générer le lien', true);
+      panel.style.display = 'block';
+      bindDatesPanel(panel, async (selectedTourneeId, dates)=>{
+        await generateDispoLink(selectedTourneeId || tourneeId, row.dataset.personType, row.dataset.personId, dates);
+        const searchInput = document.querySelector(`[data-remplacant-search][data-tournee="${tourneeId}"]`);
+        if(searchInput) searchInput.value = '';
+        render();
+      });
+    });
+  });
+}
+
+function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
+  const demandes = loadDispoDemandes();
+  const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === person.id);
+  const url = existing ? dispoLinkUrl(existing.id) : null;
+  const dispo = person.disponibilites || {};
+  // Si le lien est restreint à des dates précises, on ne compte que celles-là — sinon on
+  // compare aux dates envoyées à tout le monde. Avant ce correctif, le statut se basait
+  // uniquement sur "a déjà validé une fois" (lastRespondedAt), ce qui affichait "Nouvelles
+  // dates" pour quelqu'un qui n'avait en réalité rempli qu'une partie de ses dispo — d'où
+  // le calcul explicite du nombre de dates manquantes ci-dessous.
+  const relevantDates = (existing && existing.dates && existing.dates.length > 0)
+    ? answerableDates.filter(d=> existing.dates.includes(d.id))
+    : answerableDates;
+  const missingDates = existing ? relevantDates.filter(d=> !dispo[d.date]) : [];
+  const answeredCount = relevantDates.length - missingDates.length;
+  let statusHtml;
+  if(!existing){
+    statusHtml = '';
+  } else if(relevantDates.length > 0 && missingDates.length === 0){
+    statusHtml = `<span class="dispo-statut" style="color:var(--ok);">✓ Répondu</span>`;
+  } else if(answeredCount > 0){
+    statusHtml = `<span class="dispo-statut" style="color:var(--maybe);" title="${missingDates.length} date${missingDates.length>1?'s':''} pas encore renseignée${missingDates.length>1?'s':''}">◐ ${answeredCount}/${relevantDates.length} dates</span>`;
+  } else {
+    statusHtml = `<span class="dispo-statut" style="color:var(--muted);">En attente</span>`;
+  }
+  const tourneeObj = loadTournees().find(t=> t.id === tourneeId);
+  let relanceHtml = '';
+  if(existing && missingDates.length > 0){
+    // Label "Première relance" tant qu'aucune relance n'a été enregistrée pour ce lien,
+    // "Relancer" ensuite — même libellé quel que soit le canal (WhatsApp, email, ou
+    // presse-papiers en secours si la personne n'a ni téléphone ni email enregistré).
+    const relanceLabel = existing.lastReminderAt ? 'Relancer' : 'Première relance';
+    const missingList = missingDates.map(d=> fmtDateFR(d.date)).join(', ');
+    const message = `Bonjour ${person.prenom || ''}, il te manque encore quelques dates à renseigner sur tes dispo pour "${(tourneeObj && tourneeObj.nom) || 'la tournée'}" : ${missingList}. Merci de compléter via ton lien personnel : ${url}`;
+    const waDigits = normalizeWhatsappPhone(person.telephone);
+    if(waDigits){
+      relanceHtml = `<a class="btn-ghost btn-sm" data-mark-reminder="${escapeAttr(existing.id)}" href="https://wa.me/${encodeURIComponent(waDigits)}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener" title="Relancer par WhatsApp pour les dates manquantes"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</a>`;
+    } else if(person.email){
+      relanceHtml = `<a class="btn-ghost btn-sm" data-mark-reminder="${escapeAttr(existing.id)}" href="mailto:${encodeURIComponent(person.email)}?subject=${encodeURIComponent('Dispo manquantes — ' + ((tourneeObj && tourneeObj.nom) || ''))}&body=${encodeURIComponent(message)}" title="Relancer par email pour les dates manquantes"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</a>`;
+    } else {
+      relanceHtml = `<button type="button" class="btn-ghost btn-sm" data-copy-relance="${escapeAttr(message)}" data-mark-reminder="${escapeAttr(existing.id)}" title="Copier un message de relance (pas de contact enregistré)"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</button>`;
+    }
+  }
+  const isRemplacant = (person.statutPoste || 'titulaire') === 'remplacant';
+  // Les technicien·nes (titulaires ou remplaçant·es) peuvent être sollicité·es sur une
+  // partie seulement des dates d'une tournée (contrairement aux musicien·nes titulaires,
+  // engagé·es sur la tournée entière) — on leur propose donc toujours le choix des dates,
+  // à la génération comme après coup. Les remplaçant·es (tout pupitre) gardent ce choix
+  // aussi, puisqu'ils/elles ne sont jamais sollicité·es par défaut sur la tournée entière.
+  const showDatesOption = isRemplacant || personType === 'technicien';
+  const datesTag = existing && existing.dates && existing.dates.length > 0
+    ? `<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--border); color:var(--muted); vertical-align:middle;" title="Lien restreint à ${existing.dates.length} date${existing.dates.length>1?'s':''}">${existing.dates.length} date${existing.dates.length>1?'s':''}</span>`
+    : '';
+  return `
+    <div data-demande-wrap="${existing ? escapeAttr(existing.id) : ''}">
+      <div class="dispo-row">
+        <div style="flex:1; min-width:160px;">
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? '<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;">Remplaçant·e</span>' : ''} ${datesTag}</div>
+          <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          ${statusHtml}
+          ${relanceHtml}
+          ${url
+            ? `<a class="btn-ghost btn-sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line></svg> Ouvrir</a>
+               <button type="button" class="btn-ghost btn-sm" data-lien-permanent data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}" title="Lien personnel permanent : il ne dépend d'aucune tournée et survit à la suppression de celles-ci">Lien permanent</button>
+               <button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>
+               ${showDatesOption ? `<button type="button" class="btn-ghost btn-sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.6"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line></svg>Dates</button>` : ''}
+               <button type="button" class="btn-ghost btn-sm" data-delete-link="${escapeAttr(existing.id)}" title="Supprimer ce lien" style="color:var(--ko, #b23b2e);"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg></button>`
+            : (personType === 'technicien'
+                ? `<button type="button" class="btn-secondary btn-sm" data-toggle-new-dates data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">+ Générer</button>`
+                : `<button type="button" class="btn-secondary btn-sm" data-gen-link data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
+              )
+          }
+        </div>
+      </div>
+      ${(showDatesOption && existing) ? `<div data-edit-dates-panel style="display:none; margin:0 0 10px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>` : ''}
+      ${(!existing && personType === 'technicien') ? `<div data-new-dates-panel style="display:none; margin:0 0 10px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>` : ''}
+    </div>
+  `;
+}
+
+async function removeDispoLink(demandeId){
+  const { error } = await CurieuxDB.removeOne('dispo_demandes', demandeId);
+  if(error) return { error };
+  dispoDemandesCache = dispoDemandesCache.filter(d=> d.id !== demandeId);
+  return { error: null };
+}
+
+async function updateDispoLinkDates(demandeId, dates){
+  const entry = dispoDemandesCache.find(d=> d.id === demandeId);
+  if(!entry) return;
+  entry.dates = dates;
+  await CurieuxDB.upsertOne('dispo_demandes', entry);
+}
+
+async function markReminderSent(demandeId){
+  const entry = dispoDemandesCache.find(d=> d.id === demandeId);
+  if(!entry) return;
+  entry.lastReminderAt = new Date().toISOString();
+  await CurieuxDB.upsertOne('dispo_demandes', entry);
+}
+
+// Avancement global des demandes, toutes tournées à venir confondues — la même
+// règle que sur chaque ligne : une réponse est complète quand plus aucune date
+// pertinente ne manque à la personne.
+function renderResume(tournees){
+  const carte = document.getElementById('resumeCard');
+  const demandes = loadDispoDemandes();
+  let total = 0, completes = 0, partielles = 0;
+  tournees.forEach(t=>{
+    const answerable = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
+    demandes.filter(d=> d.tourneeId === t.id).forEach(dem=>{
+      const personne = (dem.personType === 'musicien' ? loadMusicians() : loadTechnicians())
+        .find(x=> x.id === dem.personId);
+      if(!personne) return;
+      const dispo = personne.disponibilites || {};
+      const pertinentes = (dem.dates && dem.dates.length)
+        ? answerable.filter(d=> dem.dates.includes(d.id))
+        : answerable;
+      if(pertinentes.length === 0) return;
+      total++;
+      const manquantes = pertinentes.filter(d=> !dispo[d.date]).length;
+      if(manquantes === 0) completes++;
+      else if(manquantes < pertinentes.length) partielles++;
+    });
+  });
+  if(total === 0){ carte.style.display = 'none'; return; }
+  carte.style.display = '';
+  const pct = Math.round(completes / total * 100);
+  document.getElementById('resumePct').textContent = pct + ' %';
+  document.getElementById('resumeJauge').style.width = pct + '%';
+  document.getElementById('resumeDetail').textContent =
+    `${completes} réponse${completes>1?'s':''} complète${completes>1?'s':''} sur ${total}`
+    + ` · ${partielles} partielle${partielles>1?'s':''} · ${total - completes - partielles} en attente`;
+}
+
+async function relancerRetardataires(){
+  const demandes = loadDispoDemandes();
+  const today = new Date().toISOString().slice(0, 10);
+  const lignes = [];
+  loadTournees().forEach(t=>{
+    const answerable = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
+    if(answerable.length === 0 || answerable.every(d=> d.date < today)) return;
+    demandes.filter(d=> d.tourneeId === t.id).forEach(dem=>{
+      const personne = (dem.personType === 'musicien' ? loadMusicians() : loadTechnicians())
+        .find(x=> x.id === dem.personId);
+      if(!personne) return;
+      const dispo = personne.disponibilites || {};
+      const pertinentes = (dem.dates && dem.dates.length)
+        ? answerable.filter(d=> dem.dates.includes(d.id))
+        : answerable;
+      const manquantes = pertinentes.filter(d=> !dispo[d.date]);
+      if(manquantes.length === 0) return;
+      lignes.push(`${fullName(personne)} — ${t.nom || 'Tournée'} — manque : `
+        + manquantes.map(d=> fmtDateFR(d.date)).join(', ')
+        + ` — ${dispoLinkUrl(dem.id)}`);
+    });
+  });
+  const btn = document.getElementById('relancerTousBtn');
+  if(lignes.length === 0){ btn.textContent = '✓ Personne à relancer'; return; }
+  try{
+    await navigator.clipboard.writeText(lignes.join('\n'));
+    btn.textContent = `✓ ${lignes.length} relance${lignes.length>1?'s':''} copiée${lignes.length>1?'s':''}`;
+  }catch(e){
+    btn.textContent = 'Copie impossible — relance ligne par ligne';
+  }
+}
+document.getElementById('relancerTousBtn').addEventListener('click', relancerRetardataires);
+
+function render(){
+  const tournees = loadTournees();
+  const holder = document.getElementById('holder');
+  if(tournees.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Aucune tournée pour l'instant — crée-en une dans <a href="tournees.html">Tournées</a>.</div>`;
+    return;
+  }
+
+  const titulaireMusiciens = loadMusicians().filter(m=> (m.statutPoste||'titulaire') === 'titulaire')
+    .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+  const titulaireTechniciens = loadTechnicians().filter(t=> (t.statutPoste||'titulaire') === 'titulaire')
+    .slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+
+  // Une tournée "passée" (toutes ses dates derrière nous) est repliée dans une
+  // section à part, pour ne pas rendre la page illisible au fil des saisons
+  // (même règle que tournees.html).
+  const today = new Date().toISOString().slice(0, 10);
+  const isPastTournee = tr => (tr.dates||[]).length > 0 && (tr.dates||[]).every(d=> d.date && d.date < today);
+  const upcomingTournees = tournees.filter(t=> !isPastTournee(t));
+  const pastTournees = tournees.filter(isPastTournee);
+
+  const renderTourneeCard = (t) => {
+    const answerableDates = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
+    const demandes = loadDispoDemandes();
+    const demandedRemplacantIds = new Set(
+      demandes.filter(d=> d.tourneeId === t.id).map(d=> `${d.personType}:${d.personId}`)
+    );
+    const remplacantMusiciens = loadMusicians()
+      .filter(m=> (m.statutPoste||'titulaire') === 'remplacant' && demandedRemplacantIds.has(`musicien:${m.id}`))
+      .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+    const remplacantTechniciens = loadTechnicians()
+      .filter(p=> (p.statutPoste||'titulaire') === 'remplacant' && demandedRemplacantIds.has(`technicien:${p.id}`))
+      .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+    const musicienRows = [
+      ...titulaireMusiciens.map(m=> rowFor(t.id, m, 'musicien', m.instrument || 'Musicien·ne', answerableDates)),
+      ...remplacantMusiciens.map(m=> rowFor(t.id, m, 'musicien', m.instrument || 'Musicien·ne', answerableDates)),
+    ].join('');
+    const technicienRows = [
+      ...titulaireTechniciens.map(p=> rowFor(t.id, p, 'technicien', p.poste || 'Technicien·ne', answerableDates)),
+      ...remplacantTechniciens.map(p=> rowFor(t.id, p, 'technicien', p.poste || 'Technicien·ne', answerableDates)),
+    ].join('');
+    const rows = `
+      ${musicienRows ? `<div class="role-subheader">Musicien·nes</div>${musicienRows}` : ''}
+      ${technicienRows ? `<div class="role-subheader">Technicien·nes</div>${technicienRows}` : ''}
+    `;
+    return `
+      <div class="tournee-card" data-tournee-id="${escapeAttr(t.id)}">
+        <div class="tournee-head">
+          <div class="tournee-name">${escapeHtml(t.nom || 'Tournée sans nom')}</div>
+          <button type="button" class="btn-secondary btn-sm" data-copy-all="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>
+        </div>
+        <div class="tournee-meta">${answerableDates.length} date${answerableDates.length>1?'s':''}</div>
+        ${(musicienRows || technicienRows) ? rows : `<div class="empty-hint">Aucun·e titulaire dans l'annuaire pour l'instant.</div>`}
+        <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+          <input type="text" data-remplacant-search data-tournee="${escapeAttr(t.id)}" placeholder="Ajouter un·e remplaçant·e à la demande…" style="width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit; box-sizing:border-box;">
+          <div data-remplacant-results data-tournee="${escapeAttr(t.id)}" style="margin-top:6px;"></div>
+        </div>
+      </div>
+    `;
+  };
+
+  renderResume(upcomingTournees);
+
+  const upcomingHtml = upcomingTournees.length
+    ? upcomingTournees.map(renderTourneeCard).join('')
+    : (pastTournees.length ? `<div class="empty-hint">Aucune tournée à venir — ${pastTournees.length} tournée${pastTournees.length>1?'s':''} passée${pastTournees.length>1?'s':''} plus bas.</div>` : '');
+  const pastHtml = pastTournees.length
+    ? `<details style="margin-top:20px;">
+        <summary style="cursor:pointer; font-weight:700; color:var(--muted); padding:10px 4px;">Tournées passées (${pastTournees.length})</summary>
+        ${pastTournees.map(renderTourneeCard).join('')}
+      </details>`
+    : '';
+  holder.innerHTML = upcomingHtml + pastHtml;
+
+  holder.querySelectorAll('[data-remplacant-search]').forEach(input=>{
+    input.addEventListener('input', (e)=>{
+      const tourneeId = input.dataset.tournee;
+      const results = holder.querySelector(`[data-remplacant-results][data-tournee="${tourneeId}"]`);
+      renderAddRemplacantResults(tourneeId, e.target.value, results);
+    });
+  });
+
+  holder.querySelectorAll('[data-gen-link]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true; btn.textContent = '…';
+      await generateDispoLink(btn.dataset.tournee, btn.dataset.personType, btn.dataset.personId);
+      render();
+    });
+  });
+  holder.querySelectorAll('[data-toggle-new-dates]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const wrap = btn.closest('[data-demande-wrap]');
+      const panel = wrap.querySelector('[data-new-dates-panel]');
+      const opening = panel.style.display === 'none';
+      holder.querySelectorAll('[data-new-dates-panel], [data-edit-dates-panel]').forEach(p=> p.style.display = 'none');
+      if(!opening) return;
+      panel.innerHTML = remplacantDatesPanelHtml(btn.dataset.tournee, null, 'Générer le lien', true);
+      panel.style.display = 'block';
+      bindDatesPanel(panel, async (selectedTourneeId, dates)=>{
+        await generateDispoLink(selectedTourneeId || btn.dataset.tournee, btn.dataset.personType, btn.dataset.personId, dates);
+        render();
+      });
+    });
+  });
+  holder.querySelectorAll('[data-copy-relance]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      navigator.clipboard.writeText(btn.dataset.copyRelance);
+      btn.textContent = '✓ Copié';
+      if(btn.dataset.markReminder) await markReminderSent(btn.dataset.markReminder);
+      setTimeout(render, 1200);
+    });
+  });
+  holder.querySelectorAll('a[data-mark-reminder]').forEach(a=>{
+    a.addEventListener('click', ()=>{
+      markReminderSent(a.dataset.markReminder).then(render);
+    });
+  });
+  holder.querySelectorAll('[data-delete-link]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Supprimer ce lien ? La personne ne pourra plus y accéder pour donner ou mettre à jour ses dispo.')) return;
+      btn.disabled = true;
+      const { error } = await removeDispoLink(btn.dataset.deleteLink);
+      if(error){
+        alert("La suppression a échoué, réessaie. (" + error.message + ")");
+        btn.disabled = false;
+        return;
+      }
+      render();
+    });
+  });
+  holder.querySelectorAll('[data-toggle-edit-dates]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const wrap = btn.closest('[data-demande-wrap]');
+      const demandeId = wrap.dataset.demandeWrap;
+      const panel = wrap.querySelector('[data-edit-dates-panel]');
+      const opening = panel.style.display === 'none';
+      holder.querySelectorAll('[data-edit-dates-panel]').forEach(p=> p.style.display = 'none');
+      if(!opening) return;
+      const entry = loadDispoDemandes().find(d=> d.id === demandeId);
+      const currentDates = (entry && entry.dates && entry.dates.length > 0) ? entry.dates : null;
+      panel.innerHTML = remplacantDatesPanelHtml(btn.dataset.tournee, currentDates, 'Enregistrer les dates', false);
+      panel.style.display = 'block';
+      bindDatesPanel(panel, async (_selectedTourneeId, dates)=>{
+        await updateDispoLinkDates(demandeId, dates);
+        render();
+      });
+    });
+  });
+  // Lien permanent (I3) : contrairement au lien de dispo, il n'est rattaché à
+  // aucune tournée. Supprimer une vieille tournée ne coupe donc plus l'accès
+  // de la personne à ses infos et à sa liste de remplaçant·es.
+  holder.querySelectorAll('[data-lien-permanent]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const libelle = btn.textContent;
+      btn.disabled = true; btn.textContent = '…';
+      const res = await CurieuxDB.ensureAccesPersonnel(btn.dataset.personId, btn.dataset.personType);
+      btn.disabled = false;
+      if(!res.token){
+        btn.textContent = libelle;
+        alert(res.migrationAbsente
+          ? "Les liens permanents ne sont pas encore actifs sur cette base.\n\nApplique migrations.sql dans Supabase (SQL Editor) pour les activer."
+          : "Le lien n'a pas pu être créé :\n\n" + ((res.error && res.error.message) || 'raison inconnue'));
+        return;
+      }
+      const token = res.token;
+      const base = location.href.slice(0, location.href.lastIndexOf('/') + 1);
+      await navigator.clipboard.writeText(`${base}mon-espace.html?token=${encodeURIComponent(token)}`);
+      btn.textContent = '✓ Copié';
+      setTimeout(()=>{ btn.textContent = libelle; }, 1600);
+    });
+  });
+
+  holder.querySelectorAll('[data-copy-link]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      navigator.clipboard.writeText(btn.dataset.copyLink).then(()=>{
+        const old = btn.textContent;
+        btn.textContent = '✓ Copié';
+        setTimeout(()=>{ btn.textContent = old; }, 1500);
+      });
+    });
+  });
+  holder.querySelectorAll('[data-copy-all]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const tourneeId = btn.dataset.copyAll;
+      const people = [
+        ...titulaireMusiciens.map(person=>({ person, personType:'musicien' })),
+        ...titulaireTechniciens.map(person=>({ person, personType:'technicien' })),
+      ];
+      const lines = [];
+      for(const { person, personType } of people){
+        const entry = await generateDispoLink(tourneeId, personType, person.id);
+        if(entry) lines.push(`${fullName(person)} : ${dispoLinkUrl(entry.id)}`);
+      }
+      render();
+      navigator.clipboard.writeText(lines.join('\n')).then(()=>{
+        alert(`${lines.length} lien${lines.length>1?'s':''} copié${lines.length>1?'s':''} dans le presse-papiers.`);
+      });
+    });
+  });
+}
+
+injectCurieuxFonts();
+
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+async function initData(){
+  [tourneesCache, musiciansCache, techniciansCache, dispoDemandesCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('dispo_demandes'),
+  ]);
+  render();
+}
+CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; curieuxRafraichir(render); }); });
+CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; curieuxRafraichir(render); }); });
+CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; curieuxRafraichir(render); }); });
+CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; curieuxRafraichir(render); }); });
+initData();
+</script>
+</body>
+</html>
