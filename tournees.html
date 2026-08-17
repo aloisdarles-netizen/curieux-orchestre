@@ -69,9 +69,6 @@
   .cachet-row select{padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
   .cachet-row input[type=number]{padding:6px 9px; font-size:12.5px; width:110px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
   .cachet-row .cachet-unit{font-size:12px; color:var(--muted); white-space:nowrap;}
-  .manque-badge{display:inline-block; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:20px; margin-left:6px; font-variant-numeric:tabular-nums; vertical-align:middle;}
-  .manque-badge.ok{background:var(--ok-tint); color:var(--ok);}
-  .manque-badge.warn{background:var(--danger-tint); color:var(--danger);}
   .nomenclature-panel select, .nomenclature-panel input[type=number]{
     padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px;
     background:var(--card); color:var(--text); font-family:inherit;
@@ -84,9 +81,45 @@
   table.grid-table th{font-size:10.5px; text-transform:uppercase; color:var(--muted); text-align:left; padding:6px; border-bottom:1px solid var(--border); white-space:nowrap;}
   table.grid-table td{padding:8px 6px; vertical-align:top; border-bottom:1px solid var(--border); font-size:13px;}
   table.grid-table tr:last-child td{border-bottom:none;}
-  .col-date{white-space:nowrap; font-weight:700;}
-  .col-lieu input{width:100%;}
-  .col-comment textarea{font-size:12.5px;}
+
+  /* ------------------------------------------------------------------------
+     Les dates en lignes plutôt qu'en tableau, comme la maquette.
+
+     Le tableau imposait neuf colonnes de largeur fixe : Ville et Salle y
+     occupaient 28 % à elles deux pour deux champs qu'on lit ensemble, et
+     l'affectation tenait sur trois lignes de texte. Ici Ville · lieu forme une
+     seule cellule élastique, l'effectif se résume en compteurs, et le reste
+     garde une largeur juste suffisante.
+
+     Un défilement horizontal reste possible sous 1040 px : ces lignes portent
+     trop d'information pour se replier proprement sur téléphone.
+     ------------------------------------------------------------------------ */
+  .dates-rows{ overflow-x:auto; }
+  .date-row{
+    display:grid; align-items:center; gap:10px; min-width:1000px;
+    grid-template-columns:118px minmax(220px,1fr) 104px 104px 92px minmax(210px,auto) 92px 92px;
+    flex-wrap:nowrap;
+  }
+  .co-rows-head.date-row{ padding:8px 20px; }
+  .co-row.date-row{ padding:10px 20px; }
+  .col-date{white-space:nowrap; font-weight:700; font-size:12.5px;}
+  .col-date b{display:block; font-weight:800;}
+  .col-lieu{display:flex; flex-direction:column; gap:4px; min-width:0;}
+  .col-lieu input, .col-lieu textarea{width:100%;}
+  .col-lieu .saisie-ville{font-weight:700;}
+  .col-lieu textarea{font-size:12px; min-height:0; height:30px;}
+  .col-type, .col-voyage, .col-statut, .col-fdr, .col-suppr{min-width:0;}
+  .col-type select, .col-voyage select{width:100%;}
+  .col-equipe{display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;}
+  .col-equipe .chips{flex-basis:100%; margin:4px 0 0;}
+  /* Compteur d'effectif : chiffres alignés, et prune sur rose dès qu'il manque
+     du monde — la couleur porte l'alerte, pas seulement le badge à côté. */
+  .co-compteur{
+    display:inline-flex; align-items:center; gap:3px; font-variant-numeric:tabular-nums;
+    font-size:12px; font-weight:800; padding:3px 9px; border-radius:999px;
+    background:var(--accent-tint); color:var(--tint-ink); white-space:nowrap;
+  }
+  .co-compteur.manque{background:var(--rose); color:var(--prune);}
 
   /* Statut de date : une pastille unique qui tourne au clic (maquette). */
   .statut-pastille{
@@ -102,9 +135,11 @@
     display:inline-flex; align-items:center; gap:4px; margin-top:5px; font-size:10.5px; font-weight:700; white-space:normal;
     padding:2px 8px; border-radius:20px; background:var(--border); color:var(--muted); max-width:170px;
   }
-  tr.bloc-row td.col-date{padding-left:6px;}
-  tr.bloc-row.bloc-alt-0 td.col-date{border-left:3px solid var(--old-champagne);}
-  tr.bloc-row.bloc-alt-1 td.col-date{border-left:3px solid var(--accent);}
+  /* Le filet de bloc marquait le bord gauche d'une cellule de tableau ; il
+     marque désormais celui de la ligne, qui n'a plus de cellules. */
+  .co-row.bloc-row{padding-left:17px;}
+  .co-row.bloc-row.bloc-alt-0{border-left:3px solid var(--old-champagne);}
+  .co-row.bloc-row.bloc-alt-1{border-left:3px solid var(--accent);}
   .type-select{
     padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;
     background:var(--card); color:var(--text); font-family:inherit; width:100%; min-width:118px;
@@ -710,12 +745,20 @@ function effectifPourDate(t, d, musicianById){
   });
   return { attendu, affecte, detail };
 }
+// Compteur d'effectif musicien·nes, au gabarit « ♩ 12/14 » de la maquette.
+// Il porte toujours l'id manque-<date> : updateManqueBadges() le remplace en
+// place à chaque changement de nomenclature, sans re-rendre toute la page.
+// Sans nomenclature définie, il n'y a pas d'attendu — on affiche le simple
+// nombre d'affecté·es plutôt qu'un « 0/0 » qui se lirait comme un manque.
 function manqueBadgeHtml(t, d, musicianById){
+  const musCount = (d.musiciensAssignes||[]).length;
   const eff = effectifPourDate(t, d, musicianById);
-  if(!eff || eff.attendu === 0) return `<span id="manque-${escapeAttr(d.id)}"></span>`;
+  if(!eff || eff.attendu === 0){
+    return `<span id="manque-${escapeAttr(d.id)}" class="co-compteur" title="Musicien·nes affecté·es — aucun effectif attendu défini">\u266A ${musCount}</span>`;
+  }
   const complet = eff.affecte >= eff.attendu;
   const titre = eff.detail.map(x=>`${x.pupitre} ${x.affecte}/${x.attendu}`).join(' · ');
-  return `<span id="manque-${escapeAttr(d.id)}" class="manque-badge ${complet?'ok':'warn'}" title="${escapeAttr(titre)}">${eff.affecte}/${eff.attendu} effectif</span>`;
+  return `<span id="manque-${escapeAttr(d.id)}" class="co-compteur${complet?'':' manque'}" title="${escapeAttr(titre)}">\u266A ${eff.affecte}/${eff.attendu}</span>`;
 }
 function renderNomenclatureRowsHtml(t){
   const rows = t.nomenclature || [];
@@ -803,8 +846,8 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
       const rows = dates.map((d, dIdx)=>{
         const fdr = fdrs.find(f=>f.eventDate === d.date);
         const fdrAction = fdr
-          ? `<a class="btn-secondary btn-sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}" style="text-decoration:none; display:inline-block;">Ouvrir FDR</a>`
-          : `<button type="button" class="btn-secondary btn-sm" data-create-fdr="${escapeAttr(d.id)}">Créer FDR</button>`;
+          ? `<a class="co-btn secondary sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}">Ouvrir FDR</a>`
+          : `<button type="button" class="co-btn tint sm" data-create-fdr="${escapeAttr(d.id)}">Créer FDR</button>`;
         const indispoSurDate = (p)=> !!(p && (p.disponibilites || {})[d.date] === 'indispo');
         const marqueIndispo = ' style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;"';
         const assignedChips = (d.musiciensAssignes||[]).map(id=>{
@@ -867,37 +910,33 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         const showTypeStatut = !blocInfo || blocInfo.isFirst;
         const groupRowspan = blocInfo ? blocInfo.blocDates.length : 1;
         return `
-          <tr class="${blocInfo ? `bloc-row bloc-alt-${blocInfo.groupIndex % 2}` : ''}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
-            <td class="col-date">
-              ${escapeHtml(fmtDateFR(d.date))}
+          <div class="co-row date-row ${blocInfo ? `bloc-row bloc-alt-${blocInfo.groupIndex % 2}` : ''}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
+            <span class="col-date">
+              <b>${escapeHtml(fmtDateFR(d.date))}</b>
               ${blocBadge}
               ${linkToggle}
-            </td>
-            ${showTypeStatut ? `<td rowspan="${groupRowspan}" style="vertical-align:middle;">${typeSelect}</td>` : ''}
-            <td>${travelSelect}</td>
-            ${showTypeStatut ? `<td rowspan="${groupRowspan}" style="vertical-align:middle;">${statutGroup}</td>` : ''}
-            <td class="col-lieu">
-              <input type="text" data-field="ville" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.ville||'')}" placeholder="Ville">
-            </td>
-            <td class="col-lieu">
-              <input type="text" data-field="lieu" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.lieu||'')}" placeholder="Salle">
-            </td>
-            <td class="col-comment"><textarea data-field="commentaire" data-date-id="${escapeAttr(d.id)}" placeholder="Commentaire…">${escapeHtml(d.commentaire||'')}</textarea></td>
-            <td>
-              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
-                <span style="font-size:12.5px; color:var(--muted);">${escapeHtml(summaryText)}</span>
-                ${manqueBadgeHtml(t, d, musicianById)}
-                ${contradictionBadge(contradictionsPourDate(d, musicianById, technicianById))}
-                ${(musCount + techCount) > 0 ? `<button type="button" class="btn-ghost btn-sm" data-toggle-chips="${escapeAttr(d.id)}" style="padding:2px 8px;"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"></circle></svg>Voir</button>` : ''}
-              </div>
-              <div class="chips" id="chips-${escapeAttr(d.id)}" style="display:none;">${assignedChips}</div>
-              <button type="button" class="btn-ghost btn-sm" data-assign="${escapeAttr(d.id)}">Affecter des musicien·nes / technicien·nes</button>
-            </td>
-            <td class="row-actions">
-              ${fdrAction}
-              <button type="button" class="btn-danger btn-sm" data-del-date="${escapeAttr(d.id)}" title="Retrait complet — n'apparaîtra plus, même dans le récap">Supprimer définitivement</button>
-            </td>
-          </tr>
+            </span>
+            <span class="col-lieu co-row-name">
+              <input type="text" class="saisie-ville" data-field="ville" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.ville||'')}" placeholder="Ville">
+              <input type="text" class="saisie-lieu" data-field="lieu" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.lieu||'')}" placeholder="Salle">
+              <textarea data-field="commentaire" data-date-id="${escapeAttr(d.id)}" placeholder="Commentaire…">${escapeHtml(d.commentaire||'')}</textarea>
+            </span>
+            <span class="col-type">${showTypeStatut ? typeSelect : ''}</span>
+            <span class="col-voyage">${travelSelect}</span>
+            <span class="col-statut">${showTypeStatut ? statutGroup : ''}</span>
+            <span class="col-equipe" title="${escapeAttr(summaryText)}">
+              ${manqueBadgeHtml(t, d, musicianById)}
+              <span class="co-compteur" title="Technicien·nes affecté·es">⚙ ${techCount}</span>
+              ${contradictionBadge(contradictionsPourDate(d, musicianById, technicianById))}
+              ${(musCount + techCount) > 0 ? `<button type="button" class="co-btn ghost sm" data-toggle-chips="${escapeAttr(d.id)}">Voir</button>` : ''}
+              <button type="button" class="co-btn tint sm" data-assign="${escapeAttr(d.id)}">Affecter</button>
+              <span class="chips" id="chips-${escapeAttr(d.id)}" style="display:none;">${assignedChips}</span>
+            </span>
+            <span class="col-fdr">${fdrAction}</span>
+            <span class="col-suppr">
+              <button type="button" class="co-btn danger sm" data-del-date="${escapeAttr(d.id)}" title="Retrait complet — n'apparaîtra plus, même dans le récap">Supprimer</button>
+            </span>
+          </div>
         `;
       }).join('');
 
@@ -976,11 +1015,18 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <button type="button" class="btn-secondary btn-sm" data-import-dates="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Importer des dates (coller)</button>
           </div>
           ${dates.length ? `
-            <div class="grid-table-wrap">
-              <table class="grid-table">
-                <thead><tr><th style="width:8%;">Date</th><th style="width:11%;">Type</th><th style="width:10%;">Transport</th><th style="width:8%;">Statut</th><th style="width:14%;">Ville</th><th style="width:14%;">Salle</th><th style="width:10%;">Commentaire</th><th style="width:14%;">Musicien·nes</th><th style="width:1%;"></th></tr></thead>
-                <tbody>${rows}</tbody>
-              </table>
+            <div class="co-rows dates-rows">
+              <div class="co-rows-head date-row">
+                <span class="col-date">Date</span>
+                <span class="col-lieu co-row-name">Ville · lieu</span>
+                <span class="col-type">Type</span>
+                <span class="col-voyage">Voyage</span>
+                <span class="col-statut">Statut</span>
+                <span class="col-equipe">Équipe</span>
+                <span class="col-fdr">FDR</span>
+                <span class="col-suppr"></span>
+              </div>
+              ${rows}
             </div>
           ` : `<div class="empty-hint">Aucune date pour l'instant.</div>`}
         </div>
