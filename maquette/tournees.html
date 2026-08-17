@@ -1,0 +1,128 @@
+    <main data-screen-label="Tournées" style="max-width:1240px; margin:0 auto; padding:28px 20px 80px; animation:coFadeUp .4s ease both;">
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:22px;">
+        <div>
+          <h1 style="font-family:var(--font-display); font-size:28px; margin:0 0 4px; color:var(--accent);">Tournées</h1>
+          <p style="color:var(--muted); font-size:13.5px; margin:0;">Dates, statuts, équipes affectées et feuilles de route — clique un statut pour le faire tourner.</p>
+        </div>
+        <x-import component-from-global-scope="CurieuxOrchestreDesignSystem_ecc9f4.Button" variant="secondary" size="sm" hint-size="auto,36px">Importer des dates (coller)</x-import>
+      </div>
+      <div style="background:var(--card); border:1.5px dashed var(--border); border-radius:14px; padding:14px 18px; margin-bottom:20px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <input placeholder="Nom de la nouvelle tournée (ex : Tournée Automne 2027)" style="flex:1 1 260px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:var(--font-body); outline:none;">
+        <x-import component-from-global-scope="CurieuxOrchestreDesignSystem_ecc9f4.Button" variant="primary" size="sm" hint-size="auto,36px">+ Créer la tournée</x-import>
+      </div>
+      <sc-for list="{{ tourneeCards }}" as="tc" hint-placeholder-count="2">
+        <section style="background:var(--card); border:1px solid var(--border); border-radius:14px; margin-bottom:20px; overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:14px; padding:16px 20px; border-bottom:1px solid var(--border); flex-wrap:wrap;">
+            <h2 style="font-family:var(--font-display); font-size:18px; margin:0; flex:1; min-width:200px;">{{ tc.nom }}</h2>
+            <span style="font-size:12px; color:var(--muted); font-weight:700;">{{ tc.meta }}</span>
+            <button style="cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text); border-radius:999px; padding:6px 13px; font-size:12px; font-weight:700; font-family:var(--font-body);">+ Ajouter une date</button>
+          </div>
+          <div>
+            <div style="padding:14px 20px 16px; border-bottom:1px solid var(--border); background:var(--bg); display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;">
+              <div>
+                <div style="font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); margin-bottom:8px;">Cachet</div>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                  <sc-raw-select style="flex:1; min-width:150px; box-sizing:border-box; padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; background:var(--card); color:var(--text); font-family:var(--font-body);">
+                    <option>Cachet défini</option>
+                    <option>À définir</option>
+                  </sc-raw-select>
+                  <span style="display:inline-flex; align-items:center; gap:6px; flex-shrink:0;">
+                    <input value="320" style="width:74px; box-sizing:border-box; padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; background:var(--card); color:var(--text); font-family:var(--font-body); font-variant-numeric:tabular-nums; outline:none;">
+                    <span style="font-size:12px; color:var(--muted); white-space:nowrap;">€ brut / date</span>
+                  </span>
+                </div>
+                <input placeholder="Cachet différent pour… (recherche par nom)" style="margin-top:10px; width:100%; box-sizing:border-box; padding:8px 11px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; background:var(--card); color:var(--text); font-family:var(--font-body); outline:none;">
+                <div style="font-size:11.5px; color:var(--muted); margin-top:6px;">1 exception : Roxanne Rabatti — 450 € (violon solo)</div>
+              </div>
+              <div>
+                <div style="font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); margin-bottom:8px;">Effectif attendu (nomenclature)</div>
+                <sc-for list="{{ tc.nomen }}" as="n" hint-placeholder-count="6">
+                  <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px; max-width:330px; font-size:12.5px; padding:3px 0; border-bottom:1px solid var(--border);">
+                    <span>{{ n.pupitre }}</span><span style="font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; color:{{ n.fg }};">{{ n.txt }}</span>
+                  </div>
+                </sc-for>
+                <button style="cursor:pointer; border:none; background:var(--accent-tint); color:var(--tint-ink); border-radius:8px; padding:6px 11px; font-size:12px; font-weight:700; font-family:var(--font-body); margin-top:8px;">+ Ajouter un pupitre</button>
+              </div>
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <div style="min-width:0;">
+              <div style="display:flex; align-items:center; padding:8px 16px; gap:8px; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--border);">
+                <span style="width:82px;">Date</span><span style="width:58px;">Bloc</span><span style="flex:1; min-width:120px;">Ville · lieu</span><span style="width:104px;">Type</span><span style="width:100px;">Voyage</span><span style="width:84px;">Statut</span><span style="width:124px;">Équipe</span><span style="width:92px;">FDR</span><span style="width:88px;"></span>
+              </div>
+              <sc-for list="{{ tc.rows }}" as="r" hint-placeholder-count="4">
+                <div style="display:flex; align-items:center; padding:var(--row-pad) 16px; gap:8px; border-bottom:1px solid var(--border); background:{{ r.rowBg }};">
+                  <span style="width:82px; font-weight:800; font-size:13px; white-space:nowrap;">{{ r.jour }}</span>
+                  <span title="{{ r.blocTitle }}" style="width:58px; display:flex; flex-direction:column; align-items:flex-start; gap:2px;"><span style="font-size:10px; font-weight:800; padding:2px 8px; border-radius:999px; background:{{ r.blocBg }}; color:{{ r.blocFg }}; white-space:nowrap;">{{ r.bloc }}</span><button sc-camel-on-click="{{ r.blocToggle }}" title="{{ r.blocToggleTitle }}" style="cursor:pointer; border:none; background:transparent; color:var(--muted); font-size:10px; font-weight:700; font-family:var(--font-body); padding:0 8px; text-decoration:underline;">{{ r.blocToggleTxt }}</button></span>
+                  <span style="flex:1; min-width:120px; font-size:13px;"><b>{{ r.ville }}</b><span style="color:var(--muted);"> · {{ r.lieu }}</span><sc-if value="{{ r.hasComment }}" hint-placeholder-val="{{ false }}"><span style="display:block; font-size:11.5px; color:var(--maybe); font-style:italic;">{{ r.comment }}</span></sc-if></span>
+                  <span style="width:104px; display:flex; align-items:center; gap:4px;"><span title="Type de date" style="font-size:12px; color:var(--muted); flex-shrink:0;">{{ r.typeIcon }}</span><sc-raw-select value="{{ r.typeTxt }}" sc-camel-on-change="{{ r.typeSet }}" title="Type de date" style="width:100%; min-width:0; cursor:pointer; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:var(--font-body); font-size:11.5px; font-weight:700; padding:4px 6px; border-radius:8px;"><option value="Concert">Concert</option><option value="Résidence">Résidence</option></sc-raw-select></span>
+                  <span style="width:100px; display:flex; align-items:center; gap:4px;"><span title="Mode de voyage" style="font-size:12px; color:var(--muted); flex-shrink:0;">{{ r.voyIcon }}</span><sc-raw-select value="{{ r.voyTxt }}" sc-camel-on-change="{{ r.voySet }}" title="Mode de voyage" style="width:100%; min-width:0; cursor:pointer; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:var(--font-body); font-size:11.5px; font-weight:700; padding:4px 6px; border-radius:8px;"><option value="Tourbus">Tourbus</option><option value="Train">Train</option><option value="Avion">Avion</option></sc-raw-select></span>
+                  <span style="width:84px;"><button sc-camel-on-click="{{ r.cycle }}" title="Clique pour changer : option → validée → annulée" style="cursor:pointer; border:none; font-family:var(--font-body); font-size:11px; font-weight:800; padding:4px 11px; border-radius:999px; background:{{ r.stBg }}; color:{{ r.stFg }};">{{ r.stTxt }}</button></span>
+                  <span style="width:124px; display:flex; gap:5px;">
+                    <span title="Musicien·nes affecté·es" style="font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; background:var(--accent-tint); color:var(--tint-ink);">♩ {{ r.mus }}</span>
+                    <span title="Technicien·nes affecté·es" style="font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; background:var(--rose); color:var(--accent);">⚙ {{ r.tech }}</span>
+                  </span>
+                  <span style="width:92px;">{{ r.fdrHtml }}<button style="cursor:pointer; border:none; background:transparent; color:{{ r.fdrFg }}; font-size:12px; font-weight:700; font-family:var(--font-body); text-decoration:underline; padding:0;">{{ r.fdrTxt }}</button></span>
+                  <span style="width:88px; display:flex; justify-content:flex-end;">
+                    <button sc-camel-on-click="{{ r.onAssign }}" title="Affecter musicien·nes et technicien·nes à cette date" style="cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--accent); border-radius:999px; padding:5px 12px; font-size:11.5px; font-weight:800; font-family:var(--font-body);">{{ r.assignLbl }}</button>
+                  </span>
+                </div>
+                <sc-if value="{{ r.assignOpen }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:14px 20px 16px; border-bottom:1px solid var(--border); background:var(--bg);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
+                      <span style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">Affecter — clique une personne pour l'ajouter ou la retirer · indisponible = non affectable · « ? » = ajouter une dispo manuellement</span>
+                      <button sc-camel-on-click="{{ r.closeAssign }}" style="cursor:pointer; border:none; background:var(--accent); color:#FCF2F0; border-radius:999px; padding:6px 14px; font-size:11.5px; font-weight:800; font-family:var(--font-body);">Enregistrer</button>
+                    </div>
+                    <input placeholder="Chercher un nom, un instrument, un poste…" value="{{ assignQ }}" sc-camel-on-change="{{ onAssignSearch }}" style="width:100%; box-sizing:border-box; margin-bottom:8px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--card); color:var(--text); font-family:var(--font-body); outline:none;">
+                    <div style="font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); margin:6px 0 6px;">Musicien·nes</div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:7px;">
+                      <sc-for list="{{ r.assignMus }}" as="a" hint-placeholder-count="14">
+                        <button sc-camel-on-click="{{ a.onClick }}" title="{{ a.title }}" style="display:flex; align-items:center; gap:10px; text-align:left; cursor:{{ a.curs }}; opacity:{{ a.op }}; font-family:var(--font-body); padding:8px 12px; border-radius:10px; border:1px solid {{ a.bd }}; background:{{ a.bg }};">
+                          <span style="width:20px; height:20px; border-radius:6px; flex-shrink:0; display:grid; place-items:center; font-size:13px; font-weight:800; background:rgba(252,242,240,.2); border:1px solid {{ a.bd }}; color:{{ a.fg }};">{{ a.mark }}</span>
+                          <span style="flex:1; min-width:0;">
+                            <span style="display:block; font-size:13px; font-weight:800; color:{{ a.fg }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.nom }}</span>
+                            <span style="display:flex; align-items:center; gap:5px; font-size:11px; color:{{ a.subFg }};"><span style="width:8px; height:8px; border-radius:50%; background:{{ a.dot }}; display:inline-block; flex-shrink:0;"></span>{{ a.role }} · <span sc-camel-on-click="{{ a.onDispo }}" title="Ouvrir sa demande de dispo (suivi et relance)" style="text-decoration:underline; cursor:pointer;">{{ a.dispoLbl }}</span></span>
+                          </span>
+                        </button>
+                      </sc-for>
+                    </div>
+                    <sc-if value="{{ r.hasRempl }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--ko); margin:12px 0 6px;">Remplaçant·es proposé·es — titulaires indisponibles</div>
+                      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:7px;">
+                        <sc-for list="{{ r.assignRempl }}" as="a" hint-placeholder-count="2">
+                          <button sc-camel-on-click="{{ a.onClick }}" title="{{ a.title }}" style="display:flex; align-items:center; gap:10px; text-align:left; cursor:{{ a.curs }}; opacity:{{ a.op }}; font-family:var(--font-body); padding:8px 12px; border-radius:10px; border:1px dashed {{ a.bd }}; background:{{ a.bg }};">
+                            <span style="width:20px; height:20px; border-radius:6px; flex-shrink:0; display:grid; place-items:center; font-size:13px; font-weight:800; background:rgba(252,242,240,.2); border:1px solid {{ a.bd }}; color:{{ a.fg }};">{{ a.mark }}</span>
+                            <span style="flex:1; min-width:0;">
+                              <span style="display:block; font-size:13px; font-weight:800; color:{{ a.fg }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.nom }}</span>
+                              <span style="display:flex; align-items:center; gap:5px; font-size:11px; color:{{ a.subFg }};"><span style="width:8px; height:8px; border-radius:50%; background:{{ a.dot }}; display:inline-block; flex-shrink:0;"></span>{{ a.role }} · <span sc-camel-on-click="{{ a.onDispo }}" title="Ouvrir sa demande de dispo (suivi et relance)" style="text-decoration:underline; cursor:pointer;">{{ a.dispoLbl }}</span></span>
+                              <span style="display:inline-block; margin-top:3px; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; background:{{ a.forBg }}; color:{{ a.forFg }};">{{ a.forName }}</span>
+                            </span>
+                          </button>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <div style="font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); margin:12px 0 6px;">Technicien·nes</div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:7px;">
+                      <sc-for list="{{ r.assignTech }}" as="a" hint-placeholder-count="4">
+                        <button sc-camel-on-click="{{ a.onClick }}" title="{{ a.title }}" style="display:flex; align-items:center; gap:10px; text-align:left; cursor:{{ a.curs }}; opacity:{{ a.op }}; font-family:var(--font-body); padding:8px 12px; border-radius:10px; border:1px solid {{ a.bd }}; background:{{ a.bg }};">
+                          <span style="width:20px; height:20px; border-radius:6px; flex-shrink:0; display:grid; place-items:center; font-size:13px; font-weight:800; background:rgba(252,242,240,.2); border:1px solid {{ a.bd }}; color:{{ a.fg }};">{{ a.mark }}</span>
+                          <span style="flex:1; min-width:0;">
+                            <span style="display:block; font-size:13px; font-weight:800; color:{{ a.fg }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.nom }}</span>
+                            <span style="display:flex; align-items:center; gap:5px; font-size:11px; color:{{ a.subFg }};"><span style="width:8px; height:8px; border-radius:50%; background:{{ a.dot }}; display:inline-block; flex-shrink:0;"></span>{{ a.role }} · <span sc-camel-on-click="{{ a.onDispo }}" title="Ouvrir sa demande de dispo (suivi et relance)" style="text-decoration:underline; cursor:pointer;">{{ a.dispoLbl }}</span></span>
+                          </span>
+                        </button>
+                      </sc-for>
+                    </div>
+                    <sc-if value="{{ r.hasBlocAssign }}" hint-placeholder-val="{{ false }}">
+                      <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); font-weight:700; margin-top:12px; cursor:pointer;"><input type="checkbox"> Aussi affecter ces personnes sur l'autre date du bloc — {{ r.blocOtherLbl }}</label>
+                    </sc-if>
+                  </div>
+                </sc-if>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+      </sc-for>
+      <p style="font-size:12px; color:var(--muted);">Le badge « bloc » relie deux dates consécutives : un seul déplacement (départ la veille, retour le lendemain). Les tournées passées se replient automatiquement en bas de page.</p>
+    </main>
+  </sc-if>

@@ -1,0 +1,71 @@
+    <main data-screen-label="Vue d'ensemble" style="max-width:1240px; margin:0 auto; padding:28px 20px 80px; animation:coFadeUp .4s ease both;">
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+        <div>
+          <h1 style="font-family:var(--font-display); font-size:28px; margin:0 0 4px; color:var(--accent);">Vue d'ensemble</h1>
+          <p style="color:var(--muted); font-size:13.5px; margin:0;">Qui joue où, toutes tournées confondues — une couleur par tournée.</p>
+        </div>
+        <x-import component-from-global-scope="CurieuxOrchestreDesignSystem_ecc9f4.Button" variant="primary" size="sm" hint-size="auto,36px">Exporter en PDF</x-import>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:14px;">
+        <sc-for list="{{ recapStats }}" as="st" hint-placeholder-count="4">
+          <div style="background:{{ st.bg }}; color:{{ st.fg }}; border-radius:14px; padding:14px 16px; transform:{{ st.tilt }}; box-shadow:0 3px 10px rgba(20,22,23,.16);">
+            <div style="font-family:var(--font-display); font-size:32px; line-height:1;">{{ st.num }}</div>
+            <div style="font-size:11.5px; margin-top:5px; font-weight:700; opacity:.9;">{{ st.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:14px; font-size:12.5px; color:var(--muted);">
+        <sc-for list="{{ recapLegend }}" as="lg" hint-placeholder-count="2">
+          <span style="display:inline-flex; align-items:center; gap:6px;"><span style="width:13px; height:13px; border-radius:4px; background:{{ lg.sw }}; display:inline-block;"></span> {{ lg.nom }}</span>
+        </sc-for>
+      </div>
+      <h2 style="font-size:13px; margin:14px 0 8px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); font-weight:800;">Musicien·nes</h2>
+      <div style="overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--card);">
+        <div style="min-width:max-content;">
+          <div style="display:flex; border-bottom:1px solid var(--border);">
+            <span style="position:sticky; left:0; z-index:3; background:var(--card); width:210px; flex-shrink:0; padding:9px 14px; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); border-right:1px solid var(--border);">Musicien·ne</span>
+            <sc-for list="{{ recapDates }}" as="dd" hint-placeholder-count="9">
+              <span style="width:76px; flex-shrink:0; padding:7px 4px; text-align:center; font-size:11px; color:var(--muted); font-weight:800; border-right:1px solid var(--border);">{{ dd.label }}<br><span style="font-weight:600; font-size:10px;">{{ dd.ville }}</span></span>
+            </sc-for>
+          </div>
+          <sc-for list="{{ recapRows }}" as="row" hint-placeholder-count="10">
+            <div style="display:flex; border-bottom:1px solid var(--border); align-items:stretch;">
+              <span style="position:sticky; left:0; z-index:2; background:var(--card); width:210px; flex-shrink:0; padding:var(--row-pad) 14px; border-right:1px solid var(--border);">
+                <span style="font-weight:800; font-size:13px; display:block;">{{ row.nom }}</span>
+                <span style="font-size:11px; color:var(--muted);">{{ row.inst }}</span>
+              </span>
+              <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="9">
+                <span style="width:76px; flex-shrink:0; display:grid; place-items:center; padding:5px 0; border-right:1px solid var(--border);">
+                  <span style="width:38px; height:28px; border-radius:7px; display:grid; place-items:center; font-size:13px; font-weight:800; border:1px solid {{ c.bd }}; background:{{ c.bg }}; color:{{ c.fg }};">{{ c.sym }}</span>
+                </span>
+              </sc-for>
+            </div>
+          </sc-for>
+          <div style="display:flex; align-items:stretch; background:var(--row-alt);">
+            <span style="position:sticky; left:0; z-index:2; background:var(--row-alt); width:210px; flex-shrink:0; padding:9px 14px; border-right:1px solid var(--border); font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);">Affecté·es par date</span>
+            <sc-for list="{{ recapTotals }}" as="t" hint-placeholder-count="9">
+              <span style="width:76px; flex-shrink:0; display:grid; place-items:center; padding:7px 0; border-right:1px solid var(--border); font-size:12px; font-weight:800; color:{{ t.fg }}; font-variant-numeric:tabular-nums;">{{ t.txt }}</span>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <h2 style="font-size:13px; margin:24px 0 8px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); font-weight:800;">Technicien·nes</h2>
+      <div style="overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--card);">
+        <div style="min-width:max-content;">
+          <sc-for list="{{ recapRowsTech }}" as="row" hint-placeholder-count="4">
+            <div style="display:flex; border-bottom:1px solid var(--border); align-items:stretch;">
+              <span style="position:sticky; left:0; z-index:2; background:var(--card); width:210px; flex-shrink:0; padding:var(--row-pad) 14px; border-right:1px solid var(--border);">
+                <span style="font-weight:800; font-size:13px; display:block;">{{ row.nom }}</span>
+                <span style="font-size:11px; color:var(--muted);">{{ row.inst }}</span>
+              </span>
+              <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="9">
+                <span style="width:76px; flex-shrink:0; display:grid; place-items:center; padding:5px 0; border-right:1px solid var(--border);">
+                  <span style="width:38px; height:28px; border-radius:7px; display:grid; place-items:center; font-size:13px; font-weight:800; border:1px solid {{ c.bd }}; background:{{ c.bg }}; color:{{ c.fg }};">{{ c.sym }}</span>
+                </span>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </main>
+  </sc-if>

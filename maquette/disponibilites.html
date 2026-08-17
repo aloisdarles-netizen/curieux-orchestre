@@ -1,0 +1,71 @@
+    <main data-screen-label="Disponibilités — grille" style="max-width:1240px; margin:0 auto; padding:28px 20px 80px; animation:coFadeUp .4s ease both;">
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:14px;">
+        <div>
+          <h1 style="font-family:var(--font-display); font-size:28px; margin:0 0 4px; color:var(--accent);">Disponibilités</h1>
+          <p style="color:var(--muted); font-size:13.5px; margin:0;">Clique une cellule : non renseigné → disponible → indisponible → à confirmer. Les dates viennent des tournées.</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <x-import component-from-global-scope="CurieuxOrchestreDesignSystem_ecc9f4.Button" variant="secondary" size="sm" hint-size="auto,36px">Importer des réponses</x-import>
+          <x-import component-from-global-scope="CurieuxOrchestreDesignSystem_ecc9f4.Button" variant="primary" size="sm" hint-size="auto,36px">Exporter en PDF</x-import>
+        </div>
+      </div>
+      <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-bottom:14px; font-size:12.5px; color:var(--muted);">
+        <span style="display:inline-flex; align-items:center; gap:6px;"><span style="width:13px; height:13px; border-radius:4px; background:var(--ok); display:inline-block;"></span> Disponible</span>
+        <span style="display:inline-flex; align-items:center; gap:6px;"><span style="width:13px; height:13px; border-radius:4px; background:var(--ko); display:inline-block;"></span> Indisponible</span>
+        <span style="display:inline-flex; align-items:center; gap:6px;"><span style="width:13px; height:13px; border-radius:4px; background:var(--maybe); display:inline-block;"></span> À confirmer</span>
+        <span style="display:inline-flex; align-items:center; gap:6px;"><span style="width:13px; height:13px; border-radius:4px; background:var(--card); border:1px solid var(--border); display:inline-block;"></span> Non renseigné</span>
+        <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-weight:700;"><input type="checkbox" sc-camel-on-change="{{ onTogglePast }}"> Afficher aussi les dates passées</label>
+        <span style="flex:1;"></span>
+        <label style="font-weight:700;">Afficher :</label>
+        <sc-raw-select sc-camel-on-change="{{ setFilter }}" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; background:var(--card); color:var(--text); font-family:var(--font-body);">
+          <option value="titulaire">Titulaires uniquement</option>
+          <option value="">Tou·tes (titulaires en premier)</option>
+          <option value="remplacant">Remplaçant·es uniquement</option>
+        </sc-raw-select>
+      </div>
+
+      <h2 style="font-size:13px; margin:20px 0 8px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); font-weight:800; display:flex; align-items:center; gap:8px;"><span style="width:5px; height:15px; border-radius:3px; background:var(--tonic); display:inline-block;"></span>Musicien·nes <span style="color:var(--muted); font-weight:700; text-transform:none; letter-spacing:0;">{{ musCount }}</span></h2>
+      <div style="overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--card);">
+        <div style="min-width:max-content;">
+          <div style="display:flex; border-bottom:1px solid var(--border);">
+            <span style="position:sticky; left:0; z-index:3; background:var(--card); width:210px; flex-shrink:0; padding:9px 14px; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); border-right:1px solid var(--border);">Musicien·ne</span>
+            <sc-for list="{{ dispoDates }}" as="dd" hint-placeholder-count="8">
+              <span style="width:76px; flex-shrink:0; padding:7px 4px; text-align:center; font-size:11px; color:var(--muted); font-weight:800; border-right:1px solid var(--border);">{{ dd.label }}<br><span style="font-weight:600; font-size:10px;">{{ dd.ville }}</span></span>
+            </sc-for>
+          </div>
+          <sc-for list="{{ dispoRows }}" as="row" hint-placeholder-count="8">
+            <div style="display:flex; border-bottom:1px solid var(--border); align-items:stretch;">
+              <span style="position:sticky; left:0; z-index:2; background:var(--card); width:210px; flex-shrink:0; padding:var(--row-pad) 14px; border-right:1px solid var(--border);">
+                <span style="font-weight:800; font-size:13px; display:block;">{{ row.nom }}</span>
+                <span style="font-size:11px; color:var(--muted);">{{ row.inst }}</span><span style="font-size:9px; font-weight:800; text-transform:uppercase; padding:1px 6px; border-radius:999px; background:{{ row.tagBg }}; color:{{ row.tagFg }}; margin-left:{{ row.tagMl }};">{{ row.tag }}</span>
+              </span>
+              <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="8">
+                <span style="width:76px; flex-shrink:0; display:grid; place-items:center; padding:5px 0; border-right:1px solid var(--border);">
+                  <button sc-camel-on-click="{{ c.onClick }}" title="{{ c.title }}" style="width:38px; height:30px; border-radius:7px; cursor:pointer; font-size:14px; font-weight:800; font-family:var(--font-body); border:1px solid {{ c.bd }}; background:{{ c.bg }}; color:{{ c.fg }};">{{ c.sym }}</button>
+                </span>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <h2 style="font-size:13px; margin:26px 0 8px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); font-weight:800; display:flex; align-items:center; gap:8px;"><span style="width:5px; height:15px; border-radius:3px; background:var(--tonic); display:inline-block;"></span>Technicien·nes</h2>
+      <div style="overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--card);">
+        <div style="min-width:max-content;">
+          <sc-for list="{{ dispoRowsTech }}" as="row" hint-placeholder-count="4">
+            <div style="display:flex; border-bottom:1px solid var(--border); align-items:stretch;">
+              <span style="position:sticky; left:0; z-index:2; background:var(--card); width:210px; flex-shrink:0; padding:var(--row-pad) 14px; border-right:1px solid var(--border);">
+                <span style="font-weight:800; font-size:13px; display:block;">{{ row.nom }}</span>
+                <span style="font-size:11px; color:var(--muted);">{{ row.inst }}</span>
+              </span>
+              <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="8">
+                <span style="width:76px; flex-shrink:0; display:grid; place-items:center; padding:5px 0; border-right:1px solid var(--border);">
+                  <button sc-camel-on-click="{{ c.onClick }}" title="{{ c.title }}" style="width:38px; height:30px; border-radius:7px; cursor:pointer; font-size:14px; font-weight:800; font-family:var(--font-body); border:1px solid {{ c.bd }}; background:{{ c.bg }}; color:{{ c.fg }};">{{ c.sym }}</button>
+                </span>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </main>
+  </sc-if>
