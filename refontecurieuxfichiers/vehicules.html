@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Véhicules &amp; chauffeurs</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:1000px; margin:0 auto; font-variant-numeric:tabular-nums;}
+  button{ cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700; padding:9px 15px; font-family:inherit; }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-sm{padding:7px 11px; font-size:12px;}
+
+  input[type=text], input[type=number], input[type=email], input[type=tel], select, textarea{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  textarea{min-height:56px; resize:vertical;}
+  label{font-size:12px; color:var(--muted); font-weight:600;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .field-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .field-row .field{flex:1; min-width:130px;}
+  label.chk{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--text); font-weight:400; cursor:pointer;}
+  label.chk input{width:18px; height:18px; accent-color:var(--accent);}
+
+  h2.section-title{font-size:16px; margin:0 0 4px; font-weight:800;}
+  .section-block{margin-bottom:30px;}
+  .section-lead{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
+  .section-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px;}
+
+  .cardgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:14px;}
+  .r-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; display:flex; flex-direction:column; gap:8px;}
+
+  /* Cartes véhicule en langage « étiquette » de la charte : bandeau de couleur
+     découpé, légèrement de travers. Seul le bandeau prend la couleur — le corps
+     de la carte reste blanc, parce qu'il porte un menu déroulant et des boutons
+     qu'un aplat prune rendrait illisibles. */
+  .r-card.vehicule{
+    padding:0; overflow:hidden; gap:0;
+    transform:rotate(var(--co-tilt, -.7deg));
+    box-shadow:0 0 0 4px var(--card), 6px 8px 0 rgba(20,22,23,.10);
+    transition:transform .22s cubic-bezier(.34,1.5,.6,1), box-shadow .22s ease;
+  }
+  .r-card.vehicule:hover{
+    transform:rotate(0deg) translateY(-3px);
+    box-shadow:0 0 0 4px var(--card), 9px 12px 0 rgba(20,22,23,.13);
+  }
+  .vehicule-bandeau{display:flex; align-items:center; gap:11px; padding:13px 16px;}
+  .vehicule-bandeau .r-name{
+    font-family:var(--font-display); font-size:19px; font-weight:500; line-height:1.1;
+    text-transform:uppercase; letter-spacing:.02em; flex:1; min-width:0;
+  }
+  .vehicule-bandeau .r-sub{opacity:.88;}
+  /* La plaque reprend le rendu d'une vraie immatriculation : fond clair, liseré
+     noir, chiffres tabulaires. */
+  .vehicule-plaque{
+    font-size:11.5px; font-weight:800; font-variant-numeric:tabular-nums;
+    background:#FCF2F0; color:#141617; border:1.5px solid #141617; border-radius:6px;
+    padding:3px 8px; letter-spacing:.06em; white-space:nowrap; flex-shrink:0;
+  }
+  .vehicule-corps{padding:12px 16px 14px; display:flex; flex-direction:column; gap:8px;}
+  @media (prefers-reduced-motion: reduce){ .r-card.vehicule, .r-card.vehicule:hover{ transform:none; transition:none; } }
+  .r-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .r-name{font-weight:800; font-size:15.5px;}
+  .r-sub{color:var(--muted); font-size:12.5px;}
+  .r-actions{display:flex; gap:6px; margin-top:8px; border-top:1px solid var(--border); padding-top:10px;}
+  .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap;}
+  .badge-accent{background:var(--accent-tint); color:var(--accent-dark);}
+  .badge-hayon{background:var(--ok-tint); color:var(--ok);}
+  .badge-sans-hayon{background:var(--border); color:var(--muted);}
+  .r-dims{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; color:var(--muted); background:var(--bg); border-radius:8px; padding:7px 10px;}
+  .r-dims b{color:var(--text); font-weight:700;}
+
+  .lien-chauffeur{
+    display:flex; align-items:center; gap:9px; background:var(--bg); border:1px dashed var(--border);
+    border-radius:10px; padding:9px 11px; margin-top:2px;
+  }
+  .lien-chauffeur .lien-avatar{
+    flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--accent-tint); color:var(--accent-dark);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px;
+  }
+  .lien-chauffeur .lien-corps{flex:1; min-width:0;}
+  .lien-chauffeur .lien-label{font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); font-weight:700;}
+  .lien-chauffeur select{width:auto; flex:1; min-width:0; padding:5px 7px; font-size:13px; margin-top:2px;}
+  .lien-chauffeur.vide{border-style:dashed; border-color:var(--maybe);}
+  .exception-note{font-size:11.5px; color:var(--maybe); background:var(--maybe-tint); border-radius:8px; padding:5px 9px; margin-top:2px;}
+
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(20,15,10,.5); align-items:center; justify-content:center; padding:20px; z-index:50; overflow-y:auto;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--card); border-radius:14px; padding:24px; max-width:560px; width:100%; max-height:88vh; overflow-y:auto; margin:auto;}
+  .modal h2{font-size:17px; margin:0 0 16px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
+  .sous-liste{display:flex; flex-direction:column; gap:8px; margin-bottom:10px;}
+
+  .affectation-row{display:flex; gap:8px; align-items:center; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:9px 10px; margin-bottom:8px; flex-wrap:wrap;}
+  .affectation-row .quand{font-size:12.5px; font-weight:700; flex:0 0 90px;}
+  .affectation-row select{width:auto; flex:1; min-width:140px;}
+  .tournee-select{padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; background:var(--card); color:var(--text); font-family:inherit; margin-bottom:14px;}
+  @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Véhicules &amp; chauffeurs</h1>
+      <p class="subtitle">Le parc, les chauffeurs, et qui conduit quoi — date par date.</p>
+    </div>
+  </div>
+
+  <div class="section-block">
+    <div class="section-head">
+      <h2 class="section-title">Véhicules</h2>
+      <button type="button" class="btn-secondary" id="addVehiculeBtn">+ Ajouter un véhicule</button>
+    </div>
+    <div class="cardgrid" id="vehiculesGrid"></div>
+    <div class="empty-hint" id="vehiculesEmpty" style="display:none;">Aucun véhicule enregistré.</div>
+  </div>
+
+  <div class="section-block">
+    <div class="section-head">
+      <h2 class="section-title">Chauffeurs</h2>
+      <button type="button" class="btn-secondary" id="addChauffeurBtn">+ Ajouter un chauffeur</button>
+    </div>
+    <div class="cardgrid" id="chauffeursGrid"></div>
+    <div class="empty-hint" id="chauffeursEmpty" style="display:none;">Aucun chauffeur enregistré.</div>
+  </div>
+
+  <div class="section-block">
+    <div class="section-head">
+      <h2 class="section-title">Carnets ATA</h2>
+      <button type="button" class="btn-secondary" id="addCarnetBtn">+ Ajouter un carnet</button>
+    </div>
+    <p class="section-lead">Attribué à une semi pour toute la tournée, valable dans toute l'Europe.</p>
+    <div class="cardgrid" id="carnetsGrid"></div>
+    <div class="empty-hint" id="carnetsEmpty" style="display:none;">Aucun carnet ATA enregistré.</div>
+  </div>
+
+  <div class="section-block">
+    <h2 class="section-title">Exceptions par date</h2>
+    <p class="section-lead">Par défaut, chaque semi est conduite par son chauffeur habituel (défini sur sa carte, ci-dessus). N'ajoute une ligne ici que pour une date où ça change.</p>
+    <div class="field-row">
+      <select class="tournee-select" id="tourneeSelect" style="flex:1;"></select>
+      <select class="tournee-select" id="affectationDateSelect" style="flex:1;"></select>
+    </div>
+    <div id="affectationsListe"></div>
+    <button type="button" class="btn-secondary btn-sm" id="addAffectationBtn">+ Ajouter une exception</button>
+  </div>
+</div>
+
+<!-- Modale véhicule -->
+<div class="modal-overlay" id="vehiculeModalOverlay">
+  <div class="modal">
+    <h2 id="vehiculeModalTitle">Ajouter un véhicule</h2>
+    <input type="hidden" id="vEditId">
+    <div class="field-row">
+      <div class="field"><label for="vNom">Nom</label><input type="text" id="vNom" placeholder="Ex: Semi 1"></div>
+      <div class="field"><label for="vType">Type</label>
+        <select id="vType">
+          <option value="tracteur">Tracteur</option>
+          <option value="semi" selected>Semi</option>
+          <option value="porteur">Porteur</option>
+          <option value="camion">Camion</option>
+          <option value="voiture">Voiture</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label for="vImmat">Immatriculation</label><input type="text" id="vImmat"></div>
+    <div class="field-row">
+      <div class="field"><label for="vHauteur">Hauteur (m)</label><input type="number" step="0.01" min="0" id="vHauteur"></div>
+      <div class="field"><label for="vLargeur">Largeur (m)</label><input type="number" step="0.01" min="0" id="vLargeur"></div>
+      <div class="field"><label for="vProfondeur">Longueur (m)</label><input type="number" step="0.01" min="0" id="vProfondeur"></div>
+    </div>
+    <div class="field"><label class="chk"><input type="checkbox" id="vHayon"> Cette semi a un hayon</label></div>
+    <div class="field"><label for="vCapacite">Capacité</label><input type="text" id="vCapacite" placeholder="Ex: 90 m³"></div>
+    <div class="field"><label for="vPrestataire">Prestataire</label><select id="vPrestataire"></select></div>
+    <div class="field"><label for="vChauffeurDefaut">Chauffeur habituel</label><select id="vChauffeurDefaut"></select></div>
+    <div class="field"><label for="vNotes">Notes</label><textarea id="vNotes"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="vehiculeModalCancel">Annuler</button>
+      <button type="button" class="btn-secondary" id="vehiculeModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale chauffeur -->
+<div class="modal-overlay" id="chauffeurModalOverlay">
+  <div class="modal">
+    <h2 id="chauffeurModalTitle">Ajouter un chauffeur</h2>
+    <input type="hidden" id="chEditId">
+    <div class="field-row">
+      <div class="field"><label for="chPrenom">Prénom</label><input type="text" id="chPrenom"></div>
+      <div class="field"><label for="chNom">Nom</label><input type="text" id="chNom"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="chTelephone">Téléphone</label><input type="tel" id="chTelephone"></div>
+      <div class="field"><label for="chEmail">Email</label><input type="email" id="chEmail"></div>
+    </div>
+    <div class="field"><label for="chPrestataire">Prestataire</label><select id="chPrestataire"></select></div>
+    <div class="field"><label for="chNotes">Notes</label><textarea id="chNotes"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="chauffeurModalCancel">Annuler</button>
+      <button type="button" class="btn-secondary" id="chauffeurModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale carnet ATA -->
+<div class="modal-overlay" id="carnetModalOverlay">
+  <div class="modal">
+    <h2 id="carnetModalTitle">Ajouter un carnet ATA</h2>
+    <input type="hidden" id="cEditId">
+    <div class="field"><label for="cNumero">Numéro</label><input type="text" id="cNumero"></div>
+    <div class="field"><label for="cVehicule">Semi concernée</label><select id="cVehicule"></select></div>
+    <div class="field"><label for="cStatut">Statut</label>
+      <select id="cStatut">
+        <option value="a_demander">À demander</option>
+        <option value="demande">Demandé</option>
+        <option value="en_cours">En cours</option>
+        <option value="obtenu">Obtenu</option>
+        <option value="a_apurer">À apurer</option>
+        <option value="apure">Apuré</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="cEmisLe">Émis le</label><input type="date" id="cEmisLe"></div>
+      <div class="field"><label for="cExpireLe">Expire le</label><input type="date" id="cExpireLe"></div>
+    </div>
+    <div class="field"><label>Lots déclarés</label><div class="sous-liste" id="carnetLotsListe" style="max-height:160px; overflow-y:auto;"></div></div>
+    <div class="field"><label for="cNotes">Notes</label><textarea id="cNotes"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="carnetModalCancel">Annuler</button>
+      <button type="button" class="btn-secondary" id="carnetModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let vehiculesCache = [], chauffeursCache = [], carnetsCache = [], prestatairesCache = [], lotsCache = [], tourneesCache = [], affectationsCache = [];
+const TYPE_VEHICULE_LABEL = { tracteur:'Tracteur', semi:'Semi', porteur:'Porteur', camion:'Camion', voiture:'Voiture' };
+const STATUT_ATA_LABEL = { a_demander:'À demander', demande:'Demandé', en_cours:'En cours', obtenu:'Obtenu', a_apurer:'À apurer', apure:'Apuré' };
+
+function fillPrestataireSelects(){
+  const html = '<option value="">— Aucun —</option>' + prestatairesCache.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('') + `<option value="__nouveau__">+ Nouveau prestataire…</option>`;
+  document.getElementById('vPrestataire').innerHTML = html;
+  document.getElementById('chPrestataire').innerHTML = html;
+}
+async function gererNouveauPrestataire(sel){
+  if(sel.value !== '__nouveau__') return;
+  const nom = prompt('Nom du prestataire :');
+  if(!nom || !nom.trim()){ sel.value = ''; return; }
+  const obj = { id: genId('prest'), nom: nom.trim(), notes: '' };
+  await CurieuxDB.upsertOne('prestataires', obj);
+  prestatairesCache.push(obj);
+  fillPrestataireSelects();
+  sel.value = obj.id;
+}
+document.getElementById('vPrestataire').addEventListener('change', (e)=> gererNouveauPrestataire(e.target));
+document.getElementById('chPrestataire').addEventListener('change', (e)=> gererNouveauPrestataire(e.target));
+
+// ============================================================================
+// Véhicules
+// ============================================================================
+function initiales(personne){
+  const p = (personne.prenom||'')[0] || ''; const n = (personne.nom||'')[0] || '';
+  return (p+n).toUpperCase() || '?';
+}
+// [fond, encre, fond de pastille, encre de pastille]
+const VEHICULE_COULEURS = [
+  ['#791649', '#FCF2F0', '#FEC9E0', '#791649'],
+  ['#CEE1F4', '#791649', '#791649', '#FCF2F0'],
+  ['#EC4B15', '#FCF2F0', '#FCF2F0', '#EC4B15'],
+];
+
+function renderVehicules(){
+  const grid = document.getElementById('vehiculesGrid');
+  const empty = document.getElementById('vehiculesEmpty');
+  if(vehiculesCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  grid.innerHTML = vehiculesCache.map((v, index)=>{
+    const [fond, encre, chipFond, chipEncre] = VEHICULE_COULEURS[index % VEHICULE_COULEURS.length];
+    const prest = prestatairesCache.find(p=>p.id===v.prestataireId);
+    const dims = [v.hauteurM,v.largeurM,v.profondeurM].some(x=>x!=null)
+      ? `${v.hauteurM ?? '—'} × ${v.largeurM ?? '—'} × ${v.profondeurM ?? '—'} m` : '';
+    const defaut = chauffeursCache.find(c=>c.id===v.chauffeurDefautId);
+    const exception = prochaineException(v.id, v.chauffeurDefautId);
+    return `
+    <div class="r-card vehicule" style="--co-tilt:${index % 2 ? '.8deg' : '-.7deg'};">
+      <div class="vehicule-bandeau" style="background:${fond}; color:${encre};">
+        <span class="co-badge co-badge-sm" aria-hidden="true" style="background:${chipFond}; color:${chipEncre};">⛟</span>
+        <span class="r-name">${escapeHtml(v.nom || 'Sans nom')}</span>
+        ${v.immatriculation ? `<span class="vehicule-plaque">${escapeHtml(v.immatriculation)}</span>` : ''}
+      </div>
+      <div class="vehicule-corps">
+      <div class="r-card-top">
+        <div class="r-sub">${escapeHtml(TYPE_VEHICULE_LABEL[v.type]||v.type)}${v.capacite ? ' · ' + escapeHtml(v.capacite) : ''}</div>
+      </div>
+      ${dims ? `<div class="r-dims">${escapeHtml(dims)}</div>` : ''}
+      ${v.type === 'semi' ? `<span class="badge ${v.hayon ? 'badge-hayon' : 'badge-sans-hayon'}" style="align-self:flex-start;">${v.hayon ? 'Avec hayon' : 'Sans hayon'}</span>` : ''}
+      ${prest ? `<div class="r-sub">Loué chez ${escapeHtml(prest.nom)}</div>` : ''}
+      <div class="lien-chauffeur${defaut?'':' vide'}">
+        <div class="lien-avatar">${defaut ? escapeHtml(initiales(defaut)) : '—'}</div>
+        <div class="lien-corps">
+          <div class="lien-label">Chauffeur habituel</div>
+          <select data-defaut="${v.id}">
+            <option value="">— Aucun —</option>
+            ${chauffeursCache.map(c=>`<option value="${c.id}" ${v.chauffeurDefautId===c.id?'selected':''}>${escapeHtml(fullName(c))}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      ${exception ? `<div class="exception-note">Exception le ${escapeHtml(libelleDateCourt(exception.d))} : ${escapeHtml(fullName(exception.chauffeur))}</div>` : ''}
+      <div class="r-actions">
+        <button type="button" class="btn-ghost btn-sm" data-edit="${v.id}">Modifier</button>
+        <button type="button" class="btn-ghost btn-sm" data-chauffeur="${v.id}">+ Exception</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${v.id}">Supprimer</button>
+      </div>
+      </div>
+    </div>
+  `;}).join('');
+  grid.querySelectorAll('[data-defaut]').forEach(sel=> sel.addEventListener('change', async ()=>{
+    const v = vehiculesCache.find(x=>x.id===sel.dataset.defaut);
+    v.chauffeurDefautId = sel.value;
+    await CurieuxDB.upsertOne('vehicules', v);
+    renderVehicules();
+  }));
+  grid.querySelectorAll('[data-chauffeur]').forEach(b=> b.addEventListener('click', ()=> attacherChauffeurRapide(b.dataset.chauffeur)));
+  grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openVehiculeModal(b.dataset.edit)));
+  grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
+    const v = vehiculesCache.find(x=>x.id===b.dataset.del);
+    if(v && confirm(`Supprimer « ${v.nom || 'ce véhicule'} » ?`)){
+      vehiculesCache = vehiculesCache.filter(x=>x.id!==b.dataset.del);
+      CurieuxDB.removeOne('vehicules', b.dataset.del);
+      renderVehicules(); renderCarnets();
+    }
+  }));
+}
+function fillChauffeurDefautSelect(){
+  document.getElementById('vChauffeurDefaut').innerHTML = '<option value="">— Aucun —</option>'
+    + chauffeursCache.map(c=>`<option value="${c.id}">${escapeHtml(fullName(c))}</option>`).join('');
+}
+function openVehiculeModal(id){
+  fillPrestataireSelects();
+  fillChauffeurDefautSelect();
+  document.getElementById('vEditId').value = id || '';
+  if(id){
+    const v = vehiculesCache.find(x=>x.id===id);
+    if(!v) return;
+    document.getElementById('vehiculeModalTitle').textContent = 'Modifier ' + (v.nom || 'ce véhicule');
+    document.getElementById('vNom').value = v.nom || '';
+    document.getElementById('vType').value = v.type || 'semi';
+    document.getElementById('vImmat').value = v.immatriculation || '';
+    document.getElementById('vHauteur').value = v.hauteurM ?? '';
+    document.getElementById('vLargeur').value = v.largeurM ?? '';
+    document.getElementById('vProfondeur').value = v.profondeurM ?? '';
+    document.getElementById('vCapacite').value = v.capacite || '';
+    document.getElementById('vHayon').checked = !!v.hayon;
+    document.getElementById('vPrestataire').value = v.prestataireId || '';
+    document.getElementById('vChauffeurDefaut').value = v.chauffeurDefautId || '';
+    document.getElementById('vNotes').value = v.notes || '';
+  } else {
+    document.getElementById('vehiculeModalTitle').textContent = 'Ajouter un véhicule';
+    ['vNom','vImmat','vHauteur','vLargeur','vProfondeur','vCapacite','vNotes'].forEach(fid=> document.getElementById(fid).value='');
+    document.getElementById('vType').value = 'semi';
+    document.getElementById('vHayon').checked = false;
+    document.getElementById('vPrestataire').value = '';
+    document.getElementById('vChauffeurDefaut').value = '';
+  }
+  document.getElementById('vehiculeModalOverlay').classList.add('open');
+}
+document.getElementById('addVehiculeBtn').addEventListener('click', ()=> openVehiculeModal(null));
+document.getElementById('vehiculeModalCancel').addEventListener('click', ()=> document.getElementById('vehiculeModalOverlay').classList.remove('open'));
+document.getElementById('vehiculeModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='vehiculeModalOverlay') document.getElementById('vehiculeModalOverlay').classList.remove('open'); });
+document.getElementById('vehiculeModalSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('vEditId').value || genId('veh');
+  const obj = {
+    id, nom: document.getElementById('vNom').value.trim(), type: document.getElementById('vType').value,
+    immatriculation: document.getElementById('vImmat').value.trim(),
+    hauteurM: document.getElementById('vHauteur').value === '' ? null : Number(document.getElementById('vHauteur').value),
+    largeurM: document.getElementById('vLargeur').value === '' ? null : Number(document.getElementById('vLargeur').value),
+    profondeurM: document.getElementById('vProfondeur').value === '' ? null : Number(document.getElementById('vProfondeur').value),
+    hayon: document.getElementById('vHayon').checked,
+    capacite: document.getElementById('vCapacite').value.trim(),
+    prestataireId: document.getElementById('vPrestataire').value || '',
+    chauffeurDefautId: document.getElementById('vChauffeurDefaut').value || '',
+    notes: document.getElementById('vNotes').value.trim(),
+  };
+  if(!obj.nom){ alert('Donne un nom au véhicule.'); return; }
+  const idx = vehiculesCache.findIndex(x=>x.id===id);
+  if(idx>=0) vehiculesCache[idx]=obj; else vehiculesCache.push(obj);
+  await CurieuxDB.upsertOne('vehicules', obj);
+  document.getElementById('vehiculeModalOverlay').classList.remove('open');
+  renderVehicules(); renderCarnets(); renderAffectations();
+});
+
+// ============================================================================
+// Chauffeurs
+// ============================================================================
+function renderChauffeurs(){
+  const grid = document.getElementById('chauffeursGrid');
+  const empty = document.getElementById('chauffeursEmpty');
+  if(chauffeursCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  grid.innerHTML = chauffeursCache.map(c=>{
+    const prest = prestatairesCache.find(p=>p.id === c.prestataire); // legacy text fallback if not migrated
+    const semisHabituelles = vehiculesCache.filter(v=>v.chauffeurDefautId===c.id);
+    return `
+    <div class="r-card">
+      <div class="r-card-top"><div class="r-name">${escapeHtml(fullName(c))}</div></div>
+      <div class="r-sub">${[c.telephone, c.email].filter(Boolean).map(escapeHtml).join(' · ') || 'Pas de contact enregistré'}</div>
+      ${c.prestataire ? `<div class="r-sub">${escapeHtml(c.prestataire)}</div>` : ''}
+      ${semisHabituelles.length ? `<div class="lien-chauffeur"><div class="lien-avatar">🚛</div><div class="lien-corps"><div class="lien-label">Chauffeur habituel de</div><div style="font-size:13px; font-weight:700;">${semisHabituelles.map(v=>escapeHtml(v.nom||'Sans nom')).join(', ')}</div></div></div>` : ''}
+      <div class="r-actions">
+        <button type="button" class="btn-ghost btn-sm" data-edit="${c.id}">Modifier</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${c.id}">Supprimer</button>
+      </div>
+    </div>
+  `;}).join('');
+  grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openChauffeurModal(b.dataset.edit)));
+  grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
+    const c = chauffeursCache.find(x=>x.id===b.dataset.del);
+    if(c && confirm(`Supprimer ${fullName(c)} ?`)){
+      chauffeursCache = chauffeursCache.filter(x=>x.id!==b.dataset.del);
+      CurieuxDB.removeOne('chauffeurs', b.dataset.del);
+      renderChauffeurs(); renderAffectations();
+    }
+  }));
+}
+function openChauffeurModal(id){
+  document.getElementById('chEditId').value = id || '';
+  if(id){
+    const c = chauffeursCache.find(x=>x.id===id);
+    if(!c) return;
+    document.getElementById('chauffeurModalTitle').textContent = 'Modifier ' + fullName(c);
+    document.getElementById('chPrenom').value = c.prenom || '';
+    document.getElementById('chNom').value = c.nom || '';
+    document.getElementById('chTelephone').value = c.telephone || '';
+    document.getElementById('chEmail').value = c.email || '';
+    document.getElementById('chPrestataire').value = '';
+    document.getElementById('chNotes').value = c.notes || '';
+  } else {
+    document.getElementById('chauffeurModalTitle').textContent = 'Ajouter un chauffeur';
+    ['chPrenom','chNom','chTelephone','chEmail','chNotes'].forEach(fid=> document.getElementById(fid).value='');
+  }
+  document.getElementById('chauffeurModalOverlay').classList.add('open');
+}
+document.getElementById('addChauffeurBtn').addEventListener('click', ()=> openChauffeurModal(null));
+document.getElementById('chauffeurModalCancel').addEventListener('click', ()=> document.getElementById('chauffeurModalOverlay').classList.remove('open'));
+document.getElementById('chauffeurModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='chauffeurModalOverlay') document.getElementById('chauffeurModalOverlay').classList.remove('open'); });
+document.getElementById('chauffeurModalSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('chEditId').value || genId('chauf');
+  const prenom = document.getElementById('chPrenom').value.trim();
+  const nom = document.getElementById('chNom').value.trim();
+  if(!prenom && !nom){ alert('Prénom ou nom obligatoire.'); return; }
+  const obj = {
+    id, prenom, nom,
+    telephone: document.getElementById('chTelephone').value.trim(),
+    email: document.getElementById('chEmail').value.trim(),
+    notes: document.getElementById('chNotes').value.trim(),
+  };
+  const idx = chauffeursCache.findIndex(x=>x.id===id);
+  if(idx>=0) chauffeursCache[idx]=obj; else chauffeursCache.push(obj);
+  await CurieuxDB.upsertOne('chauffeurs', obj);
+  document.getElementById('chauffeurModalOverlay').classList.remove('open');
+  renderChauffeurs(); renderAffectations();
+});
+
+// ============================================================================
+// Carnets ATA
+// ============================================================================
+let carnetLotsSelection = new Set();
+function renderCarnetLotsChoix(){
+  const box = document.getElementById('carnetLotsListe');
+  if(lotsCache.length===0){ box.innerHTML = `<p class="empty-hint" style="padding:8px 4px;">Aucun lot enregistré.</p>`; return; }
+  box.innerHTML = lotsCache.map(l=>`
+    <label class="chk" style="padding:4px 0;"><input type="checkbox" data-lot="${l.id}" ${carnetLotsSelection.has(l.id)?'checked':''}> ${escapeHtml(l.nom || 'Sans nom')}</label>
+  `).join('');
+  box.querySelectorAll('[data-lot]').forEach(cb=> cb.addEventListener('change', ()=>{
+    if(cb.checked) carnetLotsSelection.add(cb.dataset.lot); else carnetLotsSelection.delete(cb.dataset.lot);
+  }));
+}
+function renderCarnets(){
+  const grid = document.getElementById('carnetsGrid');
+  const empty = document.getElementById('carnetsEmpty');
+  if(carnetsCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  grid.innerHTML = carnetsCache.map(c=>{
+    const veh = vehiculesCache.find(v=>v.id===c.vehiculeId);
+    const urgent = c.statut === 'a_demander';
+    return `
+    <div class="r-card">
+      <div class="r-card-top">
+        <div><div class="r-name">${veh ? escapeHtml(veh.nom) : 'Sans véhicule'}</div>${c.numero ? `<div class="r-sub">n° ${escapeHtml(c.numero)}</div>` : ''}</div>
+        <span class="badge ${urgent ? 'badge-sans-hayon' : 'badge-accent'}">${STATUT_ATA_LABEL[c.statut]||c.statut}</span>
+      </div>
+      <div class="r-sub">${(c.lotsIds||[]).length} lot${(c.lotsIds||[]).length>1?'s':''} déclaré${(c.lotsIds||[]).length>1?'s':''}</div>
+      <div class="r-actions">
+        <button type="button" class="btn-ghost btn-sm" data-edit="${c.id}">Modifier</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${c.id}">Supprimer</button>
+      </div>
+    </div>
+  `;}).join('');
+  grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openCarnetModal(b.dataset.edit)));
+  grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
+    const c = carnetsCache.find(x=>x.id===b.dataset.del);
+    if(c && confirm(`Supprimer ce carnet ATA ?`)){
+      carnetsCache = carnetsCache.filter(x=>x.id!==b.dataset.del);
+      CurieuxDB.removeOne('carnets_ata', b.dataset.del);
+      renderCarnets();
+    }
+  }));
+}
+function fillVehiculeSelectATA(){
+  document.getElementById('cVehicule').innerHTML = '<option value="">— Aucune —</option>' + vehiculesCache.filter(v=>v.type==='semi').map(v=>`<option value="${v.id}">${escapeHtml(v.nom||'Sans nom')}</option>`).join('');
+}
+function openCarnetModal(id){
+  fillVehiculeSelectATA();
+  document.getElementById('cEditId').value = id || '';
+  if(id){
+    const c = carnetsCache.find(x=>x.id===id);
+    if(!c) return;
+    document.getElementById('carnetModalTitle').textContent = 'Modifier ce carnet ATA';
+    document.getElementById('cNumero').value = c.numero || '';
+    document.getElementById('cVehicule').value = c.vehiculeId || '';
+    document.getElementById('cStatut').value = c.statut || 'a_demander';
+    document.getElementById('cEmisLe').value = c.emisLe || '';
+    document.getElementById('cExpireLe').value = c.expireLe || '';
+    document.getElementById('cNotes').value = c.notes || '';
+    carnetLotsSelection = new Set(c.lotsIds || []);
+  } else {
+    document.getElementById('carnetModalTitle').textContent = 'Ajouter un carnet ATA';
+    ['cNumero','cEmisLe','cExpireLe','cNotes'].forEach(fid=> document.getElementById(fid).value='');
+    document.getElementById('cVehicule').value = '';
+    document.getElementById('cStatut').value = 'a_demander';
+    carnetLotsSelection = new Set();
+  }
+  renderCarnetLotsChoix();
+  document.getElementById('carnetModalOverlay').classList.add('open');
+}
+document.getElementById('addCarnetBtn').addEventListener('click', ()=> openCarnetModal(null));
+document.getElementById('carnetModalCancel').addEventListener('click', ()=> document.getElementById('carnetModalOverlay').classList.remove('open'));
+document.getElementById('carnetModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='carnetModalOverlay') document.getElementById('carnetModalOverlay').classList.remove('open'); });
+document.getElementById('carnetModalSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('cEditId').value || genId('carnet');
+  const obj = {
+    id, numero: document.getElementById('cNumero').value.trim(),
+    tourneeId: activeTourneeId(), vehiculeId: document.getElementById('cVehicule').value || '',
+    statut: document.getElementById('cStatut').value,
+    emisLe: document.getElementById('cEmisLe').value || '', expireLe: document.getElementById('cExpireLe').value || '',
+    lotsIds: Array.from(carnetLotsSelection),
+    notes: document.getElementById('cNotes').value.trim(),
+  };
+  const idx = carnetsCache.findIndex(x=>x.id===id);
+  if(idx>=0) carnetsCache[idx]=obj; else carnetsCache.push(obj);
+  await CurieuxDB.upsertOne('carnets_ata', obj);
+  document.getElementById('carnetModalOverlay').classList.remove('open');
+  renderCarnets();
+});
+
+// ============================================================================
+// Qui conduit quoi (affectations_transport)
+// ============================================================================
+function activeTourneeId(){ return document.getElementById('tourneeSelect').value; }
+function datesFuturesTournee(){
+  const t = tourneesCache.find(x=>x.id === activeTourneeId());
+  if(!t) return [];
+  const today = new Date().toISOString().slice(0,10);
+  return (t.dates||[]).filter(d=> !d.date || d.date >= today).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+}
+function libelleDateCourt(d){
+  const jour = d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}) : '—';
+  return `${jour} · ${d.ville || d.lieu || '—'}`;
+}
+function fillAffectationDateSelect(){
+  const sel = document.getElementById('affectationDateSelect');
+  const dates = datesFuturesTournee();
+  sel.innerHTML = dates.length
+    ? dates.map(d=>`<option value="${d.id}">${escapeHtml(libelleDateCourt(d))}</option>`).join('')
+    : '<option value="">Aucune date à venir</option>';
+}
+// Exception la plus proche (aujourd'hui ou après) pour ce véhicule — une
+// affectation explicite dont le chauffeur diffère du chauffeur habituel.
+function prochaineException(vehiculeId, chauffeurDefautId){
+  const today = new Date().toISOString().slice(0,10);
+  const candidats = affectationsCache
+    .filter(a=> a.vehiculeId === vehiculeId && a.chauffeurId && a.chauffeurId !== chauffeurDefautId)
+    .map(a=>{
+      const t = tourneesCache.find(x=>x.id===a.tourneeId);
+      const d = t ? (t.dates||[]).find(x=>x.id===a.dateId) : null;
+      return { a, d, chauffeur: chauffeursCache.find(c=>c.id===a.chauffeurId) };
+    })
+    .filter(x=> x.d && x.chauffeur && (!x.d.date || x.d.date >= today))
+    .sort((x,y)=> (x.d.date||'').localeCompare(y.d.date||''));
+  return candidats[0] || null;
+}
+async function attacherChauffeurRapide(vehiculeId){
+  const dateId = document.getElementById('affectationDateSelect').value;
+  if(!dateId){ alert("Choisis d'abord une date dans « Exceptions par date », en bas de page."); return; }
+  const tourneeId = activeTourneeId();
+  let obj = affectationsCache.find(a=> a.tourneeId===tourneeId && a.dateId===dateId && a.vehiculeId===vehiculeId);
+  if(!obj){
+    obj = { id: genId('affect'), tourneeId, dateId, vehiculeId, chauffeurId:'', notes:'' };
+    affectationsCache.push(obj);
+    await CurieuxDB.upsertOne('affectations_transport', obj);
+    renderAffectations();
+  }
+  document.getElementById('affectationsListe').scrollIntoView({ behavior:'smooth', block:'center' });
+  const row = document.querySelector(`.affectation-row[data-id="${obj.id}"] select[data-f="chauffeurId"]`);
+  if(row) row.focus();
+}
+function renderAffectations(){
+  const box = document.getElementById('affectationsListe');
+  const tourneeId = activeTourneeId();
+  const liste = affectationsCache.filter(a=> a.tourneeId === tourneeId);
+  const dates = datesFuturesTournee();
+  if(liste.length === 0){ box.innerHTML = `<p class="empty-hint" style="padding:12px 0;">Aucune affectation pour cette tournée.</p>`; return; }
+  box.innerHTML = liste.map(a=>{
+    const d = dates.find(x=>x.id===a.dateId) || (tourneesCache.find(t=>t.id===tourneeId)?.dates||[]).find(x=>x.id===a.dateId);
+    return `
+    <div class="affectation-row" data-id="${a.id}">
+      <span class="quand">${d ? escapeHtml(libelleDateCourt(d)) : '—'}</span>
+      <select data-f="vehiculeId">
+        <option value="">— Véhicule —</option>
+        ${vehiculesCache.map(v=>`<option value="${v.id}" ${a.vehiculeId===v.id?'selected':''}>${escapeHtml(v.nom||'Sans nom')}</option>`).join('')}
+      </select>
+      <select data-f="chauffeurId">
+        <option value="">— Chauffeur —</option>
+        ${chauffeursCache.map(c=>`<option value="${c.id}" ${a.chauffeurId===c.id?'selected':''}>${escapeHtml(fullName(c))}</option>`).join('')}
+      </select>
+      <button type="button" class="btn-danger btn-sm" data-retirer>Retirer</button>
+    </div>
+  `;}).join('');
+  box.querySelectorAll('.affectation-row').forEach(row=>{
+    const id = row.dataset.id;
+    row.querySelectorAll('select[data-f]').forEach(sel=> sel.addEventListener('change', async ()=>{
+      const a = affectationsCache.find(x=>x.id===id);
+      a[sel.dataset.f] = sel.value;
+      await CurieuxDB.upsertOne('affectations_transport', a);
+    }));
+    row.querySelector('[data-retirer]').addEventListener('click', ()=>{
+      affectationsCache = affectationsCache.filter(x=>x.id!==id);
+      CurieuxDB.removeOne('affectations_transport', id);
+      renderAffectations();
+    });
+  });
+}
+document.getElementById('addAffectationBtn').addEventListener('click', async ()=>{
+  const dateId = document.getElementById('affectationDateSelect').value;
+  if(!dateId){ alert('Aucune date à venir pour cette tournée.'); return; }
+  const obj = { id: genId('affect'), tourneeId: activeTourneeId(), dateId, vehiculeId:'', chauffeurId:'', notes:'' };
+  affectationsCache.push(obj);
+  await CurieuxDB.upsertOne('affectations_transport', obj);
+  renderAffectations();
+});
+document.getElementById('tourneeSelect').addEventListener('change', ()=>{ fillAffectationDateSelect(); renderAffectations(); });
+
+async function initData(){
+  [vehiculesCache, chauffeursCache, carnetsCache, prestatairesCache, lotsCache, tourneesCache, affectationsCache] = await Promise.all([
+    CurieuxDB.fetchAll('vehicules'), CurieuxDB.fetchAll('chauffeurs'), CurieuxDB.fetchAll('carnets_ata'),
+    CurieuxDB.fetchAll('prestataires'), CurieuxDB.fetchAll('lots_materiel'), CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('affectations_transport'),
+  ]);
+  const sel = document.getElementById('tourneeSelect');
+  sel.innerHTML = tourneesCache.length
+    ? tourneesCache.map(t=>`<option value="${t.id}">${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('')
+    : '<option value="">Aucune tournée</option>';
+  fillAffectationDateSelect();
+  renderVehicules(); renderChauffeurs(); renderCarnets(); renderAffectations();
+}
+CurieuxDB.subscribe('vehicules', ()=> CurieuxDB.fetchAll('vehicules').then(l=>{ vehiculesCache=l; curieuxRafraichir(()=>{renderVehicules();renderCarnets();renderAffectations();}); }));
+CurieuxDB.subscribe('chauffeurs', ()=> CurieuxDB.fetchAll('chauffeurs').then(l=>{ chauffeursCache=l; curieuxRafraichir(()=>{renderChauffeurs();renderAffectations();}); }));
+CurieuxDB.subscribe('carnets_ata', ()=> CurieuxDB.fetchAll('carnets_ata').then(l=>{ carnetsCache=l; curieuxRafraichir(renderCarnets); }));
+CurieuxDB.subscribe('affectations_transport', ()=> CurieuxDB.fetchAll('affectations_transport').then(l=>{ affectationsCache=l; curieuxRafraichir(()=>{renderAffectations();renderVehicules();}); }));
+
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+initData();
+</script>
+</body>
+</html>

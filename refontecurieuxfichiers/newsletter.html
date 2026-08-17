@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Journal des changements</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:900px; margin:0 auto;}
+
+  .banner{
+    border-radius:var(--radius); padding:14px 18px; margin-bottom:22px; font-size:13.5px; font-weight:600;
+    display:flex; align-items:center; gap:10px;
+  }
+  .banner.neutral{background:var(--champagne); color:#7a1f52;}
+  :root[data-theme="dark"] .banner.neutral{color:#f8d9e8;}
+  .banner.changed{background:var(--maybe-tint); color:var(--maybe);}
+  .banner.nochange{background:var(--ok-tint); color:var(--ok);}
+
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px 22px; margin-bottom:18px;
+  }
+  .card h2{
+    font-size:15.5px; margin:0 0 14px; display:flex; align-items:center; gap:9px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
+  }
+  .card h2::before{content:''; width:5px; height:16px; border-radius:3px; background:var(--accent); display:inline-block;}
+
+  #tableHolder{overflow-x:auto;}
+  table.nl-table{width:100%; min-width:520px; border-collapse:collapse;}
+  table.nl-table th{font-size:10.5px; text-transform:uppercase; color:var(--muted); text-align:left; padding:6px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  table.nl-table td{padding:9px 6px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:top;}
+  table.nl-table tr:last-child td{border-bottom:none;}
+  .statut-tag{display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap;}
+  .statut-tag.option{background:var(--maybe-tint); color:var(--maybe);}
+  .statut-tag.validee{background:var(--ok-tint); color:var(--ok);}
+  .statut-tag.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
+  .change-tag{display:inline-block; padding:2px 8px; border-radius:20px; font-size:10.5px; font-weight:700; white-space:nowrap; margin-left:6px;}
+  .change-tag.nouveau{background:var(--accent-tint); color:var(--accent-dark);}
+  .change-tag.statut{background:var(--maybe-tint); color:var(--maybe);}
+  .change-tag.lieu{background:var(--secondary-tint); color:var(--secondary-dark);}
+  .retire-row td{text-decoration:line-through; color:var(--muted);}
+
+  .actions-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+  .btn-ghost{background:transparent; color:var(--muted); border:1px solid var(--border);}
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:10px 16px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Journal des changements</h1>
+      <p class="subtitle">Ce qui a évolué sur les dates (option/validée/annulée) depuis ta dernière visite — usage interne, les titulaires ont déjà leur page personnelle à jour.</p>
+    </div>
+  </div>
+
+  <div id="bannerHolder"></div>
+
+  <div class="card">
+    <h2>Dates</h2>
+    <div id="tableHolder"><div class="empty-hint">Chargement…</div></div>
+    <div class="actions-row">
+      <button type="button" class="btn-secondary" id="markSentBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"></circle><polyline points="8,12.5 11,15.5 16,9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>Marquer ces changements comme vus</button>
+    </div>
+  </div>
+
+  <div class="card" id="relanceCard" style="display:none;">
+    <h2>À relancer, par tournée</h2>
+    <p class="card-sub" style="color:var(--muted); font-size:12.5px; margin:-8px 0 12px;">Personnes ayant déjà un lien de dispo pour une tournée qui a changé depuis ta dernière visite — copie leur lien pour les prévenir.</p>
+    <div id="relanceHolder"></div>
+  </div>
+</div>
+
+<script>
+// Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
+// tournees/musiciens/techniciens/dispo_demandes sont en lecture seule ici. Le snapshot
+// newsletter est un singleton (table "newsletter_snapshot") géré via
+// fetchSnapshot/saveSnapshot de db.js.
+let tourneesCache = [];
+let musiciansCache = [];
+let techniciansCache = [];
+let dispoDemandesCache = [];
+let snapshotCache = null;
+
+function loadTournees(){ return tourneesCache; }
+function loadMusicians(){ return musiciansCache; }
+function loadTechnicians(){ return techniciansCache; }
+function loadDispoDemandes(){ return dispoDemandesCache; }
+function loadSnapshot(){ return snapshotCache; }
+function saveSnapshot(snap){
+  snapshotCache = snap;
+  CurieuxDB.saveSnapshot(snap);
+}
+
+// Lien unique de l'espace personnel : il regroupe les disponibilités, les
+// infos et les remplaçant·es. Le jeton de demande y est accepté au même titre
+// que le jeton permanent, donc les liens déjà envoyés restent valables.
+function dispoLinkUrl(demandeId){
+  const base = location.href.slice(0, location.href.lastIndexOf('/') + 1);
+  return `${base}mon-espace.html?token=${encodeURIComponent(demandeId)}`;
+}
+
+function fmtDateFR(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} ${y}`;
+}
+function fmtDateTimeFR(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' }) + ' à ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+}
+
+function currentEntries(){
+  const entries = [];
+  loadTournees().forEach(t=>{
+    const dates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+    const blocMap = computeBlocMap(dates);
+    dates.forEach(d=>{
+      if(!d.date) return;
+      const blocInfo = blocMap.get(d.id);
+      let blocNote = '';
+      if(blocInfo){
+        if(blocInfo.isFirst) blocNote = `bloc — départ veille ${fmtDateFR(blocInfo.veille)}`;
+        else if(blocInfo.isLast) blocNote = `bloc — retour lendemain ${fmtDateFR(blocInfo.lendemain)}`;
+        else blocNote = 'bloc';
+      }
+      entries.push({
+        key: `${t.id}|${d.date}`,
+        tourneeId: t.id,
+        tourneeNom: t.nom,
+        date: d.date,
+        ville: d.ville || '',
+        lieu: d.lieu || '',
+        statut: ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option',
+        blocNote
+      });
+    });
+  });
+  entries.sort((a,b)=> a.date.localeCompare(b.date));
+  return entries;
+}
+
+function computeDiff(current, previous){
+  const prevMap = new Map((previous ? previous.entries : []).map(e=>[e.key, e]));
+  const currMap = new Map(current.map(e=>[e.key, e]));
+  const rows = current.map(e=>{
+    const prev = prevMap.get(e.key);
+    if(!prev) return { ...e, change: previous ? 'nouveau' : null };
+    if(prev.statut !== e.statut) return { ...e, change: 'statut', prevStatut: prev.statut };
+    if(prev.ville !== e.ville || prev.lieu !== e.lieu) return { ...e, change: 'lieu' };
+    return { ...e, change: null };
+  });
+  const removed = (previous ? previous.entries : []).filter(e=> !currMap.has(e.key));
+  return { rows, removed };
+}
+
+function statutLabel(s){ return s === 'validee' ? 'Validée' : s === 'annulee' ? 'Annulée' : 'Option'; }
+
+function render(){
+  const current = currentEntries();
+  const snapshot = loadSnapshot();
+  const { rows, removed } = computeDiff(current, snapshot);
+  const bannerHolder = document.getElementById('bannerHolder');
+  const changeCount = rows.filter(r=>r.change).length + removed.length;
+
+  if(!snapshot){
+    bannerHolder.innerHTML = `<div class="banner neutral"><svg width="15" height="15" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:5px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"></circle><line x1="12" y1="11" x2="12" y2="16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><circle cx="12" cy="7.7" r="1.1" fill="currentColor"></circle></svg>Pas encore de suivi enregistré — ceci sera la première photo de référence.</div>`;
+  } else if(changeCount === 0){
+    bannerHolder.innerHTML = `<div class="banner nochange"><svg width="15" height="15" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:5px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"></circle><polyline points="8,12.5 11,15.5 16,9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>Rien n'a changé depuis ta dernière visite du ${escapeHtml(fmtDateTimeFR(snapshot.sentAt))}.</div>`;
+  } else {
+    bannerHolder.innerHTML = `<div class="banner changed"><svg width="15" height="15" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:5px;"><path d="M4 7.5h11a4 4 0 0 1 4 4v1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><polyline points="12,4.3 15.2,7.5 12,10.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></polyline><path d="M20 16.5H9a4 4 0 0 1-4-4v-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><polyline points="12,13.3 8.8,16.5 12,19.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>${changeCount} changement${changeCount>1?'s':''} depuis ta dernière visite du ${escapeHtml(fmtDateTimeFR(snapshot.sentAt))}.</div>`;
+  }
+
+  const tableHolder = document.getElementById('tableHolder');
+  if(current.length === 0){
+    tableHolder.innerHTML = `<div class="empty-hint">Aucune date pour l'instant — ajoute des dates dans <a href="tournees.html">Tournées</a>.</div>`;
+  } else {
+    const changeTagHtml = r=>{
+      if(r.change === 'nouveau') return '<span class="change-tag nouveau"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M12 3c.8 4 2.4 5.9 6.4 6.7-4 .8-5.6 2.7-6.4 6.7-.8-4-2.4-5.9-6.4-6.7C9.6 8.9 11.2 7 12 3z" fill="currentColor"></path></svg>Nouveau</span>';
+      if(r.change === 'statut') return `<span class="change-tag statut"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M4 7.5h11a4 4 0 0 1 4 4v1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><polyline points="12,4.3 15.2,7.5 12,10.7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></polyline><path d="M20 16.5H9a4 4 0 0 1-4-4v-1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><polyline points="12,13.3 8.8,16.5 12,19.7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>${statutLabel(r.prevStatut)} → ${statutLabel(r.statut)}</span>`;
+      if(r.change === 'lieu') return '<span class="change-tag lieu"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M12 21.5S5 14.8 5 9.8a7 7 0 1 1 14 0c0 5-7 11.7-7 11.7z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path><circle cx="12" cy="9.5" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle></svg>Lieu modifié</span>';
+      return '';
+    };
+    const activeRows = rows.map(r=>`
+      <tr>
+        <td style="white-space:nowrap; font-weight:700;">${escapeHtml(fmtDateFR(r.date))}</td>
+        <td><span class="statut-tag ${r.statut}">${statutLabel(r.statut)}</span></td>
+        <td>${escapeHtml(r.tourneeNom || '')}</td>
+        <td>${escapeHtml([r.ville, r.lieu].filter(Boolean).join(' · ') || '—')}</td>
+        <td>${changeTagHtml(r)}${r.blocNote ? `<span class="change-tag lieu"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></line></svg>${escapeHtml(r.blocNote)}</span>` : ''}</td>
+      </tr>
+    `).join('');
+    const removedRows = removed.map(r=>`
+      <tr class="retire-row">
+        <td style="white-space:nowrap; font-weight:700;">${escapeHtml(fmtDateFR(r.date))}</td>
+        <td><span class="statut-tag ${r.statut}">${statutLabel(r.statut)}</span></td>
+        <td>${escapeHtml(r.tourneeNom || '')}</td>
+        <td>${escapeHtml([r.ville, r.lieu].filter(Boolean).join(' · ') || '—')}</td>
+        <td><span class="change-tag statut">✕ Retirée</span></td>
+      </tr>
+    `).join('');
+    tableHolder.innerHTML = `
+      <table class="nl-table">
+        <thead><tr><th>Date</th><th>Statut</th><th>Tournée</th><th>Lieu</th><th></th></tr></thead>
+        <tbody>${activeRows}${removedRows}</tbody>
+      </table>
+    `;
+  }
+
+  renderRelance(rows, removed, snapshot);
+}
+
+// Pour chaque tournée touchée par un changement depuis la dernière visite, liste les
+// personnes ayant déjà un lien de dispo pour cette tournée (dispo_demandes existante) —
+// pas un nouvel envoi, juste de quoi retrouver/copier leur lien pour les prévenir que
+// quelque chose a bougé. Les tournées sans dispo_demande générée n'apparaissent pas ici :
+// il n'y a alors personne à "relancer", c'est un premier envoi à faire depuis Tournées.
+function renderRelance(rows, removed, snapshot){
+  const card = document.getElementById('relanceCard');
+  const holder = document.getElementById('relanceHolder');
+  if(!snapshot){ card.style.display = 'none'; return; }
+
+  const changedTourneeIds = new Set();
+  rows.forEach(r=>{ if(r.change) changedTourneeIds.add(r.tourneeId); });
+  if(removed.length){
+    const byName = new Map(loadTournees().map(t=>[t.nom, t.id]));
+    removed.forEach(r=>{ const id = byName.get(r.tourneeNom); if(id) changedTourneeIds.add(id); });
+  }
+
+  if(changedTourneeIds.size === 0){ card.style.display = 'none'; return; }
+
+  const peopleById = new Map([...loadMusicians(), ...loadTechnicians()].map(p=> [p.id, p]));
+  const sections = [...changedTourneeIds].map(tourneeId=>{
+    const tournee = loadTournees().find(t=> t.id === tourneeId);
+    const demandes = loadDispoDemandes().filter(d=> d.tourneeId === tourneeId);
+    if(!tournee || demandes.length === 0) return '';
+    const rowsHtml = demandes.map(d=>{
+      const person = peopleById.get(d.personId);
+      if(!person) return '';
+      const url = dispoLinkUrl(d.id);
+      return `
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border);">
+          <div style="flex:1; min-width:0; font-size:13px; font-weight:700;">${escapeHtml(fullName(person))}</div>
+          <button type="button" class="btn-ghost" style="padding:6px 10px; font-size:12px;" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier son lien</button>
+        </div>
+      `;
+    }).join('');
+    if(!rowsHtml) return '';
+    return `
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12.5px; font-weight:800; color:var(--accent-dark); margin-bottom:4px;">${escapeHtml(tournee.nom || 'Tournée')}</div>
+        ${rowsHtml}
+      </div>
+    `;
+  }).filter(Boolean);
+
+  if(sections.length === 0){ card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  holder.innerHTML = sections.join('');
+  holder.querySelectorAll('[data-copy-link]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      navigator.clipboard.writeText(btn.dataset.copyLink).then(()=>{
+        const old = btn.textContent;
+        btn.textContent = '✓ Copié';
+        setTimeout(()=>{ btn.textContent = old; }, 1500);
+      });
+    });
+  });
+}
+
+document.getElementById('markSentBtn').addEventListener('click', ()=>{
+  const current = currentEntries();
+  if(!confirm("Marquer ces changements comme vus ? La prochaine comparaison se fera à partir de l'état actuel.")) return;
+  saveSnapshot({ sentAt: new Date().toISOString(), entries: current });
+  render();
+});
+
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+async function initData(){
+  [tourneesCache, musiciansCache, techniciansCache, dispoDemandesCache, snapshotCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('dispo_demandes'),
+    CurieuxDB.fetchSnapshot(),
+  ]);
+  render();
+}
+CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; curieuxRafraichir(render); }); });
+CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; curieuxRafraichir(render); }); });
+CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; curieuxRafraichir(render); }); });
+CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; curieuxRafraichir(render); }); });
+initData();
+</script>
+</body>
+</html>

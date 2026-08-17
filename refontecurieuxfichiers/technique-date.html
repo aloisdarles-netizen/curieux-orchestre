@@ -1,0 +1,1104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Fiche de date</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:1100px; margin:0 auto; font-variant-numeric:tabular-nums; padding-bottom:120px;}
+
+  /* L'architecture de cette page est conservée telle quelle — mêmes blocs, même
+     ordre, mêmes outils : l'équipe technique l'a explicitement demandé, la mise
+     en page est trop spécifique pour être réinventée. Seul l'habillage change,
+     pour rejoindre la charte : l'encart devient une carte à coins doux et la
+     légende reprend le filet tonique des titres de section. */
+  fieldset.groupe legend::before{
+    content:''; display:inline-block; width:5px; height:13px; border-radius:3px;
+    background:var(--tonic); margin-right:8px; vertical-align:-1px;
+  }
+
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-danger:hover{background:var(--secondary-tint);}
+  .btn-sm{padding:7px 11px; font-size:12px;}
+
+  input[type=text], input[type=email], input[type=tel], input[type=number], input[type=time], input[type=url], input[type=file], select, textarea{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  textarea{min-height:56px; resize:vertical;}
+  label.chk{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--text); font-weight:400; cursor:pointer; margin:0;}
+  label.chk input{width:18px; height:18px; accent-color:var(--accent);}
+
+  fieldset.groupe{border:1px solid var(--border); border-radius:14px; padding:15px 18px 17px; margin:0 0 14px; background:var(--card);}
+  fieldset.groupe legend{font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); padding:0 6px 0 0; font-weight:800;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .field-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .field-row .field{flex:1; min-width:150px;}
+  label{font-size:12px; color:var(--muted); font-weight:600;}
+
+  .vacation{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 13px; margin-bottom:10px;}
+  .vacation-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .vacation-head b{font-size:12.5px;}
+  .rigg-somme{margin:6px 0 0; font-size:12px; font-weight:800;}
+  .fourche-ligne{display:flex; gap:8px; align-items:center; background:var(--card); border:1px solid var(--border); border-radius:6px; padding:6px 8px; margin-bottom:6px;}
+  .fourche-ligne select{width:auto; flex:1;}
+
+  .sous-ligne{display:flex; gap:8px; align-items:flex-start; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:9px 10px; margin-bottom:8px;}
+  .sous-ligne > *{flex:1; min-width:0;}
+  .sous-retirer{flex:0 0 auto !important; align-self:center;}
+
+  .emplacement-liste{display:flex; flex-direction:column; gap:8px; margin-bottom:10px;}
+  .emplacement-ligne{display:flex; align-items:center; gap:8px;}
+  .emplacement-ligne span{font-size:12.5px; color:var(--muted); width:60px; flex:0 0 auto;}
+
+  .equipe-ligne{display:flex; gap:8px; align-items:center; background:var(--card); border:1px solid var(--border); border-radius:6px; padding:6px 8px; margin-bottom:6px;}
+  .equipe-ligne input[type=color]{width:34px; height:34px; padding:2px; flex:0 0 auto; border-radius:6px;}
+  .equipe-ligne .equipe-label{flex:1; font-size:12.5px; font-weight:700;}
+  .equipe-ligne input[type=text].equipe-label-libre{flex:1;}
+  .equipe-ligne input[type=number]{width:70px; flex:0 0 auto;}
+
+  .horaire-ligne{display:flex; gap:8px; align-items:center; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin-bottom:8px;}
+  .horaire-ligne input[type=time]{flex:0 0 110px;}
+
+  .ana-bloc{margin-bottom:14px;}
+  .ana-bloc > h4{font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 7px; font-weight:800;}
+  .ana-ligne{display:flex; gap:9px; align-items:flex-start; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:9px 10px; margin-bottom:6px;}
+  .ana-ligne input[type=checkbox]{width:18px; height:18px; accent-color:var(--accent); flex:0 0 auto; margin-top:1px;}
+  .ana-ligne .ana-corps{flex:1; min-width:0;}
+  .ana-ligne .ana-champ{font-size:11.5px; color:var(--muted); font-weight:600;}
+  .ana-ligne .ana-valeur{font-size:13.5px; word-break:break-word;}
+  .ana-ligne .ana-actuel{font-size:12px; color:var(--muted); margin-top:2px;}
+  .ana-point{display:flex; gap:9px; align-items:flex-start; border-radius:8px; padding:9px 10px; margin-bottom:6px; border:1px solid var(--border); background:var(--bg);}
+  .ana-point .ana-pastille{flex:0 0 auto; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:3px 8px; border-radius:20px;}
+  .ana-point.manquant{border-color:var(--danger);}
+  .ana-point.manquant .ana-pastille{background:var(--secondary-tint); color:var(--danger);}
+  .ana-point.attention .ana-pastille{background:#F5C518; color:#2b2200;}
+  .ana-point.info .ana-pastille{background:var(--accent-tint); color:var(--accent-dark);}
+  .ana-point b{font-size:13px; display:block;}
+  .ana-point span.ana-detail{font-size:12.5px; color:var(--muted);}
+
+  .plan-zone{position:relative; display:inline-block; max-width:100%; border-radius:8px; overflow:hidden; border:1px solid var(--border);}
+  .plan-zone img{max-width:100%; display:block; cursor:crosshair;}
+  .pin{
+    position:absolute; transform:translate(-50%,-100%); cursor:grab; user-select:none; touch-action:none;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+  }
+  .pin-tete{background:var(--accent-solid); color:#fff; font-size:13px; font-weight:800; padding:6px 12px; border-radius:20px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3);}
+  .pin-pointe{width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:9px solid var(--accent-solid);}
+  .pin.dragging{cursor:grabbing; opacity:.85;}
+  .pin.note .pin-tete{background:#F5C518; color:#2b2200; max-width:220px; white-space:normal; text-align:center; font-weight:700;}
+  .pin.note .pin-pointe{border-top-color:#F5C518;}
+  .plan-outils{display:flex; gap:8px; margin-bottom:10px;}
+
+  .fixed-save{position:sticky; bottom:0; left:0; right:0; background:var(--bg); border-top:1px solid var(--border); padding:12px 0; margin-top:8px; display:flex; gap:10px; align-items:center; justify-content:flex-end;}
+  #saveStatus{font-size:12.5px; color:var(--muted); margin-right:auto;}
+
+  @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="co-back" href="technique.html">← Avancement par date</a>
+  <div class="co-card co-pad-lg co-fade" style="margin-bottom:20px; display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:220px;">
+      <h1 id="titre" class="co-h1" style="font-size:26px; margin-bottom:2px;">Fiche de date</h1>
+      <span class="subtitle" id="sousTitre" style="font-size:13px; font-weight:700;"></span>
+    </div>
+    <div class="co-actions">
+      <select id="salleLangue" class="co-select" style="width:auto;" title="Langue de la page salle et du PDF envoyé à la salle">
+        <option value="fr">Français</option><option value="en">English</option>
+        <option value="de">Deutsch</option><option value="es">Español</option><option value="nl">Nederlands</option>
+      </select>
+      <button type="button" class="co-btn ghost" id="apercuSalleBtn" title="Prévisualiser la page salle telle que la salle la voit">Prévisualiser la page salle</button>
+      <button type="button" class="co-btn primary" id="exportSalleBtn" title="Générer le PDF de la demande faite à la salle, dans la langue choisie">Exporter la page salle en PDF</button>
+    </div>
+  </div>
+
+  <!-- Analyse des fiches techniques par Claude — en sommeil tant qu'aucune
+       clé API n'est configurée (fonction /api/analyser-fiche conservée).
+       Pour réactiver : retirer style="display:none". -->
+  <fieldset class="groupe" style="display:none;">
+    <legend>Lire une fiche technique de salle</legend>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Dépose le PDF (ou une photo) envoyé par la salle : les informations utiles sont extraites et les manques signalés. Rien n'est écrit tant que tu n'as pas coché puis appliqué.</p>
+    <div class="field"><label for="fAnalyseFichier">Fichier — PDF, PNG ou JPEG, 3 Mo maximum</label><input type="file" id="fAnalyseFichier" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"></div>
+    <button type="button" class="btn-secondary btn-sm" id="analyserBtn" disabled>Analyser la fiche</button>
+    <span id="analyseStatut" style="margin-left:10px; font-size:12.5px; color:var(--muted);"></span>
+    <div id="analyseResultat" style="display:none; margin-top:14px;"></div>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Lire une fiche technique de salle</legend>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Dépose le PDF (ou une photo) envoyé par la salle : les informations utiles sont extraites et les manques signalés. Rien n'est écrit tant que tu n'as pas coché puis appliqué.</p>
+    <div class="field"><label for="fAnalyseFichier">Fichier — PDF, PNG ou JPEG, 3 Mo maximum</label><input type="file" id="fAnalyseFichier" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"></div>
+    <button type="button" class="btn-secondary btn-sm" id="analyserBtn" disabled>Analyser la fiche</button>
+    <span id="analyseStatut" style="margin-left:10px; font-size:12.5px; color:var(--muted);"></span>
+    <div id="analyseResultat" style="display:none; margin-top:14px;"></div>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Réponse de la salle</legend>
+    <div class="field">
+      <label for="fStatut">Statut général</label>
+      <select id="fStatut">
+        <option value="non_demande">Pas encore demandé</option>
+        <option value="demande">Demandé</option>
+        <option value="recu">Reçu</option>
+        <option value="valide">Validé</option>
+      </select>
+    </div>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Plan de scène</legend>
+    <div class="field-row">
+      <div class="field"><label for="fPlanStatut">Envoi</label>
+        <select id="fPlanStatut">
+          <option value="non_demande">Pas encore envoyé</option>
+          <option value="demande">Envoyé, en attente</option>
+          <option value="recu">Retour reçu</option>
+        </select>
+      </div>
+      <div class="field" style="justify-content:flex-end;">
+        <label class="chk"><input type="checkbox" id="fPlanValide"> Implantation générale validée à l'échelle, de part et d'autre</label>
+      </div>
+    </div>
+    <div class="field"><label for="fPlanUrl">Lien du plan de scène</label><input type="url" id="fPlanUrl" placeholder="https://…"></div>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Plan de charge</legend>
+    <div class="field">
+      <label for="fPlanCharge">Statut</label>
+      <select id="fPlanCharge">
+        <option value="non_envoye">Pas encore envoyé</option>
+        <option value="envoye">Envoyé, en attente</option>
+        <option value="valide_bureau_controle">Validé par le bureau de contrôle</option>
+      </select>
+    </div>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Bureau d'étude électrique</legend>
+    <div class="field"><label class="chk"><input type="checkbox" id="fBureauElecSurPlace"> Prévu sur place</label></div>
+    <div class="field-row" id="bureauElecDetailRow" style="display:none;">
+      <div class="field"><label for="fBureauElecHoraire">À quelle heure</label><input type="text" id="fBureauElecHoraire" placeholder="Ex: 14h00"></div>
+      <div class="field"><label for="fBureauElecContact">Avec quel contact</label><input type="text" id="fBureauElecContact" placeholder="Nom, téléphone…"></div>
+    </div>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Bureau d'étude accroche</legend>
+    <div class="field"><label class="chk"><input type="checkbox" id="fBureauAccrocheSurPlace"> Prévu sur place</label></div>
+    <div class="field-row" id="bureauAccrocheDetailRow" style="display:none;">
+      <div class="field"><label for="fBureauAccrocheHoraire">À quelle heure</label><input type="text" id="fBureauAccrocheHoraire" placeholder="Ex: 14h00"></div>
+      <div class="field"><label for="fBureauAccrocheContact">Avec quel contact</label><input type="text" id="fBureauAccrocheContact" placeholder="Nom, téléphone…"></div>
+    </div>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Déchargement</legend>
+    <div class="field-row">
+      <div class="field"><label for="fNombreSemis">Semis en simultané</label><input type="number" id="fNombreSemis" min="0" step="1"></div>
+      <div class="field"><label for="fNiveau">Niveau</label>
+        <select id="fNiveau">
+          <option value="inconnu">Inconnu</option>
+          <option value="scene">Sur scène</option>
+          <option value="sol">Au sol</option>
+          <option value="les_deux">Les deux</option>
+        </select>
+      </div>
+    </div>
+    <div class="emplacement-liste" id="emplacementsListe"></div>
+    <div class="field"><label for="fAccesNotes">Notes d'accès</label><textarea id="fAccesNotes" placeholder="Marches, largeur de porte, distance…"></textarea></div>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Horaires de la journée</legend>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Repères de la journée — load in, get in… libre.</p>
+    <div id="horairesListe"></div>
+    <button type="button" class="btn-secondary btn-sm" id="addHoraireBtn">+ Ajouter un repère</button>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Équipes de la tournée (road)</legend>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Nommées une fois pour la tournée, réutilisées sur chaque vacation roadies ci-dessous.</p>
+    <div id="equipesTourneeListe"></div>
+    <button type="button" class="btn-secondary btn-sm" id="addEquipeTourneeBtn">+ Ajouter une équipe</button>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Roadies</legend>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">En vacations plutôt qu'en demande globale — chaque créneau a son effectif demandé, une confirmation, et se répartit sur les équipes de la tournée.</p>
+    <div id="roadiesListe"></div>
+    <button type="button" class="btn-secondary btn-sm" id="addRoadiesBtn">+ Ajouter une vacation</button>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Chariots élévateurs</legend>
+    <div id="chariotsListe"></div>
+    <button type="button" class="btn-secondary btn-sm" id="addChariotsBtn">+ Ajouter une vacation</button>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Rigg</legend>
+    <div id="riggListe"></div>
+    <button type="button" class="btn-secondary btn-sm" id="addRiggBtn">+ Ajouter une vacation</button>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Faits techniques</legend>
+    <div class="field-row">
+      <div class="field"><label for="fHauteurGrill">Hauteur de grill</label><input type="text" id="fHauteurGrill" placeholder="Ex: 14 m"></div>
+      <div class="field"><label for="fOuvertureScene">Ouverture de scène</label><input type="text" id="fOuvertureScene" placeholder="Ex: 12 m"></div>
+      <div class="field"><label for="fProfondeurScene">Profondeur de scène</label><input type="text" id="fProfondeurScene" placeholder="Ex: 10 m"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="fPuissance">Puissance disponible</label><input type="text" id="fPuissance" placeholder="Ex: 400 A"></div>
+      <div class="field"><label for="fTypeCourant">Type de courant</label><input type="text" id="fTypeCourant" placeholder="Mono / Tri"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="fChargeAccroche">Charge max à l'accroche</label><input type="text" id="fChargeAccroche" placeholder="Ex: 3 t / point"></div>
+      <div class="field"><label for="fTypeSol">Type de sol</label><input type="text" id="fTypeSol" placeholder="Ex: parquet, béton ciré…"></div>
+    </div>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Contacts</legend>
+    <label style="display:block; margin-bottom:8px;">Contacts côté salle</label>
+    <div id="contactsSalleListe"></div>
+    <button type="button" class="btn-secondary btn-sm" id="addContactSalleBtn">+ Ajouter un contact</button>
+
+    <label style="display:block; margin:16px 0 8px;">Technicien·nes affecté·es à exposer comme contact production</label>
+    <div id="contactsTechniciensListe" style="display:flex; flex-direction:column; gap:6px;"></div>
+    <p class="empty-hint" id="contactsTechniciensEmpty" style="display:none; padding:8px 0;">Personne n'est encore affecté·e à cette date (depuis Tournées).</p>
+  </fieldset>
+
+  <fieldset class="groupe">
+    <legend>Plan de salle — positionner les semis</legend>
+    <div class="field"><label for="fPlanImage">Importer une image (vue du dessus, à l'échelle)</label><input type="file" id="fPlanImage" accept="image/*"></div>
+    <p style="font-size:12px; color:var(--muted); margin:-6px 0 10px;">Choisis un mode puis clique sur le plan pour poser une pastille ; glisse-la pour la repositionner, double-clique pour la retirer.</p>
+    <div class="plan-outils" id="planOutils" style="display:none;">
+      <button type="button" class="btn-secondary btn-sm" data-mode="semi">+ Semi</button>
+      <button type="button" class="btn-ghost btn-sm" data-mode="note">+ Note</button>
+    </div>
+    <div id="planZoneWrap"></div>
+  </fieldset>
+
+  <div class="field"><label for="fNotes">Notes libres</label><textarea id="fNotes"></textarea></div>
+</div>
+
+<div class="fixed-save">
+  <div class="wrap" style="display:flex; align-items:center; gap:10px; padding:0 16px;">
+    <span id="saveStatus"></span>
+    <button type="button" class="btn-secondary" id="saveBtn">Enregistrer</button>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const tourneeId = params.get('t');
+const dateId = params.get('d');
+let tournee = null, dateEntry = null, moyens = null;
+let techniciensCache = [], vehiculesCache = [];
+
+function numOrNull(id){ const v = document.getElementById(id).value; return v === '' ? null : Number(v); }
+
+// ============================================================================
+// Vacations (roadies / chariots / rigg)
+// ============================================================================
+function nouvelleVacationRoadies(){
+  return {
+    horaireDebut:'', horaireFin:'', nombreDemande:null, confirme:false, notes:'', dejeunerInclus:null,
+    equipes: (tournee.equipesRoad||[]).map(eq=>({ equipeId: eq.id, nombre:null }))
+  };
+}
+function nouvelleVacationChariots(){ return { horaireDebut:'', horaireFin:'', nombreChariotsDemande:null, confirme:false, fourches:[], nombreCaristesDemande:null, notes:'' }; }
+function nouvelleVacationRigg(){ return { horaireDebut:'', horaireFin:'', nombreDemande:null, confirme:false, nombreSol:null, nombreGrill:null, notes:'' }; }
+
+// ============================================================================
+// Équipes de la tournée (registre nommé, réutilisé par chaque vacation roadies)
+// ============================================================================
+function renderEquipesTournee(){
+  const box = document.getElementById('equipesTourneeListe');
+  const liste = tournee.equipesRoad;
+  box.innerHTML = liste.map((eq,i)=>`
+    <div class="equipe-ligne" data-i="${i}">
+      <input type="color" data-f="couleur" value="${eq.couleur || '#888888'}">
+      <input type="text" class="equipe-label-libre" data-f="label" value="${escapeAttr(eq.label||'')}" placeholder="Nom de l'équipe">
+      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-equipe-tournee="${i}">×</button>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucune équipe.</p>`;
+  box.querySelectorAll('.equipe-ligne').forEach(row=>{
+    const i = Number(row.dataset.i);
+    row.querySelectorAll('[data-f]').forEach(inp=> inp.addEventListener('input', async ()=>{
+      liste[i][inp.dataset.f] = inp.value;
+      await CurieuxDB.upsertOne('tournees', tournee);
+      renderRoadiesListe();
+    }));
+  });
+  box.querySelectorAll('[data-retirer-equipe-tournee]').forEach(btn=> btn.addEventListener('click', async ()=>{
+    liste.splice(Number(btn.dataset.retirerEquipeTournee), 1);
+    await CurieuxDB.upsertOne('tournees', tournee);
+    renderEquipesTournee();
+    renderRoadiesListe();
+  }));
+}
+document.getElementById('addEquipeTourneeBtn').addEventListener('click', async ()=>{
+  tournee.equipesRoad.push({ id: genId('eq'), label:'', couleur:'#888888' });
+  await CurieuxDB.upsertOne('tournees', tournee);
+  renderEquipesTournee();
+});
+
+function dureeVacation(debut, fin){
+  if(!debut || !fin) return '';
+  const [h1,m1] = debut.split(':').map(Number), [h2,m2] = fin.split(':').map(Number);
+  let mins = (h2*60+m2) - (h1*60+m1);
+  if(mins < 0) mins += 24*60;
+  const h = Math.floor(mins/60), m = mins%60;
+  return `${h}h${m ? String(m).padStart(2,'0') : ''}`;
+}
+function chevaucheDejeuner(debut, fin){
+  if(!debut || !fin) return false;
+  return debut < '14:30' && fin > '12:00';
+}
+function renderEquipesEdition(vacationIndex){
+  const v = moyens.roadiesVacations[vacationIndex];
+  const box = document.querySelector(`[data-equipes-de="${vacationIndex}"]`);
+  if(!box) return;
+  v.equipes = v.equipes || [];
+  const registre = tournee.equipesRoad || [];
+  registre.forEach(eq=>{ if(!v.equipes.some(e=>e.equipeId===eq.id)) v.equipes.push({ equipeId: eq.id, nombre:null }); });
+  box.innerHTML = registre.map(eq=>{
+    const entree = v.equipes.find(e=>e.equipeId===eq.id);
+    return `
+    <div class="equipe-ligne">
+      <span style="width:14px; height:14px; border-radius:50%; background:${escapeHtml(eq.couleur||'#888')}; flex:0 0 auto;"></span>
+      <span class="equipe-label">${escapeHtml(eq.label || 'Équipe')}</span>
+      <input type="number" min="0" data-equipe-id="${eq.id}" value="${entree && entree.nombre!=null ? entree.nombre : ''}" placeholder="Nb">
+    </div>
+  `;}).join('') || `<p style="font-size:12px; color:var(--muted); margin:0;">Aucune équipe nommée pour cette tournée — ajoute-les au-dessus.</p>`;
+  box.querySelectorAll('input[data-equipe-id]').forEach(inp=> inp.addEventListener('input', ()=>{
+    const entree = v.equipes.find(e=>e.equipeId===inp.dataset.equipeId);
+    entree.nombre = inp.value === '' ? null : Number(inp.value);
+    afficherSommeEquipes(vacationIndex);
+  }));
+  afficherSommeEquipes(vacationIndex);
+}
+function afficherSommeEquipes(vacationIndex){
+  const v = moyens.roadiesVacations[vacationIndex];
+  const el = document.querySelector(`[data-somme-equipes-de="${vacationIndex}"]`);
+  if(!el) return;
+  const somme = (v.equipes||[]).reduce((s,e)=> s + (Number(e.nombre)||0), 0);
+  const total = v.nombreDemande;
+  const correspond = total != null && somme === total;
+  el.textContent = `Somme des équipes : ${somme}${total!=null ? ' / ' + total + ' demandé' : ''}`;
+  el.style.color = total == null ? 'var(--muted)' : (correspond ? 'var(--ok)' : 'var(--maybe)');
+}
+function renderRoadiesListe(){
+  const box = document.getElementById('roadiesListe');
+  const liste = moyens.roadiesVacations;
+  box.innerHTML = liste.map((v,i)=>{
+    const duree = dureeVacation(v.horaireDebut, v.horaireFin);
+    const surDejeuner = chevaucheDejeuner(v.horaireDebut, v.horaireFin);
+    return `
+    <div class="vacation" data-i="${i}">
+      <div class="vacation-head"><b>Vacation ${i+1}${duree ? ' — ' + duree : ''}</b><button type="button" class="btn-danger btn-sm" data-retirer-roadies="${i}">Retirer</button></div>
+      <div class="field-row">
+        <div class="field"><label>Début</label><input type="time" data-f="horaireDebut" value="${v.horaireDebut||''}"></div>
+        <div class="field"><label>Fin</label><input type="time" data-f="horaireFin" value="${v.horaireFin||''}"></div>
+        <div class="field"><label>Demandé</label><input type="number" min="0" data-f="nombreDemande" value="${v.nombreDemande!=null?v.nombreDemande:''}"></div>
+        <div class="field" style="justify-content:flex-end;"><label class="chk"><input type="checkbox" data-f="confirme" ${v.confirme?'checked':''}> Confirmée</label></div>
+      </div>
+      ${surDejeuner ? `
+      <div class="field"><label>Vacation à cheval sur la pause déjeuner (12h–14h30)</label>
+        <select data-f="dejeunerInclus">
+          <option value="" ${v.dejeunerInclus==null?'selected':''}>À préciser</option>
+          <option value="oui" ${v.dejeunerInclus===true?'selected':''}>Le déjeuner est compté dans la vacation</option>
+          <option value="non" ${v.dejeunerInclus===false?'selected':''}>Le déjeuner n'est pas compté (pause à part)</option>
+        </select>
+      </div>` : ''}
+      <label style="display:block; margin:6px 0 4px;">Équipes de la tournée</label>
+      <div data-equipes-de="${i}"></div>
+      <p style="font-size:12px; font-weight:700; margin:6px 0 0;" data-somme-equipes-de="${i}"></p>
+      <div class="field" style="margin-top:10px;"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
+    </div>
+  `;}).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
+  box.querySelectorAll('.vacation').forEach(card=>{
+    const i = Number(card.dataset.i);
+    card.querySelectorAll(':scope > .field-row [data-f], :scope > .field [data-f]').forEach(inp=> inp.addEventListener(inp.type==='checkbox'?'change':(inp.tagName==='SELECT'?'change':'input'), ()=>{
+      let val;
+      if(inp.dataset.f === 'confirme') val = inp.checked;
+      else if(inp.dataset.f === 'dejeunerInclus') val = inp.value === '' ? null : inp.value === 'oui';
+      else if(inp.type === 'number') val = inp.value === '' ? null : Number(inp.value);
+      else val = inp.value;
+      liste[i][inp.dataset.f] = val;
+      if(inp.dataset.f === 'horaireDebut' || inp.dataset.f === 'horaireFin' || inp.dataset.f === 'nombreDemande') renderRoadiesListe();
+    }));
+    renderEquipesEdition(i);
+  });
+  box.querySelectorAll('[data-retirer-roadies]').forEach(btn=> btn.addEventListener('click', ()=>{
+    liste.splice(Number(btn.dataset.retirerRoadies), 1);
+    renderRoadiesListe();
+  }));
+  box.querySelectorAll('[data-add-equipe]').forEach(btn=> btn.addEventListener('click', ()=>{
+    const i = Number(btn.dataset.addEquipe);
+    liste[i].equipes = liste[i].equipes || [];
+    liste[i].equipes.push({ departement:'', couleur:'#888888', nombre:null });
+    renderEquipesEdition(i);
+  }));
+}
+document.getElementById('addRoadiesBtn').addEventListener('click', ()=>{ moyens.roadiesVacations.push(nouvelleVacationRoadies()); renderRoadiesListe(); });
+
+function renderFourchesEdition(vacationIndex){
+  const v = moyens.chariotsVacations[vacationIndex];
+  const box = document.querySelector(`[data-fourches-de="${vacationIndex}"]`);
+  if(!box) return;
+  box.innerHTML = (v.fourches||[]).map((f,fi)=>`
+    <div class="fourche-ligne">
+      <select data-fi="${fi}" data-ff="fourche">
+        <option value="inconnu" ${f.fourche==='inconnu'?'selected':''}>Fourches inconnues</option>
+        <option value="longues" ${f.fourche==='longues'?'selected':''}>Fourches longues</option>
+        <option value="courtes" ${f.fourche==='courtes'?'selected':''}>Fourches courtes</option>
+      </select>
+      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-fourche="${fi}">×</button>
+    </div>
+  `).join('') || `<p style="font-size:12px; color:var(--muted); margin:0;">Aucun chariot détaillé.</p>`;
+  box.querySelectorAll('select[data-ff]').forEach(el=> el.addEventListener('change', ()=>{ v.fourches[el.dataset.fi].fourche = el.value; }));
+  box.querySelectorAll('[data-retirer-fourche]').forEach(btn=> btn.addEventListener('click', ()=>{
+    v.fourches.splice(Number(btn.dataset.retirerFourche), 1);
+    renderFourchesEdition(vacationIndex);
+  }));
+}
+function renderChariotsListe(){
+  const box = document.getElementById('chariotsListe');
+  const liste = moyens.chariotsVacations;
+  box.innerHTML = liste.map((v,i)=>`
+    <div class="vacation" data-i="${i}">
+      <div class="vacation-head"><b>Vacation ${i+1}</b><button type="button" class="btn-danger btn-sm" data-retirer-chariots="${i}">Retirer</button></div>
+      <div class="field-row">
+        <div class="field"><label>Début</label><input type="time" data-f="horaireDebut" value="${v.horaireDebut||''}"></div>
+        <div class="field"><label>Fin</label><input type="time" data-f="horaireFin" value="${v.horaireFin||''}"></div>
+        <div class="field"><label>Chariots demandés</label><input type="number" min="0" data-f="nombreChariotsDemande" value="${v.nombreChariotsDemande!=null?v.nombreChariotsDemande:''}"></div>
+        <div class="field" style="justify-content:flex-end;"><label class="chk"><input type="checkbox" data-f="confirme" ${v.confirme?'checked':''}> Confirmée</label></div>
+      </div>
+      <label style="display:block; margin:6px 0 4px;">Détail par chariot</label>
+      <div data-fourches-de="${i}"></div>
+      <button type="button" class="btn-ghost btn-sm" data-add-fourche="${i}">+ Ajouter un chariot</button>
+      <div class="field-row" style="margin-top:10px;">
+        <div class="field"><label>Caristes demandés</label><input type="number" min="0" data-f="nombreCaristesDemande" value="${v.nombreCaristesDemande!=null?v.nombreCaristesDemande:''}"></div>
+      </div>
+      <div class="field"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
+  box.querySelectorAll('.vacation').forEach(card=>{
+    const i = Number(card.dataset.i);
+    card.querySelectorAll(':scope > .field-row [data-f], :scope > .field [data-f]').forEach(inp=> inp.addEventListener(inp.type==='checkbox'?'change':'input', ()=>{
+      const val = inp.type === 'checkbox' ? inp.checked : (inp.type === 'number' ? (inp.value === '' ? null : Number(inp.value)) : inp.value);
+      liste[i][inp.dataset.f] = val;
+    }));
+    renderFourchesEdition(i);
+  });
+  box.querySelectorAll('[data-retirer-chariots]').forEach(btn=> btn.addEventListener('click', ()=>{
+    liste.splice(Number(btn.dataset.retirerChariots), 1);
+    renderChariotsListe();
+  }));
+  box.querySelectorAll('[data-add-fourche]').forEach(btn=> btn.addEventListener('click', ()=>{
+    const i = Number(btn.dataset.addFourche);
+    liste[i].fourches = liste[i].fourches || [];
+    liste[i].fourches.push({ fourche:'inconnu' });
+    renderFourchesEdition(i);
+  }));
+}
+document.getElementById('addChariotsBtn').addEventListener('click', ()=>{ moyens.chariotsVacations.push(nouvelleVacationChariots()); renderChariotsListe(); });
+
+// Contrôle : sol + grill doit retomber sur le nombre demandé.
+function sommeRiggHtml(v){
+  const demande = v.nombreDemande;
+  if(demande == null) return '';
+  const total = (v.nombreSol || 0) + (v.nombreGrill || 0);
+  const ok = total === demande;
+  return `<span style="color:${ok ? 'var(--ok)' : 'var(--maybe)'};">Sol + grill : ${total} / ${demande} demandé${demande > 1 ? 's' : ''}</span>`;
+}
+
+function renderRiggListe(){
+  const box = document.getElementById('riggListe');
+  const liste = moyens.riggVacations;
+  box.innerHTML = liste.map((v,i)=>`
+    <div class="vacation" data-i="${i}">
+      <div class="vacation-head"><b>Vacation ${i+1}</b><button type="button" class="btn-danger btn-sm" data-retirer-rigg="${i}">Retirer</button></div>
+      <div class="field-row">
+        <div class="field"><label>Début</label><input type="time" data-f="horaireDebut" value="${v.horaireDebut||''}"></div>
+        <div class="field"><label>Fin</label><input type="time" data-f="horaireFin" value="${v.horaireFin||''}"></div>
+        <div class="field"><label>Demandé</label><input type="number" min="0" data-f="nombreDemande" value="${v.nombreDemande!=null?v.nombreDemande:''}"></div>
+        <div class="field" style="justify-content:flex-end;"><label class="chk"><input type="checkbox" data-f="confirme" ${v.confirme?'checked':''}> Confirmée</label></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Riggers au sol</label><input type="number" min="0" data-f="nombreSol" value="${v.nombreSol!=null?v.nombreSol:''}"></div>
+        <div class="field"><label>Riggers au grill</label><input type="number" min="0" data-f="nombreGrill" value="${v.nombreGrill!=null?v.nombreGrill:''}"></div>
+      </div>
+      <p class="rigg-somme" data-somme="${i}">${sommeRiggHtml(v)}</p>
+      <div class="field"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
+  box.querySelectorAll('.vacation').forEach(card=>{
+    const i = Number(card.dataset.i);
+    card.querySelectorAll(':scope > .field-row [data-f], :scope > .field [data-f]').forEach(inp=> inp.addEventListener(inp.type==='checkbox'?'change':'input', ()=>{
+      const val = inp.type === 'checkbox' ? inp.checked : (inp.type === 'number' ? (inp.value === '' ? null : Number(inp.value)) : inp.value);
+      liste[i][inp.dataset.f] = val;
+      // La somme de contrôle se met à jour à la frappe, sans redessiner la carte
+      // (le champ en cours de saisie perdrait le focus).
+      const somme = card.querySelector('[data-somme]');
+      if(somme) somme.innerHTML = sommeRiggHtml(liste[i]);
+    }));
+  });
+  box.querySelectorAll('[data-retirer-rigg]').forEach(btn=> btn.addEventListener('click', ()=>{
+    liste.splice(Number(btn.dataset.retirerRigg), 1);
+    renderRiggListe();
+  }));
+}
+document.getElementById('addRiggBtn').addEventListener('click', ()=>{ moyens.riggVacations.push(nouvelleVacationRigg()); renderRiggListe(); });
+
+// ============================================================================
+// Horaires de la journée
+// ============================================================================
+function renderHorairesListe(){
+  const box = document.getElementById('horairesListe');
+  const liste = moyens.horairesJournee;
+  box.innerHTML = liste.map((h,i)=>`
+    <div class="horaire-ligne" data-i="${i}">
+      <input type="time" data-f="heure" value="${h.heure||''}">
+      <input type="text" data-f="label" value="${escapeAttr(h.label||'')}" placeholder="Ex: Load in, Get in…">
+      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-horaire="${i}">×</button>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun repère.</p>`;
+  box.querySelectorAll('.horaire-ligne').forEach(row=>{
+    const i = Number(row.dataset.i);
+    row.querySelectorAll('[data-f]').forEach(inp=> inp.addEventListener('input', ()=>{ liste[i][inp.dataset.f] = inp.value; }));
+  });
+  box.querySelectorAll('[data-retirer-horaire]').forEach(btn=> btn.addEventListener('click', ()=>{
+    liste.splice(Number(btn.dataset.retirerHoraire), 1);
+    renderHorairesListe();
+  }));
+}
+document.getElementById('addHoraireBtn').addEventListener('click', ()=>{
+  moyens.horairesJournee.push({ id: genId('horaire'), label:'', heure:'' });
+  renderHorairesListe();
+});
+
+// ============================================================================
+// Emplacements de déchargement (un select par semi simultanée)
+// ============================================================================
+const EMPLACEMENT_LABEL = { scene:'Sur scène', cote_scene:'Côté de scène', fosse:'Dans la fosse', autre:'Autre' };
+function renderEmplacements(){
+  const n = moyens.nombreSemisSimultanees || 0;
+  const box = document.getElementById('emplacementsListe');
+  while(moyens.emplacementsDechargement.length < n) moyens.emplacementsDechargement.push({ emplacement:'scene' });
+  moyens.emplacementsDechargement.length = n;
+  if(n === 0){ box.innerHTML = ''; return; }
+  box.innerHTML = moyens.emplacementsDechargement.map((e,i)=>`
+    <div class="emplacement-ligne">
+      <span>Semi ${i+1}</span>
+      <select data-i="${i}">
+        ${Object.entries(EMPLACEMENT_LABEL).map(([v,l])=>`<option value="${v}" ${e.emplacement===v?'selected':''}>${l}</option>`).join('')}
+      </select>
+    </div>
+  `).join('');
+  box.querySelectorAll('select[data-i]').forEach(sel=> sel.addEventListener('change', ()=>{
+    moyens.emplacementsDechargement[sel.dataset.i].emplacement = sel.value;
+  }));
+}
+document.getElementById('fNombreSemis').addEventListener('input', (e)=>{
+  moyens.nombreSemisSimultanees = e.target.value === '' ? null : Number(e.target.value);
+  renderEmplacements();
+});
+
+// ============================================================================
+// Contacts salle
+// ============================================================================
+function renderContactsSalle(){
+  const box = document.getElementById('contactsSalleListe');
+  const liste = moyens.contactsSalle;
+  box.innerHTML = liste.map((c,i)=>`
+    <div class="sous-ligne" data-i="${i}">
+      <input type="text" data-f="nom" placeholder="Nom" value="${escapeAttr(c.nom||'')}">
+      <input type="text" data-f="role" placeholder="Rôle" value="${escapeAttr(c.role||'')}">
+      <input type="tel" data-f="tel" placeholder="Téléphone" value="${escapeAttr(c.tel||'')}">
+      <input type="email" data-f="email" placeholder="Email" value="${escapeAttr(c.email||'')}">
+      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-contact="${i}">×</button>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun contact salle enregistré.</p>`;
+  box.querySelectorAll('.sous-ligne').forEach(row=>{
+    const i = Number(row.dataset.i);
+    row.querySelectorAll('[data-f]').forEach(inp=> inp.addEventListener('input', ()=>{ liste[i][inp.dataset.f] = inp.value; }));
+  });
+  box.querySelectorAll('[data-retirer-contact]').forEach(btn=> btn.addEventListener('click', ()=>{
+    liste.splice(Number(btn.dataset.retirerContact), 1);
+    renderContactsSalle();
+  }));
+}
+document.getElementById('addContactSalleBtn').addEventListener('click', ()=>{
+  moyens.contactsSalle.push({ nom:'', role:'', tel:'', email:'' });
+  renderContactsSalle();
+});
+
+function renderContactsTechniciens(){
+  const box = document.getElementById('contactsTechniciensListe');
+  const empty = document.getElementById('contactsTechniciensEmpty');
+  const assignes = (dateEntry.techniciensAssignes||[]).map(id=> techniciensCache.find(t=>t.id===id)).filter(Boolean);
+  if(assignes.length === 0){ box.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+  const set = new Set(moyens.contactsTechniciensIds);
+  box.innerHTML = assignes.map(t=>`
+    <label class="chk"><input type="checkbox" data-id="${t.id}" ${set.has(t.id)?'checked':''}> ${escapeHtml(fullName(t))}${t.poste ? ' — ' + escapeHtml(t.poste) : ''}</label>
+  `).join('');
+  box.querySelectorAll('[data-id]').forEach(cb=> cb.addEventListener('change', ()=>{
+    const set2 = new Set(moyens.contactsTechniciensIds);
+    if(cb.checked) set2.add(cb.dataset.id); else set2.delete(cb.dataset.id);
+    moyens.contactsTechniciensIds = Array.from(set2);
+  }));
+}
+
+// ============================================================================
+// Plan de salle positionnable
+// ============================================================================
+let planImageUrl = '';
+let modePlacement = 'semi';
+function placerPin(zone, pos){
+  const pin = document.createElement('div');
+  pin.className = 'pin' + (pos.type === 'note' ? ' note' : '');
+  pin.style.left = pos.xPct + '%'; pin.style.top = pos.yPct + '%';
+  pin.innerHTML = `<span class="pin-tete">${escapeHtml(pos.label || (pos.type==='note' ? 'Note' : 'Semi'))}</span><span class="pin-pointe"></span>`;
+  let dragging = false;
+  pin.addEventListener('pointerdown', (e)=>{
+    dragging = true; pin.classList.add('dragging'); pin.setPointerCapture(e.pointerId);
+  });
+  pin.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const rect = zone.getBoundingClientRect();
+    const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+    pin.style.left = x + '%'; pin.style.top = y + '%';
+    pos.xPct = x; pos.yPct = y;
+  });
+  pin.addEventListener('pointerup', ()=>{ dragging = false; pin.classList.remove('dragging'); });
+  pin.addEventListener('dblclick', (e)=>{
+    e.stopPropagation();
+    moyens.semisPositions = moyens.semisPositions.filter(p=> p !== pos);
+    pin.remove();
+  });
+  zone.appendChild(pin);
+}
+function renderPlanZone(){
+  const wrap = document.getElementById('planZoneWrap');
+  document.getElementById('planOutils').style.display = planImageUrl ? 'flex' : 'none';
+  if(!planImageUrl){
+    wrap.innerHTML = `<p class="empty-hint" style="padding:20px 0;">Aucune image importée pour l'instant.</p>`;
+    return;
+  }
+  wrap.innerHTML = `<div class="plan-zone" id="planZone"><img src="${planImageUrl}" alt="Plan de salle" draggable="false"></div>`;
+  const zone = document.getElementById('planZone');
+  const img = zone.querySelector('img');
+
+  (moyens.semisPositions||[]).forEach(pos=> placerPin(zone, pos));
+
+  img.addEventListener('click', (e)=>{
+    const rect = zone.getBoundingClientRect();
+    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+    let pos;
+    if(modePlacement === 'note'){
+      const texte = prompt('Note à afficher sur le plan :', '');
+      if(!texte) return;
+      pos = { type:'note', label: texte, xPct, yPct };
+    } else {
+      const label = vehiculesCache.length
+        ? (prompt('Nom de la semi (' + vehiculesCache.map(v=>v.nom).join(', ') + ') :', vehiculesCache[0].nom) || 'Semi')
+        : (prompt('Nom de la semi :', 'Semi') || 'Semi');
+      pos = { type:'semi', vehiculeId:'', label, xPct, yPct };
+    }
+    moyens.semisPositions.push(pos);
+    placerPin(zone, pos);
+  });
+}
+document.querySelectorAll('#planOutils [data-mode]').forEach(btn=> btn.addEventListener('click', ()=>{
+  modePlacement = btn.dataset.mode;
+  document.querySelectorAll('#planOutils [data-mode]').forEach(b=> b.className = b===btn ? 'btn-secondary btn-sm' : 'btn-ghost btn-sm');
+}));
+document.getElementById('fPlanImage').addEventListener('change', async (e)=>{
+  const fichier = e.target.files[0];
+  if(!fichier) return;
+  const res = await CurieuxDB.deposerPlanSalle(dateId, fichier);
+  if(res.error){ alert('Échec du dépôt : ' + res.error.message); return; }
+  moyens.planImagePath = res.chemin;
+  planImageUrl = CurieuxDB.urlPubliquePlanSalle ? CurieuxDB.urlPubliquePlanSalle(res.chemin) : '';
+  if(!planImageUrl && supabaseClient){
+    const { data } = supabaseClient.storage.from('fiches-techniques').getPublicUrl(res.chemin);
+    planImageUrl = (data && data.publicUrl) || '';
+  }
+  moyens.semisPositions = [];
+  renderPlanZone();
+});
+
+// ============================================================================
+// Chargement / sauvegarde
+// ============================================================================
+function moyensVierge(){
+  return {
+    id: `${tourneeId}::${dateId}`, tourneeId, dateId,
+    statut:'non_demande', planStatut:'non_demande', planUrl:'', planValide:false,
+    planChargeStatut:'non_envoye',
+    bureauElectriqueSurPlace:false, bureauElectriqueHoraire:'', bureauElectriqueContact:'',
+    bureauAccrocheSurPlace:false, bureauAccrocheHoraire:'', bureauAccrocheContact:'',
+    nombreSemisSimultanees:null, emplacementsDechargement:[], niveauDechargement:'inconnu', accesNotes:'',
+    horairesJournee:[], roadiesVacations:[], chariotsVacations:[], riggVacations:[],
+    hauteurGrill:'', ouvertureScene:'', profondeurScene:'', puissance:'', typeCourant:'', chargeMaxAccroche:'', typeSol:'',
+    contactsSalle:[], contactsTechniciensIds:[], planImagePath:'', semisPositions:[], notes:''
+  };
+}
+function peupler(){
+  document.getElementById('fStatut').value = moyens.statut;
+  document.getElementById('fPlanStatut').value = moyens.planStatut;
+  document.getElementById('fPlanValide').checked = moyens.planValide;
+  document.getElementById('fPlanUrl').value = moyens.planUrl;
+  document.getElementById('fPlanCharge').value = moyens.planChargeStatut;
+  document.getElementById('fBureauElecSurPlace').checked = moyens.bureauElectriqueSurPlace;
+  document.getElementById('bureauElecDetailRow').style.display = moyens.bureauElectriqueSurPlace ? 'flex' : 'none';
+  document.getElementById('fBureauElecHoraire').value = moyens.bureauElectriqueHoraire;
+  document.getElementById('fBureauElecContact').value = moyens.bureauElectriqueContact;
+  document.getElementById('fBureauAccrocheSurPlace').checked = moyens.bureauAccrocheSurPlace;
+  document.getElementById('bureauAccrocheDetailRow').style.display = moyens.bureauAccrocheSurPlace ? 'flex' : 'none';
+  document.getElementById('fBureauAccrocheHoraire').value = moyens.bureauAccrocheHoraire;
+  document.getElementById('fBureauAccrocheContact').value = moyens.bureauAccrocheContact;
+  document.getElementById('fNombreSemis').value = moyens.nombreSemisSimultanees != null ? moyens.nombreSemisSimultanees : '';
+  document.getElementById('fNiveau').value = moyens.niveauDechargement;
+  document.getElementById('fAccesNotes').value = moyens.accesNotes;
+  document.getElementById('fHauteurGrill').value = moyens.hauteurGrill;
+  document.getElementById('fOuvertureScene').value = moyens.ouvertureScene;
+  document.getElementById('fProfondeurScene').value = moyens.profondeurScene;
+  document.getElementById('fPuissance').value = moyens.puissance;
+  document.getElementById('fTypeCourant').value = moyens.typeCourant;
+  document.getElementById('fChargeAccroche').value = moyens.chargeMaxAccroche;
+  document.getElementById('fTypeSol').value = moyens.typeSol;
+  document.getElementById('fNotes').value = moyens.notes;
+
+  renderEmplacements();
+  renderHorairesListe();
+  renderEquipesTournee();
+  renderRoadiesListe();
+  renderChariotsListe();
+  renderRiggListe();
+  renderContactsSalle();
+  renderContactsTechniciens();
+
+  if(moyens.planImagePath && supabaseClient){
+    const { data } = supabaseClient.storage.from('fiches-techniques').getPublicUrl(moyens.planImagePath);
+    planImageUrl = (data && data.publicUrl) || '';
+  }
+  renderPlanZone();
+}
+document.getElementById('fBureauElecSurPlace').addEventListener('change', (e)=>{
+  document.getElementById('bureauElecDetailRow').style.display = e.target.checked ? 'flex' : 'none';
+});
+document.getElementById('fBureauAccrocheSurPlace').addEventListener('change', (e)=>{
+  document.getElementById('bureauAccrocheDetailRow').style.display = e.target.checked ? 'flex' : 'none';
+});
+
+// ============================================================================
+// Lecture d'une fiche technique de salle par Claude
+// La clé API vit côté serveur (fonction Vercel /api/analyser-fiche) — la page
+// n'envoie que le fichier et son propre jeton de session. Rien n'est écrit :
+// l'extraction est proposée, on coche ce qu'on garde, on applique, puis on
+// enregistre comme d'habitude.
+// ============================================================================
+const ANALYSE_TAILLE_MAX = 3 * 1024 * 1024;
+let analyseExtraction = null;
+
+const ANALYSE_CHAMPS = [
+  { groupe:'salle',       champ:'nom',                 label:'Nom de la salle', cible:null },
+  { groupe:'scene',       champ:'hauteur_grill',       label:'Hauteur de grill', cible:'fHauteurGrill' },
+  { groupe:'scene',       champ:'ouverture_scene',     label:'Ouverture de scène', cible:'fOuvertureScene' },
+  { groupe:'scene',       champ:'profondeur_scene',    label:'Profondeur de scène', cible:'fProfondeurScene' },
+  { groupe:'scene',       champ:'charge_max_accroche', label:"Charge max à l'accroche", cible:'fChargeAccroche' },
+  { groupe:'scene',       champ:'type_sol',            label:'Type de sol', cible:'fTypeSol' },
+  { groupe:'electricite', champ:'puissance',           label:'Puissance disponible', cible:'fPuissance' },
+  { groupe:'electricite', champ:'type_courant',        label:'Type de courant', cible:'fTypeCourant' },
+  { groupe:'acces',       champ:'nombre_semis_simultanees', label:'Semis en simultané', cible:'fNombreSemis' },
+  { groupe:'acces',       champ:'niveau_dechargement', label:'Niveau de déchargement', cible:'fNiveau' },
+  { groupe:'acces',       champ:'notes',               label:"Notes d'accès", cible:'fAccesNotes' },
+];
+const NIVEAU_LABEL = { inconnu:'Inconnu', scene:'Sur scène', sol:'Au sol', les_deux:'Les deux' };
+
+document.getElementById('fAnalyseFichier').addEventListener('change', (e)=>{
+  const fichier = e.target.files[0];
+  document.getElementById('analyserBtn').disabled = !fichier;
+  document.getElementById('analyseStatut').textContent = (fichier && fichier.size > ANALYSE_TAILLE_MAX)
+    ? `Trop lourd (${(fichier.size/1024/1024).toFixed(1)} Mo) — il faut le compresser sous 3 Mo.`
+    : '';
+});
+
+function lireBase64(fichier){
+  return new Promise((resolve, reject)=>{
+    const lecteur = new FileReader();
+    lecteur.onload = ()=> resolve(String(lecteur.result).split(',')[1] || '');
+    lecteur.onerror = ()=> reject(new Error('Fichier illisible.'));
+    lecteur.readAsDataURL(fichier);
+  });
+}
+
+async function analyserFiche(){
+  const fichier = document.getElementById('fAnalyseFichier').files[0];
+  const statutEl = document.getElementById('analyseStatut');
+  const btn = document.getElementById('analyserBtn');
+  if(!fichier) return;
+  if(fichier.size > ANALYSE_TAILLE_MAX){ statutEl.textContent = 'Trop lourd — 3 Mo maximum.'; return; }
+
+  const session = await CurieuxDB.getSession();
+  if(!session){ statutEl.textContent = 'Session expirée — reconnecte-toi.'; return; }
+
+  btn.disabled = true;
+  document.getElementById('analyseResultat').style.display = 'none';
+  statutEl.textContent = 'Lecture en cours — compte une minute…';
+  try{
+    const base64 = await lireBase64(fichier);
+    const rep = await fetch('/api/analyser-fiche', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token },
+      body: JSON.stringify({ fichier: base64, mediaType: fichier.type, nomFichier: fichier.name })
+    });
+    const data = await rep.json().catch(()=> ({}));
+    if(!rep.ok) throw new Error(data.erreur || `Erreur ${rep.status}.`);
+    analyseExtraction = data.extraction;
+    statutEl.textContent = '';
+    renderAnalyse();
+  }catch(e){
+    statutEl.textContent = e.message || "L'analyse a échoué.";
+  }finally{
+    btn.disabled = false;
+  }
+}
+document.getElementById('analyserBtn').addEventListener('click', analyserFiche);
+
+function renderAnalyse(){
+  const box = document.getElementById('analyseResultat');
+  const ex = analyseExtraction;
+  if(!ex){ box.style.display = 'none'; return; }
+  const blocs = [];
+
+  const lignes = ANALYSE_CHAMPS.map((def, i)=>{
+    const brut = String(((ex[def.groupe]||{})[def.champ]) || '').trim();
+    if(!brut) return '';
+    if(def.champ === 'niveau_dechargement' && brut === 'inconnu') return '';
+    let actuel = def.cible ? String(document.getElementById(def.cible).value || '').trim() : '';
+    if(def.cible === 'fNiveau') actuel = actuel === 'inconnu' ? '' : (NIVEAU_LABEL[actuel] || actuel);
+    const affiche = def.champ === 'niveau_dechargement' ? (NIVEAU_LABEL[brut] || brut) : brut;
+    const proposable = !!def.cible;
+    const coche = proposable && !actuel;
+    return `
+      <div class="ana-ligne">
+        <input type="checkbox" data-champ="${i}" ${coche ? 'checked' : ''} ${proposable ? '' : 'disabled'}>
+        <div class="ana-corps">
+          <div class="ana-champ">${escapeHtml(def.label)}</div>
+          <div class="ana-valeur">${escapeHtml(affiche)}</div>
+          ${actuel ? `<div class="ana-actuel">Actuellement : ${escapeHtml(actuel)} — décoche pour garder.</div>` : ''}
+          ${proposable ? '' : `<div class="ana-actuel">Pour information, pas de champ correspondant.</div>`}
+        </div>
+      </div>`;
+  }).filter(Boolean).join('');
+  if(lignes) blocs.push(`<div class="ana-bloc"><h4>Informations trouvées</h4>${lignes}</div>`);
+
+  const contacts = (ex.contacts||[]).filter(c=> (c.nom||c.tel||c.email));
+  if(contacts.length){
+    blocs.push(`<div class="ana-bloc"><h4>Contacts salle</h4>${contacts.map((c,i)=>`
+      <div class="ana-ligne">
+        <input type="checkbox" data-contact="${i}" checked>
+        <div class="ana-corps">
+          <div class="ana-valeur">${escapeHtml([c.nom, c.role].filter(Boolean).join(' — ')) || 'Contact'}</div>
+          <div class="ana-actuel">${escapeHtml([c.tel, c.email].filter(Boolean).join(' · ')) || 'Pas de coordonnées'}</div>
+        </div>
+      </div>`).join('')}</div>`);
+  }
+
+  const horaires = (ex.horaires||[]).filter(h=> h.heure);
+  if(horaires.length){
+    blocs.push(`<div class="ana-bloc"><h4>Repères horaires</h4>${horaires.map((h,i)=>`
+      <div class="ana-ligne">
+        <input type="checkbox" data-horaire="${i}" checked>
+        <div class="ana-corps">
+          <div class="ana-valeur">${escapeHtml(h.heure)} — ${escapeHtml(h.label||'')}</div>
+        </div>
+      </div>`).join('')}</div>`);
+  }
+
+  const points = ex.points_attention || [];
+  if(points.length){
+    const ordre = { manquant:0, attention:1, info:2 };
+    const etiquette = { manquant:'Manquant', attention:'Attention', info:'Info' };
+    const tries = points.slice().sort((a,b)=> (ordre[a.niveau] ?? 3) - (ordre[b.niveau] ?? 3));
+    blocs.push(`<div class="ana-bloc"><h4>Points à vérifier</h4>${tries.map(p=>`
+      <div class="ana-point ${p.niveau === 'manquant' || p.niveau === 'attention' ? p.niveau : 'info'}">
+        <span class="ana-pastille">${etiquette[p.niveau] || 'Info'}</span>
+        <div>
+          <b>${escapeHtml(p.libelle||'')}</b>
+          ${p.detail ? `<span class="ana-detail">${escapeHtml(p.detail)}</span>` : ''}
+        </div>
+      </div>`).join('')}</div>`);
+  }
+
+  if(blocs.length === 0){
+    box.innerHTML = `<p class="empty-hint" style="padding:8px 0;">Rien d'exploitable n'a été trouvé dans ce document.</p>`;
+    box.style.display = 'block';
+    return;
+  }
+
+  box.innerHTML = blocs.join('') + `
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <button type="button" class="btn-secondary btn-sm" id="appliquerAnalyseBtn">Appliquer ce qui est coché</button>
+      <button type="button" class="btn-ghost btn-sm" id="fermerAnalyseBtn">Fermer</button>
+      <span style="font-size:12px; color:var(--muted);">Puis « Enregistrer » en bas de page.</span>
+    </div>`;
+  box.style.display = 'block';
+  document.getElementById('appliquerAnalyseBtn').addEventListener('click', appliquerAnalyse);
+  document.getElementById('fermerAnalyseBtn').addEventListener('click', ()=>{
+    analyseExtraction = null;
+    box.style.display = 'none';
+  });
+}
+
+function appliquerAnalyse(){
+  const box = document.getElementById('analyseResultat');
+  const ex = analyseExtraction;
+  if(!ex) return;
+
+  box.querySelectorAll('[data-champ]:checked').forEach(chk=>{
+    const def = ANALYSE_CHAMPS[Number(chk.dataset.champ)];
+    if(!def || !def.cible) return;
+    const valeur = String(((ex[def.groupe]||{})[def.champ]) || '').trim();
+    const cible = document.getElementById(def.cible);
+    if(def.cible === 'fNiveau' && !NIVEAU_LABEL[valeur]) return;
+    if(def.cible === 'fNombreSemis'){
+      const n = parseInt(valeur, 10);
+      if(!Number.isFinite(n)) return;
+      cible.value = n;
+      cible.dispatchEvent(new Event('input'));
+      return;
+    }
+    cible.value = valeur;
+  });
+
+  box.querySelectorAll('[data-contact]:checked').forEach(chk=>{
+    const c = (ex.contacts||[])[Number(chk.dataset.contact)];
+    if(!c) return;
+    moyens.contactsSalle.push({ nom:c.nom||'', role:c.role||'', tel:c.tel||'', email:c.email||'' });
+  });
+  renderContactsSalle();
+
+  box.querySelectorAll('[data-horaire]:checked').forEach(chk=>{
+    const h = (ex.horaires||[])[Number(chk.dataset.horaire)];
+    if(!h) return;
+    moyens.horairesJournee.push({ id: genId('horaire'), label:h.label||'', heure:h.heure||'' });
+  });
+  renderHorairesListe();
+
+  analyseExtraction = null;
+  box.style.display = 'none';
+  document.getElementById('analyseStatut').textContent = "Appliqué — pense à enregistrer en bas de page.";
+}
+
+async function enregistrer(){
+  moyens.statut = document.getElementById('fStatut').value;
+  moyens.planStatut = document.getElementById('fPlanStatut').value;
+  moyens.planValide = document.getElementById('fPlanValide').checked;
+  moyens.planUrl = document.getElementById('fPlanUrl').value.trim();
+  moyens.planChargeStatut = document.getElementById('fPlanCharge').value;
+  moyens.bureauElectriqueSurPlace = document.getElementById('fBureauElecSurPlace').checked;
+  moyens.bureauElectriqueHoraire = document.getElementById('fBureauElecHoraire').value.trim();
+  moyens.bureauElectriqueContact = document.getElementById('fBureauElecContact').value.trim();
+  moyens.bureauAccrocheSurPlace = document.getElementById('fBureauAccrocheSurPlace').checked;
+  moyens.bureauAccrocheHoraire = document.getElementById('fBureauAccrocheHoraire').value.trim();
+  moyens.bureauAccrocheContact = document.getElementById('fBureauAccrocheContact').value.trim();
+  moyens.niveauDechargement = document.getElementById('fNiveau').value;
+  moyens.accesNotes = document.getElementById('fAccesNotes').value.trim();
+  moyens.hauteurGrill = document.getElementById('fHauteurGrill').value.trim();
+  moyens.ouvertureScene = document.getElementById('fOuvertureScene').value.trim();
+  moyens.profondeurScene = document.getElementById('fProfondeurScene').value.trim();
+  moyens.puissance = document.getElementById('fPuissance').value.trim();
+  moyens.typeCourant = document.getElementById('fTypeCourant').value.trim();
+  moyens.chargeMaxAccroche = document.getElementById('fChargeAccroche').value.trim();
+  moyens.typeSol = document.getElementById('fTypeSol').value.trim();
+  moyens.notes = document.getElementById('fNotes').value.trim();
+
+  const statutEl = document.getElementById('saveStatus');
+  statutEl.textContent = 'Enregistrement…';
+  await CurieuxDB.upsertOne('moyens_salle', moyens);
+  statutEl.textContent = 'Enregistré à ' + new Date().toLocaleTimeString('fr-FR');
+}
+document.getElementById('saveBtn').addEventListener('click', enregistrer);
+
+async function init(){
+  if(!tourneeId || !dateId){ document.getElementById('titre').textContent = 'Lien incomplet'; return; }
+  const [tournees, moyensListe, techniciens, vehicules] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'), CurieuxDB.fetchAll('moyens_salle'),
+    CurieuxDB.fetchAll('techniciens'), CurieuxDB.fetchAll('vehicules'),
+  ]);
+  tournee = tournees.find(t=>t.id === tourneeId);
+  techniciensCache = techniciens; vehiculesCache = vehicules;
+  if(!tournee){ document.getElementById('titre').textContent = 'Tournée introuvable'; return; }
+  dateEntry = (tournee.dates||[]).find(d=>d.id === dateId);
+  if(!dateEntry){ document.getElementById('titre').textContent = 'Date introuvable'; return; }
+
+  if(!tournee.equipesRoad || tournee.equipesRoad.length === 0){
+    tournee.equipesRoad = DEPARTEMENTS_ROAD.map(d=>({ id: genId('eq'), label: d.label, couleur: d.couleur }));
+    await CurieuxDB.upsertOne('tournees', tournee);
+  }
+
+  document.getElementById('titre').textContent = `${dateEntry.ville || dateEntry.lieu || 'Date'}${dateEntry.lieu && dateEntry.ville ? ' — ' + dateEntry.lieu : ''}`;
+  document.getElementById('sousTitre').textContent = dateEntry.date
+    ? new Date(dateEntry.date+'T00:00:00').toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
+    : '';
+
+  moyens = moyensListe.find(m=>m.id === `${tourneeId}::${dateId}`) || moyensVierge();
+  peupler();
+}
+
+// --- Page salle : aperçu et export ----------------------------------------
+// La demande faite à la salle est déjà saisie ici ; les deux boutons ci-dessous
+// n'ajoutent aucune saisie, ils publient la même demande vers la page salle —
+// l'un l'ouvre telle que la salle la voit, l'autre en sort le PDF dans la langue
+// choisie. L'aperçu passe par page-salle.html, qui rend la vue publique à partir
+// des mêmes données (moyens_salle) sans réclamer de jeton de partage.
+function urlPageSalle(){
+  const lang = document.getElementById('salleLangue').value || 'fr';
+  return `page-salle.html?t=${encodeURIComponent(tourneeId)}&d=${encodeURIComponent(dateId)}&lang=${encodeURIComponent(lang)}`;
+}
+
+document.getElementById('apercuSalleBtn').addEventListener('click', ()=>{
+  window.open(urlPageSalle(), '_blank', 'noopener');
+});
+
+document.getElementById('exportSalleBtn').addEventListener('click', ()=>{
+  // Le PDF est produit par page-salle.html : le gabarit de la page salle y est
+  // déjà décrit dans les cinq langues, le dupliquer ici le ferait diverger.
+  window.open(urlPageSalle() + '&pdf=1', '_blank', 'noopener');
+});
+
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+init();
+</script>
+</body>
+</html>
