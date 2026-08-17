@@ -32,7 +32,7 @@
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
   }
   .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-secondary:hover{background:color-mix(in srgb, var(--bleu) 78%, var(--prune));}
+  .btn-secondary:hover{background:#a8c9e6;}
   .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
   .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
   .btn-danger:hover{background:var(--secondary-tint);}
@@ -71,7 +71,7 @@
   .select-all-row input{width:16px; height:16px; accent-color:var(--accent); cursor:pointer;}
   .bulk-bar{
     display:none; align-items:center; gap:10px; flex-wrap:wrap;
-    background:var(--champagne); border:1px solid var(--old-champagne); border-radius:var(--radius);
+    background:var(--champagne); border:1px solid var(--old-champagne); border-radius:10px;
     padding:10px 14px; margin:0 0 16px;
   }
   .bulk-bar.open{display:flex;}
@@ -92,11 +92,11 @@
   }
   .remplacant-tag{
     font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
-    padding:2px 7px; border-radius:999px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;
+    padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;
   }
   .titulaire-tag{
     font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
-    padding:2px 7px; border-radius:999px; background:#f6ead2; color:#b8792a; vertical-align:middle;
+    padding:2px 7px; border-radius:20px; background:#f6ead2; color:#b8792a; vertical-align:middle;
   }
   :root[data-theme="dark"] .titulaire-tag{background:#4a3a1c; color:#f0c988;}
   .m-notes{font-size:12.5px; color:var(--muted); line-height:1.4; max-height:2.8em; overflow:hidden;}
@@ -134,22 +134,6 @@
     input, select, textarea{ font-size:16px !important; }
     .m-select-checkbox, .select-all-row input{ width:20px; height:20px; }
   }
-
-  /* Titres de section au gabarit de la maquette : capitales tracées, couleur
-     d'accent, filet tonique — le même repère sur tous les écrans. */
-  h2, h2.section-title{
-    font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
-    color:var(--accent); display:flex; align-items:center; gap:8px;
-  }
-  h2::before, h2.section-title::before{
-    content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); flex-shrink:0;
-  }
-  /* Les titres de fenêtre modale gardent leur rendu : ce ne sont pas des
-     titres de section. */
-  .modal h2, .modal h2::before, .modal-card h2, .modal-card h2::before{
-    all:revert;
-  }
-  .modal h2, .modal-card h2{font-size:17px; font-weight:800; color:var(--text); text-transform:none; letter-spacing:0;}
 </style>
 </head>
 <body>
@@ -387,9 +371,6 @@ function render(){
     `${filtered.length} fiche${filtered.length > 1 ? 's' : ''} — contact en un clic, remplaçant·es par ordre de préférence.`;
 
   grid.innerHTML = filtered.map((m, index)=>{
-    // « Appeler » ouvre le composeur téléphonique, « Écrire » le client mail.
-    // WhatsApp reste proposé à part : tout le monde ne l'a pas.
-    const telHref = m.telephone ? `tel:${m.telephone.replace(/[^+\d]/g, '')}` : null;
     const waDigits = normalizeWhatsappPhone(m.telephone);
     const waHref = waDigits ? `https://wa.me/${encodeURIComponent(waDigits)}` : null;
     const mailHref = m.email ? `mailto:${encodeURIComponent(m.email)}` : null;
@@ -412,9 +393,8 @@ function render(){
           ? `<button type="button" class="m-rempl-lien" data-view-remplacants="${m.id}" title="Voir ses remplaçant·es par ordre de préférence">${nbRempl} remplaçant·e${nbRempl > 1 ? 's' : ''} →</button>`
           : ''}</span>
         <span class="m-actions">
-          <a class="co-btn ghost sm ${telHref ? '' : 'disabled'}" ${telHref ? `href="${telHref}"` : ''} title="Appeler ${escapeAttr(m.telephone || '')}">Appeler</a>
-          <a class="co-btn ghost sm ${mailHref ? '' : 'disabled'}" ${mailHref ? `href="${mailHref}"` : ''} title="Écrire à ${escapeAttr(m.email || '')}">Écrire</a>
-          <a class="m-icone ${waHref ? '' : 'disabled'}" ${waHref ? `href="${waHref}" target="_blank" rel="noopener"` : ''} title="Écrire sur WhatsApp" aria-label="WhatsApp">✆</a>
+          <a class="co-btn ghost sm ${waHref ? '' : 'disabled'}" ${waHref ? `href="${waHref}" target="_blank" rel="noopener"` : ''} title="Appeler ou écrire sur WhatsApp">Appeler</a>
+          <a class="co-btn ghost sm ${mailHref ? '' : 'disabled'}" ${mailHref ? `href="${mailHref}"` : ''} title="Écrire par email">Écrire</a>
           <button type="button" class="m-icone" data-edit="${m.id}" title="Modifier la fiche" aria-label="Modifier ${escapeHtml(fullName(m))}">✎</button>
           <button type="button" class="m-icone danger" data-del="${m.id}" title="Supprimer la fiche" aria-label="Supprimer ${escapeHtml(fullName(m))}">🗑</button>
         </span>
