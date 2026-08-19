@@ -1,0 +1,48 @@
+    <main data-screen-label="Demandes titulaires" style="max-width:980px; margin:0 auto; padding:28px 20px 80px; animation:coFadeUp .4s ease both;">
+      <h1 style="font-family:var(--font-display); font-size:28px; margin:0 0 4px; color:var(--accent);">Demandes titulaires</h1>
+      <p style="color:var(--muted); font-size:13.5px; margin:0 0 18px;">Un lien personnel par personne et par tournée — suis qui a répondu, relance en un clic.</p>
+
+      <div style="background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 20px; margin-bottom:20px;">
+        <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+          <span style="font-family:var(--font-display); font-size:26px; color:var(--accent);">{{ suiviPct }}</span>
+          <div style="flex:1; min-width:200px;">
+            <div style="height:8px; border-radius:999px; background:var(--border); overflow:hidden;"><div style="height:100%; width:{{ suiviPctW }}; background:var(--ok); border-radius:999px;"></div></div>
+            <div style="font-size:12px; color:var(--muted); margin-top:6px; font-weight:600;">{{ suiviResume }}</div>
+          </div>
+          <x-import component-from-global-scope="CurieuxOrchestreDesignSystem_ecc9f4.Button" variant="tonic" size="sm" hint-size="auto,36px">Relancer les retardataires</x-import>
+        </div>
+      </div>
+
+      <section style="background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:14px; padding:16px 20px; border-bottom:1px solid var(--border); flex-wrap:wrap;">
+          <div style="flex:1; min-width:200px;">
+            <h2 style="font-family:var(--font-display); font-size:18px; margin:0;">{{ suiviTourneeNom }}</h2>
+            <span style="font-size:12px; color:var(--muted); font-weight:700;">8 dates proposées</span>
+          </div>
+          <button sc-camel-on-click="{{ copyAll }}" style="cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text); border-radius:999px; padding:7px 14px; font-size:12px; font-weight:700; font-family:var(--font-body);">{{ copyAllLabel }}</button>
+        </div>
+        <sc-for list="{{ suiviGroups }}" as="grp" hint-placeholder-count="2">
+          <div style="padding:10px 20px 4px; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);">{{ grp.titre }}</div>
+          <sc-for list="{{ grp.rows }}" as="p" hint-placeholder-count="7">
+            <div style="display:flex; align-items:center; gap:12px; padding:var(--row-pad) 20px; border-bottom:1px solid var(--border); flex-wrap:wrap; background:{{ p.rowBg }};">
+              <span style="flex:1; min-width:180px;">
+                <span style="font-weight:800; font-size:13.5px;">{{ p.nom }}</span><span style="font-size:9px; font-weight:800; text-transform:uppercase; padding:1px 6px; border-radius:999px; background:{{ p.tagBg }}; color:{{ p.tagFg }}; margin-left:{{ p.tagMl }};">{{ p.tag }}</span>
+                <span style="display:block; font-size:11.5px; color:var(--muted);">{{ p.role }}</span>
+              </span>
+              <span style="width:130px; font-size:14px; font-weight:800; color:{{ p.stFg }}; white-space:nowrap;">{{ p.stTxt }}</span>
+              <span style="display:flex; gap:6px; align-items:center;">
+                <button sc-camel-on-click="{{ p.onRelance }}" title="Relance WhatsApp / email avec les dates manquantes pré-remplies" style="cursor:pointer; border:none; background:{{ p.relBg }}; color:{{ p.relFg }}; border-radius:999px; padding:5px 12px; font-size:11.5px; font-weight:800; font-family:var(--font-body); visibility:{{ p.relVis }};">{{ p.relTxt }}</button>
+                <button title="Ouvrir le lien tel que la personne le voit" style="cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted); border-radius:999px; padding:5px 12px; font-size:11.5px; font-weight:700; font-family:var(--font-body);">Ouvrir</button>
+                <button title="Lien personnel permanent — indépendant des tournées, survit à leur suppression" style="cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted); border-radius:999px; padding:5px 12px; font-size:11.5px; font-weight:700; font-family:var(--font-body);">Lien permanent</button>
+                <button sc-camel-on-click="{{ p.onCopy }}" title="Copier le lien personnel" style="cursor:pointer; border:1px solid var(--border); background:transparent; color:{{ p.copyFg }}; border-radius:999px; padding:5px 12px; font-size:11.5px; font-weight:700; font-family:var(--font-body);">{{ p.copyTxt }}</button>
+                <button title="Supprimer ce lien" style="cursor:pointer; border:none; background:transparent; color:var(--ko); font-size:14px; padding:4px 6px; margin-left:8px;">🗑</button>
+              </span>
+            </div>
+          </sc-for>
+        </sc-for>
+        <div style="padding:14px 20px;">
+          <input placeholder="Ajouter un·e remplaçant·e à la demande… (recherche par nom ou instrument)" style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid var(--border); border-radius:10px; font-size:13px; background:var(--bg); color:var(--text); font-family:var(--font-body); outline:none;">
+        </div>
+      </section>
+    </main>
+  </sc-if>

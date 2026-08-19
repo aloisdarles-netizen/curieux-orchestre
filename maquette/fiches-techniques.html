@@ -1,0 +1,43 @@
+    <main data-screen-label="Fiches techniques" style="max-width:900px; margin:0 auto; padding:28px 20px 80px; animation:coFadeUp .4s ease both;">
+      <h1 style="font-family:var(--font-display); font-size:28px; margin:0 0 4px; color:var(--accent);">Fiches techniques</h1>
+      <p style="color:var(--muted); font-size:13.5px; margin:0 0 14px;">Nos fiches techniques — le lien pointe sur le fichier partagé (toujours à jour), chaque version publiée est journalisée.</p>
+      <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+        <x-import component-from-global-scope="CurieuxOrchestreDesignSystem_ecc9f4.Button" variant="primary" size="sm" hint-size="auto,36px">+ Nouvelle fiche</x-import>
+      </div>
+      <sc-for list="{{ ficheRows }}" as="f" hint-placeholder-count="3">
+        <div style="background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+            <span style="font-weight:800; font-size:15px;">{{ f.nom }}</span>
+            <span style="font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:999px; white-space:nowrap; background:{{ f.badgeBg }}; color:{{ f.badgeFg }};">{{ f.badge }}</span>
+          </div>
+          <sc-if value="{{ f.hasDrive }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:12.5px; margin:8px 0 0;"><a href="#" style="color:var(--accent); font-weight:700;">{{ f.drive }}</a></div>
+          </sc-if>
+          <div style="display:flex; gap:8px; align-items:center; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:12px; margin:8px 0; font-variant-numeric:tabular-nums;">
+            <code style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--muted);">{{ f.lien }}</code>
+            <button sc-camel-on-click="{{ f.onCopy }}" style="cursor:pointer; border:none; background:transparent; color:var(--accent); font-size:11.5px; font-weight:800; font-family:var(--font-body); padding:0; flex-shrink:0;">{{ f.copyTxt }}</button>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button style="cursor:pointer; border:none; background:transparent; color:var(--muted); border-radius:8px; padding:6px 10px; font-size:12px; font-weight:700; font-family:var(--font-body);">Modifier</button>
+            <button style="cursor:pointer; border:none; background:var(--accent-tint); color:var(--tint-ink); border-radius:8px; padding:6px 11px; font-size:12px; font-weight:700; font-family:var(--font-body);">Publier une version</button>
+            <button sc-camel-on-click="{{ f.onHisto }}" style="cursor:pointer; border:none; background:transparent; color:var(--muted); border-radius:8px; padding:6px 10px; font-size:12px; font-weight:700; font-family:var(--font-body);">Historique</button>
+            <button style="cursor:pointer; border:none; background:transparent; color:var(--ko); border-radius:8px; padding:6px 10px; font-size:12px; font-weight:700; font-family:var(--font-body);">Supprimer</button>
+          </div>
+          <sc-if value="{{ f.histoOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:10px; border-top:1px solid var(--border); padding-top:8px;">
+              <sc-for list="{{ f.versions }}" as="vv" hint-placeholder-count="3">
+                <div style="display:flex; justify-content:space-between; gap:10px; padding:6px 0; font-size:12.5px; border-bottom:1px solid var(--border);">
+                  <span style="font-weight:800; color:var(--accent); flex-shrink:0;">{{ vv.v }}</span>
+                  <span style="flex:1; color:var(--muted);">{{ vv.note }}</span>
+                  <span style="color:var(--muted); white-space:nowrap;">{{ vv.date }}</span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ f.hasVersionsNot }}" hint-placeholder-val="{{ false }}">
+                <p style="margin:0; padding:6px 0; font-size:12.5px; color:var(--muted);">Aucune version publiée pour l'instant.</p>
+              </sc-if>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </main>
+  </sc-if>

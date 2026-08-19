@@ -15,10 +15,6 @@
 <style>
   .wrap{max-width:980px; margin:0 auto; font-variant-numeric:tabular-nums;}
   button{ cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700; padding:9px 15px; font-family:inherit; }
-  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
-  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
-  .btn-sm{padding:7px 11px; font-size:12px;}
 
   input[type=text], input[type=number], input[type=date], select, textarea{
     padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%;
@@ -53,22 +49,6 @@
   .sous-ligne > *{flex:1; min-width:0;}
   .sous-retirer{flex:0 0 auto !important;}
   @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
-
-  /* Titres de section au gabarit de la maquette : capitales tracées, couleur
-     d'accent, filet tonique — le même repère sur tous les écrans. */
-  h2, h2.section-title{
-    font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
-    color:var(--accent); display:flex; align-items:center; gap:8px;
-  }
-  h2::before, h2.section-title::before{
-    content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); flex-shrink:0;
-  }
-  /* Les titres de fenêtre modale gardent leur rendu : ce ne sont pas des
-     titres de section. */
-  .modal h2, .modal h2::before, .modal-card h2, .modal-card h2::before{
-    all:revert;
-  }
-  .modal h2, .modal-card h2{font-size:17px; font-weight:800; color:var(--text); text-transform:none; letter-spacing:0;}
 </style>
 </head>
 <body>
@@ -118,7 +98,7 @@
       <legend>Mouvements</legend>
       <p class="subtitle" style="margin:-6px 0 10px;">Chaque sortie ou entrée de matériel dans ce lot, avec sa date et éventuellement l'heure demandée — utile pour les échanges (une console qui sort, une autre qui rentre), les retours de matériel non utilisé, et pour transmettre l'info au chauffeur concerné.</p>
       <div class="sous-liste" id="mouvementsListe"></div>
-      <button type="button" class="btn-secondary btn-sm" id="addMouvementBtn">+ Ajouter un mouvement</button>
+      <button type="button" class="co-btn secondary sm" id="addMouvementBtn">+ Ajouter un mouvement</button>
     </fieldset>
 
     <fieldset class="groupe">
@@ -133,8 +113,8 @@
     <div class="field"><label for="lNotes">Notes</label><textarea id="lNotes"></textarea></div>
 
     <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="lotModalCancel">Annuler</button>
-      <button type="button" class="btn-secondary" id="lotModalSave">Enregistrer</button>
+      <button type="button" class="co-btn ghost" id="lotModalCancel">Annuler</button>
+      <button type="button" class="co-btn secondary" id="lotModalSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -200,7 +180,7 @@ function renderMouvementsEdition(){
         <option value="entree" ${mv.type==='entree'?'selected':''}>Entrée</option>
       </select>
       <input type="text" data-i="${i}" data-f="description" value="${escapeHtml(mv.description||'')}" placeholder="Ex: échange de console, retour non utilisé…">
-      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer="${i}">Retirer</button>
+      <button type="button" class="co-btn danger sm sous-retirer" data-retirer="${i}">Retirer</button>
     </div>
   `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun mouvement.</p>`;
   document.querySelectorAll('#mouvementsListe [data-f]').forEach(inp=> inp.addEventListener('input', ()=>{
@@ -246,9 +226,9 @@ function carteLot(l, index){
       </div>
       ${joursDe(l).length ? `<div class="lot-dates">${joursDe(l).map(escapeHtml).join(' · ')}</div>` : ''}
       <div class="lot-actions">
-        <button type="button" class="btn-ghost btn-sm" data-edit="${l.id}">Modifier</button>
-        <button type="button" class="btn-ghost btn-sm" data-sous-lot="${l.id}">+ Sous-lot</button>
-        <button type="button" class="btn-danger btn-sm" data-del="${l.id}">Supprimer</button>
+        <button type="button" class="co-btn ghost sm" data-edit="${l.id}">Modifier</button>
+        <button type="button" class="co-btn ghost sm" data-sous-lot="${l.id}">+ Sous-lot</button>
+        <button type="button" class="co-btn danger sm" data-del="${l.id}">Supprimer</button>
       </div>
       ${enfants.length ? `<div class="sous-lots">${enfants.map((e, i)=> carteLot(e, i)).join('')}</div>` : ''}
     </div>

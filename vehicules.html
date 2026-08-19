@@ -15,10 +15,6 @@
 <style>
   .wrap{max-width:1000px; margin:0 auto; font-variant-numeric:tabular-nums;}
   button{ cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700; padding:9px 15px; font-family:inherit; }
-  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
-  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
-  .btn-sm{padding:7px 11px; font-size:12px;}
 
   input[type=text], input[type=number], input[type=email], input[type=tel], select, textarea{
     padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%;
@@ -92,7 +88,7 @@
   .r-name{font-weight:800; font-size:15.5px;}
   .r-sub{color:var(--muted); font-size:12.5px;}
   .r-actions{display:flex; gap:6px; margin-top:8px; border-top:1px solid var(--border); padding-top:10px;}
-  .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:999px; white-space:nowrap;}
+  .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap;}
   .badge-accent{background:var(--accent-tint); color:var(--accent-dark);}
   .badge-hayon{background:var(--ok-tint); color:var(--ok);}
   .badge-sans-hayon{background:var(--border); color:var(--muted);}
@@ -101,7 +97,7 @@
 
   .lien-chauffeur{
     display:flex; align-items:center; gap:9px; background:var(--bg); border:1px dashed var(--border);
-    border-radius:var(--radius); padding:9px 11px; margin-top:2px;
+    border-radius:10px; padding:9px 11px; margin-top:2px;
   }
   .lien-chauffeur .lien-avatar{
     flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--accent-tint); color:var(--accent-dark);
@@ -125,22 +121,6 @@
   .affectation-row select{width:auto; flex:1; min-width:140px;}
   .tournee-select{padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; background:var(--card); color:var(--text); font-family:inherit; margin-bottom:14px;}
   @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
-
-  /* Titres de section au gabarit de la maquette : capitales tracées, couleur
-     d'accent, filet tonique — le même repère sur tous les écrans. */
-  h2, h2.section-title{
-    font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
-    color:var(--accent); display:flex; align-items:center; gap:8px;
-  }
-  h2::before, h2.section-title::before{
-    content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); flex-shrink:0;
-  }
-  /* Les titres de fenêtre modale gardent leur rendu : ce ne sont pas des
-     titres de section. */
-  .modal h2, .modal h2::before, .modal-card h2, .modal-card h2::before{
-    all:revert;
-  }
-  .modal h2, .modal-card h2{font-size:17px; font-weight:800; color:var(--text); text-transform:none; letter-spacing:0;}
 </style>
 </head>
 <body>
@@ -155,7 +135,7 @@
   <div class="section-block">
     <div class="section-head">
       <h2 class="section-title">Véhicules</h2>
-      <button type="button" class="btn-secondary" id="addVehiculeBtn">+ Ajouter un véhicule</button>
+      <button type="button" class="co-btn secondary" id="addVehiculeBtn">+ Ajouter un véhicule</button>
     </div>
     <div class="cardgrid" id="vehiculesGrid"></div>
     <div class="empty-hint" id="vehiculesEmpty" style="display:none;">Aucun véhicule enregistré.</div>
@@ -164,7 +144,7 @@
   <div class="section-block">
     <div class="section-head">
       <h2 class="section-title">Chauffeurs</h2>
-      <button type="button" class="btn-secondary" id="addChauffeurBtn">+ Ajouter un chauffeur</button>
+      <button type="button" class="co-btn secondary" id="addChauffeurBtn">+ Ajouter un chauffeur</button>
     </div>
     <div class="cardgrid" id="chauffeursGrid"></div>
     <div class="empty-hint" id="chauffeursEmpty" style="display:none;">Aucun chauffeur enregistré.</div>
@@ -173,7 +153,7 @@
   <div class="section-block">
     <div class="section-head">
       <h2 class="section-title">Carnets ATA</h2>
-      <button type="button" class="btn-secondary" id="addCarnetBtn">+ Ajouter un carnet</button>
+      <button type="button" class="co-btn secondary" id="addCarnetBtn">+ Ajouter un carnet</button>
     </div>
     <p class="section-lead">Attribué à une semi pour toute la tournée, valable dans toute l'Europe.</p>
     <div class="cardgrid" id="carnetsGrid"></div>
@@ -188,7 +168,7 @@
       <select class="tournee-select" id="affectationDateSelect" style="flex:1;"></select>
     </div>
     <div id="affectationsListe"></div>
-    <button type="button" class="btn-secondary btn-sm" id="addAffectationBtn">+ Ajouter une exception</button>
+    <button type="button" class="co-btn secondary sm" id="addAffectationBtn">+ Ajouter une exception</button>
   </div>
 </div>
 
@@ -221,8 +201,8 @@
     <div class="field"><label for="vChauffeurDefaut">Chauffeur habituel</label><select id="vChauffeurDefaut"></select></div>
     <div class="field"><label for="vNotes">Notes</label><textarea id="vNotes"></textarea></div>
     <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="vehiculeModalCancel">Annuler</button>
-      <button type="button" class="btn-secondary" id="vehiculeModalSave">Enregistrer</button>
+      <button type="button" class="co-btn ghost" id="vehiculeModalCancel">Annuler</button>
+      <button type="button" class="co-btn secondary" id="vehiculeModalSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -243,8 +223,8 @@
     <div class="field"><label for="chPrestataire">Prestataire</label><select id="chPrestataire"></select></div>
     <div class="field"><label for="chNotes">Notes</label><textarea id="chNotes"></textarea></div>
     <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="chauffeurModalCancel">Annuler</button>
-      <button type="button" class="btn-secondary" id="chauffeurModalSave">Enregistrer</button>
+      <button type="button" class="co-btn ghost" id="chauffeurModalCancel">Annuler</button>
+      <button type="button" class="co-btn secondary" id="chauffeurModalSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -273,8 +253,8 @@
     <div class="field"><label>Lots déclarés</label><div class="sous-liste" id="carnetLotsListe" style="max-height:160px; overflow-y:auto;"></div></div>
     <div class="field"><label for="cNotes">Notes</label><textarea id="cNotes"></textarea></div>
     <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="carnetModalCancel">Annuler</button>
-      <button type="button" class="btn-secondary" id="carnetModalSave">Enregistrer</button>
+      <button type="button" class="co-btn ghost" id="carnetModalCancel">Annuler</button>
+      <button type="button" class="co-btn secondary" id="carnetModalSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -354,9 +334,9 @@ function renderVehicules(){
       </div>
       ${exception ? `<div class="exception-note">Exception le ${escapeHtml(libelleDateCourt(exception.d))} : ${escapeHtml(fullName(exception.chauffeur))}</div>` : ''}
       <div class="r-actions">
-        <button type="button" class="btn-ghost btn-sm" data-edit="${v.id}">Modifier</button>
-        <button type="button" class="btn-ghost btn-sm" data-chauffeur="${v.id}">+ Exception</button>
-        <button type="button" class="btn-danger btn-sm" data-del="${v.id}">Supprimer</button>
+        <button type="button" class="co-btn ghost sm" data-edit="${v.id}">Modifier</button>
+        <button type="button" class="co-btn ghost sm" data-chauffeur="${v.id}">+ Exception</button>
+        <button type="button" class="co-btn danger sm" data-del="${v.id}">Supprimer</button>
       </div>
       </div>
     </div>
@@ -454,8 +434,8 @@ function renderChauffeurs(){
       ${c.prestataire ? `<div class="r-sub">${escapeHtml(c.prestataire)}</div>` : ''}
       ${semisHabituelles.length ? `<div class="lien-chauffeur"><div class="lien-avatar">🚛</div><div class="lien-corps"><div class="lien-label">Chauffeur habituel de</div><div style="font-size:13px; font-weight:700;">${semisHabituelles.map(v=>escapeHtml(v.nom||'Sans nom')).join(', ')}</div></div></div>` : ''}
       <div class="r-actions">
-        <button type="button" class="btn-ghost btn-sm" data-edit="${c.id}">Modifier</button>
-        <button type="button" class="btn-danger btn-sm" data-del="${c.id}">Supprimer</button>
+        <button type="button" class="co-btn ghost sm" data-edit="${c.id}">Modifier</button>
+        <button type="button" class="co-btn danger sm" data-del="${c.id}">Supprimer</button>
       </div>
     </div>
   `;}).join('');
@@ -538,8 +518,8 @@ function renderCarnets(){
       </div>
       <div class="r-sub">${(c.lotsIds||[]).length} lot${(c.lotsIds||[]).length>1?'s':''} déclaré${(c.lotsIds||[]).length>1?'s':''}</div>
       <div class="r-actions">
-        <button type="button" class="btn-ghost btn-sm" data-edit="${c.id}">Modifier</button>
-        <button type="button" class="btn-danger btn-sm" data-del="${c.id}">Supprimer</button>
+        <button type="button" class="co-btn ghost sm" data-edit="${c.id}">Modifier</button>
+        <button type="button" class="co-btn danger sm" data-del="${c.id}">Supprimer</button>
       </div>
     </div>
   `;}).join('');
@@ -670,7 +650,7 @@ function renderAffectations(){
         <option value="">— Chauffeur —</option>
         ${chauffeursCache.map(c=>`<option value="${c.id}" ${a.chauffeurId===c.id?'selected':''}>${escapeHtml(fullName(c))}</option>`).join('')}
       </select>
-      <button type="button" class="btn-danger btn-sm" data-retirer>Retirer</button>
+      <button type="button" class="co-btn danger sm" data-retirer>Retirer</button>
     </div>
   `;}).join('');
   box.querySelectorAll('.affectation-row').forEach(row=>{

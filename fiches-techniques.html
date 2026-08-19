@@ -15,10 +15,6 @@
 <style>
   .wrap{max-width:900px; margin:0 auto; font-variant-numeric:tabular-nums;}
   button{ cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700; padding:9px 15px; font-family:inherit; }
-  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
-  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
-  .btn-sm{padding:7px 11px; font-size:12px;}
   input[type=text], input[type=url]{ padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%; background:var(--card); color:var(--text); font-family:inherit; }
   label{font-size:12px; color:var(--muted); font-weight:600;}
   .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
@@ -27,7 +23,7 @@
   .fiche-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:12px;}
   .fiche-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
   .fiche-nom{font-weight:800; font-size:15px;}
-  .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:999px; white-space:nowrap;}
+  .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap;}
   .badge-ok{background:var(--ok-tint); color:var(--ok);}
   .badge-non{background:var(--border); color:var(--muted);}
   .fiche-drive{font-size:12.5px; margin:8px 0;}
@@ -48,22 +44,6 @@
   .modal h2{font-size:17px; margin:0 0 16px;}
   .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
   @media (max-width:600px){ input{ font-size:16px !important; } }
-
-  /* Titres de section au gabarit de la maquette : capitales tracées, couleur
-     d'accent, filet tonique — le même repère sur tous les écrans. */
-  h2, h2.section-title{
-    font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
-    color:var(--accent); display:flex; align-items:center; gap:8px;
-  }
-  h2::before, h2.section-title::before{
-    content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); flex-shrink:0;
-  }
-  /* Les titres de fenêtre modale gardent leur rendu : ce ne sont pas des
-     titres de section. */
-  .modal h2, .modal h2::before, .modal-card h2, .modal-card h2::before{
-    all:revert;
-  }
-  .modal h2, .modal-card h2{font-size:17px; font-weight:800; color:var(--text); text-transform:none; letter-spacing:0;}
 </style>
 </head>
 <body>
@@ -87,8 +67,8 @@
     <div class="field"><label for="fNom">Nom</label><input type="text" id="fNom" placeholder="Ex: Fiche technique — Expédition 33"></div>
     <div class="field"><label for="fDriveUrl">Lien Drive partagé (accès "avec le lien" activé)</label><input type="url" id="fDriveUrl" placeholder="https://drive.google.com/…"></div>
     <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="ficheModalCancel">Annuler</button>
-      <button type="button" class="btn-secondary" id="ficheModalSave">Enregistrer</button>
+      <button type="button" class="co-btn ghost" id="ficheModalCancel">Annuler</button>
+      <button type="button" class="co-btn secondary" id="ficheModalSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -100,8 +80,8 @@
     <div class="field"><label for="vLabel">Étiquette</label><input type="text" id="vLabel" placeholder="Ex: v6"></div>
     <div class="field"><label for="vNote">Ce qui a changé</label><input type="text" id="vNote" placeholder="Ex: puissance mise à jour, contact modifié"></div>
     <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="versionModalCancel">Annuler</button>
-      <button type="button" class="btn-secondary" id="versionModalSave">Publier</button>
+      <button type="button" class="co-btn ghost" id="versionModalCancel">Annuler</button>
+      <button type="button" class="co-btn secondary" id="versionModalSave">Publier</button>
     </div>
   </div>
 </div>
@@ -111,7 +91,7 @@ let fichesCache = [];
 let ficheVersionOuverte = '';
 
 function ligneLienCopie(url, btnClass){
-  return `<div class="lien-copie"><code>${escapeHtml(url)}</code><button type="button" class="btn-ghost btn-sm ${btnClass}" data-url="${escapeAttr(url)}">Copier</button></div>`;
+  return `<div class="lien-copie"><code>${escapeHtml(url)}</code><button type="button" class="co-btn ghost sm ${btnClass}" data-url="${escapeAttr(url)}">Copier</button></div>`;
 }
 document.addEventListener('click', (e)=>{
   const btn = e.target.closest('.btn-copier');
@@ -151,10 +131,10 @@ function render(){
       ${f.driveUrl ? `<div class="fiche-drive"><a href="${escapeHtml(f.driveUrl)}" target="_blank" rel="noopener">Ouvrir dans Drive ↗</a></div>` : `<div class="fiche-drive" style="color:var(--danger);">Aucun lien Drive renseigné</div>`}
       ${ligneLienCopie(lienCanonique(f.token), 'btn-copier')}
       <div class="fiche-actions">
-        <button type="button" class="btn-ghost btn-sm" data-edit="${f.id}">Modifier</button>
-        <button type="button" class="btn-secondary btn-sm" data-publier="${f.id}">Publier une version</button>
-        <button type="button" class="btn-ghost btn-sm" data-historique="${f.id}">Historique</button>
-        <button type="button" class="btn-danger btn-sm" data-del="${f.id}">Supprimer</button>
+        <button type="button" class="co-btn ghost sm" data-edit="${f.id}">Modifier</button>
+        <button type="button" class="co-btn secondary sm" data-publier="${f.id}">Publier une version</button>
+        <button type="button" class="co-btn ghost sm" data-historique="${f.id}">Historique</button>
+        <button type="button" class="co-btn danger sm" data-del="${f.id}">Supprimer</button>
       </div>
       <div class="historique" data-versions-de="${f.id}"></div>
     </div>

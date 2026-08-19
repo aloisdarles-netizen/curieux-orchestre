@@ -28,17 +28,19 @@
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
   }
-  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-secondary:hover{background:color-mix(in srgb, var(--bleu) 78%, var(--prune));}
-  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
-  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
-  .btn-danger:hover{background:var(--secondary-tint);}
-  .btn-sm{padding:7px 11px; font-size:12px;}
+  /* Les cinq règles de bouton qui vivaient ici sont parties : le markup emploie
+     désormais .co-btn de base.css, qui les rendait mortes. */
 
+  /* Champs au gabarit de la charte, appliqué à la balise plutôt qu'à une
+     classe : cet écran compte vingt-huit champs, les marquer un par un aurait
+     été vingt-huit occasions d'en oublier un. Les valeurs sont celles de
+     .co-input — le rayon passe de 6 à 8 px et le fond du blanc de carte au fond
+     de page, comme partout ailleurs dans la maquette. */
   input[type=text], input[type=email], input[type=tel], input[type=number], input[type=time], input[type=url], input[type=file], select, textarea{
-    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%;
-    background:var(--card); color:var(--text); font-family:inherit;
+    padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:13px; width:100%;
+    background:var(--bg); color:var(--text); font-family:var(--font-body); outline:none;
   }
+  input:focus, select:focus, textarea:focus{border-color:var(--accent);}
   textarea{min-height:56px; resize:vertical;}
   label.chk{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--text); font-weight:400; cursor:pointer; margin:0;}
   label.chk input{width:18px; height:18px; accent-color:var(--accent);}
@@ -83,7 +85,7 @@
   .ana-ligne .ana-valeur{font-size:13.5px; word-break:break-word;}
   .ana-ligne .ana-actuel{font-size:12px; color:var(--muted); margin-top:2px;}
   .ana-point{display:flex; gap:9px; align-items:flex-start; border-radius:8px; padding:9px 10px; margin-bottom:6px; border:1px solid var(--border); background:var(--bg);}
-  .ana-point .ana-pastille{flex:0 0 auto; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:3px 8px; border-radius:999px;}
+  .ana-point .ana-pastille{flex:0 0 auto; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:3px 8px; border-radius:20px;}
   .ana-point.manquant{border-color:var(--danger);}
   .ana-point.manquant .ana-pastille{background:var(--secondary-tint); color:var(--danger);}
   .ana-point.attention .ana-pastille{background:#F5C518; color:#2b2200;}
@@ -97,17 +99,20 @@
     position:absolute; transform:translate(-50%,-100%); cursor:grab; user-select:none; touch-action:none;
     display:flex; flex-direction:column; align-items:center; gap:2px;
   }
-  .pin-tete{background:var(--accent-solid); color:#fff; font-size:13px; font-weight:800; padding:6px 12px; border-radius:999px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3);}
+  .pin-tete{background:var(--accent-solid); color:#fff; font-size:13px; font-weight:800; padding:6px 12px; border-radius:20px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3);}
   .pin-pointe{width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:9px solid var(--accent-solid);}
   .pin.dragging{cursor:grabbing; opacity:.85;}
   .pin.note .pin-tete{background:#F5C518; color:#2b2200; max-width:220px; white-space:normal; text-align:center; font-weight:700;}
   .pin.note .pin-pointe{border-top-color:#F5C518;}
   .plan-outils{display:flex; gap:8px; margin-bottom:10px;}
 
-  .fixed-save{position:sticky; bottom:0; left:0; right:0; background:var(--bg); border-top:1px solid var(--border); padding:12px 0; margin-top:8px; display:flex; gap:10px; align-items:center; justify-content:flex-end;}
-  #saveStatus{font-size:12.5px; color:var(--muted); margin-right:auto;}
+  /* La barre d'enregistrement vient de base.css (.co-savebar) : elle était
+     redéfinie ici alors que la charte la fournit, et son statut se poussait à
+     gauche par un margin-right:auto au lieu du flex:1 prévu. */
+  .co-savebar{justify-content:flex-end;}
 
-  @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
+  /* Le confort de saisie sur téléphone (16 px minimum, sinon iOS zoome) est
+     déjà traité pour toutes les pages dans base.css. */
 </style>
 </head>
 <body>
@@ -135,7 +140,7 @@
     <legend>Lire une fiche technique de salle</legend>
     <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Dépose le PDF (ou une photo) envoyé par la salle : les informations utiles sont extraites et les manques signalés. Rien n'est écrit tant que tu n'as pas coché puis appliqué.</p>
     <div class="field"><label for="fAnalyseFichier">Fichier — PDF, PNG ou JPEG, 3 Mo maximum</label><input type="file" id="fAnalyseFichier" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"></div>
-    <button type="button" class="btn-secondary btn-sm" id="analyserBtn" disabled>Analyser la fiche</button>
+    <button type="button" class="co-btn secondary sm" id="analyserBtn" disabled>Analyser la fiche</button>
     <span id="analyseStatut" style="margin-left:10px; font-size:12.5px; color:var(--muted);"></span>
     <div id="analyseResultat" style="display:none; margin-top:14px;"></div>
   </fieldset>
@@ -144,7 +149,7 @@
     <legend>Lire une fiche technique de salle</legend>
     <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Dépose le PDF (ou une photo) envoyé par la salle : les informations utiles sont extraites et les manques signalés. Rien n'est écrit tant que tu n'as pas coché puis appliqué.</p>
     <div class="field"><label for="fAnalyseFichier">Fichier — PDF, PNG ou JPEG, 3 Mo maximum</label><input type="file" id="fAnalyseFichier" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"></div>
-    <button type="button" class="btn-secondary btn-sm" id="analyserBtn" disabled>Analyser la fiche</button>
+    <button type="button" class="co-btn secondary sm" id="analyserBtn" disabled>Analyser la fiche</button>
     <span id="analyseStatut" style="margin-left:10px; font-size:12.5px; color:var(--muted);"></span>
     <div id="analyseResultat" style="display:none; margin-top:14px;"></div>
   </fieldset>
@@ -230,33 +235,33 @@
     <legend>Horaires de la journée</legend>
     <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Repères de la journée — load in, get in… libre.</p>
     <div id="horairesListe"></div>
-    <button type="button" class="btn-secondary btn-sm" id="addHoraireBtn">+ Ajouter un repère</button>
+    <button type="button" class="co-btn secondary sm" id="addHoraireBtn">+ Ajouter un repère</button>
   </fieldset>
 
   <fieldset class="groupe">
     <legend>Équipes de la tournée (road)</legend>
     <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Nommées une fois pour la tournée, réutilisées sur chaque vacation roadies ci-dessous.</p>
     <div id="equipesTourneeListe"></div>
-    <button type="button" class="btn-secondary btn-sm" id="addEquipeTourneeBtn">+ Ajouter une équipe</button>
+    <button type="button" class="co-btn secondary sm" id="addEquipeTourneeBtn">+ Ajouter une équipe</button>
   </fieldset>
 
   <fieldset class="groupe">
     <legend>Roadies</legend>
     <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">En vacations plutôt qu'en demande globale — chaque créneau a son effectif demandé, une confirmation, et se répartit sur les équipes de la tournée.</p>
     <div id="roadiesListe"></div>
-    <button type="button" class="btn-secondary btn-sm" id="addRoadiesBtn">+ Ajouter une vacation</button>
+    <button type="button" class="co-btn secondary sm" id="addRoadiesBtn">+ Ajouter une vacation</button>
   </fieldset>
 
   <fieldset class="groupe">
     <legend>Chariots élévateurs</legend>
     <div id="chariotsListe"></div>
-    <button type="button" class="btn-secondary btn-sm" id="addChariotsBtn">+ Ajouter une vacation</button>
+    <button type="button" class="co-btn secondary sm" id="addChariotsBtn">+ Ajouter une vacation</button>
   </fieldset>
 
   <fieldset class="groupe">
     <legend>Rigg</legend>
     <div id="riggListe"></div>
-    <button type="button" class="btn-secondary btn-sm" id="addRiggBtn">+ Ajouter une vacation</button>
+    <button type="button" class="co-btn secondary sm" id="addRiggBtn">+ Ajouter une vacation</button>
   </fieldset>
 
   <fieldset class="groupe">
@@ -280,7 +285,7 @@
     <legend>Contacts</legend>
     <label style="display:block; margin-bottom:8px;">Contacts côté salle</label>
     <div id="contactsSalleListe"></div>
-    <button type="button" class="btn-secondary btn-sm" id="addContactSalleBtn">+ Ajouter un contact</button>
+    <button type="button" class="co-btn secondary sm" id="addContactSalleBtn">+ Ajouter un contact</button>
 
     <label style="display:block; margin:16px 0 8px;">Technicien·nes affecté·es à exposer comme contact production</label>
     <div id="contactsTechniciensListe" style="display:flex; flex-direction:column; gap:6px;"></div>
@@ -292,8 +297,8 @@
     <div class="field"><label for="fPlanImage">Importer une image (vue du dessus, à l'échelle)</label><input type="file" id="fPlanImage" accept="image/*"></div>
     <p style="font-size:12px; color:var(--muted); margin:-6px 0 10px;">Choisis un mode puis clique sur le plan pour poser une pastille ; glisse-la pour la repositionner, double-clique pour la retirer.</p>
     <div class="plan-outils" id="planOutils" style="display:none;">
-      <button type="button" class="btn-secondary btn-sm" data-mode="semi">+ Semi</button>
-      <button type="button" class="btn-ghost btn-sm" data-mode="note">+ Note</button>
+      <button type="button" class="co-btn secondary sm" data-mode="semi">+ Semi</button>
+      <button type="button" class="co-btn ghost sm" data-mode="note">+ Note</button>
     </div>
     <div id="planZoneWrap"></div>
   </fieldset>
@@ -301,10 +306,10 @@
   <div class="field"><label for="fNotes">Notes libres</label><textarea id="fNotes"></textarea></div>
 </div>
 
-<div class="fixed-save">
+<div class="co-savebar">
   <div class="wrap" style="display:flex; align-items:center; gap:10px; padding:0 16px;">
-    <span id="saveStatus"></span>
-    <button type="button" class="btn-secondary" id="saveBtn">Enregistrer</button>
+    <span class="co-savebar-status" id="saveStatus"></span>
+    <button type="button" class="co-btn primary" id="saveBtn">Enregistrer</button>
   </div>
 </div>
 
@@ -339,7 +344,7 @@ function renderEquipesTournee(){
     <div class="equipe-ligne" data-i="${i}">
       <input type="color" data-f="couleur" value="${eq.couleur || '#888888'}">
       <input type="text" class="equipe-label-libre" data-f="label" value="${escapeAttr(eq.label||'')}" placeholder="Nom de l'équipe">
-      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-equipe-tournee="${i}">×</button>
+      <button type="button" class="co-btn danger sm sous-retirer" data-retirer-equipe-tournee="${i}">×</button>
     </div>
   `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucune équipe.</p>`;
   box.querySelectorAll('.equipe-ligne').forEach(row=>{
@@ -416,7 +421,7 @@ function renderRoadiesListe(){
     const surDejeuner = chevaucheDejeuner(v.horaireDebut, v.horaireFin);
     return `
     <div class="vacation" data-i="${i}">
-      <div class="vacation-head"><b>Vacation ${i+1}${duree ? ' — ' + duree : ''}</b><button type="button" class="btn-danger btn-sm" data-retirer-roadies="${i}">Retirer</button></div>
+      <div class="vacation-head"><b>Vacation ${i+1}${duree ? ' — ' + duree : ''}</b><button type="button" class="co-btn danger sm" data-retirer-roadies="${i}">Retirer</button></div>
       <div class="field-row">
         <div class="field"><label>Début</label><input type="time" data-f="horaireDebut" value="${v.horaireDebut||''}"></div>
         <div class="field"><label>Fin</label><input type="time" data-f="horaireFin" value="${v.horaireFin||''}"></div>
@@ -474,7 +479,7 @@ function renderFourchesEdition(vacationIndex){
         <option value="longues" ${f.fourche==='longues'?'selected':''}>Fourches longues</option>
         <option value="courtes" ${f.fourche==='courtes'?'selected':''}>Fourches courtes</option>
       </select>
-      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-fourche="${fi}">×</button>
+      <button type="button" class="co-btn danger sm sous-retirer" data-retirer-fourche="${fi}">×</button>
     </div>
   `).join('') || `<p style="font-size:12px; color:var(--muted); margin:0;">Aucun chariot détaillé.</p>`;
   box.querySelectorAll('select[data-ff]').forEach(el=> el.addEventListener('change', ()=>{ v.fourches[el.dataset.fi].fourche = el.value; }));
@@ -488,7 +493,7 @@ function renderChariotsListe(){
   const liste = moyens.chariotsVacations;
   box.innerHTML = liste.map((v,i)=>`
     <div class="vacation" data-i="${i}">
-      <div class="vacation-head"><b>Vacation ${i+1}</b><button type="button" class="btn-danger btn-sm" data-retirer-chariots="${i}">Retirer</button></div>
+      <div class="vacation-head"><b>Vacation ${i+1}</b><button type="button" class="co-btn danger sm" data-retirer-chariots="${i}">Retirer</button></div>
       <div class="field-row">
         <div class="field"><label>Début</label><input type="time" data-f="horaireDebut" value="${v.horaireDebut||''}"></div>
         <div class="field"><label>Fin</label><input type="time" data-f="horaireFin" value="${v.horaireFin||''}"></div>
@@ -497,7 +502,7 @@ function renderChariotsListe(){
       </div>
       <label style="display:block; margin:6px 0 4px;">Détail par chariot</label>
       <div data-fourches-de="${i}"></div>
-      <button type="button" class="btn-ghost btn-sm" data-add-fourche="${i}">+ Ajouter un chariot</button>
+      <button type="button" class="co-btn ghost sm" data-add-fourche="${i}">+ Ajouter un chariot</button>
       <div class="field-row" style="margin-top:10px;">
         <div class="field"><label>Caristes demandés</label><input type="number" min="0" data-f="nombreCaristesDemande" value="${v.nombreCaristesDemande!=null?v.nombreCaristesDemande:''}"></div>
       </div>
@@ -539,7 +544,7 @@ function renderRiggListe(){
   const liste = moyens.riggVacations;
   box.innerHTML = liste.map((v,i)=>`
     <div class="vacation" data-i="${i}">
-      <div class="vacation-head"><b>Vacation ${i+1}</b><button type="button" class="btn-danger btn-sm" data-retirer-rigg="${i}">Retirer</button></div>
+      <div class="vacation-head"><b>Vacation ${i+1}</b><button type="button" class="co-btn danger sm" data-retirer-rigg="${i}">Retirer</button></div>
       <div class="field-row">
         <div class="field"><label>Début</label><input type="time" data-f="horaireDebut" value="${v.horaireDebut||''}"></div>
         <div class="field"><label>Fin</label><input type="time" data-f="horaireFin" value="${v.horaireFin||''}"></div>
@@ -582,7 +587,7 @@ function renderHorairesListe(){
     <div class="horaire-ligne" data-i="${i}">
       <input type="time" data-f="heure" value="${h.heure||''}">
       <input type="text" data-f="label" value="${escapeAttr(h.label||'')}" placeholder="Ex: Load in, Get in…">
-      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-horaire="${i}">×</button>
+      <button type="button" class="co-btn danger sm sous-retirer" data-retirer-horaire="${i}">×</button>
     </div>
   `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun repère.</p>`;
   box.querySelectorAll('.horaire-ligne').forEach(row=>{
@@ -638,7 +643,7 @@ function renderContactsSalle(){
       <input type="text" data-f="role" placeholder="Rôle" value="${escapeAttr(c.role||'')}">
       <input type="tel" data-f="tel" placeholder="Téléphone" value="${escapeAttr(c.tel||'')}">
       <input type="email" data-f="email" placeholder="Email" value="${escapeAttr(c.email||'')}">
-      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer-contact="${i}">×</button>
+      <button type="button" class="co-btn danger sm sous-retirer" data-retirer-contact="${i}">×</button>
     </div>
   `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun contact salle enregistré.</p>`;
   box.querySelectorAll('.sous-ligne').forEach(row=>{
@@ -736,7 +741,7 @@ function renderPlanZone(){
 }
 document.querySelectorAll('#planOutils [data-mode]').forEach(btn=> btn.addEventListener('click', ()=>{
   modePlacement = btn.dataset.mode;
-  document.querySelectorAll('#planOutils [data-mode]').forEach(b=> b.className = b===btn ? 'btn-secondary btn-sm' : 'btn-ghost btn-sm');
+  document.querySelectorAll('#planOutils [data-mode]').forEach(b=> b.className = b===btn ? 'co-btn secondary sm' : 'co-btn ghost sm');
 }));
 document.getElementById('fPlanImage').addEventListener('change', async (e)=>{
   const fichier = e.target.files[0];
@@ -966,8 +971,8 @@ function renderAnalyse(){
 
   box.innerHTML = blocs.join('') + `
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-      <button type="button" class="btn-secondary btn-sm" id="appliquerAnalyseBtn">Appliquer ce qui est coché</button>
-      <button type="button" class="btn-ghost btn-sm" id="fermerAnalyseBtn">Fermer</button>
+      <button type="button" class="co-btn secondary sm" id="appliquerAnalyseBtn">Appliquer ce qui est coché</button>
+      <button type="button" class="co-btn ghost sm" id="fermerAnalyseBtn">Fermer</button>
       <span style="font-size:12px; color:var(--muted);">Puis « Enregistrer » en bas de page.</span>
     </div>`;
   box.style.display = 'block';

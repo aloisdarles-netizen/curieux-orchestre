@@ -21,12 +21,6 @@
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
   }
-  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-secondary:hover{background:color-mix(in srgb, var(--bleu) 78%, var(--prune));}
-  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
-  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
-  .btn-danger:hover{background:var(--secondary-tint);}
-  .btn-sm{padding:6px 10px; font-size:12px;}
 
   input[type=text], input[type=date], textarea{
     padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13.5px;
@@ -51,6 +45,20 @@
 
   /* Bandeau d'outils de tête de tournée — cachet à gauche, effectif à droite,
      posé sur le fond de page pour se distinguer du tableau des dates. */
+  /* Le bloc des cachets d'exception vivait entre l'encart d'outils et la ligne
+     d'ajout de date, à la largeur de la carte et sans rembourrage : il
+     débordait sur la ligne suivante. Il est maintenant dans la colonne Cachet,
+     là où la maquette le place, replié en encart discret sous le bouton qui le
+     déplie. */
+  .cachet-overrides{
+    margin-top:10px; padding:10px 12px; border-radius:10px;
+    background:var(--card); border:1px solid var(--border);
+  }
+  .cachet-overrides input[type=text]{width:100%; max-width:none;}
+  .cachet-override-row{gap:8px; flex-wrap:wrap;}
+  .cachet-override-row span:first-child{width:auto !important; flex:1 1 120px; min-width:0;}
+  .cachet-override-row input{width:84px !important; flex:0 0 auto;}
+
   .tournee-outils{
     padding:14px 20px 16px; border-bottom:1px solid var(--border); background:var(--bg);
     display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;
@@ -63,15 +71,43 @@
   .tournee-outils .cachet-row select{flex:1; min-width:150px;}
   .cachet-montant{display:inline-flex; align-items:center; gap:6px; flex-shrink:0;}
   .cachet-montant input[type=number]{width:74px;}
+  /* Effectif attendu au gabarit de la maquette : le pupitre et son compte se
+     lisent comme une phrase, les contrôles ne se dessinent qu'au survol et à la
+     saisie. Le bouton « Retirer » ne se montre qu'au survol de sa ligne : la
+     maquette n'en affiche aucun, et six croix rouges en permanence sur un
+     réglage qu'on consulte plus qu'on ne modifie détournaient l'œil. */
+  .nomenclature-item{display:flex; align-items:center; gap:10px; margin-bottom:2px; padding:3px 0;}
+  .nomen-pupitre{
+    flex:1; min-width:0; border:1px solid transparent; background:transparent;
+    font-size:13.5px; color:var(--text); padding:3px 6px; border-radius:6px; cursor:pointer;
+  }
+  .nomen-pupitre:hover{background:var(--bg);}
+  .nomen-pupitre:focus{border-color:var(--accent); background:var(--card);}
+  .nomen-etat{
+    display:inline-flex; align-items:baseline; gap:4px; white-space:nowrap;
+    font-size:13px; font-weight:700; font-variant-numeric:tabular-nums;
+  }
+  .nomen-etat.ok{color:var(--ok);}
+  .nomen-etat.manque{color:var(--maybe);}
+  .nomen-nombre{
+    width:44px; border:1px solid transparent; background:transparent; color:inherit;
+    font:inherit; text-align:right; padding:2px 4px; border-radius:6px;
+    /* Le nombre attendu se saisit là où il se lit ; la flèche du champ
+       numérique doublerait la largeur pour rien. */
+    -moz-appearance:textfield; appearance:textfield;
+  }
+  .nomen-nombre::-webkit-outer-spin-button, .nomen-nombre::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+  .nomen-nombre:hover{background:var(--card);}
+  .nomen-nombre:focus{border-color:var(--accent); background:var(--card);}
+  .nomen-retirer{opacity:0; transition:opacity .15s;}
+  .nomenclature-item:hover .nomen-retirer, .nomen-retirer:focus{opacity:1;}
+
   .nomenclature-panel{min-width:0;}
   .cachet-row{display:flex; align-items:center; gap:8px; margin:-6px 0 14px; flex-wrap:wrap;}
   .cachet-row label{font-size:12.5px; color:var(--muted); font-weight:600;}
   .cachet-row select{padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
   .cachet-row input[type=number]{padding:6px 9px; font-size:12.5px; width:110px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
   .cachet-row .cachet-unit{font-size:12px; color:var(--muted); white-space:nowrap;}
-  .manque-badge{display:inline-block; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; margin-left:6px; font-variant-numeric:tabular-nums; vertical-align:middle;}
-  .manque-badge.ok{background:var(--ok-tint); color:var(--ok);}
-  .manque-badge.warn{background:var(--danger-tint); color:var(--danger);}
   .nomenclature-panel select, .nomenclature-panel input[type=number]{
     padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px;
     background:var(--card); color:var(--text); font-family:inherit;
@@ -84,9 +120,68 @@
   table.grid-table th{font-size:10.5px; text-transform:uppercase; color:var(--muted); text-align:left; padding:6px; border-bottom:1px solid var(--border); white-space:nowrap;}
   table.grid-table td{padding:8px 6px; vertical-align:top; border-bottom:1px solid var(--border); font-size:13px;}
   table.grid-table tr:last-child td{border-bottom:none;}
-  .col-date{white-space:nowrap; font-weight:700;}
-  .col-lieu input{width:100%;}
-  .col-comment textarea{font-size:12.5px;}
+
+  /* ------------------------------------------------------------------------
+     Les dates en lignes plutôt qu'en tableau, comme la maquette.
+
+     Le tableau imposait neuf colonnes de largeur fixe : Ville et Salle y
+     occupaient 28 % à elles deux pour deux champs qu'on lit ensemble, et
+     l'affectation tenait sur trois lignes de texte. Ici Ville · lieu forme une
+     seule cellule élastique, l'effectif se résume en compteurs, et le reste
+     garde une largeur juste suffisante.
+
+     Un défilement horizontal reste possible sous 1040 px : ces lignes portent
+     trop d'information pour se replier proprement sur téléphone.
+     ------------------------------------------------------------------------ */
+  .dates-rows{ overflow-x:auto; }
+  .date-row{
+    display:grid; align-items:center; gap:10px; min-width:1060px;
+    grid-template-columns:96px 92px minmax(210px,1fr) 118px 118px 92px minmax(196px,auto) 88px 88px;
+    flex-wrap:nowrap;
+  }
+  .co-rows-head.date-row{ padding:8px 20px; }
+  .co-row.date-row{ padding:10px 20px; }
+  .col-date{white-space:nowrap; font-size:12.5px;}
+  .col-date b{font-weight:800;}
+  .col-bloc{display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0;}
+
+  /* Ville · lieu se lit comme la phrase de la maquette — « Épernay · Le
+     Millenium » — et non comme deux champs de formulaire. Les champs restent
+     des inputs, donc toujours modifiables, mais sans cadre ni fond tant qu'on
+     ne les touche pas : la ligne se parcourt du regard, l'encadré n'apparaît
+     qu'à la saisie. C'est le seul moyen de tenir le rendu de la maquette sans
+     retirer l'édition en place. */
+  .col-lieu{display:flex; flex-wrap:wrap; align-items:baseline; gap:0 4px; min-width:0;}
+  .col-lieu input, .col-lieu textarea{
+    border:1px solid transparent; background:transparent; padding:2px 4px;
+    border-radius:6px; font-family:inherit; color:var(--text); min-width:0;
+  }
+  .col-lieu input:hover, .col-lieu textarea:hover{background:var(--bg);}
+  .col-lieu input:focus, .col-lieu textarea:focus{
+    border-color:var(--accent); background:var(--card); outline:none;
+  }
+  .col-lieu .saisie-ville{font-weight:800; font-size:13.5px; flex:0 1 auto; width:44%;}
+  .col-lieu .sep{color:var(--muted); font-size:13px;}
+  .col-lieu .saisie-lieu{color:var(--muted); font-size:13px; flex:1 1 40%;}
+  .col-lieu textarea{
+    flex-basis:100%; font-size:11.5px; color:var(--muted);
+    min-height:0; height:22px; resize:none; overflow:hidden;
+  }
+  .col-lieu textarea:focus{height:52px; resize:vertical;}
+  .col-icone{font-size:13px; flex:0 0 auto; opacity:.75;}
+  .col-type, .col-voyage{display:flex; align-items:center; gap:5px; min-width:0;}
+  .col-statut, .col-fdr, .col-suppr{min-width:0;}
+  .col-type select, .col-voyage select{flex:1; min-width:0;}
+  .col-equipe{display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;}
+  .col-equipe .chips{flex-basis:100%; margin:4px 0 0;}
+  /* Compteur d'effectif : chiffres alignés, et prune sur rose dès qu'il manque
+     du monde — la couleur porte l'alerte, pas seulement le badge à côté. */
+  .co-compteur{
+    display:inline-flex; align-items:center; gap:3px; font-variant-numeric:tabular-nums;
+    font-size:12px; font-weight:800; padding:3px 9px; border-radius:999px;
+    background:var(--accent-tint); color:var(--tint-ink); white-space:nowrap;
+  }
+  .co-compteur.manque{background:var(--rose); color:var(--prune);}
 
   /* Statut de date : une pastille unique qui tourne au clic (maquette). */
   .statut-pastille{
@@ -100,11 +195,13 @@
   .statut-pastille:hover{filter:brightness(.95);}
   .bloc-badge{
     display:inline-flex; align-items:center; gap:4px; margin-top:5px; font-size:10.5px; font-weight:700; white-space:normal;
-    padding:2px 8px; border-radius:999px; background:var(--border); color:var(--muted); max-width:170px;
+    padding:2px 8px; border-radius:20px; background:var(--border); color:var(--muted); max-width:170px;
   }
-  tr.bloc-row td.col-date{padding-left:6px;}
-  tr.bloc-row.bloc-alt-0 td.col-date{border-left:3px solid var(--old-champagne);}
-  tr.bloc-row.bloc-alt-1 td.col-date{border-left:3px solid var(--accent);}
+  /* Le filet de bloc marquait le bord gauche d'une cellule de tableau ; il
+     marque désormais celui de la ligne, qui n'a plus de cellules. */
+  .co-row.bloc-row{padding-left:17px;}
+  .co-row.bloc-row.bloc-alt-0{border-left:3px solid var(--old-champagne);}
+  .co-row.bloc-row.bloc-alt-1{border-left:3px solid var(--accent);}
   .type-select{
     padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;
     background:var(--card); color:var(--text); font-family:inherit; width:100%; min-width:118px;
@@ -114,9 +211,9 @@
   .chips{display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px;}
   .chip{
     display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
-    padding:3px 8px; border-radius:999px; background:var(--champagne); color:var(--prune); white-space:nowrap;
+    padding:3px 8px; border-radius:20px; background:var(--champagne); color:#7a1f52; white-space:nowrap;
   }
-  :root[data-theme="dark"] .chip{color:var(--rose-spectacle);}
+  :root[data-theme="dark"] .chip{color:#f8d9e8;}
   .chip.dispo{background:var(--ok); color:#fff;}
   .chip.indispo{background:var(--ko); color:#fff;}
   .chip.incertain{background:var(--maybe); color:#fff;}
@@ -174,18 +271,12 @@
   }
   .aff-tuile.affecte .aff-pour{background:rgba(255,255,255,.22); color:#fff;}
 
-  .assign-row{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding:8px 4px; border-bottom:1px solid var(--border); font-size:13.5px;
-  }
-  .assign-row:last-child{border-bottom:none;}
-  .assign-row label{display:flex; align-items:center; gap:8px; cursor:pointer;}
-  .assign-row input[type=checkbox]{width:16px; height:16px;}
+  /* Les règles .assign-row de l'ancienne liste à cocher sont parties avec
+     elle : le panneau ne rend plus que des tuiles. */
   .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
   @media (max-width:600px){
     input, select, textarea{ font-size:16px !important; }
     [data-toggle-link], [data-toggle-chips]{ padding:7px 10px !important; font-size:12px !important; }
-    .assign-row input[type=checkbox]{ width:20px; height:20px; }
   }
 </style>
 </head>
@@ -194,13 +285,13 @@
   <div class="co-page-head co-fade">
     <div>
       <h1>Tournées</h1>
-      <p class="subtitle">Une tournée par production — dates, commentaires, et musicien·nes affecté·es selon leurs disponibilités.</p>
+      <p class="subtitle">Dates, statuts, équipes affectées et feuilles de route — clique un statut pour le faire tourner.</p>
     </div>
   </div>
 
   <div class="new-tournee-card">
     <input type="text" id="newTourneeName" placeholder="Nom de la nouvelle tournée (ex: Tournée Automne 2026)">
-    <button type="button" class="btn-primary" id="addTourneeBtn">+ Créer la tournée</button>
+    <button type="button" class="co-btn primary" id="addTourneeBtn">+ Créer la tournée</button>
   </div>
 
   <div id="tourneesHolder"><div class="empty-hint">Chargement…</div></div>
@@ -218,12 +309,12 @@
     <p class="modal-sub" style="margin-top:-10px;">Une ligne par date, format <code>JJ/MM/AAAA - (PAYS) Ville, Lieu</code>. Les lignes vides sont ignorées.</p>
     <textarea id="importTextarea" rows="8" style="width:100%; font-size:12.5px; font-family:ui-monospace,monospace;" placeholder="23/01/2027 - (FR) Épernay, Le Millenium&#10;24/01/2027 - (FR) Épernay, Le Millenium&#10;..."></textarea>
     <div class="modal-actions" style="justify-content:flex-start;">
-      <button type="button" class="btn-secondary btn-sm" id="importAnalyzeBtn">Analyser</button>
+      <button type="button" class="co-btn secondary sm" id="importAnalyzeBtn">Analyser</button>
     </div>
     <div id="importPreview"></div>
     <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="importCancel">Annuler</button>
-      <button type="button" class="btn-primary" id="importConfirm" style="display:none;">Importer les dates</button>
+      <button type="button" class="co-btn ghost" id="importCancel">Annuler</button>
+      <button type="button" class="co-btn primary" id="importConfirm" style="display:none;">Importer les dates</button>
     </div>
   </div>
 </div>
@@ -233,7 +324,7 @@
     <h2>Demandes titulaires — liens personnels</h2>
     <p class="modal-sub">Un lien personnel par titulaire (musicien·nes et technicien·nes) — les remplaçant·es ne sont sollicité·es qu'à la demande (ci-dessous), sinon on les contacte via le rang de priorité dans l'annuaire quand un·e titulaire décline.</p>
     <div class="modal-actions" style="justify-content:flex-start;">
-      <button type="button" class="btn-secondary btn-sm" id="dispoLinksCopyAllBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>
+      <button type="button" class="co-btn secondary sm" id="dispoLinksCopyAllBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>
     </div>
     <div id="dispoLinksList" style="max-height:55vh; overflow-y:auto; margin-top:10px;"></div>
     <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
@@ -241,13 +332,13 @@
       <div id="addRemplacantResults" style="margin-top:6px; max-height:160px; overflow-y:auto;"></div>
     </div>
     <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="dispoLinksCloseBtn">Fermer</button>
+      <button type="button" class="co-btn ghost" id="dispoLinksCloseBtn">Fermer</button>
     </div>
   </div>
 </div>
 
 <div class="modal-overlay" id="assignOverlay">
-  <div class="modal" style="max-width:900px;">
+  <div class="modal">
     <h2 id="assignTitle">Affecter des musicien·nes</h2>
     <p class="modal-sub" id="assignSub"></p>
     <input type="text" id="assignSearch" placeholder="Chercher un nom, un instrument, un poste…" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13.5px; margin-bottom:6px; background:var(--bg); color:var(--text); font-family:inherit;">
@@ -262,8 +353,8 @@
       <div id="assignBlocDatesList" style="max-height:20vh; overflow-y:auto;"></div>
     </div>
     <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="assignCancel">Annuler</button>
-      <button type="button" class="btn-primary" id="assignSave">Enregistrer</button>
+      <button type="button" class="co-btn ghost" id="assignCancel">Annuler</button>
+      <button type="button" class="co-btn primary" id="assignSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -538,7 +629,6 @@ function openAssignModal(tourneeId, dateId){
   assignTechnicians = loadTechnicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
   assignSelectedM = new Set(dateEntry.musiciensAssignes || []);
   assignSelectedT = new Set(dateEntry.techniciensAssignes || []);
-  assignDisposEnAttente = {};
   assignDateIso = dateEntry.date;
 
   // Bloc = dates liées (linkedToNext) à celle-ci — propose de répercuter la
@@ -625,8 +715,6 @@ function contradictionBadge(noms){
   return `<span class="chip" style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;" title="${escapeAttr(liste)} — affecté·e${noms.length>1?'s':''} alors qu'iel${noms.length>1?'s se sont':' s\'est'} déclaré·e${noms.length>1?'s':''} indisponible${noms.length>1?'s':''} sur cette date">\u26A0 ${noms.length} indisponible${noms.length>1?'s':''} affecté·e${noms.length>1?'s':''}</span>`;
 }
 
-// Famille d'instrument : « Violon solo » et « Violon » partagent la famille
-// « Violon », ce qui permet de proposer les bons remplaçant·es.
 function familleInstrument(instrument){
   return (instrument || '').split(' ')[0].toLowerCase();
 }
@@ -735,11 +823,14 @@ function renderAssignList(search){
   ].join('');
 }
 
-// La recherche refiltre les trois grilles à la frappe.
+function closeAssignModal(){
+  document.getElementById('assignOverlay').classList.remove('open');
+  assignContext = null;
+  assignBlocOtherDates = [];
+}
+document.getElementById('assignCancel').addEventListener('click', closeAssignModal);
+document.getElementById('assignOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'assignOverlay') closeAssignModal(); });
 document.getElementById('assignSearch').addEventListener('input', (e)=> renderAssignList(e.target.value));
-
-// Clic sur une tuile : retirer, affecter, ou poser une dispo manquante. Un clic
-// sur le libellé de dispo part vers le suivi des demandes plutôt que d'affecter.
 document.getElementById('assignList').addEventListener('click', (e)=>{
   if(e.target.closest('[data-aff-suivi]')){
     window.open('suivi-dispo.html', '_blank', 'noopener');
@@ -765,25 +856,10 @@ document.getElementById('assignList').addEventListener('click', (e)=>{
   renderAssignList(document.getElementById('assignSearch').value);
 });
 
-document.getElementById('assignSave').addEventListener('click', async ()=>{
+document.getElementById('assignSave').addEventListener('click', ()=>{
   if(!assignContext) return;
   const checkedMusiciens = Array.from(assignSelectedM);
   const checkedTechniciens = Array.from(assignSelectedT);
-
-  // Dispos renseignées à la main pendant l'affectation : on les écrit dans la
-  // fiche de la personne, pour que la grille des dispos dise la même chose.
-  const aEcrire = Object.entries(assignDisposEnAttente);
-  if(aEcrire.length && assignDateIso){
-    const musiciens = loadMusicians(), techniciens = loadTechnicians();
-    for(const [personId, valeur] of aEcrire){
-      const m = musiciens.find(x=> x.id === personId);
-      const t = m ? null : techniciens.find(x=> x.id === personId);
-      const personne = m || t;
-      if(!personne) continue;
-      personne.disponibilites = { ...(personne.disponibilites || {}), [assignDateIso]: valeur };
-      await CurieuxDB.upsertOne(m ? 'musiciens' : 'techniciens', personne);
-    }
-  }
   const tournees = loadTournees();
   const tournee = tournees.find(t=>t.id === assignContext.tourneeId);
   if(tournee){
@@ -837,25 +913,57 @@ function effectifPourDate(t, d, musicianById){
   });
   return { attendu, affecte, detail };
 }
+// Compteur d'effectif musicien·nes, au gabarit « ♩ 12/14 » de la maquette.
+// Il porte toujours l'id manque-<date> : updateManqueBadges() le remplace en
+// place à chaque changement de nomenclature, sans re-rendre toute la page.
+// Sans nomenclature définie, il n'y a pas d'attendu — on affiche le simple
+// nombre d'affecté·es plutôt qu'un « 0/0 » qui se lirait comme un manque.
 function manqueBadgeHtml(t, d, musicianById){
+  const musCount = (d.musiciensAssignes||[]).length;
   const eff = effectifPourDate(t, d, musicianById);
-  if(!eff || eff.attendu === 0) return `<span id="manque-${escapeAttr(d.id)}"></span>`;
+  if(!eff || eff.attendu === 0){
+    return `<span id="manque-${escapeAttr(d.id)}" class="co-compteur" title="Musicien·nes affecté·es — aucun effectif attendu défini">\u266A ${musCount}</span>`;
+  }
   const complet = eff.affecte >= eff.attendu;
   const titre = eff.detail.map(x=>`${x.pupitre} ${x.affecte}/${x.attendu}`).join(' · ');
-  return `<span id="manque-${escapeAttr(d.id)}" class="manque-badge ${complet?'ok':'warn'}" title="${escapeAttr(titre)}">${eff.affecte}/${eff.attendu} effectif</span>`;
+  return `<span id="manque-${escapeAttr(d.id)}" class="co-compteur${complet?'':' manque'}" title="${escapeAttr(titre)}">\u266A ${eff.affecte}/${eff.attendu}</span>`;
 }
 function renderNomenclatureRowsHtml(t){
   const rows = t.nomenclature || [];
   if(rows.length === 0) return `<div class="empty-hint" style="font-size:12.5px; padding:4px 0;">Aucun pupitre défini pour l'instant.</div>`;
-  return rows.map((row, i)=>`
-    <div class="nomenclature-item" data-nomenclature-tournee="${escapeAttr(t.id)}" data-nomenclature-index="${i}" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-      <select data-nomenclature-field="pupitre" style="width:170px;">
+  // La maquette lit la nomenclature comme un état — « Cordes  5/5 affecté·es »,
+  // vert quand c'est complet, orange sinon — là où l'écran la donnait en
+  // formulaire. Le réglage reste possible : le pupitre et le nombre attendu
+  // sont des contrôles sans cadre ni fond tant qu'on ne les touche pas, comme
+  // Ville · lieu sur les lignes de date. On lit d'abord, on modifie ensuite.
+  //
+  // L'affecté·es compté est celui d'effectifPourDate, plafonné par pupitre :
+  // un violon en trop ne masque pas un manque de cuivres.
+  const parPupitre = {};
+  (t.dates || []).forEach(d => (d.musiciensAssignes || []).forEach(id => {
+    const m = musiciansCache.find(x => x.id === id);
+    if(!m) return;
+    const p = m.pupitre || 'Autre';
+    parPupitre[p] = parPupitre[p] || new Set();
+    parPupitre[p].add(id);
+  }));
+  return rows.map((row, i)=>{
+    const attendu = Number(row.nombre) || 0;
+    const affecte = Math.min((parPupitre[row.pupitre] || new Set()).size, attendu || Infinity);
+    const complet = attendu > 0 && affecte >= attendu;
+    return `
+    <div class="nomenclature-item" data-nomenclature-tournee="${escapeAttr(t.id)}" data-nomenclature-index="${i}">
+      <select data-nomenclature-field="pupitre" class="nomen-pupitre">
         ${PUPITRE_ORDER.map(p=>`<option value="${escapeAttr(p)}" ${row.pupitre===p?'selected':''}>${escapeHtml(p)}</option>`).join('')}
       </select>
-      <input type="number" min="0" step="1" data-nomenclature-field="nombre" value="${row.nombre != null ? escapeAttr(String(row.nombre)) : ''}" placeholder="Nombre" style="width:90px;">
-      <button type="button" class="btn-danger btn-sm" data-remove-nomenclature-row style="padding:5px 9px;">Retirer</button>
+      <span class="nomen-etat ${complet ? 'ok' : 'manque'}">
+        <input type="number" min="0" step="1" data-nomenclature-field="nombre" class="nomen-nombre"
+          value="${row.nombre != null ? escapeAttr(String(row.nombre)) : ''}" title="Effectif attendu pour ce pupitre">
+        <b>${affecte}/${attendu}</b> affecté·es
+      </span>
+      <button type="button" class="co-btn danger sm nomen-retirer" data-remove-nomenclature-row>Retirer</button>
     </div>
-  `).join('');
+  `;}).join('');
 }
 function renderNomenclaturePanel(tourneeId){
   const t = loadTournees().find(x=>x.id === tourneeId);
@@ -930,8 +1038,8 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
       const rows = dates.map((d, dIdx)=>{
         const fdr = fdrs.find(f=>f.eventDate === d.date);
         const fdrAction = fdr
-          ? `<a class="btn-secondary btn-sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}" style="text-decoration:none; display:inline-block;">Ouvrir FDR</a>`
-          : `<button type="button" class="btn-secondary btn-sm" data-create-fdr="${escapeAttr(d.id)}">Créer FDR</button>`;
+          ? `<a class="co-btn secondary sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}">Ouvrir FDR</a>`
+          : `<button type="button" class="co-btn tint sm" data-create-fdr="${escapeAttr(d.id)}">Créer FDR</button>`;
         const indispoSurDate = (p)=> !!(p && (p.disponibilites || {})[d.date] === 'indispo');
         const marqueIndispo = ' style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;"';
         const assignedChips = (d.musiciensAssignes||[]).map(id=>{
@@ -987,44 +1095,36 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         }
         const scissorsIcon = '<svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><circle cx="6" cy="6" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle><circle cx="6" cy="18" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle><line x1="7.8" y1="7.6" x2="20" y2="18.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line><line x1="7.8" y1="16.4" x2="20" y2="5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line></svg>';
         const linkToggle = hasNext
-          ? `<button type="button" class="btn-ghost btn-sm" data-toggle-link="${escapeAttr(d.id)}" style="padding:2px 6px; font-size:10.5px; margin-top:2px;">${d.linkedToNext ? scissorsIcon + 'Délier du bloc' : '+ Lier à la suivante'}</button>`
+          ? `<button type="button" class="co-btn ghost sm" data-toggle-link="${escapeAttr(d.id)}" style="padding:2px 6px; font-size:10.5px; margin-top:2px;">${d.linkedToNext ? scissorsIcon + 'Délier du bloc' : '+ Lier à la suivante'}</button>`
           : '';
         // Type et statut sont communs à tout un bloc : un seul contrôle par bloc
         // (fusionné visuellement sur toutes ses lignes via rowspan), pas un par date.
         const showTypeStatut = !blocInfo || blocInfo.isFirst;
         const groupRowspan = blocInfo ? blocInfo.blocDates.length : 1;
         return `
-          <tr class="${blocInfo ? `bloc-row bloc-alt-${blocInfo.groupIndex % 2}` : ''}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
-            <td class="col-date">
-              ${escapeHtml(fmtDateFR(d.date))}
-              ${blocBadge}
-              ${linkToggle}
-            </td>
-            ${showTypeStatut ? `<td rowspan="${groupRowspan}" style="vertical-align:middle;">${typeSelect}</td>` : ''}
-            <td>${travelSelect}</td>
-            ${showTypeStatut ? `<td rowspan="${groupRowspan}" style="vertical-align:middle;">${statutGroup}</td>` : ''}
-            <td class="col-lieu">
-              <input type="text" data-field="ville" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.ville||'')}" placeholder="Ville">
-            </td>
-            <td class="col-lieu">
-              <input type="text" data-field="lieu" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.lieu||'')}" placeholder="Salle">
-            </td>
-            <td class="col-comment"><textarea data-field="commentaire" data-date-id="${escapeAttr(d.id)}" placeholder="Commentaire…">${escapeHtml(d.commentaire||'')}</textarea></td>
-            <td>
-              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
-                <span style="font-size:12.5px; color:var(--muted);">${escapeHtml(summaryText)}</span>
-                ${manqueBadgeHtml(t, d, musicianById)}
-                ${contradictionBadge(contradictionsPourDate(d, musicianById, technicianById))}
-                ${(musCount + techCount) > 0 ? `<button type="button" class="btn-ghost btn-sm" data-toggle-chips="${escapeAttr(d.id)}" style="padding:2px 8px;"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"></circle></svg>Voir</button>` : ''}
-              </div>
-              <div class="chips" id="chips-${escapeAttr(d.id)}" style="display:none;">${assignedChips}</div>
-              <button type="button" class="btn-ghost btn-sm" data-assign="${escapeAttr(d.id)}">Affecter des musicien·nes / technicien·nes</button>
-            </td>
-            <td class="row-actions">
-              ${fdrAction}
-              <button type="button" class="btn-danger btn-sm" data-del-date="${escapeAttr(d.id)}" title="Retrait complet — n'apparaîtra plus, même dans le récap">Supprimer définitivement</button>
-            </td>
-          </tr>
+          <div class="co-row date-row ${blocInfo ? `bloc-row bloc-alt-${blocInfo.groupIndex % 2}` : ''}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
+            <span class="col-date"><b>${escapeHtml(fmtDateFR(d.date))}</b></span>
+            <span class="col-bloc">${blocBadge}${linkToggle}</span>
+            <span class="col-lieu co-row-name">
+              <input type="text" class="saisie-ville" data-field="ville" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.ville||'')}" placeholder="Ville"><span class="sep">·</span><input type="text" class="saisie-lieu" data-field="lieu" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.lieu||'')}" placeholder="Salle">
+              <textarea data-field="commentaire" data-date-id="${escapeAttr(d.id)}" placeholder="Commentaire…">${escapeHtml(d.commentaire||'')}</textarea>
+            </span>
+            <span class="col-type">${showTypeStatut ? `<span class="col-icone" title="Type de date">${type==='residence' ? '\u2302' : '\u266A'}</span>${typeSelect}` : ''}</span>
+            <span class="col-voyage"><span class="col-icone" title="Mode de voyage">${ {tourbus:'\u26DF', train:'\u26ED', avion:'\u2708'}[travelMode] }</span>${travelSelect}</span>
+            <span class="col-statut">${showTypeStatut ? statutGroup : ''}</span>
+            <span class="col-equipe" title="${escapeAttr(summaryText)}">
+              ${manqueBadgeHtml(t, d, musicianById)}
+              <span class="co-compteur" title="Technicien·nes affecté·es">⚙ ${techCount}</span>
+              ${contradictionBadge(contradictionsPourDate(d, musicianById, technicianById))}
+              ${(musCount + techCount) > 0 ? `<button type="button" class="co-btn ghost sm" data-toggle-chips="${escapeAttr(d.id)}">Voir</button>` : ''}
+              <button type="button" class="co-btn tint sm" data-assign="${escapeAttr(d.id)}">Affecter</button>
+              <span class="chips" id="chips-${escapeAttr(d.id)}" style="display:none;">${assignedChips}</span>
+            </span>
+            <span class="col-fdr">${fdrAction}</span>
+            <span class="col-suppr">
+              <button type="button" class="co-btn danger sm" data-del-date="${escapeAttr(d.id)}" title="Retrait complet — n'apparaîtra plus, même dans le récap">Supprimer</button>
+            </span>
+          </div>
         `;
       }).join('');
 
@@ -1033,12 +1133,16 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
           <div class="tournee-head">
             <div class="tournee-name" contenteditable="true" data-rename-tournee="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Tournée sans nom')}</div>
             <div class="row-actions">
-              <button type="button" class="btn-secondary btn-sm" data-dispo-links="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line></svg>Demandes titulaires</button>
-              <button type="button" class="btn-secondary btn-sm" data-export-tournee="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
-              <button type="button" class="btn-danger btn-sm" data-del-tournee="${escapeAttr(t.id)}">Supprimer la tournée</button>
+              <button type="button" class="co-btn secondary sm" data-dispo-links="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line></svg>Demandes titulaires</button>
+              <button type="button" class="co-btn secondary sm" data-export-tournee="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
+              <button type="button" class="co-btn danger sm" data-del-tournee="${escapeAttr(t.id)}">Supprimer la tournée</button>
             </div>
           </div>
-          <div class="tournee-meta">${dates.length} date${dates.length>1?'s':''}</div>
+          <div class="tournee-meta">${[
+            `${dates.length} date${dates.length>1?'s':''}`,
+            dates.filter(d=>d.statut==='validee').length ? `${dates.filter(d=>d.statut==='validee').length} validée${dates.filter(d=>d.statut==='validee').length>1?'s':''}` : '',
+            dates.filter(d=>(d.statut||'option')==='option').length ? `${dates.filter(d=>(d.statut||'option')==='option').length} option${dates.filter(d=>(d.statut||'option')==='option').length>1?'s':''}` : '',
+          ].filter(Boolean).join(' · ')}</div>
           <!-- Cachet et effectif attendu sont désormais toujours affichés côte à
                côte, et non repliés derrière un bouton : ce sont deux réglages de
                tête de tournée qu'on consulte en même temps que les dates. -->
@@ -1056,16 +1160,9 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
                   <span class="cachet-unit">€ brut / date</span>
                 </span>
               </div>
-              <button type="button" class="btn-ghost btn-sm" data-toggle-cachet-overrides="${escapeAttr(t.id)}"
+              <button type="button" class="co-btn ghost sm" data-toggle-cachet-overrides="${escapeAttr(t.id)}"
                 style="${t.cachetStatut === 'defini' ? 'margin-top:8px; padding-left:0;' : 'display:none;'}">Cachet différent pour certaines personnes${overrideCount ? ` (${overrideCount})` : ''}</button>
-            </div>
-            <div class="nomenclature-panel" id="nomenclature-${escapeAttr(t.id)}">
-              <div class="outils-legend">Effectif attendu (nomenclature)</div>
-              <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
-              <button type="button" class="co-btn tint sm" style="margin-top:8px;" data-add-nomenclature-row="${escapeAttr(t.id)}">+ Ajouter un pupitre</button>
-            </div>
-          </div>
-          <div class="cachet-overrides" id="cachet-overrides-${escapeAttr(t.id)}" style="display:none; margin:-6px 0 14px;">
+          <div class="cachet-overrides" id="cachet-overrides-${escapeAttr(t.id)}" style="display:none;">
             ${rosterPeople.length === 0
               ? `<div style="font-size:12.5px; color:var(--muted);">Le répertoire est vide.</div>`
               : `
@@ -1086,6 +1183,13 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
                 <div class="empty-hint" data-cachet-override-empty="${escapeAttr(t.id)}" style="display:none; font-size:12.5px; padding:4px 0;">Aucune personne trouvée.</div>
               `}
           </div>
+            </div>
+            <div class="nomenclature-panel" id="nomenclature-${escapeAttr(t.id)}">
+              <div class="outils-legend">Effectif attendu (nomenclature)</div>
+              <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
+              <button type="button" class="co-btn tint sm" style="margin-top:8px;" data-add-nomenclature-row="${escapeAttr(t.id)}">+ Ajouter un pupitre</button>
+            </div>
+          </div>
           <div class="add-date-row">
             <input type="date" data-new-date="${escapeAttr(t.id)}">
             <select class="type-select" data-new-type="${escapeAttr(t.id)}" style="flex:0 0 130px;">
@@ -1099,15 +1203,23 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             </select>
             <input type="text" data-new-ville="${escapeAttr(t.id)}" placeholder="Ville">
             <input type="text" data-new-lieu="${escapeAttr(t.id)}" placeholder="Salle">
-            <button type="button" class="btn-primary btn-sm" data-add-date="${escapeAttr(t.id)}">+ Ajouter une date</button>
-            <button type="button" class="btn-secondary btn-sm" data-import-dates="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Importer des dates (coller)</button>
+            <button type="button" class="co-btn primary sm" data-add-date="${escapeAttr(t.id)}">+ Ajouter une date</button>
+            <button type="button" class="co-btn secondary sm" data-import-dates="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Importer des dates (coller)</button>
           </div>
           ${dates.length ? `
-            <div class="grid-table-wrap">
-              <table class="grid-table">
-                <thead><tr><th style="width:8%;">Date</th><th style="width:11%;">Type</th><th style="width:10%;">Transport</th><th style="width:8%;">Statut</th><th style="width:14%;">Ville</th><th style="width:14%;">Salle</th><th style="width:10%;">Commentaire</th><th style="width:14%;">Musicien·nes</th><th style="width:1%;"></th></tr></thead>
-                <tbody>${rows}</tbody>
-              </table>
+            <div class="co-rows dates-rows">
+              <div class="co-rows-head date-row">
+                <span class="col-date">Date</span>
+                <span class="col-bloc">Bloc</span>
+                <span class="col-lieu co-row-name">Ville · lieu</span>
+                <span class="col-type">Type</span>
+                <span class="col-voyage">Voyage</span>
+                <span class="col-statut">Statut</span>
+                <span class="col-equipe">Équipe</span>
+                <span class="col-fdr">FDR</span>
+                <span class="col-suppr"></span>
+              </div>
+              ${rows}
             </div>
           ` : `<div class="empty-hint">Aucune date pour l'instant.</div>`}
         </div>
@@ -1319,8 +1431,8 @@ function remplacantDatesPanelHtml(tourneeId){
     <div style="font-size:11.5px; color:var(--muted); margin-bottom:6px;">Dates proposées à cette personne :</div>
     ${items}
     <div style="display:flex; gap:8px; margin-top:8px;">
-      <button type="button" class="btn-ghost btn-sm" data-toggle-all-dates>Tout (dé)cocher</button>
-      <button type="button" class="btn-secondary btn-sm" data-confirm-gen-dates>Générer le lien</button>
+      <button type="button" class="co-btn ghost sm" data-toggle-all-dates>Tout (dé)cocher</button>
+      <button type="button" class="co-btn secondary sm" data-confirm-gen-dates>Générer le lien</button>
     </div>
   `;
 }
@@ -1362,19 +1474,19 @@ function renderDispoLinksModal(tourneeId){
     }
     const isRemplacant = (person.statutPoste || 'titulaire') === 'remplacant';
     const datesTag = existing && existing.dates && existing.dates.length > 0
-      ? `<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:999px; background:var(--border); color:var(--muted); vertical-align:middle;" title="Lien restreint à ${existing.dates.length} date${existing.dates.length>1?'s':''}">${existing.dates.length} date${existing.dates.length>1?'s':''}</span>`
+      ? `<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--border); color:var(--muted); vertical-align:middle;" title="Lien restreint à ${existing.dates.length} date${existing.dates.length>1?'s':''}">${existing.dates.length} date${existing.dates.length>1?'s':''}</span>`
       : '';
     return `
       <div style="display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid var(--border);">
         <div style="flex:1; min-width:0;">
-          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? '<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:999px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;">Remplaçant·e</span>' : ''} ${datesTag}</div>
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? '<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;">Remplaçant·e</span>' : ''} ${datesTag}</div>
           <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
         </div>
         ${statusHtml}
         ${url
-          ? `<a class="btn-ghost btn-sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line></svg> Ouvrir</a>
-             <button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>`
-          : `<button type="button" class="btn-secondary btn-sm" data-gen-link data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
+          ? `<a class="co-btn ghost sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line></svg> Ouvrir</a>
+             <button type="button" class="co-btn ghost sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>`
+          : `<button type="button" class="co-btn secondary sm" data-gen-link data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
         }
       </div>
     `;
@@ -1439,7 +1551,7 @@ function renderAddRemplacantResults(tourneeId, query){
           <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(r.person))}</div>
           <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(r.roleLabel)}</div>
         </div>
-        <button type="button" class="btn-secondary btn-sm" data-toggle-dates>+ Générer</button>
+        <button type="button" class="co-btn secondary sm" data-toggle-dates>+ Générer</button>
       </div>
       <div data-dates-panel style="display:none; margin-top:8px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>
     </div>
