@@ -157,13 +157,6 @@ function curieuxNavIcone(icone){
 // Rend le menu dans le <nav class="page-nav"> de la page. La page courante est
 // marquée aria-current="page" : sans elle, rien n'indiquait où l'on se trouve.
 function renderCurieuxNav(){
-  // Depuis la refonte 2026, la navigation est le bandeau prune collant décrit
-  // dans nav.js (CURIEUX_SECTIONS) : une rangée de menus déroulants demandait
-  // d'ouvrir un déroulant à chaque changement d'écran, ce que l'équipe de prod
-  // avait justement signalé. On sort donc ici sans rien rendre — la fonction
-  // reste appelée par d'anciens scripts de page, et CURIEUX_NAV plus bas garde
-  // la trace de l'ancienne structure.
-  if(typeof CURIEUX_SECTIONS !== 'undefined') return;
   const nav = document.querySelector('nav.page-nav[data-curieux-nav]');
   if(!nav || nav.dataset.rendu) return;
   const ici = location.pathname.split('/').pop() || 'accueil.html';

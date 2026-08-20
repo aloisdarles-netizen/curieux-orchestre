@@ -14,44 +14,40 @@
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  /* ==========================================================================
-     Fiche technique — page publique envoyée aux salles.
-
-     Hors maquette, et sans nav.js : elle s'ouvre sans compte, chez un
-     interlocuteur extérieur à la production. Le bandeau prune y afficherait
-     l'organisation interne de l'orchestre à quelqu'un qui n'a rien à y faire.
-
-     L'encart et le bouton viennent de base.css (.co-card, .co-btn) — ils y
-     étaient redéfinis à l'identique.
-     ========================================================================== */
   .wrap{max-width:520px; margin:0 auto; text-align:center; padding-top:60px;}
   .brand-logo-img{height:32px; width:auto; display:block; margin:0 auto 32px;}
-  .state-box{padding:32px 24px; color:var(--muted); font-size:14px;}
-  .fiche-card{padding:32px 26px;}
+  .state-box{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:32px 24px; color:var(--muted); font-size:14px;}
+  .fiche-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:32px 26px;}
+  .fiche-card h1{font-size:19px; margin:0 0 6px; font-weight:900;}
   .fiche-card .version{color:var(--muted); font-size:13px; margin-bottom:22px;}
+  .btn-primary{
+    display:inline-block; text-decoration:none; background:var(--accent-solid); color:#fff;
+    font-weight:700; font-size:14px; padding:12px 26px; border-radius:10px;
+  }
+  .btn-primary:hover{background:var(--accent-dark);}
 </style>
 </head>
 <body>
 <div class="wrap">
   <img class="brand-logo-img" alt="Curieux orchestre">
-  <div id="content"><div class="co-card state-box">Chargement…</div></div>
+  <div id="content"><div class="state-box">Chargement…</div></div>
 </div>
 <script>
 async function init(){
   const token = new URLSearchParams(location.search).get('jeton');
   const box = document.getElementById('content');
-  if(!token){ box.innerHTML = `<div class="co-card state-box">Lien incomplet — il manque le jeton.</div>`; return; }
+  if(!token){ box.innerHTML = `<div class="state-box">Lien incomplet — il manque le jeton.</div>`; return; }
 
   const fiche = await CurieuxDB.getFicheTechniqueByToken(token);
   if(!fiche || !fiche.driveUrl){
-    box.innerHTML = `<div class="co-card state-box">Ce lien n'a pas encore de fichier associé, ou n'est plus actif.</div>`;
+    box.innerHTML = `<div class="state-box">Ce lien n'a pas encore de fichier associé, ou n'est plus actif.</div>`;
     return;
   }
   box.innerHTML = `
-    <div class="co-card fiche-card">
-      <h1 class="co-h1">${escapeHtml(fiche.nom || 'Fiche technique')}</h1>
+    <div class="fiche-card">
+      <h1>${escapeHtml(fiche.nom || 'Fiche technique')}</h1>
       <p class="version">${fiche.versionActuelle ? 'Version ' + escapeHtml(fiche.versionActuelle) : 'Version courante'}${fiche.versionLe ? ' · mise à jour le ' + new Date(fiche.versionLe).toLocaleDateString('fr-FR') : ''}</p>
-      <a class="co-btn primary" href="${fiche.driveUrl}" target="_blank" rel="noopener">Ouvrir la fiche technique</a>
+      <a class="btn-primary" href="${fiche.driveUrl}" target="_blank" rel="noopener">Ouvrir la fiche technique</a>
     </div>
   `;
 }

@@ -8,65 +8,45 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:980px; margin:0 auto;}
+  .wrap{max-width:900px; margin:0 auto;}
 
   button{
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
   }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-sm{padding:7px 11px; font-size:12px;}
 
   .tournee-card{
-    background:var(--card); border:1px solid var(--border); border-radius:14px;
-    padding:0; margin-bottom:20px; overflow:hidden;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px 20px; margin-bottom:18px;
   }
-  .tournee-head{
-    display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;
-    padding:16px 20px 0;
-  }
-  .tournee-name{font-family:var(--font-display); font-size:18px; font-weight:500;}
-  .tournee-meta{color:var(--muted); font-size:12px; font-weight:700; padding:2px 20px 14px; border-bottom:1px solid var(--border);}
-  /* Alternance de blancs : sur seize lignes de personnes, l'œil perdait la ligne
-     qu'il suivait entre le nom et les boutons du bout. */
-  .dispo-row{display:flex; align-items:center; gap:12px; padding:var(--row-pad) 20px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
-  .dispo-row:nth-of-type(even){background:var(--row-alt);}
+  .tournee-head{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px;}
+  .tournee-name{font-weight:800; font-size:16px;}
+  .tournee-meta{color:var(--muted); font-size:12px; margin-bottom:12px;}
+  .dispo-row{display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+  .dispo-row:last-child{border-bottom:none;}
   .role-subheader{
-    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
-    padding:10px 20px 4px;
+    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);
+    padding:12px 4px 4px;
   }
-  /* Le statut de réponse est l'information qu'on vient chercher : il passe de
-     11 px à 14 px, sur une largeur fixe pour que la colonne s'aligne. */
-  .dispo-statut{width:130px; font-size:14px; font-weight:800; white-space:nowrap;}
-  .suivi-resume{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
-  .suivi-resume .pct{font-family:var(--font-display); font-size:26px; color:var(--accent); font-weight:500;}
-  .suivi-resume .jauge{flex:1; min-width:200px;}
-  .suivi-resume .detail{font-size:12px; color:var(--muted); margin-top:6px; font-weight:600;}
   
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="co-page-head co-fade">
-    <div>
-      <h1>Demandes titulaires</h1>
-      <p class="subtitle">Génère un lien personnel par titulaire et par tournée, et suis qui a répondu — les remplaçant·es sont contacté·es via le rang de priorité dans l'annuaire quand un·e titulaire décline.</p>
-    </div>
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav" data-curieux-nav></nav>
   </div>
-
-  <div class="co-card co-pad-lg co-fade" id="resumeCard" style="margin-bottom:20px; display:none;">
-    <div class="suivi-resume">
-      <span class="pct" id="resumePct">—</span>
-      <div class="jauge">
-        <div class="co-progress"><i id="resumeJauge" style="width:0%;"></i></div>
-        <div class="detail" id="resumeDetail"></div>
-      </div>
-      <button type="button" class="co-btn tonic md" id="relancerTousBtn" title="Ouvrir la première relance de chaque personne encore en attente">Relancer les retardataires</button>
-    </div>
-  </div>
+  <h1>Demandes titulaires</h1>
+  <p class="subtitle">Génère un lien personnel par titulaire et par tournée, et suis qui a répondu — les remplaçant·es sont contacté·es via le rang de priorité dans l'annuaire quand un·e titulaire décline.</p>
 
   <div id="holder"><div class="empty-hint">Chargement…</div></div>
 </div>
@@ -155,8 +135,8 @@ function remplacantDatesPanelHtml(tourneeId, checkedIds, confirmLabel, allowTour
     <div style="font-size:11.5px; color:var(--muted); margin-bottom:6px;">Dates proposées à cette personne :</div>
     <div data-dates-checklist>${datesChecklistHtml(tourneeId, checkedIds)}</div>
     <div style="display:flex; gap:8px; margin-top:8px;">
-      <button type="button" class="co-btn ghost sm" data-toggle-all-dates>Tout (dé)cocher</button>
-      <button type="button" class="co-btn secondary sm" data-confirm-gen-dates>${escapeHtml(confirmLabel || 'Générer le lien')}</button>
+      <button type="button" class="btn-ghost btn-sm" data-toggle-all-dates>Tout (dé)cocher</button>
+      <button type="button" class="btn-secondary btn-sm" data-confirm-gen-dates>${escapeHtml(confirmLabel || 'Générer le lien')}</button>
     </div>
   `;
 }
@@ -221,7 +201,7 @@ function renderAddRemplacantResults(tourneeId, query, holder){
           <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(r.person))}</div>
           <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(r.roleLabel)}</div>
         </div>
-        <button type="button" class="co-btn secondary sm" data-toggle-dates>+ Générer</button>
+        <button type="button" class="btn-secondary btn-sm" data-toggle-dates>+ Générer</button>
       </div>
       <div data-dates-panel style="display:none; margin-top:8px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>
     </div>
@@ -265,11 +245,11 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
   if(!existing){
     statusHtml = '';
   } else if(relevantDates.length > 0 && missingDates.length === 0){
-    statusHtml = `<span class="dispo-statut" style="color:var(--ok);">✓ Répondu</span>`;
+    statusHtml = `<span style="font-size:11px; color:var(--ok); font-weight:700; white-space:nowrap;">✓ Répondu</span>`;
   } else if(answeredCount > 0){
-    statusHtml = `<span class="dispo-statut" style="color:var(--maybe);" title="${missingDates.length} date${missingDates.length>1?'s':''} pas encore renseignée${missingDates.length>1?'s':''}">◐ ${answeredCount}/${relevantDates.length} dates</span>`;
+    statusHtml = `<span style="font-size:11px; color:var(--maybe); font-weight:700; white-space:nowrap;" title="${missingDates.length} date${missingDates.length>1?'s':''} pas encore renseignée${missingDates.length>1?'s':''}">◐ ${answeredCount}/${relevantDates.length} dates</span>`;
   } else {
-    statusHtml = `<span class="dispo-statut" style="color:var(--muted);">En attente</span>`;
+    statusHtml = `<span style="font-size:11px; color:var(--muted); white-space:nowrap;">En attente</span>`;
   }
   const tourneeObj = loadTournees().find(t=> t.id === tourneeId);
   let relanceHtml = '';
@@ -282,11 +262,11 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
     const message = `Bonjour ${person.prenom || ''}, il te manque encore quelques dates à renseigner sur tes dispo pour "${(tourneeObj && tourneeObj.nom) || 'la tournée'}" : ${missingList}. Merci de compléter via ton lien personnel : ${url}`;
     const waDigits = normalizeWhatsappPhone(person.telephone);
     if(waDigits){
-      relanceHtml = `<a class="co-btn ghost sm" data-mark-reminder="${escapeAttr(existing.id)}" href="https://wa.me/${encodeURIComponent(waDigits)}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener" title="Relancer par WhatsApp pour les dates manquantes"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</a>`;
+      relanceHtml = `<a class="btn-ghost btn-sm" data-mark-reminder="${escapeAttr(existing.id)}" href="https://wa.me/${encodeURIComponent(waDigits)}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener" title="Relancer par WhatsApp pour les dates manquantes"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</a>`;
     } else if(person.email){
-      relanceHtml = `<a class="co-btn ghost sm" data-mark-reminder="${escapeAttr(existing.id)}" href="mailto:${encodeURIComponent(person.email)}?subject=${encodeURIComponent('Dispo manquantes — ' + ((tourneeObj && tourneeObj.nom) || ''))}&body=${encodeURIComponent(message)}" title="Relancer par email pour les dates manquantes"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</a>`;
+      relanceHtml = `<a class="btn-ghost btn-sm" data-mark-reminder="${escapeAttr(existing.id)}" href="mailto:${encodeURIComponent(person.email)}?subject=${encodeURIComponent('Dispo manquantes — ' + ((tourneeObj && tourneeObj.nom) || ''))}&body=${encodeURIComponent(message)}" title="Relancer par email pour les dates manquantes"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</a>`;
     } else {
-      relanceHtml = `<button type="button" class="co-btn ghost sm" data-copy-relance="${escapeAttr(message)}" data-mark-reminder="${escapeAttr(existing.id)}" title="Copier un message de relance (pas de contact enregistré)"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</button>`;
+      relanceHtml = `<button type="button" class="btn-ghost btn-sm" data-copy-relance="${escapeAttr(message)}" data-mark-reminder="${escapeAttr(existing.id)}" title="Copier un message de relance (pas de contact enregistré)"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</button>`;
     }
   }
   const isRemplacant = (person.statutPoste || 'titulaire') === 'remplacant';
@@ -310,14 +290,14 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
           ${statusHtml}
           ${relanceHtml}
           ${url
-            ? `<a class="co-btn ghost sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line></svg> Ouvrir</a>
-               <button type="button" class="co-btn ghost sm" data-lien-permanent data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}" title="Lien personnel permanent : il ne dépend d'aucune tournée et survit à la suppression de celles-ci">Lien permanent</button>
-               <button type="button" class="co-btn ghost sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>
-               ${showDatesOption ? `<button type="button" class="co-btn ghost sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.6"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line></svg>Dates</button>` : ''}
-               <button type="button" class="co-btn ghost sm" data-delete-link="${escapeAttr(existing.id)}" title="Supprimer ce lien" style="color:var(--ko, #b23b2e);"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg></button>`
+            ? `<a class="btn-ghost btn-sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line></svg> Ouvrir</a>
+               <button type="button" class="btn-ghost btn-sm" data-lien-permanent data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}" title="Lien personnel permanent : il ne dépend d'aucune tournée et survit à la suppression de celles-ci">Lien permanent</button>
+               <button type="button" class="btn-ghost btn-sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>
+               ${showDatesOption ? `<button type="button" class="btn-ghost btn-sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.6"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line></svg>Dates</button>` : ''}
+               <button type="button" class="btn-ghost btn-sm" data-delete-link="${escapeAttr(existing.id)}" title="Supprimer ce lien" style="color:var(--ko, #b23b2e);"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg></button>`
             : (personType === 'technicien'
-                ? `<button type="button" class="co-btn secondary sm" data-toggle-new-dates data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">+ Générer</button>`
-                : `<button type="button" class="co-btn secondary sm" data-gen-link data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
+                ? `<button type="button" class="btn-secondary btn-sm" data-toggle-new-dates data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">+ Générer</button>`
+                : `<button type="button" class="btn-secondary btn-sm" data-gen-link data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
               )
           }
         </div>
@@ -348,73 +328,6 @@ async function markReminderSent(demandeId){
   entry.lastReminderAt = new Date().toISOString();
   await CurieuxDB.upsertOne('dispo_demandes', entry);
 }
-
-// Avancement global des demandes, toutes tournées à venir confondues — la même
-// règle que sur chaque ligne : une réponse est complète quand plus aucune date
-// pertinente ne manque à la personne.
-function renderResume(tournees){
-  const carte = document.getElementById('resumeCard');
-  const demandes = loadDispoDemandes();
-  let total = 0, completes = 0, partielles = 0;
-  tournees.forEach(t=>{
-    const answerable = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
-    demandes.filter(d=> d.tourneeId === t.id).forEach(dem=>{
-      const personne = (dem.personType === 'musicien' ? loadMusicians() : loadTechnicians())
-        .find(x=> x.id === dem.personId);
-      if(!personne) return;
-      const dispo = personne.disponibilites || {};
-      const pertinentes = (dem.dates && dem.dates.length)
-        ? answerable.filter(d=> dem.dates.includes(d.id))
-        : answerable;
-      if(pertinentes.length === 0) return;
-      total++;
-      const manquantes = pertinentes.filter(d=> !dispo[d.date]).length;
-      if(manquantes === 0) completes++;
-      else if(manquantes < pertinentes.length) partielles++;
-    });
-  });
-  if(total === 0){ carte.style.display = 'none'; return; }
-  carte.style.display = '';
-  const pct = Math.round(completes / total * 100);
-  document.getElementById('resumePct').textContent = pct + ' %';
-  document.getElementById('resumeJauge').style.width = pct + '%';
-  document.getElementById('resumeDetail').textContent =
-    `${completes} réponse${completes>1?'s':''} complète${completes>1?'s':''} sur ${total}`
-    + ` · ${partielles} partielle${partielles>1?'s':''} · ${total - completes - partielles} en attente`;
-}
-
-async function relancerRetardataires(){
-  const demandes = loadDispoDemandes();
-  const today = new Date().toISOString().slice(0, 10);
-  const lignes = [];
-  loadTournees().forEach(t=>{
-    const answerable = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
-    if(answerable.length === 0 || answerable.every(d=> d.date < today)) return;
-    demandes.filter(d=> d.tourneeId === t.id).forEach(dem=>{
-      const personne = (dem.personType === 'musicien' ? loadMusicians() : loadTechnicians())
-        .find(x=> x.id === dem.personId);
-      if(!personne) return;
-      const dispo = personne.disponibilites || {};
-      const pertinentes = (dem.dates && dem.dates.length)
-        ? answerable.filter(d=> dem.dates.includes(d.id))
-        : answerable;
-      const manquantes = pertinentes.filter(d=> !dispo[d.date]);
-      if(manquantes.length === 0) return;
-      lignes.push(`${fullName(personne)} — ${t.nom || 'Tournée'} — manque : `
-        + manquantes.map(d=> fmtDateFR(d.date)).join(', ')
-        + ` — ${dispoLinkUrl(dem.id)}`);
-    });
-  });
-  const btn = document.getElementById('relancerTousBtn');
-  if(lignes.length === 0){ btn.textContent = '✓ Personne à relancer'; return; }
-  try{
-    await navigator.clipboard.writeText(lignes.join('\n'));
-    btn.textContent = `✓ ${lignes.length} relance${lignes.length>1?'s':''} copiée${lignes.length>1?'s':''}`;
-  }catch(e){
-    btn.textContent = 'Copie impossible — relance ligne par ligne';
-  }
-}
-document.getElementById('relancerTousBtn').addEventListener('click', relancerRetardataires);
 
 function render(){
   const tournees = loadTournees();
@@ -465,7 +378,7 @@ function render(){
       <div class="tournee-card" data-tournee-id="${escapeAttr(t.id)}">
         <div class="tournee-head">
           <div class="tournee-name">${escapeHtml(t.nom || 'Tournée sans nom')}</div>
-          <button type="button" class="co-btn secondary sm" data-copy-all="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>
+          <button type="button" class="btn-secondary btn-sm" data-copy-all="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>
         </div>
         <div class="tournee-meta">${answerableDates.length} date${answerableDates.length>1?'s':''}</div>
         ${(musicienRows || technicienRows) ? rows : `<div class="empty-hint">Aucun·e titulaire dans l'annuaire pour l'instant.</div>`}
@@ -476,8 +389,6 @@ function render(){
       </div>
     `;
   };
-
-  renderResume(upcomingTournees);
 
   const upcomingHtml = upcomingTournees.length
     ? upcomingTournees.map(renderTourneeCard).join('')
@@ -618,6 +529,8 @@ function render(){
 }
 
 injectCurieuxFonts();
+initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

@@ -10,7 +10,6 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script src="assets/nav.js"></script>
 <!-- Page volontairement PUBLIQUE : pas de compte requis, identification par le
      jeton dans l'URL (acces_logistique.id), révocable depuis partage.html.
      Trois gabarits selon acces_logistique.type — stage manager, technicien,
@@ -86,13 +85,12 @@ let RECAP = null, TOKEN = '';
 // ============================================================================
 const TR = {
   fr: {
-    rigg_sol:'au sol', rigg_grill:'au grill',
     chargement:'Chargement…', lien_incomplet:"Lien incomplet — il manque le jeton.",
     lien_inactif:"Ce lien n'est plus actif, ou n'existe pas. Demande un nouveau lien à la production.",
     aucune_date:"Aucune date pour l'instant.",
     bloc_acces:'Accès', bloc_faits_techniques:'Faits techniques',
     bloc_bureau_elec:"Bureau d'étude électrique", bloc_bureau_accroche:"Bureau d'étude accroche",
-    bloc_contacts_salle:'Contacts salle', bloc_documents:'Documents', bloc_horaires:'Horaires de la journée (heure locale)',
+    bloc_contacts_salle:'Contacts salle', bloc_documents:'Documents', bloc_horaires:'Horaires de la journée',
     bloc_roadies:'Roadies — par vacation', bloc_chariots:'Chariots élévateurs — par vacation', bloc_rigg:'Rigg — par vacation',
     bloc_plan_salle:'Plan de salle',
     champ_semis_simultanes:'Semis en simultané', champ_dechargement:'Déchargement', champ_emplacements:'Emplacements',
@@ -109,13 +107,12 @@ const TR = {
     dates_suffixe: n => n>1 ? 'dates' : 'date',
   },
   en: {
-    rigg_sol:'on the ground', rigg_grill:'on the grid',
     chargement:'Loading…', lien_incomplet:"Incomplete link — the token is missing.",
     lien_inactif:"This link is no longer active, or doesn't exist. Ask production for a new link.",
     aucune_date:'No date for now.',
     bloc_acces:'Access', bloc_faits_techniques:'Technical facts',
     bloc_bureau_elec:'Electrical engineering office', bloc_bureau_accroche:'Rigging engineering office',
-    bloc_contacts_salle:'Venue contacts', bloc_documents:'Documents', bloc_horaires:'Day schedule (local time)',
+    bloc_contacts_salle:'Venue contacts', bloc_documents:'Documents', bloc_horaires:'Day schedule',
     bloc_roadies:'Roadies — by shift', bloc_chariots:'Forklifts — by shift', bloc_rigg:'Rigging — by shift',
     bloc_plan_salle:'Venue floor plan',
     champ_semis_simultanes:'Trucks at once', champ_dechargement:'Unloading', champ_emplacements:'Unloading spots',
@@ -132,13 +129,12 @@ const TR = {
     dates_suffixe: n => n>1 ? 'dates' : 'date',
   },
   de: {
-    rigg_sol:'am Boden', rigg_grill:'an der Traverse',
     chargement:'Wird geladen…', lien_incomplet:'Unvollständiger Link — das Token fehlt.',
     lien_inactif:'Dieser Link ist nicht mehr aktiv oder existiert nicht. Bitte einen neuen Link bei der Produktion anfragen.',
     aucune_date:'Derzeit kein Termin.',
     bloc_acces:'Zugang', bloc_faits_techniques:'Technische Daten',
     bloc_bureau_elec:'Elektro-Planungsbüro', bloc_bureau_accroche:'Statik-/Rigging-Planungsbüro',
-    bloc_contacts_salle:'Kontakte vor Ort', bloc_documents:'Dokumente', bloc_horaires:'Tagesablauf (Ortszeit)',
+    bloc_contacts_salle:'Kontakte vor Ort', bloc_documents:'Dokumente', bloc_horaires:'Tagesablauf',
     bloc_roadies:'Roadies — nach Schicht', bloc_chariots:'Gabelstapler — nach Schicht', bloc_rigg:'Rigging — nach Schicht',
     bloc_plan_salle:'Saalplan',
     champ_semis_simultanes:'Sattelzüge gleichzeitig', champ_dechargement:'Entladung', champ_emplacements:'Entladestellen',
@@ -154,37 +150,13 @@ const TR = {
     plan_hint:'Modus wählen und den Plan antippen, um eine Markierung zu setzen; ziehen zum Verschieben, doppelt antippen zum Entfernen. Wird automatisch gespeichert.',
     dates_suffixe: n => n>1 ? 'Termine' : 'Termin',
   },
-  es: {
-    rigg_sol:'en el suelo', rigg_grill:'en la parrilla',
-    chargement:'Cargando…', lien_incomplet:'Enlace incompleto — falta el token.',
-    lien_inactif:'Este enlace ya no está activo o no existe. Solicite un nuevo enlace a producción.',
-    aucune_date:'Ninguna fecha por ahora.',
-    bloc_acces:'Acceso', bloc_faits_techniques:'Datos técnicos',
-    bloc_bureau_elec:'Oficina de estudio eléctrico', bloc_bureau_accroche:'Oficina de estudio de suspensión',
-    bloc_contacts_salle:'Contactos de la sala', bloc_documents:'Documentos', bloc_horaires:'Horario del día (hora local)',
-    bloc_roadies:'Roadies — por turno', bloc_chariots:'Carretillas elevadoras — por turno', bloc_rigg:'Rigging — por turno',
-    bloc_plan_salle:'Plano de la sala',
-    champ_semis_simultanes:'Tráileres simultáneos', champ_dechargement:'Descarga', champ_emplacements:'Puntos de descarga',
-    champ_hauteur_grill:'Altura de parrilla', champ_ouverture_scene:'Boca de escena', champ_puissance:'Potencia disponible',
-    champ_sur_place:'En el lugar', champ_horaire:'Hora', champ_contact:'Contacto', champ_plan_scene:'Plano de escena',
-    oui:'sí', non:'no', ouvrir:'Abrir ↗',
-    demande_label:'Solicitado', confirmee:'confirmado',
-    chariots_demandes:'Carretillas solicitadas', caristes_demandes:'Operarios solicitados',
-    confirmer:'Confirmar', justification:'Justificación si difiere', envoyer:'Enviar', envoye_ok:'✓ enviado',
-    fiche_technique_title:'Ficha técnica',
-    niveau_scene:'en el escenario', niveau_sol:'en el suelo', niveau_les_deux:'ambos', niveau_inconnu:'desconocido',
-    emplacement_scene:'en el escenario', emplacement_cote_scene:'al lado del escenario', emplacement_fosse:'en el foso', emplacement_autre:'otro',
-    plan_hint:'Elija un modo y toque el plano para colocar un marcador; arrástrelo para moverlo, doble toque para quitarlo. Se guarda automáticamente.',
-    dates_suffixe: n => n>1 ? 'fechas' : 'fecha',
-  },
   nl: {
-    rigg_sol:'op de grond', rigg_grill:'aan de rijg',
     chargement:'Laden…', lien_incomplet:'Onvolledige link — het token ontbreekt.',
     lien_inactif:'Deze link is niet meer actief of bestaat niet. Vraag de productie om een nieuwe link.',
     aucune_date:'Voorlopig geen datum.',
     bloc_acces:'Toegang', bloc_faits_techniques:'Technische gegevens',
     bloc_bureau_elec:'Elektrisch ontwerpbureau', bloc_bureau_accroche:'Rigging-ontwerpbureau',
-    bloc_contacts_salle:'Contacten locatie', bloc_documents:'Documenten', bloc_horaires:'Dagschema (lokale tijd)',
+    bloc_contacts_salle:'Contacten locatie', bloc_documents:'Documenten', bloc_horaires:'Dagschema',
     bloc_roadies:'Roadies — per shift', bloc_chariots:'Vorkheftrucks — per shift', bloc_rigg:'Rigging — per shift',
     bloc_plan_salle:'Plattegrond',
     champ_semis_simultanes:'Trucks tegelijk', champ_dechargement:'Lossen', champ_emplacements:'Losplekken',
@@ -272,10 +244,6 @@ function blocVacationsRigg(m, editable){
       <div class="vacation-pub">
         <div class="h">${escapeHtml(v.horaireDebut||'?')} – ${escapeHtml(v.horaireFin||'?')} ${v.confirme ? '· <span style="color:var(--ok);">' + t('confirmee') + '</span>' : ''}</div>
         <div class="demande">${t('demande_label')} : <strong>${v.nombreDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>
-        ${(v.nombreSol || v.nombreGrill) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
-          ${v.nombreSol ? `<span class="equipe-chip">${escapeHtml(String(v.nombreSol))} × ${t('rigg_sol')}</span>` : ''}
-          ${v.nombreGrill ? `<span class="equipe-chip">${escapeHtml(String(v.nombreGrill))} × ${t('rigg_grill')}</span>` : ''}
-        </div>` : ''}
         ${editable ? reponseForm(m, 'rigg', i, v) : ''}
       </div>
     `).join('')}
@@ -475,7 +443,7 @@ function ficheDateComplete(d, m, editableSalle, editableStageManager){
 // ============================================================================
 // Init
 // ============================================================================
-const LANGUES = { fr:'FR', en:'EN', de:'DE', es:'ES', nl:'NL' };
+const LANGUES = { fr:'FR', en:'EN', de:'DE', nl:'NL' };
 function switcherLangue(){
   return `<div style="display:flex; gap:6px; margin:-6px 0 16px;">
     ${Object.entries(LANGUES).map(([code,label])=>`<button type="button" data-lang="${code}" style="padding:5px 11px; font-size:12px; ${LANG===code?'background:var(--accent-solid); color:#fff;':'background:var(--card); color:var(--muted); border:1px solid var(--border);'}">${label}</button>`).join('')}

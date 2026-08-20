@@ -10,12 +10,11 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:1240px; margin:0 auto;}
+  .wrap{max-width:1280px; margin:0 auto;}
   h2.section-title{
     font-size:15.5px; margin:36px 0 4px; display:flex; align-items:center; gap:9px;
     text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
@@ -40,26 +39,44 @@
     padding:3px 8px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); white-space:nowrap;
   }
 
-  /* Le gabarit de la matrice vient maintenant de base.css (.co-matrix et
-     compagnie). Ne restent ici que les quatre états de case, qui sont propres
-     à cet écran : affecté·e, disponible, indisponible, à confirmer. */
+  .matrix-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--card);}
+  table.matrix-table{border-collapse:collapse; min-width:100%;}
+  table.matrix-table th, table.matrix-table td{border-bottom:1px solid var(--border); border-right:1px solid var(--border);}
+  table.matrix-table th:last-child, table.matrix-table td:last-child{border-right:none;}
+  table.matrix-table tr:last-child td{border-bottom:none;}
+  .col-name{
+    position:sticky; left:0; background:var(--card); z-index:2;
+    text-align:left; padding:10px 14px; font-size:13px; font-weight:700; white-space:nowrap;
+    min-width:160px;
+  }
+  th.col-name{z-index:3; color:var(--muted); text-transform:uppercase; font-size:10.5px; letter-spacing:.03em;}
+  .col-date{
+    padding:8px 6px; text-align:center; font-size:11px; color:var(--muted); font-weight:700;
+    white-space:nowrap; min-width:70px;
+  }
+  .col-date .ville-sub{display:block; font-weight:500; color:var(--muted); font-size:10px; margin-top:1px;}
+  .cell{padding:6px; text-align:center;}
+  .m-cell{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:34px; height:28px; border-radius:6px; font-size:12px; font-weight:800;
+    border:1px solid var(--border); color:var(--muted);
+  }
   .m-cell.assigned{background:var(--ok); border-color:var(--ok); color:#fff;}
   .m-cell.dispo{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark); font-weight:900;}
   .m-cell.indispo{background:var(--ko); border-color:var(--ko); color:#fff;}
   .m-cell.incertain{background:var(--maybe); border-color:var(--maybe); color:#fff;}
   .dashboard-strip{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; margin-bottom:22px;}
-  /* Les sept règles .kpi-* qui vivaient ici sont parties : les chiffres clés
-     sont désormais des étiquettes .co-stat de la charte, elles ne
-     s'appliquaient plus à rien. */
+  .kpi-card{
+    background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px;
+    text-decoration:none; color:var(--text); display:block; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  a.kpi-card:hover{transform:translateY(-2px); box-shadow:0 10px 24px rgba(20,15,10,.1); border-color:var(--accent);}
+  .kpi-icon{margin-bottom:6px; color:var(--accent-dark);}
+  .kpi-value{font-size:20px; font-weight:900; line-height:1.15; font-family:'Ufficio Display', 'Host Grotesk', sans-serif;}
+  .kpi-value.warn{color:var(--maybe, #b8792a);}
+  .kpi-value.ok{color:var(--ok, #2f8f5b);}
+  .kpi-label{font-size:11.5px; color:var(--muted); margin-top:2px; line-height:1.35;}
   .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin:10px 0 4px;}
-  /* Le sélecteur de tournée et l'export tenaient dans un span en display:flex
-     sans flex-wrap : à eux deux ils réclamaient 470 px et faisaient déborder la
-     page sur téléphone. Ils se replient maintenant, et le sélecteur accepte de
-     rétrécir — sans min-width:0 un select en flex refuse de passer sous sa
-     largeur de contenu, quelle que soit la place disponible. */
-  .legend-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:auto;}
-  .legend-actions .co-select{width:auto; min-width:0; flex:1 1 150px;}
-  @media (max-width:600px){ .legend-actions{margin-left:0; width:100%;} }
   .legend span{display:inline-flex; align-items:center; gap:6px;}
   .swatch{width:14px; height:14px; border-radius:4px; display:inline-block; border:1px solid var(--border);}
   .swatch.assigned{background:var(--ok); border-color:var(--ok);}
@@ -81,14 +98,14 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="co-page-head co-fade">
-    <div>
-      <h1>Vue d'ensemble</h1>
-      <p class="subtitle">Qui joue où, toutes tournées confondues — case pleine = affecté·e, le contour indique la disponibilité renseignée.</p>
-    </div>
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav" data-curieux-nav></nav>
   </div>
+  <h1>Vue d'ensemble</h1>
+  <p class="subtitle">Qui joue où, toutes tournées confondues — case pleine = affecté·e, le contour indique la disponibilité renseignée.</p>
 
-  <div class="dashboard-strip co-stats-charte" id="dashboardStrip"></div>
+  <div class="dashboard-strip" id="dashboardStrip"></div>
 
   <div class="legend">
     <span><span class="swatch assigned"></span> Affecté·e</span>
@@ -98,11 +115,11 @@
     <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:var(--muted);">
       <input type="checkbox" id="showPastDates"> Afficher aussi les dates passées
     </label>
-    <span class="legend-actions">
-      <select class="co-select" id="pdfTourneeSelect">
+    <span style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+      <select id="pdfTourneeSelect" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; background:var(--card); color:var(--text); font-family:inherit;">
         <option value="">Toutes les tournées</option>
       </select>
-      <button type="button" class="co-btn primary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
+      <button type="button" id="exportPdfBtn" style="padding:7px 13px; font-size:12.5px; border:none; border-radius:8px; cursor:pointer; font-family:inherit; font-weight:700; background:var(--accent-solid); color:#fff;"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
     </span>
   </div>
 
@@ -193,27 +210,23 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
   const colorByTournee = new Map(tourneeIds.map((id, i)=> [id, `var(--tour-${i % 8})`]));
   const colorFor = e => colorByTournee.get(e.tourneeId) || 'transparent';
 
-  // La matrice quitte le <table> pour la grille .co-matrix de base.css, livrée
-  // avec la charte et jusqu'ici inutilisée. Le gain n'est pas que cosmétique :
-  // .co-matrix-name est collante à gauche, donc le nom reste visible quand on
-  // fait défiler vingt dates — ce qu'un <th> de tableau ne faisait pas.
   const head = `
-    <div class="co-matrix-row co-matrix-head">
-      <div class="co-matrix-name">${nameLabel}</div>
+    <tr>
+      <th class="col-name">${nameLabel}</th>
       ${entries.map(e=>`
-        <div class="co-matrix-date" style="background:${colorFor(e)};" title="${escapeHtml(e.tourneeNom || '')} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}">
+        <th class="col-date" style="background:${colorFor(e)};" title="${escapeHtml(e.tourneeNom || '')} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}">
           ${escapeHtml(fmtDateFRShort(e.date))}
-          <small>${escapeHtml((e.ville || '').split(' (')[0] || '—')}</small>
-        </div>
+          <span class="ville-sub">${escapeHtml((e.ville || '').split(' (')[0] || '—')}</span>
+        </th>
       `).join('')}
-    </div>
+    </tr>
   `;
 
   const rows = sorted.map(m=>{
     const dispo = m.disponibilites || {};
     return `
-      <div class="co-matrix-row">
-        <div class="co-matrix-name"><b>${escapeHtml(fullName(m))}</b>${m.statutPoste === 'remplacant' ? '<small>Remplaçant·e</small>' : `<small>${escapeHtml(m.instrument || m.poste || '')}</small>`}</div>
+      <tr>
+        <td class="col-name">${escapeHtml(fullName(m))}${m.statutPoste === 'remplacant' ? '<span class="remplacant-tag">Rempl.</span>' : ''}</td>
         ${entries.map(e=>{
           const assigned = (e.assignes||[]).includes(m.id);
           const state = dispo[e.date] || '';
@@ -224,9 +237,9 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           else if(state === 'incertain'){ cls = 'incertain'; symbol = '?'; title = 'À confirmer'; }
           // data-jour : voir disponibilites.html — sert uniquement à la mise en
           // liste sur petit écran, sans rien changer au tableau sur ordinateur.
-          return `<div class="co-matrix-cell" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}" style="background:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}" title="${title}">${symbol}</span></div>`;
+          return `<td class="cell" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}" style="background:${colorFor(e)};"><span class="m-cell ${cls}" title="${title}">${symbol}</span></td>`;
         }).join('')}
-      </div>
+      </tr>
     `;
   }).join('');
 
@@ -236,8 +249,11 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
 
   holder.innerHTML = `
     <div class="legend" style="margin-bottom:10px;">${tourneeLegend}</div>
-    <div class="co-matrix">
-      <div class="co-matrix-in">${head}${rows}</div>
+    <div class="matrix-wrap">
+      <table class="matrix-table">
+        <thead>${head}</thead>
+        <tbody>${rows}</tbody>
+      </table>
     </div>
   `;
 }
@@ -344,38 +360,20 @@ function renderDashboard(){
     }
   ];
 
-  // Les chiffres clés en étiquettes de charte, comme la maquette : un aplat
-  // plein par tuile, le nombre en police d'affichage, le libellé dessous, et
-  // une légère inclinaison alternée qui donne l'effet « collé à la main ».
-  // Pas d'icône : dans la maquette c'est le chiffre qui porte la tuile.
-  //
-  // Les six couleurs tournent dans l'ordre de la charte. L'encre est portée par
-  // la tuile et non par le chiffre — sur un aplat prune ou orange, un chiffre
-  // en vert d'alerte devenait illisible, c'est pourquoi valueClass ne sert plus
-  // à colorer mais seulement à choisir entre aplat calme et aplat d'alerte.
-  const APLATS = [
-    { fond:'var(--prune)',          encre:'var(--blanc)' },
-    { fond:'var(--bleu)',           encre:'var(--noir)'  },
-    { fond:'var(--noir)',           encre:'var(--blanc)' },
-    { fond:'var(--rose-spectacle)', encre:'var(--noir)'  },
-    { fond:'var(--orange)',         encre:'var(--blanc)' },
-    { fond:'var(--bleu)',           encre:'var(--noir)'  },
-  ];
-  const TILTS = ['-1.4deg', '.9deg', '-.5deg', '1.2deg', '-1deg', '.6deg'];
-  holder.innerHTML = cards.map((c, i)=> {
-    const a = APLATS[i % APLATS.length];
-    return `
-    <a class="co-stat" href="${c.href}"
-       style="--co-tilt:${TILTS[i % TILTS.length]}; background:${a.fond}; color:${a.encre};">
-      <div class="co-stat-num">${c.value}</div>
-      <div class="co-stat-label">${c.label}</div>
+  holder.innerHTML = cards.map(c=> `
+    <a class="kpi-card" href="${c.href}">
+      <div class="kpi-icon">${c.icon}</div>
+      <div class="kpi-value ${c.valueClass||''}">${c.value}</div>
+      <div class="kpi-label">${c.label}</div>
     </a>
-  `;}).join('');
+  `).join('');
 }
 document.getElementById('musicienStatutFilter').addEventListener('change', renderAll);
 document.getElementById('showPastDates').addEventListener('change', e=>{ showPastDates = e.target.checked; renderAll(); });
 
 injectCurieuxFonts();
+initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

@@ -8,7 +8,6 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -24,6 +23,8 @@
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
   }
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-sm{padding:7px 11px; font-size:12px;}
   input[type=text], input[type=email], input[type=password], input[type=date], select, textarea{
     padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;
     width:100%; background:var(--card); color:var(--text); font-family:inherit;
@@ -47,35 +48,21 @@
   .select-all-label{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); font-weight:600; cursor:pointer; white-space:nowrap;}
   .select-all-label input{width:15px; height:15px; cursor:pointer; accent-color:var(--accent);}
   .person-card{
-    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
     margin-bottom:10px; overflow:hidden;
   }
   .person-card summary{
-    list-style:none; cursor:pointer; padding:13px 20px 15px; display:block;
+    list-style:none; cursor:pointer; padding:13px 16px; display:flex; align-items:center; gap:10px;
   }
-  .ps-tete{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:8px;}
-  .ps-nom{flex:1; min-width:160px;}
-  /* Grille d'aperçu alignée sur le nom, décalée de la case à cocher. */
-  .ps-apercu{
-    display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));
-    gap:6px 16px; padding-left:36px;
-  }
-  .ps-champ{min-width:0;}
-  .ps-champ .k{
-    display:block; font-size:9.5px; font-weight:800; text-transform:uppercase;
-    letter-spacing:.05em; color:var(--muted);
-  }
-  .ps-champ .v{
-    display:block; font-size:12px; color:var(--text); font-variant-numeric:tabular-nums;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  }
-  .ps-champ .v.vide{color:var(--old-champagne);}
   .person-card summary .select-wrap{display:flex; align-items:center;}
-  .person-card summary .select-wrap input{width:22px; height:22px; cursor:pointer; accent-color:#791649;}
+  .person-card summary .select-wrap input{width:16px; height:16px; cursor:pointer; accent-color:var(--accent);}
   .person-card summary::-webkit-details-marker{display:none;}
-  .person-card summary .name{font-weight:800; font-size:16px;}
-  .person-card summary .role{color:var(--muted); font-size:12.5px; margin-left:8px;}
-  .ps-tete .co-pill{margin-left:auto;}
+  .person-card summary .name{font-weight:800; font-size:14.5px;}
+  .person-card summary .role{color:var(--muted); font-size:12.5px;}
+  .person-card summary .filled-badge{
+    margin-left:auto; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 8px; border-radius:20px; background:var(--ok-tint); color:var(--ok);
+  }
   .person-card summary .caret{color:var(--muted); transition:transform .2s ease; margin-left:4px;}
   .person-card[open] summary .caret{transform:rotate(180deg);}
   .person-body{padding:4px 16px 18px; border-top:1px solid var(--border);}
@@ -97,15 +84,17 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="co-page-head co-fade">
-    <div>
-      <h1><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:6px;"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><path d="M8 11V7.5a4 4 0 0 1 8 0V11" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="12" cy="15.5" r="1.3" fill="currentColor"></circle></svg>Infos sociales</h1>
-      <p class="subtitle">Identité, sécurité sociale, RIB — pour les déclarations d'embauche.</p>
-    </div>
-    <div class="co-actions">
-      <button type="button" class="co-btn ghost md" id="logoutBtn" style="display:none;">Se déconnecter</button>
-    </div>
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <!-- Menu volontairement réduit : zone sensible (identité civile, RIB, n° sécu).
+         Pas de data-curieux-nav, donc le menu partagé ne s'y rend pas. -->
+    <nav class="page-nav">
+      <a class="ghost" href="accueil.html">← Accueil</a>
+      <button type="button" class="btn-ghost btn-sm" id="logoutBtn" style="display:none;">Se déconnecter</button>
+    </nav>
   </div>
+
+  <h1><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:6px;"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><path d="M8 11V7.5a4 4 0 0 1 8 0V11" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="12" cy="15.5" r="1.3" fill="currentColor"></circle></svg>Infos sociales</h1>
       <div class="rgpd-encart">
         <strong>Données sensibles.</strong> Identité civile, numéro de sécurité
         sociale et coordonnées bancaires ne doivent être consultés que pour
@@ -113,6 +102,7 @@
         structure&nbsp;: voir <a href="mentions-legales.html" target="_blank" rel="noopener">les mentions légales</a>.
       </div>
 
+  <p class="subtitle">Identité civile, n° sécu, RIB, statut intermittent — infos nécessaires pour la fiche de chaque musicien·ne/technicien·ne. Accès restreint, séparé du reste de l'app.</p>
 
   <div id="loginScreen">
     <div class="login-card">
@@ -127,7 +117,7 @@
           <label for="loginPassword">Mot de passe</label>
           <input type="password" id="loginPassword" autocomplete="current-password" required>
         </div>
-        <button type="submit" class="co-btn primary" style="width:100%;">Se connecter</button>
+        <button type="submit" class="btn-primary" style="width:100%;">Se connecter</button>
         <div class="login-error" id="loginError"></div>
       </form>
     </div>
@@ -147,7 +137,7 @@
         <label class="select-all-label">
           <input type="checkbox" id="selectAllCheckbox"> Tout sélectionner
         </label>
-        <button type="button" class="co-btn primary sm" id="exportBtn" disabled>Exporter la sélection (0)</button>
+        <button type="button" class="btn-primary btn-sm" id="exportBtn" disabled>Exporter la sélection (0)</button>
       </div>
       <div id="peopleHolder"><div class="empty-hint">Chargement…</div></div>
     </div>
@@ -157,6 +147,7 @@
 <script>
 applyBrandLogo();
 injectCurieuxFonts();
+initGlobalSearch(document.querySelector('.page-nav'));
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 
@@ -231,16 +222,6 @@ function isFilled(info){
   return base || extra;
 }
 
-// Masque une valeur sensible : on garde de quoi la reconnaître, pas de quoi la
-// recopier. Une valeur absente s'affiche « (vide) » plutôt que rien, pour qu'un
-// trou dans un dossier se voie.
-function apercuMasque(valeur, garde){
-  const v = (valeur || '').trim();
-  if(!v) return '(vide)';
-  if(v.length <= garde) return v;
-  return v.slice(0, garde) + ' ' + '•'.repeat(Math.min(6, Math.max(3, v.length - garde)));
-}
-
 function renderPersonCard(p, personType){
   const info = infosFor(p.id);
   const filled = isFilled(info);
@@ -248,37 +229,16 @@ function renderPersonCard(p, personType){
     ? escapeHtml(p.instrument || 'Musicien·ne')
     : escapeHtml(p.poste || 'Technicien·ne');
 
-  const naissance = info.dateNaissance
-    ? new Date(info.dateNaissance + 'T00:00:00').toLocaleDateString('fr-FR')
-    : '';
-  const apercu = [
-    ['Identité civile', [naissance ? 'née le ' + naissance : '', info.lieuNaissance].filter(Boolean).join(' · ') || '(vide)'],
-    ['N° sécurité sociale', apercuMasque(info.numSecu, 5)],
-    ['IBAN', apercuMasque(info.iban, 9)],
-    ['Congés spectacles', apercuMasque(info.numCongesSpectacles, 4)],
-    ['Adresse', apercuMasque(info.adresse, 14)],
-    ['Audiens (retraite)', apercuMasque(info.numAudiens, 4)],
-    ["Contact d'urgence", info.contactUrgenceNom || info.contactUrgenceTel ? apercuMasque(info.contactUrgenceTel || info.contactUrgenceNom, 3) : '(vide)'],
-    ['Infos pratiques', info.tailleVetement ? 'taille ' + info.tailleVetement : '(vide)'],
-  ];
-
   return `
     <details class="person-card" data-person-id="${escapeAttr(p.id)}" data-person-type="${personType}">
       <summary>
-        <span class="ps-tete">
-          <span class="select-wrap" onclick="event.stopPropagation()">
-            <input type="checkbox" class="person-select" data-person="${escapeAttr(p.id)}" ${selectedIds.has(p.id) ? 'checked' : ''} title="Inclure dans l'export">
-          </span>
-          <span class="ps-nom">
-            <span class="name">${escapeHtml(fullName(p))}</span>
-            <span class="role">${roleLabel}</span>
-          </span>
-          <span class="co-pill ${filled ? 'ok' : 'att'}">${filled ? 'dossier complet' : 'dossier incomplet'}</span>
-          <span class="caret">▾</span>
+        <span class="select-wrap" onclick="event.stopPropagation()">
+          <input type="checkbox" class="person-select" data-person="${escapeAttr(p.id)}" ${selectedIds.has(p.id) ? 'checked' : ''}>
         </span>
-        <span class="ps-apercu">${apercu.map(([k, v])=>
-          `<span class="ps-champ"><span class="k">${escapeHtml(k)}</span><span class="v${v === '(vide)' ? ' vide' : ''}">${escapeHtml(v)}</span></span>`
-        ).join('')}</span>
+        <span class="name">${escapeHtml(fullName(p))}</span>
+        <span class="role">${roleLabel}</span>
+        ${filled ? '<span class="filled-badge">Fiche remplie</span>' : ''}
+        <span class="caret">▾</span>
       </summary>
       <div class="person-body">
         <div class="section-label">Identité civile</div>

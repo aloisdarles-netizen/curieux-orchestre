@@ -8,13 +8,16 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:1000px; margin:0 auto; font-variant-numeric:tabular-nums;}
+  .wrap{max-width:900px; margin:0 auto; font-variant-numeric:tabular-nums;}
   button{ cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700; padding:9px 15px; font-family:inherit; }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-sm{padding:7px 11px; font-size:12px;}
 
   input[type=text], input[type=number], input[type=email], input[type=tel], select, textarea{
     padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%;
@@ -34,56 +37,7 @@
   .section-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px;}
 
   .cardgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:14px;}
-  .r-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; display:flex; flex-direction:column; gap:8px;}
-
-  /* Cartes véhicule en étiquettes de charte, comme la maquette : aplat plein,
-     contour blanc découpé, ombre franche, posées légèrement de travers. Elles
-     portent des commandes que la maquette n'a pas (chauffeur habituel, actions) :
-     celles-ci sont réhabillées plus bas pour rester lisibles sur l'aplat. */
-  .r-card.vehicule{
-    padding:16px 18px 15px; overflow:hidden; gap:9px; border:none;
-    border-radius:16px;
-    transform:rotate(var(--co-tilt, -.7deg));
-    box-shadow:0 0 0 4px var(--card), 6px 8px 0 rgba(20,22,23,.10);
-    transition:transform .22s cubic-bezier(.34,1.5,.6,1), box-shadow .22s ease;
-  }
-  .r-card.vehicule:hover{
-    transform:rotate(0deg) translateY(-3px);
-    box-shadow:0 0 0 4px var(--card), 9px 12px 0 rgba(20,22,23,.13);
-  }
-  .vehicule-bandeau{display:flex; align-items:center; gap:11px; margin-bottom:2px;}
-  .vehicule-bandeau .r-name{
-    font-family:var(--font-display); font-size:19px; font-weight:500; line-height:1.1;
-    text-transform:uppercase; letter-spacing:.02em; flex:1; min-width:0;
-  }
-  .vehicule-bandeau .r-sub{opacity:.88;}
-  /* La plaque reprend le rendu d'une vraie immatriculation : fond clair, liseré
-     noir, chiffres tabulaires. */
-  .vehicule-plaque{
-    font-size:11.5px; font-weight:800; font-variant-numeric:tabular-nums;
-    background:#FCF2F0; color:#141617; border:1.5px solid #141617; border-radius:6px;
-    padding:3px 8px; letter-spacing:.06em; white-space:nowrap; flex-shrink:0;
-  }
-  .vehicule-corps{display:flex; flex-direction:column; gap:8px;}
-  /* Sur aplat de charte : les commandes reprennent l'encre de l'étiquette, sur un
-     voile translucide clair. En blanc sur blanc ou en prune sur prune, elles
-     disparaissaient. */
-  .r-card.vehicule .r-sub, .r-card.vehicule .r-dims, .r-card.vehicule .lien-label,
-  .r-card.vehicule .r-dims b{color:inherit; opacity:.88;}
-  .r-card.vehicule .r-dims{background:rgba(252,242,240,.16);}
-  .r-card.vehicule .lien-chauffeur{background:rgba(252,242,240,.16); border-color:rgba(252,242,240,.3);}
-  .r-card.vehicule .lien-avatar{background:rgba(252,242,240,.28); color:inherit;}
-  .r-card.vehicule select{
-    background:rgba(252,242,240,.92); color:#141617; border:1px solid rgba(252,242,240,.5);
-  }
-  .r-card.vehicule .r-actions{border-top:1px solid rgba(252,242,240,.28); padding-top:10px;}
-  .r-card.vehicule .r-actions button{color:inherit; opacity:.9;}
-  .r-card.vehicule .r-actions button:hover{opacity:1; background:rgba(252,242,240,.18);}
-  .r-card.vehicule .badge-hayon, .r-card.vehicule .badge-sans-hayon{
-    background:rgba(252,242,240,.22); color:inherit;
-  }
-  .r-card.vehicule .exception-note{background:rgba(252,242,240,.16); color:inherit;}
-  @media (prefers-reduced-motion: reduce){ .r-card.vehicule, .r-card.vehicule:hover{ transform:none; transition:none; } }
+  .r-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; display:flex; flex-direction:column; gap:8px;}
   .r-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
   .r-name{font-weight:800; font-size:15.5px;}
   .r-sub{color:var(--muted); font-size:12.5px;}
@@ -125,17 +79,17 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="co-page-head co-fade">
-    <div>
-      <h1>Véhicules &amp; chauffeurs</h1>
-      <p class="subtitle">Le parc, les chauffeurs, et qui conduit quoi — date par date.</p>
-    </div>
+  <div class="brand-header">
+    <a href="technique.html">← Direction technique</a>
+    <nav class="page-nav" data-curieux-nav></nav>
   </div>
+  <h1>Véhicules &amp; chauffeurs</h1>
+  <p class="subtitle">Le parc, les chauffeurs, et qui conduit quoi — date par date.</p>
 
   <div class="section-block">
     <div class="section-head">
       <h2 class="section-title">Véhicules</h2>
-      <button type="button" class="co-btn secondary" id="addVehiculeBtn">+ Ajouter un véhicule</button>
+      <button type="button" class="btn-secondary" id="addVehiculeBtn">+ Ajouter un véhicule</button>
     </div>
     <div class="cardgrid" id="vehiculesGrid"></div>
     <div class="empty-hint" id="vehiculesEmpty" style="display:none;">Aucun véhicule enregistré.</div>
@@ -144,7 +98,7 @@
   <div class="section-block">
     <div class="section-head">
       <h2 class="section-title">Chauffeurs</h2>
-      <button type="button" class="co-btn secondary" id="addChauffeurBtn">+ Ajouter un chauffeur</button>
+      <button type="button" class="btn-secondary" id="addChauffeurBtn">+ Ajouter un chauffeur</button>
     </div>
     <div class="cardgrid" id="chauffeursGrid"></div>
     <div class="empty-hint" id="chauffeursEmpty" style="display:none;">Aucun chauffeur enregistré.</div>
@@ -153,7 +107,7 @@
   <div class="section-block">
     <div class="section-head">
       <h2 class="section-title">Carnets ATA</h2>
-      <button type="button" class="co-btn secondary" id="addCarnetBtn">+ Ajouter un carnet</button>
+      <button type="button" class="btn-secondary" id="addCarnetBtn">+ Ajouter un carnet</button>
     </div>
     <p class="section-lead">Attribué à une semi pour toute la tournée, valable dans toute l'Europe.</p>
     <div class="cardgrid" id="carnetsGrid"></div>
@@ -168,7 +122,7 @@
       <select class="tournee-select" id="affectationDateSelect" style="flex:1;"></select>
     </div>
     <div id="affectationsListe"></div>
-    <button type="button" class="co-btn secondary sm" id="addAffectationBtn">+ Ajouter une exception</button>
+    <button type="button" class="btn-secondary btn-sm" id="addAffectationBtn">+ Ajouter une exception</button>
   </div>
 </div>
 
@@ -201,8 +155,8 @@
     <div class="field"><label for="vChauffeurDefaut">Chauffeur habituel</label><select id="vChauffeurDefaut"></select></div>
     <div class="field"><label for="vNotes">Notes</label><textarea id="vNotes"></textarea></div>
     <div class="modal-actions">
-      <button type="button" class="co-btn ghost" id="vehiculeModalCancel">Annuler</button>
-      <button type="button" class="co-btn secondary" id="vehiculeModalSave">Enregistrer</button>
+      <button type="button" class="btn-ghost" id="vehiculeModalCancel">Annuler</button>
+      <button type="button" class="btn-secondary" id="vehiculeModalSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -223,8 +177,8 @@
     <div class="field"><label for="chPrestataire">Prestataire</label><select id="chPrestataire"></select></div>
     <div class="field"><label for="chNotes">Notes</label><textarea id="chNotes"></textarea></div>
     <div class="modal-actions">
-      <button type="button" class="co-btn ghost" id="chauffeurModalCancel">Annuler</button>
-      <button type="button" class="co-btn secondary" id="chauffeurModalSave">Enregistrer</button>
+      <button type="button" class="btn-ghost" id="chauffeurModalCancel">Annuler</button>
+      <button type="button" class="btn-secondary" id="chauffeurModalSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -253,8 +207,8 @@
     <div class="field"><label>Lots déclarés</label><div class="sous-liste" id="carnetLotsListe" style="max-height:160px; overflow-y:auto;"></div></div>
     <div class="field"><label for="cNotes">Notes</label><textarea id="cNotes"></textarea></div>
     <div class="modal-actions">
-      <button type="button" class="co-btn ghost" id="carnetModalCancel">Annuler</button>
-      <button type="button" class="co-btn secondary" id="carnetModalSave">Enregistrer</button>
+      <button type="button" class="btn-ghost" id="carnetModalCancel">Annuler</button>
+      <button type="button" class="btn-secondary" id="carnetModalSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -289,35 +243,22 @@ function initiales(personne){
   const p = (personne.prenom||'')[0] || ''; const n = (personne.nom||'')[0] || '';
   return (p+n).toUpperCase() || '?';
 }
-// [fond, encre, fond de pastille, encre de pastille]
-const VEHICULE_COULEURS = [
-  ['#791649', '#FCF2F0', '#FEC9E0', '#791649'],
-  ['#CEE1F4', '#791649', '#791649', '#FCF2F0'],
-  ['#EC4B15', '#FCF2F0', '#FCF2F0', '#EC4B15'],
-];
-
 function renderVehicules(){
   const grid = document.getElementById('vehiculesGrid');
   const empty = document.getElementById('vehiculesEmpty');
   if(vehiculesCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
-  grid.innerHTML = vehiculesCache.map((v, index)=>{
-    const [fond, encre, chipFond, chipEncre] = VEHICULE_COULEURS[index % VEHICULE_COULEURS.length];
+  grid.innerHTML = vehiculesCache.map(v=>{
     const prest = prestatairesCache.find(p=>p.id===v.prestataireId);
     const dims = [v.hauteurM,v.largeurM,v.profondeurM].some(x=>x!=null)
       ? `${v.hauteurM ?? '—'} × ${v.largeurM ?? '—'} × ${v.profondeurM ?? '—'} m` : '';
     const defaut = chauffeursCache.find(c=>c.id===v.chauffeurDefautId);
     const exception = prochaineException(v.id, v.chauffeurDefautId);
     return `
-    <div class="r-card vehicule" style="--co-tilt:${index % 2 ? '.8deg' : '-.7deg'}; background:${fond}; color:${encre};">
-      <div class="vehicule-bandeau">
-        <span class="co-badge co-badge-sm" aria-hidden="true" style="background:${chipFond}; color:${chipEncre};">⛟</span>
-        <span class="r-name">${escapeHtml(v.nom || 'Sans nom')}</span>
-        ${v.immatriculation ? `<span class="vehicule-plaque">${escapeHtml(v.immatriculation)}</span>` : ''}
-      </div>
-      <div class="vehicule-corps">
+    <div class="r-card">
       <div class="r-card-top">
-        <div class="r-sub">${escapeHtml(TYPE_VEHICULE_LABEL[v.type]||v.type)}${v.capacite ? ' · ' + escapeHtml(v.capacite) : ''}</div>
+        <div><div class="r-name">${escapeHtml(v.nom || 'Sans nom')}</div><div class="r-sub">${v.immatriculation ? escapeHtml(v.immatriculation) : ''}${v.capacite ? ' · ' + escapeHtml(v.capacite) : ''}</div></div>
+        <span class="badge badge-accent">${TYPE_VEHICULE_LABEL[v.type]||v.type}</span>
       </div>
       ${dims ? `<div class="r-dims">${escapeHtml(dims)}</div>` : ''}
       ${v.type === 'semi' ? `<span class="badge ${v.hayon ? 'badge-hayon' : 'badge-sans-hayon'}" style="align-self:flex-start;">${v.hayon ? 'Avec hayon' : 'Sans hayon'}</span>` : ''}
@@ -334,10 +275,9 @@ function renderVehicules(){
       </div>
       ${exception ? `<div class="exception-note">Exception le ${escapeHtml(libelleDateCourt(exception.d))} : ${escapeHtml(fullName(exception.chauffeur))}</div>` : ''}
       <div class="r-actions">
-        <button type="button" class="co-btn ghost sm" data-edit="${v.id}">Modifier</button>
-        <button type="button" class="co-btn ghost sm" data-chauffeur="${v.id}">+ Exception</button>
-        <button type="button" class="co-btn danger sm" data-del="${v.id}">Supprimer</button>
-      </div>
+        <button type="button" class="btn-ghost btn-sm" data-edit="${v.id}">Modifier</button>
+        <button type="button" class="btn-ghost btn-sm" data-chauffeur="${v.id}">+ Exception</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${v.id}">Supprimer</button>
       </div>
     </div>
   `;}).join('');
@@ -434,8 +374,8 @@ function renderChauffeurs(){
       ${c.prestataire ? `<div class="r-sub">${escapeHtml(c.prestataire)}</div>` : ''}
       ${semisHabituelles.length ? `<div class="lien-chauffeur"><div class="lien-avatar">🚛</div><div class="lien-corps"><div class="lien-label">Chauffeur habituel de</div><div style="font-size:13px; font-weight:700;">${semisHabituelles.map(v=>escapeHtml(v.nom||'Sans nom')).join(', ')}</div></div></div>` : ''}
       <div class="r-actions">
-        <button type="button" class="co-btn ghost sm" data-edit="${c.id}">Modifier</button>
-        <button type="button" class="co-btn danger sm" data-del="${c.id}">Supprimer</button>
+        <button type="button" class="btn-ghost btn-sm" data-edit="${c.id}">Modifier</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${c.id}">Supprimer</button>
       </div>
     </div>
   `;}).join('');
@@ -518,8 +458,8 @@ function renderCarnets(){
       </div>
       <div class="r-sub">${(c.lotsIds||[]).length} lot${(c.lotsIds||[]).length>1?'s':''} déclaré${(c.lotsIds||[]).length>1?'s':''}</div>
       <div class="r-actions">
-        <button type="button" class="co-btn ghost sm" data-edit="${c.id}">Modifier</button>
-        <button type="button" class="co-btn danger sm" data-del="${c.id}">Supprimer</button>
+        <button type="button" class="btn-ghost btn-sm" data-edit="${c.id}">Modifier</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${c.id}">Supprimer</button>
       </div>
     </div>
   `;}).join('');
@@ -650,7 +590,7 @@ function renderAffectations(){
         <option value="">— Chauffeur —</option>
         ${chauffeursCache.map(c=>`<option value="${c.id}" ${a.chauffeurId===c.id?'selected':''}>${escapeHtml(fullName(c))}</option>`).join('')}
       </select>
-      <button type="button" class="co-btn danger sm" data-retirer>Retirer</button>
+      <button type="button" class="btn-danger btn-sm" data-retirer>Retirer</button>
     </div>
   `;}).join('');
   box.querySelectorAll('.affectation-row').forEach(row=>{
@@ -696,6 +636,8 @@ CurieuxDB.subscribe('carnets_ata', ()=> CurieuxDB.fetchAll('carnets_ata').then(l
 CurieuxDB.subscribe('affectations_transport', ()=> CurieuxDB.fetchAll('affectations_transport').then(l=>{ affectationsCache=l; curieuxRafraichir(()=>{renderAffectations();renderVehicules();}); }));
 
 injectCurieuxFonts();
+initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 initData();

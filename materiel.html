@@ -8,13 +8,16 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:980px; margin:0 auto; font-variant-numeric:tabular-nums;}
+  .wrap{max-width:900px; margin:0 auto; font-variant-numeric:tabular-nums;}
   button{ cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700; padding:9px 15px; font-family:inherit; }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-sm{padding:7px 11px; font-size:12px;}
 
   input[type=text], input[type=number], input[type=date], select, textarea{
     padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%;
@@ -27,16 +30,14 @@
   .field-row .field{flex:1; min-width:140px;}
 
   .toolbar{display:flex; justify-content:flex-end; margin-bottom:16px;}
-  .lot-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px 18px; margin-bottom:10px;}
+  .lot-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; margin-bottom:10px;}
   .lot-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
-  .lot-identite{display:flex; gap:11px; align-items:flex-start; min-width:0;}
-  .lot-texte{min-width:0;}
   .lot-nom{font-weight:800; font-size:14.5px;}
   .lot-sub{color:var(--muted); font-size:12px; margin-top:2px;}
-  .badge{font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; padding:3px 10px; border-radius:999px; white-space:nowrap;}
+  .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap; background:var(--accent-tint); color:var(--accent-dark);}
   .lot-dates{font-size:11.5px; color:var(--muted); margin-top:6px; display:flex; gap:12px; flex-wrap:wrap;}
-  .lot-actions{display:flex; gap:6px; margin-top:10px; border-top:1px solid var(--border); padding-top:9px; flex-wrap:wrap;}
-  .sous-lots{margin:10px 0 0 20px; padding-left:14px; border-left:2px solid var(--border); display:flex; flex-direction:column; gap:8px;}
+  .lot-actions{display:flex; gap:6px; margin-top:10px; border-top:1px solid var(--border); padding-top:9px;}
+  .sous-lots{margin:10px 0 0 20px; padding-left:14px; border-left:2px solid var(--border);}
 
   .modal-overlay{display:none; position:fixed; inset:0; background:rgba(20,15,10,.5); align-items:center; justify-content:center; padding:20px; z-index:50; overflow-y:auto;}
   .modal-overlay.open{display:flex;}
@@ -53,14 +54,14 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="co-page-head co-fade">
-    <div>
-      <h1>Matériel</h1>
-      <p class="subtitle">Ce qu'on amène — kits, et ce qu'ils contiennent.</p>
-    </div>
-    <div class="co-actions"><button type="button" class="co-btn primary md" id="addLotBtn">+ Ajouter un lot</button></div>
+  <div class="brand-header">
+    <a href="technique.html">← Direction technique</a>
+    <nav class="page-nav" data-curieux-nav></nav>
   </div>
+  <h1>Matériel</h1>
+  <p class="subtitle">Ce qu'on amène — kits, et ce qu'ils contiennent.</p>
 
+  <div class="toolbar"><button type="button" class="btn-secondary" id="addLotBtn">+ Ajouter un lot</button></div>
   <div id="lotsListe"></div>
   <div class="empty-hint" id="lotsEmpty" style="display:none;">Aucun lot enregistré.</div>
 </div>
@@ -98,7 +99,7 @@
       <legend>Mouvements</legend>
       <p class="subtitle" style="margin:-6px 0 10px;">Chaque sortie ou entrée de matériel dans ce lot, avec sa date et éventuellement l'heure demandée — utile pour les échanges (une console qui sort, une autre qui rentre), les retours de matériel non utilisé, et pour transmettre l'info au chauffeur concerné.</p>
       <div class="sous-liste" id="mouvementsListe"></div>
-      <button type="button" class="co-btn secondary sm" id="addMouvementBtn">+ Ajouter un mouvement</button>
+      <button type="button" class="btn-secondary btn-sm" id="addMouvementBtn">+ Ajouter un mouvement</button>
     </fieldset>
 
     <fieldset class="groupe">
@@ -113,8 +114,8 @@
     <div class="field"><label for="lNotes">Notes</label><textarea id="lNotes"></textarea></div>
 
     <div class="modal-actions">
-      <button type="button" class="co-btn ghost" id="lotModalCancel">Annuler</button>
-      <button type="button" class="co-btn secondary" id="lotModalSave">Enregistrer</button>
+      <button type="button" class="btn-ghost" id="lotModalCancel">Annuler</button>
+      <button type="button" class="btn-secondary" id="lotModalSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -124,25 +125,6 @@ let lotsCache = [];
 let prestatairesCache = [];
 let elementsEnEdition = [];
 const CATEGORIE_LABEL = { son:'Son', lumiere:'Lumière', video:'Vidéo', structure:'Structure', backline:'Backline', partitions:'Partitions', costumes:'Costumes', prod:'Prod', autre:'Autre' };
-
-// Icône et couleurs de charte par catégorie — [glyphe, fond, encre].
-const CATEGORIE_PASTILLE = {
-  son:        ['♫', '#CEE1F4', '#791649'],
-  lumiere:    ['✷', '#FEC9E0', '#791649'],
-  video:      ['▷', '#CEE1F4', '#791649'],
-  structure:  ['▤', '#EC4B15', '#FCF2F0'],
-  backline:   ['⛁', '#791649', '#FCF2F0'],
-  partitions: ['♪', '#141617', '#FCF2F0'],
-  costumes:   ['✂', '#FEC9E0', '#791649'],
-  prod:       ['✦', '#EC4B15', '#FCF2F0'],
-  autre:      ['▣', 'var(--border)', 'var(--muted)'],
-};
-function pastilleCategorie(categorie, index){
-  const [glyphe, fond, encre] = CATEGORIE_PASTILLE[categorie] || CATEGORIE_PASTILLE.autre;
-  const inclinaison = index % 2 ? '4deg' : '-5deg';
-  return `<span class="co-badge co-badge-sm" aria-hidden="true"
-    style="--co-tilt:${inclinaison}; background:${fond}; color:${encre};">${glyphe}</span>`;
-}
 
 function fillProvenanceSelect(){
   const sel = document.getElementById('lProvenance');
@@ -180,7 +162,7 @@ function renderMouvementsEdition(){
         <option value="entree" ${mv.type==='entree'?'selected':''}>Entrée</option>
       </select>
       <input type="text" data-i="${i}" data-f="description" value="${escapeHtml(mv.description||'')}" placeholder="Ex: échange de console, retour non utilisé…">
-      <button type="button" class="co-btn danger sm sous-retirer" data-retirer="${i}">Retirer</button>
+      <button type="button" class="btn-danger btn-sm sous-retirer" data-retirer="${i}">Retirer</button>
     </div>
   `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun mouvement.</p>`;
   document.querySelectorAll('#mouvementsListe [data-f]').forEach(inp=> inp.addEventListener('input', ()=>{
@@ -208,29 +190,26 @@ function joursDe(l){
   if(l.retourPrestataireDate) bits.push('retour prestataire ' + new Date(l.retourPrestataireDate+'T00:00:00').toLocaleDateString('fr-FR') + (l.retourPrestataireHeure ? ' à ' + l.retourPrestataireHeure : ''));
   return bits;
 }
-function carteLot(l, index){
+function carteLot(l){
   const provenance = prestatairesCache.find(p=>p.id === l.provenanceId);
   const enfants = lotsCache.filter(x=> x.parentId === l.id);
   return `
     <div class="lot-card">
       <div class="lot-top">
-        <div class="lot-identite">
-          ${pastilleCategorie(l.categorie, index || 0)}
-          <div class="lot-texte">
+        <div>
           <div class="lot-nom">${escapeHtml(l.nom || 'Sans nom')}</div>
           ${provenance ? `<div class="lot-sub">${escapeHtml(provenance.nom)}</div>` : ''}
           ${l.description ? `<div class="lot-sub">${escapeHtml(l.description)}</div>` : ''}
-          </div>
         </div>
-        <span class="badge" style="background:${(CATEGORIE_PASTILLE[l.categorie]||CATEGORIE_PASTILLE.autre)[1]}; color:${(CATEGORIE_PASTILLE[l.categorie]||CATEGORIE_PASTILLE.autre)[2]};">${CATEGORIE_LABEL[l.categorie]||'Autre'}</span>
+        <span class="badge">${CATEGORIE_LABEL[l.categorie]||'Autre'}</span>
       </div>
       ${joursDe(l).length ? `<div class="lot-dates">${joursDe(l).map(escapeHtml).join(' · ')}</div>` : ''}
       <div class="lot-actions">
-        <button type="button" class="co-btn ghost sm" data-edit="${l.id}">Modifier</button>
-        <button type="button" class="co-btn ghost sm" data-sous-lot="${l.id}">+ Sous-lot</button>
-        <button type="button" class="co-btn danger sm" data-del="${l.id}">Supprimer</button>
+        <button type="button" class="btn-ghost btn-sm" data-edit="${l.id}">Modifier</button>
+        <button type="button" class="btn-ghost btn-sm" data-sous-lot="${l.id}">+ Sous-lot</button>
+        <button type="button" class="btn-danger btn-sm" data-del="${l.id}">Supprimer</button>
       </div>
-      ${enfants.length ? `<div class="sous-lots">${enfants.map((e, i)=> carteLot(e, i)).join('')}</div>` : ''}
+      ${enfants.length ? `<div class="sous-lots">${enfants.map(carteLot).join('')}</div>` : ''}
     </div>
   `;
 }
@@ -240,7 +219,7 @@ function render(){
   const empty = document.getElementById('lotsEmpty');
   if(racines.length === 0){ box.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display = 'none';
-  box.innerHTML = racines.map((l, i)=> carteLot(l, i)).join('');
+  box.innerHTML = racines.map(carteLot).join('');
   box.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openLotModal(b.dataset.edit)));
   box.querySelectorAll('[data-sous-lot]').forEach(b=> b.addEventListener('click', ()=> openLotModal(null, b.dataset.sousLot)));
   box.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
@@ -334,6 +313,8 @@ CurieuxDB.subscribe('lots_materiel', ()=> CurieuxDB.fetchAll('lots_materiel').th
 CurieuxDB.subscribe('prestataires', ()=> CurieuxDB.fetchAll('prestataires').then(l=>{ prestatairesCache=l; }));
 
 injectCurieuxFonts();
+initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 initData();

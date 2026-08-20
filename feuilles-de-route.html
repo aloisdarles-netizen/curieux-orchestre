@@ -8,7 +8,6 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -20,19 +19,14 @@
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
   }
+  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
+  .btn-danger-ghost{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-danger-ghost:hover{background:var(--secondary-tint);}
 
   .fdr-card{
-    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
     padding:16px 18px; margin-bottom:10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;
   }
-  /* Avancement de la feuille : les sections vertes sont prêtes, les orange
-     restent à compléter. Sans ce repère, il fallait ouvrir chaque feuille pour
-     savoir laquelle réclamait encore du travail. */
-  .fdr-jauge{display:flex; align-items:center; gap:10px; margin:8px 0 8px;}
-  .fdr-jauge .co-progress{flex:1;}
-  .fdr-ratio{font-size:11.5px; font-weight:800; white-space:nowrap;}
-  .fdr-sections{display:flex; flex-wrap:wrap; gap:6px;}
-  .fdr-sections .co-pill{font-size:11px; letter-spacing:0; text-transform:none;}
   .fdr-info{flex:1; min-width:200px;}
   .fdr-title{font-weight:800; font-size:15px; margin-bottom:2px;}
   .fdr-title.untitled{color:var(--muted); font-style:italic; font-weight:700;}
@@ -42,14 +36,16 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="co-page-head co-fade">
-    <div>
-      <h1>Feuilles de route</h1>
-      <p class="subtitle">Toutes les feuilles de route, tous artistes et dates confondus.</p>
-    </div>
-    <div class="co-actions"><button type="button" class="co-btn primary md" id="newFdrBtn">+ Nouvelle feuille de route</button></div>
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav" data-curieux-nav></nav>
   </div>
+  <h1>Feuilles de route</h1>
+  <p class="subtitle">Toutes les feuilles de route, tous artistes et dates confondus.</p>
 
+  <div class="toolbar">
+    <button type="button" class="btn-primary" id="newFdrBtn">+ Nouvelle feuille de route</button>
+  </div>
 
   <div id="holder"><div class="empty-hint">Chargement…</div></div>
 </div>
@@ -76,20 +72,7 @@ function render(){
     if(!b.eventDate) return -1;
     return a.eventDate.localeCompare(b.eventDate);
   });
-  const SECTIONS = [
-    ['Contacts',   f=> (f.contacts||[]).some(c=> c.nom || c.tel)],
-    ['Voyage',     f=> (f.trajets||[]).some(t=> t.departVille || t.arriveeVille || t.train)],
-    ['Planning',   f=> (f.planning||[]).some(p=> p.heure || p.evenement)],
-    ['Lieu',       f=> !!((f.lieu||{}).nom || (f.lieu||{}).adresse)],
-    ['Hôtel',      f=> !!((f.hotel||{}).nom || (f.hotel||{}).adresse)],
-    ['Bonus',      f=> !!(f.bonus || '').trim()],
-  ];
-
   holder.innerHTML = sorted.map(f=>{
-    const etats = SECTIONS.map(([nom, prete])=> [nom, prete(f)]);
-    const pretes = etats.filter(([, ok])=> ok).length;
-    const pct = Math.round(pretes / etats.length * 100);
-    const couleur = pct === 100 ? 'var(--ok)' : pct >= 60 ? 'var(--maybe)' : 'var(--ko)';
     const title = f.artistName || 'Feuille de route sans titre';
     const venue = [f.venueCity, f.venueSalle].filter(Boolean).join(' · ');
     const meta = [fmtDateFR(f.eventDate) || 'Sans date', venue].filter(Boolean).join('  —  ');
@@ -98,16 +81,10 @@ function render(){
         <div class="fdr-info">
           <div class="fdr-title ${f.artistName ? '' : 'untitled'}">${escapeHtml(title)}</div>
           <div class="fdr-meta">${escapeHtml(meta)}</div>
-          <div class="fdr-jauge">
-            <div class="co-progress co-progress-thin"><i style="width:${pct}%; background:${couleur};"></i></div>
-            <span class="fdr-ratio" style="color:${couleur};">${pretes}/${etats.length} sections prêtes</span>
-          </div>
-          <div class="fdr-sections">${etats.map(([nom, ok])=>
-            `<span class="co-pill ${ok ? 'ok' : 'att'}">${escapeHtml(nom)}</span>`).join('')}</div>
         </div>
         <div class="fdr-actions">
-          <a class="co-btn ghost" style="text-decoration:none; display:inline-block;" href="feuille-de-route.html?id=${encodeURIComponent(f.id)}">Ouvrir →</a>
-          <button type="button" class="co-btn danger sm" data-delete="${f.id}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg> Supprimer</button>
+          <a class="btn-ghost" style="text-decoration:none; display:inline-block;" href="feuille-de-route.html?id=${encodeURIComponent(f.id)}">Ouvrir →</a>
+          <button type="button" class="btn-danger-ghost" data-delete="${f.id}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg> Supprimer</button>
         </div>
       </div>
     `;
@@ -132,6 +109,8 @@ document.getElementById('newFdrBtn').addEventListener('click', async ()=>{
   location.href = 'feuille-de-route.html?id=' + encodeURIComponent(fresh.id);
 });
 
+initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);

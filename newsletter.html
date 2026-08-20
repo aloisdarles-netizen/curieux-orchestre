@@ -8,7 +8,6 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -34,16 +33,7 @@
   }
   .card h2::before{content:''; width:5px; height:16px; border-radius:3px; background:var(--accent); display:inline-block;}
 
-  .nl-groupe{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 18px; margin-bottom:10px;}
-  .nl-groupe-tete{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
-  .nl-groupe-titre{font-weight:800; font-size:13.5px;}
-  .nl-ligne{margin:0 0 3px; font-size:13px; color:var(--text); line-height:1.55;}
-  .nl-ligne.retiree{text-decoration:line-through; color:var(--muted);}
-  .nl-vide{margin:0; font-size:12.5px; color:var(--muted);}
-  .nl-bloc{font-size:11.5px; color:var(--muted);}
-  .nl-inchangees{margin-top:4px;}
-  .nl-inchangees summary{cursor:pointer; font-size:12.5px; font-weight:700; color:var(--muted); padding:8px 4px;}
-  .nl-inchangees .nl-ligne{padding-left:4px; color:var(--muted);}
+  #tableHolder{overflow-x:auto;}
   table.nl-table{width:100%; min-width:520px; border-collapse:collapse;}
   table.nl-table th{font-size:10.5px; text-transform:uppercase; color:var(--muted); text-align:left; padding:6px; border-bottom:1px solid var(--border); white-space:nowrap;}
   table.nl-table td{padding:9px 6px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:top;}
@@ -59,20 +49,23 @@
   .retire-row td{text-decoration:line-through; color:var(--muted);}
 
   .actions-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+  .btn-ghost{background:transparent; color:var(--muted); border:1px solid var(--border);}
   button{
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:10px 16px; transition:background .15s, transform .1s; font-family:inherit;
   }
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="co-page-head co-fade">
-    <div>
-      <h1>Journal des changements</h1>
-      <p class="subtitle">Ce qui a évolué sur les dates (option/validée/annulée) depuis ta dernière visite — usage interne, les titulaires ont déjà leur page personnelle à jour.</p>
-    </div>
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav" data-curieux-nav></nav>
   </div>
+  <h1>Journal des changements</h1>
+  <p class="subtitle">Ce qui a évolué sur les dates (option/validée/annulée) depuis ta dernière visite — usage interne, les titulaires ont déjà leur page personnelle à jour.</p>
 
   <div id="bannerHolder"></div>
 
@@ -80,7 +73,7 @@
     <h2>Dates</h2>
     <div id="tableHolder"><div class="empty-hint">Chargement…</div></div>
     <div class="actions-row">
-      <button type="button" class="co-btn secondary" id="markSentBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"></circle><polyline points="8,12.5 11,15.5 16,9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>Marquer ces changements comme vus</button>
+      <button type="button" class="btn-secondary" id="markSentBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"></circle><polyline points="8,12.5 11,15.5 16,9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>Marquer ces changements comme vus</button>
     </div>
   </div>
 
@@ -202,43 +195,30 @@ function render(){
       if(r.change === 'lieu') return '<span class="change-tag lieu"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M12 21.5S5 14.8 5 9.8a7 7 0 1 1 14 0c0 5-7 11.7-7 11.7z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path><circle cx="12" cy="9.5" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle></svg>Lieu modifié</span>';
       return '';
     };
-    const detail = r=>{
-      const lieu = [r.ville, r.lieu].filter(Boolean).join(' · ');
-      const bits = [fmtDateFR(r.date), r.tourneeNom, lieu].filter(Boolean).join(' — ');
-      let suffixe = '';
-      if(r.change === 'statut') suffixe = ` : ${statutLabel(r.prevStatut)} → ${statutLabel(r.statut)}`;
-      else if(r.change === 'lieu') suffixe = ' : lieu précisé';
-      else if(r.change === 'nouveau') suffixe = ` (${statutLabel(r.statut)})`;
-      return escapeHtml(bits + suffixe) + (r.blocNote ? ` <span class="nl-bloc">${escapeHtml(r.blocNote)}</span>` : '');
-    };
-
-    const groupes = [
-      { titre:'Nouvelles dates', sev:'ok',  lignes: rows.filter(r=> r.change === 'nouveau') },
-      { titre:'Dates modifiées', sev:'att', lignes: rows.filter(r=> r.change === 'statut' || r.change === 'lieu') },
-      { titre:'Dates annulées',  sev:'',    lignes: [
-          ...rows.filter(r=> r.statut === 'annulee' && r.change !== 'nouveau'),
-          ...removed.map(r=> ({...r, change:'retiree'})),
-        ] },
-    ];
-    // Les dates inchangées restent consultables, replidées en fin de page : le
-    // journal parle de ce qui a bougé, pas de l'état complet de la tournée.
-    const inchangees = rows.filter(r=> !r.change && r.statut !== 'annulee');
-
-    tableHolder.innerHTML = groupes.map(g=>`
-      <div class="nl-groupe">
-        <div class="nl-groupe-tete">
-          <span class="nl-groupe-titre">${escapeHtml(g.titre)}</span>
-          <span class="co-pill ${g.lignes.length ? g.sev : ''}">${g.titre === 'Nouvelles dates' && g.lignes.length ? '+' : ''}${g.lignes.length}</span>
-        </div>
-        ${g.lignes.length
-          ? g.lignes.map(r=> `<p class="nl-ligne${r.change === 'retiree' ? ' retiree' : ''}">${detail(r)}</p>`).join('')
-          : `<p class="nl-vide">Rien à signaler.</p>`}
-      </div>
-    `).join('') + (inchangees.length ? `
-      <details class="nl-inchangees">
-        <summary>Dates inchangées (${inchangees.length})</summary>
-        ${inchangees.map(r=> `<p class="nl-ligne">${detail(r)}</p>`).join('')}
-      </details>` : '');
+    const activeRows = rows.map(r=>`
+      <tr>
+        <td style="white-space:nowrap; font-weight:700;">${escapeHtml(fmtDateFR(r.date))}</td>
+        <td><span class="statut-tag ${r.statut}">${statutLabel(r.statut)}</span></td>
+        <td>${escapeHtml(r.tourneeNom || '')}</td>
+        <td>${escapeHtml([r.ville, r.lieu].filter(Boolean).join(' · ') || '—')}</td>
+        <td>${changeTagHtml(r)}${r.blocNote ? `<span class="change-tag lieu"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></line></svg>${escapeHtml(r.blocNote)}</span>` : ''}</td>
+      </tr>
+    `).join('');
+    const removedRows = removed.map(r=>`
+      <tr class="retire-row">
+        <td style="white-space:nowrap; font-weight:700;">${escapeHtml(fmtDateFR(r.date))}</td>
+        <td><span class="statut-tag ${r.statut}">${statutLabel(r.statut)}</span></td>
+        <td>${escapeHtml(r.tourneeNom || '')}</td>
+        <td>${escapeHtml([r.ville, r.lieu].filter(Boolean).join(' · ') || '—')}</td>
+        <td><span class="change-tag statut">✕ Retirée</span></td>
+      </tr>
+    `).join('');
+    tableHolder.innerHTML = `
+      <table class="nl-table">
+        <thead><tr><th>Date</th><th>Statut</th><th>Tournée</th><th>Lieu</th><th></th></tr></thead>
+        <tbody>${activeRows}${removedRows}</tbody>
+      </table>
+    `;
   }
 
   renderRelance(rows, removed, snapshot);
@@ -275,7 +255,7 @@ function renderRelance(rows, removed, snapshot){
       return `
         <div style="display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border);">
           <div style="flex:1; min-width:0; font-size:13px; font-weight:700;">${escapeHtml(fullName(person))}</div>
-          <button type="button" class="co-btn ghost" style="padding:6px 10px; font-size:12px;" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier son lien</button>
+          <button type="button" class="btn-ghost" style="padding:6px 10px; font-size:12px;" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier son lien</button>
         </div>
       `;
     }).join('');
@@ -310,6 +290,8 @@ document.getElementById('markSentBtn').addEventListener('click', ()=>{
 });
 
 injectCurieuxFonts();
+initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 

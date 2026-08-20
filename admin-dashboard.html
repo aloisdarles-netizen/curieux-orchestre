@@ -8,7 +8,6 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -17,19 +16,18 @@
   .nav-icon{width:18px; height:18px; flex-shrink:0; display:block;}
   .subtitle{color:var(--muted); font-size:14px; margin:0 0 28px;}
   h2{
-    font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
-    color:var(--accent); margin:0 0 8px; display:flex; align-items:center; gap:8px;
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--accent-dark); margin:0 0 12px;
   }
-  h2::before{content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); flex-shrink:0;}
 
-  section{margin-bottom:26px;}
+  section{margin-bottom:34px;}
 
   .stats-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px;}
-  .stat-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px;}
-  .stat-card .num{font-size:30px; font-weight:500; line-height:1; font-family:var(--font-display);}
-  .stat-card .label{font-size:11.5px; margin-top:5px; font-weight:700; opacity:.9;}
+  .stat-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px;}
+  .stat-card .num{font-size:26px; font-weight:800; color:var(--accent);}
+  .stat-card .label{font-size:12px; color:var(--muted); margin-top:2px;}
 
-  .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px;}
 
   table{width:100%; border-collapse:collapse; font-size:13.5px;}
   th, td{text-align:left; padding:8px 6px; border-bottom:1px solid var(--border);}
@@ -38,6 +36,11 @@
   .table-scroll{overflow-x:auto;}
 
   button{border:none; border-radius:8px; padding:8px 14px; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit; transition:background .15s, transform .1s;}
+  .btn-primary:disabled{opacity:.55; cursor:default;}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-danger:hover{background:var(--secondary-tint);}
+  .btn-ghost{background:transparent; color:var(--muted); border:1px solid var(--border);}
+  .btn-sm{padding:5px 10px; font-size:12px;}
   input[type=text], input[type=email], input[type=password], select{
     padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;
     width:100%; background:var(--card); color:var(--text); font-family:inherit;
@@ -88,13 +91,13 @@
 </head>
 <body>
 <div class="wrap">
-
-  <div class="co-page-head co-fade">
-    <div>
-      <h1><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:6px;"><path d="M20.2 7a4.5 4.5 0 0 1-5.7 5.7L7 20.2 3.8 17l7.5-7.5A4.5 4.5 0 0 1 17 3.8l-3 3 1.7 1.7 3-3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Administration</h1>
-      <p class="subtitle">Vue d'ensemble, gestion des comptes et historique des modifications.</p>
-    </div>
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav" data-curieux-nav></nav>
   </div>
+
+  <h1><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:6px;"><path d="M20.2 7a4.5 4.5 0 0 1-5.7 5.7L7 20.2 3.8 17l7.5-7.5A4.5 4.5 0 0 1 17 3.8l-3 3 1.7 1.7 3-3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>Administration</h1>
+  <p class="subtitle">Vue d'ensemble, gestion des comptes et historique des modifications.</p>
 
   <section>
     <h2>Mon compte</h2>
@@ -114,7 +117,7 @@
             <input type="password" id="confirmPassword" minlength="6" required autocomplete="new-password">
           </div>
           <div class="field" style="flex:0 0 auto;">
-            <button type="submit" class="co-btn primary" id="changePasswordBtn">Changer le mot de passe</button>
+            <button type="submit" class="btn-primary" id="changePasswordBtn">Changer le mot de passe</button>
           </div>
         </div>
       </form>
@@ -125,7 +128,7 @@
 
   <section>
     <h2>Vue d'ensemble</h2>
-    <div class="stats-grid co-stats-charte" id="statsGrid">
+    <div class="stats-grid" id="statsGrid">
       <div class="stat-card"><div class="num">…</div><div class="label">Musicien·nes</div></div>
       <div class="stat-card"><div class="num">…</div><div class="label">Technicien·nes</div></div>
       <div class="stat-card"><div class="num">…</div><div class="label">Tournées à venir</div></div>
@@ -133,7 +136,7 @@
       <div class="stat-card"><div class="num">…</div><div class="label">Signalements</div></div>
     </div>
     <div style="display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap;">
-      <button type="button" class="co-btn secondary sm" id="exportAllBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter toutes les données</button>
+      <button type="button" class="btn-secondary btn-sm" id="exportAllBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter toutes les données</button>
       <span style="font-size:12px; color:var(--muted);" id="exportAllStatus">Un fichier JSON complet, à garder de côté. Une suppression reste rattrapable via la corbeille ci-dessous, tant que le journal n'a pas été purgé.</span>
     </div>
   </section>
@@ -208,7 +211,7 @@
               </select>
             </div>
             <div class="field" style="flex:0 0 auto;">
-              <button type="submit" class="co-btn primary" id="addAccountBtn">Ajouter</button>
+              <button type="submit" class="btn-primary" id="addAccountBtn">Ajouter</button>
             </div>
           </div>
         </form>
@@ -258,7 +261,7 @@
     <div class="card" id="reinitCard">
       <div id="reinitEtat" style="font-size:13px; margin-bottom:14px;">Chargement…</div>
       <div id="reinitZone" style="display:none;">
-        <button type="button" class="co-btn secondary sm" id="reinitVoirBtn">Voir ce qu'il y a à vider</button>
+        <button type="button" class="btn-secondary btn-sm" id="reinitVoirBtn">Voir ce qu'il y a à vider</button>
         <div id="reinitTableau" style="display:none; margin-top:14px;">
           <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; color:var(--muted); margin-bottom:8px;">
             <input type="checkbox" id="reinitToutCocher"> Tout sélectionner
@@ -268,7 +271,7 @@
             <p style="font-size:12.5px; color:var(--muted); margin:0 0 8px;">Un export complet se télécharge automatiquement avant toute suppression. Pour continuer, tape <strong>SUPPRIMER</strong> ci-dessous.</p>
             <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
               <input type="text" id="reinitConfirmation" placeholder="SUPPRIMER" style="max-width:180px;">
-              <button type="button" class="co-btn danger sm" id="reinitLancerBtn" disabled style="background:var(--danger); color:#fff; opacity:.5;">Exporter puis vider la sélection</button>
+              <button type="button" class="btn-danger btn-sm" id="reinitLancerBtn" disabled style="background:var(--danger); color:#fff; opacity:.5;">Exporter puis vider la sélection</button>
             </div>
           </div>
         </div>
@@ -282,6 +285,8 @@ applyBrandLogo();
 injectCurieuxFonts();
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
+initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 
 let accountsCache = [];
 let logCache = [];
@@ -402,7 +407,7 @@ function renderBugReports(){
           <span>· ${escapeHtml(new Date(b.createdAt).toLocaleString('fr-FR'))}</span>
         </div>
       </div>
-      <button type="button" class="co-btn danger sm" data-dismiss-bug="${escapeAttr(b.id)}">Traité</button>
+      <button type="button" class="btn-danger btn-sm" data-dismiss-bug="${escapeAttr(b.id)}">Traité</button>
     </div>
   `).join('');
   list.querySelectorAll('[data-dismiss-bug]').forEach(btn=>{
@@ -442,7 +447,7 @@ function renderAccounts(){
           ${a.role==='admin' ? 'Déjà inclus (admin)' : 'Accès accordé'}
         </label>
       </td>
-      <td><button type="button" class="co-btn danger sm remove-account-btn" data-email="${escapeHtml(a.email)}">Retirer</button></td>
+      <td><button type="button" class="btn-danger btn-sm remove-account-btn" data-email="${escapeHtml(a.email)}">Retirer</button></td>
     </tr>
   `).join('');
 
@@ -787,7 +792,7 @@ function renderCorbeille(){
         <span>· ${escapeHtml(new Date(e.changed_at).toLocaleString('fr-FR'))}</span>
       </div>
       <div style="margin-top:8px;">
-        <button type="button" class="co-btn secondary sm" data-restaurer="${i}">Rétablir</button>
+        <button type="button" class="btn-secondary btn-sm" data-restaurer="${i}">Rétablir</button>
       </div>
     </div>
   `).join('');
@@ -894,7 +899,7 @@ async function chargerEtatReinit(){
   }
   etat.innerHTML = `
     En phase de test. Une fois l'outil déployé auprès des équipes,
-    <button type="button" class="co-btn ghost sm" id="reinitTerminerBtn" style="text-decoration:underline; padding:2px 4px;">termine la phase de test</button>
+    <button type="button" class="btn-ghost btn-sm" id="reinitTerminerBtn" style="text-decoration:underline; padding:2px 4px;">termine la phase de test</button>
     pour désactiver définitivement cet espace.
   `;
   zone.style.display = 'block';

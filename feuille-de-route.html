@@ -10,7 +10,6 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
-<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -27,50 +26,15 @@
   }
   .fdr-conflict-banner button{background:var(--secondary-dark); color:#fff; padding:7px 14px; font-size:12.5px;}
   .card{
-    background:var(--card); border:1px solid var(--border); border-radius:14px;
-    padding:20px 24px; margin-bottom:14px; box-shadow:0 1px 2px rgba(20,15,10,.03), 0 8px 20px rgba(20,15,10,.03);
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px 22px; margin-bottom:18px; box-shadow:0 1px 2px rgba(20,15,10,.03), 0 8px 20px rgba(20,15,10,.03);
     transition:box-shadow .15s;
-  }
-
-  /* Encarts de la feuille de route à la composition de la maquette : un
-     pictogramme incliné de 48 px aux couleurs de la charte tient la gauche, le
-     titre passe en Ufficio capitales, et chaque info se pose sur un fond blanc
-     cassé arrondi plutôt que de s'aligner à nu.
-
-     Le pictogramme est posé en position absolue plutôt qu'en enfant de flex :
-     ça évite d'aller réenvelopper le contenu des sept sections, et le résultat
-     est le même à l'écran. */
-  .card.fdr-section{position:relative; padding-left:84px;}
-  .card.fdr-section::before{
-    content:attr(data-icone);
-    position:absolute; left:22px; top:20px;
-    width:48px; height:48px; border-radius:13px;
-    display:grid; place-items:center; font-size:23px; line-height:1;
-    background:var(--sec-fond); color:var(--sec-encre);
-    transform:rotate(var(--sec-tilt)); box-shadow:0 2px 6px rgba(20,22,23,.12);
-  }
-  .card.fdr-section > .card-head > h2,
-  .card.fdr-section > h2{
-    font-family:var(--font-display); font-weight:500; font-size:17px;
-    text-transform:uppercase; letter-spacing:.04em; color:var(--accent);
-  }
-  /* Chaque champ devient une ligne posée sur un fond doux. Les filets fins
-     avaient été jugés « moches » : on garde la séparation, sans le trait. */
-  .card.fdr-section .field{
-    background:var(--bg); border-radius:9px; padding:9px 12px; margin-bottom:6px;
-  }
-  .card.fdr-section .field-row{gap:6px;}
-  .card.fdr-section .field-row .field{margin-bottom:0;}
-  .card.fdr-section .card-sub{margin-bottom:10px;}
-  @media (max-width:640px){
-    .card.fdr-section{padding-left:24px;}
-    .card.fdr-section::before{position:static; margin-bottom:12px;}
   }
   .card h2{
     font-size:15.5px; margin:0; display:flex; align-items:center; gap:9px;
     text-transform:uppercase; letter-spacing:.04em; color:var(--accent-dark);
   }
-  .card h2::before{content:''; width:5px; height:15px; border-radius:3px; background:var(--tonic); display:inline-block; flex-shrink:0;}
+  .card h2::before{content:''; width:5px; height:16px; border-radius:3px; background:var(--accent); display:inline-block;}
   .card h3{font-size:14px; margin:0 0 10px; color:var(--text);}
   .card .card-sub{color:var(--muted); font-size:12.5px; margin:-8px 0 14px;}
   .card-head{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;}
@@ -93,9 +57,14 @@
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s, box-shadow .15s; font-family:inherit;
   }
-  /* Les quatre variantes de bouton définies ici sont parties : le markup emploie
-     .co-btn de base.css, elles ne s'appliquaient plus à rien. .btn-import reste,
-     c'est une variante propre à cet écran que la charte ne couvre pas. */
+  .btn-primary{background:var(--accent-solid); color:#fff; box-shadow:0 2px 8px rgba(121,22,73,.25);}
+  .btn-primary:hover{background:var(--accent-dark); box-shadow:0 4px 12px rgba(121,22,73,.32);}
+  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
+  .btn-secondary:hover{background:#a8c9e6;}
+  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
+  .btn-danger:hover{background:var(--secondary-tint);}
+  .btn-ghost{background:transparent; color:var(--accent); padding:4px 8px;}
+  .btn-ghost:hover{text-decoration:underline;}
   .btn-import{background:#0a2540; color:#fff;}
   .btn-import:hover{background:#08182b;}
   .small-del{background:transparent; color:var(--danger); font-size:16px; padding:2px 6px; line-height:1;}
@@ -160,19 +129,19 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="co-page-head co-fade">
-    <div>
-      <h1>Feuille de route</h1>
-      <p class="subtitle">Prépare la feuille de route complète d'une date (contacts, trajets confirmés, planning, lieu, hôtel), puis génère le PDF.</p>
-    </div>
+  <div class="brand-header">
+    <a href="accueil.html"><img class="brand-logo-img" alt="Curieux orchestre"></a>
+    <nav class="page-nav" data-curieux-nav></nav>
   </div>
+  <h1>Feuille de route</h1>
+  <p class="subtitle">Prépare la feuille de route complète d'une date (contacts, trajets confirmés, planning, lieu, hôtel), puis génère le PDF.</p>
   <div id="fdrSaveStatus" class="fdr-save-status">Chargement…</div>
   <div id="fdrConflictBanner" class="fdr-conflict-banner" style="display:none;">
     <svg width="16" height="16" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:5px;"><path d="M12 3.5 22 20.5H2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><line x1="12" y1="9.5" x2="12" y2="14.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><circle cx="12" cy="17.2" r="1" fill="currentColor"></circle></svg>Cette feuille de route a été modifiée par quelqu'un d'autre pendant que tu l'éditais. Tes derniers changements n'ont <strong>pas</strong> été enregistrés pour éviter d'écraser les siens.
     <button type="button" id="fdrReloadBtn">Recharger la page</button>
   </div>
 
-  <div class="card fdr-section" data-icone="✦" style="--sec-fond:#141617; --sec-encre:#FCF2F0; --sec-tilt:-5deg;">
+  <div class="card">
     <h2>Informations générales</h2>
     <div class="field-row">
       <div class="field">
@@ -203,7 +172,7 @@
     </div>
   </div>
 
-  <div class="card fdr-section" data-icone="☎" style="--sec-fond:#CEE1F4; --sec-encre:#791649; --sec-tilt:4deg;">
+  <div class="card">
     <div class="card-head">
       <h2>Contacts production</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="contacts" checked> Inclure cette section</label>
@@ -226,13 +195,13 @@
       </table>
     </div>
     <div class="actions-row">
-      <button class="co-btn ghost" id="addContactBtn">+ Ajouter un contact</button>
-      <button class="co-btn ghost" id="fromCarnetBtn"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><rect x="2.5" y="5" width="19" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><circle cx="9" cy="11.4" r="2.1" fill="none" stroke="currentColor" stroke-width="1.4"></circle><path d="M6 16.2c0-1.6 1.3-2.6 3-2.6s3 1 3 2.6" fill="none" stroke="currentColor" stroke-width="1.4"></path><line x1="14.5" y1="10" x2="18.5" y2="10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line><line x1="14.5" y1="13" x2="18.5" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg>Depuis le carnet</button>
+      <button class="btn-ghost" id="addContactBtn">+ Ajouter un contact</button>
+      <button class="btn-ghost" id="fromCarnetBtn"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><rect x="2.5" y="5" width="19" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><circle cx="9" cy="11.4" r="2.1" fill="none" stroke="currentColor" stroke-width="1.4"></circle><path d="M6 16.2c0-1.6 1.3-2.6 3-2.6s3 1 3 2.6" fill="none" stroke="currentColor" stroke-width="1.4"></path><line x1="14.5" y1="10" x2="18.5" y2="10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line><line x1="14.5" y1="13" x2="18.5" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg>Depuis le carnet</button>
     </div>
     </div>
   </div>
 
-  <div class="card fdr-section" data-icone="⇄" style="--sec-fond:#FEC9E0; --sec-encre:#791649; --sec-tilt:-5deg;">
+  <div class="card">
     <div class="card-head">
       <h2>Voyage</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="voyage" checked> Inclure cette section</label>
@@ -257,13 +226,13 @@
       </table>
     </div>
     <div class="actions-row">
-      <button class="co-btn ghost" id="addTrajetBtn">+ Ajouter un trajet</button>
+      <button class="btn-ghost" id="addTrajetBtn">+ Ajouter un trajet</button>
       <button class="btn-import" id="importTrainInfoBtn"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><rect x="5" y="3.5" width="14" height="12" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="5" y1="9.3" x2="19" y2="9.3" stroke="currentColor" stroke-width="1.4"></line><circle cx="8.5" cy="12.4" r="1" fill="currentColor"></circle><circle cx="15.5" cy="12.4" r="1" fill="currentColor"></circle><line x1="8" y1="16" x2="6" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></line><line x1="16" y1="16" x2="18" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></line></svg>Récupérer le train (SNCF Connect)</button>
     </div>
     </div>
   </div>
 
-  <div class="card fdr-section" data-icone="◷" style="--sec-fond:#791649; --sec-encre:#FCF2F0; --sec-tilt:4deg;">
+  <div class="card">
     <div class="card-head">
       <h2>Planning du jour</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="planning" checked> Inclure cette section</label>
@@ -285,12 +254,12 @@
       </table>
     </div>
     <div class="actions-row">
-      <button class="co-btn ghost" id="addPlanningBtn">+ Ajouter une ligne</button>
+      <button class="btn-ghost" id="addPlanningBtn">+ Ajouter une ligne</button>
     </div>
     </div>
   </div>
 
-  <div class="card fdr-section" data-icone="⌖" style="--sec-fond:#EC4B15; --sec-encre:#FCF2F0; --sec-tilt:-5deg;">
+  <div class="card">
     <div class="card-head">
       <h2>Lieu</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="lieu" checked> Inclure cette section</label>
@@ -307,7 +276,7 @@
     </div>
   </div>
 
-  <div class="card fdr-section" data-icone="☾" style="--sec-fond:#CEE1F4; --sec-encre:#791649; --sec-tilt:4deg;">
+  <div class="card">
     <div class="card-head">
       <h2>Hôtel</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="hotel" checked> Inclure cette section</label>
@@ -350,7 +319,7 @@
     </div>
   </div>
 
-  <div class="card fdr-section" data-icone="★" style="--sec-fond:#791649; --sec-encre:#FCF2F0; --sec-tilt:-5deg;">
+  <div class="card">
     <div class="card-head">
       <h2>Bonus / Notes</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="bonus" checked> Inclure cette section</label>
@@ -374,7 +343,7 @@
       </table>
     </div>
     <div class="actions-row" style="margin-bottom:14px;">
-      <button class="co-btn ghost" id="addTicketLinkBtn">+ Ajouter un lien</button>
+      <button class="btn-ghost" id="addTicketLinkBtn">+ Ajouter un lien</button>
     </div>
 
     <label class="highlight-toggle" style="justify-content:flex-start; font-size:14px;">
@@ -384,10 +353,10 @@
   </div>
 
   <div class="toolbar">
-    <button class="co-btn primary" id="generateFdrBtn">Générer le PDF</button>
-    <button class="co-btn ghost" id="newFdrBtn">+ Nouvelle feuille de route</button>
-    <button class="co-btn ghost" id="resetFdrBtn">Réinitialiser le formulaire</button>
-    <button class="co-btn danger" id="deleteFdrBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg> Supprimer cette feuille de route</button>
+    <button class="btn-primary" id="generateFdrBtn">Générer le PDF</button>
+    <button class="btn-ghost" id="newFdrBtn">+ Nouvelle feuille de route</button>
+    <button class="btn-ghost" id="resetFdrBtn">Réinitialiser le formulaire</button>
+    <button class="btn-danger" id="deleteFdrBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg> Supprimer cette feuille de route</button>
   </div>
 </div>
 
@@ -397,7 +366,7 @@
     <p class="modal-sub">Réutilise un contact déjà renseigné sur une autre feuille de route.</p>
     <div id="carnetModalBody"></div>
     <div class="modal-actions">
-      <button class="co-btn secondary" id="carnetModalCloseBtn">Fermer</button>
+      <button class="btn-secondary" id="carnetModalCloseBtn">Fermer</button>
     </div>
   </div>
 </div>
@@ -415,12 +384,12 @@
     </div>
     <textarea id="trainTextarea" style="width:100%; min-height:120px; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:13px; font-family:inherit; resize:vertical;" placeholder="Colle ici le texte copié depuis SNCF Connect..."></textarea>
     <div class="modal-actions">
-      <button class="co-btn secondary" id="trainCloseBtn">Annuler</button>
+      <button class="btn-secondary" id="trainCloseBtn">Annuler</button>
       <button class="btn-import" id="trainParseBtn">Analyser le texte</button>
     </div>
     <div id="trainResults" style="margin-top:14px;"></div>
     <div class="modal-actions" id="trainApplyRow" style="display:none;">
-      <button class="co-btn primary" id="trainApplyBtn">Utiliser ce train</button>
+      <button class="btn-primary" id="trainApplyBtn">Utiliser ce train</button>
     </div>
   </div>
 </div>
@@ -847,7 +816,7 @@ function renderTrajets(){
       <td><input type="text" data-f="label" placeholder="Aller" value="${escapeAttr(t.label)}"></td>
       <td>
         ${passengerInputs('nom', 'Nom voyageur')}
-        <button type="button" class="co-btn ghost" data-action="add-passenger" style="padding:2px 4px; font-size:12px;">+ voyageur</button>
+        <button type="button" class="btn-ghost" data-action="add-passenger" style="padding:2px 4px; font-size:12px;">+ voyageur</button>
       </td>
       <td>
         <select data-f="mode" style="margin-bottom:4px; width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px; background:var(--card); color:var(--text);">
@@ -1471,6 +1440,8 @@ function generateFdrPDF(){
 document.getElementById('generateFdrBtn').addEventListener('click', generateFdrPDF);
 
 injectCurieuxFonts();
+initNavDropdowns();
+initGlobalSearch(document.querySelector('.page-nav'));
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
