@@ -200,7 +200,13 @@ const CurieuxDB = new Proxy({
   currentRole: async () => 'admin',
   mesDemandesDispo: async () => null,
   getFicheTechniqueByToken: async () => null,
-  getRecapLogistique: async () => __seed.__recap || null,
+  // Le jeton choisit le gabarit : les trois (stage manager, technicien,
+  // salle) partagent la même page et n'en montrent pas les mêmes blocs.
+  getRecapLogistique: async (jeton) => {
+    if(!__seed.__recap) return null;
+    const types = { salle:'salle', technicien:'technicien' };
+    return { ...__seed.__recap, type: types[jeton] || 'stage_manager' };
+  },
 }, {
   // Toute méthode non prévue renvoie une liste vide plutôt que de lever : les
   // pages en appellent une bonne trentaine, les énumérer serait autant
