@@ -3202,7 +3202,12 @@ update moyens_salle
            from jsonb_array_elements(emplacements_dechargement) e)
  where jsonb_typeof(emplacements_dechargement) = 'array'
    and jsonb_array_length(emplacements_dechargement) > 0
-   and not (emplacements_dechargement -> 0 ? 'niveau');
+   -- Parenthèses explicites autour du -> : sans elles, la lecture de la ligne
+   -- dépend de la précédence entre deux opérateurs jsonb, et le sens n'est pas
+   -- évident à relire. Et on ne concatène qu'à des objets : sur un scalaire,
+   -- « || » ferait une fusion de tableaux, donc une donnée fausse en silence.
+   and jsonb_typeof(emplacements_dechargement -> 0) = 'object'
+   and not ((emplacements_dechargement -> 0) ? 'niveau');
 
 -- ============================================================================
 -- Adresse du destinataire d'un accès de partage.
