@@ -45,6 +45,29 @@ Chaque page rapporte trois choses : un débordement horizontal s'il y en a un,
 avec les éléments fautifs ; les erreurs JavaScript survenues au chargement ; et
 l'image elle-même.
 
+## Relire les PDF
+
+Les exports sont produits dans le navigateur par jsPDF : le seul moyen de
+savoir ce qu'ils donnent est de les faire produire pour de vrai, puis de les
+regarder. Deux outils s'en chargent.
+
+```sh
+pip install pymupdf
+node outils/capture-pdf.cjs "technique-partage?jeton=demo" "[data-pdf]" '[data-aller="r1"]'
+python3 outils/pdf-en-images.py /tmp/captures/technique-partage.pdf
+```
+
+`capture-pdf.cjs` ouvre la page avec le même faux `CurieuxDB` que `capture.cjs`
+— importé, non recopié : deux copies auraient divergé au premier champ ajouté —
+clique le bouton d'export et récupère le fichier téléchargé. Ses arguments : la
+page, le sélecteur du bouton d'export, et un sélecteur à cliquer avant, pour
+atteindre la date voulue. `pdf-en-images.py` rend ensuite chaque page en PNG.
+
+Le jeu de démo contient volontairement une journée surchargée — six semis, dix
+repères horaires, cinq vacations, une note d'accès longue. C'est elle qui met à
+l'épreuve la promesse de `assets/pdf-charte.js` : un export tient sur une seule
+feuille A4. Le nombre de pages annoncé par `pdf-en-images.py` le vérifie.
+
 ## Comment il contourne l'authentification
 
 Les pages appellent `CurieuxDB`, déclaré `const` dans `assets/db.js` — une

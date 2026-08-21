@@ -9,6 +9,7 @@
 <script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
+<script src="assets/pdf-charte.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
@@ -140,7 +141,7 @@ const T = {
     apercu:"Aperçu — c'est la page que la salle reçoit par son lien de partage. Les réponses sont désactivées ici : c'est la salle qui confirme, depuis son propre lien.",
     acces:'Accès', faits:'Techniques', horaires:'Horaires de la journée (heure locale)',
     vacs:'Moyens demandés — à confirmer', contacts:'Vos contacts côté production',
-    semis:'Semis en simultané', dech:'Déchargement', plan:'Plan de scène', ouvrir:'Ouvrir ↗',
+    semis:'Semis en simultané', dech:'Déchargement', plan:'Plan de scène', ouvrir:'Ouvrir ↗', docs:'Documents',
     grill:'Hauteur de grill', ouv:'Ouverture de scène', puis:'Puissance',
     vac:'Vacation', dem:'Demandé', valide:'Validé', conf:'Confirmer',
     possible:'Nombre possible', just:'Justification si différent', env:'Envoyer',
@@ -155,7 +156,7 @@ const T = {
     apercu:"Preview — this is the page the venue receives through its share link. Replies are disabled here: the venue confirms from its own link.",
     acces:'Access', faits:'Technical facts', horaires:'Day schedule (local time)',
     vacs:'Requested resources — to confirm', contacts:'Your production contacts',
-    semis:'Trucks at once', dech:'Unloading', plan:'Stage plan', ouvrir:'Open ↗',
+    semis:'Trucks at once', dech:'Unloading', plan:'Stage plan', ouvrir:'Open ↗', docs:'Documents',
     grill:'Grid height', ouv:'Stage opening', puis:'Power available',
     vac:'Shift', dem:'Requested', valide:'Confirmed', conf:'Confirm',
     possible:'Number available', just:'Note if different', env:'Send',
@@ -170,7 +171,7 @@ const T = {
     apercu:'Vorschau — diese Seite erhält die Spielstätte über ihren Freigabelink. Antworten sind hier deaktiviert: die Spielstätte bestätigt über ihren eigenen Link.',
     acces:'Zugang', faits:'Technische Daten', horaires:'Tagesablauf (Ortszeit)',
     vacs:'Angefragte Mittel — bitte bestätigen', contacts:'Ihre Ansprechpartner der Produktion',
-    semis:'Sattelzüge gleichzeitig', dech:'Entladung', plan:'Bühnenplan', ouvrir:'Öffnen ↗',
+    semis:'Sattelzüge gleichzeitig', dech:'Entladung', plan:'Bühnenplan', ouvrir:'Öffnen ↗', docs:'Unterlagen',
     grill:'Traversenhöhe', ouv:'Bühnenöffnung', puis:'Verfügbare Leistung',
     vac:'Schicht', dem:'Angefragt', valide:'Bestätigt', conf:'Bestätigen',
     possible:'Mögliche Anzahl', just:'Anmerkung falls abweichend', env:'Senden',
@@ -185,7 +186,7 @@ const T = {
     apercu:'Vista previa — esta es la página que la sala recibe con su enlace. Las respuestas están desactivadas aquí: es la sala quien confirma, desde su propio enlace.',
     acces:'Acceso', faits:'Datos técnicos', horaires:'Horario del día (hora local)',
     vacs:'Medios solicitados — a confirmar', contacts:'Sus contactos de producción',
-    semis:'Tráileres simultáneos', dech:'Descarga', plan:'Plano de escena', ouvrir:'Abrir ↗',
+    semis:'Tráileres simultáneos', dech:'Descarga', plan:'Plano de escena', ouvrir:'Abrir ↗', docs:'Documentos',
     grill:'Altura de parrilla', ouv:'Boca de escena', puis:'Potencia disponible',
     vac:'Turno', dem:'Solicitado', valide:'Confirmado', conf:'Confirmar',
     possible:'Número posible', just:'Justificación si difiere', env:'Enviar',
@@ -200,7 +201,7 @@ const T = {
     apercu:'Voorbeeld — dit is de pagina die de zaal via haar deellink ontvangt. Antwoorden zijn hier uitgeschakeld: de zaal bevestigt via haar eigen link.',
     acces:'Toegang', faits:'Technische gegevens', horaires:'Dagschema (lokale tijd)',
     vacs:'Gevraagde middelen — te bevestigen', contacts:'Uw contactpersonen bij de productie',
-    semis:'Trucks tegelijk', dech:'Lossen', plan:'Podiumplan', ouvrir:'Openen ↗',
+    semis:'Trucks tegelijk', dech:'Lossen', plan:'Podiumplan', ouvrir:'Openen ↗', docs:'Documenten',
     grill:'Rijghoogte', ouv:'Podiumopening', puis:'Beschikbaar vermogen',
     vac:'Shift', dem:'Aangevraagd', valide:'Bevestigd', conf:'Bevestigen',
     possible:'Mogelijk aantal', just:'Toelichting indien anders', env:'Versturen',
@@ -460,61 +461,80 @@ function render(){
 // --- Export PDF -----------------------------------------------------------
 // Le PDF reprend la page dans la langue choisie : c'est ce document que la
 // production envoie quand la salle préfère une pièce jointe à un lien.
+// Une feuille par date : c'est ainsi qu'une salle lit le document — elle ne se
+// soucie que de sa journée — et c'est ce qui permet de tenir la promesse d'une
+// page tenue d'un seul regard, quel que soit le nombre de dates de la tournée.
 function exporterPdf(){
   const L = tr();
   const t = tourneeCourante();
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
   registerHostFont(doc);
-  const largeur = doc.internal.pageSize.getWidth();
-  drawCurieuxPdfHeader(doc, largeur, L.titre, 22);
-  let y = 30;
 
-  doc.setFont('Host', 'bold'); doc.setFontSize(12);
-  doc.text((t && t.nom) || '', 12, y); y += 7;
+  const dates = datesAEnvoyer().filter(d=> moyensDe(d.id));
+  if(!dates.length){ alert(L.aucuneDate); return; }
 
-  datesAEnvoyer().forEach(d=>{
+  dates.forEach((d, index)=>{
+    if(index > 0) doc.addPage();
     const m = moyensDe(d.id);
-    if(!m) return;
-    if(y > 250){ doc.addPage(); y = 20; }
+    const page = creerComposeurPdf(doc).entete({
+      titre: [d.ville, d.lieu].filter(Boolean).join(' — ') || L.titre,
+      sousTitre: [(t && t.nom) || '', jourLong(d.date)].filter(Boolean).join(' · '),
+      mention: L.qui,
+    });
 
-    doc.setFont('Host', 'bold'); doc.setFontSize(11);
-    doc.setTextColor(121, 22, 73);
-    doc.text([d.ville, d.lieu].filter(Boolean).join(' — ') + '  ·  ' + jourLong(d.date), 12, y);
-    doc.setTextColor(20, 22, 23);
-    y += 5;
+    const champ = (cle, val)=> (val === null || val === undefined || val === '') ? null : [cle, String(val)];
 
-    const lignes = [
-      [L.semis, m.nombreSemisSimultanees != null ? String(m.nombreSemisSimultanees) : '—'],
-      ...(m.emplacementsDechargement || []).map((e, i)=> [`${L.semi} ${i+1}`, texteSemi(e, L) || '—']),
-      [L.grill, m.hauteurGrill || '—'],
-      [L.ouv, m.ouvertureScene || '—'],
-      [L.puis, m.puissance || '—'],
-    ];
-    (m.horairesJournee || []).filter(h=> h.heure || h.label)
-      .forEach(h=> lignes.push([L.horaires, `${h.heure || '—'} — ${h.label || ''}`]));
+    page.grille([
+      { titre: L.acces, lignes: [
+        champ(L.semis, m.nombreSemisSimultanees != null ? m.nombreSemisSimultanees : null),
+        ...(m.emplacementsDechargement || []).map((e, i)=> champ(`${L.semi} ${i + 1}`, texteSemi(e, L))),
+      ].filter(Boolean) },
+      { titre: L.faits, lignes: [
+        champ(L.grill, m.hauteurGrill),
+        champ(L.ouv, m.ouvertureScene),
+        champ(L.puis, m.puissance),
+      ].filter(Boolean) },
+      { titre: L.docs, lignes: [m.planUrl
+        ? [L.plan, { texte: pdfUrlCourte(m.planUrl, 26), lien: m.planUrl }] : null].filter(Boolean) },
+      { titre: L.contacts, lignes: techniciensCache
+        .filter(p=> (m.contactsTechniciensIds || []).includes(p.id))
+        .map(p=> champ(p.poste || '—', [fullName(p), p.telephone].filter(Boolean).join(' · ')))
+        .filter(Boolean) },
+    ]);
 
-    const vac = (v, i, type)=>{
-      const creneau = [v.horaireDebut, v.horaireFin].filter(Boolean).join(' – ') || '—';
+    page.pastilles(L.horaires, (m.horairesJournee || [])
+      .filter(h=> h.heure || h.label)
+      .map(h=> [h.heure || '—', h.label].filter(Boolean).join(' — ')));
+
+    // Les moyens demandés, en cartes comme à l'écran : c'est là-dessus que la
+    // salle doit répondre, autant que ce soit la partie la plus lisible.
+    const carte = (v, type)=>{
       const nb = type === 'chariots' ? v.nombreChariotsDemande : v.nombreDemande;
       const poste = type === 'roadies' ? L.roadies : type === 'chariots' ? L.chariots : L.rigg;
-      lignes.push([`${L.vac} ${i + 1} · ${creneau}`,
-        `${v.confirme ? L.valide : L.dem} ${nb != null ? nb : '—'} ${poste}`]);
-      if(type === 'chariots' && v.nombreCaristesDemande){
-        lignes.push(['', `${v.confirme ? L.valide : L.dem} ${v.nombreCaristesDemande} ${L.caristes}`]);
+      const details = [];
+      if(type === 'chariots' && v.nombreCaristesDemande != null){
+        details.push(`${L.dem} ${v.nombreCaristesDemande} ${L.caristes}`);
       }
+      if(type === 'rigg'){
+        if(v.nombreSol) details.push(`${v.nombreSol} × ${L.sol}`);
+        if(v.nombreGrill) details.push(`${v.nombreGrill} × ${L.grillPos}`);
+      }
+      if(v.notes) details.push(v.notes);
+      return {
+        titre: [v.horaireDebut, v.horaireFin].filter(Boolean).join(' – ') || '—',
+        etat: v.confirme ? L.valide : '',
+        sous: [`${L.dem} ${nb != null ? nb : '—'} ${poste}`, ...details].join(' — '),
+        puces: [],
+      };
     };
-    (m.roadiesVacations || []).forEach((v, i)=> vac(v, i, 'roadies'));
-    (m.chariotsVacations || []).forEach((v, i)=> vac(v, i, 'chariots'));
-    (m.riggVacations || []).forEach((v, i)=> vac(v, i, 'rigg'));
+    page.cartes(L.vacs, [
+      ...(m.roadiesVacations || []).map(v=> carte(v, 'roadies')),
+      ...(m.chariotsVacations || []).map(v=> carte(v, 'chariots')),
+      ...(m.riggVacations || []).map(v=> carte(v, 'rigg')),
+    ]);
 
-    doc.autoTable({
-      startY: y, body: lignes, theme:'plain',
-      styles:{ font:'Host', fontSize:9, cellPadding:1.6 },
-      columnStyles:{ 0:{ cellWidth:58, textColor:[122, 102, 118] }, 1:{ fontStyle:'bold' } },
-      margin:{ left:12, right:12 },
-    });
-    y = doc.lastAutoTable.finalY + 8;
+    page.rendre(null);
   });
 
   doc.save(`page-salle-${LANG}-${(t && t.nom ? t.nom : 'tournee').replace(/[^\w-]+/g, '-').toLowerCase()}.pdf`);

@@ -9,6 +9,7 @@
 <script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
+<script src="assets/pdf-charte.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/nav.js"></script>
 <!-- Page volontairement PUBLIQUE : pas de compte requis, identification par le
@@ -751,6 +752,32 @@ function chauffeurDuJour(vehiculeId, dateId){
   const chauffeurId = exception ? exception.chauffeur_id : (vehicule && vehicule.chauffeur_defaut_id);
   return RECAP.chauffeurs.find(c=>c.id===chauffeurId) || null;
 }
+// Couleur de pastille selon le sens du mouvement — le même code qu'à l'écran.
+const MVT_COULEUR = {
+  sortie: { fond: PDF_CHARTE.orange, encre: PDF_CHARTE.pruneEncre },
+  entree: { fond: PDF_CHARTE.bleu,   encre: PDF_CHARTE.bleuEncre },
+  retour: { fond: PDF_CHARTE.prune,  encre: PDF_CHARTE.pruneEncre },
+};
+
+// Une vacation, mise en carte comme à l'écran : le créneau, la demande, et les
+// équipes en pastilles de leur couleur.
+function carteVacation(v, libelleDemande, complement){
+  const registre = (RECAP.tournee && RECAP.tournee.equipesRoad) || [];
+  return {
+    titre: `${v.horaireDebut || '?'} – ${v.horaireFin || '?'}`,
+    etat: v.confirme ? t('confirmee') : '',
+    sous: [libelleDemande, complement, v.notes].filter(Boolean).join(' — '),
+    puces: (v.equipes || []).filter(e=> e.nombre > 0).map(e=>{
+      const def = registre.find(r=> r.id === e.equipeId);
+      return { texte: `${(def && def.label) || 'Équipe'} · ${e.nombre}`,
+               fond: PDF_CHARTE.bleu, encre: PDF_CHARTE.bleuEncre };
+    }),
+  };
+}
+
+// L'export d'une journée : la même composition qu'à l'écran, sur une feuille.
+// C'est le document qu'on tend au responsable des chauffeurs ou qu'on punaise
+// en régie — d'où la contrainte de la page unique, tenue par le composeur.
 function exporterJourneePdf(dateId){
   if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
   const d = RECAP.tournee.dates.find(x=>x.id===dateId);
@@ -758,54 +785,74 @@ function exporterJourneePdf(dateId){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
   registerHostFont(doc);
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const titre = `${d.ville || d.lieu || 'Date'}${d.date ? ' — ' + new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR') : ''}`;
-  drawCurieuxPdfHeader(doc, pageWidth, titre.toUpperCase());
-  let y = 30;
 
-  const horaires = (m.horaires_journee||[]).slice().sort((a,b)=>(a.heure||'').localeCompare(b.heure||''));
-  if(horaires.length){
-    doc.setFont('Host','bold'); doc.setFontSize(11); doc.setTextColor(20,22,23);
-    doc.text('Horaires de la journée', 12, y); y += 6;
-    doc.autoTable({
-      startY: y, margin:{ left:12, right:12 },
-      head: [['Heure','Repère']],
-      body: horaires.map(h=>[h.heure||'—', h.label||'']),
-      styles:{ font:'Host', fontSize:9.5 }, headStyles:{ fillColor:[121,22,73], textColor:255 },
-    });
-    y = doc.lastAutoTable.finalY + 10;
-  }
+  const lieu = [d.ville, d.lieu].filter(Boolean).join(' — ') || 'Date';
+  const page = creerComposeurPdf(doc).entete({
+    titre: lieu,
+    sousTitre: [RECAP.tournee.nom, jourLong(d.date)].filter(Boolean).join(' · '),
+    mention: RECAP.libelle || '',
+  });
 
-  const vehiculesDuJour = (RECAP.vehicules||[]).map(v=>({ v, chauffeur: chauffeurDuJour(v.id, dateId) }));
-  if(vehiculesDuJour.length){
-    doc.setFont('Host','bold'); doc.setFontSize(11);
-    doc.text('Véhicules & chauffeurs', 12, y); y += 6;
-    doc.autoTable({
-      startY: y, margin:{ left:12, right:12 },
-      head: [['Véhicule','Chauffeur','Téléphone']],
-      body: vehiculesDuJour.map(x=>[x.v.nom||'Sans nom', x.chauffeur ? [x.chauffeur.prenom,x.chauffeur.nom].filter(Boolean).join(' ') : '—', x.chauffeur ? (x.chauffeur.telephone||'—') : '—']),
-      styles:{ font:'Host', fontSize:9.5 }, headStyles:{ fillColor:[121,22,73], textColor:255 },
-    });
-    y = doc.lastAutoTable.finalY + 10;
-  }
+  const champ = (cle, val)=> (val === null || val === undefined || val === '') ? null : [cle, String(val)];
+  const bloc = (titre, lignes)=> ({ titre, lignes: lignes.filter(Boolean) });
 
-  // Même source que le bloc affiché à l'écran (retour prestataire compris),
-  // pour que l'export dise exactement ce que la page dit.
-  const mouvements = mouvementsDuJour(d.date);
-  if(mouvements.length){
-    if(y > 250){ doc.addPage(); y = 20; }
-    doc.setFont('Host','bold'); doc.setFontSize(11);
-    doc.text('Matériel — mouvements du jour', 12, y); y += 6;
-    doc.autoTable({
-      startY: y, margin:{ left:12, right:12 },
-      head: [['Lot','Type','Heure','Description']],
-      body: mouvements.map(e=>[e.lot, t(MVT_SENS[e.sens][1]), e.heure||'—', e.quoi||'']),
-      styles:{ font:'Host', fontSize:9.5 }, headStyles:{ fillColor:[121,22,73], textColor:255 },
-    });
-  }
+  const bureau = (surPlace, nom, tel, horaire)=> surPlace === false
+    ? [champ(t('champ_sur_place'), t('non'))]
+    : [champ(t('champ_nom'), nom), champ(t('champ_tel'), tel), champ(t('champ_horaire'), horaire)];
+
+  page.grille([
+    bloc(t('bloc_acces'), [
+      champ(t('champ_semis_simultanes'), m.nombre_semis_simultanees),
+      ...(m.emplacements_dechargement || []).map((e, i)=> champ(`${t('champ_semi')} ${i + 1}`, [
+        t(EMPLACEMENT_LABEL[e.emplacement]) || e.emplacement,
+        e.niveau && e.niveau !== 'inconnu' ? t(NIVEAU_LABEL[e.niveau]) : '',
+      ].filter(Boolean).join(' · '))),
+    ]),
+    bloc(t('bloc_faits_techniques'), [
+      champ(t('champ_hauteur_grill'), m.hauteur_grill),
+      champ(t('champ_ouverture_scene'), m.ouverture_scene),
+      champ(t('champ_puissance'), m.puissance),
+    ]),
+    bloc(t('bloc_bureau_elec'), bureau(m.bureau_electrique_sur_place, m.bureau_electrique_nom, m.bureau_electrique_tel, m.bureau_electrique_horaire)),
+    bloc(t('bloc_bureau_accroche'), bureau(m.bureau_accroche_sur_place, m.bureau_accroche_nom, m.bureau_accroche_tel, m.bureau_accroche_horaire)),
+    bloc(t('bloc_contacts_salle'), (m.contacts_salle || []).map(c=>
+      champ(c.role || t('champ_contact'), [c.nom, c.tel].filter(Boolean).join(' · ')))),
+    bloc('Véhicules & chauffeurs', (RECAP.vehicules || []).map(v=>{
+      const c = chauffeurDuJour(v.id, dateId);
+      return champ(v.nom || 'Sans nom', c ? [[c.prenom, c.nom].filter(Boolean).join(' '), c.telephone].filter(Boolean).join(' · ') : '—');
+    })),
+  ]);
+
+  page.pastilles(t('bloc_horaires'),
+    (m.horaires_journee || []).slice()
+      .sort((a, b)=> (a.heure || '').localeCompare(b.heure || ''))
+      .map(h=> [h.heure || '—', h.label].filter(Boolean).join(' — ')));
+
+  // Même source que le bloc affiché à l'écran, retour prestataire compris :
+  // l'export dit exactement ce que la page dit.
+  page.cartes(t('bloc_mouvements'), mouvementsDuJour(d.date).map(e=>{
+    const couleur = MVT_COULEUR[e.sens] || MVT_COULEUR.sortie;
+    return {
+      // Sans heure, pas de tiret cabalistique : le nom du lot suffit.
+      titre: [e.heure, e.lot].filter(Boolean).join(' — '),
+      sous: e.quoi || '',
+      puces: [{ texte: t(MVT_SENS[e.sens][1]).toUpperCase(), fond: couleur.fond, encre: couleur.encre }],
+    };
+  }), { pucesEnTete: true });
+
+  page.cartes(t('bloc_roadies'), (m.roadies_vacations || []).map(v=>
+    carteVacation(v, `${t('demande_label')} : ${v.nombreDemande != null ? v.nombreDemande : '—'}`)));
+  page.cartes(t('bloc_chariots'), (m.chariots_vacations || []).map(v=>
+    carteVacation(v, `${t('chariots_demandes')} : ${v.nombreChariotsDemande != null ? v.nombreChariotsDemande : '—'}`,
+      `${t('caristes_demandes')} : ${v.nombreCaristesDemande != null ? v.nombreCaristesDemande : '—'}`)));
+  page.cartes(t('bloc_rigg'), (m.rigg_vacations || []).map(v=>
+    carteVacation(v, `${t('demande_label')} : ${v.nombreDemande != null ? v.nombreDemande : '—'}`,
+      [v.nombreSol ? `${v.nombreSol} × ${t('rigg_sol')}` : '', v.nombreGrill ? `${v.nombreGrill} × ${t('rigg_grill')}` : ''].filter(Boolean).join(', '))));
+
+  page.paragraphe(m.acces_notes || '');
 
   const suffixe = (d.ville||d.lieu||'date').trim().replace(/[^a-z0-9]+/gi,'_');
-  doc.save(`Journee_${suffixe}.pdf`);
+  page.rendre(`Journee_${suffixe}.pdf`);
 }
 
 applyBrandLogo();

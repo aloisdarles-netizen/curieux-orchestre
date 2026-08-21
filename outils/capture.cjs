@@ -138,11 +138,46 @@ const SEED = {
         roadies_vacations:[{horaireDebut:'11:00',horaireFin:'16:00',nombreDemande:26,equipes:[{equipeId:'eq1',nombre:5},{equipeId:'eq2',nombre:5}]}],
         chariots_vacations:[{horaireDebut:'06:00',horaireFin:'12:30',nombreChariotsDemande:2,nombreCaristesDemande:2,confirme:true}],
         rigg_vacations:[], acces_notes:'Porte de 3,50 m, 12 marches côté cour.' },
-      { date_id:'r1', nombre_semis_simultanees:2,
-        emplacements_dechargement:[{emplacement:'scene', niveau:'scene'},{emplacement:'cote_scene', niveau:'sol'}],
-        hauteur_grill:'14', ouverture_scene:'18', puissance:'400A',
-        horaires_journee:[{heure:'09:00',label:'Load in'}],
-        roadies_vacations:[], chariots_vacations:[], rigg_vacations:[] },
+      // Une journée volontairement surchargée : c'est elle qui met à l'épreuve
+      // la promesse de la feuille unique des exports PDF (voir pdf-charte.js).
+      { date_id:'r1', nombre_semis_simultanees:6,
+        emplacements_dechargement:[
+          {emplacement:'scene', niveau:'scene'}, {emplacement:'cote_scene', niveau:'sol'},
+          {emplacement:'fosse', niveau:'sol'}, {emplacement:'scene', niveau:'les_deux'},
+          {emplacement:'autre', niveau:'sol'}, {emplacement:'cote_scene', niveau:'scene'},
+        ],
+        hauteur_grill:'14 m sous grill, 12 m sous passerelle', ouverture_scene:'18',
+        puissance:'400A + 2× 125A', 
+        bureau_electrique_sur_place:true, bureau_electrique_horaire:'07:30',
+        bureau_electrique_nom:'Cabinet Vasseur', bureau_electrique_tel:'06 44 55 66 77',
+        bureau_accroche_sur_place:true, bureau_accroche_horaire:'08:30',
+        bureau_accroche_nom:'Structura', bureau_accroche_tel:'06 88 99 00 11',
+        contacts_salle:[
+          {role:'régie générale', nom:'Sophie Marlin', tel:'06 21 32 43 54'},
+          {role:'accueil', nom:'Karim Belaïd', tel:'06 65 76 87 98'},
+          {role:'sécurité', nom:'Poste central', tel:'04 72 00 00 00'},
+        ],
+        horaires_journee:[
+          {heure:'06:00',label:'Arrivée des semis'}, {heure:'07:30',label:'Load in'},
+          {heure:'09:00',label:'Montage lumière'}, {heure:'11:00',label:'Montage son'},
+          {heure:'13:00',label:'Pause déjeuner'}, {heure:'14:30',label:'Balances'},
+          {heure:'17:00',label:'Get in'}, {heure:'19:30',label:'Ouverture des portes'},
+          {heure:'20:30',label:'Lever de rideau'}, {heure:'23:00',label:'Load out'},
+        ],
+        roadies_vacations:[
+          {horaireDebut:'07:30',horaireFin:'13:00',nombreDemande:24,notes:'accès par la rue arrière',
+           equipes:[{equipeId:'eq1',nombre:8},{equipeId:'eq2',nombre:6}]},
+          {horaireDebut:'23:00',horaireFin:'02:00',nombreDemande:18,
+           equipes:[{equipeId:'eq1',nombre:6},{equipeId:'eq2',nombre:6}]},
+        ],
+        chariots_vacations:[
+          {horaireDebut:'06:00',horaireFin:'13:00',nombreChariotsDemande:3,nombreCaristesDemande:3,confirme:true},
+          {horaireDebut:'23:00',horaireFin:'02:00',nombreChariotsDemande:2,nombreCaristesDemande:2},
+        ],
+        rigg_vacations:[
+          {horaireDebut:'07:30',horaireFin:'12:00',nombreDemande:6,nombreSol:2,nombreGrill:4,notes:'harnais fournis'},
+        ],
+        acces_notes:'Quai de déchargement à 40 m du plateau, pente de 6 %. Porte de 3,20 m par 3,80 m. Prévoir des plaques de roulage pour la traversée du hall, sol en parquet protégé.' },
     ],
     lots: [
       { id:'demo-lot-01', nom:'kit light', parent_id:null, description:'',
@@ -161,9 +196,10 @@ const SEED = {
   },
 };
 
-(async () => {
-  const browser = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-  const ctx = await browser.newContext({ viewport: FORMATS[format], deviceScaleFactor: 2 });
+// Prépare un contexte navigateur où le site croit parler à Supabase. Exporté :
+// outils/capture-pdf.cjs s'en sert aussi, plutôt que de recopier le faux
+// CurieuxDB — deux copies auraient divergé au premier champ ajouté.
+async function preparerContexte(ctx) {
 
   // Court-circuite la couche données : les pages appellent CurieuxDB, on lui
   // fait rendre le jeu de démo sans réseau ni authentification.
@@ -218,6 +254,15 @@ const CurieuxDB = new Proxy({
 window.CurieuxDB = CurieuxDB;
 `,
   }));
+
+}
+
+const CHROMIUM = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+
+async function capturer() {
+  const browser = await chromium.launch({ executablePath: CHROMIUM });
+  const ctx = await browser.newContext({ viewport: FORMATS[format], deviceScaleFactor: 2 });
+  await preparerContexte(ctx);
 
   for (const nom of pages) {
     const page = await ctx.newPage();
@@ -281,4 +326,8 @@ window.CurieuxDB = CurieuxDB;
     await page.close();
   }
   await browser.close();
-})();
+}
+
+module.exports = { SEED, preparerContexte, CHROMIUM, FORMATS };
+
+if (require.main === module) capturer();
