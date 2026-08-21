@@ -135,6 +135,20 @@ const SEED = {
     id:'demo-tour1', nom:"L'Atelier de Joe Hisaishi — Printemps 2027",
     cachetStatut:'defini', cachetMontant:320, dates:DATES,
     nomenclature:[{pupitre:'Cordes',nombre:5},{pupitre:'Bois',nombre:4}],
+    // Les exigences de la tournée : elles ne changent pas d'une date à l'autre,
+    // et descendent jusqu'aux liens de salle et de stage manager.
+    techniqueTournee:{
+      pointsJus:[
+        {id:'j1', position:'Jardin lointain', puissance:'400 A', typePrise:'P17 tri 400A', differentiel:'300 mA'},
+        {id:'j2', position:'Cour face', puissance:'125 A', typePrise:'P17 tri 125A', differentiel:'30 mA'},
+        {id:'j3', position:'Régie façade', puissance:'32 A', typePrise:'P17 tri 32A', differentiel:'30 mA'},
+      ],
+      accesScene:[
+        {id:'a1', position:'Quai nord', notes:'de plain-pied'},
+        {id:'a2', position:'Côté cour', notes:'12 marches'},
+      ],
+      shakes:{nombre:3, depart:'Jardin lointain', notes:'60 m, passage sous gradin'},
+    },
   }],
   // Une fiche de date déjà remplie, pour capturer technique-date.html.
   moyens_salle: [{
@@ -167,6 +181,10 @@ const SEED = {
     ],
     hauteurGrill:'17', ouvertureScene:'25', profondeurScene:'12', puissance:'2× 400A',
     typeCourant:'triphasé', chargeMaxAccroche:'2 t', typeSol:'béton',
+    pointsDistribution:[
+      {id:'p1', position:'Jardin lointain', notes:'coffret 400 A, cadenassé'},
+      {id:'p2', position:'Sous scène côté cour', notes:'2× 63 A'},
+    ],
     contactsSalle:[], contactsTechniciensIds:[], planImagePath:'', semisPositions:[], notes:'',
   }, {
     // Une seconde fiche de date : sans elle, le filtre &dates= de page-salle.html
@@ -194,6 +212,18 @@ const SEED = {
     tournee: {
       id:'demo-tour1', nom:'EXPEDITION 33',
       equipesRoad:[{id:'eq1',label:'Lumière',couleur:'#F5C518'},{id:'eq2',label:'Son',couleur:'#3b82f6'}],
+      techniqueTournee:{
+        pointsJus:[
+          {id:'j1', position:'Jardin lointain', puissance:'400 A', typePrise:'P17 tri 400A', differentiel:'300 mA'},
+          {id:'j2', position:'Cour face', puissance:'125 A', typePrise:'P17 tri 125A', differentiel:'30 mA'},
+          {id:'j3', position:'Régie façade', puissance:'32 A', typePrise:'P17 tri 32A', differentiel:'30 mA'},
+        ],
+        accesScene:[
+          {id:'a1', position:'Quai nord', notes:'de plain-pied'},
+          {id:'a2', position:'Côté cour', notes:'12 marches'},
+        ],
+        shakes:{nombre:3, depart:'Jardin lointain', notes:'60 m, passage sous gradin'},
+      },
       dates:[
         {id:'r0',date:'2027-03-10',ville:'Épernay',lieu:'Le Millenium'},
         {id:'r1',date:'2027-03-12',ville:'Lyon',lieu:'Salle 3000'},
@@ -220,6 +250,10 @@ const SEED = {
         horaires_journee:[{heure:'08:00',label:'Load in'},{heure:'12:30',label:'Get in'}],
         roadies_vacations:[{horaireDebut:'11:00',horaireFin:'16:00',nombreDemande:26,equipes:[{equipeId:'eq1',nombre:5},{equipeId:'eq2',nombre:5}]}],
         chariots_vacations:[{horaireDebut:'06:00',horaireFin:'12:30',nombreChariotsDemande:2,nombreCaristesDemande:2,confirme:true}],
+        points_distribution:[
+          {id:'p1', position:'Jardin lointain', notes:'coffret 400 A, cadenassé'},
+          {id:'p2', position:'Sous scène côté cour', notes:'2× 63 A'},
+        ],
         rigg_vacations:[], acces_notes:'Porte de 3,50 m, 12 marches côté cour.' },
       // Une journée volontairement surchargée : c'est elle qui met à l'épreuve
       // la promesse de la feuille unique des exports PDF (voir pdf-charte.js).
@@ -259,6 +293,11 @@ const SEED = {
         ],
         rigg_vacations:[
           {horaireDebut:'07:30',horaireFin:'12:00',nombreDemande:6,nombreSol:2,nombreGrill:4,notes:'harnais fournis'},
+        ],
+        points_distribution:[
+          {id:'p1', position:'Jardin lointain', notes:'coffret 400 A cadenassé — clé en régie'},
+          {id:'p2', position:'Cour face', notes:'2× 125 A'},
+          {id:'p3', position:'Régie façade', notes:'32 A sur ligne propre'},
         ],
         acces_notes:'Quai de déchargement à 40 m du plateau, pente de 6 %. Porte de 3,20 m par 3,80 m. Prévoir des plaques de roulage pour la traversée du hall, sol en parquet protégé.' },
     ],

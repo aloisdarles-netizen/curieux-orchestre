@@ -154,6 +154,9 @@ const TR = {
     bloc_contacts_salle:'Contacts salle', bloc_documents:'Documents', bloc_horaires:'Horaires de la journée (heure locale)',
     bloc_roadies:'Roadies — par vacation', bloc_chariots:'Chariots élévateurs — par vacation', bloc_rigg:'Rigg — par vacation',
     bloc_plan_salle:'Plan de salle',
+    bloc_points_jus:'Points de puissance demandés', bloc_acces_scene:'Accès scène demandés',
+    bloc_shakes:'Shakes stage → FOH', bloc_distribution:'Points de distribution électrique',
+    champ_point:'Point', champ_acces:'Accès', champ_nombre:'Nombre', champ_depart:'Point de départ', champ_precisions:'Précisions',
     champ_semis_simultanes:'Semis en simultané', champ_dechargement:'Déchargement', champ_emplacements:'Emplacements',
     champ_hauteur_grill:'Hauteur de grill', champ_ouverture_scene:'Ouverture de scène', champ_puissance:'Puissance',
     champ_sur_place:'Sur place', champ_horaire:'Horaire', champ_contact:'Contact', champ_plan_scene:'Plan de scène',
@@ -189,6 +192,9 @@ const TR = {
     bloc_contacts_salle:'Venue contacts', bloc_documents:'Documents', bloc_horaires:'Day schedule (local time)',
     bloc_roadies:'Roadies — by shift', bloc_chariots:'Forklifts — by shift', bloc_rigg:'Rigging — by shift',
     bloc_plan_salle:'Venue floor plan',
+    bloc_points_jus:'Power points required', bloc_acces_scene:'Stage accesses required',
+    bloc_shakes:'Stage → FOH multicores', bloc_distribution:'Power distribution points',
+    champ_point:'Point', champ_acces:'Access', champ_nombre:'Number', champ_depart:'Starting point', champ_precisions:'Details',
     champ_semis_simultanes:'Trucks at once', champ_dechargement:'Unloading', champ_emplacements:'Unloading spots',
     champ_hauteur_grill:'Grid height', champ_ouverture_scene:'Stage opening', champ_puissance:'Power available',
     champ_sur_place:'On site', champ_horaire:'Time', champ_contact:'Contact', champ_plan_scene:'Stage plan',
@@ -213,6 +219,9 @@ const TR = {
     bloc_contacts_salle:'Kontakte vor Ort', bloc_documents:'Dokumente', bloc_horaires:'Tagesablauf (Ortszeit)',
     bloc_roadies:'Roadies — nach Schicht', bloc_chariots:'Gabelstapler — nach Schicht', bloc_rigg:'Rigging — nach Schicht',
     bloc_plan_salle:'Saalplan',
+    bloc_points_jus:'Benötigte Stromanschlüsse', bloc_acces_scene:'Benötigte Bühnenzugänge',
+    bloc_shakes:'Multicores Bühne → FOH', bloc_distribution:'Stromverteilerpunkte',
+    champ_point:'Anschluss', champ_acces:'Zugang', champ_nombre:'Anzahl', champ_depart:'Ausgangspunkt', champ_precisions:'Hinweise',
     champ_semis_simultanes:'Sattelzüge gleichzeitig', champ_dechargement:'Entladung', champ_emplacements:'Entladestellen',
     champ_hauteur_grill:'Traversenhöhe', champ_ouverture_scene:'Bühnenöffnung', champ_puissance:'Verfügbare Leistung',
     champ_sur_place:'Vor Ort', champ_horaire:'Uhrzeit', champ_contact:'Kontakt', champ_plan_scene:'Bühnenplan',
@@ -237,6 +246,9 @@ const TR = {
     bloc_contacts_salle:'Contactos de la sala', bloc_documents:'Documentos', bloc_horaires:'Horario del día (hora local)',
     bloc_roadies:'Roadies — por turno', bloc_chariots:'Carretillas elevadoras — por turno', bloc_rigg:'Rigging — por turno',
     bloc_plan_salle:'Plano de la sala',
+    bloc_points_jus:'Puntos de potencia solicitados', bloc_acces_scene:'Accesos al escenario solicitados',
+    bloc_shakes:'Mangueras escenario → control', bloc_distribution:'Puntos de distribución eléctrica',
+    champ_point:'Punto', champ_acces:'Acceso', champ_nombre:'Cantidad', champ_depart:'Punto de partida', champ_precisions:'Detalles',
     champ_semis_simultanes:'Tráileres simultáneos', champ_dechargement:'Descarga', champ_emplacements:'Puntos de descarga',
     champ_hauteur_grill:'Altura de parrilla', champ_ouverture_scene:'Boca de escena', champ_puissance:'Potencia disponible',
     champ_sur_place:'En el lugar', champ_horaire:'Hora', champ_contact:'Contacto', champ_plan_scene:'Plano de escena',
@@ -261,6 +273,9 @@ const TR = {
     bloc_contacts_salle:'Contacten locatie', bloc_documents:'Documenten', bloc_horaires:'Dagschema (lokale tijd)',
     bloc_roadies:'Roadies — per shift', bloc_chariots:'Vorkheftrucks — per shift', bloc_rigg:'Rigging — per shift',
     bloc_plan_salle:'Plattegrond',
+    bloc_points_jus:'Gevraagde stroompunten', bloc_acces_scene:'Gevraagde podiumtoegangen',
+    bloc_shakes:'Multikabels podium → FOH', bloc_distribution:'Stroomverdeelpunten',
+    champ_point:'Punt', champ_acces:'Toegang', champ_nombre:'Aantal', champ_depart:'Vertrekpunt', champ_precisions:'Details',
     champ_semis_simultanes:'Trucks tegelijk', champ_dechargement:'Lossen', champ_emplacements:'Losplekken',
     champ_hauteur_grill:'Rijghoogte', champ_ouverture_scene:'Podiumopening', champ_puissance:'Beschikbaar vermogen',
     champ_sur_place:'Ter plaatse', champ_horaire:'Tijdstip', champ_contact:'Contact', champ_plan_scene:'Podiumplan',
@@ -667,6 +682,56 @@ function blocBureauEtude(titre, surPlace, nom, tel, horaire, dossierUrl){
   </div>`;
 }
 
+// ----------------------------------------------------------------------------
+// Exigences de la tournée — identiques d'une date à l'autre, mais répétées sur
+// chaque fiche : chaque date est sa propre page et son propre PDF, et la salle
+// ne voit que la sienne. Les renvoyer ailleurs, c'est les rendre introuvables.
+// ----------------------------------------------------------------------------
+function exigencesTournee(){
+  const brut = (RECAP.tournee && RECAP.tournee.techniqueTournee) || {};
+  return {
+    pointsJus: Array.isArray(brut.pointsJus) ? brut.pointsJus : [],
+    accesScene: Array.isArray(brut.accesScene) ? brut.accesScene : [],
+    shakes: brut.shakes && typeof brut.shakes === 'object' ? brut.shakes : {},
+  };
+}
+// La position fait le libellé de la ligne : c'est elle qu'on cherche des yeux
+// sur un plateau. Sans position renseignée, on retombe sur un numéro d'ordre.
+function ligneRepere(item, index, cleDefaut, valeur){
+  return champ(item.position || `${t(cleDefaut)} ${index + 1}`, valeur);
+}
+function blocPointsJus(){
+  const liste = exigencesTournee().pointsJus;
+  if(!liste.length) return '';
+  return `<div class="bloc"><span class="titre">${t('bloc_points_jus')}</span>
+    ${liste.map((p,i)=> ligneRepere(p, i, 'champ_point',
+      [p.puissance, p.typePrise, p.differentiel].filter(Boolean).join(' · '))).join('')}
+  </div>`;
+}
+function blocAccesScene(){
+  const liste = exigencesTournee().accesScene;
+  if(!liste.length) return '';
+  return `<div class="bloc"><span class="titre">${t('bloc_acces_scene')} (${liste.length})</span>
+    ${liste.map((a,i)=> ligneRepere(a, i, 'champ_acces', a.notes)).join('')}
+  </div>`;
+}
+function blocShakes(){
+  const s = exigencesTournee().shakes;
+  if(s.nombre == null && !s.depart && !s.notes) return '';
+  return `<div class="bloc"><span class="titre">${t('bloc_shakes')}</span>
+    ${champ(t('champ_nombre'), s.nombre)}
+    ${champ(t('champ_depart'), s.depart)}
+    ${s.notes ? champ(t('champ_precisions'), s.notes) : ''}
+  </div>`;
+}
+function blocDistribution(m){
+  const liste = m.points_distribution || [];
+  if(!liste.length) return '';
+  return `<div class="bloc"><span class="titre">${t('bloc_distribution')}</span>
+    ${liste.map((p,i)=> ligneRepere(p, i, 'champ_point', p.notes)).join('')}
+  </div>`;
+}
+
 function ficheDateComplete(d, m, editableSalle, editableStageManager){
   if(!m) m = { date_id: d.id };
   const jour = jourLong(d.date);
@@ -696,6 +761,10 @@ function ficheDateComplete(d, m, editableSalle, editableStageManager){
             ${champ(t('champ_ouverture_scene'), m.ouverture_scene)}
             ${champ(t('champ_puissance'), m.puissance)}
           </div>
+          ${blocPointsJus()}
+          ${blocDistribution(m)}
+          ${blocAccesScene()}
+          ${blocShakes()}
           ${blocBureauEtude(t('bloc_bureau_elec'), m.bureau_electrique_sur_place, m.bureau_electrique_nom, m.bureau_electrique_tel, m.bureau_electrique_horaire, m.bureau_electrique_dossier_url)}
           ${blocBureauEtude(t('bloc_bureau_accroche'), m.bureau_accroche_sur_place, m.bureau_accroche_nom, m.bureau_accroche_tel, m.bureau_accroche_horaire, m.bureau_accroche_dossier_url)}
           ${(m.contacts_salle||[]).length ? `<div class="bloc"><span class="titre">${t('bloc_contacts_salle')}</span>
@@ -918,6 +987,20 @@ function exporterJourneePdf(dateId){
       champ(t('champ_hauteur_grill'), m.hauteur_grill),
       champ(t('champ_ouverture_scene'), m.ouverture_scene),
       champ(t('champ_puissance'), m.puissance),
+    ]),
+    // Les exigences de la tournée voyagent avec la feuille : un plateau se
+    // prépare sur le papier punaisé en régie, pas sur l'onglet resté ouvert.
+    bloc(t('bloc_points_jus'), exigencesTournee().pointsJus.map((p, i)=>
+      champ(p.position || `${t('champ_point')} ${i + 1}`,
+            [p.puissance, p.typePrise, p.differentiel].filter(Boolean).join(' · ')))),
+    bloc(t('bloc_distribution'), (m.points_distribution || []).map((p, i)=>
+      champ(p.position || `${t('champ_point')} ${i + 1}`, p.notes))),
+    bloc(t('bloc_acces_scene'), exigencesTournee().accesScene.map((a, i)=>
+      champ(a.position || `${t('champ_acces')} ${i + 1}`, a.notes || '·'))),
+    bloc(t('bloc_shakes'), [
+      champ(t('champ_nombre'), exigencesTournee().shakes.nombre),
+      champ(t('champ_depart'), exigencesTournee().shakes.depart),
+      champ(t('champ_precisions'), exigencesTournee().shakes.notes),
     ]),
     bloc(t('bloc_bureau_elec'), bureau(m.bureau_electrique_sur_place, m.bureau_electrique_nom, m.bureau_electrique_tel, m.bureau_electrique_horaire)),
     bloc(t('bloc_bureau_accroche'), bureau(m.bureau_accroche_sur_place, m.bureau_accroche_nom, m.bureau_accroche_tel, m.bureau_accroche_horaire)),

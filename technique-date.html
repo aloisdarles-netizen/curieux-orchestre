@@ -291,6 +291,16 @@
     </div>
   </fieldset>
 
+  <!-- Le pendant côté salle des points de puissance demandés par la tournée
+       (réglés une fois pour toutes dans Direction technique) : où cette salle-ci
+       met son jus à disposition. Ça change à chaque date, donc ça vit ici. -->
+  <fieldset class="groupe">
+    <legend>Points de distribution électrique de la salle</legend>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Où la salle nous donne le courant. Les points de puissance <em>demandés</em> par la tournée se règlent une fois pour toutes depuis Direction technique.</p>
+    <div id="distributionListe"></div>
+    <button type="button" class="co-btn secondary sm" id="addDistributionBtn">+ Ajouter un point de distribution</button>
+  </fieldset>
+
   <fieldset class="groupe">
     <legend>Contacts</legend>
     <label style="display:block; margin-bottom:8px;">Contacts côté salle</label>
@@ -645,6 +655,33 @@ document.getElementById('fNombreSemis').addEventListener('input', (e)=>{
 });
 
 // ============================================================================
+// Points de distribution électrique de la salle
+// ============================================================================
+function renderDistribution(){
+  const box = document.getElementById('distributionListe');
+  const liste = moyens.pointsDistribution;
+  box.innerHTML = liste.map((p,i)=>`
+    <div class="sous-ligne" data-i="${i}">
+      <input type="text" data-f="position" placeholder="Position — ex : jardin, sous scène" value="${escapeAttr(p.position||'')}">
+      <input type="text" data-f="notes" placeholder="Précisions — puissance disponible, prise…" value="${escapeAttr(p.notes||'')}">
+      <button type="button" class="co-btn danger sm sous-retirer" data-retirer-distribution="${i}">×</button>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun point de distribution renseigné.</p>`;
+  box.querySelectorAll('.sous-ligne').forEach(row=>{
+    const i = Number(row.dataset.i);
+    row.querySelectorAll('[data-f]').forEach(inp=> inp.addEventListener('input', ()=>{ liste[i][inp.dataset.f] = inp.value; }));
+  });
+  box.querySelectorAll('[data-retirer-distribution]').forEach(btn=> btn.addEventListener('click', ()=>{
+    liste.splice(Number(btn.dataset.retirerDistribution), 1);
+    renderDistribution();
+  }));
+}
+document.getElementById('addDistributionBtn').addEventListener('click', ()=>{
+  moyens.pointsDistribution.push({ id: genId('distrib'), position:'', notes:'' });
+  renderDistribution();
+});
+
+// ============================================================================
 // Contacts salle
 // ============================================================================
 function renderContactsSalle(){
@@ -822,7 +859,8 @@ function moyensVierge(){
     nombreSemisSimultanees:null, emplacementsDechargement:[], accesNotes:'',
     horairesJournee:[], roadiesVacations:[], chariotsVacations:[], riggVacations:[],
     hauteurGrill:'', ouvertureScene:'', profondeurScene:'', puissance:'', typeCourant:'', chargeMaxAccroche:'', typeSol:'',
-    contactsSalle:[], contactsTechniciensIds:[], planImagePath:'', semisPositions:[], notes:''
+    contactsSalle:[], contactsTechniciensIds:[], pointsDistribution:[],
+    planImagePath:'', semisPositions:[], notes:''
   };
 }
 function peupler(){
@@ -859,6 +897,7 @@ function peupler(){
   renderRoadiesListe();
   renderChariotsListe();
   renderRiggListe();
+  renderDistribution();
   renderContactsSalle();
   renderContactsTechniciens();
 

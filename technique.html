@@ -32,6 +32,33 @@
 
   .empty-hint{color:var(--muted); font-size:13.5px; padding:40px 4px; text-align:center;}
   @media (max-width:600px){ input, select{ font-size:16px !important; } }
+
+  /* Exigences de la tournée — repliées par défaut : on les règle une fois,
+     puis on ne revient dessus qu'en cas de changement. */
+  .exigences{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:18px; overflow:hidden;}
+  .exigences > summary{cursor:pointer; padding:14px 16px; font-weight:800; font-size:14.5px; list-style:none; display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .exigences > summary::-webkit-details-marker{display:none;}
+  .exigences > summary::after{content:'▾'; color:var(--muted); font-size:12px;}
+  .exigences[open] > summary::after{content:'▴';}
+  .exigences > summary .resume{font-weight:600; font-size:12.5px; color:var(--muted);}
+  .exigences-corps{padding:0 16px 16px; display:flex; flex-direction:column; gap:18px;}
+  .exi-bloc > h3{margin:0 0 3px; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;}
+  .exi-bloc > .aide{margin:0 0 9px; font-size:12.5px; color:var(--muted); line-height:1.45;}
+  .exi-ligne{display:grid; gap:7px; align-items:center; margin-bottom:7px;}
+  .exi-ligne.jus{grid-template-columns:22px repeat(4, minmax(0,1fr)) 34px;}
+  .exi-ligne.acces{grid-template-columns:22px minmax(0,1fr) minmax(0,1.4fr) 34px;}
+  .exi-ligne .rang{font-size:12px; font-weight:800; color:var(--muted); text-align:center;}
+  .exi-entete{display:grid; gap:7px; font-size:11.5px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px;}
+  .exi-entete.jus{grid-template-columns:22px repeat(4, minmax(0,1fr)) 34px;}
+  .exi-entete.acces{grid-template-columns:22px minmax(0,1fr) minmax(0,1.4fr) 34px;}
+  .exi-shake{display:grid; grid-template-columns:110px minmax(0,1fr) minmax(0,1.4fr); gap:7px;}
+  .exi-pied{display:flex; align-items:center; gap:12px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:14px;}
+  .exi-pied .etat{font-size:12.5px; color:var(--muted);}
+  @media (max-width:760px){
+    .exi-entete{display:none;}
+    .exi-ligne.jus, .exi-ligne.acces, .exi-shake{grid-template-columns:1fr; padding:10px; border:1px solid var(--border); border-radius:10px;}
+    .exi-ligne .rang{text-align:left;}
+  }
 </style>
 </head>
 <body>
@@ -48,6 +75,48 @@
     <span class="sig">!</span>
     <p>Les tables de cet espace ne sont pas à jour dans Supabase. Colle la dernière section « Direction technique » de <code>migrations.sql</code> dans l'éditeur SQL, puis recharge cette page.</p>
   </div>
+
+  <!-- Ce que la tournée demande partout, quelle que soit la date : les salles et
+       les technicien·nes le lisent sur leur lien, on ne le ressaisit pas date
+       par date. Réglable ici, une fois, et modifiable à tout moment. -->
+  <details class="exigences co-fade" id="exigences">
+    <summary>
+      <span>Exigences techniques de la tournée</span>
+      <span class="resume" id="exigencesResume">—</span>
+    </summary>
+    <div class="exigences-corps">
+      <div class="exi-bloc">
+        <h3>Points de puissance demandés</h3>
+        <p class="aide">Où la tournée demande son jus, et ce qu'elle demande à chaque point.</p>
+        <div class="exi-entete jus"><span></span><span>Position</span><span>Puissance</span><span>Type de prise</span><span>Différentiel</span><span></span></div>
+        <div id="jusListe"></div>
+        <button type="button" class="co-btn secondary sm" id="addJusBtn">+ Ajouter un point de jus</button>
+      </div>
+
+      <div class="exi-bloc">
+        <h3>Accès scène</h3>
+        <p class="aide">Un par accès demandé, avec sa position — le nombre se lit de lui-même.</p>
+        <div class="exi-entete acces"><span></span><span>Position</span><span>Précisions</span><span></span></div>
+        <div id="accesListe"></div>
+        <button type="button" class="co-btn secondary sm" id="addAccesBtn">+ Ajouter un accès</button>
+      </div>
+
+      <div class="exi-bloc">
+        <h3>Shakes stage → FOH</h3>
+        <p class="aide">Combien de shakes à tirer entre le plateau et la régie, et d'où ils partent.</p>
+        <div class="exi-shake">
+          <input type="number" id="fShakeNombre" min="0" step="1" placeholder="Nombre">
+          <input type="text" id="fShakeDepart" placeholder="Point de départ — ex : jardin, lointain">
+          <input type="text" id="fShakeNotes" placeholder="Précisions — longueur, cheminement…">
+        </div>
+      </div>
+
+      <div class="exi-pied">
+        <button type="button" class="co-btn primary sm" id="exigencesSaveBtn">Enregistrer les exigences</button>
+        <span class="etat" id="exigencesEtat"></span>
+      </div>
+    </div>
+  </details>
 
   <div id="dates" class="co-grid co-grid-cards co-fade"></div>
   <div class="empty-hint" id="datesEmpty" style="display:none;">Aucune date à venir pour cette tournée.</div>
@@ -160,6 +229,120 @@ function render(){
   }).join('');
 }
 
+// ============================================================================
+// Exigences techniques de la tournée
+//
+// Elles ne changent pas d'une date à l'autre : on les pose sur la tournée, et
+// chaque lien partagé les affiche. Les recopier sur chaque fiche de date, c'est
+// se garantir qu'une correction en oubliera la moitié.
+// ============================================================================
+function exigences(){
+  const t = activeTournee();
+  const brut = (t && t.techniqueTournee) || {};
+  // Les trois clés sont normalisées ici une bonne fois : le reste du code peut
+  // faire .map() sans se demander si la tournée a déjà été réglée.
+  return {
+    pointsJus: Array.isArray(brut.pointsJus) ? brut.pointsJus : [],
+    accesScene: Array.isArray(brut.accesScene) ? brut.accesScene : [],
+    shakes: brut.shakes && typeof brut.shakes === 'object' ? brut.shakes : {},
+  };
+}
+let exigencesEnCours = null;
+
+function renderExigences(){
+  exigencesEnCours = exigences();
+  const jus = exigencesEnCours.pointsJus;
+  const acces = exigencesEnCours.accesScene;
+  const shakes = exigencesEnCours.shakes;
+
+  document.getElementById('jusListe').innerHTML = jus.map((p,i)=>`
+    <div class="exi-ligne jus" data-i="${i}">
+      <span class="rang">${i+1}</span>
+      <input type="text" data-f="position" placeholder="Position" value="${escapeAttr(p.position||'')}" aria-label="Position du point de jus ${i+1}">
+      <input type="text" data-f="puissance" placeholder="Ex : 63 A" value="${escapeAttr(p.puissance||'')}" aria-label="Puissance du point de jus ${i+1}">
+      <input type="text" data-f="typePrise" placeholder="Ex : P17 tri" value="${escapeAttr(p.typePrise||'')}" aria-label="Type de prise du point de jus ${i+1}">
+      <input type="text" data-f="differentiel" placeholder="Ex : 300 mA" value="${escapeAttr(p.differentiel||'')}" aria-label="Sensibilité du différentiel du point de jus ${i+1}">
+      <button type="button" class="co-btn danger sm" data-retirer-jus="${i}" aria-label="Retirer le point de jus ${i+1}">×</button>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:6px 0; text-align:left;">Aucun point de jus demandé.</p>`;
+
+  document.getElementById('accesListe').innerHTML = acces.map((a,i)=>`
+    <div class="exi-ligne acces" data-i="${i}">
+      <span class="rang">${i+1}</span>
+      <input type="text" data-f="position" placeholder="Position" value="${escapeAttr(a.position||'')}" aria-label="Position de l'accès scène ${i+1}">
+      <input type="text" data-f="notes" placeholder="Précisions" value="${escapeAttr(a.notes||'')}" aria-label="Précisions sur l'accès scène ${i+1}">
+      <button type="button" class="co-btn danger sm" data-retirer-acces="${i}" aria-label="Retirer l'accès scène ${i+1}">×</button>
+    </div>
+  `).join('') || `<p class="empty-hint" style="padding:6px 0; text-align:left;">Aucun accès scène demandé.</p>`;
+
+  document.getElementById('fShakeNombre').value = shakes.nombre != null ? shakes.nombre : '';
+  document.getElementById('fShakeDepart').value = shakes.depart || '';
+  document.getElementById('fShakeNotes').value = shakes.notes || '';
+
+  brancherLignesExigences('#jusListe', jus, 'retirerJus');
+  brancherLignesExigences('#accesListe', acces, 'retirerAcces');
+  majResumeExigences();
+}
+
+function brancherLignesExigences(selecteur, liste, cleRetrait){
+  const box = document.querySelector(selecteur);
+  box.querySelectorAll('.exi-ligne').forEach(row=>{
+    const i = Number(row.dataset.i);
+    row.querySelectorAll('[data-f]').forEach(inp=> inp.addEventListener('input', ()=>{
+      liste[i][inp.dataset.f] = inp.value;
+      majResumeExigences();
+    }));
+  });
+  box.querySelectorAll(`[data-${cleRetrait.replace(/[A-Z]/g, c=> '-' + c.toLowerCase())}]`).forEach(btn=>
+    btn.addEventListener('click', ()=>{ liste.splice(Number(btn.dataset[cleRetrait]), 1); renderExigences(); }));
+}
+
+// Le résumé se lit sur le repli : sans lui, on ne sait pas si les exigences ont
+// été réglées sans ouvrir le panneau.
+function majResumeExigences(){
+  const e = exigencesEnCours || exigences();
+  const nbShakes = Number(document.getElementById('fShakeNombre').value || 0);
+  const morceaux = [
+    e.pointsJus.length ? `${e.pointsJus.length} point${e.pointsJus.length>1?'s':''} de jus` : '',
+    e.accesScene.length ? `${e.accesScene.length} accès scène` : '',
+    nbShakes ? `${nbShakes} shake${nbShakes>1?'s':''}` : '',
+  ].filter(Boolean);
+  document.getElementById('exigencesResume').textContent = morceaux.length ? morceaux.join(' · ') : 'rien de réglé';
+}
+
+async function enregistrerExigences(){
+  const t = activeTournee();
+  const etat = document.getElementById('exigencesEtat');
+  if(!t){ etat.textContent = 'Aucune tournée sélectionnée.'; return; }
+  const nombre = document.getElementById('fShakeNombre').value;
+  t.techniqueTournee = {
+    pointsJus: exigencesEnCours.pointsJus,
+    accesScene: exigencesEnCours.accesScene,
+    shakes: {
+      nombre: nombre === '' ? null : Number(nombre),
+      depart: document.getElementById('fShakeDepart').value.trim(),
+      notes: document.getElementById('fShakeNotes').value.trim(),
+    },
+  };
+  etat.textContent = 'Enregistrement…';
+  const { error } = await CurieuxDB.upsertOne('tournees', t);
+  etat.textContent = error
+    ? "Échec de l'enregistrement — réessaie."
+    : 'Enregistré à ' + new Date().toLocaleTimeString('fr-FR');
+  majResumeExigences();
+}
+
+document.getElementById('addJusBtn').addEventListener('click', ()=>{
+  exigencesEnCours.pointsJus.push({ id: genId('jus'), position:'', puissance:'', typePrise:'', differentiel:'' });
+  renderExigences();
+});
+document.getElementById('addAccesBtn').addEventListener('click', ()=>{
+  exigencesEnCours.accesScene.push({ id: genId('acces'), position:'', notes:'' });
+  renderExigences();
+});
+document.getElementById('fShakeNombre').addEventListener('input', majResumeExigences);
+document.getElementById('exigencesSaveBtn').addEventListener('click', enregistrerExigences);
+
 async function verifierMigrationPresente(){
   try{
     const res = await supabaseClient.from('affectations_transport').select('id').limit(1);
@@ -181,7 +364,11 @@ async function initData(){
   } else {
     sel.innerHTML = tourneesCache.map(t=>`<option value="${t.id}">${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('');
   }
-  sel.addEventListener('change', render);
+  // renderExigences() ne suit que le changement de tournée, pas les rafraîchis-
+  // sements de render() : il redessine des champs de saisie, et le faire sous
+  // les doigts de quelqu'un effacerait ce qu'il est en train d'écrire.
+  sel.addEventListener('change', ()=>{ renderExigences(); render(); });
+  renderExigences();
   render();
 }
 
