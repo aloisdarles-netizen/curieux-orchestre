@@ -143,7 +143,7 @@ const T = {
     vacs:'Moyens demandés — à confirmer', contacts:'Vos contacts côté production',
     semis:'Semis en simultané', dech:'Déchargement', plan:'Plan de scène', ouvrir:'Ouvrir ↗', docs:'Documents',
     jus:'Points de puissance demandés', accesScene:'Accès scène demandés',
-    shakes:'Shakes stage → FOH', distrib:'Vos points de distribution électrique',
+    multis:'Multipaires plateau → régie', distrib:'Vos points de distribution électrique',
     point:'Point', acc:'Accès', nb:'Nombre', depart:'Point de départ', prec:'Précisions',
     grill:'Hauteur de grill', ouv:'Ouverture de scène', puis:'Puissance',
     vac:'Vacation', dem:'Demandé', valide:'Validé', conf:'Confirmer',
@@ -161,7 +161,7 @@ const T = {
     vacs:'Requested resources — to confirm', contacts:'Your production contacts',
     semis:'Trucks at once', dech:'Unloading', plan:'Stage plan', ouvrir:'Open ↗', docs:'Documents',
     jus:'Power points required', accesScene:'Stage accesses required',
-    shakes:'Stage → FOH multicores', distrib:'Your power distribution points',
+    multis:'Stage → FOH snakes', distrib:'Your power distribution points',
     point:'Point', acc:'Access', nb:'Number', depart:'Starting point', prec:'Details',
     grill:'Grid height', ouv:'Stage opening', puis:'Power available',
     vac:'Shift', dem:'Requested', valide:'Confirmed', conf:'Confirm',
@@ -179,7 +179,7 @@ const T = {
     vacs:'Angefragte Mittel — bitte bestätigen', contacts:'Ihre Ansprechpartner der Produktion',
     semis:'Sattelzüge gleichzeitig', dech:'Entladung', plan:'Bühnenplan', ouvrir:'Öffnen ↗', docs:'Unterlagen',
     jus:'Benötigte Stromanschlüsse', accesScene:'Benötigte Bühnenzugänge',
-    shakes:'Multicores Bühne → FOH', distrib:'Ihre Stromverteilerpunkte',
+    multis:'Multicore Bühne → FOH', distrib:'Ihre Stromverteilerpunkte',
     point:'Anschluss', acc:'Zugang', nb:'Anzahl', depart:'Ausgangspunkt', prec:'Hinweise',
     grill:'Traversenhöhe', ouv:'Bühnenöffnung', puis:'Verfügbare Leistung',
     vac:'Schicht', dem:'Angefragt', valide:'Bestätigt', conf:'Bestätigen',
@@ -197,7 +197,7 @@ const T = {
     vacs:'Medios solicitados — a confirmar', contacts:'Sus contactos de producción',
     semis:'Tráileres simultáneos', dech:'Descarga', plan:'Plano de escena', ouvrir:'Abrir ↗', docs:'Documentos',
     jus:'Puntos de potencia solicitados', accesScene:'Accesos al escenario solicitados',
-    shakes:'Mangueras escenario → control', distrib:'Sus puntos de distribución eléctrica',
+    multis:'Mangueras escenario → control', distrib:'Sus puntos de distribución eléctrica',
     point:'Punto', acc:'Acceso', nb:'Cantidad', depart:'Punto de partida', prec:'Detalles',
     grill:'Altura de parrilla', ouv:'Boca de escena', puis:'Potencia disponible',
     vac:'Turno', dem:'Solicitado', valide:'Confirmado', conf:'Confirmar',
@@ -215,7 +215,7 @@ const T = {
     vacs:'Gevraagde middelen — te bevestigen', contacts:'Uw contactpersonen bij de productie',
     semis:'Trucks tegelijk', dech:'Lossen', plan:'Podiumplan', ouvrir:'Openen ↗', docs:'Documenten',
     jus:'Gevraagde stroompunten', accesScene:'Gevraagde podiumtoegangen',
-    shakes:'Multikabels podium → FOH', distrib:'Uw stroomverdeelpunten',
+    multis:'Multikabels podium → FOH', distrib:'Uw stroomverdeelpunten',
     point:'Punt', acc:'Toegang', nb:'Aantal', depart:'Vertrekpunt', prec:'Details',
     grill:'Rijghoogte', ouv:'Podiumopening', puis:'Beschikbaar vermogen',
     vac:'Shift', dem:'Aangevraagd', valide:'Bevestigd', conf:'Bevestigen',
@@ -367,7 +367,7 @@ function exigencesDe(t){
   return {
     pointsJus: Array.isArray(brut.pointsJus) ? brut.pointsJus : [],
     accesScene: Array.isArray(brut.accesScene) ? brut.accesScene : [],
-    shakes: brut.shakes && typeof brut.shakes === 'object' ? brut.shakes : {},
+    multis: brut.multis && typeof brut.multis === 'object' ? brut.multis : {},
   };
 }
 // Le bloc ne sort que s'il a quelque chose à dire : une salle n'a pas besoin
@@ -436,10 +436,10 @@ function corpsDate(d){
     champ(p.position || `${L.point} ${i + 1}`, p.notes)));
   const blocAccesScene = blocRepere(`${L.accesScene} (${exi.accesScene.length})`,
     exi.accesScene.map((a, i)=> champ(a.position || `${L.acc} ${i + 1}`, a.notes)));
-  const blocShakes = blocRepere(L.shakes, [
-    exi.shakes.nombre != null ? champ(L.nb, String(exi.shakes.nombre)) : '',
-    exi.shakes.depart ? champ(L.depart, exi.shakes.depart) : '',
-    exi.shakes.notes ? champ(L.prec, exi.shakes.notes) : '',
+  const blocMultis = blocRepere(L.multis, [
+    exi.multis.nombre != null ? champ(L.nb, String(exi.multis.nombre)) : '',
+    exi.multis.depart ? champ(L.depart, exi.multis.depart) : '',
+    exi.multis.notes ? champ(L.prec, exi.multis.notes) : '',
   ]);
 
   const horaires = (m.horairesJournee || []).filter(h=> h.heure || h.label);
@@ -452,7 +452,7 @@ function corpsDate(d){
 
   return `
     <div class="salle-date-corps">
-      <div class="salle-blocs">${blocAcces}${blocFaits}${blocJus}${blocDistrib}${blocAccesScene}${blocShakes}</div>
+      <div class="salle-blocs">${blocAcces}${blocFaits}${blocJus}${blocDistrib}${blocAccesScene}${blocMultis}</div>
       ${contacts.length ? `<div>
         <div class="salle-bloc-titre">${escapeHtml(L.contacts)}</div>
         <div class="salle-contacts">${contacts.join('')}</div>
@@ -560,10 +560,10 @@ function exporterPdf(){
         champ(p.position || `${L.point} ${i + 1}`, p.notes || '·')).filter(Boolean) },
       { titre: L.accesScene, lignes: exigencesDe(t).accesScene.map((a, i)=>
         champ(a.position || `${L.acc} ${i + 1}`, a.notes || '·')).filter(Boolean) },
-      { titre: L.shakes, lignes: [
-        champ(L.nb, exigencesDe(t).shakes.nombre),
-        champ(L.depart, exigencesDe(t).shakes.depart),
-        champ(L.prec, exigencesDe(t).shakes.notes),
+      { titre: L.multis, lignes: [
+        champ(L.nb, exigencesDe(t).multis.nombre),
+        champ(L.depart, exigencesDe(t).multis.depart),
+        champ(L.prec, exigencesDe(t).multis.notes),
       ].filter(Boolean) },
       { titre: L.docs, lignes: [m.planUrl
         ? [L.plan, { texte: pdfUrlCourte(m.planUrl, 26), lien: m.planUrl }] : null].filter(Boolean) },

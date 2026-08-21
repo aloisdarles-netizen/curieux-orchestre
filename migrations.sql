@@ -3342,7 +3342,7 @@ alter table prestataires add column if not exists contact_nom text not null defa
 --
 --    { pointsJus:      [{id, position, puissance, typePrise, differentiel}],
 --      accesScene:     [{id, position, notes}],
---      shakes:         {nombre, depart, notes} }
+--      multis:         {nombre, depart, notes} }   -- les snakes plateau → régie
 alter table tournees add column if not exists technique_tournee jsonb not null default '{}'::jsonb;
 
 -- 3. Ce que la salle indique en retour, date par date : où sont ses points de
@@ -3457,7 +3457,7 @@ grant execute on function enregistrer_plan_salle_par_jeton(text, text, text) to 
 -- Les colonnes existaient déjà (bloc précédent) mais rien ne les faisait sortir :
 -- get_recap_logistique construit l'objet « tournee » champ par champ, et
 -- technique_tournee n'y figurait pas. Une salle ou un stage manager ne voyait
--- donc ni les points de puissance demandés, ni les accès scène, ni les shakes.
+-- donc ni les points de puissance demandés, ni les accès scène, ni les multipaires.
 --
 -- points_distribution, lui, passait déjà : les moyens sortent en to_jsonb(m),
 -- donc colonne par colonne, sans liste à tenir à jour.

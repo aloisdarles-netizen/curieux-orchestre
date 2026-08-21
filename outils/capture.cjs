@@ -147,7 +147,7 @@ const SEED = {
         {id:'a1', position:'Quai nord', notes:'de plain-pied'},
         {id:'a2', position:'Côté cour', notes:'12 marches'},
       ],
-      shakes:{nombre:3, depart:'Jardin lointain', notes:'60 m, passage sous gradin'},
+      multis:{nombre:3, depart:'Jardin lointain', notes:'60 m, passage sous gradin'},
     },
   }],
   // Une fiche de date déjà remplie, pour capturer technique-date.html.
@@ -222,7 +222,7 @@ const SEED = {
           {id:'a1', position:'Quai nord', notes:'de plain-pied'},
           {id:'a2', position:'Côté cour', notes:'12 marches'},
         ],
-        shakes:{nombre:3, depart:'Jardin lointain', notes:'60 m, passage sous gradin'},
+        multis:{nombre:3, depart:'Jardin lointain', notes:'60 m, passage sous gradin'},
       },
       dates:[
         {id:'r0',date:'2027-03-10',ville:'Épernay',lieu:'Le Millenium'},
@@ -449,7 +449,16 @@ async function capturer() {
     // Un nom de page peut porter sa requête — « technique-partage?jeton=demo » —
     // pour les écrans qui ne s'ouvrent que sur un jeton.
     const [fichier, requete] = nom.split('?');
-    await page.goto(`${BASE}/${fichier}.html${requete ? '?' + requete : ''}`, { waitUntil:'networkidle', timeout:20000 }).catch(()=>{});
+    const reponse = await page.goto(`${BASE}/${fichier}.html${requete ? '?' + requete : ''}`, { waitUntil:'networkidle', timeout:20000 }).catch(()=>null);
+    // Sans ce contrôle, un serveur local arrêté rend une page d'erreur du
+    // navigateur — qui ne déborde évidemment pas, et se signale donc d'un « ✓ »
+    // parfaitement rassurant. On préfère l'échec bruyant.
+    if (!reponse || !reponse.ok()) {
+      console.log(`${fichier.padEnd(16)} ${format.padEnd(7)} ✗ PAGE INJOIGNABLE (${reponse ? reponse.status() : 'pas de réponse'}) — le serveur local tourne-t-il ? python3 -m http.server 8099`);
+      process.exitCode = 1;
+      await page.close();
+      continue;
+    }
     await page.waitForTimeout(900);
     // Quatrième argument : un sélecteur à cliquer avant la capture. Sans lui,
     // les panneaux et fenêtres qui ne s'ouvrent qu'au clic — l'affectation, les
