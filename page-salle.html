@@ -107,6 +107,24 @@
   }
   .salle-reponse input[type=number]{width:62px;}
   .salle-reponse input[type=text]{flex:1; min-width:140px;}
+  /* Un tableau prend la largeur : quatre colonnes ne tiennent pas dans une
+     carte de 260 px partagée avec ses voisines. */
+  .salle-bloc-large{grid-column:1 / -1;}
+  .salle-tableau{display:grid; grid-template-columns:repeat(var(--cols), minmax(0, 1fr)); gap:0 14px;}
+  .salle-tableau .th{
+    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); padding-bottom:6px; border-bottom:1.5px solid var(--accent); margin-bottom:6px;
+  }
+  .salle-tableau .td{font-size:14px; padding:6px 0; border-bottom:1px solid var(--border); line-height:1.35;}
+  .salle-tableau .td.repere{font-weight:800;}
+  .salle-tableau .vide{color:var(--muted); font-weight:600;}
+  .salle-note{margin:9px 0 0; font-size:12px; color:var(--muted); line-height:1.45;}
+  @media (max-width:560px){
+    .salle-tableau{grid-template-columns:minmax(0,1fr); gap:0;}
+    .salle-tableau .th{display:none;}
+    .salle-tableau .td{border-bottom:none; padding:2px 0;}
+    .salle-tableau .td.repere{margin-top:10px; border-top:1px solid var(--border); padding-top:8px;}
+  }
   @media (max-width:600px){ input, select{ font-size:16px !important; } }
 </style>
 </head>
@@ -145,6 +163,10 @@ const T = {
     jus:'Points de puissance demandés', accesScene:'Accès scène demandés',
     multis:'Multipaires plateau → régie', distrib:'Vos points de distribution électrique',
     point:'Point', acc:'Accès', nb:'Nombre', depart:'Point de départ', prec:'Précisions',
+    colPosition:'Position', colPuissance:'Puissance demandée', colPrise:'Type de prise', colDiff:'Différentiel', colPrec:'Précisions',
+    noteJus:"Une ligne par point de puissance que la tournée demande : où il doit se trouver, l'intensité attendue, le type de prise et la sensibilité du différentiel.",
+    noteDistrib:'Les arrivées de courant que vous mettez à disposition, telles que vous nous les avez indiquées.',
+    noteMultis:'Multipaires (snakes) à tirer entre le plateau et la régie façade.',
     grill:'Hauteur de grill', ouv:'Ouverture de scène', puis:'Puissance',
     vac:'Vacation', dem:'Demandé', valide:'Validé', conf:'Confirmer',
     possible:'Nombre possible', just:'Justification si différent', env:'Envoyer',
@@ -163,6 +185,10 @@ const T = {
     jus:'Power points required', accesScene:'Stage accesses required',
     multis:'Stage → FOH snakes', distrib:'Your power distribution points',
     point:'Point', acc:'Access', nb:'Number', depart:'Starting point', prec:'Details',
+    colPosition:'Position', colPuissance:'Power required', colPrise:'Socket type', colDiff:'RCD sensitivity', colPrec:'Details',
+    noteJus:'One row per power point the tour requires: where it must be, the current expected, the socket type and the residual-current sensitivity.',
+    noteDistrib:'The power supplies you make available, as you reported them to us.',
+    noteMultis:'Multicore snakes to be run between stage and front-of-house.',
     grill:'Grid height', ouv:'Stage opening', puis:'Power available',
     vac:'Shift', dem:'Requested', valide:'Confirmed', conf:'Confirm',
     possible:'Number available', just:'Note if different', env:'Send',
@@ -181,6 +207,10 @@ const T = {
     jus:'Benötigte Stromanschlüsse', accesScene:'Benötigte Bühnenzugänge',
     multis:'Multicore Bühne → FOH', distrib:'Ihre Stromverteilerpunkte',
     point:'Anschluss', acc:'Zugang', nb:'Anzahl', depart:'Ausgangspunkt', prec:'Hinweise',
+    colPosition:'Position', colPuissance:'Benötigte Leistung', colPrise:'Steckertyp', colDiff:'FI-Empfindlichkeit', colPrec:'Hinweise',
+    noteJus:'Eine Zeile je benötigtem Stromanschluss: Standort, erwartete Stromstärke, Steckertyp und Empfindlichkeit des FI-Schutzschalters.',
+    noteDistrib:'Die von Ihnen bereitgestellten Stromanschlüsse, wie Sie sie uns gemeldet haben.',
+    noteMultis:'Multicore-Kabel zwischen Bühne und FOH.',
     grill:'Traversenhöhe', ouv:'Bühnenöffnung', puis:'Verfügbare Leistung',
     vac:'Schicht', dem:'Angefragt', valide:'Bestätigt', conf:'Bestätigen',
     possible:'Mögliche Anzahl', just:'Anmerkung falls abweichend', env:'Senden',
@@ -199,6 +229,10 @@ const T = {
     jus:'Puntos de potencia solicitados', accesScene:'Accesos al escenario solicitados',
     multis:'Mangueras escenario → control', distrib:'Sus puntos de distribución eléctrica',
     point:'Punto', acc:'Acceso', nb:'Cantidad', depart:'Punto de partida', prec:'Detalles',
+    colPosition:'Posición', colPuissance:'Potencia solicitada', colPrise:'Tipo de toma', colDiff:'Sensibilidad diferencial', colPrec:'Detalles',
+    noteJus:'Una línea por punto de potencia solicitado: dónde debe estar, la intensidad esperada, el tipo de toma y la sensibilidad del diferencial.',
+    noteDistrib:'Las tomas de corriente que ustedes ponen a disposición, tal como nos las han indicado.',
+    noteMultis:'Mangueras a tender entre el escenario y el control de sala.',
     grill:'Altura de parrilla', ouv:'Boca de escena', puis:'Potencia disponible',
     vac:'Turno', dem:'Solicitado', valide:'Confirmado', conf:'Confirmar',
     possible:'Número posible', just:'Justificación si difiere', env:'Enviar',
@@ -217,6 +251,10 @@ const T = {
     jus:'Gevraagde stroompunten', accesScene:'Gevraagde podiumtoegangen',
     multis:'Multikabels podium → FOH', distrib:'Uw stroomverdeelpunten',
     point:'Punt', acc:'Toegang', nb:'Aantal', depart:'Vertrekpunt', prec:'Details',
+    colPosition:'Positie', colPuissance:'Gevraagd vermogen', colPrise:'Type stopcontact', colDiff:'Gevoeligheid aardlekschakelaar', colPrec:'Details',
+    noteJus:'Eén regel per gevraagd stroompunt: waar het moet zijn, de verwachte stroomsterkte, het type stopcontact en de gevoeligheid van de aardlekschakelaar.',
+    noteDistrib:'De stroomaansluitingen die u ter beschikking stelt, zoals u ze aan ons hebt doorgegeven.',
+    noteMultis:'Multikabels tussen podium en FOH.',
     grill:'Rijghoogte', ouv:'Podiumopening', puis:'Beschikbaar vermogen',
     vac:'Shift', dem:'Aangevraagd', valide:'Bevestigd', conf:'Bevestigen',
     possible:'Mogelijk aantal', just:'Toelichting indien anders', env:'Versturen',
@@ -381,6 +419,23 @@ function blocRepere(titre, lignes){
     </div>`;
 }
 
+// Un tableau légendé : en-têtes de colonnes, une ligne par point. C'est
+// l'en-tête qui fait tout le travail — sans lui, la ligne de valeurs est une
+// énigme pour qui n'a pas saisi la fiche.
+function blocTableau(titre, colonnes, lignes, note){
+  const utiles = (lignes || []).filter(l=> l && l.some(v=> v != null && v !== ''));
+  if(!utiles.length) return '';
+  return `<div class="salle-bloc salle-bloc-large">
+      <div class="salle-bloc-titre">${escapeHtml(titre)}</div>
+      <div class="salle-tableau" style="--cols:${colonnes.length};">
+        ${colonnes.map(c=> `<span class="th">${escapeHtml(c)}</span>`).join('')}
+        ${utiles.map(l=> colonnes.map((_, i)=>
+          `<span class="td${i === 0 ? ' repere' : ''}">${l[i] ? escapeHtml(String(l[i])) : '<span class="vide">—</span>'}</span>`).join('')).join('')}
+      </div>
+      ${note ? `<p class="salle-note">${escapeHtml(note)}</p>` : ''}
+    </div>`;
+}
+
 function corpsDate(d){
   const L = tr();
   const m = moyensDe(d.id);
@@ -429,18 +484,24 @@ function corpsDate(d){
       </div>`);
 
   const exi = exigencesDe(t);
-  const blocJus = blocRepere(L.jus, exi.pointsJus.map((p, i)=>
-    champ(p.position || `${L.point} ${i + 1}`,
-          [p.puissance, p.typePrise, p.differentiel].filter(Boolean).join(' · '))));
-  const blocDistrib = blocRepere(L.distrib, (m.pointsDistribution || []).map((p, i)=>
-    champ(p.position || `${L.point} ${i + 1}`, p.notes)));
-  const blocAccesScene = blocRepere(`${L.accesScene} (${exi.accesScene.length})`,
-    exi.accesScene.map((a, i)=> champ(a.position || `${L.acc} ${i + 1}`, a.notes)));
-  const blocMultis = blocRepere(L.multis, [
-    exi.multis.nombre != null ? champ(L.nb, String(exi.multis.nombre)) : '',
-    exi.multis.depart ? champ(L.depart, exi.multis.depart) : '',
-    exi.multis.notes ? champ(L.prec, exi.multis.notes) : '',
-  ]);
+  // À l'écran comme au PDF : un tableau légendé, parce que « 400 · P17 · 300 »
+  // ne dit pas à une salle laquelle des trois valeurs est quoi.
+  const blocJus = blocTableau(L.jus,
+    [L.colPosition, L.colPuissance, L.colPrise, L.colDiff],
+    exi.pointsJus.map((p, i)=> [p.position || `${L.point} ${i + 1}`, p.puissance, p.typePrise, p.differentiel]),
+    L.noteJus);
+  const blocDistrib = blocTableau(L.distrib,
+    [L.colPosition, L.colPrec],
+    (m.pointsDistribution || []).map((p, i)=> [p.position || `${L.point} ${i + 1}`, p.notes]),
+    L.noteDistrib);
+  const blocAccesScene = blocTableau(`${L.accesScene} (${exi.accesScene.length})`,
+    [L.colPosition, L.colPrec],
+    exi.accesScene.map((a, i)=> [a.position || `${L.acc} ${i + 1}`, a.notes]));
+  const blocMultis = blocTableau(L.multis,
+    [L.nb, L.depart, L.colPrec],
+    (exi.multis.nombre != null || exi.multis.depart || exi.multis.notes)
+      ? [[exi.multis.nombre != null ? String(exi.multis.nombre) : '', exi.multis.depart, exi.multis.notes]] : [],
+    L.noteMultis);
 
   const horaires = (m.horairesJournee || []).filter(h=> h.heure || h.label);
   const equipesRoad = (t && t.equipesRoad) || [];
@@ -553,18 +614,6 @@ function exporterPdf(){
         champ(L.ouv, m.ouvertureScene),
         champ(L.puis, m.puissance),
       ].filter(Boolean) },
-      { titre: L.jus, lignes: exigencesDe(t).pointsJus.map((p, i)=>
-        champ(p.position || `${L.point} ${i + 1}`,
-              [p.puissance, p.typePrise, p.differentiel].filter(Boolean).join(' · '))).filter(Boolean) },
-      { titre: L.distrib, lignes: (m.pointsDistribution || []).map((p, i)=>
-        champ(p.position || `${L.point} ${i + 1}`, p.notes || '·')).filter(Boolean) },
-      { titre: L.accesScene, lignes: exigencesDe(t).accesScene.map((a, i)=>
-        champ(a.position || `${L.acc} ${i + 1}`, a.notes || '·')).filter(Boolean) },
-      { titre: L.multis, lignes: [
-        champ(L.nb, exigencesDe(t).multis.nombre),
-        champ(L.depart, exigencesDe(t).multis.depart),
-        champ(L.prec, exigencesDe(t).multis.notes),
-      ].filter(Boolean) },
       { titre: L.docs, lignes: [m.planUrl
         ? [L.plan, { texte: pdfUrlCourte(m.planUrl, 26), lien: m.planUrl }] : null].filter(Boolean) },
       { titre: L.contacts, lignes: techniciensCache
@@ -572,6 +621,31 @@ function exporterPdf(){
         .map(p=> champ(p.poste || '—', [fullName(p), p.telephone].filter(Boolean).join(' · ')))
         .filter(Boolean) },
     ]);
+
+    // Les exigences électriques passent en tableaux légendés. Empilées en
+    // couples clé/valeur, elles donnaient « Jardin lointain : 400 · P17 · 300 » :
+    // trois valeurs dont une salle ne pouvait pas deviner laquelle est la
+    // puissance, laquelle la prise, laquelle le différentiel.
+    const exi = exigencesDe(t);
+    page.tableau(L.jus,
+      [{ titre:L.colPosition, largeur:1.3 }, { titre:L.colPuissance }, { titre:L.colPrise, largeur:1.2 }, { titre:L.colDiff }],
+      exi.pointsJus.map((p, i)=> [p.position || `${L.point} ${i + 1}`, p.puissance, p.typePrise, p.differentiel]),
+      L.noteJus);
+
+    page.tableau(L.distrib,
+      [{ titre:L.colPosition, largeur:1.3 }, { titre:L.colPrec, largeur:2 }],
+      (m.pointsDistribution || []).map((p, i)=> [p.position || `${L.point} ${i + 1}`, p.notes]),
+      L.noteDistrib);
+
+    page.tableau(L.accesScene,
+      [{ titre:L.colPosition, largeur:1.3 }, { titre:L.colPrec, largeur:2 }],
+      exi.accesScene.map((a, i)=> [a.position || `${L.acc} ${i + 1}`, a.notes]));
+
+    page.tableau(L.multis,
+      [{ titre:L.nb }, { titre:L.depart, largeur:1.4 }, { titre:L.colPrec, largeur:2 }],
+      (exi.multis.nombre != null || exi.multis.depart || exi.multis.notes)
+        ? [[exi.multis.nombre != null ? String(exi.multis.nombre) : '', exi.multis.depart, exi.multis.notes]] : [],
+      L.noteMultis);
 
     page.pastilles(L.horaires, (m.horairesJournee || [])
       .filter(h=> h.heure || h.label)

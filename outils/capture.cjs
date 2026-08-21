@@ -63,8 +63,48 @@ const SEED = {
     { id:'demo-chauf-01', prenom:'Bruno', nom:'Marchand', telephone:'06 45 78 91 23', email:'' },
     { id:'demo-chauf-02', prenom:'Sonia', nom:'Vialla', telephone:'06 77 12 34 56', email:'' },
   ],
+  // Trois semis, dont une partagée entre les deux tournées : c'est elle qui
+  // doit déclencher l'alerte de chevauchement.
+  vehicules: [
+    { id:'demo-veh-01', nom:'Semi 1 — son', type:'semi', hayon:true, chauffeurDefautId:'demo-chauf-01' },
+    { id:'demo-veh-02', nom:'Semi 2 — lumière', type:'semi', hayon:false, chauffeurDefautId:'demo-chauf-02' },
+    { id:'demo-veh-03', nom:'Semi 3 — structure', type:'semi', hayon:true, chauffeurDefautId:'' },
+  ],
+  // Cinq échanges couvrant les cinq états, dont un déposé sans retour calé
+  // (celui qui doit remonter en tête du suivi) et un sur la seconde tournée.
+  echanges: [
+    { id:'demo-ech-01', tourneeId:'demo-tour1', lotId:'demo-lot-01',
+      vehiculeId:'demo-veh-02', vehiculeRetourId:'demo-veh-02', chauffeurId:'',
+      prestataireId:'demo-prest-01', portee:'partiel', elements:'Console FOH — carte son HS',
+      motif:'panne', depotDate:'2027-03-13', depotHeure:'09:00',
+      recupDate:'', recupHeure:'', etat:'depose',
+      notes:'Dossier SAV 4471 — ils rappellent lundi.' },
+    { id:'demo-ech-02', tourneeId:'demo-tour1', lotId:'demo-lot-01',
+      vehiculeId:'demo-veh-02', vehiculeRetourId:'demo-veh-02', chauffeurId:'',
+      prestataireId:'demo-prest-01', portee:'partiel', elements:'6 découpes 614',
+      motif:'complement', depotDate:'2027-03-16', depotHeure:'14:00',
+      recupDate:'2027-03-16', recupHeure:'18:30', etat:'planifie', notes:'' },
+    { id:'demo-ech-03', tourneeId:'demo-tour1', lotId:'demo-lot-03',
+      vehiculeId:'demo-veh-01', vehiculeRetourId:'demo-veh-01', chauffeurId:'',
+      prestataireId:'', portee:'total', elements:'', motif:'retour',
+      depotDate:'', depotHeure:'', recupDate:'', recupHeure:'',
+      etat:'a_planifier', notes:'À caler avec le régisseur cuivres.' },
+    { id:'demo-ech-04', tourneeId:'demo-tour1', lotId:'demo-lot-01',
+      vehiculeId:'demo-veh-02', vehiculeRetourId:'demo-veh-03', chauffeurId:'demo-chauf-01',
+      prestataireId:'demo-prest-01', portee:'partiel', elements:'2 ponts alu 3 m',
+      motif:'echange', depotDate:'2027-03-11', depotHeure:'07:30',
+      recupDate:'2027-03-12', recupHeure:'11:00', etat:'recupere', notes:'' },
+    // Seconde tournée, même semi, même jour : le chevauchement à signaler.
+    { id:'demo-ech-05', tourneeId:'demo-tour2', lotId:'demo-lot-04',
+      vehiculeId:'demo-veh-02', vehiculeRetourId:'demo-veh-02', chauffeurId:'',
+      prestataireId:'demo-prest-01', portee:'partiel', elements:'Ampli de secours',
+      motif:'panne', depotDate:'2027-03-13', depotHeure:'15:00',
+      recupDate:'', recupHeure:'', etat:'depose', notes:'' },
+  ],
   lots_materiel: [
     { id:'demo-lot-01', nom:'kit light', categorie:'lumiere', parentId:'', provenanceId:'demo-prest-01',
+      tourneeId:'demo-tour1', vehiculeId:'demo-veh-02',
+      priseEnCharge:{ date:'2027-03-10', heure:'08:00', prestataireId:'demo-prest-01', notes:'Quai nord, demander Sylvain' },
       description:'', elements:[], datePrepa:'2027-03-10', datePickup:'2027-03-11',
       mouvements:[
         { id:'mvt1', date:'2027-03-12', heure:'12:30', type:'sortie', description:'switch desk' },
@@ -74,12 +114,27 @@ const SEED = {
       retourPrestataireDate:'2027-03-20', retourPrestataireHeurePickup:'08:00',
       retourPrestataireHeureLivraison:'14:30', notes:'' },
     { id:'demo-lot-02', nom:'Barres LED sol', categorie:'lumiere', parentId:'demo-lot-01', provenanceId:'demo-prest-01',
+      tourneeId:'demo-tour1', vehiculeId:'demo-veh-02', priseEnCharge:{},
       description:'', elements:[], datePrepa:'', datePickup:'',
       mouvements:[{ id:'mvt4', date:'2027-03-13', heure:'09:15', type:'entree', description:'complément de 6 barres' }],
       retourPrestataireDate:'', retourPrestataireHeurePickup:'', retourPrestataireHeureLivraison:'', notes:'' },
     { id:'demo-lot-03', nom:'Backline cuivres', categorie:'backline', parentId:'', provenanceId:'',
+      tourneeId:'demo-tour1', vehiculeId:'demo-veh-01',
+      priseEnCharge:{ date:'2027-03-09', heure:'14:00', prestataireId:'', notes:'' },
       description:'2 amplis, 1 pédalier', elements:[], datePrepa:'2027-03-09', datePickup:'',
       mouvements:[], retourPrestataireDate:'', retourPrestataireHeurePickup:'',
+      retourPrestataireHeureLivraison:'', notes:'' },
+    { id:'demo-lot-04', nom:'Kit son Nocturnes', categorie:'son', parentId:'', provenanceId:'demo-prest-01',
+      tourneeId:'demo-tour2', vehiculeId:'demo-veh-02',
+      priseEnCharge:{ date:'2027-03-12', heure:'09:30', prestataireId:'demo-prest-01', notes:'' },
+      description:'', elements:[], datePrepa:'', datePickup:'', mouvements:[],
+      retourPrestataireDate:'2027-03-25', retourPrestataireHeurePickup:'09:00',
+      retourPrestataireHeureLivraison:'16:00', notes:'' },
+    // Volontairement sans tournée : c'est lui qui déclenche le rattrapage.
+    { id:'demo-lot-05', nom:'Praticables (ancien)', categorie:'structure', parentId:'', provenanceId:'',
+      tourneeId:'', vehiculeId:'', priseEnCharge:{},
+      description:'', elements:[], datePrepa:'', datePickup:'', mouvements:[],
+      retourPrestataireDate:'', retourPrestataireHeurePickup:'',
       retourPrestataireHeureLivraison:'', notes:'' },
   ],
   // Deux remarques reçues depuis des liens partagés, dont une déjà traitée.
@@ -149,6 +204,18 @@ const SEED = {
       ],
       multis:{nombre:3, depart:'Jardin lointain', notes:'60 m, passage sous gradin'},
     },
+  }, {
+    // Une seconde tournée menée en parallèle : sans elle, l'alerte de
+    // chevauchement n'a rien à comparer et le suivi ne montre qu'un chantier.
+    id:'demo-tour2', nom:'Nocturnes — Automne 2027',
+    cachetStatut:'non_defini', cachetMontant:null, nomenclature:[],
+    dates:[
+      {id:'n0', date:'2027-03-13', ville:'Reims', lieu:'La Cartonnerie', statut:'validee',
+       commentaire:'', musiciensAssignes:[], techniciensAssignes:[]},
+      {id:'n1', date:'2027-03-19', ville:'Metz', lieu:'Les Trinitaires', statut:'option',
+       commentaire:'', musiciensAssignes:[], techniciensAssignes:[]},
+    ],
+    techniqueTournee:{},
   }],
   // Une fiche de date déjà remplie, pour capturer technique-date.html.
   moyens_salle: [{

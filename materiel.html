@@ -147,6 +147,66 @@
     .agenda-quand b{display:inline;}
     .lot-mvts .mvt-quand{flex:0 0 auto;}
   }
+  /* Bandeau de conflits — rouge seulement s'il y en a, vert sinon : une ligne
+     qui ne dit rien doit se lire comme telle, pas alarmer pour rien. */
+  .conflits{border-radius:var(--radius); padding:12px 15px; margin-bottom:16px; font-size:13.5px; line-height:1.5;}
+  .conflits.ok{background:var(--ok-tint, #E8F4EC); color:var(--ok);}
+  .conflits.ko{background:var(--danger-tint); }
+  .conflits b{display:block; margin-bottom:5px;}
+  .conflits ul{margin:0; padding-left:18px;}
+  .conflits li{margin-bottom:3px;}
+
+  .orphelins{display:flex; gap:14px; align-items:center; flex-wrap:wrap; justify-content:space-between;
+    background:var(--secondary-tint); border-radius:var(--radius); padding:13px 16px; margin-bottom:16px;}
+  .orphelins[hidden]{display:none;}
+  .orphelins-texte{flex:1; min-width:240px;}
+  .orphelins-texte p{margin:3px 0 0; font-size:12.5px; color:var(--muted); line-height:1.45;}
+  .orphelins-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+
+  .bloc-head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px;}
+  .bloc-titre{font-family:var(--font-display); font-size:19px; font-weight:500; color:var(--accent); margin:0; letter-spacing:var(--tracking-display);}
+  .bloc-head .subtitle{margin:3px 0 0; max-width:56ch;}
+
+  /* Une bande par semi : l'en-tête porte la semi et son chauffeur, le corps ses
+     rendez-vous dans l'ordre. C'est l'unité de lecture d'un planning. */
+  .semi-bande{border-top:1px solid var(--border); padding:12px 0;}
+  .semi-bande:first-child{border-top:none; padding-top:2px;}
+  .semi-tete{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+  .semi-nom{font-weight:800; font-size:14.5px;}
+  .semi-chauffeur{font-size:12.5px; color:var(--muted); font-weight:700;}
+  .semi-tete .co-btn{margin-left:auto;}
+  .semi-rdv{display:grid; grid-template-columns:118px 96px minmax(0,1fr); gap:10px; align-items:baseline;
+    padding:5px 0; font-size:13px; line-height:1.4;}
+  .semi-rdv + .semi-rdv{border-top:1px dashed var(--border);}
+  .semi-rdv.passe{opacity:.5;}
+  .semi-rdv .quand{font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .semi-rdv .quoi{min-width:0;}
+  .semi-rdv .quoi .detail{color:var(--muted); font-size:12.5px;}
+
+  /* Les cinq états d'un échange, du plus ouvert au plus clos. */
+  .etat-pastille{font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    padding:3px 9px; border-radius:999px; white-space:nowrap; justify-self:start;}
+  .etat-a_planifier{background:var(--danger-tint); color:var(--ko);}
+  .etat-planifie{background:var(--secondary-tint); color:var(--accent);}
+  .etat-depose{background:var(--secondary); color:#FCF2F0;}
+  .etat-recupere{background:var(--accent-tint); color:var(--tint-ink);}
+  .etat-clos{background:var(--border); color:var(--muted);}
+
+  .echange-ligne{display:grid; grid-template-columns:104px minmax(0,1fr) auto; gap:12px; align-items:start;
+    padding:10px 0; border-top:1px solid var(--border);}
+  .echange-ligne:first-child{border-top:none;}
+  .echange-ligne.retard .quand{color:var(--ko);}
+  .echange-ligne .quand{font-size:12.5px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .echange-ligne .quand small{display:block; font-weight:600; color:var(--muted); font-size:11.5px;}
+  .echange-corps{min-width:0;}
+  .echange-quoi{font-weight:800; font-size:13.5px;}
+  .echange-sub{font-size:12.5px; color:var(--muted); margin-top:2px; line-height:1.45;}
+  .echange-tournee{font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:.03em;}
+
+  @media (max-width:640px){
+    .semi-rdv{grid-template-columns:minmax(0,1fr); gap:3px;}
+    .echange-ligne{grid-template-columns:minmax(0,1fr); gap:6px;}
+  }
   @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
 </style>
 </head>
@@ -155,36 +215,34 @@
   <div class="co-page-head co-fade">
     <div>
       <h1>Matériel</h1>
-      <p class="subtitle">Ce qu'on amène — kits, et ce qu'ils contiennent.</p>
+      <p class="subtitle">Les kits, la semi qui les porte, et leurs allers-retours chez les prestataires.</p>
     </div>
-    <div class="co-actions"><button type="button" class="co-btn primary md" id="addLotBtn">+ Ajouter un lot</button></div>
+    <div class="co-actions">
+      <select class="co-select" id="tourneeSelect" style="width:auto; min-width:200px;" aria-label="Tournée"></select>
+      <button type="button" class="co-btn primary md" id="addLotBtn">+ Ajouter un kit</button>
+    </div>
   </div>
 
-  <section class="co-card agenda co-fade" id="agenda" style="display:none;">
-    <div class="agenda-head">
-      <div>
-        <h2 class="agenda-titre">Agenda du matériel</h2>
-        <p class="subtitle">Ce qui bouge et quand, tous lots confondus — préparation, sorties, entrées, retours. De quoi transmettre la journée à un chauffeur sans rouvrir chaque lot.</p>
-      </div>
-      <div class="agenda-filtres">
-        <button type="button" class="agenda-filtre" data-agenda-filtre="avenir" aria-pressed="true">À venir</button>
-        <button type="button" class="agenda-filtre" data-agenda-filtre="tout" aria-pressed="false">Tout</button>
-        <button type="button" class="agenda-filtre" id="modeMissionBtn" aria-pressed="false" title="Cocher des mouvements pour en faire une feuille de mission">Feuille de mission</button>
-      </div>
-    </div>
-    <div id="agendaListe"></div>
+  <!-- Les conflits se lisent sur toute la flotte, jamais sur une seule tournée :
+       une semi ne peut pas être à deux endroits, et c'est précisément entre deux
+       tournées menées en parallèle que l'erreur se produit. Une liste courte
+       plutôt qu'un damier de quarante bandes : on cherche à être prévenu, pas à
+       parcourir. -->
+  <div id="conflitsBandeau"></div>
 
-    <!-- Une mission, c'est une suite d'arrêts : on les coche dans l'agenda, on
-         dit qui conduit, et le chauffeur reçoit une feuille qui reprend tout —
-         chez qui, à quelle adresse, à quelle heure, pour prendre ou déposer
-         quoi. Un seul arrêt ou six, c'est la même feuille. -->
-    <div class="mission-barre" id="missionBarre" hidden>
-      <div class="mission-compte" id="missionCompte">Aucun arrêt sélectionné</div>
-      <select class="co-select" id="missionChauffeur" aria-label="Chauffeur" style="width:auto; min-width:170px;"></select>
-      <button type="button" class="co-btn secondary sm" id="missionPdfBtn">Feuille PDF</button>
-      <button type="button" class="co-btn ghost sm" id="missionWaBtn">WhatsApp</button>
+  <!-- Les kits saisis avant que la page ne connaisse les tournées n'en ont
+       aucune. Les laisser filtrés les rendrait invisibles : on les propose donc
+       au rattachement, une fois, et le bandeau disparaît de lui-même. -->
+  <div class="orphelins" id="orphelinsBandeau" hidden>
+    <div class="orphelins-texte">
+      <b id="orphelinsTitre"></b>
+      <p>Ces kits ont été créés avant que le matériel ne soit rangé par tournée. Choisis celle à laquelle ils appartiennent — ils resteront invisibles tant que ce n'est pas fait.</p>
     </div>
-  </section>
+    <div class="orphelins-actions">
+      <select class="co-select" id="orphelinsTournee" aria-label="Tournée de rattachement" style="width:auto; min-width:180px;"></select>
+      <button type="button" class="co-btn primary sm" id="orphelinsBtn">Rattacher</button>
+    </div>
+  </div>
 
   <!-- Les adresses des prestataires ne vivaient nulle part : elles se
        demandaient au vol, en trois « prompt » enchaînés, à la création d'un lot
@@ -200,8 +258,115 @@
     <button type="button" class="co-btn secondary sm" id="addPrestataireBtn">+ Ajouter un prestataire</button>
   </details>
 
+  <!-- Le planning est cadré sur la tournée : dix à douze semis tiennent à
+       l'écran, et c'est l'unité dans laquelle on planifie. Une bande par semi,
+       ses rendez-vous dans l'ordre du temps — prise en charge, échanges, retour
+       définitif — de quoi sortir la feuille de route d'un chauffeur sans rien
+       cocher. -->
+  <section class="co-card co-pad co-fade" id="planningSection" style="display:none;">
+    <div class="bloc-head">
+      <div>
+        <h2 class="bloc-titre">Planning par semi</h2>
+        <p class="subtitle">Ce que chaque semi doit faire, dans l'ordre. La feuille de route s'en déduit.</p>
+      </div>
+      <div class="agenda-filtres">
+        <button type="button" class="agenda-filtre" data-planning-filtre="avenir" aria-pressed="true">À venir</button>
+        <button type="button" class="agenda-filtre" data-planning-filtre="tout" aria-pressed="false">Tout</button>
+      </div>
+    </div>
+    <div id="planningListe"></div>
+  </section>
+
+  <!-- Le suivi ignore délibérément la tournée courante : quand on appelle un
+       prestataire, on ne lui demande pas ce qu'il a d'une tournée, on lui
+       demande ce qu'il a à nous. D'où le nom de la tournée sur chaque ligne. -->
+  <section class="co-card co-pad co-fade" id="suiviSection">
+    <div class="bloc-head">
+      <div>
+        <h2 class="bloc-titre">Échanges en cours</h2>
+        <p class="subtitle">Ce qui est parti chez un prestataire, toutes tournées confondues. Ce qui traîne remonte en tête.</p>
+      </div>
+      <div class="agenda-filtres">
+        <button type="button" class="agenda-filtre" data-suivi-filtre="ouverts" aria-pressed="true">Ouverts</button>
+        <button type="button" class="agenda-filtre" data-suivi-filtre="tout" aria-pressed="false">Tout</button>
+        <button type="button" class="co-btn secondary sm" id="addEchangeBtn">+ Échange</button>
+        <button type="button" class="co-btn ghost sm" id="suiviPdfBtn">Feuille de suivi</button>
+      </div>
+    </div>
+    <div id="suiviListe"></div>
+  </section>
+
+  <h2 class="bloc-titre" style="margin:22px 0 10px;">Kits</h2>
   <div id="lotsListe"></div>
-  <div class="empty-hint" id="lotsEmpty" style="display:none;">Aucun lot enregistré.</div>
+  <div class="empty-hint" id="lotsEmpty" style="display:none;">Aucun kit sur cette tournée.</div>
+</div>
+
+<div class="modal-overlay" id="echangeModalOverlay">
+  <div class="modal">
+    <h2 id="echangeModalTitle">Nouvel échange</h2>
+    <p class="subtitle" style="margin:-10px 0 14px;">Un aller-retour chez un prestataire : ce qui part, quand, et quand ça revient. C'est l'état qui dit ce qui traîne.</p>
+    <input type="hidden" id="eEditId">
+    <div class="field-row">
+      <div class="field"><label for="eLot">Kit concerné</label><select id="eLot"></select></div>
+      <div class="field"><label for="eMotif">Motif</label>
+        <select id="eMotif">
+          <option value="panne">Panne</option>
+          <option value="echange">Échange standard</option>
+          <option value="complement">Complément</option>
+          <option value="retour">Retour de non-utilisé</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="ePortee">Portée</label>
+        <select id="ePortee">
+          <option value="partiel">Une partie du kit</option>
+          <option value="total">Tout le kit</option>
+        </select>
+      </div>
+      <div class="field"><label for="ePrestataire">Chez qui</label><select id="ePrestataire"></select></div>
+    </div>
+    <div class="field" id="eElementsChamp"><label for="eElements">Ce qui part</label><textarea id="eElements" placeholder="Ex : console FOH, 2 barres LED — nomme-les comme le prestataire les reconnaîtra"></textarea></div>
+
+    <fieldset class="groupe">
+      <legend>Dépôt</legend>
+      <div class="field-row">
+        <div class="field"><label for="eDepotDate">Date</label><input type="date" id="eDepotDate"></div>
+        <div class="field"><label for="eDepotHeure">Heure</label><input type="time" id="eDepotHeure"></div>
+        <div class="field"><label for="eVehicule">Semi</label><select id="eVehicule"></select></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="groupe">
+      <legend>Récupération</legend>
+      <p class="subtitle" style="margin:-6px 0 10px;">À laisser vide tant que le prestataire n'a pas donné de date — l'échange restera signalé comme ouvert.</p>
+      <div class="field-row">
+        <div class="field"><label for="eRecupDate">Date</label><input type="date" id="eRecupDate"></div>
+        <div class="field"><label for="eRecupHeure">Heure</label><input type="time" id="eRecupHeure"></div>
+        <div class="field"><label for="eVehiculeRetour">Semi</label><select id="eVehiculeRetour"></select></div>
+      </div>
+    </fieldset>
+
+    <div class="field-row">
+      <div class="field"><label for="eEtat">État</label>
+        <select id="eEtat">
+          <option value="a_planifier">À planifier</option>
+          <option value="planifie">Planifié</option>
+          <option value="depose">Déposé</option>
+          <option value="recupere">Récupéré</option>
+          <option value="clos">Clos</option>
+        </select>
+      </div>
+      <div class="field"><label for="eChauffeur">Chauffeur</label><select id="eChauffeur"></select></div>
+    </div>
+    <div class="field"><label for="eNotes">Notes</label><textarea id="eNotes" placeholder="Numéro de dossier SAV, personne rencontrée, ce qu'on attend…"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="co-btn danger" id="echangeDeleteBtn" style="margin-right:auto; display:none;">Supprimer</button>
+      <button type="button" class="co-btn ghost" id="echangeCancelBtn">Annuler</button>
+      <button type="button" class="co-btn primary" id="echangeSaveBtn">Enregistrer</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="prestModalOverlay">
@@ -245,18 +410,35 @@
         </select>
       </div>
     </div>
-    <div class="field"><label for="lProvenance">Provenance</label><select id="lProvenance"></select></div>
-    <div class="field"><label for="lDescription">Description</label><textarea id="lDescription" placeholder="Ce que contient ce lot, en clair"></textarea></div>
     <div class="field-row">
-      <div class="field"><label for="lDatePrepa">Préparation</label><input type="date" id="lDatePrepa"></div>
-      <div class="field"><label for="lDatePickup">Récupération</label><input type="date" id="lDatePickup"></div>
+      <div class="field"><label for="lProvenance">Provenance</label><select id="lProvenance"></select></div>
+      <div class="field"><label for="lVehicule">Semi qui le porte</label><select id="lVehicule"></select></div>
     </div>
+    <div class="field"><label for="lDescription">Description</label><textarea id="lDescription" placeholder="Ce que contient ce lot, en clair"></textarea></div>
+    <div class="field"><label for="lDatePrepa">Préparation</label><input type="date" id="lDatePrepa"></div>
 
+    <!-- Le premier rendez-vous du chauffeur. Une date sèche ne suffisait pas :
+         sans heure ni adresse, on ne peut rien lui transmettre. -->
     <fieldset class="groupe">
-      <legend>Mouvements</legend>
-      <p class="subtitle" style="margin:-6px 0 10px;">Chaque sortie ou entrée de matériel dans ce lot, avec sa date et éventuellement l'heure demandée — utile pour les échanges (une console qui sort, une autre qui rentre), les retours de matériel non utilisé, et pour transmettre l'info au chauffeur concerné.</p>
-      <div class="sous-liste" id="mouvementsListe"></div>
-      <button type="button" class="co-btn secondary sm" id="addMouvementBtn">+ Ajouter un mouvement</button>
+      <legend>Prise en charge</legend>
+      <p class="subtitle" style="margin:-6px 0 10px;">Quand et où le chauffeur récupère ce kit pour la première fois. C'est ce qui ouvre sa feuille de route.</p>
+      <div class="field-row">
+        <div class="field"><label for="lPecDate">Date</label><input type="date" id="lPecDate"></div>
+        <div class="field"><label for="lPecHeure">Heure</label><input type="time" id="lPecHeure"></div>
+        <div class="field"><label for="lPecPresta">Chez qui</label><select id="lPecPresta"></select></div>
+      </div>
+      <div class="field"><label for="lPecNotes">Précisions</label><input type="text" id="lPecNotes" placeholder="Quai à utiliser, code du portail, personne à demander…"></div>
+    </fieldset>
+
+    <!-- Les allers-retours ne se saisissent plus ici. Un journal de sorties et
+         d'entrées indépendantes ne savait pas dire ce qui était parti sans être
+         revenu : ils passent par « Échanges en cours », où chacun porte son
+         état. Ce qui avait été saisi ici a été repris automatiquement. -->
+    <fieldset class="groupe">
+      <legend>Allers-retours</legend>
+      <p class="subtitle" style="margin:-6px 0 6px;">Ils se saisissent depuis « Échanges en cours », en bas de la page : un échange y porte ce qui part, chez qui, et son état — ce qu'un simple journal de sorties et d'entrées ne savait pas dire.</p>
+      <div id="echangesDuLot"></div>
+      <button type="button" class="co-btn secondary sm" id="addEchangeDepuisLot">+ Ajouter un échange sur ce kit</button>
     </fieldset>
 
     <fieldset class="groupe">
@@ -403,9 +585,10 @@ document.getElementById('prestSaveBtn').addEventListener('click', async ()=>{
   fermerPrestModal();
   renderPrestataires();
   fillProvenanceSelect();
-  // Un nom ou une adresse qui change se répercute sur l'agenda et sur les
-  // feuilles de mission qu'on en tire.
-  renderAgenda();
+  // Un nom ou une adresse qui change se répercute sur le planning et sur les
+  // feuilles de route qu'on en tire.
+  renderPlanning();
+  renderSuivi();
   render();
   if(suite) suite(obj);
 });
@@ -432,42 +615,11 @@ document.getElementById('prestDeleteBtn').addEventListener('click', async ()=>{
 // Les éléments d'un lot ne sont plus affichés ni édités ici — la valeur
 // chargée est conservée telle quelle et repartira intacte à l'enregistrement.
 
-// ============================================================================
-// Mouvements — journal des allers-retours (échange, retour…), plusieurs
-// possibles par lot, chacun avec sa propre date et heure éventuelle.
-// ============================================================================
+// L'ancien journal « mouvements » n'est plus édité : les allers-retours passent
+// par la table echanges, qui sait porter un état. La valeur chargée est
+// conservée telle quelle et repartira intacte à l'enregistrement, pour ne rien
+// détruire de ce qui avait été saisi avant la reprise.
 let mouvementsEnEdition = [];
-function renderMouvementsEdition(){
-  document.getElementById('mouvementsListe').innerHTML = mouvementsEnEdition.map((mv,i)=>`
-    <div class="sous-ligne mvt-ligne">
-      <div class="mvt-tete">
-        <input type="date" style="width:150px;" data-i="${i}" data-f="date" value="${mv.date||''}" aria-label="Date du mouvement ${i+1}">
-        <input type="time" style="width:105px;" data-i="${i}" data-f="heure" value="${mv.heure||''}" aria-label="Heure du mouvement ${i+1}">
-        <select style="width:115px;" data-i="${i}" data-f="type" aria-label="Sens du mouvement ${i+1}">
-          <option value="sortie" ${mv.type==='sortie'?'selected':''}>Sortie</option>
-          <option value="entree" ${mv.type==='entree'?'selected':''}>Entrée</option>
-        </select>
-        <button type="button" class="co-btn danger sm sous-retirer" data-retirer="${i}">Retirer</button>
-      </div>
-      <textarea class="mvt-desc" data-i="${i}" data-f="description" placeholder="Ce qui sort ou rentre, et pourquoi — ex : échange de console, retour des barres non utilisées, complément de 6 découpes…" aria-label="Description du mouvement ${i+1}">${escapeHtml(mv.description||'')}</textarea>
-    </div>
-  `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun mouvement.</p>`;
-  document.querySelectorAll('#mouvementsListe [data-f]').forEach(inp=> inp.addEventListener('input', ()=>{
-    mouvementsEnEdition[inp.dataset.i][inp.dataset.f] = inp.value;
-  }));
-  document.querySelectorAll('#mouvementsListe select[data-f]').forEach(sel=> sel.addEventListener('change', ()=>{
-    mouvementsEnEdition[sel.dataset.i][sel.dataset.f] = sel.value;
-  }));
-  document.querySelectorAll('#mouvementsListe [data-retirer]').forEach(btn=> btn.addEventListener('click', ()=>{
-    mouvementsEnEdition.splice(Number(btn.dataset.retirer), 1);
-    renderMouvementsEdition();
-  }));
-}
-document.getElementById('addMouvementBtn').addEventListener('click', ()=>{
-  mouvementsEnEdition.push({ id: genId('mvt'), date:'', type:'entree', description:'' });
-  renderMouvementsEdition();
-});
-
 // ============================================================================
 // Rendez-vous logistiques — la lecture des mouvements.
 //
@@ -497,14 +649,16 @@ function heuresRetour(l){
 function evenementsDuLot(l){
   const evts = [];
   if(l.datePrepa)  evts.push({ date:l.datePrepa,  heure:'', sens:'prepa',  texte:'' });
-  if(l.datePickup) evts.push({ date:l.datePickup, heure:'', sens:'recup',  texte:'' });
-  (l.mouvements||[]).forEach(mv=>{
-    if(!mv.date) return;
-    evts.push({
-      date: mv.date, heure: mv.heure || '',
-      sens: mv.type === 'sortie' ? 'sortie' : 'entree',
-      texte: mv.description || '',
-    });
+  const pec = l.priseEnCharge || {};
+  if(pec.date) evts.push({ date:pec.date, heure:pec.heure || '', sens:'recup', texte:pec.notes || '' });
+  // Les allers-retours viennent des échanges, seule source qui sache dire ce
+  // qui est parti et ce qui est revenu. L'ancien journal « mouvements » n'est
+  // plus lu : il a été repris en échanges par la migration.
+  echangesCache.filter(e=> e.lotId === l.id).forEach(e=>{
+    const quoi = e.portee === 'total' ? 'tout le kit' : (e.elements || 'une partie du kit');
+    if(e.depotDate) evts.push({ date:e.depotDate, heure:e.depotHeure || '', sens:'sortie',
+      texte:`${quoi} · ${MOTIF_LABEL[e.motif] || e.motif}` });
+    if(e.recupDate) evts.push({ date:e.recupDate, heure:e.recupHeure || '', sens:'entree', texte:quoi });
   });
   if(l.retourPrestataireDate){
     const { pickup, livraison } = heuresRetour(l);
@@ -531,7 +685,6 @@ function ligneMouvement(evt, options){
     ? fmtJourCourt(evt.date) + (evt.heure ? ' · ' + evt.heure : '')
     : (evt.heure || '—');
   return `<div class="mvt">
-    ${opts.cle ? `<input type="checkbox" class="mvt-choix" data-arret="${escapeAttr(opts.cle)}" ${missionArrets.has(opts.cle) ? 'checked' : ''} aria-label="Ajouter cet arrêt à la mission">` : ''}
     <span class="mvt-quand${evt.heure ? '' : ' vide'}">${escapeHtml(quand)}</span>
     <span class="mvt-sens ${classe}">${libelle}</span>
     ${opts.lot ? `<span class="mvt-lot">${escapeHtml(opts.lot)}${opts.presta ? ` <span class="mvt-presta">· ${escapeHtml(opts.presta)}</span>` : ''}</span>` : ''}
@@ -540,213 +693,529 @@ function ligneMouvement(evt, options){
 }
 
 // ============================================================================
-// Agenda de tête de page — tous les lots réunis, dans l'ordre du temps.
+// Planning par semi
+//
+// Un kit est chargé dans une semi ; une semi enchaîne des rendez-vous. C'est
+// donc la semi qu'on regarde pour planifier, et d'elle que se déduit la feuille
+// de route d'un chauffeur — au lieu de cocher des mouvements un par un dans un
+// agenda commun, ce qui devenait intenable à douze semis.
 // ============================================================================
-let agendaFiltre = 'avenir';
-// Composition d'une feuille de mission : les arrêts cochés, et tout l'agenda
-// sous la main pour les retrouver au moment d'écrire la feuille.
-let modeMission = false;
-let agendaComplet = [];
-const missionArrets = new Set();
+let planningFiltre = 'avenir';
+let suiviFiltre = 'ouverts';
+let echangesCache = [];
+let vehiculesCache = [];
 let chauffeursCache = [];
-function renderAgenda(){
-  const section = document.getElementById('agenda');
-  const box = document.getElementById('agendaListe');
-  if(lotsCache.length === 0){ section.style.display = 'none'; box.innerHTML = ''; return; }
-  section.style.display = 'block';
+let tourneesCache = [];
 
-  const aujourdhui = new Date().toLocaleDateString('sv-SE');   // AAAA-MM-JJ local
-  const tous = [];
-  lotsCache.forEach(l=>{
-    const presta = prestatairesCache.find(p=>p.id === l.provenanceId);
-    const parent = l.parentId ? lotsCache.find(x=>x.id === l.parentId) : null;
-    const nom = (parent ? (parent.nom || 'Sans nom') + ' › ' : '') + (l.nom || 'Sans nom');
-    evenementsDuLot(l).forEach((evt, i)=> tous.push({ ...evt, lot:nom, lotId:l.id, indice:i,
-      presta: presta ? presta.nom : '', prestaId: l.provenanceId || '' }));
+const ETAT_LABEL = {
+  a_planifier:'À planifier', planifie:'Planifié', depose:'Déposé',
+  recupere:'Récupéré', clos:'Clos',
+};
+const MOTIF_LABEL = {
+  panne:'Panne', echange:'Échange standard', complement:'Complément',
+  retour:'Retour de non-utilisé', autre:'Autre',
+};
+
+function aujourdhuiIso(){ return new Date().toLocaleDateString('sv-SE'); }
+function tourneeActiveId(){ const s = document.getElementById('tourneeSelect'); return s ? s.value : ''; }
+function tourneeActive(){ return tourneesCache.find(t=> t.id === tourneeActiveId()) || null; }
+function nomTournee(id){ const t = tourneesCache.find(x=> x.id === id); return t ? (t.nom || 'Tournée') : ''; }
+function lotsDeLaTournee(){ return lotsCache.filter(l=> l.tourneeId === tourneeActiveId()); }
+function lotsOrphelins(){ return lotsCache.filter(l=> !l.tourneeId); }
+function vehiculeDe(id){ return vehiculesCache.find(v=> v.id === id) || null; }
+function nomVehicule(id){ const v = vehiculeDe(id); return v ? (v.nom || 'Sans nom') : ''; }
+function nomChauffeur(id){
+  const c = chauffeursCache.find(x=> x.id === id);
+  return c ? ([c.prenom, c.nom].filter(Boolean).join(' ') || 'Sans nom') : '';
+}
+function prestaDe(id){ return prestatairesCache.find(p=> p.id === id) || null; }
+function nomPresta(id){ const p = prestaDe(id); return p ? p.nom : ''; }
+// Le chauffeur d'un rendez-vous : celui que l'échange désigne, sinon celui
+// qui conduit habituellement cette semi.
+function chauffeurDeLaSemi(vehiculeId){
+  const v = vehiculeDe(vehiculeId);
+  return v ? (v.chauffeurDefautId || '') : '';
+}
+
+// Tous les rendez-vous d'une tournée, ramenés à une même forme : c'est cette
+// liste unique qui sert au planning, aux conflits et aux feuilles de route.
+function rendezVousDeLaTournee(tourneeId){
+  const rdv = [];
+  const lots = lotsCache.filter(l=> l.tourneeId === tourneeId);
+  const parLot = (id)=> lots.find(l=> l.id === id);
+
+  lots.forEach(l=>{
+    const pec = l.priseEnCharge || {};
+    if(pec.date){
+      const p = prestaDe(pec.prestataireId || l.provenanceId);
+      rdv.push({
+        date: pec.date, heure: pec.heure || '', type: 'prise', tourneeId,
+        vehiculeId: l.vehiculeId || '', lotId: l.id,
+        titre: `Prise en charge — ${l.nom || 'kit'}`,
+        chez: p ? p.nom : '', adresse: p ? (p.adresse || '') : '',
+        contact: p ? [p.contactNom, p.telephone].filter(Boolean).join(' · ') : '',
+        detail: pec.notes || '',
+      });
+    }
+    if(l.retourPrestataireDate){
+      const p = prestaDe(l.provenanceId);
+      rdv.push({
+        date: l.retourPrestataireDate, heure: l.retourPrestataireHeurePickup || '',
+        type: 'retour', tourneeId, vehiculeId: l.vehiculeId || '', lotId: l.id,
+        titre: `Retour définitif — ${l.nom || 'kit'}`,
+        chez: p ? p.nom : '', adresse: p ? (p.adresse || '') : '',
+        contact: p ? [p.contactNom, p.telephone].filter(Boolean).join(' · ') : '',
+        detail: l.retourPrestataireHeureLivraison ? `livraison ${l.retourPrestataireHeureLivraison}` : '',
+      });
+    }
   });
 
-  agendaComplet = tous;
-  const visibles = (agendaFiltre === 'avenir' ? tous.filter(e=> e.date >= aujourdhui) : tous)
-    .sort((a,b)=> (a.date + (a.heure || '99:99')).localeCompare(b.date + (b.heure || '99:99')));
+  echangesCache.filter(e=> e.tourneeId === tourneeId).forEach(e=>{
+    const l = parLot(e.lotId);
+    const p = prestaDe(e.prestataireId || (l && l.provenanceId));
+    const quoi = e.portee === 'total' ? 'tout le kit' : (e.elements || 'une partie du kit');
+    const commun = {
+      tourneeId, echangeId: e.id, lotId: e.lotId,
+      chez: p ? p.nom : '', adresse: p ? (p.adresse || '') : '',
+      contact: p ? [p.contactNom, p.telephone].filter(Boolean).join(' · ') : '',
+    };
+    if(e.depotDate){
+      rdv.push(Object.assign({}, commun, {
+        date: e.depotDate, heure: e.depotHeure || '', type: 'depot',
+        vehiculeId: e.vehiculeId || (l ? l.vehiculeId : '') || '',
+        titre: `Dépôt — ${l ? (l.nom || 'kit') : 'kit'}`,
+        detail: `${quoi} · ${MOTIF_LABEL[e.motif] || e.motif}`,
+      }));
+    }
+    if(e.recupDate){
+      rdv.push(Object.assign({}, commun, {
+        date: e.recupDate, heure: e.recupHeure || '', type: 'recup',
+        vehiculeId: e.vehiculeRetourId || e.vehiculeId || (l ? l.vehiculeId : '') || '',
+        titre: `Récupération — ${l ? (l.nom || 'kit') : 'kit'}`,
+        detail: quoi,
+      }));
+    }
+  });
 
-  if(visibles.length === 0){
-    box.innerHTML = `<p class="empty-hint" style="padding:6px 0;">${
-      tous.length ? 'Plus aucun mouvement à venir — « Tout » affiche ceux qui sont passés.'
-                  : 'Aucune date renseignée sur les lots pour l\'instant.'
-    }</p>`;
+  return rdv.sort((a, b)=> (a.date + (a.heure || '99:99')).localeCompare(b.date + (b.heure || '99:99')));
+}
+
+// Libellés courts pour la colonne du planning, qui est étroite ; le titre de
+// la ligne dit déjà « Retour définitif — kit light ».
+const RDV_LIBELLE = { prise:'Prise en charge', retour:'Retour définitif', depot:'Dépôt', recup:'Récupération' };
+const RDV_COURT   = { prise:'Prise en charge', retour:'Retour', depot:'Dépôt', recup:'Récupération' };
+const RDV_CLASSE  = { prise:'recup', retour:'retour', depot:'sortie', recup:'entree' };
+
+function renderPlanning(){
+  const section = document.getElementById('planningSection');
+  const box = document.getElementById('planningListe');
+  const t = tourneeActive();
+  if(!t){ section.style.display = 'none'; return; }
+  section.style.display = 'block';
+
+  const today = aujourdhuiIso();
+  const tous = rendezVousDeLaTournee(t.id);
+  const rdv = planningFiltre === 'avenir' ? tous.filter(r=> r.date >= today) : tous;
+
+  // Les semis de la tournée : celles qui portent un kit, plus celles qu'un
+  // échange désigne — une semi peut venir récupérer sans rien porter.
+  const ids = new Set();
+  lotsDeLaTournee().forEach(l=>{ if(l.vehiculeId) ids.add(l.vehiculeId); });
+  rdv.forEach(r=>{ if(r.vehiculeId) ids.add(r.vehiculeId); });
+  const semis = Array.from(ids).map(vehiculeDe).filter(Boolean)
+    .sort((a, b)=> (a.nom || '').localeCompare(b.nom || '', 'fr'));
+
+  const sansSemi = rdv.filter(r=> !r.vehiculeId);
+  if(semis.length === 0 && sansSemi.length === 0){
+    box.innerHTML = `<p class="empty-hint" style="padding:14px 0;">${
+      tous.length ? "Plus aucun rendez-vous à venir — « Tout » affiche ceux qui sont passés."
+                  : "Aucun rendez-vous : renseigne la prise en charge d'un kit, ou crée un échange."}</p>`;
     return;
   }
 
-  const jours = [];
-  visibles.forEach(evt=>{
-    const dernier = jours[jours.length - 1];
-    if(dernier && dernier.date === evt.date) dernier.evts.push(evt);
-    else jours.push({ date: evt.date, evts: [evt] });
+  const ligneRdv = (r)=> `
+    <div class="semi-rdv${r.date < today ? ' passe' : ''}">
+      <span class="quand">${escapeHtml(fmtJourCourt(r.date))}${r.heure ? ' · ' + escapeHtml(r.heure) : ''}</span>
+      <span class="mvt-sens ${RDV_CLASSE[r.type]}">${RDV_COURT[r.type]}</span>
+      <span class="quoi">
+        ${escapeHtml(r.titre)}${r.chez ? ` <span class="mvt-presta">· ${escapeHtml(r.chez)}</span>` : ''}
+        ${r.detail ? `<div class="detail">${escapeHtml(r.detail)}</div>` : ''}
+      </span>
+    </div>`;
+
+  box.innerHTML = semis.map(v=>{
+    const siens = rdv.filter(r=> r.vehiculeId === v.id);
+    const conducteur = nomChauffeur(chauffeurDeLaSemi(v.id));
+    return `
+      <div class="semi-bande">
+        <div class="semi-tete">
+          <span class="semi-nom">${escapeHtml(v.nom || 'Sans nom')}</span>
+          ${conducteur ? `<span class="semi-chauffeur">${escapeHtml(conducteur)}</span>` : '<span class="semi-chauffeur">aucun chauffeur habituel</span>'}
+          <button type="button" class="co-btn secondary sm" data-route-pdf="${escapeAttr(v.id)}">Feuille de route</button>
+          <button type="button" class="co-btn ghost sm" data-route-wa="${escapeAttr(v.id)}">WhatsApp</button>
+        </div>
+        ${siens.length ? siens.map(ligneRdv).join('')
+          : '<p class="empty-hint" style="padding:4px 0; text-align:left;">Aucun rendez-vous sur la période.</p>'}
+      </div>`;
+  }).join('') + (sansSemi.length ? `
+    <div class="semi-bande">
+      <div class="semi-tete">
+        <span class="semi-nom">Sans semi</span>
+        <span class="semi-chauffeur">à rattacher — ces rendez-vous n'apparaîtront sur aucune feuille de route</span>
+      </div>
+      ${sansSemi.map(ligneRdv).join('')}
+    </div>` : '');
+
+  box.querySelectorAll('[data-route-pdf]').forEach(b=> b.addEventListener('click', ()=> feuilleRoutePdf(b.dataset.routePdf)));
+  box.querySelectorAll('[data-route-wa]').forEach(b=> b.addEventListener('click', ()=> envoyerRouteWhatsapp(b.dataset.routeWa)));
+}
+
+// ============================================================================
+// Conflits — la seule vue qui regarde toutes les tournées à la fois
+//
+// Une semi ne peut pas être à deux endroits, un chauffeur non plus, et c'est
+// entre deux tournées menées en parallèle que l'erreur se produit. On ne
+// signale donc qu'un chevauchement inter-tournées : deux arrêts le même jour
+// sur la même tournée, c'est une journée normale.
+// ============================================================================
+function conflits(){
+  const parJour = new Map();
+  const ajouter = (cle, info)=>{
+    if(!parJour.has(cle)) parJour.set(cle, []);
+    parJour.get(cle).push(info);
+  };
+  tourneesCache.forEach(t=>{
+    rendezVousDeLaTournee(t.id).forEach(r=>{
+      const info = { tourneeId: t.id, date: r.date, heure: r.heure, titre: r.titre };
+      if(r.vehiculeId) ajouter(`v|${r.vehiculeId}|${r.date}`, Object.assign({ quoi: nomVehicule(r.vehiculeId), genre:'Semi' }, info));
+      const ch = r.chauffeurId || chauffeurDeLaSemi(r.vehiculeId);
+      if(ch) ajouter(`c|${ch}|${r.date}`, Object.assign({ quoi: nomChauffeur(ch), genre:'Chauffeur' }, info));
+    });
   });
 
-  box.innerHTML = jours.map(j=>{
-    const d = new Date(j.date + 'T00:00:00');
-    return `
-      <div class="agenda-jour${j.date < aujourdhui ? ' passe' : ''}">
-        <div class="agenda-quand">
-          <b>${escapeHtml(d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'long' }))}</b>
-          <span>${d.getFullYear()}</span>
-        </div>
-        <div class="agenda-lignes">
-          ${j.evts.map(evt=> ligneMouvement(evt, { lot: evt.lot, presta: evt.presta,
-            cle: modeMission ? `${evt.lotId}:${evt.indice}` : null })).join('')}
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-// ============================================================================
-// Feuille de mission d'un chauffeur.
-//
-// Un chauffeur ne se déplace pas « pour un mouvement » : il fait une tournée
-// d'arrêts. On coche donc dans l'agenda ceux qui lui reviennent — un ou six,
-// c'est la même feuille — et il reçoit de quoi partir : chez qui il va, à
-// quelle adresse, à quelle heure, pour prendre ou déposer quoi, et qui appeler
-// sur place. En PDF pour l'imprimer, en WhatsApp pour l'avoir dans la poche.
-// ============================================================================
-function arretsChoisis(){
-  return agendaComplet
-    .map((evt, i)=> ({ evt, cle: `${evt.lotId}:${evt.indice}` }))
-    .filter(x=> missionArrets.has(x.cle))
-    .map(x=> x.evt)
-    .sort((a, b)=> (a.date + (a.heure || '99:99')).localeCompare(b.date + (b.heure || '99:99')));
+  const sortis = [];
+  parJour.forEach((liste)=>{
+    const tournees = Array.from(new Set(liste.map(x=> x.tourneeId)));
+    if(tournees.length < 2) return;
+    sortis.push({
+      // Un nom qui commence déjà par son genre — « Semi 2 — lumière » — ne se
+      // fait pas préfixer une seconde fois.
+      genre: liste[0].quoi.toLowerCase().startsWith(liste[0].genre.toLowerCase()) ? '' : liste[0].genre,
+      quoi: liste[0].quoi, date: liste[0].date,
+      details: tournees.map(id=>{
+        const heures = liste.filter(x=> x.tourneeId === id).map(x=> x.heure).filter(Boolean);
+        return `${nomTournee(id)}${heures.length ? ' (' + heures.join(', ') + ')' : ''}`;
+      }),
+    });
+  });
+  return sortis.sort((a, b)=> a.date.localeCompare(b.date));
 }
 
-function majBarreMission(){
-  const barre = document.getElementById('missionBarre');
-  barre.hidden = !modeMission;
-  if(!modeMission) return;
-  const n = missionArrets.size;
-  document.getElementById('missionCompte').textContent = n === 0
-    ? 'Coche les arrêts de la mission'
-    : `${n} arrêt${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}`;
-  // La liste se remplissait une fois pour toutes. Ouvrir le mode mission avant
-  // que les chauffeurs ne soient chargés figeait donc « Aucun chauffeur
-  // enregistré » jusqu'au rechargement de la page. On la reconstruit dès que le
-  // contenu a changé, en gardant le choix en cours.
-  const sel = document.getElementById('missionChauffeur');
-  const signature = chauffeursCache.map(c=> c.id).join(',');
-  if(sel.dataset.signature !== signature){
-    const choisi = sel.value;
-    sel.innerHTML = chauffeursCache.length
-      ? chauffeursCache.map(c=> `<option value="${escapeAttr(c.id)}">${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ') || 'Sans nom')}</option>`).join('')
-      : '<option value="">Aucun chauffeur enregistré</option>';
-    if(choisi && chauffeursCache.some(c=> c.id === choisi)) sel.value = choisi;
-    sel.dataset.signature = signature;
+function renderConflits(){
+  const box = document.getElementById('conflitsBandeau');
+  const liste = conflits().filter(c=> c.date >= aujourdhuiIso());
+  if(liste.length === 0){
+    box.innerHTML = `<div class="conflits ok">✓ Aucun chevauchement à venir entre les tournées.</div>`;
+    return;
   }
+  box.innerHTML = `<div class="conflits ko">
+    <b>${liste.length} chevauchement${liste.length > 1 ? 's' : ''} entre tournées</b>
+    <ul>${liste.map(c=> `<li><b style="display:inline;">${escapeHtml([c.genre, c.quoi].filter(Boolean).join(' '))}</b> — ${escapeHtml(fmtJourCourt(c.date))} : ${escapeHtml(c.details.join(' et '))}</li>`).join('')}</ul>
+  </div>`;
 }
 
-function chauffeurChoisi(){
-  return chauffeursCache.find(c=> c.id === document.getElementById('missionChauffeur').value) || null;
+// ============================================================================
+// Suivi des échanges — toutes tournées confondues
+// ============================================================================
+// Ce qui traîne d'abord : déposé sans récupération prévue, puis récupération
+// dépassée, puis à planifier, puis le reste dans l'ordre du temps.
+function prioriteEchange(e){
+  const today = aujourdhuiIso();
+  if(e.etat === 'clos' || e.etat === 'recupere') return 4;
+  if(e.etat === 'depose' && !e.recupDate) return 0;
+  if(e.etat === 'depose' && e.recupDate < today) return 1;
+  if(e.etat === 'a_planifier') return 2;
+  return 3;
+}
+function enRetard(e){ return prioriteEchange(e) <= 1; }
+
+function renderSuivi(){
+  const box = document.getElementById('suiviListe');
+  const liste = echangesCache
+    .filter(e=> suiviFiltre === 'tout' ? true : e.etat !== 'clos')
+    .sort((a, b)=> prioriteEchange(a) - prioriteEchange(b)
+      || (a.depotDate || '9999').localeCompare(b.depotDate || '9999'));
+
+  if(liste.length === 0){
+    box.innerHTML = `<p class="empty-hint" style="padding:14px 0;">${
+      echangesCache.length ? 'Aucun échange ouvert — tout est rentré.' : 'Aucun échange enregistré.'}</p>`;
+    return;
+  }
+
+  box.innerHTML = liste.map(e=>{
+    const lot = lotsCache.find(l=> l.id === e.lotId);
+    const quoi = e.portee === 'total' ? 'Tout le kit' : (e.elements || 'Une partie du kit');
+    const chez = nomPresta(e.prestataireId || (lot && lot.provenanceId));
+    return `
+      <div class="echange-ligne${enRetard(e) ? ' retard' : ''}">
+        <span class="quand">
+          ${e.depotDate ? escapeHtml(fmtJourCourt(e.depotDate)) : 'à caler'}
+          <small>${e.recupDate ? 'retour ' + escapeHtml(fmtJourCourt(e.recupDate)) : 'retour non calé'}</small>
+        </span>
+        <span class="echange-corps">
+          <span class="echange-tournee">${escapeHtml(nomTournee(e.tourneeId) || '—')}</span>
+          <div class="echange-quoi">${escapeHtml(quoi)}${lot ? ` — ${escapeHtml(lot.nom || 'kit')}` : ''}</div>
+          <div class="echange-sub">${escapeHtml([MOTIF_LABEL[e.motif] || e.motif, chez ? 'chez ' + chez : '', nomVehicule(e.vehiculeId)].filter(Boolean).join(' · '))}</div>
+          ${e.notes ? `<div class="echange-sub">${escapeHtml(e.notes)}</div>` : ''}
+        </span>
+        <span style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+          <span class="etat-pastille etat-${escapeAttr(e.etat)}">${ETAT_LABEL[e.etat] || e.etat}</span>
+          <button type="button" class="co-btn ghost sm" data-echange-edit="${escapeAttr(e.id)}">Modifier</button>
+        </span>
+      </div>`;
+  }).join('');
+
+  box.querySelectorAll('[data-echange-edit]').forEach(b=>
+    b.addEventListener('click', ()=> ouvrirEchangeModal(b.dataset.echangeEdit)));
 }
 
-// Ce qu'un arrêt demande de savoir, rassemblé en un endroit.
-function detailArret(evt){
-  const presta = prestatairesCache.find(p=> p.id === evt.prestaId);
-  const [, libelle] = SENS[evt.sens] || SENS.sortie;
-  return {
-    quand: `${new Date(evt.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })}${evt.heure ? ' · ' + evt.heure : ''}`,
-    chez: presta ? presta.nom : '—',
-    adresse: (presta && presta.adresse) || '',
-    telephone: (presta && presta.telephone) || '',
-    contact: (presta && presta.contactNom) || '',
-    quoi: `${libelle} — ${evt.lot}`,
-    precisions: evt.texte || '',
+// ============================================================================
+// Saisie d'un échange
+// ============================================================================
+function optionsVehicules(valeur){
+  return '<option value="">— Aucune —</option>' + vehiculesCache
+    .map(v=> `<option value="${escapeAttr(v.id)}" ${valeur === v.id ? 'selected' : ''}>${escapeHtml(v.nom || 'Sans nom')}</option>`).join('');
+}
+function optionsPrestataires(valeur){
+  return '<option value="">— Aucun —</option>' + prestatairesCache
+    .map(p=> `<option value="${escapeAttr(p.id)}" ${valeur === p.id ? 'selected' : ''}>${escapeHtml(p.nom || 'Sans nom')}</option>`).join('');
+}
+function optionsChauffeurs(valeur){
+  return '<option value="">— Celui de la semi —</option>' + chauffeursCache
+    .map(c=> `<option value="${escapeAttr(c.id)}" ${valeur === c.id ? 'selected' : ''}>${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ') || 'Sans nom')}</option>`).join('');
+}
+
+function majPorteeChamp(){
+  document.getElementById('eElementsChamp').style.display =
+    document.getElementById('ePortee').value === 'total' ? 'none' : 'flex';
+}
+
+function ouvrirEchangeModal(id){
+  const e = id ? echangesCache.find(x=> x.id === id) : null;
+  const lots = lotsDeLaTournee();
+  if(!e && lots.length === 0){ alert("Crée d'abord un kit sur cette tournée."); return; }
+
+  document.getElementById('echangeModalTitle').textContent = e ? 'Modifier l\'échange' : 'Nouvel échange';
+  document.getElementById('eEditId').value = e ? e.id : '';
+  document.getElementById('eLot').innerHTML = (e ? lotsCache.filter(l=> l.tourneeId === e.tourneeId) : lots)
+    .map(l=> `<option value="${escapeAttr(l.id)}" ${e && e.lotId === l.id ? 'selected' : ''}>${escapeHtml(l.nom || 'Sans nom')}</option>`).join('');
+  document.getElementById('eMotif').value = e ? e.motif : 'panne';
+  document.getElementById('ePortee').value = e ? e.portee : 'partiel';
+  document.getElementById('eElements').value = e ? e.elements : '';
+  document.getElementById('eDepotDate').value = e ? e.depotDate : '';
+  document.getElementById('eDepotHeure').value = e ? e.depotHeure : '';
+  document.getElementById('eRecupDate').value = e ? e.recupDate : '';
+  document.getElementById('eRecupHeure').value = e ? e.recupHeure : '';
+  document.getElementById('eEtat').value = e ? e.etat : 'a_planifier';
+  document.getElementById('eNotes').value = e ? e.notes : '';
+
+  // La semi et le prestataire par défaut sont ceux du kit : dans neuf cas sur
+  // dix c'est la bonne réponse, et on ne la ressaisit pas.
+  const lotChoisi = lotsCache.find(l=> l.id === document.getElementById('eLot').value);
+  document.getElementById('ePrestataire').innerHTML = optionsPrestataires(e ? e.prestataireId : (lotChoisi ? lotChoisi.provenanceId : ''));
+  document.getElementById('eVehicule').innerHTML = optionsVehicules(e ? e.vehiculeId : (lotChoisi ? lotChoisi.vehiculeId : ''));
+  document.getElementById('eVehiculeRetour').innerHTML = optionsVehicules(e ? (e.vehiculeRetourId || e.vehiculeId) : (lotChoisi ? lotChoisi.vehiculeId : ''));
+  document.getElementById('eChauffeur').innerHTML = optionsChauffeurs(e ? e.chauffeurId : '');
+
+  document.getElementById('echangeDeleteBtn').style.display = e ? 'inline-flex' : 'none';
+  majPorteeChamp();
+  document.getElementById('echangeModalOverlay').classList.add('open');
+}
+function fermerEchangeModal(){ document.getElementById('echangeModalOverlay').classList.remove('open'); }
+
+document.getElementById('ePortee').addEventListener('change', majPorteeChamp);
+// Changer de kit réaligne la semi et le prestataire, tant qu'on n'y a pas touché.
+document.getElementById('eLot').addEventListener('change', ()=>{
+  const l = lotsCache.find(x=> x.id === document.getElementById('eLot').value);
+  if(!l) return;
+  if(!document.getElementById('ePrestataire').value) document.getElementById('ePrestataire').value = l.provenanceId || '';
+  if(!document.getElementById('eVehicule').value) document.getElementById('eVehicule').value = l.vehiculeId || '';
+  if(!document.getElementById('eVehiculeRetour').value) document.getElementById('eVehiculeRetour').value = l.vehiculeId || '';
+});
+document.getElementById('addEchangeBtn').addEventListener('click', ()=> ouvrirEchangeModal(null));
+document.getElementById('echangeCancelBtn').addEventListener('click', fermerEchangeModal);
+document.getElementById('echangeModalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'echangeModalOverlay') fermerEchangeModal();
+});
+
+document.getElementById('echangeSaveBtn').addEventListener('click', async ()=>{
+  const id = document.getElementById('eEditId').value;
+  const ancien = id ? echangesCache.find(x=> x.id === id) : null;
+  const lotId = document.getElementById('eLot').value;
+  const lot = lotsCache.find(l=> l.id === lotId);
+  if(!lot){ alert('Choisis le kit concerné.'); return; }
+  const obj = {
+    id: id || genId('ech'),
+    tourneeId: ancien ? ancien.tourneeId : tourneeActiveId(),
+    lotId,
+    vehiculeId: document.getElementById('eVehicule').value,
+    vehiculeRetourId: document.getElementById('eVehiculeRetour').value,
+    chauffeurId: document.getElementById('eChauffeur').value,
+    prestataireId: document.getElementById('ePrestataire').value,
+    portee: document.getElementById('ePortee').value,
+    elements: document.getElementById('eElements').value.trim(),
+    motif: document.getElementById('eMotif').value,
+    depotDate: document.getElementById('eDepotDate').value,
+    depotHeure: document.getElementById('eDepotHeure').value,
+    recupDate: document.getElementById('eRecupDate').value,
+    recupHeure: document.getElementById('eRecupHeure').value,
+    etat: document.getElementById('eEtat').value,
+    notes: document.getElementById('eNotes').value.trim(),
   };
+  const { error } = await CurieuxDB.upsertOne('echanges', obj);
+  if(error){ alert("L'échange n'a pas pu être enregistré."); return; }
+  const i = echangesCache.findIndex(x=> x.id === obj.id);
+  if(i >= 0) echangesCache[i] = obj; else echangesCache.push(obj);
+  fermerEchangeModal();
+  toutRedessiner();
+});
+
+document.getElementById('echangeDeleteBtn').addEventListener('click', async ()=>{
+  const id = document.getElementById('eEditId').value;
+  if(!id || !confirm('Supprimer cet échange ?')) return;
+  await CurieuxDB.removeOne('echanges', id);
+  echangesCache = echangesCache.filter(x=> x.id !== id);
+  fermerEchangeModal();
+  toutRedessiner();
+});
+
+// ============================================================================
+// Feuille de route d'une semi — elle se déduit, on ne la coche plus
+// ============================================================================
+function rdvDeLaSemi(vehiculeId){
+  const today = aujourdhuiIso();
+  return rendezVousDeLaTournee(tourneeActiveId())
+    .filter(r=> r.vehiculeId === vehiculeId)
+    .filter(r=> planningFiltre === 'tout' ? true : r.date >= today);
 }
 
-function feuilleMissionPdf(){
-  const arrets = arretsChoisis();
-  if(arrets.length === 0){ alert('Coche au moins un arrêt.'); return; }
+function feuilleRoutePdf(vehiculeId){
   if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
-  const chauffeur = chauffeurChoisi();
+  const rdv = rdvDeLaSemi(vehiculeId);
+  if(rdv.length === 0){ alert('Aucun rendez-vous pour cette semi sur la période.'); return; }
+  const v = vehiculeDe(vehiculeId);
+  const conducteur = nomChauffeur(chauffeurDeLaSemi(vehiculeId));
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
   registerHostFont(doc);
 
-  const jours = [...new Set(arrets.map(a=> a.date))];
+  const jours = [...new Set(rdv.map(r=> r.date))];
   const page = creerComposeurPdf(doc, { echelleMax: 1.25 }).entete({
-    titre: chauffeur ? [chauffeur.prenom, chauffeur.nom].filter(Boolean).join(' ') : 'Feuille de mission',
-    sousTitre: `${arrets.length} arrêt${arrets.length > 1 ? 's' : ''} · ${jours.map(fmtJourCourt).join(', ')}`,
-    mention: 'Feuille de mission',
+    titre: [v ? v.nom : 'Semi', conducteur].filter(Boolean).join(' · '),
+    sousTitre: `${nomTournee(tourneeActiveId())} — ${rdv.length} arrêt${rdv.length > 1 ? 's' : ''} · ${jours.map(fmtJourCourt).join(', ')}`,
+    mention: 'Feuille de route',
   });
 
-  // Composition éditoriale, comme la feuille de route : un filet prune par
-  // arrêt, puis des couples clé/valeur séparés de hairlines. La grille de
-  // cartes bridait la largeur, or « Précisions » porte souvent une phrase.
   const champ = (cle, val)=> val ? [cle, String(val)] : null;
-  page.rubriques(arrets.map((evt, i)=>{
-    const d = detailArret(evt);
-    return { titre: `Arrêt ${i + 1} — ${d.quand}`, lignes: [
-      champ('Chez', d.chez),
-      champ('Adresse', d.adresse),
-      champ('Sur place', [d.contact, d.telephone].filter(Boolean).join(' · ')),
-      champ('À faire', d.quoi),
-      champ('Précisions', d.precisions),
-    ].filter(Boolean) };
-  }));
+  page.rubriques(rdv.map((r, i)=>({
+    titre: `${i + 1}. ${RDV_LIBELLE[r.type]} — ${jourLongMateriel(r.date)}${r.heure ? ' · ' + r.heure : ''}`,
+    lignes: [
+      champ('Quoi', r.titre),
+      champ('Chez', r.chez),
+      champ('Adresse', r.adresse),
+      champ('Sur place', r.contact),
+      champ('Précisions', r.detail),
+    ].filter(Boolean),
+  })));
 
-  if(chauffeur && chauffeur.telephone) page.paragraphe(`Chauffeur : ${chauffeur.telephone}`);
-  const nom = chauffeur ? [chauffeur.prenom, chauffeur.nom].filter(Boolean).join('_') : 'mission';
-  page.rendre(`Mission_${nom.replace(/[^a-z0-9_]+/gi, '_')}.pdf`);
+  const tel = chauffeursCache.find(c=> c.id === chauffeurDeLaSemi(vehiculeId));
+  if(tel && tel.telephone) page.paragraphe(`Chauffeur : ${tel.telephone}`);
+  const nom = (conducteur || (v ? v.nom : 'semi')).replace(/[^a-z0-9]+/gi, '_');
+  page.rendre(`Route_${nom}.pdf`);
 }
 
-function feuilleMissionTexte(){
-  const arrets = arretsChoisis();
-  const chauffeur = chauffeurChoisi();
+function jourLongMateriel(iso){
+  if(!iso) return '';
+  return new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+}
+
+function texteRouteSemi(vehiculeId){
+  const rdv = rdvDeLaSemi(vehiculeId);
+  const conducteur = nomChauffeur(chauffeurDeLaSemi(vehiculeId));
+  const v = vehiculeDe(vehiculeId);
   const lignes = [
-    chauffeur ? `Bonjour ${chauffeur.prenom || ''},`.trim() : 'Bonjour,',
+    conducteur ? `Bonjour ${conducteur.split(' ')[0]},` : 'Bonjour,',
     '',
-    `Voici ta mission — ${arrets.length} arrêt${arrets.length > 1 ? 's' : ''} :`,
+    `Ta feuille de route — ${v ? v.nom : 'semi'} · ${nomTournee(tourneeActiveId())} — ${rdv.length} arrêt${rdv.length > 1 ? 's' : ''} :`,
     '',
   ];
-  arrets.forEach((evt, i)=>{
-    const d = detailArret(evt);
-    lignes.push(`${i + 1}. ${d.quand}`);
-    lignes.push(`   Chez : ${d.chez}${d.adresse ? ' — ' + d.adresse : ''}`);
-    if(d.contact || d.telephone) lignes.push(`   Sur place : ${[d.contact, d.telephone].filter(Boolean).join(' · ')}`);
-    lignes.push(`   À faire : ${d.quoi}`);
-    if(d.precisions) lignes.push(`   Précisions : ${d.precisions}`);
+  rdv.forEach((r, i)=>{
+    lignes.push(`${i + 1}. ${jourLongMateriel(r.date)}${r.heure ? ' · ' + r.heure : ''} — ${RDV_LIBELLE[r.type]}`);
+    lignes.push(`   ${r.titre}`);
+    if(r.chez) lignes.push(`   Chez : ${r.chez}${r.adresse ? ' — ' + r.adresse : ''}`);
+    if(r.contact) lignes.push(`   Sur place : ${r.contact}`);
+    if(r.detail) lignes.push(`   Précisions : ${r.detail}`);
     lignes.push('');
   });
   lignes.push('Merci !', 'Curieux orchestre');
   return lignes.join('\n');
 }
 
-document.getElementById('modeMissionBtn').addEventListener('click', ()=>{
-  modeMission = !modeMission;
-  document.getElementById('modeMissionBtn').setAttribute('aria-pressed', String(modeMission));
-  if(!modeMission) missionArrets.clear();
-  renderAgenda();
-  majBarreMission();
-});
-document.getElementById('agendaListe').addEventListener('change', (e)=>{
-  const case_ = e.target.closest('[data-arret]');
-  if(!case_) return;
-  if(case_.checked) missionArrets.add(case_.dataset.arret); else missionArrets.delete(case_.dataset.arret);
-  majBarreMission();
-});
-document.getElementById('missionPdfBtn').addEventListener('click', feuilleMissionPdf);
-document.getElementById('missionWaBtn').addEventListener('click', async ()=>{
-  const arrets = arretsChoisis();
-  if(arrets.length === 0){ alert('Coche au moins un arrêt.'); return; }
-  const chauffeur = chauffeurChoisi();
-  const message = feuilleMissionTexte();
-  const numero = chauffeur ? normalizeWhatsappMateriel(chauffeur.telephone) : '';
+async function envoyerRouteWhatsapp(vehiculeId){
+  const rdv = rdvDeLaSemi(vehiculeId);
+  if(rdv.length === 0){ alert('Aucun rendez-vous pour cette semi sur la période.'); return; }
+  const message = texteRouteSemi(vehiculeId);
+  const c = chauffeursCache.find(x=> x.id === chauffeurDeLaSemi(vehiculeId));
+  const numero = c ? normalizeWhatsappMateriel(c.telephone) : '';
   if(numero){
     window.open(`https://wa.me/${encodeURIComponent(numero)}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
     return;
   }
   try{
     await navigator.clipboard.writeText(message);
-    alert('Aucun numéro pour ce chauffeur — la mission est copiée, colle-la où tu le joins.');
+    alert('Aucun numéro pour ce chauffeur — la feuille est copiée, colle-la où tu le joins.');
   }catch(e){ alert(message); }
-});
+}
+
+// Feuille de suivi : l'état de tout ce qui est en aller-retour, pour la
+// production. Toutes tournées, puisque c'est la question qu'on se pose.
+function feuilleSuiviPdf(){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const liste = echangesCache
+    .filter(e=> suiviFiltre === 'tout' ? true : e.etat !== 'clos')
+    .sort((a, b)=> prioriteEchange(a) - prioriteEchange(b)
+      || (a.depotDate || '9999').localeCompare(b.depotDate || '9999'));
+  if(liste.length === 0){ alert('Aucun échange à suivre.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  registerHostFont(doc);
+  const page = creerComposeurPdf(doc, { echelleMax: 1.15 }).entete({
+    titre: 'Suivi des échanges',
+    sousTitre: `${liste.length} échange${liste.length > 1 ? 's' : ''} · toutes tournées`,
+    mention: 'Logistique',
+  });
+
+  const champ = (cle, val)=> val ? [cle, String(val)] : null;
+  page.rubriques(liste.map(e=>{
+    const lot = lotsCache.find(l=> l.id === e.lotId);
+    const quoi = e.portee === 'total' ? 'Tout le kit' : (e.elements || 'Une partie du kit');
+    return {
+      titre: `${ETAT_LABEL[e.etat] || e.etat} — ${lot ? (lot.nom || 'kit') : 'kit'}${enRetard(e) ? ' · à relancer' : ''}`,
+      lignes: [
+        champ('Tournée', nomTournee(e.tourneeId)),
+        champ('Ce qui est parti', quoi),
+        champ('Motif', MOTIF_LABEL[e.motif] || e.motif),
+        champ('Chez', nomPresta(e.prestataireId || (lot && lot.provenanceId))),
+        champ('Déposé', e.depotDate ? `${jourLongMateriel(e.depotDate)}${e.depotHeure ? ' · ' + e.depotHeure : ''} (${nomVehicule(e.vehiculeId) || 'semi non désignée'})` : 'pas encore calé'),
+        champ('Récupération', e.recupDate ? `${jourLongMateriel(e.recupDate)}${e.recupHeure ? ' · ' + e.recupHeure : ''}` : 'non calée'),
+        champ('Notes', e.notes),
+      ].filter(Boolean),
+    };
+  }));
+  page.rendre('Suivi_echanges.pdf');
+}
+document.getElementById('suiviPdfBtn').addEventListener('click', feuilleSuiviPdf);
 
 function normalizeWhatsappMateriel(tel){
   let chiffres = (tel || '').replace(/[^\d+]/g, '');
@@ -755,12 +1224,56 @@ function normalizeWhatsappMateriel(tel){
   return chiffres;
 }
 
-document.querySelectorAll('[data-agenda-filtre]').forEach(btn=> btn.addEventListener('click', ()=>{
-  agendaFiltre = btn.dataset.agendaFiltre;
-  document.querySelectorAll('[data-agenda-filtre]').forEach(b=>
-    b.setAttribute('aria-pressed', String(b.dataset.agendaFiltre === agendaFiltre)));
-  renderAgenda();
+document.querySelectorAll('[data-planning-filtre]').forEach(btn=> btn.addEventListener('click', ()=>{
+  planningFiltre = btn.dataset.planningFiltre;
+  document.querySelectorAll('[data-planning-filtre]').forEach(b=>
+    b.setAttribute('aria-pressed', String(b.dataset.planningFiltre === planningFiltre)));
+  renderPlanning();
 }));
+document.querySelectorAll('[data-suivi-filtre]').forEach(btn=> btn.addEventListener('click', ()=>{
+  suiviFiltre = btn.dataset.suiviFiltre;
+  document.querySelectorAll('[data-suivi-filtre]').forEach(b=>
+    b.setAttribute('aria-pressed', String(b.dataset.suiviFiltre === suiviFiltre)));
+  renderSuivi();
+}));
+
+// ============================================================================
+// Kits sans tournée — rattrapage
+// ============================================================================
+function renderOrphelins(){
+  const bandeau = document.getElementById('orphelinsBandeau');
+  const orphelins = lotsOrphelins();
+  bandeau.hidden = orphelins.length === 0;
+  if(orphelins.length === 0) return;
+  document.getElementById('orphelinsTitre').textContent =
+    `${orphelins.length} kit${orphelins.length > 1 ? 's' : ''} sans tournée : ${orphelins.map(l=> l.nom || 'sans nom').join(', ')}`;
+  const sel = document.getElementById('orphelinsTournee');
+  if(sel.dataset.signature !== tourneesCache.map(t=> t.id).join(',')){
+    sel.innerHTML = tourneesCache.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Tournée')}</option>`).join('');
+    sel.dataset.signature = tourneesCache.map(t=> t.id).join(',');
+  }
+}
+document.getElementById('orphelinsBtn').addEventListener('click', async ()=>{
+  const tourneeId = document.getElementById('orphelinsTournee').value;
+  if(!tourneeId) return;
+  const orphelins = lotsOrphelins();
+  if(!orphelins.length) return;
+  if(!confirm(`Rattacher ${orphelins.length} kit${orphelins.length > 1 ? 's' : ''} à « ${nomTournee(tourneeId)} » ?`)) return;
+  for(const l of orphelins){
+    l.tourneeId = tourneeId;
+    await CurieuxDB.upsertOne('lots_materiel', l);
+  }
+  toutRedessiner();
+});
+
+function toutRedessiner(){
+  renderOrphelins();
+  renderConflits();
+  renderPlanning();
+  renderSuivi();
+  render();
+}
+
 function carteLot(l, index){
   const provenance = prestatairesCache.find(p=>p.id === l.provenanceId);
   const enfants = lotsCache.filter(x=> x.parentId === l.id);
@@ -771,7 +1284,12 @@ function carteLot(l, index){
           ${pastilleCategorie(l.categorie, index || 0)}
           <div class="lot-texte">
           <div class="lot-nom">${escapeHtml(l.nom || 'Sans nom')}</div>
-          ${provenance ? `<div class="lot-sub">${escapeHtml(provenance.nom)}</div>` : ''}
+          ${/* La semi d'abord : c'est elle qui détermine sur quelle feuille de
+                route ce kit apparaîtra. Sans elle, il n'apparaît nulle part. */''}
+          <div class="lot-sub">${l.vehiculeId
+            ? escapeHtml(nomVehicule(l.vehiculeId))
+            : '<span style="color:var(--ko); font-weight:700;">Aucune semi — ce kit ne figurera sur aucune feuille de route</span>'}${
+            provenance ? ' · ' + escapeHtml(provenance.nom) : ''}</div>
           ${l.description ? `<div class="lot-sub">${escapeHtml(l.description)}</div>` : ''}
           </div>
         </div>
@@ -789,10 +1307,11 @@ function carteLot(l, index){
   `;
 }
 function render(){
-  const racines = lotsCache.filter(l=> !l.parentId);
+  // Les kits d'une seule tournée : à trois ou quatre tournées en parallèle, une
+  // liste commune ne se lit plus.
+  const racines = lotsDeLaTournee().filter(l=> !l.parentId);
   const box = document.getElementById('lotsListe');
   const empty = document.getElementById('lotsEmpty');
-  renderAgenda();
   if(racines.length === 0){ box.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display = 'none';
   box.innerHTML = racines.map((l, i)=> carteLot(l, i)).join('');
@@ -825,16 +1344,24 @@ function openLotModal(id, parentId){
     parentInfo.style.display = 'none';
   }
   fillProvenanceSelect();
+  // La semi qui porte le kit, et le prestataire de la prise en charge.
+  document.getElementById('lVehicule').innerHTML = optionsVehicules('');
+  document.getElementById('lPecPresta').innerHTML = optionsPrestataires('');
   if(id){
     const l = lotsCache.find(x=>x.id===id);
     if(!l) return;
+    const pec = l.priseEnCharge || {};
+    document.getElementById('lVehicule').value = l.vehiculeId || '';
+    document.getElementById('lPecDate').value = pec.date || '';
+    document.getElementById('lPecHeure').value = pec.heure || '';
+    document.getElementById('lPecPresta').value = pec.prestataireId || l.provenanceId || '';
+    document.getElementById('lPecNotes').value = pec.notes || '';
     document.getElementById('lotModalTitle').textContent = 'Modifier ' + (l.nom || 'ce lot');
     document.getElementById('lNom').value = l.nom || '';
     document.getElementById('lCategorie').value = l.categorie || 'autre';
     document.getElementById('lProvenance').value = l.provenanceId || '';
     document.getElementById('lDescription').value = l.description || '';
     document.getElementById('lDatePrepa').value = l.datePrepa || '';
-    document.getElementById('lDatePickup').value = l.datePickup || '';
     document.getElementById('lRetourPrestDate').value = l.retourPrestataireDate || '';
     const heures = heuresRetour(l);
     document.getElementById('lRetourPrestPickup').value = heures.pickup;
@@ -843,16 +1370,49 @@ function openLotModal(id, parentId){
     elementsEnEdition = (l.elements||[]).map(e=>({...e}));
     mouvementsEnEdition = (l.mouvements||[]).map(mv=>({...mv}));
   } else {
-    document.getElementById('lotModalTitle').textContent = parentId ? 'Ajouter un sous-lot' : 'Ajouter un lot';
-    ['lNom','lDescription','lDatePrepa','lDatePickup','lRetourPrestDate','lRetourPrestPickup','lRetourPrestLivraison','lNotes'].forEach(fid=> document.getElementById(fid).value = '');
+    document.getElementById('lotModalTitle').textContent = parentId ? 'Ajouter un sous-kit' : 'Ajouter un kit';
+    ['lNom','lDescription','lDatePrepa','lRetourPrestDate','lRetourPrestPickup','lRetourPrestLivraison','lNotes',
+     'lPecDate','lPecHeure','lPecNotes'].forEach(fid=> document.getElementById(fid).value = '');
     document.getElementById('lCategorie').value = 'autre';
     document.getElementById('lProvenance').value = '';
+    // Un sous-kit voyage avec son parent : même semi par défaut.
+    const parent = parentId ? lotsCache.find(x=> x.id === parentId) : null;
+    document.getElementById('lVehicule').value = parent ? (parent.vehiculeId || '') : '';
+    document.getElementById('lPecPresta').value = '';
     elementsEnEdition = [];
     mouvementsEnEdition = [];
   }
-  renderMouvementsEdition();
+  renderEchangesDuLot(id);
   document.getElementById('lotModalOverlay').classList.add('open');
 }
+
+// Rappel des échanges déjà posés sur ce kit — en lecture, pour savoir où l'on
+// en est sans fermer la fiche.
+function renderEchangesDuLot(lotId){
+  const box = document.getElementById('echangesDuLot');
+  const liste = lotId ? echangesCache.filter(e=> e.lotId === lotId) : [];
+  box.innerHTML = liste.length ? liste
+    .sort((a, b)=> (a.depotDate || '9999').localeCompare(b.depotDate || '9999'))
+    .map(e=>{
+      const quoi = e.portee === 'total' ? 'Tout le kit' : (e.elements || 'Une partie du kit');
+      return `<div class="sous-ligne" style="align-items:center;">
+        <span class="etat-pastille etat-${escapeAttr(e.etat)}" style="flex:0 0 auto;">${ETAT_LABEL[e.etat] || e.etat}</span>
+        <span style="flex:1; min-width:0; font-size:13px;">${escapeHtml(quoi)}
+          <span style="color:var(--muted);"> · ${escapeHtml(e.depotDate ? fmtJourCourt(e.depotDate) : 'dépôt à caler')}${
+            e.recupDate ? ' → ' + escapeHtml(fmtJourCourt(e.recupDate)) : ' → retour non calé'}</span></span>
+      </div>`;
+    }).join('')
+    : `<p class="empty-hint" style="padding:6px 0; text-align:left;">Aucun échange sur ce kit.</p>`;
+}
+document.getElementById('addEchangeDepuisLot').addEventListener('click', ()=>{
+  const lotId = document.getElementById('lEditId').value;
+  document.getElementById('lotModalOverlay').classList.remove('open');
+  ouvrirEchangeModal(null);
+  if(lotId){
+    document.getElementById('eLot').value = lotId;
+    document.getElementById('eLot').dispatchEvent(new Event('change'));
+  }
+});
 document.getElementById('addLotBtn').addEventListener('click', ()=> openLotModal(null));
 document.getElementById('lotModalCancel').addEventListener('click', ()=> document.getElementById('lotModalOverlay').classList.remove('open'));
 document.getElementById('lotModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='lotModalOverlay') document.getElementById('lotModalOverlay').classList.remove('open'); });
@@ -864,11 +1424,23 @@ document.getElementById('lotModalSave').addEventListener('click', async ()=>{
     id, nom, categorie: document.getElementById('lCategorie').value,
     parentId: document.getElementById('lParentId').value || '',
     provenanceId: document.getElementById('lProvenance').value || '',
-    tourneeId: '', datesIds: [],
+    vehiculeId: document.getElementById('lVehicule').value || '',
+    priseEnCharge: {
+      date: document.getElementById('lPecDate').value || '',
+      heure: document.getElementById('lPecHeure').value || '',
+      prestataireId: document.getElementById('lPecPresta').value || '',
+      notes: document.getElementById('lPecNotes').value.trim(),
+    },
+    // Un kit appartient à une tournée. Sur modification on garde la sienne ;
+    // à la création, c'est celle qu'on regarde.
+    tourneeId: (lotsCache.find(x=> x.id === id) || {}).tourneeId || tourneeActiveId(),
+    datesIds: [],
     description: document.getElementById('lDescription').value.trim(),
     elements: elementsEnEdition,
     datePrepa: document.getElementById('lDatePrepa').value || '',
-    datePickup: document.getElementById('lDatePickup').value || '',
+    // La récupération initiale vit désormais dans priseEnCharge ; la colonne
+    // historique n'est plus alimentée mais n'est pas effacée.
+    datePickup: (lotsCache.find(x=> x.id === id) || {}).datePickup || '',
     mouvements: mouvementsEnEdition,
     retourPrestataireDate: document.getElementById('lRetourPrestDate').value || '',
     retourPrestataireHeurePickup: document.getElementById('lRetourPrestPickup').value || '',
@@ -879,23 +1451,41 @@ document.getElementById('lotModalSave').addEventListener('click', async ()=>{
   if(idx>=0) lotsCache[idx]=obj; else lotsCache.push(obj);
   await CurieuxDB.upsertOne('lots_materiel', obj);
   document.getElementById('lotModalOverlay').classList.remove('open');
-  render();
+  toutRedessiner();
 });
 
 async function initData(){
-  [lotsCache, prestatairesCache, chauffeursCache] = await Promise.all([
+  // Les échanges et les véhicules sont lus en entier : le suivi et les conflits
+  // portent sur toutes les tournées, pas sur celle qu'on regarde.
+  [lotsCache, prestatairesCache, chauffeursCache, vehiculesCache, echangesCache, tourneesCache] = await Promise.all([
     CurieuxDB.fetchAll('lots_materiel'), CurieuxDB.fetchAll('prestataires'),
-    CurieuxDB.fetchAll('chauffeurs'),
+    CurieuxDB.fetchAll('chauffeurs'), CurieuxDB.fetchAll('vehicules'),
+    CurieuxDB.fetchAll('echanges'), CurieuxDB.fetchAll('tournees'),
   ]);
+
+  const sel = document.getElementById('tourneeSelect');
+  sel.innerHTML = tourneesCache.length
+    ? tourneesCache.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('')
+    : '<option value="">Aucune tournée</option>';
+  // Arrivée depuis une autre page qui désignait déjà une tournée.
+  const voulue = new URLSearchParams(location.search).get('t');
+  if(voulue && tourneesCache.some(t=> t.id === voulue)) sel.value = voulue;
+  sel.addEventListener('change', toutRedessiner);
+
   renderPrestataires();
-  render();
+  toutRedessiner();
 }
-CurieuxDB.subscribe('lots_materiel', ()=> CurieuxDB.fetchAll('lots_materiel').then(l=>{ lotsCache=l; curieuxRafraichir(render); }));
+CurieuxDB.subscribe('lots_materiel', ()=> CurieuxDB.fetchAll('lots_materiel').then(l=>{
+  lotsCache = l; curieuxRafraichir(toutRedessiner);
+}));
+CurieuxDB.subscribe('echanges', ()=> CurieuxDB.fetchAll('echanges').then(l=>{
+  echangesCache = l; curieuxRafraichir(toutRedessiner);
+}));
 CurieuxDB.subscribe('prestataires', ()=> CurieuxDB.fetchAll('prestataires').then(l=>{
   prestatairesCache = l;
   // Une adresse corrigée depuis un autre poste doit se voir ici aussi, et
-  // repartir juste sur la prochaine feuille de mission.
-  curieuxRafraichir(()=>{ renderPrestataires(); fillProvenanceSelect(); render(); });
+  // repartir juste sur la prochaine feuille de route.
+  curieuxRafraichir(()=>{ renderPrestataires(); fillProvenanceSelect(); toutRedessiner(); });
 }));
 
 injectCurieuxFonts();

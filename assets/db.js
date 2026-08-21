@@ -205,7 +205,14 @@ const CurieuxDB = (()=>{
         description: l.description || '',
         date_prepa: l.datePrepa || null,
         date_pickup: l.datePickup || null,
-        // [{id, date, heure, type:'sortie'|'entree', description}, ...] — journal des allers-retours
+        // La semi qui porte ce kit. C'est le pivot de la logistique : un kit
+        // sans semi ne peut apparaître sur la feuille de route d'aucun chauffeur.
+        vehicule_id: l.vehiculeId || null,
+        // Le premier rendez-vous du chauffeur : {date, heure, prestataireId, notes}
+        prise_en_charge: l.priseEnCharge || {},
+        // [{id, date, heure, type:'sortie'|'entree', description}, ...] — ancien
+        // journal plat, conservé en lecture seule : les allers-retours passent
+        // désormais par la table echanges, qui sait dire ce qui n'est pas revenu.
         mouvements: l.mouvements || [],
         retour_prestataire_date: l.retourPrestataireDate || null,
         // Le pick up (on charge) et la livraison (ça arrive chez le prestataire)
@@ -224,11 +231,42 @@ const CurieuxDB = (()=>{
         elements: r.elements || [],
         description: r.description || '',
         datePrepa: r.date_prepa || '', datePickup: r.date_pickup || '',
+        vehiculeId: r.vehicule_id || '',
+        priseEnCharge: r.prise_en_charge || {},
         mouvements: r.mouvements || [],
         retourPrestataireDate: r.retour_prestataire_date || '',
         retourPrestataireHeurePickup: r.retour_prestataire_heure || '',
         retourPrestataireHeureLivraison: r.retour_prestataire_heure_livraison || '',
         notes: r.notes || ''
+      })
+    },
+    // Un aller-retour chez un prestataire, avec son état. Voir migrations.sql :
+    // c'est l'état qui répond à « qu'est-ce qui est parti et n'est pas revenu ».
+    echanges: {
+      toDb: (e)=> ({
+        id: e.id, tournee_id: e.tourneeId || null, lot_id: e.lotId || null,
+        vehicule_id: e.vehiculeId || null,
+        // Il arrive qu'une semi dépose et qu'une autre récupère.
+        vehicule_retour_id: e.vehiculeRetourId || null,
+        chauffeur_id: e.chauffeurId || null,
+        prestataire_id: e.prestataireId || null,
+        portee: e.portee || 'partiel',
+        elements: e.elements || '',
+        motif: e.motif || 'panne',
+        depot_date: e.depotDate || null, depot_heure: e.depotHeure || '',
+        recup_date: e.recupDate || null, recup_heure: e.recupHeure || '',
+        etat: e.etat || 'a_planifier',
+        notes: e.notes || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, tourneeId: r.tournee_id || '', lotId: r.lot_id || '',
+        vehiculeId: r.vehicule_id || '', vehiculeRetourId: r.vehicule_retour_id || '',
+        chauffeurId: r.chauffeur_id || '', prestataireId: r.prestataire_id || '',
+        portee: r.portee || 'partiel', elements: r.elements || '',
+        motif: r.motif || 'panne',
+        depotDate: r.depot_date || '', depotHeure: r.depot_heure || '',
+        recupDate: r.recup_date || '', recupHeure: r.recup_heure || '',
+        etat: r.etat || 'a_planifier', notes: r.notes || ''
       })
     },
     // Un carnet ATA est attribué à une semi, pour toute la tournée — valable

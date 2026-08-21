@@ -3539,3 +3539,109 @@ begin
   return resultat;
 end;
 $$;
+
+-- ============================================================================
+-- Le matériel s'organise par semi, et un aller-retour devient un objet suivi
+--
+-- Ce que le modèle ne savait pas dire, et qui était pourtant le besoin :
+--
+--  * un kit est chargé dans UNE semi — rien ne reliait lots_materiel à
+--    vehicules, alors que « le kit son part dans la semi 3 » est le pivot de
+--    toute la logistique ;
+--  * la prise en charge initiale n'était qu'une date sèche, sans heure ni
+--    adresse : impossible d'en tirer « mardi 8 h, chez Dushow, 12 rue de la
+--    Fonderie » à donner à un chauffeur ;
+--  * un aller-retour n'existait pas. Les mouvements étaient un journal plat où
+--    une « sortie » et une « entrée » ne se connaissaient pas. Rien ne disait
+--    que la console partie le 12 était celle revenue le 14 — donc aucun suivi,
+--    et à trois ou quatre tournées menées en parallèle, plus rien de tenable.
+--
+-- L'échange devient donc une ligne à part entière, avec son état. C'est cet
+-- état qui répond à la seule question qui compte : qu'est-ce qui est parti chez
+-- un prestataire et n'est pas revenu ?
+-- ============================================================================
+
+-- 1. La semi qui porte le kit, et le premier rendez-vous du chauffeur.
+--    prise_en_charge : {date, heure, prestataireId, notes}
+alter table lots_materiel add column if not exists vehicule_id text;
+alter table lots_materiel add column if not exists prise_en_charge jsonb not null default '{}'::jsonb;
+
+-- Reprise de l'existant : date_pickup portait déjà la récupération initiale.
+-- On ne la perd pas, on lui donne sa place — sans écraser ce qui aurait déjà
+-- été saisi côté prise_en_charge.
+update lots_materiel
+   set prise_en_charge = jsonb_build_object('date', date_pickup::text, 'heure', '', 'prestataireId', coalesce(provenance_id, ''), 'notes', '')
+ where date_pickup is not null
+   and coalesce(prise_en_charge->>'date', '') = '';
+
+-- 2. Les échanges — un aller chez un prestataire, et son retour.
+--
+--    Deux semis distinctes sont prévues : il arrive qu'une semi dépose et
+--    qu'une autre récupère. Par défaut ce sont les mêmes, et l'écran ne
+--    demande la seconde que si elle diffère.
+create table if not exists echanges (
+  id text primary key,
+  tournee_id text,
+  lot_id text,
+  -- Semi qui dépose, puis semi qui récupère (souvent la même).
+  vehicule_id text,
+  vehicule_retour_id text,
+  chauffeur_id text,
+  prestataire_id text,
+  -- 'total' : tout le kit repart. 'partiel' : seulement ce que nomme elements.
+  portee text not null default 'partiel',
+  elements text not null default '',
+  -- panne | echange | complement | retour | autre
+  motif text not null default 'panne',
+  depot_date date, depot_heure text not null default '',
+  recup_date date, recup_heure text not null default '',
+  -- a_planifier | planifie | depose | recupere | clos
+  etat text not null default 'a_planifier',
+  notes text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_echanges_tournee on echanges(tournee_id);
+create index if not exists idx_echanges_lot on echanges(lot_id);
+-- Le suivi trie sur l'état puis sur la date de dépôt : ce qui traîne d'abord.
+create index if not exists idx_echanges_etat on echanges(etat, depot_date);
+
+drop trigger if exists trg_echanges_updated_at on echanges;
+create trigger trg_echanges_updated_at before update on echanges
+  for each row execute function set_updated_at();
+
+alter table echanges enable row level security;
+-- Table de production : aucun lien public ne la lit, la clé anonyme n'y a rien.
+drop policy if exists "echanges acces equipe" on echanges;
+create policy "echanges acces equipe" on echanges for all to authenticated
+  using (has_access()) with check (has_access());
+
+-- 3. Reprise de l'ancien journal « mouvements » en échanges.
+--
+--    Chaque mouvement devient un échange à une seule jambe : une sortie donne
+--    un dépôt, une entrée une récupération. On n'essaie PAS de les apparier
+--    automatiquement — deviner que la console sortie le 12 est celle rentrée le
+--    14 serait une invention, et une invention dans un suivi est pire que rien.
+--    Les quelques cas à rapprocher se font à la main, une fois.
+--
+--    L'identifiant de l'échange dérive de celui du lot et du mouvement : rejouer
+--    ce bloc ne crée pas de doublon.
+insert into echanges (id, tournee_id, lot_id, vehicule_id, vehicule_retour_id,
+                      prestataire_id, portee, elements, motif,
+                      depot_date, depot_heure, recup_date, recup_heure, etat, notes)
+select
+  'repris-' || l.id || '-' || coalesce(mv->>'id', ord::text),
+  l.tournee_id, l.id, l.vehicule_id, l.vehicule_id,
+  l.provenance_id, 'partiel',
+  coalesce(nullif(mv->>'description', ''), 'Repris de l''ancien journal'),
+  'autre',
+  case when mv->>'type' = 'sortie' then (mv->>'date')::date end,
+  case when mv->>'type' = 'sortie' then coalesce(mv->>'heure', '') else '' end,
+  case when mv->>'type' <> 'sortie' then (mv->>'date')::date end,
+  case when mv->>'type' <> 'sortie' then coalesce(mv->>'heure', '') else '' end,
+  case when mv->>'type' = 'sortie' then 'depose' else 'recupere' end,
+  'Repris automatiquement de l''ancien journal des mouvements.'
+from lots_materiel l,
+     lateral jsonb_array_elements(coalesce(l.mouvements, '[]'::jsonb)) with ordinality as t(mv, ord)
+where coalesce(mv->>'date', '') <> ''
+on conflict (id) do nothing;

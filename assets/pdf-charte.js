@@ -527,6 +527,88 @@ function creerComposeurPdf(doc, options){
     return api;
   };
 
+  /* Tableau — quand plusieurs valeurs décrivent la même chose et qu'il faut
+     dire laquelle est laquelle. « 400 · PWLCK · 300 » ne veut rien dire pour
+     une salle ; sous des colonnes intitulées Puissance / Type de prise /
+     Différentiel, la même ligne se lit sans explication.
+
+     colonnes : [{titre, largeur}] — largeur en part relative (défaut : égales)
+     lignes   : [[val, val, …], …]                                            */
+  api.tableau = function(titre, colonnes, lignes, note){
+    const cols = (colonnes || []).filter(Boolean);
+    const corps = (lignes || []).filter(l=> l && l.some(v=> v != null && v !== ''));
+    if(!cols.length || !corps.length) return api;
+
+    sections.push((k, dessiner, yDepart)=>{
+      const ptTitre = 8 * k, ptEntete = 6.6 * k, ptTexte = 8.6 * k, ptNote = 7 * k;
+      const parts = cols.map(c=> c.largeur || 1);
+      const total = parts.reduce((a, b)=> a + b, 0);
+      const gap = 2.5 * k;
+      const largeurs = parts.map(p=> (utile - gap * (cols.length - 1)) * (p / total));
+      const xDe = (i)=> o.marge + largeurs.slice(0, i).reduce((a, b)=> a + b, 0) + gap * i;
+      let y = yDepart;
+
+      // Intitulé de la section, dans l'idiome de la feuille de route.
+      doc.setFont('Host', 'bold'); doc.setFontSize(ptTitre);
+      const hTitre = hLigne(ptTitre);
+      if(dessiner){
+        fond(PDF_CHARTE.prune);
+        doc.rect(o.marge, y + hTitre * 0.12, 1.1 * k, hTitre * 0.78, 'F');
+        encre(PDF_CHARTE.prune);
+        doc.setCharSpace(0.1 * k);
+        doc.text(String(titre || '').toUpperCase(), o.marge + 3.2 * k, y, { baseline:'top' });
+        doc.setCharSpace(0);
+      }
+      y += hTitre + 1.8 * k;
+
+      // La légende : sans elle, la ligne de valeurs reste une énigme.
+      doc.setFont('Host', 'bold'); doc.setFontSize(ptEntete);
+      if(dessiner){
+        encre(PDF_CHARTE.muted);
+        doc.setCharSpace(0.08 * k);
+        cols.forEach((c, i)=> doc.text(String(c.titre || '').toUpperCase(), xDe(i), y, { baseline:'top' }));
+        doc.setCharSpace(0);
+      }
+      y += hLigne(ptEntete) + 1.4 * k;
+      if(dessiner){
+        trait(PDF_CHARTE.prune); doc.setLineWidth(0.3);
+        doc.line(o.marge, y, o.marge + utile, y);
+      }
+      y += 2.2 * k;
+
+      corps.forEach(ligne=>{
+        doc.setFontSize(ptTexte); doc.setFont('Host', 'normal');
+        const decoupes = cols.map((c, i)=> lignes_(ligne[i], largeurs[i]));
+        const h = Math.max(...decoupes.map(d=> d.length)) * hLigne(ptTexte);
+        if(dessiner){
+          decoupes.forEach((d, i)=>{
+            // La première colonne porte le repère — en gras, c'est elle qu'on
+            // cherche des yeux sur un plateau.
+            doc.setFont('Host', i === 0 ? 'bold' : 'normal');
+            encre(i === 0 ? PDF_CHARTE.noir : PDF_CHARTE.noir);
+            doc.text(d, xDe(i), y, { baseline:'top' });
+          });
+        }
+        y += h + 2 * k;
+        if(dessiner){
+          trait(PDF_CHARTE.bord); doc.setLineWidth(0.15);
+          doc.line(o.marge, y - 1 * k, o.marge + utile, y - 1 * k);
+        }
+      });
+
+      if(note){
+        doc.setFont('Host', 'normal'); doc.setFontSize(ptNote);
+        const l = lignes_(note, utile);
+        if(dessiner){ encre(PDF_CHARTE.muted); doc.text(l, o.marge, y + 1 * k, { baseline:'top' }); }
+        y += l.length * hLigne(ptNote) + 2 * k;
+      }
+      return y - yDepart + 3 * k;
+    });
+    return api;
+  };
+  // Alias interne : `lignes` est déjà pris par le découpeur de texte.
+  const lignes_ = (texte, largeur)=> lignes(texte == null ? '' : texte, largeur);
+
   // Une section dessinée à la main, pour ce que la charte ne prévoit pas — un
   // QR code, par exemple. Elle reçoit l'échelle en cours et la boîte à outils
   // du composeur, et rend sa hauteur comme n'importe quelle autre section :

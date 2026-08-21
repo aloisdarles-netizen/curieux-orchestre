@@ -40,6 +40,24 @@
      incomplète laissait sinon un aplat de couleur là où il manquait un bloc. */
   .fiche-grille{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:1px; background:var(--card); border:1px solid var(--border); border-radius:8px; overflow:hidden;}
   .bloc{background:var(--card); box-shadow:0 0 0 .5px var(--border); padding:11px 13px 13px; display:flex; flex-direction:column; gap:6px;}
+  /* Un tableau prend toute la largeur de la grille : quatre colonnes ne tiennent
+     pas dans une carte partagée avec ses voisines. */
+  .bloc-large{grid-column:1 / -1;}
+  .tableau{display:grid; grid-template-columns:repeat(var(--cols), minmax(0, 1fr)); gap:0 14px;}
+  .tableau .th{
+    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); padding-bottom:6px; border-bottom:1.5px solid var(--accent); margin-bottom:6px;
+  }
+  .tableau .td{font-size:13.5px; padding:6px 0; border-bottom:1px solid var(--border); line-height:1.35;}
+  .tableau .td.repere{font-weight:800;}
+  .tableau-note{margin:9px 0 0; font-size:12px; color:var(--muted); line-height:1.45;}
+  @media (max-width:560px){
+    .tableau{grid-template-columns:minmax(0,1fr); gap:0;}
+    .tableau .th{display:none;}
+    .tableau .td{border-bottom:none; padding:2px 0;}
+    .tableau .td.repere{margin-top:10px; border-top:1px solid var(--border); padding-top:8px;}
+  }
+
   .bloc .titre{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700;}
   .champ{display:flex; justify-content:space-between; gap:10px; font-size:13px; align-items:baseline;}
   /* L'intitulé ne se coupe jamais : « Semi 1 » sur deux lignes ne se lit pas. */
@@ -157,6 +175,9 @@ const TR = {
     bloc_points_jus:'Points de puissance demandés', bloc_acces_scene:'Accès scène demandés',
     bloc_multis:'Multipaires plateau → régie', bloc_distribution:'Points de distribution électrique',
     champ_point:'Point', champ_acces:'Accès', champ_nombre:'Nombre', champ_depart:'Point de départ', champ_precisions:'Précisions',
+    col_position:'Position', col_puissance:'Puissance demandée', col_prise:'Type de prise', col_diff:'Différentiel',
+    note_jus:"Une ligne par point de puissance demandé : où il doit se trouver, l'intensité attendue, le type de prise et la sensibilité du différentiel.",
+    note_distrib:'Les arrivées de courant mises à disposition par la salle.',
     champ_semis_simultanes:'Semis en simultané', champ_dechargement:'Déchargement', champ_emplacements:'Emplacements',
     champ_hauteur_grill:'Hauteur de grill', champ_ouverture_scene:'Ouverture de scène', champ_puissance:'Puissance',
     champ_sur_place:'Sur place', champ_horaire:'Horaire', champ_contact:'Contact', champ_plan_scene:'Plan de scène',
@@ -195,6 +216,9 @@ const TR = {
     bloc_points_jus:'Power points required', bloc_acces_scene:'Stage accesses required',
     bloc_multis:'Stage → FOH snakes', bloc_distribution:'Power distribution points',
     champ_point:'Point', champ_acces:'Access', champ_nombre:'Number', champ_depart:'Starting point', champ_precisions:'Details',
+    col_position:'Position', col_puissance:'Power required', col_prise:'Socket type', col_diff:'RCD sensitivity',
+    note_jus:'One row per power point required: where it must be, the current expected, the socket type and the residual-current sensitivity.',
+    note_distrib:'The power supplies made available by the venue.',
     champ_semis_simultanes:'Trucks at once', champ_dechargement:'Unloading', champ_emplacements:'Unloading spots',
     champ_hauteur_grill:'Grid height', champ_ouverture_scene:'Stage opening', champ_puissance:'Power available',
     champ_sur_place:'On site', champ_horaire:'Time', champ_contact:'Contact', champ_plan_scene:'Stage plan',
@@ -222,6 +246,9 @@ const TR = {
     bloc_points_jus:'Benötigte Stromanschlüsse', bloc_acces_scene:'Benötigte Bühnenzugänge',
     bloc_multis:'Multicore Bühne → FOH', bloc_distribution:'Stromverteilerpunkte',
     champ_point:'Anschluss', champ_acces:'Zugang', champ_nombre:'Anzahl', champ_depart:'Ausgangspunkt', champ_precisions:'Hinweise',
+    col_position:'Position', col_puissance:'Benötigte Leistung', col_prise:'Steckertyp', col_diff:'FI-Empfindlichkeit',
+    note_jus:'Eine Zeile je benötigtem Stromanschluss: Standort, Stromstärke, Steckertyp und FI-Empfindlichkeit.',
+    note_distrib:'Die vom Haus bereitgestellten Stromanschlüsse.',
     champ_semis_simultanes:'Sattelzüge gleichzeitig', champ_dechargement:'Entladung', champ_emplacements:'Entladestellen',
     champ_hauteur_grill:'Traversenhöhe', champ_ouverture_scene:'Bühnenöffnung', champ_puissance:'Verfügbare Leistung',
     champ_sur_place:'Vor Ort', champ_horaire:'Uhrzeit', champ_contact:'Kontakt', champ_plan_scene:'Bühnenplan',
@@ -249,6 +276,9 @@ const TR = {
     bloc_points_jus:'Puntos de potencia solicitados', bloc_acces_scene:'Accesos al escenario solicitados',
     bloc_multis:'Mangueras escenario → control', bloc_distribution:'Puntos de distribución eléctrica',
     champ_point:'Punto', champ_acces:'Acceso', champ_nombre:'Cantidad', champ_depart:'Punto de partida', champ_precisions:'Detalles',
+    col_position:'Posición', col_puissance:'Potencia solicitada', col_prise:'Tipo de toma', col_diff:'Sensibilidad diferencial',
+    note_jus:'Una línea por punto de potencia solicitado: dónde debe estar, la intensidad, el tipo de toma y la sensibilidad del diferencial.',
+    note_distrib:'Las tomas de corriente puestas a disposición por la sala.',
     champ_semis_simultanes:'Tráileres simultáneos', champ_dechargement:'Descarga', champ_emplacements:'Puntos de descarga',
     champ_hauteur_grill:'Altura de parrilla', champ_ouverture_scene:'Boca de escena', champ_puissance:'Potencia disponible',
     champ_sur_place:'En el lugar', champ_horaire:'Hora', champ_contact:'Contacto', champ_plan_scene:'Plano de escena',
@@ -276,6 +306,9 @@ const TR = {
     bloc_points_jus:'Gevraagde stroompunten', bloc_acces_scene:'Gevraagde podiumtoegangen',
     bloc_multis:'Multikabels podium → FOH', bloc_distribution:'Stroomverdeelpunten',
     champ_point:'Punt', champ_acces:'Toegang', champ_nombre:'Aantal', champ_depart:'Vertrekpunt', champ_precisions:'Details',
+    col_position:'Positie', col_puissance:'Gevraagd vermogen', col_prise:'Type stopcontact', col_diff:'Gevoeligheid aardlekschakelaar',
+    note_jus:'Eén regel per gevraagd stroompunt: locatie, stroomsterkte, type stopcontact en gevoeligheid van de aardlekschakelaar.',
+    note_distrib:'De door de zaal beschikbaar gestelde stroomaansluitingen.',
     champ_semis_simultanes:'Trucks tegelijk', champ_dechargement:'Lossen', champ_emplacements:'Losplekken',
     champ_hauteur_grill:'Rijghoogte', champ_ouverture_scene:'Podiumopening', champ_puissance:'Beschikbaar vermogen',
     champ_sur_place:'Ter plaatse', champ_horaire:'Tijdstip', champ_contact:'Contact', champ_plan_scene:'Podiumplan',
@@ -695,25 +728,34 @@ function exigencesTournee(){
     multis: brut.multis && typeof brut.multis === 'object' ? brut.multis : {},
   };
 }
-// La position fait le libellé de la ligne : c'est elle qu'on cherche des yeux
-// sur un plateau. Sans position renseignée, on retombe sur un numéro d'ordre.
-function ligneRepere(item, index, cleDefaut, valeur){
-  return champ(item.position || `${t(cleDefaut)} ${index + 1}`, valeur);
-}
-function blocPointsJus(){
-  const liste = exigencesTournee().pointsJus;
-  if(!liste.length) return '';
-  return `<div class="bloc"><span class="titre">${t('bloc_points_jus')}</span>
-    ${liste.map((p,i)=> ligneRepere(p, i, 'champ_point',
-      [p.puissance, p.typePrise, p.differentiel].filter(Boolean).join(' · '))).join('')}
+// Un tableau légendé plutôt qu'un couple clé/valeur : « 400 · P17 · 300 » ne
+// dit pas à une salle laquelle des trois valeurs est la puissance, laquelle la
+// prise, laquelle le différentiel. L'en-tête de colonne fait tout le travail.
+function blocTableauPartage(titre, colonnes, lignes, note){
+  const utiles = (lignes || []).filter(l=> l && l.some(v=> v != null && v !== ''));
+  if(!utiles.length) return '';
+  return `<div class="bloc bloc-large"><span class="titre">${escapeHtml(titre)}</span>
+    <div class="tableau" style="--cols:${colonnes.length};">
+      ${colonnes.map(c=> `<span class="th">${escapeHtml(c)}</span>`).join('')}
+      ${utiles.map(l=> colonnes.map((_, i)=>
+        `<span class="td${i === 0 ? ' repere' : ''}">${l[i] ? escapeHtml(String(l[i])) : '<span class="vide-champ">—</span>'}</span>`).join('')).join('')}
+    </div>
+    ${note ? `<p class="tableau-note">${escapeHtml(note)}</p>` : ''}
   </div>`;
+}
+
+function blocPointsJus(){
+  return blocTableauPartage(t('bloc_points_jus'),
+    [t('col_position'), t('col_puissance'), t('col_prise'), t('col_diff')],
+    exigencesTournee().pointsJus.map((p, i)=>
+      [p.position || `${t('champ_point')} ${i + 1}`, p.puissance, p.typePrise, p.differentiel]),
+    t('note_jus'));
 }
 function blocAccesScene(){
   const liste = exigencesTournee().accesScene;
-  if(!liste.length) return '';
-  return `<div class="bloc"><span class="titre">${t('bloc_acces_scene')} (${liste.length})</span>
-    ${liste.map((a,i)=> ligneRepere(a, i, 'champ_acces', a.notes)).join('')}
-  </div>`;
+  return blocTableauPartage(`${t('bloc_acces_scene')} (${liste.length})`,
+    [t('col_position'), t('champ_precisions')],
+    liste.map((a, i)=> [a.position || `${t('champ_acces')} ${i + 1}`, a.notes]));
 }
 function blocMultis(){
   const s = exigencesTournee().multis;
@@ -725,11 +767,10 @@ function blocMultis(){
   </div>`;
 }
 function blocDistribution(m){
-  const liste = m.points_distribution || [];
-  if(!liste.length) return '';
-  return `<div class="bloc"><span class="titre">${t('bloc_distribution')}</span>
-    ${liste.map((p,i)=> ligneRepere(p, i, 'champ_point', p.notes)).join('')}
-  </div>`;
+  return blocTableauPartage(t('bloc_distribution'),
+    [t('col_position'), t('champ_precisions')],
+    (m.points_distribution || []).map((p, i)=> [p.position || `${t('champ_point')} ${i + 1}`, p.notes]),
+    t('note_distrib'));
 }
 
 function ficheDateComplete(d, m, editableSalle, editableStageManager){
@@ -988,20 +1029,6 @@ function exporterJourneePdf(dateId){
       champ(t('champ_ouverture_scene'), m.ouverture_scene),
       champ(t('champ_puissance'), m.puissance),
     ]),
-    // Les exigences de la tournée voyagent avec la feuille : un plateau se
-    // prépare sur le papier punaisé en régie, pas sur l'onglet resté ouvert.
-    bloc(t('bloc_points_jus'), exigencesTournee().pointsJus.map((p, i)=>
-      champ(p.position || `${t('champ_point')} ${i + 1}`,
-            [p.puissance, p.typePrise, p.differentiel].filter(Boolean).join(' · ')))),
-    bloc(t('bloc_distribution'), (m.points_distribution || []).map((p, i)=>
-      champ(p.position || `${t('champ_point')} ${i + 1}`, p.notes))),
-    bloc(t('bloc_acces_scene'), exigencesTournee().accesScene.map((a, i)=>
-      champ(a.position || `${t('champ_acces')} ${i + 1}`, a.notes || '·'))),
-    bloc(t('bloc_multis'), [
-      champ(t('champ_nombre'), exigencesTournee().multis.nombre),
-      champ(t('champ_depart'), exigencesTournee().multis.depart),
-      champ(t('champ_precisions'), exigencesTournee().multis.notes),
-    ]),
     bloc(t('bloc_bureau_elec'), bureau(m.bureau_electrique_sur_place, m.bureau_electrique_nom, m.bureau_electrique_tel, m.bureau_electrique_horaire)),
     bloc(t('bloc_bureau_accroche'), bureau(m.bureau_accroche_sur_place, m.bureau_accroche_nom, m.bureau_accroche_tel, m.bureau_accroche_horaire)),
     bloc(t('bloc_contacts_salle'), (m.contacts_salle || []).map(c=>
@@ -1011,6 +1038,26 @@ function exporterJourneePdf(dateId){
       return champ(v.nom || 'Sans nom', c ? [[c.prenom, c.nom].filter(Boolean).join(' '), c.telephone].filter(Boolean).join(' · ') : '—');
     })),
   ]);
+
+  // Les exigences de la tournée voyagent avec la feuille — un plateau se prépare
+  // sur le papier punaisé en régie, pas sur l'onglet resté ouvert — et en
+  // tableaux légendés, pour la même raison qu'à l'écran.
+  const exi = exigencesTournee();
+  page.tableau(t('bloc_points_jus'),
+    [{ titre:t('col_position'), largeur:1.3 }, { titre:t('col_puissance') }, { titre:t('col_prise'), largeur:1.2 }, { titre:t('col_diff') }],
+    exi.pointsJus.map((p, i)=> [p.position || `${t('champ_point')} ${i + 1}`, p.puissance, p.typePrise, p.differentiel]),
+    t('note_jus'));
+  page.tableau(t('bloc_distribution'),
+    [{ titre:t('col_position'), largeur:1.3 }, { titre:t('champ_precisions'), largeur:2 }],
+    (m.points_distribution || []).map((p, i)=> [p.position || `${t('champ_point')} ${i + 1}`, p.notes]),
+    t('note_distrib'));
+  page.tableau(t('bloc_acces_scene'),
+    [{ titre:t('col_position'), largeur:1.3 }, { titre:t('champ_precisions'), largeur:2 }],
+    exi.accesScene.map((a, i)=> [a.position || `${t('champ_acces')} ${i + 1}`, a.notes]));
+  page.tableau(t('bloc_multis'),
+    [{ titre:t('champ_nombre') }, { titre:t('champ_depart'), largeur:1.4 }, { titre:t('champ_precisions'), largeur:2 }],
+    (exi.multis.nombre != null || exi.multis.depart || exi.multis.notes)
+      ? [[exi.multis.nombre != null ? String(exi.multis.nombre) : '', exi.multis.depart, exi.multis.notes]] : []);
 
   page.pastilles(t('bloc_horaires'),
     (m.horaires_journee || []).slice()
