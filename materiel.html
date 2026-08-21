@@ -460,12 +460,19 @@ function majBarreMission(){
   document.getElementById('missionCompte').textContent = n === 0
     ? 'Coche les arrêts de la mission'
     : `${n} arrêt${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}`;
+  // La liste se remplissait une fois pour toutes. Ouvrir le mode mission avant
+  // que les chauffeurs ne soient chargés figeait donc « Aucun chauffeur
+  // enregistré » jusqu'au rechargement de la page. On la reconstruit dès que le
+  // contenu a changé, en gardant le choix en cours.
   const sel = document.getElementById('missionChauffeur');
-  if(!sel.dataset.rempli){
+  const signature = chauffeursCache.map(c=> c.id).join(',');
+  if(sel.dataset.signature !== signature){
+    const choisi = sel.value;
     sel.innerHTML = chauffeursCache.length
       ? chauffeursCache.map(c=> `<option value="${escapeAttr(c.id)}">${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ') || 'Sans nom')}</option>`).join('')
       : '<option value="">Aucun chauffeur enregistré</option>';
-    sel.dataset.rempli = '1';
+    if(choisi && chauffeursCache.some(c=> c.id === choisi)) sel.value = choisi;
+    sel.dataset.signature = signature;
   }
 }
 

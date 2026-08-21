@@ -236,21 +236,29 @@ function render(){
 // chaque lien partagé les affiche. Les recopier sur chaque fiche de date, c'est
 // se garantir qu'une correction en oubliera la moitié.
 // ============================================================================
-function exigences(){
-  const t = activeTournee();
-  const brut = (t && t.techniqueTournee) || {};
-  // Les trois clés sont normalisées ici une bonne fois : le reste du code peut
-  // faire .map() sans se demander si la tournée a déjà été réglée.
-  return {
-    pointsJus: Array.isArray(brut.pointsJus) ? brut.pointsJus : [],
-    accesScene: Array.isArray(brut.accesScene) ? brut.accesScene : [],
-    multis: brut.multis && typeof brut.multis === 'object' ? brut.multis : {},
-  };
-}
+// Le brouillon en cours d'édition. Il est chargé depuis la tournée au
+// changement de tournée, et plus jamais ensuite : c'est lui que les boutons
+// modifient, et lui qu'on enregistre.
 let exigencesEnCours = null;
 
+// Charger, c'est copier — pas emprunter. La version précédente rendait le
+// tableau de la tournée par référence quand il existait, et un tableau neuf
+// quand il manquait ; comme renderExigences() rechargeait à chaque dessin, une
+// ligne ajoutée survivait sur une tournée déjà réglée et disparaissait sur une
+// tournée vierge. Une copie systématique, chargée une seule fois, supprime la
+// question.
+function chargerExigences(){
+  const t = activeTournee();
+  const brut = (t && t.techniqueTournee) || {};
+  exigencesEnCours = {
+    pointsJus: (Array.isArray(brut.pointsJus) ? brut.pointsJus : []).map(p=> ({ ...p })),
+    accesScene: (Array.isArray(brut.accesScene) ? brut.accesScene : []).map(a=> ({ ...a })),
+    multis: { ...(brut.multis && typeof brut.multis === 'object' ? brut.multis : {}) },
+  };
+}
+
 function renderExigences(){
-  exigencesEnCours = exigences();
+  if(!exigencesEnCours) chargerExigences();
   const jus = exigencesEnCours.pointsJus;
   const acces = exigencesEnCours.accesScene;
   const multis = exigencesEnCours.multis;
@@ -300,7 +308,8 @@ function brancherLignesExigences(selecteur, liste, cleRetrait){
 // Le résumé se lit sur le repli : sans lui, on ne sait pas si les exigences ont
 // été réglées sans ouvrir le panneau.
 function majResumeExigences(){
-  const e = exigencesEnCours || exigences();
+  const e = exigencesEnCours;
+  if(!e) return;
   const nbMultis = Number(document.getElementById('fMultiNombre').value || 0);
   const morceaux = [
     e.pointsJus.length ? `${e.pointsJus.length} point${e.pointsJus.length>1?'s':''} de jus` : '',
@@ -367,7 +376,8 @@ async function initData(){
   // renderExigences() ne suit que le changement de tournée, pas les rafraîchis-
   // sements de render() : il redessine des champs de saisie, et le faire sous
   // les doigts de quelqu'un effacerait ce qu'il est en train d'écrire.
-  sel.addEventListener('change', ()=>{ renderExigences(); render(); });
+  sel.addEventListener('change', ()=>{ chargerExigences(); renderExigences(); render(); });
+  chargerExigences();
   renderExigences();
   render();
 }

@@ -22,7 +22,13 @@
  * statiques. Cela purge les anciens caches à l'activation.
  */
 
-const VERSION = 'curieux-v2';
+// v3 : pdf-charte.js a gagné une section libre, et deux fichiers sont apparus
+// (qr.js, pdf-prise-en-main.js). Les actifs étant servis depuis le cache avant
+// d'être rafraîchis, un navigateur déjà venu continuait de charger l'ancien
+// pdf-charte.js — et les boutons d'export qui s'appuient sur la nouveauté
+// restaient sans effet. Toute modification d'un fichier de assets/ doit
+// s'accompagner d'un incrément ici.
+const VERSION = 'curieux-v3';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
