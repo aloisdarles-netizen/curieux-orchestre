@@ -54,11 +54,83 @@ const SEED = {
     {id:'demo-tech-01',prenom:'Marie',nom:'Dupont',poste:'Ingé son façade',pole:'Son',telephone:'06 32 51 72 90',email:'marie@mail.com',disponibilites:{}},
     {id:'demo-tech-02',prenom:'Léo',nom:'Bernard',poste:'Ingé lumière',pole:'Lumière',telephone:'06 33 52 73 91',email:'leo@mail.com',disponibilites:{}},
   ],
+  // Un lot, un sous-lot et un lot sans provenance, avec des mouvements des deux
+  // sens : sans eux, l'agenda du matériel se capture vide et ne dit rien.
+  prestataires: [{ id:'demo-prest-01', nom:'DUSHOW', notes:'' }],
+  lots_materiel: [
+    { id:'demo-lot-01', nom:'kit light', categorie:'lumiere', parentId:'', provenanceId:'demo-prest-01',
+      description:'', elements:[], datePrepa:'2027-03-10', datePickup:'2027-03-11',
+      mouvements:[
+        { id:'mvt1', date:'2027-03-12', heure:'12:30', type:'sortie', description:'switch desk' },
+        { id:'mvt2', date:'2027-03-12', heure:'18:00', type:'entree', description:'console de remplacement' },
+        { id:'mvt3', date:'2027-03-15', heure:'', type:'sortie', description:'retour des barres non utilisées' },
+      ],
+      retourPrestataireDate:'2027-03-20', retourPrestataireHeurePickup:'08:00',
+      retourPrestataireHeureLivraison:'14:30', notes:'' },
+    { id:'demo-lot-02', nom:'Barres LED sol', categorie:'lumiere', parentId:'demo-lot-01', provenanceId:'demo-prest-01',
+      description:'', elements:[], datePrepa:'', datePickup:'',
+      mouvements:[{ id:'mvt4', date:'2027-03-13', heure:'09:15', type:'entree', description:'complément de 6 barres' }],
+      retourPrestataireDate:'', retourPrestataireHeurePickup:'', retourPrestataireHeureLivraison:'', notes:'' },
+    { id:'demo-lot-03', nom:'Backline cuivres', categorie:'backline', parentId:'', provenanceId:'',
+      description:'2 amplis, 1 pédalier', elements:[], datePrepa:'2027-03-09', datePickup:'',
+      mouvements:[], retourPrestataireDate:'', retourPrestataireHeurePickup:'',
+      retourPrestataireHeureLivraison:'', notes:'' },
+  ],
   tournees: [{
     id:'demo-tour1', nom:"L'Atelier de Joe Hisaishi — Printemps 2027",
     cachetStatut:'defini', cachetMontant:320, dates:DATES,
     nomenclature:[{pupitre:'Cordes',nombre:5},{pupitre:'Bois',nombre:4}],
   }],
+  // Réponse de get_recap_logistique — technique-partage.html ne lit pas les
+  // tables, mais cette seule fonction. Assez de dates pour que le sommaire ait
+  // quelque chose à sommer, en snake_case comme le renvoie la base.
+  __recap: {
+    libelle:'Logistique de tournée', type:'stage_manager', datesIds:[],
+    tournee: {
+      id:'demo-tour1', nom:'EXPEDITION 33',
+      equipesRoad:[{id:'eq1',label:'Lumière',couleur:'#F5C518'},{id:'eq2',label:'Son',couleur:'#3b82f6'}],
+      dates:[
+        {id:'r0',date:'2027-03-10',ville:'Épernay',lieu:'Le Millenium'},
+        {id:'r1',date:'2027-03-12',ville:'Lyon',lieu:'Salle 3000'},
+        {id:'r2',date:'2027-03-13',ville:'Grenoble',lieu:'Le Summum'},
+        {id:'r3',date:'2027-03-15',ville:'Marseille',lieu:'Le Dôme'},
+        {id:'r4',date:'2027-03-18',ville:'Toulouse',lieu:'Zénith'},
+        {id:'r5',date:'2027-03-20',ville:'Bordeaux',lieu:'Arkéa Aréna'},
+        {id:'r6',date:'2027-03-22',ville:'Nantes',lieu:'Zénith Métropole'},
+        {id:'r7',date:'2027-03-24',ville:'Rennes',lieu:'Le Liberté'},
+      ],
+    },
+    moyens: [
+      { date_id:'r0', nombre_semis_simultanees:4, niveau_dechargement:'sol',
+        emplacements_dechargement:[{emplacement:'cote_scene'},{emplacement:'fosse'},{emplacement:'scene'}],
+        hauteur_grill:'17', ouverture_scene:'25', puissance:'2× 400A',
+        bureau_electrique_sur_place:true, bureau_electrique_horaire:'08:00', bureau_electrique_contact:'Michel · 06 11 22 33 44',
+        bureau_accroche_sur_place:false,
+        contacts_salle:[{role:'rigg', nom:'Michel', tel:'06 11 22 33 44'}],
+        horaires_journee:[{heure:'08:00',label:'Load in'},{heure:'12:30',label:'Get in'}],
+        roadies_vacations:[{horaireDebut:'11:00',horaireFin:'16:00',nombreDemande:26,equipes:[{equipeId:'eq1',nombre:5},{equipeId:'eq2',nombre:5}]}],
+        chariots_vacations:[{horaireDebut:'06:00',horaireFin:'12:30',nombreChariotsDemande:2,nombreCaristesDemande:2,confirme:true}],
+        rigg_vacations:[], acces_notes:'Porte de 3,50 m, 12 marches côté cour.' },
+      { date_id:'r1', nombre_semis_simultanees:2, niveau_dechargement:'scene',
+        emplacements_dechargement:[], hauteur_grill:'14', ouverture_scene:'18', puissance:'400A',
+        horaires_journee:[{heure:'09:00',label:'Load in'}],
+        roadies_vacations:[], chariots_vacations:[], rigg_vacations:[] },
+    ],
+    lots: [
+      { id:'demo-lot-01', nom:'kit light', parent_id:null, description:'',
+        mouvements:[
+          { id:'mvt1', date:'2027-03-12', heure:'12:30', type:'sortie', description:'switch desk' },
+          { id:'mvt2', date:'2027-03-12', heure:'18:00', type:'entree', description:'console de remplacement' },
+          { id:'mvt3', date:'2027-03-10', heure:'', type:'sortie', description:'retour des barres non utilisées' },
+        ],
+        retour_prestataire_date:'2027-03-10', retour_prestataire_heure:'08:00',
+        retour_prestataire_heure_livraison:'14:30' },
+      { id:'demo-lot-03', nom:'Backline cuivres', parent_id:null, description:'2 amplis, 1 pédalier',
+        mouvements:[], retour_prestataire_date:null, retour_prestataire_heure:'', retour_prestataire_heure_livraison:'' },
+    ],
+    carnets:[], vehicules:[], chauffeurs:[], affectationsTransport:[],
+    fichesTechniques:[], techniciensContacts:[],
+  },
 };
 
 (async () => {
@@ -97,6 +169,7 @@ const CurieuxDB = new Proxy({
   currentRole: async () => 'admin',
   mesDemandesDispo: async () => null,
   getFicheTechniqueByToken: async () => null,
+  getRecapLogistique: async () => __seed.__recap || null,
 }, {
   // Toute méthode non prévue renvoie une liste vide plutôt que de lever : les
   // pages en appellent une bonne trentaine, les énumérer serait autant
@@ -114,7 +187,10 @@ window.CurieuxDB = CurieuxDB;
     const erreurs = [];
     page.on('pageerror', e => erreurs.push(String(e).slice(0, 160)));
     page.on('console', m => { if (m.type() === 'error') erreurs.push(m.text().slice(0, 160)); });
-    await page.goto(`${BASE}/${nom}.html`, { waitUntil:'networkidle', timeout:20000 }).catch(()=>{});
+    // Un nom de page peut porter sa requête — « technique-partage?jeton=demo » —
+    // pour les écrans qui ne s'ouvrent que sur un jeton.
+    const [fichier, requete] = nom.split('?');
+    await page.goto(`${BASE}/${fichier}.html${requete ? '?' + requete : ''}`, { waitUntil:'networkidle', timeout:20000 }).catch(()=>{});
     await page.waitForTimeout(900);
     // Quatrième argument : un sélecteur à cliquer avant la capture. Sans lui,
     // les panneaux et fenêtres qui ne s'ouvrent qu'au clic — l'affectation, les
@@ -156,10 +232,10 @@ window.CurieuxDB = CurieuxDB;
           .filter(e => e.getBoundingClientRect().right > innerWidth + 2 && !clippe(e))
           .slice(0, 3).map(e => `${chaine(e)} (→${Math.round(e.getBoundingClientRect().right)}px)`) };
     });
-    const f = `${OUT}/${nom}-${format}.png`;
+    const f = `${OUT}/${fichier}-${format}.png`;
     await page.screenshot({ path:f, fullPage:true });
     const deborde = debord.defile;
-    console.log(`${nom.padEnd(16)} ${format.padEnd(7)} ${deborde ? `⚠ DÉBORDE ${debord.largeurDoc}px > ${debord.largeurVue}px → ${debord.coupables.join(', ')}` : '✓ pas de débordement'}${erreurs.length ? ` · ${erreurs.length} erreur(s) JS : ${erreurs[0]}` : ''}`);
+    console.log(`${fichier.padEnd(16)} ${format.padEnd(7)} ${deborde ? `⚠ DÉBORDE ${debord.largeurDoc}px > ${debord.largeurVue}px → ${debord.coupables.join(', ')}` : '✓ pas de débordement'}${erreurs.length ? ` · ${erreurs.length} erreur(s) JS : ${erreurs[0]}` : ''}`);
     await page.close();
   }
   await browser.close();

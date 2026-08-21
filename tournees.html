@@ -266,6 +266,35 @@
   }
   .modal h2{font-size:16px; margin:0 0 4px;}
   .modal .modal-sub{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
+
+  /* Panneau d'affectation — il se déplie sous la ligne de sa date plutôt que de
+     recouvrir la page. Techniquement il est posé DANS la ligne, en cellule qui
+     traverse toutes les colonnes : ainsi le nombre d'enfants de .co-rows ne
+     change pas, et l'alternance de blancs des lignes ne se décale pas quand il
+     s'ouvre. Les marges négatives lui rendent les bords de la ligne. */
+  .aff-panneau{
+    grid-column:1/-1; min-width:0;
+    margin:12px -20px calc(var(--row-pad) * -1);
+    padding:14px 20px 16px; background:var(--bg);
+    border-top:1px solid var(--border);
+    animation:aff-glisse .18s ease-out;
+  }
+  @keyframes aff-glisse{ from{ opacity:0; transform:translateY(-6px); } to{ opacity:1; transform:none; } }
+  @media (prefers-reduced-motion:reduce){ .aff-panneau{ animation:none; } }
+  .aff-tete{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:2px;}
+  .aff-tete-actions{display:flex; gap:6px; flex-shrink:0;}
+  .aff-consigne{
+    display:block; font-size:11px; font-weight:800; text-transform:uppercase;
+    letter-spacing:.06em; color:var(--muted);
+  }
+  .aff-quoi{display:block; font-size:13.5px; font-weight:800; margin-top:2px;}
+  .aff-aide{font-size:11.5px; color:var(--muted); margin:0 0 8px;}
+  .aff-recherche{
+    width:100%; box-sizing:border-box; margin-bottom:8px; padding:9px 12px;
+    border:1px solid var(--border); border-radius:8px; font-size:13px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  .aff-recherche:focus{outline:none; border-color:var(--accent);}
   /* Panneau d'affectation : une tuile cliquable par personne, à la place des
      lignes à cocher. L'état se lit dans la marque (✓ affecté·e, + affectable,
      ✕ indisponible donc non affectable, ? dispo à renseigner) et le point de
@@ -373,12 +402,30 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="assignOverlay">
-  <div class="modal">
-    <h2 id="assignTitle">Affecter des musicien·nes</h2>
-    <p class="modal-sub" id="assignSub"></p>
-    <input type="text" id="assignSearch" placeholder="Chercher un nom, un instrument, un poste…" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13.5px; margin-bottom:6px; background:var(--bg); color:var(--text); font-family:inherit;">
-    <div id="assignList" style="max-height:50vh; overflow-y:auto;"></div>
+<!-- Panneau d'affectation.
+
+     Il ne recouvre plus la page : il se déplie sous la ligne de la date, comme
+     dans la maquette — on garde sous les yeux la date qu'on est en train de
+     servir, et le reste de la tournée reste lisible autour.
+
+     Entre deux ouvertures il attend ici, dans #assignParking : render() refait
+     tout le HTML des cartes de tournée, un panneau posé dedans n'y survivrait
+     pas. On le range avant chaque rendu, on le repose après. -->
+<div id="assignParking" hidden>
+  <div class="aff-panneau" id="assignPanneau" hidden>
+    <div class="aff-tete">
+      <div class="aff-tete-texte">
+        <span class="aff-consigne">Affecter — clique une personne pour l'ajouter ou la retirer</span>
+        <span class="aff-quoi" id="assignSub"></span>
+      </div>
+      <div class="aff-tete-actions">
+        <button type="button" class="co-btn ghost sm" id="assignCancel">Annuler</button>
+        <button type="button" class="co-btn primary sm" id="assignSave">Enregistrer</button>
+      </div>
+    </div>
+    <p class="aff-aide">Indisponible = non affectable · « ? » = poser la disponibilité à la main</p>
+    <input type="text" id="assignSearch" class="aff-recherche" placeholder="Chercher un nom, un instrument, un poste…">
+    <div id="assignList"></div>
     <div id="assignBlocSection" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
       <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
         <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:0;"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:3px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line></svg>Aussi affecter sur ce bloc</h3>
@@ -387,10 +434,6 @@
         </label>
       </div>
       <div id="assignBlocDatesList" style="max-height:20vh; overflow-y:auto;"></div>
-    </div>
-    <div class="modal-actions">
-      <button type="button" class="co-btn ghost" id="assignCancel">Annuler</button>
-      <button type="button" class="co-btn primary" id="assignSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -650,6 +693,31 @@ let assignSelectedM = new Set(), assignSelectedT = new Set();
 let assignDateIso = '';
 let assignBlocOtherDates = [];
 
+// Le panneau se glisse sous la ligne de sa date, et retourne à son garage
+// avant chaque rendu — voir #assignParking dans le corps de page.
+function majBoutonsAffecter(dateOuverte){
+  document.querySelectorAll('[data-assign]').forEach(b=>{
+    const ouvert = b.dataset.assign === dateOuverte;
+    b.textContent = ouvert ? 'Fermer' : 'Affecter';
+    b.setAttribute('aria-expanded', String(ouvert));
+  });
+}
+function rangerPanneauAffectation(){
+  const panneau = document.getElementById('assignPanneau');
+  panneau.hidden = true;
+  document.getElementById('assignParking').appendChild(panneau);
+  majBoutonsAffecter('');
+}
+function poserPanneauAffectation(dateId){
+  const ligne = document.querySelector(`[data-row-date="${CSS.escape(dateId)}"]`);
+  if(!ligne){ rangerPanneauAffectation(); return false; }
+  const panneau = document.getElementById('assignPanneau');
+  ligne.appendChild(panneau);
+  panneau.hidden = false;
+  majBoutonsAffecter(dateId);
+  return true;
+}
+
 function openAssignModal(tourneeId, dateId){
   const tournees = loadTournees();
   const tournee = tournees.find(t=>t.id === tourneeId);
@@ -658,8 +726,8 @@ function openAssignModal(tourneeId, dateId){
   if(!dateEntry) return;
 
   assignContext = { tourneeId, dateId };
-  document.getElementById('assignTitle').textContent = 'Affecter des musicien·nes et technicien·nes';
-  document.getElementById('assignSub').textContent = `${tournee.nom} — ${fmtDateFR(dateEntry.date)}`;
+  document.getElementById('assignSub').textContent =
+    `${fmtDateFR(dateEntry.date)}${dateEntry.ville ? ' — ' + dateEntry.ville : ''}`;
 
   assignMusicians = loadMusicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
   assignTechnicians = loadTechnicians().slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
@@ -677,8 +745,10 @@ function openAssignModal(tourneeId, dateId){
 
   document.getElementById('assignSearch').value = '';
   renderAssignList('');
-  document.getElementById('assignOverlay').classList.add('open');
-  document.getElementById('assignSearch').focus();
+  if(!poserPanneauAffectation(dateId)){ assignContext = null; return; }
+  const panneau = document.getElementById('assignPanneau');
+  panneau.scrollIntoView({ block:'nearest', behavior:'smooth' });
+  document.getElementById('assignSearch').focus({ preventScroll:true });
 }
 
 function renderAssignBlocSection(){
@@ -860,12 +930,15 @@ function renderAssignList(search){
 }
 
 function closeAssignModal(){
-  document.getElementById('assignOverlay').classList.remove('open');
+  rangerPanneauAffectation();
   assignContext = null;
   assignBlocOtherDates = [];
 }
 document.getElementById('assignCancel').addEventListener('click', closeAssignModal);
-document.getElementById('assignOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'assignOverlay') closeAssignModal(); });
+// Échap referme le panneau : il n'y a plus de fond cliquable pour le faire.
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape' && assignContext) closeAssignModal();
+});
 // Ouvre ou referme le cartouche de tête. Délégué sur le document : les cartes
 // de tournée sont re-rendues à chaque changement, un binding par bouton ne
 // survivrait pas au premier remplacement d'innerHTML.
@@ -1156,7 +1229,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         const showTypeStatut = !blocInfo || blocInfo.isFirst;
         const groupRowspan = blocInfo ? blocInfo.blocDates.length : 1;
         return `
-          <div class="co-row date-row ${blocInfo ? `bloc-row bloc-alt-${blocInfo.groupIndex % 2}` : ''}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
+          <div class="co-row date-row ${blocInfo ? `bloc-row bloc-alt-${blocInfo.groupIndex % 2}` : ''}" data-row-date="${escapeAttr(d.id)}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
             <span class="col-date"><b>${escapeHtml(fmtDateFR(d.date))}</b></span>
             <span class="col-bloc">${blocBadge}${linkToggle}</span>
             <span class="col-lieu co-row-name">
@@ -1292,6 +1365,11 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
 }
 
 function render(){
+  // Le panneau d'affectation est posé dans une ligne de date : on le met à
+  // l'abri avant de refaire le HTML des cartes, on le repose ensuite.
+  const affectationEnCours = assignContext;
+  rangerPanneauAffectation();
+
   const tournees = loadTournees();
   const fdrs = loadFdrCollection();
   const musicians = loadMusicians();
@@ -1328,6 +1406,11 @@ function render(){
   }
 
   bindTourneeEvents();
+
+  if(affectationEnCours){
+    assignContext = affectationEnCours;
+    if(!poserPanneauAffectation(affectationEnCours.dateId)) assignContext = null;
+  }
 }
 
 const STATUT_PDF_LABEL = { option:'Option', validee:'Validée', annulee:'ANNULÉE' };
@@ -1881,6 +1964,8 @@ function bindTourneeEvents(){
   });
   document.querySelectorAll('[data-assign]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      // Le bouton commande le panneau dans les deux sens : ouvert, il le referme.
+      if(assignContext && assignContext.dateId === btn.dataset.assign){ closeAssignModal(); return; }
       const card = btn.closest('[data-tournee-id]');
       openAssignModal(card.dataset.tourneeId, btn.dataset.assign);
     });

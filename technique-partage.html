@@ -34,8 +34,11 @@
   .fiche-date-head .quand{font-size:12px; color:var(--muted);}
   .fiche-date-body{padding:14px 16px; display:flex; flex-direction:column; gap:12px;}
 
-  .fiche-grille{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:8px; overflow:hidden;}
-  .bloc{background:var(--card); padding:11px 13px 13px; display:flex; flex-direction:column; gap:6px;}
+  /* Les filets entre blocs viennent de l'ombre portée de chaque bloc, et non
+     d'un fond de grille apparaissant dans les gouttières : une dernière rangée
+     incomplète laissait sinon un aplat de couleur là où il manquait un bloc. */
+  .fiche-grille{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:1px; background:var(--card); border:1px solid var(--border); border-radius:8px; overflow:hidden;}
+  .bloc{background:var(--card); box-shadow:0 0 0 .5px var(--border); padding:11px 13px 13px; display:flex; flex-direction:column; gap:6px;}
   .bloc .titre{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700;}
   .champ{display:flex; justify-content:space-between; gap:10px; font-size:13px; align-items:baseline;}
   .champ .k{color:var(--muted);}
@@ -70,6 +73,57 @@
   .equipe-chip .pastille{width:9px; height:9px; border-radius:50%; flex:0 0 auto;}
   .horaires-liste{display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;}
   .horaire-chip{font-size:12px; background:var(--bg); border:1px solid var(--border); border-radius:20px; padding:4px 10px;}
+
+  /* ==========================================================================
+     Sommaire des dates.
+
+     Une tournée de vingt-huit dates se lisait d'un seul tenant : pour trouver
+     la dernière, il fallait faire défiler les vingt-sept autres. La page
+     n'affiche donc plus qu'une date à la fois, choisie dans un sommaire qui
+     reste sous la main. Sur téléphone, le sommaire devient une bande de
+     pastilles au-dessus de la fiche — chaque fiche étant courte, il n'a pas
+     besoin de coller au défilement.
+     ========================================================================== */
+  body.avec-sommaire .wrap{max-width:1120px;}
+  .mise-en-page{display:grid; grid-template-columns:236px minmax(0,1fr); gap:22px; align-items:start;}
+  .sommaire{
+    position:sticky; top:16px; max-height:calc(100vh - 32px); overflow-y:auto;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:10px; display:flex; flex-direction:column; gap:2px;
+  }
+  .sommaire-titre{font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:800; padding:6px 8px 8px;}
+  .sommaire-date{
+    display:block; width:100%; text-align:left; background:transparent; color:var(--text);
+    border-radius:10px; padding:8px 10px; line-height:1.3; min-width:0;
+  }
+  .sommaire-date:hover{background:var(--bg);}
+  .sommaire-date[aria-current="true"]{background:var(--accent-solid); color:#FCF2F0;}
+  .sommaire-quand{display:block; font-size:12.5px; font-weight:800;}
+  .sommaire-ou{display:block; font-size:11.5px; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .sommaire-date[aria-current="true"] .sommaire-ou{color:rgba(252,242,240,.82);}
+  @media (max-width:860px){
+    .mise-en-page{grid-template-columns:minmax(0,1fr); gap:14px;}
+    .sommaire{position:static; max-height:none; flex-direction:row; overflow-x:auto; padding:8px; gap:6px;}
+    .sommaire-titre{display:none;}
+    .sommaire-date{width:auto; flex:0 0 auto;}
+    .sommaire-ou{max-width:160px;}
+  }
+
+  /* Mouvements de matériel du jour — la même information que la page Matériel,
+     du côté de ceux qui la reçoivent : ce qui sort, ce qui rentre, à quelle
+     heure, pour le dire au chauffeur concerné. */
+  .mvt-jour{display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px; line-height:1.35;}
+  .mvt-jour .h{font-weight:800; font-size:12.5px; flex:0 0 46px;}
+  .mvt-jour .h.vide{color:var(--muted); font-weight:600;}
+  .mvt-jour .sens{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    padding:3px 9px; border-radius:999px; white-space:nowrap; flex:0 0 auto;
+  }
+  .mvt-jour .sens.sortie{background:var(--secondary); color:#FCF2F0;}
+  .mvt-jour .sens.entree{background:var(--accent-tint); color:var(--tint-ink);}
+  .mvt-jour .sens.retour{background:var(--accent); color:#FCF2F0;}
+  .mvt-jour .lot{font-weight:700;}
+  .mvt-jour .quoi{color:var(--muted);}
 </style>
 </head>
 <body>
@@ -107,6 +161,10 @@ const TR = {
     emplacement_scene:'sur scène', emplacement_cote_scene:'côté de scène', emplacement_fosse:'dans la fosse', emplacement_autre:'autre',
     plan_hint:"Choisis un mode puis touche le plan pour poser une pastille ; glisse-la pour la déplacer, double-touche pour la retirer. Enregistré automatiquement.",
     dates_suffixe: n => n>1 ? 'dates' : 'date',
+    // Le bloc « mouvements » ne s'affiche pas sur les liens de salle : ces
+    // clés ne sont donc pas traduites, t() retombe de lui-même sur le français.
+    sommaire_titre:'Dates', bloc_mouvements:'Mouvements de matériel',
+    mvt_sortie:'Sortie', mvt_entree:'Entrée', mvt_retour:'Retour presta.',
   },
   en: {
     rigg_sol:'on the ground', rigg_grill:'on the grid',
@@ -213,6 +271,24 @@ function champ(label, valeur){
 function jourLong(iso){
   const locales = { fr:'fr-FR', en:'en-GB', de:'de-DE', nl:'nl-NL' };
   return iso ? new Date(iso+'T00:00:00').toLocaleDateString(locales[LANG]||'fr-FR', { weekday:'long', day:'numeric', month:'long' }) : '';
+}
+function jourCourt(iso){
+  const locales = { fr:'fr-FR', en:'en-GB', de:'de-DE', nl:'nl-NL' };
+  return iso ? new Date(iso+'T00:00:00').toLocaleDateString(locales[LANG]||'fr-FR', { weekday:'short', day:'numeric', month:'short' }) : 'Date';
+}
+
+// Sommaire des dates — l'index de la tournée, toujours sous la main.
+let dateActive = '';
+function sommaireDates(dates){
+  return `<nav class="sommaire" aria-label="${escapeAttr(t('sommaire_titre'))}">
+    <div class="sommaire-titre">${t('sommaire_titre')} · ${dates.length}</div>
+    ${dates.map(d=>`
+      <button type="button" class="sommaire-date" data-aller="${escapeAttr(d.id)}" aria-current="${d.id === dateActive}">
+        <span class="sommaire-quand">${escapeHtml(jourCourt(d.date))}</span>
+        <span class="sommaire-ou">${escapeHtml(d.ville || d.lieu || '—')}</span>
+      </button>
+    `).join('')}
+  </nav>`;
 }
 
 // ============================================================================
@@ -423,6 +499,52 @@ function initHorairesEdition(boxId, m){
   rendre();
 }
 
+// ============================================================================
+// Mouvements de matériel du jour.
+//
+// Ces sorties et entrées étaient jusqu'ici de la saisie pure côté production :
+// on les tapait sur la page Matériel, elles ne ressortaient que dans l'export
+// PDF. Or c'est ici qu'elles servent — une console qui sort, une autre qui
+// rentre, un retour de matériel non utilisé, tout cela concerne la journée de
+// celui qui lit cette page et le chauffeur qu'il doit prévenir.
+// ============================================================================
+const MVT_SENS = { sortie:['sortie','mvt_sortie'], entree:['entree','mvt_entree'], retour:['retour','mvt_retour'] };
+function mouvementsDuJour(dateIso){
+  if(!dateIso) return [];
+  const evts = [];
+  (RECAP.lots||[]).forEach(l=>{
+    const nom = l.nom || 'Sans nom';
+    (l.mouvements||[]).forEach(mv=>{
+      if(mv.date !== dateIso) return;
+      evts.push({ heure: mv.heure||'', sens: mv.type==='sortie' ? 'sortie' : 'entree', lot: nom, quoi: mv.description||'' });
+    });
+    if(l.retour_prestataire_date === dateIso){
+      const pickup = l.retour_prestataire_heure || '';
+      const livraison = l.retour_prestataire_heure_livraison || '';
+      evts.push({
+        heure: pickup || livraison, sens:'retour', lot: nom,
+        quoi: [pickup ? 'pick up ' + pickup : '', livraison ? 'livraison ' + livraison : ''].filter(Boolean).join(' · '),
+      });
+    }
+  });
+  return evts.sort((a,b)=> (a.heure || '99:99').localeCompare(b.heure || '99:99'));
+}
+function blocMouvementsMateriel(d){
+  const evts = mouvementsDuJour(d.date);
+  if(evts.length === 0) return '';
+  return `<div class="bloc" style="grid-column:1/-1;"><span class="titre">${t('bloc_mouvements')}</span>
+    ${evts.map(e=>{
+      const [classe, cle] = MVT_SENS[e.sens];
+      return `<div class="mvt-jour">
+        <span class="h${e.heure ? '' : ' vide'}">${e.heure ? escapeHtml(e.heure) : '—'}</span>
+        <span class="sens ${classe}">${t(cle)}</span>
+        <span class="lot">${escapeHtml(e.lot)}</span>
+        ${e.quoi ? `<span class="quoi">${escapeHtml(e.quoi)}</span>` : ''}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
 function ficheDateComplete(d, m, editableSalle, editableStageManager){
   if(!m) m = { date_id: d.id };
   const jour = jourLong(d.date);
@@ -461,6 +583,7 @@ function ficheDateComplete(d, m, editableSalle, editableStageManager){
             <div class="champ"><span class="k">${t('champ_plan_scene')}</span><span class="v"><a href="${escapeHtml(m.plan_url)}" target="_blank" rel="noopener">${t('ouvrir')}</a></span></div>
           </div>` : ''}
           ${blocHorairesJournee(m, editableStageManager)}
+          ${RECAP.type === 'salle' ? '' : blocMouvementsMateriel(d)}
           ${blocVacationsRoadies(m, editableSalle)}
           ${blocVacationsChariots(m, editableSalle)}
           ${blocVacationsRigg(m, editableSalle)}
@@ -515,13 +638,20 @@ function renderContenu(){
   const editableSalle = RECAP.type === 'salle';
   const editableSM = RECAP.type === 'stage_manager';
 
+  // Une date à la fois, choisie dans le sommaire : sur une tournée longue,
+  // atteindre la dernière ne demande plus de traverser toutes les autres.
+  if(dates.length && !dates.some(d=> d.id === dateActive)) dateActive = dates[0].id;
+  document.body.classList.toggle('avec-sommaire', dates.length > 1);
+
   if(dates.length === 0){
     html += `<div class="state-box">${t('aucune_date')}</div>`;
   } else {
-    html += dates.map(d=> ficheDateComplete(d, moyensParDate[d.id], editableSalle, editableSM)).join('');
-    if(editableSM){
-      html += `<div class="section-registre">${dates.map(d=>`<button type="button" data-pdf="${d.id}" style="margin:0 8px 8px 0;">📄 Export PDF — ${escapeHtml(d.ville||d.lieu||'Date')}</button>`).join('')}</div>`;
-    }
+    const d = dates.find(x=> x.id === dateActive) || dates[0];
+    const fiche = ficheDateComplete(d, moyensParDate[d.id], editableSalle, editableSM)
+      + (editableSM ? `<div style="margin-bottom:16px;"><button type="button" data-pdf="${escapeAttr(d.id)}">Export PDF — ${escapeHtml(d.ville||d.lieu||'Date')}</button></div>` : '');
+    html += dates.length > 1
+      ? `<div class="mise-en-page">${sommaireDates(dates)}<div>${fiche}</div></div>`
+      : fiche;
   }
 
   if((RECAP.fichesTechniques||[]).length){
@@ -538,11 +668,16 @@ function renderContenu(){
     if((RECAP.lots||[]).length){
       html += `<div class="section-registre"><h2>Matériel apporté</h2>
         ${RECAP.lots.filter(l=>!l.parent_id).map(l=>{
-          const dernierMouvement = (l.mouvements||[]).filter(mv=>mv.date).sort((a,b)=> b.date.localeCompare(a.date))[0];
-          const mvLabel = dernierMouvement ? `${dernierMouvement.type==='sortie'?'sortie':'entrée'} le ${new Date(dernierMouvement.date+'T00:00:00').toLocaleDateString('fr-FR')}` : '';
+          // Le détail des mouvements se lit désormais sur la journée concernée,
+          // dans le bloc « Mouvements de matériel » : ici, juste le renvoi.
+          const nb = (l.mouvements||[]).filter(mv=>mv.date).length;
+          const sub = [
+            l.description || '',
+            nb ? `${nb} mouvement${nb>1?'s':''} — voir la journée concernée` : '',
+          ].filter(Boolean).map(escapeHtml).join(' · ');
           return `
           <div class="registre-item"><div class="nom">${escapeHtml(l.nom||'Sans nom')}</div>
-          <div class="sub">${l.description ? escapeHtml(l.description) : ''}${mvLabel ? ' · dernier mouvement : ' + escapeHtml(mvLabel) : ''}</div></div>
+          ${sub ? `<div class="sub">${sub}</div>` : ''}</div>
         `;}).join('')}
       </div>`;
     }
@@ -555,6 +690,10 @@ function renderContenu(){
   }
 
   document.getElementById('content').innerHTML = html;
+  // Le sommaire défile lui aussi quand la tournée est longue : après rendu, on
+  // ramène la date choisie dans son champ de vision, sans bouger la page.
+  const actif = document.querySelector('.sommaire-date[aria-current="true"]');
+  if(actif) actif.scrollIntoView({ block:'nearest', inline:'nearest' });
 }
 
 document.addEventListener('click', (e)=>{
@@ -563,6 +702,15 @@ document.addEventListener('click', (e)=>{
     LANG = langBtn.dataset.lang;
     localStorage.setItem('curieux_lang_' + TOKEN, LANG);
     renderContenu();
+    return;
+  }
+  const allerBtn = e.target.closest('[data-aller]');
+  if(allerBtn){
+    dateActive = allerBtn.dataset.aller;
+    renderContenu();
+    // Sur téléphone, le sommaire est au-dessus de la fiche : sans ce retour en
+    // haut, on change de date et on reste au milieu de la précédente.
+    if(matchMedia('(max-width:860px)').matches) document.querySelector('.mise-en-page').scrollIntoView({ block:'start' });
     return;
   }
   const pdfBtn = e.target.closest('[data-pdf]');
@@ -617,18 +765,17 @@ function exporterJourneePdf(dateId){
     y = doc.lastAutoTable.finalY + 10;
   }
 
-  const mouvementsDuJour = [];
-  (RECAP.lots||[]).forEach(l=> (l.mouvements||[]).forEach(mv=>{
-    if(mv.date === d.date) mouvementsDuJour.push({ lot: l.nom||'Sans nom', ...mv });
-  }));
-  if(mouvementsDuJour.length){
+  // Même source que le bloc affiché à l'écran (retour prestataire compris),
+  // pour que l'export dise exactement ce que la page dit.
+  const mouvements = mouvementsDuJour(d.date);
+  if(mouvements.length){
     if(y > 250){ doc.addPage(); y = 20; }
     doc.setFont('Host','bold'); doc.setFontSize(11);
     doc.text('Matériel — mouvements du jour', 12, y); y += 6;
     doc.autoTable({
       startY: y, margin:{ left:12, right:12 },
       head: [['Lot','Type','Heure','Description']],
-      body: mouvementsDuJour.map(mv=>[mv.lot, mv.type==='sortie'?'Sortie':'Entrée', mv.heure||'—', mv.description||'']),
+      body: mouvements.map(e=>[e.lot, t(MVT_SENS[e.sens][1]), e.heure||'—', e.quoi||'']),
       styles:{ font:'Host', fontSize:9.5 }, headStyles:{ fillColor:[121,22,73], textColor:255 },
     });
   }

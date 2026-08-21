@@ -180,7 +180,11 @@ const CurieuxDB = (()=>{
         // [{id, date, heure, type:'sortie'|'entree', description}, ...] — journal des allers-retours
         mouvements: l.mouvements || [],
         retour_prestataire_date: l.retourPrestataireDate || null,
-        retour_prestataire_heure: l.retourPrestataireHeure || '',
+        // Le pick up (on charge) et la livraison (ça arrive chez le prestataire)
+        // sont deux rendez-vous distincts, souvent à deux bouts de la journée.
+        // La colonne historique, qui portait les deux, devient l'heure de pick up.
+        retour_prestataire_heure: l.retourPrestataireHeurePickup || '',
+        retour_prestataire_heure_livraison: l.retourPrestataireHeureLivraison || '',
         notes: l.notes || ''
       }),
       fromDb: (r)=> ({
@@ -194,7 +198,8 @@ const CurieuxDB = (()=>{
         datePrepa: r.date_prepa || '', datePickup: r.date_pickup || '',
         mouvements: r.mouvements || [],
         retourPrestataireDate: r.retour_prestataire_date || '',
-        retourPrestataireHeure: r.retour_prestataire_heure || '',
+        retourPrestataireHeurePickup: r.retour_prestataire_heure || '',
+        retourPrestataireHeureLivraison: r.retour_prestataire_heure_livraison || '',
         notes: r.notes || ''
       })
     },

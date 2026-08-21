@@ -3121,3 +3121,14 @@ drop function if exists liste_comptes_personnes();
 drop function if exists delier_compte_personne(text, text);
 drop function if exists resolve_person_token_brut(text);
 drop table if exists comptes_personnes;
+
+-- ============================================================================
+-- Retour chez le prestataire : deux heures, pas une.
+--
+-- Le pick up (l'heure où l'on charge) et la livraison (l'heure où le lot
+-- arrive chez le prestataire) sont deux rendez-vous distincts, souvent à deux
+-- bouts de la même journée. La colonne historique retour_prestataire_heure
+-- portait les deux à la fois : elle devient l'heure de pick up, et la
+-- livraison prend la sienne. Rien à reprendre dans les données existantes.
+-- ============================================================================
+alter table lots_materiel add column if not exists retour_prestataire_heure_livraison text default '';

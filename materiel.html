@@ -34,7 +34,6 @@
   .lot-nom{font-weight:800; font-size:14.5px;}
   .lot-sub{color:var(--muted); font-size:12px; margin-top:2px;}
   .badge{font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; padding:3px 10px; border-radius:999px; white-space:nowrap;}
-  .lot-dates{font-size:11.5px; color:var(--muted); margin-top:6px; display:flex; gap:12px; flex-wrap:wrap;}
   .lot-actions{display:flex; gap:6px; margin-top:10px; border-top:1px solid var(--border); padding-top:9px; flex-wrap:wrap;}
   .sous-lots{margin:10px 0 0 20px; padding-left:14px; border-left:2px solid var(--border); display:flex; flex-direction:column; gap:8px;}
 
@@ -48,6 +47,65 @@
   .sous-ligne{display:flex; gap:8px; align-items:flex-start; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:9px 10px; margin-bottom:8px;}
   .sous-ligne > *{flex:1; min-width:0;}
   .sous-retirer{flex:0 0 auto !important;}
+
+  /* ==========================================================================
+     Agenda du matériel.
+
+     Les mouvements étaient jusqu'ici de la saisie pure : on les tapait dans la
+     modale et l'information n'en ressortait plus, sinon sous la forme du seul
+     dernier mouvement, noyé dans la ligne grise des dates. Or c'est justement
+     ce qu'on relit avant d'appeler un chauffeur ou de préparer une journée.
+
+     D'où cette vue en tête de page : tous les rendez-vous logistiques de tous
+     les lots — préparation, récupération, sorties, entrées, retour chez le
+     prestataire — remis dans l'ordre du temps et groupés par jour. La même
+     ligne sert sur la carte du lot, avec sa date en tête au lieu du groupe.
+     ========================================================================== */
+  .agenda{padding:16px 18px 8px; margin-bottom:18px;}
+  .agenda-head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px;}
+  .agenda-titre{font-family:var(--font-display); font-size:19px; font-weight:500; color:var(--accent); margin:0; letter-spacing:var(--tracking-display);}
+  .agenda-head .subtitle{margin:3px 0 0; max-width:56ch;}
+  .agenda-filtres{display:flex; gap:6px; flex-shrink:0;}
+  .agenda-filtre{
+    border:1px solid var(--border); background:var(--card); color:var(--muted);
+    border-radius:999px; padding:6px 13px; font-size:11.5px; font-weight:800;
+  }
+  .agenda-filtre[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:#FCF2F0;}
+  .agenda-jour{display:grid; grid-template-columns:132px minmax(0,1fr); gap:14px; padding:11px 0; border-top:1px solid var(--border);}
+  .agenda-jour:first-child{border-top:none; padding-top:2px;}
+  .agenda-jour.passe{opacity:.5;}
+  .agenda-quand{font-size:13px; line-height:1.35;}
+  /* capitalize majusculerait chaque mot — « Mar. 9 Mars ». Seule l'initiale. */
+  .agenda-quand b{display:block;}
+  .agenda-quand b::first-letter{text-transform:uppercase;}
+  .agenda-quand span{color:var(--muted); font-size:11.5px;}
+  .agenda-lignes{display:flex; flex-direction:column; gap:6px; min-width:0;}
+
+  .mvt{display:flex; align-items:center; gap:9px; flex-wrap:wrap; font-size:13px; line-height:1.35;}
+  .mvt-quand{font-weight:800; font-size:12.5px; white-space:nowrap;}
+  .mvt-quand.vide{color:var(--muted); font-weight:600;}
+  .agenda-lignes .mvt-quand{flex:0 0 46px;}
+  .lot-mvts .mvt-quand{flex:0 0 104px;}
+  .mvt-sens{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    padding:3px 9px; border-radius:999px; white-space:nowrap; flex:0 0 auto;
+  }
+  .mvt-sens.sortie{background:var(--secondary); color:#FCF2F0;}
+  .mvt-sens.entree{background:var(--accent-tint); color:var(--tint-ink);}
+  .mvt-sens.retour{background:var(--accent); color:#FCF2F0;}
+  .mvt-sens.prepa{background:var(--border); color:var(--muted);}
+  .mvt-sens.recup{background:var(--secondary-tint); color:var(--accent);}
+  .mvt-lot{font-weight:800; min-width:0;}
+  .mvt-presta{font-weight:600; color:var(--muted);}
+  .mvt-detail{color:var(--muted); min-width:0;}
+  .lot-mvts{margin-top:9px; display:flex; flex-direction:column; gap:5px;}
+
+  @media (max-width:640px){
+    .agenda-jour{grid-template-columns:minmax(0,1fr); gap:7px;}
+    .agenda-quand{display:flex; align-items:baseline; gap:7px;}
+    .agenda-quand b{display:inline;}
+    .lot-mvts .mvt-quand{flex:0 0 auto;}
+  }
   @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
 </style>
 </head>
@@ -60,6 +118,20 @@
     </div>
     <div class="co-actions"><button type="button" class="co-btn primary md" id="addLotBtn">+ Ajouter un lot</button></div>
   </div>
+
+  <section class="co-card agenda co-fade" id="agenda" style="display:none;">
+    <div class="agenda-head">
+      <div>
+        <h2 class="agenda-titre">Agenda du matériel</h2>
+        <p class="subtitle">Ce qui bouge et quand, tous lots confondus — préparation, sorties, entrées, retours. De quoi transmettre la journée à un chauffeur sans rouvrir chaque lot.</p>
+      </div>
+      <div class="agenda-filtres">
+        <button type="button" class="agenda-filtre" data-agenda-filtre="avenir" aria-pressed="true">À venir</button>
+        <button type="button" class="agenda-filtre" data-agenda-filtre="tout" aria-pressed="false">Tout</button>
+      </div>
+    </div>
+    <div id="agendaListe"></div>
+  </section>
 
   <div id="lotsListe"></div>
   <div class="empty-hint" id="lotsEmpty" style="display:none;">Aucun lot enregistré.</div>
@@ -103,10 +175,11 @@
 
     <fieldset class="groupe">
       <legend>Retour chez le prestataire</legend>
-      <p class="subtitle" style="margin:-6px 0 10px;">Le retour définitif du lot en fin de tournée, distinct des mouvements courants.</p>
+      <p class="subtitle" style="margin:-6px 0 10px;">Le retour définitif du lot en fin de tournée, distinct des mouvements courants. Le pick up est l'heure à laquelle on charge ; la livraison, celle à laquelle le lot arrive chez le prestataire — deux rendez-vous distincts, souvent à deux bouts de la journée.</p>
       <div class="field-row">
         <div class="field"><label for="lRetourPrestDate">Date</label><input type="date" id="lRetourPrestDate"></div>
-        <div class="field"><label for="lRetourPrestHeure">Heure de pick up / livraison</label><input type="time" id="lRetourPrestHeure"></div>
+        <div class="field"><label for="lRetourPrestPickup">Heure de pick up</label><input type="time" id="lRetourPrestPickup"></div>
+        <div class="field"><label for="lRetourPrestLivraison">Heure de livraison</label><input type="time" id="lRetourPrestLivraison"></div>
       </div>
     </fieldset>
 
@@ -169,7 +242,6 @@ document.getElementById('lProvenance').addEventListener('change', async (e)=>{
 // possibles par lot, chacun avec sa propre date et heure éventuelle.
 // ============================================================================
 let mouvementsEnEdition = [];
-const TYPE_MOUVEMENT_LABEL = { sortie:'Sortie', entree:'Entrée' };
 function renderMouvementsEdition(){
   document.getElementById('mouvementsListe').innerHTML = mouvementsEnEdition.map((mv,i)=>`
     <div class="sous-ligne">
@@ -199,15 +271,134 @@ document.getElementById('addMouvementBtn').addEventListener('click', ()=>{
   renderMouvementsEdition();
 });
 
-function joursDe(l){
-  const bits = [];
-  if(l.datePrepa) bits.push('préparation ' + new Date(l.datePrepa+'T00:00:00').toLocaleDateString('fr-FR'));
-  if(l.datePickup) bits.push('récupération ' + new Date(l.datePickup+'T00:00:00').toLocaleDateString('fr-FR'));
-  const dernierMouvement = (l.mouvements||[]).filter(mv=>mv.date).sort((a,b)=> b.date.localeCompare(a.date))[0];
-  if(dernierMouvement) bits.push(`${TYPE_MOUVEMENT_LABEL[dernierMouvement.type]||'Mouvement'} ${new Date(dernierMouvement.date+'T00:00:00').toLocaleDateString('fr-FR')}${dernierMouvement.heure ? ' à ' + dernierMouvement.heure : ''}`);
-  if(l.retourPrestataireDate) bits.push('retour prestataire ' + new Date(l.retourPrestataireDate+'T00:00:00').toLocaleDateString('fr-FR') + (l.retourPrestataireHeure ? ' à ' + l.retourPrestataireHeure : ''));
-  return bits;
+// ============================================================================
+// Rendez-vous logistiques — la lecture des mouvements.
+//
+// Tout ce qui a une date sur un lot est ramené à une même forme : on peut
+// alors le relire à la file, sur la carte du lot comme dans l'agenda de tête
+// de page, au lieu de n'en montrer que le dernier.
+// ============================================================================
+const SENS = {
+  prepa:  ['prepa',  'Préparation'],
+  recup:  ['recup',  'Récupération'],
+  sortie: ['sortie', 'Sortie'],
+  entree: ['entree', 'Entrée'],
+  retour: ['retour', 'Retour presta.'],
+};
+
+// Le pick up (on charge) et la livraison (ça arrive chez le prestataire) sont
+// deux rendez-vous distincts. Les lots enregistrés avant cette distinction
+// n'avaient qu'une heure pour les deux : la colonne d'alors se relit comme
+// heure de pick up (voir lots_materiel dans assets/db.js), rien à reprendre.
+function heuresRetour(l){
+  return {
+    pickup: l.retourPrestataireHeurePickup || '',
+    livraison: l.retourPrestataireHeureLivraison || '',
+  };
 }
+
+function evenementsDuLot(l){
+  const evts = [];
+  if(l.datePrepa)  evts.push({ date:l.datePrepa,  heure:'', sens:'prepa',  texte:'' });
+  if(l.datePickup) evts.push({ date:l.datePickup, heure:'', sens:'recup',  texte:'' });
+  (l.mouvements||[]).forEach(mv=>{
+    if(!mv.date) return;
+    evts.push({
+      date: mv.date, heure: mv.heure || '',
+      sens: mv.type === 'sortie' ? 'sortie' : 'entree',
+      texte: mv.description || '',
+    });
+  });
+  if(l.retourPrestataireDate){
+    const { pickup, livraison } = heuresRetour(l);
+    evts.push({
+      date: l.retourPrestataireDate, heure: pickup || livraison, sens:'retour',
+      texte: [pickup ? 'pick up ' + pickup : '', livraison ? 'livraison ' + livraison : ''].filter(Boolean).join(' · '),
+    });
+  }
+  // Sans heure, l'événement se range en fin de journée plutôt qu'au petit matin.
+  return evts.sort((a,b)=> (a.date + (a.heure || '99:99')).localeCompare(b.date + (b.heure || '99:99')));
+}
+
+function fmtJourCourt(iso){
+  if(!iso) return '';
+  return new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' });
+}
+
+// Une ligne de mouvement. `avecDate` sert sur la carte du lot, où il n'y a pas
+// de groupe par jour pour porter la date ; l'agenda, lui, la sort en colonne.
+function ligneMouvement(evt, options){
+  const opts = options || {};
+  const [classe, libelle] = SENS[evt.sens] || SENS.sortie;
+  const quand = opts.avecDate
+    ? fmtJourCourt(evt.date) + (evt.heure ? ' · ' + evt.heure : '')
+    : (evt.heure || '—');
+  return `<div class="mvt">
+    <span class="mvt-quand${evt.heure ? '' : ' vide'}">${escapeHtml(quand)}</span>
+    <span class="mvt-sens ${classe}">${libelle}</span>
+    ${opts.lot ? `<span class="mvt-lot">${escapeHtml(opts.lot)}${opts.presta ? ` <span class="mvt-presta">· ${escapeHtml(opts.presta)}</span>` : ''}</span>` : ''}
+    ${evt.texte ? `<span class="mvt-detail">${escapeHtml(evt.texte)}</span>` : ''}
+  </div>`;
+}
+
+// ============================================================================
+// Agenda de tête de page — tous les lots réunis, dans l'ordre du temps.
+// ============================================================================
+let agendaFiltre = 'avenir';
+function renderAgenda(){
+  const section = document.getElementById('agenda');
+  const box = document.getElementById('agendaListe');
+  if(lotsCache.length === 0){ section.style.display = 'none'; box.innerHTML = ''; return; }
+  section.style.display = 'block';
+
+  const aujourdhui = new Date().toLocaleDateString('sv-SE');   // AAAA-MM-JJ local
+  const tous = [];
+  lotsCache.forEach(l=>{
+    const presta = prestatairesCache.find(p=>p.id === l.provenanceId);
+    const parent = l.parentId ? lotsCache.find(x=>x.id === l.parentId) : null;
+    const nom = (parent ? (parent.nom || 'Sans nom') + ' › ' : '') + (l.nom || 'Sans nom');
+    evenementsDuLot(l).forEach(evt=> tous.push({ ...evt, lot:nom, presta: presta ? presta.nom : '' }));
+  });
+
+  const visibles = (agendaFiltre === 'avenir' ? tous.filter(e=> e.date >= aujourdhui) : tous)
+    .sort((a,b)=> (a.date + (a.heure || '99:99')).localeCompare(b.date + (b.heure || '99:99')));
+
+  if(visibles.length === 0){
+    box.innerHTML = `<p class="empty-hint" style="padding:6px 0;">${
+      tous.length ? 'Plus aucun mouvement à venir — « Tout » affiche ceux qui sont passés.'
+                  : 'Aucune date renseignée sur les lots pour l\'instant.'
+    }</p>`;
+    return;
+  }
+
+  const jours = [];
+  visibles.forEach(evt=>{
+    const dernier = jours[jours.length - 1];
+    if(dernier && dernier.date === evt.date) dernier.evts.push(evt);
+    else jours.push({ date: evt.date, evts: [evt] });
+  });
+
+  box.innerHTML = jours.map(j=>{
+    const d = new Date(j.date + 'T00:00:00');
+    return `
+      <div class="agenda-jour${j.date < aujourdhui ? ' passe' : ''}">
+        <div class="agenda-quand">
+          <b>${escapeHtml(d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'long' }))}</b>
+          <span>${d.getFullYear()}</span>
+        </div>
+        <div class="agenda-lignes">
+          ${j.evts.map(evt=> ligneMouvement(evt, { lot: evt.lot, presta: evt.presta })).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+document.querySelectorAll('[data-agenda-filtre]').forEach(btn=> btn.addEventListener('click', ()=>{
+  agendaFiltre = btn.dataset.agendaFiltre;
+  document.querySelectorAll('[data-agenda-filtre]').forEach(b=>
+    b.setAttribute('aria-pressed', String(b.dataset.agendaFiltre === agendaFiltre)));
+  renderAgenda();
+}));
 function carteLot(l, index){
   const provenance = prestatairesCache.find(p=>p.id === l.provenanceId);
   const enfants = lotsCache.filter(x=> x.parentId === l.id);
@@ -224,7 +415,8 @@ function carteLot(l, index){
         </div>
         <span class="badge" style="background:${(CATEGORIE_PASTILLE[l.categorie]||CATEGORIE_PASTILLE.autre)[1]}; color:${(CATEGORIE_PASTILLE[l.categorie]||CATEGORIE_PASTILLE.autre)[2]};">${CATEGORIE_LABEL[l.categorie]||'Autre'}</span>
       </div>
-      ${joursDe(l).length ? `<div class="lot-dates">${joursDe(l).map(escapeHtml).join(' · ')}</div>` : ''}
+      ${(()=>{ const evts = evenementsDuLot(l);
+        return evts.length ? `<div class="lot-mvts">${evts.map(evt=> ligneMouvement(evt, { avecDate:true })).join('')}</div>` : ''; })()}
       <div class="lot-actions">
         <button type="button" class="co-btn ghost sm" data-edit="${l.id}">Modifier</button>
         <button type="button" class="co-btn ghost sm" data-sous-lot="${l.id}">+ Sous-lot</button>
@@ -238,6 +430,7 @@ function render(){
   const racines = lotsCache.filter(l=> !l.parentId);
   const box = document.getElementById('lotsListe');
   const empty = document.getElementById('lotsEmpty');
+  renderAgenda();
   if(racines.length === 0){ box.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display = 'none';
   box.innerHTML = racines.map((l, i)=> carteLot(l, i)).join('');
@@ -281,13 +474,15 @@ function openLotModal(id, parentId){
     document.getElementById('lDatePrepa').value = l.datePrepa || '';
     document.getElementById('lDatePickup').value = l.datePickup || '';
     document.getElementById('lRetourPrestDate').value = l.retourPrestataireDate || '';
-    document.getElementById('lRetourPrestHeure').value = l.retourPrestataireHeure || '';
+    const heures = heuresRetour(l);
+    document.getElementById('lRetourPrestPickup').value = heures.pickup;
+    document.getElementById('lRetourPrestLivraison').value = heures.livraison;
     document.getElementById('lNotes').value = l.notes || '';
     elementsEnEdition = (l.elements||[]).map(e=>({...e}));
     mouvementsEnEdition = (l.mouvements||[]).map(mv=>({...mv}));
   } else {
     document.getElementById('lotModalTitle').textContent = parentId ? 'Ajouter un sous-lot' : 'Ajouter un lot';
-    ['lNom','lDescription','lDatePrepa','lDatePickup','lRetourPrestDate','lRetourPrestHeure','lNotes'].forEach(fid=> document.getElementById(fid).value = '');
+    ['lNom','lDescription','lDatePrepa','lDatePickup','lRetourPrestDate','lRetourPrestPickup','lRetourPrestLivraison','lNotes'].forEach(fid=> document.getElementById(fid).value = '');
     document.getElementById('lCategorie').value = 'autre';
     document.getElementById('lProvenance').value = '';
     elementsEnEdition = [];
@@ -314,7 +509,8 @@ document.getElementById('lotModalSave').addEventListener('click', async ()=>{
     datePickup: document.getElementById('lDatePickup').value || '',
     mouvements: mouvementsEnEdition,
     retourPrestataireDate: document.getElementById('lRetourPrestDate').value || '',
-    retourPrestataireHeure: document.getElementById('lRetourPrestHeure').value || '',
+    retourPrestataireHeurePickup: document.getElementById('lRetourPrestPickup').value || '',
+    retourPrestataireHeureLivraison: document.getElementById('lRetourPrestLivraison').value || '',
     notes: document.getElementById('lNotes').value.trim(),
   };
   const idx = lotsCache.findIndex(x=>x.id===id);
