@@ -318,11 +318,16 @@ const CurieuxDB = (()=>{
       toDb: (a)=> ({
         id: a.id, libelle: a.libelle || '', tournee_id: a.tourneeId || null,
         type: a.type || 'stage_manager', dates_ids: a.datesIds || [],
+        // Adresse du destinataire : sert à pré-adresser le message qui
+        // accompagne le PDF, depuis partage.html. Jamais exposée par le lien
+        // public (get_recap_logistique ne la renvoie pas).
+        email: a.email || '',
         actif: a.actif !== false
       }),
       fromDb: (r)=> ({
         id: r.id, libelle: r.libelle || '', tourneeId: r.tournee_id || '',
         type: r.type || 'stage_manager', datesIds: r.dates_ids || [],
+        email: r.email || '',
         actif: r.actif !== false, createdAt: r.created_at
       })
     },

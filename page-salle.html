@@ -232,11 +232,16 @@ function moyensDe(dateId){
 
 // Une date apparaît sur la page salle dès qu'une demande a été saisie pour elle :
 // sans moyens, la salle n'aurait rien à confirmer.
+// &dates=id1,id2 restreint la page — et donc le PDF — aux seules dates d'un
+// accès de partage. Une salle ne reçoit que les siennes ; sans ce filtre, le
+// PDF produit depuis partage.html lui donnerait toute la tournée.
+const datesDemandees = (params.get('dates') || '').split(',').filter(Boolean);
 function datesAEnvoyer(){
   const t = tourneeCourante();
   if(!t) return [];
   return (t.dates || [])
     .filter(d=> d.date && d.statut !== 'annulee' && moyensDe(d.id))
+    .filter(d=> datesDemandees.length === 0 || datesDemandees.includes(d.id))
     .sort((a, b)=> (a.date || '').localeCompare(b.date || ''));
 }
 

@@ -3203,3 +3203,16 @@ update moyens_salle
  where jsonb_typeof(emplacements_dechargement) = 'array'
    and jsonb_array_length(emplacements_dechargement) > 0
    and not (emplacements_dechargement -> 0 ? 'niveau');
+
+-- ============================================================================
+-- Adresse du destinataire d'un accès de partage.
+--
+-- On envoie parfois à une salle le PDF plutôt que le lien — c'est la salle qui
+-- décide, et beaucoup préfèrent une pièce jointe qu'elles classent. Le message
+-- qui l'accompagne se pré-adresse alors depuis partage.html, à condition de
+-- savoir à qui. Le lien reste utilisable en parallèle.
+--
+-- Cette adresse est interne : get_recap_logistique ne la renvoie pas, elle ne
+-- sort donc jamais par le lien public.
+-- ============================================================================
+alter table acces_logistique add column if not exists email text not null default '';

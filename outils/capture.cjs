@@ -76,6 +76,14 @@ const SEED = {
       mouvements:[], retourPrestataireDate:'', retourPrestataireHeurePickup:'',
       retourPrestataireHeureLivraison:'', notes:'' },
   ],
+  // Deux accès de partage, dont un de salle : c'est lui qui porte les boutons
+  // PDF et Écrire de partage.html.
+  acces_logistique: [
+    { id:'acc-sm-01', libelle:'Karim (stage manager)', tourneeId:'demo-tour1',
+      type:'stage_manager', datesIds:[], email:'', actif:true },
+    { id:'acc-salle-01', libelle:'Salle 3000 — Lyon', tourneeId:'demo-tour1',
+      type:'salle', datesIds:['d1'], email:'regie@salle3000.fr', actif:true },
+  ],
   tournees: [{
     id:'demo-tour1', nom:"L'Atelier de Joe Hisaishi — Printemps 2027",
     cachetStatut:'defini', cachetMontant:320, dates:DATES,
@@ -101,6 +109,23 @@ const SEED = {
     roadiesVacations:[], chariotsVacations:[], riggVacations:[],
     hauteurGrill:'17', ouvertureScene:'25', profondeurScene:'12', puissance:'2× 400A',
     typeCourant:'triphasé', chargeMaxAccroche:'2 t', typeSol:'béton',
+    contactsSalle:[], contactsTechniciensIds:[], planImagePath:'', semisPositions:[], notes:'',
+  }, {
+    // Une seconde fiche de date : sans elle, le filtre &dates= de page-salle.html
+    // n'aurait rien à filtrer et son export ne se vérifierait pas.
+    id:'demo-tour1::d3', tourneeId:'demo-tour1', dateId:'d3',
+    planStatut:'non_demande', planUrl:'', planValideNous:false, planValideSalle:false,
+    planChargeStatut:'non_envoye',
+    bureauElectriqueSurPlace:true, bureauElectriqueHoraire:'', bureauElectriqueNom:'',
+    bureauElectriqueTel:'', bureauElectriqueDossierUrl:'',
+    bureauAccrocheSurPlace:true, bureauAccrocheHoraire:'', bureauAccrocheNom:'',
+    bureauAccrocheTel:'', bureauAccrocheDossierUrl:'',
+    nombreSemisSimultanees:2,
+    emplacementsDechargement:[{emplacement:'scene', niveau:'scene'},{emplacement:'fosse', niveau:'sol'}],
+    accesNotes:'', horairesJournee:[{id:'h9', label:'Load in', heure:'10:00'}],
+    roadiesVacations:[], chariotsVacations:[], riggVacations:[],
+    hauteurGrill:'12', ouvertureScene:'20', profondeurScene:'', puissance:'250A',
+    typeCourant:'', chargeMaxAccroche:'', typeSol:'',
     contactsSalle:[], contactsTechniciensIds:[], planImagePath:'', semisPositions:[], notes:'',
   }],
   // Réponse de get_recap_logistique — technique-partage.html ne lit pas les
@@ -235,6 +260,13 @@ const CurieuxDB = new Proxy({
   isSuperAdmin: async () => true,
   currentRole: async () => 'admin',
   mesDemandesDispo: async () => null,
+  // Le tableau des comptes de l'admin : sans lui, la page se capture vide et
+  // la case d'accès à la direction technique reste invisible.
+  listAccounts: async () => [
+    { email:'alois@lessoudaines.fr', role:'admin', direction_technique:true },
+    { email:'marie@lessoudaines.fr', role:'user', direction_technique:true },
+    { email:'leo@lessoudaines.fr', role:'user', direction_technique:false },
+  ],
   getFicheTechniqueByToken: async () => null,
   // Le jeton choisit le gabarit : les trois (stage manager, technicien,
   // salle) partagent la même page et n'en montrent pas les mêmes blocs.
