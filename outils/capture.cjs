@@ -295,6 +295,26 @@ const CurieuxDB = new Proxy({
   isSuperAdmin: async () => true,
   currentRole: async () => 'admin',
   mesDemandesDispo: async () => null,
+  // Pages à jeton : la tournée est rendue telle qu'elle est en base (colonnes
+  // brutes), la personne aussi.
+  getTourneeByToken: async () => {
+    const t = __seed.tournees[0];
+    return { id:t.id, nom:t.nom, dates:t.dates, cachet_statut:'defini', cachet_montant:320 };
+  },
+  getOwnPersonByToken: async () => JSON.parse(JSON.stringify(__seed.musiciens[0])),
+  // Fiche sociale complète : sinon dispo-titulaire.html ouvre sa modale de
+  // complétion au chargement, qui recouvre la page et bloque toute capture.
+  getInfosSocialesByToken: async () => ({
+    genre:'f', prenomCivil:'', dateNaissance:'1991-04-12', lieuNaissance:'Marseille',
+    nationalite:'française', adresse:'12 rue des Lilas, 75011 Paris',
+    numSecu:'1 91 04 13 055 123 45', iban:'FR76 3000 4000 0300 0000 0000 143',
+    bic:'AGRIFRPP', titulaireCompte:'Roxanne Rabatti',
+    numCongesSpectacles:'CS-882145', numAudiens:'AU-559021',
+    contactUrgenceNom:'Jean Rabatti', contactUrgenceTel:'06 99 88 77 66',
+    tailleVetement:'M', extra:{},
+  }),
+  getCachetOverrideByToken: async () => null,
+  getContactProduction: async () => ({ nom:'Aloïs — production', telephone:'06 12 34 56 78' }),
   // Le tableau des comptes de l'admin : sans lui, la page se capture vide et
   // la case d'accès à la direction technique reste invisible.
   listAccounts: async () => [
@@ -319,6 +339,23 @@ const CurieuxDB = new Proxy({
   get: (c, p) => p in c ? c[p] : async () => [],
 });
 window.CurieuxDB = CurieuxDB;
+
+// Plusieurs pages appellent supabaseClient.rpc() directement, sans passer par
+// CurieuxDB — dispo-titulaire.html notamment. Sans ce faux client, elles
+// tombent sur un ReferenceError avant d'avoir rien affiché.
+const __rpc = {
+  get_dispo_demande_by_token: [{
+    id:'jeton-demo', tournee_id:'demo-tour1', person_type:'musicien',
+    person_id:'demo-mus-01', dates:[],
+  }],
+  get_contact_production: [{ nom:'Aloïs — production', telephone:'06 12 34 56 78' }],
+};
+const supabaseClient = {
+  rpc: async (nom) => ({ data: (nom in __rpc) ? __rpc[nom] : [], error: null }),
+  from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }) }),
+  storage: { from: () => ({ getPublicUrl: () => ({ data: { publicUrl: '' } }) }) },
+};
+window.supabaseClient = supabaseClient;
 `,
   }));
 

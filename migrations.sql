@@ -3221,3 +3221,102 @@ update moyens_salle
 -- sort donc jamais par le lien public.
 -- ============================================================================
 alter table acces_logistique add column if not exists email text not null default '';
+
+-- ============================================================================
+-- On ne se déclare pas indisponible sur une date où l'on est déjà affecté·e.
+--
+-- Rien ne l'empêchait : la page de dispo ignorait tout des affectations, et la
+-- fonction d'écriture recopiait ce qu'on lui donnait. Une personne pouvait donc
+-- se retirer d'une date dont l'équipe était bouclée, sans que la production
+-- l'apprenne autrement qu'en relisant la grille par hasard.
+--
+-- Deux verrous, parce qu'un seul ne suffit pas. Côté page, le bouton
+-- « Indisponible » est barré sur ces dates et propose d'appeler la production.
+-- Côté base, ci-dessous, la bascule est refusée : un lien personnel ne doit pas
+-- pouvoir défaire une équipe en contournant l'interface.
+--
+-- Seules les BASCULES vers « indisponible » sont refusées. Une date déjà marquée
+-- indisponible avant l'affectation — cela arrive, la production peut affecter
+-- quand même — continue de se réenregistrer sans erreur, sinon plus aucune
+-- sauvegarde ne passerait pour cette personne.
+-- ============================================================================
+alter table reglages add column if not exists referent_nom text not null default '';
+alter table reglages add column if not exists referent_telephone text not null default '';
+
+-- Le contact de production s'affiche sur les pages à jeton, que la clé anonyme
+-- ne peut pas lire (reglages est fermée par has_access()). Cette fonction
+-- n'expose que ces deux champs, qui n'ont rien de confidentiel : c'est le
+-- numéro qu'on donne déjà à tout le monde.
+create or replace function get_contact_production()
+returns table(nom text, telephone text)
+language sql
+security definer
+set search_path = public
+as $$
+  select coalesce(referent_nom, ''), coalesce(referent_telephone, '')
+    from reglages where id = 1;
+$$;
+grant execute on function get_contact_production() to anon, authenticated;
+
+create or replace function update_own_disponibilites_by_token(
+  p_token text, p_disponibilites jsonb, p_disponibilites_commentaires jsonb, p_telephone text, p_email text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_person_id text;
+  v_person_type text;
+  v_actuelles jsonb;
+  v_bloquees text[];
+begin
+  select person_id, person_type into v_person_id, v_person_type
+  from dispo_demandes where id = p_token;
+  if v_person_id is null then
+    raise exception 'Lien invalide';
+  end if;
+
+  if v_person_type = 'musicien' then
+    select coalesce(disponibilites, '{}'::jsonb) into v_actuelles from musiciens where id = v_person_id;
+  else
+    select coalesce(disponibilites, '{}'::jsonb) into v_actuelles from techniciens where id = v_person_id;
+  end if;
+
+  -- jsonb_exists() plutôt que l'opérateur « ? » : même sens, mais aucune
+  -- ambiguïté de lecture, et rien qu'un pilote puisse confondre avec un
+  -- paramètre de requête.
+  select array_agg(e.key order by e.key) into v_bloquees
+  from jsonb_each_text(coalesce(p_disponibilites, '{}'::jsonb)) as e(key, valeur)
+  where e.valeur = 'indispo'
+    and coalesce(v_actuelles ->> e.key, '') <> 'indispo'
+    and exists (
+      select 1
+        from tournees t, jsonb_array_elements(t.dates) d
+       where d ->> 'date' = e.key
+         and jsonb_exists(
+               case when v_person_type = 'musicien'
+                    then d -> 'musiciensAssignes'
+                    else d -> 'techniciensAssignes' end,
+               v_person_id)
+    );
+
+  if v_bloquees is not null then
+    raise exception 'AFFECTE_SUR_CES_DATES:%', array_to_string(v_bloquees, ',');
+  end if;
+
+  if v_person_type = 'musicien' then
+    update musiciens set
+      disponibilites = p_disponibilites, disponibilites_commentaires = p_disponibilites_commentaires,
+      telephone = p_telephone, email = p_email
+    where id = v_person_id;
+  else
+    update techniciens set
+      disponibilites = p_disponibilites, disponibilites_commentaires = p_disponibilites_commentaires,
+      telephone = p_telephone, email = p_email
+    where id = v_person_id;
+  end if;
+end;
+$$;
+grant execute on function update_own_disponibilites_by_token(text, jsonb, jsonb, text, text) to anon, authenticated;

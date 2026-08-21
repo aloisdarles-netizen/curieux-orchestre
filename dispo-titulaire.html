@@ -91,6 +91,40 @@
   .state-btn.active.indispo{background:var(--ko); border-color:var(--ko); color:#fff;}
   .state-btn.active.incertain{background:var(--maybe); border-color:var(--maybe); color:#fff;}
 
+  /* ==========================================================================
+     Dates déjà affectées.
+
+     Se déclarer indisponible sur une date dont l'équipe est bouclée ne se
+     règle pas par un bouton : cela demande un coup de fil, parce qu'il faut
+     trouver quelqu'un d'autre. La date porte donc une étiquette, le bouton
+     « Indisponible » est barré, et un clic dessus ouvre de quoi joindre la
+     production tout de suite. La base refuse la bascule de son côté (voir
+     update_own_disponibilites_by_token dans migrations.sql) : l'interface
+     explique, elle ne garde pas seule la porte.
+     ========================================================================== */
+  .date-card.affectee{border-color:var(--accent); background:var(--champagne);}
+  .affecte-tag{
+    display:inline-block; margin-left:8px; font-size:9.5px; font-weight:800;
+    text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:999px;
+    background:var(--accent-solid); color:#FCF2F0; vertical-align:middle;
+  }
+  .state-btn.verrouille{
+    opacity:.45; cursor:not-allowed; text-decoration:line-through;
+  }
+  .state-btn.verrouille:hover{background:var(--bg);}
+  .alerte-affecte{
+    margin:8px 0 0; padding:11px 13px; border-radius:10px;
+    background:var(--card); border:1px solid var(--accent);
+    font-size:12.5px; line-height:1.5;
+  }
+  .alerte-affecte strong{color:var(--accent);}
+  .alerte-affecte .actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:9px;}
+  .alerte-affecte a{
+    display:inline-block; padding:7px 13px; border-radius:8px; font-size:12px; font-weight:800;
+    background:var(--accent-solid); color:#FCF2F0; text-decoration:none;
+  }
+  .alerte-affecte a.secondaire{background:var(--bg); color:var(--accent); border:1px solid var(--border);}
+
   .date-comment{
     width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px;
     background:var(--bg); color:var(--text); font-family:inherit;
@@ -284,6 +318,8 @@ async function init(){
   if(!state.person.disponibilites) state.person.disponibilites = {};
   if(!state.person.disponibilites_commentaires) state.person.disponibilites_commentaires = {};
   state.info = (await CurieuxDB.getInfosSocialesByToken(token)) || { extra: {} };
+  // Qui prévenir si l'on ne peut plus tenir une date déjà affectée.
+  contactProduction = await CurieuxDB.getContactProduction();
   // Cachet individualisé éventuel — jamais lu depuis la tournée elle-même (qui ne
   // contient que le cachet standard, public), seulement via ce token, qui ne peut
   // renvoyer que LE montant de cette personne (voir migrations.sql).
@@ -355,6 +391,69 @@ document.getElementById('infosModalDone').addEventListener('click', async ()=>{
   closeInfosModal();
   render(); // reflète le téléphone/email saisis dans la modale sur la fiche contact ci-dessous
 });
+
+// ============================================================================
+// Dates déjà affectées
+//
+// La tournée rendue par le jeton porte ses affectations (musiciensAssignes /
+// techniciensAssignes) : la page en dispose donc, elle ne les regardait
+// simplement pas. Une personne pouvait ainsi se retirer d'une date dont
+// l'équipe était bouclée, et la production ne l'apprenait qu'en relisant la
+// grille par hasard.
+// ============================================================================
+function estAffecteSur(d){
+  const champ = state.personType === 'musicien' ? 'musiciensAssignes' : 'techniciensAssignes';
+  return (d[champ] || []).includes(state.demande.person_id);
+}
+
+// Le référent de production, réglé dans le tableau de bord admin. Vaut des
+// champs vides tant que personne ne l'a renseigné : l'alerte s'affiche alors
+// sans bouton d'appel plutôt que d'ouvrir un numéro vide.
+let contactProduction = { nom:'', telephone:'' };
+
+function numeroWhatsapp(tel){
+  let chiffres = (tel || '').replace(/[^\d+]/g, '');
+  if(chiffres.startsWith('+')) chiffres = chiffres.slice(1);
+  else if(chiffres.startsWith('0') && chiffres.length === 10) chiffres = '33' + chiffres.slice(1);
+  return chiffres;
+}
+
+function ouvrirAlerteAffecte(dateIso){
+  const boite = document.querySelector(`[data-alerte="${CSS.escape(dateIso)}"]`);
+  if(!boite) return;
+  const bouton = document.querySelector(`.state-btn[data-verrouille][data-date="${CSS.escape(dateIso)}"]`);
+  if(boite.style.display === 'block'){
+    boite.style.display = 'none';
+    if(bouton) bouton.setAttribute('aria-expanded', 'false');
+    return;
+  }
+
+  const jour = fmtDateFRLong(dateIso);
+  const message = [
+    `Bonjour,`,
+    ``,
+    `Je suis affecté·e sur la date du ${jour} (${state.tournee.nom || 'tournée'}) et je ne vais finalement pas pouvoir en être.`,
+    `Je préviens au plus vite pour que vous puissiez vous organiser.`,
+    ``,
+    `${fullName(state.person)}`,
+  ].join('\n');
+
+  const numero = numeroWhatsapp(contactProduction.telephone);
+  const qui = contactProduction.nom || 'la production';
+  boite.innerHTML = `
+    <strong>Tu es déjà retenu·e sur cette date.</strong>
+    L'équipe est constituée autour de toi : te déclarer indisponible ici ne
+    préviendrait personne, et il faut te trouver un·e remplaçant·e. Dis-le
+    directement à ${escapeHtml(qui)}, c'est réglé en deux minutes.
+    <div class="actions">
+      ${numero ? `<a href="https://wa.me/${encodeURIComponent(numero)}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener">Prévenir sur WhatsApp</a>` : ''}
+      ${contactProduction.telephone ? `<a class="secondaire" href="tel:${escapeAttr(contactProduction.telephone.replace(/\s/g, ''))}">Appeler ${escapeHtml(contactProduction.telephone)}</a>` : ''}
+      ${!numero && !contactProduction.telephone ? `<span style="color:var(--muted);">Aucun numéro de production enregistré — écris à la personne qui t'a envoyé ce lien.</span>` : ''}
+    </div>
+  `;
+  boite.style.display = 'block';
+  if(bouton) bouton.setAttribute('aria-expanded', 'true');
+}
 
 function render(){
   // Le bloc (linkedToNext) se calcule sur TOUTES les dates triées, annulées incluses —
@@ -454,16 +553,23 @@ function render(){
 
     const current = dispo[d.date] || '';
     const comment = commentaires[d.date] || '';
+    // Déjà retenu·e sur cette date : l'équipe est faite, on ne s'en retire pas
+    // d'un clic. Sauf si l'on s'était déjà déclaré indisponible avant d'être
+    // affecté·e — auquel cas le bouton reste tel quel, il dit l'état réel.
+    const affecte = estAffecteSur(d) && current !== 'indispo';
     html += `
-      <div class="date-card" data-date-id="${escapeAttr(d.id)}">
+      <div class="date-card${affecte ? ' affectee' : ''}" data-date-id="${escapeAttr(d.id)}">
         <div class="date-card-head">
-          <div class="date-label">${escapeHtml(fmtDateFRLong(d.date))}${!blocInfo ? '<span class="isolated-tag">Date isolée</span>' : ''}</div>
+          <div class="date-label">${escapeHtml(fmtDateFRLong(d.date))}${!blocInfo ? '<span class="isolated-tag">Date isolée</span>' : ''}${affecte ? '<span class="affecte-tag">Tu es sur cette date</span>' : ''}</div>
           <div class="date-place">${escapeHtml([d.ville, d.lieu].filter(Boolean).join(' · ') || '—')}</div>
         </div>
         <div class="state-toggle">
           <button type="button" class="state-btn dispo ${current==='dispo'?'active':''}" data-date="${escapeAttr(d.date)}" data-state="dispo">Disponible</button>
-          <button type="button" class="state-btn indispo ${current==='indispo'?'active':''}" data-date="${escapeAttr(d.date)}" data-state="indispo">Indisponible</button>
+          <button type="button" class="state-btn indispo ${current==='indispo'?'active':''}${affecte ? ' verrouille' : ''}"
+            data-date="${escapeAttr(d.date)}" data-state="indispo"
+            ${affecte ? `data-verrouille="1" aria-expanded="false" aria-controls="alerte-${escapeAttr(d.date)}" title="Tu es affecté·e sur cette date — préviens la production"` : ''}>Indisponible</button>
         </div>
+        <div class="alerte-affecte" id="alerte-${escapeAttr(d.date)}" data-alerte="${escapeAttr(d.date)}" role="status" style="display:none;"></div>
         <input type="text" class="date-comment" data-date="${escapeAttr(d.date)}" placeholder="Une précision ? (facultatif)" value="${escapeAttr(comment)}">
       </div>
     `;
@@ -487,6 +593,7 @@ function render(){
   document.querySelectorAll('.state-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const date = btn.dataset.date;
+      if(btn.dataset.verrouille){ ouvrirAlerteAffecte(date); return; }
       const wasActive = btn.classList.contains('active');
       if(wasActive) delete state.person.disponibilites[date];
       else state.person.disponibilites[date] = btn.dataset.state;
@@ -602,6 +709,22 @@ async function doSave(){
   ]);
   btn.textContent = 'Valider mes réponses';
   if(personRes.error || demandeRes.error){
+    // La base refuse de basculer en « indisponible » une date déjà affectée
+    // (voir update_own_disponibilites_by_token). Ce n'est pas une panne : on le
+    // dit dans ces mots-là, et on rouvre l'explication sur la date concernée.
+    const message = String((personRes.error && personRes.error.message) || '');
+    const marqueur = message.match(/AFFECTE_SUR_CES_DATES:([\d\-,]+)/);
+    if(marqueur){
+      const dates = marqueur[1].split(',').filter(Boolean);
+      dates.forEach(iso=> delete state.person.disponibilites[iso]);
+      status.textContent = dates.length > 1
+        ? "Ces dates sont déjà affectées : préviens la production directement."
+        : "Cette date est déjà affectée : préviens la production directement.";
+      status.className = 'save-status';
+      render();
+      dates.forEach(ouvrirAlerteAffecte);
+      return;
+    }
     status.textContent = "Erreur, tes réponses n'ont pas pu être enregistrées. Réessaie.";
     status.className = 'save-status';
     return;

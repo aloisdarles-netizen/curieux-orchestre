@@ -222,6 +222,34 @@
   </section>
 
 
+  <!-- Le référent est le numéro qu'on donne quand quelque chose ne peut pas se
+       régler par l'interface — typiquement quelqu'un qui ne peut plus tenir une
+       date sur laquelle il ou elle est déjà affecté·e. Il s'affiche alors sur sa
+       page de dispo, avec de quoi prévenir en un geste. -->
+  <section>
+    <h2>Référent de production</h2>
+    <div class="card">
+      <p style="font-size:13px; color:var(--muted); margin:0 0 14px;">
+        Qui prévenir quand une chose ne se règle pas dans l'outil. Ce nom et ce
+        numéro apparaissent sur les pages personnelles des équipes, avec un bouton
+        WhatsApp — par exemple lorsqu'un·e titulaire déjà affecté·e essaie de se
+        déclarer indisponible.
+      </p>
+      <div class="field-row" style="display:flex; gap:12px; flex-wrap:wrap;">
+        <div class="field" style="flex:1 1 200px;">
+          <label for="referentNom">Nom</label>
+          <input type="text" id="referentNom" placeholder="Ex : Aloïs, production">
+        </div>
+        <div class="field" style="flex:1 1 200px;">
+          <label for="referentTel">Téléphone</label>
+          <input type="tel" id="referentTel" placeholder="06 12 34 56 78">
+        </div>
+      </div>
+      <button type="button" class="co-btn secondary sm" id="referentSaveBtn">Enregistrer</button>
+      <span id="referentStatut" style="font-size:12px; color:var(--muted); margin-left:10px;"></span>
+    </div>
+  </section>
+
   <section>
     <h2>Historique des modifications</h2>
     <div class="card">
@@ -878,6 +906,24 @@ const REINIT_LABELS = {
 let reinitLignesParTable = [];
 const reinitSelection = new Set();
 
+async function chargerReferent(){
+  const reglages = await CurieuxDB.fetchReglages();
+  if(reglages.absent) return;
+  document.getElementById('referentNom').value = reglages.referentNom || '';
+  document.getElementById('referentTel').value = reglages.referentTelephone || '';
+}
+document.getElementById('referentSaveBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('referentSaveBtn');
+  const statut = document.getElementById('referentStatut');
+  btn.disabled = true; statut.textContent = 'Enregistrement…';
+  const { error } = await CurieuxDB.setContactProduction(
+    document.getElementById('referentNom').value.trim(),
+    document.getElementById('referentTel').value.trim());
+  btn.disabled = false;
+  statut.textContent = error ? 'Échec : ' + error.message : '✓ Enregistré.';
+  if(!error) setTimeout(()=>{ statut.textContent = ''; }, 2500);
+});
+
 async function chargerEtatReinit(){
   const etat = document.getElementById('reinitEtat');
   const zone = document.getElementById('reinitZone');
@@ -992,6 +1038,7 @@ document.getElementById('reinitLancerBtn').addEventListener('click', async ()=>{
   await loadCorbeille();
   await loadLog();
   await chargerEtatReinit();
+  await chargerReferent();
 })();
 </script>
 </body>

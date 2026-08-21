@@ -1120,7 +1120,30 @@ const CurieuxDB = (()=>{
       console.warn('[CurieuxDB] fetchReglages', error.message);
       return { phaseTest: false, absent: true };
     }
-    return { phaseTest: !!(data && data.phase_test), absent: !data };
+    return {
+      phaseTest: !!(data && data.phase_test),
+      referentNom: (data && data.referent_nom) || '',
+      referentTelephone: (data && data.referent_telephone) || '',
+      absent: !data,
+    };
+  }
+  // Le référent de production : qui appeler quand quelque chose cloche. Réglé
+  // depuis le tableau de bord admin, lu par les pages internes.
+  async function setContactProduction(nom, telephone){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.from('reglages')
+      .update({ referent_nom: nom || '', referent_telephone: telephone || '' }).eq('id', 1);
+    if(error) console.warn('[CurieuxDB] setContactProduction', error.message);
+    return { error };
+  }
+  // Même contact, mais lisible par les pages à jeton : la table reglages est
+  // fermée à la clé anonyme, cette fonction n'en sort que ces deux champs.
+  async function getContactProduction(){
+    if(!supabaseClient) return { nom:'', telephone:'' };
+    const { data, error } = await supabaseClient.rpc('get_contact_production');
+    if(error){ console.warn('[CurieuxDB] getContactProduction', error.message); return { nom:'', telephone:'' }; }
+    const ligne = (data || [])[0] || {};
+    return { nom: ligne.nom || '', telephone: ligne.telephone || '' };
   }
   async function setPhaseTest(actif){
     if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
@@ -1253,7 +1276,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
-    fetchReglages, setPhaseTest, compterLignesPurgeables, purgerDonneesEssai,
+    fetchReglages, setPhaseTest, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
     getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis, enregistrerHorairesJournee,
     deposerPlanSalle, urlPubliquePlanSalle,
