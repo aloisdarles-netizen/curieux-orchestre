@@ -162,7 +162,9 @@ function currentEntries(){
 }
 
 function computeDiff(current, previous){
-  const prevMap = new Map((previous ? previous.entries : []).map(e=>[e.key, e]));
+  // Un instantané sans entries est possible (tout premier envoi, ligne
+  // tronquée) : on le lit comme vide plutôt que de lever sur .map.
+  const prevMap = new Map(((previous && previous.entries) || []).map(e=>[e.key, e]));
   const currMap = new Map(current.map(e=>[e.key, e]));
   const rows = current.map(e=>{
     const prev = prevMap.get(e.key);

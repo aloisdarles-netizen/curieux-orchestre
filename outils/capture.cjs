@@ -190,6 +190,9 @@ const __seed = ${JSON.stringify(SEED)};
 const CurieuxDB = new Proxy({
   fetchAll: async t => JSON.parse(JSON.stringify(__seed[t] || [])),
   fetchOne: async () => null,
+  // Rend null, comme la base quand aucun instantané n'existe encore — la
+  // liste vide du Proxy ferait croire à un instantané présent mais sans entries.
+  fetchSnapshot: async () => null,
   subscribe: () => {},
   getSession: async () => ({ user:{ id:'demo', email:'demo@curieux.fr' } }),
   hasAppAccess: async () => true,
