@@ -450,6 +450,10 @@ let musiciansCache = [];
 let techniciansCache = [];
 let dispoDemandesCache = [];
 let cachetOverridesCache = [];
+// Listes personnelles de remplaçant·es (mes-remplacants.html) : c'est l'ordre
+// que chaque titulaire a choisi, et donc celui qu'on doit suivre quand il ou
+// elle décline. Le panneau d'affectation les ignorait complètement.
+let remplacantPrefsCache = [];
 
 function loadDispoDemandes(){ return dispoDemandesCache; }
 
@@ -887,15 +891,60 @@ function renderAssignList(search){
   const titulaires = assignMusicians.filter(m=> (m.statutPoste || 'titulaire') === 'titulaire');
   const remplacants = assignMusicians.filter(m=> (m.statutPoste || 'titulaire') === 'remplacant');
 
-  // Remplaçant·es proposé·es : celles et ceux dont la famille d'instrument
-  // correspond à un·e titulaire indisponible sur cette date. Sans ça, il fallait
-  // savoir de tête qui remplace qui.
+  // Remplaçant·es proposé·es, pour chaque titulaire indisponible sur la date.
+  //
+  // La source est d'abord la liste personnelle du ou de la titulaire — celle
+  // qu'il ou elle a remplie dans son espace, par ordre de préférence. C'est cet
+  // ordre-là qu'on suit quand quelqu'un décline, et c'est donc celui-là que le
+  // panneau doit montrer. Il l'ignorait complètement et se rabattait sur la
+  // famille d'instrument, en ordre alphabétique : on proposait n'importe quel
+  // violon de l'orchestre plutôt que celui que la personne avait désigné.
+  //
+  // La famille d'instrument reste, mais en repli, pour les titulaires qui n'ont
+  // pas encore fait leur liste — et elle est étiquetée comme telle, pour qu'on
+  // ne confonde pas une préférence avec une simple correspondance.
   const indisponibles = titulaires.filter(m=> dispoDe(m) === 'indispo');
-  const proposes = remplacants.map(r=>{
-    const pour = indisponibles.filter(t=> familleInstrument(t.instrument) === familleInstrument(r.instrument));
-    return pour.length ? { personne:r, pour: pour.map(fullName).join(', ') } : null;
-  }).filter(Boolean);
-  const idsProposes = new Set(proposes.map(x=> x.personne.id));
+  const parId = new Map(assignMusicians.map(m=> [m.id, m]));
+
+  // Une même personne peut être le premier choix de plusieurs titulaires
+  // absents le même jour. Sa tuile doit le dire toutes les fois plutôt que de
+  // n'en nommer qu'un : c'est précisément l'information qui fait décider.
+  const couverture = new Map();   // id du remplaçant -> [{titulaire, rang, motif}]
+  const noter = (personne, titulaire, rang, motif)=>{
+    if(!personne) return;
+    if(!couverture.has(personne.id)) couverture.set(personne.id, { personne, pour: [] });
+    couverture.get(personne.id).pour.push({ titulaire, rang, motif });
+  };
+
+  indisponibles.forEach(titulaire=>{
+    const prefs = remplacantPrefsCache.find(r=> r.id === titulaire.id);
+    // Un contact saisi à la main ne figure pas dans l'annuaire : on ne peut pas
+    // l'affecter, il ne sert à rien de le proposer ici.
+    const choisis = (prefs ? prefs.items : [])
+      .filter(item=> item.source === 'roster' && parId.has(item.personId))
+      .sort((a, b)=> (a.rang || 99) - (b.rang || 99));
+
+    if(choisis.length){
+      choisis.forEach(item=> noter(parId.get(item.personId), titulaire, item.rang || 99, 'choix'));
+      return;
+    }
+    // Pas de liste exploitable : on retombe sur la famille d'instrument.
+    remplacants
+      .filter(r=> familleInstrument(r.instrument) === familleInstrument(titulaire.instrument))
+      .forEach(r=> noter(r, titulaire, 99, 'instrument'));
+  });
+
+  const proposes = [...couverture.values()].map(({ personne, pour })=>{
+    const trie = pour.slice().sort((a, b)=> a.rang - b.rang);
+    return {
+      personne,
+      rang: trie[0].rang,
+      pour: trie.map(x=> x.motif === 'choix'
+        ? `${fullName(x.titulaire)} · choix n° ${x.rang}`
+        : `${fullName(x.titulaire)} · même instrument`).join(' — '),
+    };
+  }).sort((a, b)=> a.rang - b.rang || fullName(a.personne).localeCompare(fullName(b.personne)));
+  const idsProposes = couverture;
 
   const musiciensAffichables = [
     ...titulaires,
@@ -929,6 +978,61 @@ function renderAssignList(search){
   ].join('');
 }
 
+// Ouvre le lien personnel de dispo de quelqu'un, en le créant s'il n'existe
+// pas encore, et propose le message à lui envoyer pour la date en cours.
+async function demanderDispo(personId, role){
+  if(!assignContext) return;
+  const personne = (role === 'musicien' ? loadMusicians() : loadTechnicians()).find(p=> p.id === personId);
+  if(!personne) return;
+
+  const tournee = loadTournees().find(t=> t.id === assignContext.tourneeId);
+  const demandes = loadDispoDemandes();
+  const personType = role === 'musicien' ? 'musicien' : 'technicien';
+  let demande = demandes.find(d=> d.tourneeId === assignContext.tourneeId
+    && d.personType === personType && d.personId === personId);
+
+  if(!demande){
+    demande = { id: genId('demande'), tourneeId: assignContext.tourneeId, personType, personId, dates: [] };
+    const { error } = await CurieuxDB.upsertOne('dispo_demandes', demande);
+    if(error){ alert("Le lien de dispo n'a pas pu être créé :\n\n" + error.message); return; }
+    dispoDemandesCache = [...dispoDemandesCache, demande];
+  }
+
+  const base = location.href.slice(0, location.href.lastIndexOf('/') + 1);
+  const lien = `${base}mon-espace.html?token=${encodeURIComponent(demande.id)}`;
+  const message = [
+    `Bonjour ${personne.prenom || ''},`.trim(),
+    '',
+    `On monte l'équipe pour ${(tournee && tournee.nom) || 'une tournée'} et il nous manque ta réponse sur le ${fmtDateFR(assignDateIso)}.`,
+    `Tu peux répondre ici, en deux clics : ${lien}`,
+    '',
+    'Merci !',
+  ].join('\n');
+
+  const waDigits = normalizeWhatsappPhoneTournees(personne.telephone);
+  if(waDigits){
+    window.open(`https://wa.me/${encodeURIComponent(waDigits)}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+    return;
+  }
+  if(personne.email){
+    location.href = `mailto:${encodeURIComponent(personne.email)}?subject=${encodeURIComponent('Ta dispo du ' + fmtDateFR(assignDateIso))}&body=${encodeURIComponent(message)}`;
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(message);
+    alert('Aucun téléphone ni e-mail pour cette personne — le message est copié, colle-le où tu la joins.');
+  }catch(e){
+    alert(message);
+  }
+}
+
+function normalizeWhatsappPhoneTournees(phone){
+  let chiffres = (phone || '').replace(/[^\d+]/g, '');
+  if(chiffres.startsWith('+')) chiffres = chiffres.slice(1);
+  else if(chiffres.startsWith('0') && chiffres.length === 10) chiffres = '33' + chiffres.slice(1);
+  return chiffres;
+}
+
 function closeAssignModal(){
   rangerPanneauAffectation();
   assignContext = null;
@@ -954,8 +1058,17 @@ document.addEventListener('click', (e)=>{
 
 document.getElementById('assignSearch').addEventListener('input', (e)=> renderAssignList(e.target.value));
 document.getElementById('assignList').addEventListener('click', (e)=>{
-  if(e.target.closest('[data-aff-suivi]')){
-    window.open('suivi-dispo.html', '_blank', 'noopener');
+  // Demander sa dispo à quelqu'un dont on ne sait rien.
+  //
+  // Ce lien ouvrait suivi-dispo.html sans tournée, sans personne et sans date —
+  // et cette page n'accepte aucun paramètre d'URL. On atterrissait sur la liste
+  // générale et il fallait retrouver la personne à la main. Il ouvre désormais
+  // son lien personnel, créé au besoin, avec un message prêt à envoyer pour la
+  // date qu'on est en train de servir.
+  const lienDispo = e.target.closest('[data-aff-suivi]');
+  if(lienDispo){
+    const tuileParente = lienDispo.closest('[data-aff-id]');
+    if(tuileParente) demanderDispo(tuileParente.dataset.affId, tuileParente.dataset.affRole);
     return;
   }
   const tuile = e.target.closest('[data-aff-id]');
@@ -2028,13 +2141,14 @@ function scrollToHash(){
 }
 
 async function initData(){
-  [tourneesCache, fdrsCache, musiciansCache, techniciansCache, dispoDemandesCache, cachetOverridesCache] = await Promise.all([
+  [tourneesCache, fdrsCache, musiciansCache, techniciansCache, dispoDemandesCache, cachetOverridesCache, remplacantPrefsCache] = await Promise.all([
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('feuilles_route'),
     CurieuxDB.fetchAll('musiciens'),
     CurieuxDB.fetchAll('techniciens'),
     CurieuxDB.fetchAll('dispo_demandes'),
     CurieuxDB.fetchAll('cachet_overrides'),
+    CurieuxDB.fetchAll('remplacant_prefs'),
   ]);
   render();
   scrollToHash();

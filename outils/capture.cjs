@@ -86,6 +86,12 @@ const SEED = {
     { id:'demo-mus-02', items:[
       { rang:1, source:'roster', personId:'demo-mus-15' },
     ]},
+    // Une liste qui inverse l'ordre alphabétique : si le panneau la suit
+    // vraiment, Jules passe avant Camille.
+    { id:'demo-mus-04', items:[
+      { rang:1, source:'roster', personId:'demo-mus-16' },
+      { rang:2, source:'roster', personId:'demo-mus-15' },
+    ]},
   ],
   // Trois dossiers sociaux aux trois états : vide, commencé, complet.
   infos_sociales: [
