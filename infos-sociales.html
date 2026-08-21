@@ -224,11 +224,50 @@ const EXTRA_FIELD_DEFS = [
   ['tailleVetement', 'Taille de vêtement', 'text'],
 ];
 
-function isFilled(info){
-  if(!info) return false;
-  const base = EXTRA_FIELD_DEFS.some(([key])=> (info[key] || '').toString().trim());
-  const extra = Object.values(info.extra || {}).some(v=> (v || '').toString().trim());
-  return base || extra;
+/* État d'un dossier.
+ *
+ * « Complet » se déclarait dès qu'un seul champ était rempli : une date de
+ * naissance suffisait, et une fiche sans numéro de sécurité sociale ni IBAN
+ * s'annonçait prête pour une embauche. Le badge disait donc l'inverse de ce
+ * qu'on lui demandait.
+ *
+ * Ce qui compte est ce qu'exige une déclaration d'embauche : l'identité civile,
+ * l'adresse, le numéro de sécurité sociale, les coordonnées bancaires et les
+ * numéros de caisse. Le contact d'urgence, le permis et la taille de vêtement
+ * sont utiles en tournée mais ne bloquent aucune paie : ils ne comptent pas
+ * dans le décompte.
+ *
+ * Trois états, donc, et un compte pour savoir ce qu'il reste à demander. */
+const CHAMPS_EMBAUCHE = [
+  ['dateNaissance',       'date de naissance'],
+  ['lieuNaissance',       'ville de naissance'],
+  ['nationalite',         'nationalité'],
+  ['adresse',             'adresse'],
+  ['numSecu',             'n° de sécurité sociale'],
+  ['iban',                'IBAN'],
+  ['titulaireCompte',     'titulaire du compte'],
+  ['numCongesSpectacles', 'n° Congés Spectacles'],
+  ['numAudiens',          'n° Audiens'],
+];
+
+function etatDossier(info){
+  const rempli = (cle)=> ((info && info[cle]) || '').toString().trim() !== '';
+  const manquants = CHAMPS_EMBAUCHE.filter(([cle])=> !rempli(cle)).map(([, libelle])=> libelle);
+  const poses = CHAMPS_EMBAUCHE.length - manquants.length;
+
+  if(manquants.length === 0){
+    return { cle:'complet', pill:'ok', libelle:'dossier complet',
+             titre:"Tout ce qu'exige une déclaration d'embauche est renseigné." };
+  }
+  if(poses === 0){
+    return { cle:'vide', pill:'ko', libelle:'dossier vide',
+             titre:"Rien n'a encore été renseigné pour l'embauche." };
+  }
+  return {
+    cle:'commence', pill:'att',
+    libelle: `dossier commencé — ${poses}/${CHAMPS_EMBAUCHE.length}`,
+    titre: 'Manque encore : ' + manquants.join(', ') + '.',
+  };
 }
 
 // Masque une valeur sensible : on garde de quoi la reconnaître, pas de quoi la
@@ -243,7 +282,7 @@ function apercuMasque(valeur, garde){
 
 function renderPersonCard(p, personType){
   const info = infosFor(p.id);
-  const filled = isFilled(info);
+  const etat = etatDossier(info);
   const roleLabel = personType === 'musicien'
     ? escapeHtml(p.instrument || 'Musicien·ne')
     : escapeHtml(p.poste || 'Technicien·ne');
@@ -273,7 +312,7 @@ function renderPersonCard(p, personType){
             <span class="name">${escapeHtml(fullName(p))}</span>
             <span class="role">${roleLabel}</span>
           </span>
-          <span class="co-pill ${filled ? 'ok' : 'att'}">${filled ? 'dossier complet' : 'dossier incomplet'}</span>
+          <span class="co-pill ${etat.pill}" title="${escapeAttr(etat.titre)}">${escapeHtml(etat.libelle)}</span>
           <span class="caret">▾</span>
         </span>
         <span class="ps-apercu">${apercu.map(([k, v])=>

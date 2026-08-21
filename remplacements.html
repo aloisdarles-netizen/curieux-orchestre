@@ -62,7 +62,8 @@
     <div class="empty-hint">Chargement…</div>
   </section>
 
-  <p class="co-sub" style="margin-top:12px;">Chaque titulaire modifie sa propre liste depuis son espace personnel — cette page est en lecture seule, pour voir où en sont les listes.</p>
+  <p class="co-sub" style="margin-top:12px;" id="bilan"></p>
+  <p class="co-sub">Chaque titulaire modifie sa propre liste depuis son espace personnel — cette page est en lecture seule, pour voir où en sont les listes et relancer celles qui manquent.</p>
 </div>
 
 <script>
@@ -84,26 +85,80 @@ function nomDeLItem(item){
   return libre || 'Sans nom';
 }
 
+// Trois noms : c'est ce qu'il faut pour qu'une liste serve vraiment le jour où
+// un·e titulaire décline — en dessous, on retombe à chercher au téléphone.
+const REMPLACANTS_ATTENDUS = 3;
+
+function normalizeWhatsappPhone(phone){
+  let digits = (phone || '').replace(/[^\d+]/g, '');
+  if(digits.startsWith('+')) digits = digits.slice(1);
+  else if(digits.startsWith('0') && digits.length === 10) digits = '33' + digits.slice(1);
+  return digits;
+}
+
+// Le message de relance dit où en est la personne : lui redemander sa liste
+// entière quand elle en a déjà posé deux serait le meilleur moyen qu'elle ne
+// réponde pas.
+function messageRelance(p, dejaCites, lien){
+  const manque = REMPLACANTS_ATTENDUS - dejaCites.length;
+  const ouverture = dejaCites.length === 0
+    ? `nous n'avons pas encore ta liste de remplaçant·es.`
+    : `merci pour ${dejaCites.length === 1 ? 'le nom' : 'les noms'} que tu nous as déjà ${dejaCites.length === 1 ? 'donné' : 'donnés'} (${dejaCites.join(', ')}).`;
+  const demande = dejaCites.length === 0
+    ? `Il nous faudrait au minimum les ${REMPLACANTS_ATTENDUS} personnes que tu recommandes en premier, par ordre de préférence.`
+    : `Il nous en faudrait encore ${manque}, pour arriver aux ${REMPLACANTS_ATTENDUS} premiers choix par ordre de préférence.`;
+  return [
+    `Bonjour ${p.prenom || ''},`.trim(),
+    '',
+    `${ouverture.charAt(0).toUpperCase()}${ouverture.slice(1)}`,
+    demande,
+    "C'est cet ordre qu'on suit quand tu n'es pas disponible sur une date — nous appelons alors nous-mêmes, tu n'as rien à gérer le jour venu.",
+    '',
+    `Tu peux compléter ta liste ici : ${lien}`,
+    '',
+    'Merci !',
+    'Curieux orchestre',
+  ].join('\n');
+}
+
 function render(){
   const role = document.getElementById('roleFilter').value;
   const roster = role === 'musiciens' ? musiciensCache : techniciensCache;
   const metier = role === 'musiciens' ? 'instrument' : 'poste';
+  const personType = role === 'musiciens' ? 'musicien' : 'technicien';
   const titulaires = roster
     .filter(p=> (p.statutPoste || 'titulaire') === 'titulaire')
     .sort((a, b)=> fullName(a).localeCompare(fullName(b)));
 
   const holder = document.getElementById('holder');
+  const bilan = document.getElementById('bilan');
   if(titulaires.length === 0){
     holder.innerHTML = `<div class="empty-hint">Aucun·e titulaire dans ce répertoire — commence par l'<a href="${role === 'musiciens' ? 'annuaire.html' : 'techniciens.html'}">annuaire</a>.</div>`;
+    bilan.textContent = '';
     return;
   }
+
+  const compte = (p)=> (prefsDe(p.id) ? prefsDe(p.id).items.length : 0);
+  const completes = titulaires.filter(p=> compte(p) >= REMPLACANTS_ATTENDUS).length;
+  const vides = titulaires.filter(p=> compte(p) === 0).length;
+  bilan.textContent = [
+    `${completes} titulaire${completes > 1 ? 's' : ''} sur ${titulaires.length} ${completes > 1 ? 'ont' : 'a'} au moins ${REMPLACANTS_ATTENDUS} remplaçant·es`,
+    vides ? `${vides} liste${vides > 1 ? 's' : ''} encore vide${vides > 1 ? 's' : ''}` : '',
+  ].filter(Boolean).join(' · ') + '.';
 
   holder.innerHTML = titulaires.map(p=>{
     const prefs = prefsDe(p.id);
     const items = prefs ? [...prefs.items].sort((a, b)=> (a.rang || 99) - (b.rang || 99)) : [];
-    const pastille = items.length
+    // La pastille dit s'il en manque, et combien : « 2 remplaçant·es » se lisait
+    // comme un compte rendu satisfaisant alors qu'il en manquait un.
+    const pastille = items.length >= REMPLACANTS_ATTENDUS
       ? `<span class="co-pill ok">${items.length} remplaçant·e${items.length > 1 ? 's' : ''}</span>`
-      : `<span class="co-pill att">liste à demander</span>`;
+      : items.length
+        ? `<span class="co-pill att" title="Il en manque ${REMPLACANTS_ATTENDUS - items.length}">${items.length}/${REMPLACANTS_ATTENDUS} remplaçant·es</span>`
+        : `<span class="co-pill ko">liste à demander</span>`;
+    const relance = items.length >= REMPLACANTS_ATTENDUS ? '' : `
+      <button type="button" class="co-btn ghost sm" data-relancer="${escapeAttr(p.id)}"
+        data-type="${personType}" title="Ouvrir un message de relance — WhatsApp si un numéro est enregistré, e-mail sinon">Relancer</button>`;
     return `
       <div class="co-row">
         <span class="rempl-nom">
@@ -116,9 +171,57 @@ function render(){
             : `<span class="rempl-vide">Aucune liste pour l'instant.</span>`}
         </span>
         ${pastille}
+        ${relance}
       </div>
     `;
   }).join('');
+
+  holder.querySelectorAll('[data-relancer]').forEach(btn=> btn.addEventListener('click', ()=> relancer(btn)));
+}
+
+// Le lien personnel n'existe pas forcément avant qu'on le demande : on le fait
+// créer au moment du clic plutôt que d'en fabriquer un par titulaire à chaque
+// rendu de la page.
+async function relancer(btn){
+  const roster = [...musiciensCache, ...techniciensCache];
+  const p = roster.find(x=> x.id === btn.dataset.relancer);
+  if(!p) return;
+  const items = (prefsDe(p.id) ? [...prefsDe(p.id).items] : [])
+    .sort((a, b)=> (a.rang || 99) - (b.rang || 99));
+
+  const libelle = btn.textContent;
+  btn.disabled = true; btn.textContent = '…';
+  const res = await CurieuxDB.ensureAccesPersonnel(p.id, btn.dataset.type);
+  btn.disabled = false; btn.textContent = libelle;
+  if(!res.token){
+    alert(res.migrationAbsente
+      ? "Les liens permanents ne sont pas encore actifs sur cette base.\n\nApplique migrations.sql dans Supabase (SQL Editor) pour les activer."
+      : "Le lien personnel n'a pas pu être créé :\n\n" + ((res.error && res.error.message) || 'raison inconnue'));
+    return;
+  }
+
+  const base = location.href.slice(0, location.href.lastIndexOf('/') + 1);
+  const lien = `${base}mes-remplacants.html?token=${encodeURIComponent(res.token)}`;
+  const message = messageRelance(p, items.map(nomDeLItem), lien);
+
+  const waDigits = normalizeWhatsappPhone(p.telephone);
+  if(waDigits){
+    window.open(`https://wa.me/${encodeURIComponent(waDigits)}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+    return;
+  }
+  if(p.email){
+    location.href = `mailto:${encodeURIComponent(p.email)}?subject=${encodeURIComponent('Ta liste de remplaçant·es')}&body=${encodeURIComponent(message)}`;
+    return;
+  }
+  // Ni numéro ni adresse : le message part dans le presse-papier, à coller là
+  // où l'on joint cette personne.
+  try{
+    await navigator.clipboard.writeText(message);
+    btn.textContent = '✓ Copié';
+    setTimeout(()=>{ btn.textContent = libelle; }, 1800);
+  }catch(e){
+    alert("Aucun contact enregistré pour cette personne, et la copie a échoué.\n\n" + message);
+  }
 }
 
 document.getElementById('roleFilter').addEventListener('change', render);

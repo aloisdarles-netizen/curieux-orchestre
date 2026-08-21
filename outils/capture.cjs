@@ -76,6 +76,30 @@ const SEED = {
       mouvements:[], retourPrestataireDate:'', retourPrestataireHeurePickup:'',
       retourPrestataireHeureLivraison:'', notes:'' },
   ],
+  // Trois listes de remplaçant·es aux trois états : complète, incomplète, vide.
+  remplacant_prefs: [
+    { id:'demo-mus-01', items:[
+      { rang:1, source:'roster', personId:'demo-mus-15' },
+      { rang:2, source:'libre', prenom:'Hélène', nom:'Vasseur' },
+      { rang:3, source:'libre', prenom:'Tom', nom:'Riquier' },
+    ]},
+    { id:'demo-mus-02', items:[
+      { rang:1, source:'roster', personId:'demo-mus-15' },
+    ]},
+  ],
+  // Trois dossiers sociaux aux trois états : vide, commencé, complet.
+  infos_sociales: [
+    { id:'demo-mus-01', personType:'musicien',
+      dateNaissance:'1991-04-12', lieuNaissance:'Marseille', nationalite:'française',
+      adresse:'12 rue des Lilas, 75011 Paris', numSecu:'1 91 04 13 055 123 45',
+      iban:'FR76 3000 4000 0300 0000 0000 143', titulaireCompte:'Roxanne Rabatti',
+      numCongesSpectacles:'CS-882145', numAudiens:'AU-559021', extra:{} },
+    { id:'demo-mus-02', personType:'musicien',
+      dateNaissance:'1988-11-03', lieuNaissance:'Lyon', nationalite:'',
+      adresse:'', numSecu:'', iban:'', titulaireCompte:'',
+      numCongesSpectacles:'', numAudiens:'', extra:{} },
+    { id:'demo-mus-03', personType:'musicien', extra:{} },
+  ],
   // Deux accès de partage, dont un de salle : c'est lui qui porte les boutons
   // PDF et Écrire de partage.html.
   acces_logistique: [
