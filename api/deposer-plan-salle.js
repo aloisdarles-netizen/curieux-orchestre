@@ -78,7 +78,15 @@ export default async function handler(req, res) {
     res.status(400).json({ erreur: 'Jeton invalide.' });
     return;
   }
-  if (!dateId) { res.status(400).json({ erreur: 'Date manquante.' }); return; }
+  // Le dateId part dans le chemin de stockage puis dans l'URL de l'API Storage.
+  // Sans ce contrôle, un « / » ou un « .. » sortirait du préfixe plans/ et
+  // laisserait écrire ailleurs dans le bucket (la clé de service écrit partout).
+  // Même charset que le jeton : tous les identifiants de date réels le
+  // respectent (préfixe alphanumérique + tiret).
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(dateId)) {
+    res.status(400).json({ erreur: 'Date invalide.' });
+    return;
+  }
   if (!TYPES_ACCEPTES[typeMime]) {
     res.status(400).json({ erreur: 'Format accepté : JPEG, PNG ou WebP.' });
     return;
