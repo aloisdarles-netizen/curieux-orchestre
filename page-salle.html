@@ -482,7 +482,10 @@ function exporterPdf(){
   dates.forEach((d, index)=>{
     if(index > 0) doc.addPage();
     const m = moyensDe(d.id);
-    const page = creerComposeurPdf(doc).entete({
+    // Cette feuille porte peu de valeurs et se lit souvent de loin, debout : on
+    // l'autorise à grandir jusqu'à occuper la page plutôt que de la laisser
+    // tassée en haut d'une feuille aux trois quarts blanche.
+    const page = creerComposeurPdf(doc, { echelleMax: 1.45 }).entete({
       titre: [d.ville, d.lieu].filter(Boolean).join(' — ') || L.titre,
       sousTitre: [(t && t.nom) || '', jourLong(d.date)].filter(Boolean).join(' · '),
       mention: L.qui,
@@ -490,7 +493,7 @@ function exporterPdf(){
 
     const champ = (cle, val)=> (val === null || val === undefined || val === '') ? null : [cle, String(val)];
 
-    page.grille([
+    page.grilleAeree([
       { titre: L.acces, lignes: [
         champ(L.semis, m.nombreSemisSimultanees != null ? m.nombreSemisSimultanees : null),
         ...(m.emplacementsDechargement || []).map((e, i)=> champ(`${L.semi} ${i + 1}`, texteSemi(e, L))),

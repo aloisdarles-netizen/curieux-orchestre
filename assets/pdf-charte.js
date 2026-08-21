@@ -64,6 +64,12 @@ function creerComposeurPdf(doc, options){
     colonnes: 3,
     largeurBlocMin: 44,
     echelleMin: 0.58,
+    // Plafond de l'échelle. Le défaut de 1 convient à une fiche dense. Une page
+    // qui porte peu d'information — la demande faite à une salle, souvent une
+    // douzaine de valeurs — se retrouvait sinon tassée en haut d'une feuille aux
+    // trois quarts blanche : on l'autorise alors à grandir jusqu'à occuper la
+    // page, ce qui est aussi ce qui la rend lisible de loin, sur un quai.
+    echelleMax: 1,
     hauteurEntete: 25,
   }, options || {});
 
@@ -359,6 +365,83 @@ function creerComposeurPdf(doc, options){
     return api;
   };
 
+  /* Grille aérée — la transposition de .salle-champs : l'intitulé en petites
+     capitales AU-DESSUS, la valeur en gros dessous. C'est la composition de la
+     page salle, et pour de bonnes raisons : une valeur technique doit se
+     saisir d'un coup d'œil, pas se chercher au bout d'une ligne pointillée.
+     Deux colonnes seulement, pour que les valeurs aient de la place. */
+  api.grilleAeree = function(blocs){
+    const utiles = (blocs || []).filter(b=> b && (b.lignes || []).length);
+    if(!utiles.length) return api;
+
+    sections.push((k, dessiner, yDepart)=>{
+      const gap = 4;
+      const cols = utiles.length === 1 ? 1 : 2;
+      const largeurBloc = (utile - gap * (cols - 1)) / cols;
+      const pad = 4.5 * k;
+      const ptTitre = 7.2 * k, ptCle = 6.6 * k, ptVal = 12 * k;
+      const largeurTexte = largeurBloc - pad * 2;
+
+      const mesurerBloc = (b)=>{
+        let h = pad + hLigne(ptTitre) + 3 * k;
+        b.lignes.forEach(([cle, val])=>{
+          doc.setFont('Host', 'bold'); doc.setFontSize(ptCle);
+          const nCle = lignes(cle, largeurTexte).length;
+          doc.setFont('Host', 'bold'); doc.setFontSize(ptVal);
+          const nVal = lignes(valeurTexte(val), largeurTexte).length;
+          h += nCle * hLigne(ptCle) + 0.8 * k + nVal * hLigne(ptVal) + 3.2 * k;
+        });
+        return h + pad - 3.2 * k;
+      };
+
+      let y = yDepart;
+      let total = 0;
+      for(let i = 0; i < utiles.length; i += cols){
+        const rangee = utiles.slice(i, i + cols);
+        const hRangee = Math.max(...rangee.map(mesurerBloc));
+        if(dessiner){
+          rangee.forEach((b, j)=>{
+            const x = o.marge + j * (largeurBloc + gap);
+            fond(PDF_CHARTE.fond); trait(PDF_CHARTE.bord); doc.setLineWidth(0.25);
+            doc.roundedRect(x, y, largeurBloc, hRangee, 2.4, 2.4, 'FD');
+
+            let yb = y + pad;
+            doc.setFont('Host', 'bold'); doc.setFontSize(ptTitre);
+            encre(PDF_CHARTE.prune);
+            doc.setCharSpace(0.14 * k);
+            doc.text(String(b.titre || '').toUpperCase(), x + pad, yb, { baseline:'top' });
+            doc.setCharSpace(0);
+            yb += hLigne(ptTitre) + 3 * k;
+
+            b.lignes.forEach(([cle, val])=>{
+              doc.setFont('Host', 'bold'); doc.setFontSize(ptCle); encre(PDF_CHARTE.muted);
+              doc.setCharSpace(0.1 * k);
+              const lCle = lignes(String(cle).toUpperCase(), largeurTexte);
+              doc.text(lCle, x + pad, yb, { baseline:'top' });
+              doc.setCharSpace(0);
+              yb += lCle.length * hLigne(ptCle) + 0.8 * k;
+
+              const lien = valeurLien(val);
+              doc.setFont('Host', 'bold'); doc.setFontSize(ptVal);
+              encre(lien ? PDF_CHARTE.prune : PDF_CHARTE.noir);
+              const lVal = lignes(valeurTexte(val), largeurTexte);
+              doc.text(lVal, x + pad, yb, { baseline:'top' });
+              if(lien){
+                const wVal = Math.max(...lVal.map(t=> doc.getTextWidth(t)));
+                doc.link(x + pad, yb, wVal, lVal.length * hLigne(ptVal), { url: lien });
+              }
+              yb += lVal.length * hLigne(ptVal) + 3.2 * k;
+            });
+          });
+        }
+        y += hRangee + gap;
+        total += hRangee + gap;
+      }
+      return total + 2 * k;
+    });
+    return api;
+  };
+
   api.paragraphe = function(texte){
     if(!texte) return api;
     sections.push((k, dessiner, yDepart)=>{
@@ -381,12 +464,12 @@ function creerComposeurPdf(doc, options){
 
   api.rendre = function(nomFichier){
     const dispo = HAUTEUR - o.hauteurEntete - 4 - 12;   // 12 : pied de page
-    let k = 1;
-    if(hauteurTotale(1) > dispo){
+    let k = o.echelleMax;
+    if(hauteurTotale(k) > dispo){
       // Dichotomie sur l'échelle : la hauteur ne décroît pas proportionnellement
       // au corps (le texte se replie moins quand il rétrécit), une simple règle
       // de trois donnerait donc un document plus petit que nécessaire.
-      let bas = o.echelleMin, haut = 1;
+      let bas = o.echelleMin, haut = o.echelleMax;
       for(let i = 0; i < 14; i++){
         const m = (bas + haut) / 2;
         if(hauteurTotale(m) <= dispo) bas = m; else haut = m;

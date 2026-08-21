@@ -129,8 +129,19 @@ const SEED = {
       {emplacement:'scene', niveau:'scene'},
     ],
     accesNotes:'Porte de 3,50 m, 12 marches côté cour.',
-    horairesJournee:[{id:'h1', label:'Load in', heure:'08:00'}],
-    roadiesVacations:[], chariotsVacations:[], riggVacations:[],
+    horairesJournee:[{id:'h1', label:'Load in', heure:'08:00'},{id:'h2', label:'Get in', heure:'14:00'}],
+    // Les moyens demandés sont le cœur de la demande faite à une salle : sans
+    // eux, on jugeait le PDF salle sans sa partie principale.
+    roadiesVacations:[
+      {horaireDebut:'08:00',horaireFin:'13:00',nombreDemande:12,notes:'accès par le quai nord'},
+      {horaireDebut:'23:00',horaireFin:'01:30',nombreDemande:10},
+    ],
+    chariotsVacations:[
+      {horaireDebut:'08:00',horaireFin:'13:00',nombreChariotsDemande:2,nombreCaristesDemande:2,confirme:true},
+    ],
+    riggVacations:[
+      {horaireDebut:'08:00',horaireFin:'12:00',nombreDemande:4,nombreSol:1,nombreGrill:3},
+    ],
     hauteurGrill:'17', ouvertureScene:'25', profondeurScene:'12', puissance:'2× 400A',
     typeCourant:'triphasé', chargeMaxAccroche:'2 t', typeSol:'béton',
     contactsSalle:[], contactsTechniciensIds:[], planImagePath:'', semisPositions:[], notes:'',
