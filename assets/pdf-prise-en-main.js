@@ -130,10 +130,18 @@ function pagePriseEnMain(doc, personne, lien){
   });
 
   composeur.paragraphe(
-    "Ton espace personnel réunit tout ce qu'on a à se dire côté administratif : "
-    + "tes disponibilités, ton dossier, et — si tu es titulaire — les personnes que tu "
-    + "recommandes pour te remplacer. Une seule adresse, la tienne, valable pour toutes "
-    + "les tournées."
+    "Les Soudaines préparent leurs tournées avec un outil en ligne. C'est là qu'on te "
+    + "demande tes disponibilités, qu'on réunit ce qu'il faut pour t'établir un contrat "
+    + "et te payer, et que tu nous dis qui peut te remplacer quand tu n'es pas libre. "
+    + "Ce qui se perdait dans les fils de mails et les SMS tient maintenant en un seul "
+    + "endroit, à jour, où l'on regarde tous les deux la même chose."
+  );
+  composeur.paragraphe(
+    "Rien à installer, aucun mot de passe à retenir : ton lien personnel te reconnaît. "
+    + "Tu peux revenir dessus autant de fois que tu veux, corriger ce que tu as saisi, "
+    + "et il reste le même d'une tournée à l'autre. Il ne concerne que l'administratif — "
+    + "le programme, les horaires de répétition et le reste continuent de passer par les "
+    + "canaux habituels."
   );
 
   blocLienPersonnel(composeur, lien);

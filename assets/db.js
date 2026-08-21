@@ -846,6 +846,20 @@ const CurieuxDB = (()=>{
     return data;
   }
 
+  // À qui appartient ce jeton ? Répond pour un jeton permanent
+  // (acces_personnels) comme pour un jeton de demande de dispo.
+  //
+  // Les pages personnelles se verrouillaient sur get_dispo_demande_by_token,
+  // qui ne lit que dispo_demandes : elles refusaient donc un lien personnel
+  // permanent — celui-là même que porte la fiche de prise en main — alors que
+  // toutes les fonctions qu'elles appellent ensuite l'acceptent.
+  async function resolvePersonToken(token){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('resolve_person_token', { p_token: token });
+    if(error){ console.warn('[CurieuxDB] resolvePersonToken', error.message); return null; }
+    return (data || [])[0] || null;
+  }
+
   // Espace personnel : identité + demandes de dispo en cours, depuis le jeton
   // permanent comme depuis un ancien jeton de demande.
   async function mesDemandesDispo(token){
@@ -1338,7 +1352,7 @@ const CurieuxDB = (()=>{
     getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,
     listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
-    mesDemandesDispo, creerCompteEquipeSansEmail,
+    mesDemandesDispo, resolvePersonToken, creerCompteEquipeSansEmail,
     fetchCorbeille, restaurerDepuisCorbeille,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,

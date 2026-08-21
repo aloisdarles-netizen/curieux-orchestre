@@ -33,9 +33,12 @@ const CURIEUX_SECTIONS = [
     { libelle:'Remplacements', href:'remplacements.html', pages:['remplacements.html'] },
     { libelle:'Infos sociales', href:'infos-sociales.html', pages:['infos-sociales.html'] },
   ]},
-  { libelle:'Disponibilités', href:'disponibilites.html', entrees:[
-    { libelle:'Grille interne', href:'disponibilites.html', pages:['disponibilites.html'] },
+  // « Demandes titulaires » en tête, et donc page d'atterrissage de l'onglet :
+  // c'est de là qu'on part — on demande leurs disponibilités, puis on regarde
+  // la grille. La grille interne était première par ancienneté, pas par usage.
+  { libelle:'Disponibilités', href:'suivi-dispo.html', entrees:[
     { libelle:'Demandes titulaires', href:'suivi-dispo.html', pages:['suivi-dispo.html'] },
+    { libelle:'Grille interne', href:'disponibilites.html', pages:['disponibilites.html'] },
   ]},
   { libelle:'Technique', href:'technique.html', entrees:[
     { libelle:'Avancement', href:'technique.html', pages:['technique.html','technique-date.html'] },

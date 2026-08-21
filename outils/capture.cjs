@@ -369,6 +369,10 @@ const CurieuxDB = new Proxy({
     const t = __seed.tournees[0];
     return { id:t.id, nom:t.nom, dates:t.dates, cachet_statut:'defini', cachet_montant:320 };
   },
+  // Un jeton personnel permanent désigne une personne sans passer par une
+  // demande de dispo : c'est le cas que servaient mal mes-infos et
+  // mes-remplacants.
+  resolvePersonToken: async () => ({ person_id: __seed.musiciens[0].id, person_type: 'musicien' }),
   getOwnPersonByToken: async () => JSON.parse(JSON.stringify(__seed.musiciens[0])),
   // Fiche sociale complète : sinon dispo-titulaire.html ouvre sa modale de
   // complétion au chargement, qui recouvre la page et bloque toute capture.

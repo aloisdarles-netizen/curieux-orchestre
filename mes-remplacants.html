@@ -141,8 +141,10 @@ async function init(){
   const token = new URLSearchParams(location.search).get('token');
   if(!token){ showState("Lien invalide — il manque le jeton d'accès."); return; }
 
-  const { data: demandeRows } = await supabaseClient.rpc('get_dispo_demande_by_token', { p_token: token });
-  const demande = (demandeRows || [])[0];
+  // Le jeton peut être permanent ou lié à une demande de dispo : on demande
+  // simplement à qui il appartient. Se verrouiller sur dispo_demandes refusait
+  // les liens personnels permanents.
+  const demande = await CurieuxDB.resolvePersonToken(token);
   if(!demande){ showState("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau."); return; }
 
   // Voir C1 : cette page demandait auparavant TOUT le répertoire

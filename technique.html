@@ -22,13 +22,34 @@
 
   /* Les cartes d'avancement ont été agrandies (titre 17 px, pastilles 12,5 px) :
      à 11 px, l'état d'une date se devinait plus qu'il ne se lisait. */
-  .date-card-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:4px;}
+  .date-card-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;}
   .date-card-nom{font-weight:800; font-size:17px;}
-  .date-card-meta{display:inline-flex; align-items:baseline; gap:10px; white-space:nowrap;}
-  .date-card-pct{font-size:14px; font-weight:800;}
-  .date-card-quand{font-size:13px; color:var(--muted); font-weight:700;}
-  .date-card-cols{margin-top:10px;}
-  @media (max-width:560px){ .co-split{ grid-template-columns:1fr; } }
+  .date-card-quand{font-size:13px; color:var(--muted); font-weight:700; white-space:nowrap;}
+
+  /* Une barre plutôt qu'un pourcentage seul : la part réglée se voit avant
+     d'être lue, et le compte « 2 / 6 » dit aussi ce qui reste. */
+  .avancement{display:flex; align-items:center; gap:10px; margin:9px 0 12px;}
+  .avancement-barre{flex:1; height:5px; border-radius:999px; background:var(--border); overflow:hidden;}
+  .avancement-barre i{display:block; height:100%; border-radius:999px;}
+  .avancement-texte{font-size:12px; font-weight:800; white-space:nowrap;}
+
+  /* Un poste par ligne, toujours dans le même ordre : l'œil apprend où
+     regarder. L'intitulé à gauche en gris, l'état à droite en gras coloré. */
+  .postes{display:flex; flex-direction:column;}
+  .poste{display:grid; grid-template-columns:8px minmax(0,1fr) auto; gap:9px;
+         align-items:center; padding:6px 0; border-top:1px solid var(--border);}
+  .poste:first-child{border-top:none; padding-top:0;}
+  .poste .pt{width:8px; height:8px; border-radius:50%; background:var(--border);}
+  .poste .lib{font-size:13px; color:var(--muted); font-weight:700;}
+  .poste .val{font-size:13px; font-weight:800; text-align:right;}
+  .poste.ok  .pt{background:var(--ok);}
+  .poste.att .pt{background:var(--maybe);}
+  /* « Pas encore fait » n'est pas une faute : sur une date neuve, six lignes
+     rouges hurlaient pour ne rien dire de plus que le compteur. Le gris dit
+     l'attente, la couleur est gardée pour ce qui est engagé. */
+  .poste.non .pt{background:transparent; box-shadow:inset 0 0 0 1.5px var(--border);}
+  .poste.att .val{color:var(--maybe);}
+  .poste.non .val{color:var(--muted); font-weight:700;}
 
   .empty-hint{color:var(--muted); font-size:13.5px; padding:40px 4px; text-align:center;}
   @media (max-width:600px){ input, select{ font-size:16px !important; } }
@@ -141,50 +162,53 @@ function datesFutures(){
   return (t.dates||[]).filter(d=> !d.date || d.date >= today).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
 }
 
-// Les puces décrivent l'état d'un poste. Elles renvoient un objet plutôt que du
-// HTML : la carte les trie ensuite en deux colonnes « fait » / « à faire », et a
-// besoin de la sévérité pour ça.
-function puce(sev, texte){ return { sev, texte }; }
-function puceHtml(p){
-  const classe = p.sev === 'ok' ? 'ok' : p.sev === 'att' ? 'att' : p.sev === 'non' ? 'ko' : '';
-  return `<span class="co-chip ${classe}">${escapeHtml(p.texte)}</span>`;
-}
+// Un poste, c'est un intitulé fixe et son état du moment.
+//
+// La carte les répartissait en deux colonnes « fait » / « à faire ». Un poste
+// changeait donc de colonne selon son état : on ne pouvait pas apprendre où
+// regarder, il fallait relire les six pastilles à chaque carte pour retrouver
+// celle qu'on cherchait. Les postes sont désormais toujours dans le même ordre,
+// aux mêmes places ; c'est la couleur et la valeur à droite qui disent l'état.
+function poste(sev, libelle, valeur){ return { sev, libelle, valeur }; }
 
-function puceDechargement(m){
-  if(!m || m.nombreSemisSimultanees == null) return puce('neutre', 'déchargement —');
-  return puce('ok', `${m.nombreSemisSimultanees} semi${m.nombreSemisSimultanees>1?'s':''} en simultané`);
+function posteDechargement(m){
+  if(!m || m.nombreSemisSimultanees == null) return poste('non', 'Déchargement', 'à renseigner');
+  const n = m.nombreSemisSimultanees;
+  return poste('ok', 'Déchargement', `${n} semi${n > 1 ? 's' : ''} en simultané`);
 }
-function puceVacations(vacs, prefixe){
+function posteVacations(vacs, libelle){
   const liste = vacs || [];
-  if(!liste.length) return puce('neutre', `${prefixe} —`);
-  const confirmees = liste.filter(v=>v.confirme).length;
-  return puce(confirmees >= liste.length ? 'ok' : 'att', `${prefixe} ${confirmees}/${liste.length} confirmées`);
+  if(!liste.length) return poste('non', libelle, 'aucune vacation');
+  const confirmees = liste.filter(v => v.confirme).length;
+  return poste(confirmees >= liste.length ? 'ok' : 'att', libelle,
+               `${confirmees}/${liste.length} confirmée${liste.length > 1 ? 's' : ''}`);
 }
-function puceRoadies(m){ return puceVacations(m && m.roadiesVacations, 'roadies'); }
-function puceChariots(m){ return puceVacations(m && m.chariotsVacations, 'chariots'); }
-function puceRigg(m){ return puceVacations(m && m.riggVacations, 'rigg'); }
-function puceBureauControle(m){
-  if(!m || m.planChargeStatut === 'non_envoye') return puce('non', 'plan de charge —');
-  if(m.planChargeStatut === 'envoye') return puce('att', 'plan de charge envoyé');
-  return puce('ok', 'plan de charge validé');
+function posteBureauControle(m){
+  if(!m || m.planChargeStatut === 'non_envoye') return poste('non', 'Plan de charge', 'à envoyer');
+  if(m.planChargeStatut === 'envoye') return poste('att', 'Plan de charge', 'envoyé, en attente');
+  return poste('ok', 'Plan de charge', 'validé');
 }
 // Le plan de scène se valide de deux côtés, séparément : tant que les deux
-// n'ont pas dit oui, il n'est pas acquis, et la pastille dit lequel manque.
-function pucePlan(m){
-  if(!m || m.planStatut === 'non_demande') return puce('non', 'plan —');
-  if(m.planStatut === 'demande') return puce('att', 'plan demandé');
-  if(m.planValideNous && m.planValideSalle) return puce('ok', 'plan validé des deux côtés');
-  if(m.planValideNous) return puce('att', 'plan validé chez nous, pas côté salle');
-  if(m.planValideSalle) return puce('att', 'plan validé par la salle, pas chez nous');
-  return puce('att', 'plan reçu, pas validé');
+// n'ont pas dit oui, il n'est pas acquis, et la valeur dit lequel manque.
+function postePlan(m){
+  if(!m || m.planStatut === 'non_demande') return poste('non', 'Plan de scène', 'à demander');
+  if(m.planStatut === 'demande') return poste('att', 'Plan de scène', 'demandé, en attente');
+  if(m.planValideNous && m.planValideSalle) return poste('ok', 'Plan de scène', 'validé des deux côtés');
+  if(m.planValideNous) return poste('att', 'Plan de scène', 'côté salle manquant');
+  if(m.planValideSalle) return poste('att', 'Plan de scène', 'notre validation manque');
+  return poste('att', 'Plan de scène', 'reçu, à valider');
 }
 
 // « Réponse de la salle » a disparu de la fiche de date : son statut général
 // doublait ce que disent déjà le plan de scène et le plan de charge.
-function pucesDe(m){
+function postesDe(m){
   return [
-    pucePlan(m), puceBureauControle(m), puceDechargement(m),
-    puceRoadies(m), puceChariots(m), puceRigg(m),
+    postePlan(m),
+    posteBureauControle(m),
+    posteDechargement(m),
+    posteVacations(m && m.roadiesVacations, 'Roadies'),
+    posteVacations(m && m.chariotsVacations, 'Chariots'),
+    posteVacations(m && m.riggVacations, 'Rigg'),
   ];
 }
 
@@ -198,31 +222,32 @@ function render(){
   box.innerHTML = dates.map(d=>{
     const m = moyensFor(d.id);
     const jour = d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'2-digit' }) : '—';
-    const puces = pucesDe(m);
-    const faits = puces.filter(p=> p.sev === 'ok');
-    const restants = puces.filter(p=> p.sev !== 'ok');
-    // L'avancement se lit sur les mêmes postes que les pastilles : c'est
-    // une part de postes réglés, pas une estimation posée à la main.
-    const pct = Math.round(faits.length / puces.length * 100);
-    const pctCouleur = pct >= 80 ? 'var(--ok)' : pct >= 40 ? 'var(--maybe)' : 'var(--ko)';
+    const postes = postesDe(m);
+    const regles = postes.filter(p => p.sev === 'ok').length;
+    // L'avancement se lit sur les mêmes postes que la liste : c'est une part de
+    // postes réglés, pas une estimation posée à la main. Et on l'annonce en
+    // « 2 / 6 » plutôt qu'en pourcentage — sur six postes, « 33 % » demande de
+    // faire le calcul à l'envers pour savoir ce qui reste.
+    const couleur = regles === postes.length ? 'var(--ok)'
+                  : regles >= postes.length / 2 ? 'var(--maybe)' : 'var(--ko)';
     return `
       <a class="co-card-btn" href="technique-date.html?t=${encodeURIComponent(t.id)}&d=${encodeURIComponent(d.id)}">
         <div class="date-card-top">
           <span class="date-card-nom">${escapeHtml(d.ville || d.lieu || 'Date')}${d.lieu && d.ville ? ' — ' + escapeHtml(d.lieu) : ''}</span>
-          <span class="date-card-meta">
-            <span class="date-card-pct" style="color:${pctCouleur};">${pct} %</span>
-            <span class="date-card-quand">${jour}</span>
-          </span>
+          <span class="date-card-quand">${jour}</span>
         </div>
-        <div class="co-split date-card-cols">
-          <div>
-            <div class="co-split-head ok">✓ Fait</div>
-            <div class="co-chip-col">${faits.map(puceHtml).join('') || '<span class="co-chip">rien encore</span>'}</div>
-          </div>
-          <div>
-            <div class="co-split-head todo">À faire</div>
-            <div class="co-chip-col">${restants.map(puceHtml).join('') || '<span class="co-chip ok">tout est réglé</span>'}</div>
-          </div>
+        <div class="avancement">
+          <span class="avancement-barre"><i style="width:${Math.round(regles / postes.length * 100)}%; background:${couleur};"></i></span>
+          <span class="avancement-texte" style="color:${couleur};">${regles} / ${postes.length} réglés</span>
+        </div>
+        <div class="postes">
+          ${postes.map(p => `
+            <span class="poste ${p.sev}">
+              <span class="pt" aria-hidden="true"></span>
+              <span class="lib">${escapeHtml(p.libelle)}</span>
+              <span class="val">${escapeHtml(p.valeur)}</span>
+            </span>
+          `).join('')}
         </div>
       </a>
     `;
