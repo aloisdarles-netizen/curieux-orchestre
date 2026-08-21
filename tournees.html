@@ -59,6 +59,41 @@
   .cachet-override-row span:first-child{width:auto !important; flex:1 1 120px; min-width:0;}
   .cachet-override-row input{width:84px !important; flex:0 0 auto;}
 
+  /* Tête de tournée repliable.
+
+     Le cartouche cachet + effectif occupait cent cinquante pixels de haut en
+     permanence, avant les dates — qui sont pourtant ce qu'on vient consulter.
+     Pire, déplier les cachets d'exception déséquilibrait les deux colonnes et
+     repoussait le tableau d'autant. Il se résume donc en une ligne, et ne
+     s'ouvre que si on le demande.
+
+     Le résumé porte l'essentiel : le montant, le nombre d'exceptions, l'effectif
+     attendu. De quoi savoir s'il y a lieu d'ouvrir. */
+  .tournee-meta{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+  .outils-toggle{
+    display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+    border:1px solid var(--border); background:var(--card); color:var(--muted);
+    font-family:inherit; font-size:11.5px; font-weight:700;
+    padding:3px 10px; border-radius:999px; transition:border-color .15s, color .15s;
+  }
+  .outils-toggle:hover{border-color:var(--accent); color:var(--accent);}
+  .outils-toggle[aria-expanded="true"]{background:var(--accent-tint); color:var(--tint-ink); border-color:transparent;}
+  .outils-caret{font-size:9px; transition:transform .2s;}
+  .outils-toggle[aria-expanded="true"] .outils-caret{transform:rotate(180deg);}
+
+  /* Les deux colonnes s'alignent en haut : la gauche grandit en dépliant les
+     exceptions, et sans cela la droite se centrait sur du vide. */
+  .tournee-outils{align-items:start;}
+  /* [hidden] pose display:none dans la feuille du navigateur, mais le
+     display:grid déclaré plus bas est une règle d'auteur : il l'emporte, et le
+     cartouche restait ouvert. Il faut donc le masquer explicitement. */
+  .tournee-outils[hidden]{display:none;}
+
+  /* Les cachets d'exception tiennent dans une liste courte et défilante plutôt
+     que de pousser la carte : au-delà de quatre personnes, c'est un réglage
+     qu'on parcourt, pas qu'on lit d'un bloc. */
+  .cachet-overrides{max-height:190px; overflow-y:auto;}
+
   .tournee-outils{
     padding:14px 20px 16px; border-bottom:1px solid var(--border); background:var(--bg);
     display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;
@@ -89,6 +124,7 @@
   }
   .nomen-etat.ok{color:var(--ok);}
   .nomen-etat.manque{color:var(--maybe);}
+  .nomen-etat.vide{color:var(--muted); font-weight:600;}
   .nomen-nombre{
     width:44px; border:1px solid transparent; background:transparent; color:inherit;
     font:inherit; text-align:right; padding:2px 4px; border-radius:6px;
@@ -830,6 +866,19 @@ function closeAssignModal(){
 }
 document.getElementById('assignCancel').addEventListener('click', closeAssignModal);
 document.getElementById('assignOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'assignOverlay') closeAssignModal(); });
+// Ouvre ou referme le cartouche de tête. Délégué sur le document : les cartes
+// de tournée sont re-rendues à chaque changement, un binding par bouton ne
+// survivrait pas au premier remplacement d'innerHTML.
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('[data-toggle-outils]');
+  if(!btn) return;
+  const panneau = document.getElementById('outils-' + btn.dataset.toggleOutils);
+  if(!panneau) return;
+  const ouvert = panneau.hasAttribute('hidden');
+  panneau.toggleAttribute('hidden', !ouvert);
+  btn.setAttribute('aria-expanded', String(ouvert));
+});
+
 document.getElementById('assignSearch').addEventListener('input', (e)=> renderAssignList(e.target.value));
 document.getElementById('assignList').addEventListener('click', (e)=>{
   if(e.target.closest('[data-aff-suivi]')){
@@ -951,12 +1000,17 @@ function renderNomenclatureRowsHtml(t){
     const attendu = Number(row.nombre) || 0;
     const affecte = Math.min((parPupitre[row.pupitre] || new Set()).size, attendu || Infinity);
     const complet = attendu > 0 && affecte >= attendu;
+    // Trois états, et non deux : « rien d'affecté » n'est pas « il en manque ».
+    // Sur une tournée qu'on vient de créer, quatre lignes orange annonçaient un
+    // problème là où il n'y a qu'un travail pas encore commencé. Le gris dit
+    // « à faire », l'orange « commencé mais incomplet », le vert « complet ».
+    const etat = complet ? 'ok' : affecte === 0 ? 'vide' : 'manque';
     return `
     <div class="nomenclature-item" data-nomenclature-tournee="${escapeAttr(t.id)}" data-nomenclature-index="${i}">
       <select data-nomenclature-field="pupitre" class="nomen-pupitre">
         ${PUPITRE_ORDER.map(p=>`<option value="${escapeAttr(p)}" ${row.pupitre===p?'selected':''}>${escapeHtml(p)}</option>`).join('')}
       </select>
-      <span class="nomen-etat ${complet ? 'ok' : 'manque'}">
+      <span class="nomen-etat ${etat}">
         <input type="number" min="0" step="1" data-nomenclature-field="nombre" class="nomen-nombre"
           value="${row.nombre != null ? escapeAttr(String(row.nombre)) : ''}" title="Effectif attendu pour ce pupitre">
         <b>${affecte}/${attendu}</b> affecté·es
@@ -1138,15 +1192,26 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
               <button type="button" class="co-btn danger sm" data-del-tournee="${escapeAttr(t.id)}">Supprimer la tournée</button>
             </div>
           </div>
-          <div class="tournee-meta">${[
+          <div class="tournee-meta">
+            <span>${[
             `${dates.length} date${dates.length>1?'s':''}`,
             dates.filter(d=>d.statut==='validee').length ? `${dates.filter(d=>d.statut==='validee').length} validée${dates.filter(d=>d.statut==='validee').length>1?'s':''}` : '',
             dates.filter(d=>(d.statut||'option')==='option').length ? `${dates.filter(d=>(d.statut||'option')==='option').length} option${dates.filter(d=>(d.statut||'option')==='option').length>1?'s':''}` : '',
-          ].filter(Boolean).join(' · ')}</div>
+            ].filter(Boolean).join(' · ')}</span>
+            <button type="button" class="outils-toggle" data-toggle-outils="${escapeAttr(t.id)}"
+              aria-expanded="false" title="Cachet et effectif attendu">
+              <span class="outils-resume">${[
+                t.cachetStatut === 'defini' && t.cachetMontant != null ? `${t.cachetMontant} € / date` : 'cachet à définir',
+                overrideCount ? `${overrideCount} exception${overrideCount>1?'s':''}` : '',
+                (t.nomenclature||[]).length ? `${(t.nomenclature||[]).reduce((n,r)=>n+(Number(r.nombre)||0),0)} attendu·es` : '',
+              ].filter(Boolean).join(' · ')}</span>
+              <span class="outils-caret">▾</span>
+            </button>
+          </div>
           <!-- Cachet et effectif attendu sont désormais toujours affichés côte à
                côte, et non repliés derrière un bouton : ce sont deux réglages de
                tête de tournée qu'on consulte en même temps que les dates. -->
-          <div class="tournee-outils">
+          <div class="tournee-outils" id="outils-${escapeAttr(t.id)}" hidden>
             <div>
               <div class="outils-legend">Cachet</div>
               <div class="cachet-row">

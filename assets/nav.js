@@ -205,7 +205,11 @@ function injectCurieuxFooter(){
   if(document.querySelector('.co-footer')) return;
   const f = document.createElement('footer');
   f.className = 'co-footer';
-  f.innerHTML = 'Curieux orchestre · <a href="mentions-legales.html">Mentions légales et données personnelles</a>';
+  // Deux blocs plutôt qu'une phrase : le nom tient la gauche, la mention légale
+  // se détache à droite. Le point médian qui les séparait n'avait plus lieu
+  // d'être une fois les deux écartés.
+  f.innerHTML = '<span class="co-footer-nom">Curieux orchestre</span>'
+    + '<a href="mentions-legales.html">Mentions légales et données personnelles</a>';
   document.body.appendChild(f);
 }
 
