@@ -31,7 +31,10 @@
 // v4 : pdf-prise-en-main.js sait rendre un blob pour l'envoi WhatsApp.
 // v5 : correctifs d'audit — contraste des boutons secondaires en sombre
 // (base.css), widget de retour réduit en mobile (brand-assets.js).
-const VERSION = 'curieux-v5';
+// v6 : suite de l'audit visuel — matrices de vue d'ensemble étirées, panneaux
+// d'état vide coiffés d'une icône, boutons d'en-tête recollés à droite
+// (base.css).
+const VERSION = 'curieux-v6';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -629,7 +629,10 @@ let mouvementsEnEdition = [];
 // ============================================================================
 const SENS = {
   prepa:  ['prepa',  'Préparation'],
-  recup:  ['recup',  'Récupération'],
+  // La prise en charge du kit : le planning l'appelle déjà « Prise en charge ».
+  // La nommer « Récupération » ici entrait en collision avec la récupération
+  // d'un échange (bleue) au planning — même mot, deux couleurs, deux sens.
+  prise:  ['recup',  'Prise en charge'],
   sortie: ['sortie', 'Sortie'],
   entree: ['entree', 'Entrée'],
   retour: ['retour', 'Retour presta.'],
@@ -650,7 +653,7 @@ function evenementsDuLot(l){
   const evts = [];
   if(l.datePrepa)  evts.push({ date:l.datePrepa,  heure:'', sens:'prepa',  texte:'' });
   const pec = l.priseEnCharge || {};
-  if(pec.date) evts.push({ date:pec.date, heure:pec.heure || '', sens:'recup', texte:pec.notes || '' });
+  if(pec.date) evts.push({ date:pec.date, heure:pec.heure || '', sens:'prise', texte:pec.notes || '' });
   // Les allers-retours viennent des échanges, seule source qui sache dire ce
   // qui est parti et ce qui est revenu. L'ancien journal « mouvements » n'est
   // plus lu : il a été repris en échanges par la migration.

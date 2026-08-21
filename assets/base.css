@@ -88,6 +88,9 @@
   --shadow-card: 0 1px 2px rgba(20,22,23,.06), 0 8px 24px rgba(20,22,23,.08);
   --shadow-pop: 0 10px 30px rgba(121,22,73,.18);
   --font-body: 'Host Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Icône « bac vide » des panneaux d'état vide (.empty-hint.co-vide), posée en
+     masque pour reprendre la couleur du texte et suivre le thème. */
+  --ico-vide: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27%23000%27%20stroke-width%3D%271.5%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M22%2012h-6l-2%203h-4l-2-3H2%27%2F%3E%3Cpath%20d%3D%27M5.4%205.1%202%2012v6a2%202%200%200%200%202%202h16a2%202%200%200%200%202-2v-6l-3.4-6.9A2%202%200%200%200%2016.8%204H7.2a2%202%200%200%200-1.8%201.1z%27%2F%3E%3C%2Fsvg%3E");
 }
 
 /* Le thème sombre bascule l'accent du prune au glacier : voir applyAutoTheme(). */
@@ -162,6 +165,19 @@ h1, h1.co-h1{
 }
 .subtitle{color:var(--muted); margin:0 0 22px; font-size:14px;}
 .empty-hint{color:var(--muted); font-size:13.5px; padding:40px 4px; text-align:center;}
+/* Variante des états vides d'une section entière : une petite icône « bac vide »
+   coiffe le message pour qu'il se lise comme « rien à afficher pour l'instant »,
+   là où le texte centré nu passait pour un chargement resté coincé. Sans cadre :
+   ces vides apparaissent aussi bien dans une carte (admin) que nus sous un titre
+   (véhicules), et un cadre ferait boîte-dans-boîte dans le premier cas. À garder
+   pour les vides de section — pas les « Aucun résultat » glissés dans une ligne. */
+.empty-hint.co-vide{ padding:34px 22px; line-height:1.5; }
+.empty-hint.co-vide::before{
+  content:""; display:block; width:30px; height:30px; margin:0 auto 12px; opacity:.5;
+  background:var(--muted);
+  -webkit-mask:var(--ico-vide) center/contain no-repeat;
+          mask:var(--ico-vide) center/contain no-repeat;
+}
 button:active{transform:translateY(1px);}
 .btn-ghost:hover{background:var(--border); color:var(--text);}
 .btn-primary:hover{background:var(--accent-dark);}
@@ -441,6 +457,10 @@ body.co-has-topbar > .co-footer{ padding-left:16px; padding-right:16px; }
   gap:16px; flex-wrap:wrap; margin-bottom:20px;
 }
 .co-page-head > div:first-child{ min-width:0; }
+/* Les boutons d'action d'un en-tête restent collés à droite, même repoussés sur
+   une deuxième ligne par un groupe de filtres (annuaire musicien·nes) : sans ça
+   ils s'alignaient à gauche là, et à droite sur les pages sans filtres. */
+.co-page-head .co-actions{ margin-left:auto; }
 .co-page-head h1, h1.co-h1{
   font-family:var(--font-display); font-size:28px; line-height:1.15;
   margin:0 0 4px; color:var(--accent); font-weight:500; letter-spacing:.01em;
@@ -662,7 +682,11 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
 
 /* --- 12. Grands tableaux croisés (dispos, vue d'ensemble) ---------------- */
 .co-matrix{ overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--card); }
-.co-matrix-in{ min-width:max-content; }
+/* min-width:100% pour occuper toute la largeur quand il y a peu de dates (les
+   cellules s'élargissent alors via flex-grow, plus de bande blanche à droite) ;
+   width:max-content pour s'étendre au-delà et déclencher le défilement quand
+   il y en a beaucoup. */
+.co-matrix-in{ min-width:100%; width:max-content; }
 .co-matrix-row{ display:flex; border-bottom:1px solid var(--border); align-items:stretch; }
 .co-matrix-row:last-child{ border-bottom:none; }
 .co-matrix-name{
@@ -676,12 +700,12 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
   text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
 }
 .co-matrix-date{
-  width:76px; flex-shrink:0; padding:7px 4px; text-align:center; font-size:11px;
+  width:76px; flex:1 0 76px; padding:7px 4px; text-align:center; font-size:11px;
   color:var(--muted); font-weight:800; border-right:1px solid var(--border);
 }
 .co-matrix-date small{ font-weight:600; font-size:10px; display:block; }
 .co-matrix-cell{
-  width:76px; flex-shrink:0; display:grid; place-items:center;
+  width:76px; flex:1 0 76px; display:grid; place-items:center;
   padding:5px 0; border-right:1px solid var(--border);
 }
 .co-matrix-btn{
@@ -790,7 +814,7 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
 @media (max-width:760px){
   /* --- Matrice (vue d'ensemble, disponibilités) --- */
   .co-matrix{ overflow-x:visible; border:none; background:transparent; border-radius:0; }
-  .co-matrix-in{ min-width:0; }
+  .co-matrix-in{ min-width:0; width:auto; }
   /* Deux classes, et non .co-matrix-head seule : l'en-tête porte aussi
      .co-matrix-row, dont le display:block ci-dessous l'emporterait sinon —
      elles sont à égalité de spécificité et il est déclaré après. */

@@ -83,6 +83,20 @@
 
   @media (max-width:600px){
     input, select{ font-size:16px !important; }
+    /* Le tableau des comptes tenait ses 3 colonnes de force : le select de rôle
+       n'affichait plus que son chevron. Sous 600 px il devient une pile de
+       cartes, l'intitulé de colonne repris en préfixe de chaque ligne. */
+    #accountsTable, #accountsTable tbody, #accountsTable tr, #accountsTable td{ display:block; width:100%; }
+    #accountsTable thead{ display:none; }
+    #accountsTable tr{ border:1px solid var(--border); border-radius:12px; padding:10px 13px; margin-bottom:10px; }
+    #accountsTable td{ border:none; padding:5px 0; display:flex; justify-content:space-between; align-items:center; gap:14px; }
+    #accountsTable td::before{ content:attr(data-label); font-weight:700; color:var(--muted); font-size:12px; flex:0 0 auto; }
+    #accountsTable td.email{ font-weight:800; font-size:14px; padding-bottom:8px; }
+    #accountsTable td.email::before{ content:none; }
+    #accountsTable td .role-select{ flex:1 1 auto; max-width:60%; }
+    #accountsTable td:last-child{ padding-top:8px; }
+    #accountsTable td:last-child::before{ content:none; }
+    #accountsTable td:last-child .co-btn{ width:100%; }
   }
 </style>
 </head>
@@ -154,7 +168,7 @@
         </div>
       </div>
       <div id="bugList"></div>
-      <div id="bugEmpty" class="empty-hint">Chargement…</div>
+      <div id="bugEmpty" class="empty-hint co-vide">Chargement…</div>
     </div>
   </section>
 
@@ -178,7 +192,7 @@
           <tbody id="accountsBody"></tbody>
         </table>
       </div>
-      <div id="accountsEmpty" class="empty-hint">Chargement…</div>
+      <div id="accountsEmpty" class="empty-hint co-vide">Chargement…</div>
 
 
       <details class="add-account-form" style="margin-top:16px;">
@@ -276,7 +290,7 @@
         </div>
       </div>
       <div id="logList"></div>
-      <div id="logEmpty" class="empty-hint">Chargement…</div>
+      <div id="logEmpty" class="empty-hint co-vide">Chargement…</div>
     </div>
   </section>
 
@@ -457,13 +471,13 @@ function renderAccounts(){
   body.innerHTML = accountsCache.map(a=> `
     <tr data-email="${escapeHtml(a.email)}">
       <td class="email">${escapeHtml(a.email)}</td>
-      <td>
+      <td data-label="Rôle">
         <select class="role-select" data-email="${escapeHtml(a.email)}">
           <option value="user" ${a.role==='user'?'selected':''}>Utilisateur·rice</option>
           <option value="admin" ${a.role==='admin'?'selected':''}>Administrateur·rice</option>
         </select>
       </td>
-      <td>
+      <td data-label="Direction technique">
         <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:400; color:var(--muted);">
           <input type="checkbox" class="direction-technique-check" data-email="${escapeHtml(a.email)}"
             ${a.direction_technique ? 'checked' : ''} ${a.role==='admin' ? 'disabled' : ''}>
