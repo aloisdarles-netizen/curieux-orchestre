@@ -290,9 +290,15 @@ const CurieuxDB = new Proxy({
   // liste vide du Proxy ferait croire à un instantané présent mais sans entries.
   fetchSnapshot: async () => null,
   subscribe: () => {},
+  syncCollection: async () => ({ error: null }),
+  upsertOne: async () => ({ error: null }),
   getSession: async () => ({ user:{ id:'demo', email:'demo@curieux.fr' } }),
   hasAppAccess: async () => true,
-  isSuperAdmin: async () => true,
+  // « ?refus=admin » ou « ?refus=technique » dans l'URL fait répondre non au
+  // contrôle correspondant : c'est le seul moyen de capturer l'écran d'accès
+  // réservé, qu'on ne verrait jamais avec un compte autorisé.
+  isSuperAdmin: async () => !location.search.includes('refus=admin'),
+  hasDirectionTechniqueAccess: async () => !location.search.includes('refus=technique'),
   currentRole: async () => 'admin',
   mesDemandesDispo: async () => null,
   // Pages à jeton : la tournée est rendue telle qu'elle est en base (colonnes

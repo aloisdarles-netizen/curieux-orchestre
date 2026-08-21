@@ -57,11 +57,14 @@
     </div>
   </div>
 
+  <!-- Un pourcentage ne dit pas quoi faire : « 0 % » sur deux demandes reste
+       « 0 % » qu'il manque une réponse ou vingt. Ce qu'on vient chercher ici,
+       c'est combien de personnes sont encore en attente, et lesquelles n'ont
+       jamais ouvert leur lien — ce ne sont pas les mêmes relances. -->
   <div class="co-card co-pad-lg co-fade" id="resumeCard" style="margin-bottom:20px; display:none;">
+    <div class="co-stats co-stats-sm co-stats-charte" id="resumeChiffres" style="margin-bottom:14px;"></div>
     <div class="suivi-resume">
-      <span class="pct" id="resumePct">—</span>
       <div class="jauge">
-        <div class="co-progress"><i id="resumeJauge" style="width:0%;"></i></div>
         <div class="detail" id="resumeDetail"></div>
       </div>
       <button type="button" class="co-btn tonic md" id="relancerTousBtn" title="Ouvrir la première relance de chaque personne encore en attente">Relancer les retardataires</button>
@@ -102,6 +105,44 @@ function normalizeWhatsappPhone(phone){
   if(digits.startsWith('+')) digits = digits.slice(1);
   else if(digits.startsWith('0') && digits.length === 10) digits = '33' + digits.slice(1);
   return digits;
+}
+
+// Les liens des titulaires existent d'office.
+//
+// Il fallait auparavant les créer un par un, tournée par tournée : sur vingt
+// personnes et trois tournées, soixante clics avant de pouvoir seulement
+// commencer à demander les dispos — et un lien oublié, c'est quelqu'un qu'on
+// ne relance jamais parce qu'il n'apparaît nulle part.
+//
+// Ils sont donc posés au chargement, pour chaque titulaire et chaque tournée à
+// venir qui a au moins une date à répondre. L'opération est sans effet si les
+// liens existent déjà, et se fait en une seule écriture. Les remplaçant·es
+// gardent leur régime : on ne les sollicite qu'à la demande.
+async function assurerLiensTitulaires(tourneesAVenir){
+  const titulaires = [
+    ...loadMusicians().filter(m=> (m.statutPoste || 'titulaire') === 'titulaire').map(p=> ({ p, type:'musicien' })),
+    ...loadTechnicians().filter(t=> (t.statutPoste || 'titulaire') === 'titulaire').map(p=> ({ p, type:'technicien' })),
+  ];
+  if(titulaires.length === 0) return 0;
+
+  const existantes = new Set(loadDispoDemandes().map(d=> `${d.tourneeId}:${d.personType}:${d.personId}`));
+  const aCreer = [];
+  tourneesAVenir.forEach(t=>{
+    if(!(t.dates || []).some(d=> d.date && d.statut !== 'annulee')) return;
+    titulaires.forEach(({ p, type })=>{
+      if(existantes.has(`${t.id}:${type}:${p.id}`)) return;
+      aCreer.push({ id: genId('demande'), tourneeId: t.id, personType: type, personId: p.id, dates: [] });
+    });
+  });
+  if(aCreer.length === 0) return 0;
+
+  const { error } = await CurieuxDB.syncCollection('dispo_demandes', aCreer);
+  if(error){
+    console.warn('[suivi-dispo] création des liens titulaires', error.message);
+    return 0;
+  }
+  dispoDemandesCache = [...dispoDemandesCache, ...aCreer];
+  return aCreer.length;
 }
 
 async function generateDispoLink(tourneeId, personType, personId, dates){
@@ -355,7 +396,8 @@ async function markReminderSent(demandeId){
 function renderResume(tournees){
   const carte = document.getElementById('resumeCard');
   const demandes = loadDispoDemandes();
-  let total = 0, completes = 0, partielles = 0;
+  let total = 0, completes = 0, partielles = 0, jamaisOuvertes = 0, relancees = 0;
+  const tourneesEnRetard = new Map();
   tournees.forEach(t=>{
     const answerable = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
     demandes.filter(d=> d.tourneeId === t.id).forEach(dem=>{
@@ -369,18 +411,40 @@ function renderResume(tournees){
       if(pertinentes.length === 0) return;
       total++;
       const manquantes = pertinentes.filter(d=> !dispo[d.date]).length;
-      if(manquantes === 0) completes++;
-      else if(manquantes < pertinentes.length) partielles++;
+      if(manquantes === 0){ completes++; return; }
+      // Une personne qui n'a rien répondu du tout et une personne qui a répondu
+      // à moitié n'appellent pas la même relance : on les compte à part.
+      if(manquantes === pertinentes.length) jamaisOuvertes++; else partielles++;
+      if(dem.lastReminderAt) relancees++;
+      tourneesEnRetard.set(t.id, (tourneesEnRetard.get(t.id) || 0) + 1);
     });
   });
   if(total === 0){ carte.style.display = 'none'; return; }
   carte.style.display = '';
-  const pct = Math.round(completes / total * 100);
-  document.getElementById('resumePct').textContent = pct + ' %';
-  document.getElementById('resumeJauge').style.width = pct + '%';
-  document.getElementById('resumeDetail').textContent =
-    `${completes} réponse${completes>1?'s':''} complète${completes>1?'s':''} sur ${total}`
-    + ` · ${partielles} partielle${partielles>1?'s':''} · ${total - completes - partielles} en attente`;
+
+  const attente = total - completes;
+  const tuile = (nombre, libelle)=>
+    `<div class="co-stat"><div class="co-stat-num">${nombre}</div><div class="co-stat-label">${libelle}</div></div>`;
+  document.getElementById('resumeChiffres').innerHTML = [
+    tuile(attente, attente > 1 ? 'personnes à relancer' : 'personne à relancer'),
+    tuile(jamaisOuvertes, jamaisOuvertes > 1 ? 'sans aucune réponse' : 'sans aucune réponse'),
+    tuile(partielles, partielles > 1 ? 'réponses partielles' : 'réponse partielle'),
+    tuile(completes, completes > 1 ? 'réponses complètes' : 'réponse complète'),
+  ].join('');
+
+  const detail = [];
+  if(attente === 0) detail.push('Tout le monde a répondu.');
+  else {
+    const noms = [...tourneesEnRetard.entries()]
+      .sort((a, b)=> b[1] - a[1])
+      .map(([id, n])=>{
+        const t = tournees.find(x=> x.id === id);
+        return `${(t && t.nom) || 'Tournée'} (${n})`;
+      });
+    detail.push('En attente sur : ' + noms.join(' · ') + '.');
+    if(relancees) detail.push(`${relancees} déjà relancée${relancees > 1 ? 's' : ''} au moins une fois.`);
+  }
+  document.getElementById('resumeDetail').textContent = detail.join(' ');
 }
 
 async function relancerRetardataires(){
@@ -630,6 +694,13 @@ async function initData(){
     CurieuxDB.fetchAll('dispo_demandes'),
   ]);
   render();
+
+  // Après un premier rendu — la page s'affiche tout de suite, les liens
+  // manquants se posent derrière et déclenchent un second rendu s'il y en a.
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const aVenir = tourneesCache.filter(t=>
+    !((t.dates || []).length > 0 && (t.dates || []).every(d=> d.date && d.date < aujourdhui)));
+  if(await assurerLiensTitulaires(aVenir)) render();
 }
 CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; curieuxRafraichir(render); }); });
 CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; curieuxRafraichir(render); }); });

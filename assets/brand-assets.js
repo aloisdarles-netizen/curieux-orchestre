@@ -229,6 +229,38 @@ async function requireAdminAuth(){
   location.replace('admin-login.html?redirect=' + encodeURIComponent(here));
 }
 
+// Une personne connectée qui n'a pas le droit d'être là était jusqu'ici
+// renvoyée sans un mot : vers l'accueil pour la direction technique, vers
+// l'écran de connexion pour les zones admin — alors qu'elle EST connectée.
+// Dans les deux cas elle se retrouvait ailleurs sans savoir pourquoi, et
+// pouvait légitimement croire à une panne.
+//
+// On le lui dit donc, en toutes lettres, et on la laisse repartir d'elle-même.
+// Le contenu réservé n'est jamais rendu : c'est bien un refus, pas un voile.
+function afficherAccesReserve(titre, explication, email){
+  const hideStyle = document.getElementById('curieux-lock-hide');
+  if(hideStyle) hideStyle.remove();
+  document.title = 'Curieux orchestre — Accès réservé';
+  document.body.innerHTML = `
+    <div style="min-height:100vh; display:grid; place-items:center; padding:24px; background:var(--bg);">
+      <div style="max-width:440px; background:var(--card); border:1px solid var(--border);
+                  border-radius:var(--radius-lg, 22px); padding:30px 28px; text-align:center;">
+        <div style="width:46px; height:46px; margin:0 auto 16px; border-radius:14px;
+                    background:var(--champagne); color:var(--accent); display:grid; place-items:center;">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"></rect>
+            <path d="M8 11V7.5a4 4 0 0 1 8 0V11" fill="none" stroke="currentColor" stroke-width="1.7"></path>
+          </svg>
+        </div>
+        <h1 style="font-family:var(--font-display); font-size:24px; font-weight:500; color:var(--accent); margin:0 0 10px;">${titre}</h1>
+        <p style="font-size:14px; line-height:1.6; color:var(--text); margin:0 0 6px;">${explication}</p>
+        ${email ? `<p style="font-size:12.5px; color:var(--muted); margin:0 0 20px;">Tu es connecté·e en tant que ${email}.</p>` : '<div style="height:14px;"></div>'}
+        <a href="accueil.html" style="display:inline-block; background:var(--accent-solid); color:#FCF2F0;
+           text-decoration:none; font-weight:800; font-size:13px; padding:11px 22px; border-radius:999px;">Retour à l'accueil</a>
+      </div>
+    </div>`;
+}
+
 // Même chose, mais exige le rôle 'admin' précisément (pas juste 'user') —
 // utilisé par les zones réservées : infos sociales, tableau de bord admin.
 // Passe level=admin à admin-login.html : SANS ça, un compte 'user' connecté
@@ -241,6 +273,15 @@ async function requireSuperAdminAuth(){
       const hideStyle = document.getElementById('curieux-lock-hide');
       if(hideStyle) hideStyle.remove();
       try{ injectAdminLogoutButton(session.user.email); }catch(e){}
+      return;
+    }
+    // Connecté·e, mais sans le rôle : le renvoyer à l'écran de connexion
+    // laissait croire à un problème d'identifiants. Ce n'en est pas un.
+    if(session){
+      afficherAccesReserve(
+        'Section réservée',
+        "Cette section est réservée aux comptes administrateur·rice — elle donne accès à des données personnelles et aux réglages de l'outil. Demande à un·e administrateur·rice de t'y ajouter si tu en as besoin.",
+        session.user && session.user.email);
       return;
     }
   }catch(e){ console.warn('[requireSuperAdminAuth]', e); }
@@ -268,7 +309,10 @@ async function requireDirectionTechniqueAuth(){
         try{ injectAdminLogoutButton(session.user.email); }catch(e){}
         return;
       }
-      location.replace('accueil.html');
+      afficherAccesReserve(
+        'Direction technique',
+        "Cette section est réservée aux personnes qui suivent la technique des tournées. Un·e administrateur·rice peut t'y donner accès depuis le tableau de bord, en cochant « Direction technique » sur ton compte.",
+        session.user && session.user.email);
       return;
     }
   }catch(e){ console.warn('[requireDirectionTechniqueAuth]', e); }
