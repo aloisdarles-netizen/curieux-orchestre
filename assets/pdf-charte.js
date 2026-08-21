@@ -457,6 +457,76 @@ function creerComposeurPdf(doc, options){
     return api;
   };
 
+  /* Rubriques — la composition éditoriale de la feuille de route : un filet
+     prune, l'intitulé en petites capitales, un trait fin sous le titre, puis
+     des couples clé/valeur séparés par des hairlines. Pas de carte, pas de
+     cadre : le blanc et les filets font la structure.
+
+     C'est plus lisible que la grille de cartes quand une entrée porte quelques
+     lignes de texte plutôt que des valeurs courtes — la carte contraint la
+     largeur, la rubrique prend la page.
+
+     blocs : [{ titre, lignes:[[clé, valeur], …] }] */
+  api.rubriques = function(blocs){
+    const utiles = (blocs || []).filter(b=> b && (b.lignes || []).length);
+    if(!utiles.length) return api;
+
+    sections.push((k, dessiner, yDepart)=>{
+      const ptTitre = 8 * k, ptTexte = 8.6 * k;
+      const largeurCle = Math.max(26 * k, utile * 0.2);
+      const largeurVal = utile - largeurCle - 3 * k;
+      let y = yDepart;
+
+      utiles.forEach((b, iBloc)=>{
+        if(iBloc > 0) y += 3.5 * k;
+
+        // Titre : filet vertical prune, intitulé en capitales espacées.
+        doc.setFont('Host', 'bold'); doc.setFontSize(ptTitre);
+        const hTitre = hLigne(ptTitre);
+        if(dessiner){
+          fond(PDF_CHARTE.prune);
+          doc.rect(o.marge, y + hTitre * 0.12, 1.1 * k, hTitre * 0.78, 'F');
+          encre(PDF_CHARTE.prune);
+          doc.setCharSpace(0.1 * k);
+          doc.text(String(b.titre || '').toUpperCase(), o.marge + 3.2 * k, y, { baseline:'top' });
+          doc.setCharSpace(0);
+        }
+        y += hTitre + 1.6 * k;
+        if(dessiner){
+          trait(PDF_CHARTE.bord); doc.setLineWidth(0.25);
+          doc.line(o.marge, y, o.marge + utile, y);
+        }
+        y += 2.4 * k;
+
+        // Lignes : clé à gauche en gras prune, valeur à droite, hairline dessous.
+        b.lignes.forEach(([cle, val])=>{
+          doc.setFontSize(ptTexte);
+          doc.setFont('Host', 'bold');
+          const lCle = lignes(cle, largeurCle);
+          doc.setFont('Host', 'normal');
+          const lVal = lignes(valeurTexte(val), largeurVal);
+          const h = Math.max(lCle.length, lVal.length) * hLigne(ptTexte);
+          if(dessiner){
+            doc.setFont('Host', 'bold'); encre(PDF_CHARTE.prune);
+            doc.text(lCle, o.marge, y, { baseline:'top' });
+            doc.setFont('Host', 'normal'); encre(PDF_CHARTE.noir);
+            doc.text(lVal, o.marge + largeurCle + 3 * k, y, { baseline:'top' });
+            const lien = valeurLien(val);
+            if(lien) doc.link(o.marge + largeurCle + 3 * k, y, largeurVal, h, { url: lien });
+          }
+          y += h + 2 * k;
+          if(dessiner){
+            trait(PDF_CHARTE.bord); doc.setLineWidth(0.15);
+            doc.line(o.marge, y - 1 * k, o.marge + utile, y - 1 * k);
+          }
+        });
+      });
+
+      return y - yDepart + 2 * k;
+    });
+    return api;
+  };
+
   // Une section dessinée à la main, pour ce que la charte ne prévoit pas — un
   // QR code, par exemple. Elle reçoit l'échelle en cours et la boîte à outils
   // du composeur, et rend sa hauteur comme n'importe quelle autre section :

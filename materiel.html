@@ -48,7 +48,34 @@
   fieldset.groupe legend{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); padding:0 6px; font-weight:700;}
   .sous-ligne{display:flex; gap:8px; align-items:flex-start; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:9px 10px; margin-bottom:8px;}
   .sous-ligne > *{flex:1; min-width:0;}
+  /* Un mouvement tient sur deux lignes : les repères courts (date, heure, sens)
+     en tête, la description en dessous sur toute la largeur. En une seule ligne
+     elle se partageait la place avec le bouton Retirer et n'affichait pas trois
+     mots — or c'est elle qui porte le pourquoi du mouvement. */
+  .mvt-ligne{flex-direction:column; gap:8px;}
+  .mvt-ligne > *{flex:none; width:100%;}
+  .mvt-tete{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .mvt-tete > *{flex:0 0 auto;}
+  .mvt-tete .sous-retirer{margin-left:auto;}
+  .mvt-desc{width:100%; min-height:52px; resize:vertical; font-family:inherit;}
   .sous-retirer{flex:0 0 auto !important;}
+
+  /* Répertoire des prestataires — replié par défaut : on y va pour corriger une
+     adresse, pas à chaque visite. */
+  .prestataires{margin-bottom:18px;}
+  .prestataires > summary{cursor:pointer; list-style:none; display:flex; justify-content:space-between;
+    align-items:center; gap:10px; font-weight:800; font-size:14.5px;}
+  .prestataires > summary::-webkit-details-marker{display:none;}
+  .prestataires > summary::after{content:'▾'; color:var(--muted); font-size:12px;}
+  .prestataires[open] > summary::after{content:'▴';}
+  .prestataires > summary .resume{font-weight:600; font-size:12.5px; color:var(--muted);}
+  .presta-ligne{display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--border);}
+  .presta-ligne:first-child{border-top:none;}
+  .presta-corps{flex:1; min-width:0;}
+  .presta-nom{font-weight:800; font-size:14px;}
+  .presta-adresse{font-size:13px; margin-top:2px;}
+  .presta-adresse.absente{color:var(--ko); font-weight:700;}
+  .presta-sub{font-size:12.5px; color:var(--muted); margin-top:2px;}
 
   /* ==========================================================================
      Agenda du matériel.
@@ -159,8 +186,41 @@
     </div>
   </section>
 
+  <!-- Les adresses des prestataires ne vivaient nulle part : elles se
+       demandaient au vol, en trois « prompt » enchaînés, à la création d'un lot
+       — et se corrigeaient donc nulle part. Elles ont maintenant leur endroit,
+       et c'est de là qu'elles partent sur les feuilles de mission. -->
+  <details class="co-card co-pad prestataires co-fade" id="prestatairesPanneau">
+    <summary>
+      <span>Prestataires</span>
+      <span class="resume" id="prestatairesResume">—</span>
+    </summary>
+    <p class="subtitle" style="margin:8px 0 12px;">Chez qui on prend et où l'on rend. L'adresse et le contact sur place partent tels quels sur la feuille de mission d'un chauffeur.</p>
+    <div id="prestatairesListe"></div>
+    <button type="button" class="co-btn secondary sm" id="addPrestataireBtn">+ Ajouter un prestataire</button>
+  </details>
+
   <div id="lotsListe"></div>
   <div class="empty-hint" id="lotsEmpty" style="display:none;">Aucun lot enregistré.</div>
+</div>
+
+<div class="modal-overlay" id="prestModalOverlay">
+  <div class="modal" style="max-width:520px;">
+    <h2 id="prestModalTitle">Ajouter un prestataire</h2>
+    <input type="hidden" id="pEditId">
+    <div class="field"><label for="pNom">Nom</label><input type="text" id="pNom" placeholder="Ex: DUSHOW"></div>
+    <div class="field"><label for="pAdresse">Adresse</label><textarea id="pAdresse" placeholder="Numéro, rue, code postal, ville — telle qu'un chauffeur la tapera dans son GPS"></textarea></div>
+    <div class="field-row">
+      <div class="field"><label for="pContact">Contact sur place</label><input type="text" id="pContact" placeholder="Ex: Sylvain, magasin"></div>
+      <div class="field"><label for="pTelephone">Téléphone</label><input type="tel" id="pTelephone" placeholder="01 48 09 20 20"></div>
+    </div>
+    <div class="field"><label for="pNotes">Notes</label><textarea id="pNotes" placeholder="Horaires du magasin, code du portail, quai à utiliser…"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="co-btn danger" id="prestDeleteBtn" style="margin-right:auto; display:none;">Supprimer</button>
+      <button type="button" class="co-btn ghost" id="prestCancelBtn">Annuler</button>
+      <button type="button" class="co-btn primary" id="prestSaveBtn">Enregistrer</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="lotModalOverlay">
@@ -249,21 +309,124 @@ function fillProvenanceSelect(){
     + prestatairesCache.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')
     + `<option value="__nouveau__">+ Nouveau prestataire…</option>`;
 }
-document.getElementById('lProvenance').addEventListener('change', async (e)=>{
+// « + Nouveau prestataire… » ouvre la même fenêtre que le répertoire, plutôt
+// que trois « prompt » enchaînés : on y voit ce qu'on a saisi, on peut revenir
+// en arrière, et l'adresse s'y corrige plus tard.
+document.getElementById('lProvenance').addEventListener('change', (e)=>{
   if(e.target.value !== '__nouveau__') return;
-  const nom = prompt('Nom du prestataire :');
-  if(!nom || !nom.trim()){ e.target.value = ''; return; }
-  // L'adresse et le téléphone se demandent tout de suite : ce sont eux qui
-  // rendront la feuille de mission d'un chauffeur utilisable. Facultatifs —
-  // on ne bloque pas la création d'un lot pour ça.
-  const adresse = prompt(`Adresse de « ${nom.trim()} » — pour les feuilles de mission :`) || '';
-  const telephone = prompt('Téléphone sur place (facultatif) :') || '';
-  const obj = { id: genId('prest'), nom: nom.trim(), notes: '',
-    adresse: adresse.trim(), telephone: telephone.trim(), contactNom: '' };
+  e.target.value = '';
+  ouvrirPrestModal(null, (cree)=>{
+    fillProvenanceSelect();
+    document.getElementById('lProvenance').value = cree.id;
+  });
+});
+
+// ============================================================================
+// Répertoire des prestataires
+//
+// Chez qui on prend, où l'on rend, et qui appeler sur place. L'adresse saisie
+// ici est celle qui part sur la feuille de mission d'un chauffeur : sans elle,
+// la feuille l'envoie nulle part — d'où le rappel en rouge quand elle manque.
+// ============================================================================
+let prestRetourAppel = null;
+
+function renderPrestataires(){
+  const box = document.getElementById('prestatairesListe');
+  const liste = prestatairesCache.slice().sort((a, b)=> (a.nom || '').localeCompare(b.nom || '', 'fr'));
+  const sansAdresse = liste.filter(p=> !(p.adresse || '').trim()).length;
+  document.getElementById('prestatairesResume').textContent = liste.length === 0
+    ? 'aucun'
+    : `${liste.length} prestataire${liste.length > 1 ? 's' : ''}`
+      + (sansAdresse ? ` · ${sansAdresse} sans adresse` : '');
+
+  box.innerHTML = liste.map(p=>{
+    const sub = [p.contactNom, p.telephone].filter(Boolean).join(' · ');
+    return `
+      <div class="presta-ligne">
+        <div class="presta-corps">
+          <div class="presta-nom">${escapeHtml(p.nom || 'Sans nom')}</div>
+          ${p.adresse
+            ? `<div class="presta-adresse">${escapeHtml(p.adresse)}</div>`
+            : `<div class="presta-adresse absente">Adresse manquante — une feuille de mission ne pourra pas y envoyer un chauffeur.</div>`}
+          ${sub ? `<div class="presta-sub">${escapeHtml(sub)}</div>` : ''}
+          ${p.notes ? `<div class="presta-sub">${escapeHtml(p.notes)}</div>` : ''}
+        </div>
+        <button type="button" class="co-btn ghost sm" data-presta-edit="${escapeAttr(p.id)}">Modifier</button>
+      </div>`;
+  }).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun prestataire enregistré.</p>`;
+
+  box.querySelectorAll('[data-presta-edit]').forEach(b=>
+    b.addEventListener('click', ()=> ouvrirPrestModal(b.dataset.prestaEdit)));
+}
+
+function ouvrirPrestModal(id, retourAppel){
+  prestRetourAppel = retourAppel || null;
+  const p = id ? prestatairesCache.find(x=> x.id === id) : null;
+  document.getElementById('prestModalTitle').textContent = p ? `Modifier ${p.nom || 'le prestataire'}` : 'Ajouter un prestataire';
+  document.getElementById('pEditId').value = p ? p.id : '';
+  document.getElementById('pNom').value = p ? (p.nom || '') : '';
+  document.getElementById('pAdresse').value = p ? (p.adresse || '') : '';
+  document.getElementById('pContact').value = p ? (p.contactNom || '') : '';
+  document.getElementById('pTelephone').value = p ? (p.telephone || '') : '';
+  document.getElementById('pNotes').value = p ? (p.notes || '') : '';
+  document.getElementById('prestDeleteBtn').style.display = p ? 'inline-flex' : 'none';
+  document.getElementById('prestModalOverlay').classList.add('open');
+  document.getElementById('pNom').focus();
+}
+function fermerPrestModal(){
+  document.getElementById('prestModalOverlay').classList.remove('open');
+  prestRetourAppel = null;
+}
+
+document.getElementById('addPrestataireBtn').addEventListener('click', ()=> ouvrirPrestModal(null));
+document.getElementById('prestCancelBtn').addEventListener('click', fermerPrestModal);
+document.getElementById('prestModalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'prestModalOverlay') fermerPrestModal();
+});
+
+document.getElementById('prestSaveBtn').addEventListener('click', async ()=>{
+  const nom = document.getElementById('pNom').value.trim();
+  if(!nom){ alert('Il faut au moins un nom.'); return; }
+  const id = document.getElementById('pEditId').value;
+  const obj = {
+    id: id || genId('prest'),
+    nom,
+    adresse: document.getElementById('pAdresse').value.trim(),
+    contactNom: document.getElementById('pContact').value.trim(),
+    telephone: document.getElementById('pTelephone').value.trim(),
+    notes: document.getElementById('pNotes').value.trim(),
+  };
   await CurieuxDB.upsertOne('prestataires', obj);
-  prestatairesCache.push(obj);
+  const i = prestatairesCache.findIndex(x=> x.id === obj.id);
+  if(i >= 0) prestatairesCache[i] = obj; else prestatairesCache.push(obj);
+  const suite = prestRetourAppel;
+  fermerPrestModal();
+  renderPrestataires();
   fillProvenanceSelect();
-  document.getElementById('lProvenance').value = obj.id;
+  // Un nom ou une adresse qui change se répercute sur l'agenda et sur les
+  // feuilles de mission qu'on en tire.
+  renderAgenda();
+  render();
+  if(suite) suite(obj);
+});
+
+document.getElementById('prestDeleteBtn').addEventListener('click', async ()=>{
+  const id = document.getElementById('pEditId').value;
+  const p = prestatairesCache.find(x=> x.id === id);
+  if(!p) return;
+  const utilise = lotsCache.filter(l=> l.provenanceId === id);
+  if(utilise.length){
+    alert(`Impossible : ${utilise.length} lot${utilise.length > 1 ? 's' : ''} en provient encore`
+      + ` (${utilise.map(l=> l.nom || 'sans nom').join(', ')}).\n\n`
+      + `Change leur provenance d'abord.`);
+    return;
+  }
+  if(!confirm(`Supprimer ${p.nom} du répertoire ?`)) return;
+  await CurieuxDB.removeOne('prestataires', id);
+  prestatairesCache = prestatairesCache.filter(x=> x.id !== id);
+  fermerPrestModal();
+  renderPrestataires();
+  fillProvenanceSelect();
 });
 
 // Les éléments d'un lot ne sont plus affichés ni édités ici — la valeur
@@ -276,15 +439,17 @@ document.getElementById('lProvenance').addEventListener('change', async (e)=>{
 let mouvementsEnEdition = [];
 function renderMouvementsEdition(){
   document.getElementById('mouvementsListe').innerHTML = mouvementsEnEdition.map((mv,i)=>`
-    <div class="sous-ligne">
-      <input type="date" style="flex:0 0 145px;" data-i="${i}" data-f="date" value="${mv.date||''}">
-      <input type="time" style="flex:0 0 100px;" data-i="${i}" data-f="heure" value="${mv.heure||''}">
-      <select style="flex:0 0 110px;" data-i="${i}" data-f="type">
-        <option value="sortie" ${mv.type==='sortie'?'selected':''}>Sortie</option>
-        <option value="entree" ${mv.type==='entree'?'selected':''}>Entrée</option>
-      </select>
-      <input type="text" data-i="${i}" data-f="description" value="${escapeHtml(mv.description||'')}" placeholder="Ex: échange de console, retour non utilisé…">
-      <button type="button" class="co-btn danger sm sous-retirer" data-retirer="${i}">Retirer</button>
+    <div class="sous-ligne mvt-ligne">
+      <div class="mvt-tete">
+        <input type="date" style="width:150px;" data-i="${i}" data-f="date" value="${mv.date||''}" aria-label="Date du mouvement ${i+1}">
+        <input type="time" style="width:105px;" data-i="${i}" data-f="heure" value="${mv.heure||''}" aria-label="Heure du mouvement ${i+1}">
+        <select style="width:115px;" data-i="${i}" data-f="type" aria-label="Sens du mouvement ${i+1}">
+          <option value="sortie" ${mv.type==='sortie'?'selected':''}>Sortie</option>
+          <option value="entree" ${mv.type==='entree'?'selected':''}>Entrée</option>
+        </select>
+        <button type="button" class="co-btn danger sm sous-retirer" data-retirer="${i}">Retirer</button>
+      </div>
+      <textarea class="mvt-desc" data-i="${i}" data-f="description" placeholder="Ce qui sort ou rentre, et pourquoi — ex : échange de console, retour des barres non utilisées, complément de 6 découpes…" aria-label="Description du mouvement ${i+1}">${escapeHtml(mv.description||'')}</textarea>
     </div>
   `).join('') || `<p class="empty-hint" style="padding:8px 0;">Aucun mouvement.</p>`;
   document.querySelectorAll('#mouvementsListe [data-f]').forEach(inp=> inp.addEventListener('input', ()=>{
@@ -511,8 +676,11 @@ function feuilleMissionPdf(){
     mention: 'Feuille de mission',
   });
 
+  // Composition éditoriale, comme la feuille de route : un filet prune par
+  // arrêt, puis des couples clé/valeur séparés de hairlines. La grille de
+  // cartes bridait la largeur, or « Précisions » porte souvent une phrase.
   const champ = (cle, val)=> val ? [cle, String(val)] : null;
-  page.grilleAeree(arrets.map((evt, i)=>{
+  page.rubriques(arrets.map((evt, i)=>{
     const d = detailArret(evt);
     return { titre: `Arrêt ${i + 1} — ${d.quand}`, lignes: [
       champ('Chez', d.chez),
@@ -719,10 +887,16 @@ async function initData(){
     CurieuxDB.fetchAll('lots_materiel'), CurieuxDB.fetchAll('prestataires'),
     CurieuxDB.fetchAll('chauffeurs'),
   ]);
+  renderPrestataires();
   render();
 }
 CurieuxDB.subscribe('lots_materiel', ()=> CurieuxDB.fetchAll('lots_materiel').then(l=>{ lotsCache=l; curieuxRafraichir(render); }));
-CurieuxDB.subscribe('prestataires', ()=> CurieuxDB.fetchAll('prestataires').then(l=>{ prestatairesCache=l; }));
+CurieuxDB.subscribe('prestataires', ()=> CurieuxDB.fetchAll('prestataires').then(l=>{
+  prestatairesCache = l;
+  // Une adresse corrigée depuis un autre poste doit se voir ici aussi, et
+  // repartir juste sur la prochaine feuille de mission.
+  curieuxRafraichir(()=>{ renderPrestataires(); fillProvenanceSelect(); render(); });
+}));
 
 injectCurieuxFonts();
 applyAutoTheme();

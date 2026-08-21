@@ -28,7 +28,7 @@ function etapesPriseEnMain(estTitulaire){
       sous: "Quand une tournée se prépare, tu reçois un message. Coche les dates où tu es libre, celles où tu ne l'es pas, et celles dont tu n'es pas sûr·e. Tu peux revenir dessus tant que rien n'est arrêté.",
     },
     {
-      titre: 'Remplis ton dossier une bonne fois',
+      titre: 'Remplis ton dossier une seule fois (vraiment !)',
       sous: "Identité, adresse, numéro de sécurité sociale, RIB : ce qu'il faut pour t'établir un contrat et te payer. C'est à remplir une fois, pas à chaque tournée.",
     },
   ];
@@ -40,7 +40,13 @@ function etapesPriseEnMain(estTitulaire){
   }
   etapes.push({
     titre: "Installe-le sur ton téléphone",
-    sous: "Ouvre ton lien sur ton mobile : l'espace propose de s'ajouter à l'écran d'accueil, comme une application. C'est là qu'il est le plus commode.",
+    sous: "Ouvre ton lien sur ton mobile, puis ajoute-le à l'écran d'accueil : il s'ouvrira ensuite "
+      + "comme une application, en plein écran, sans barre d'adresse ni onglet à retrouver — et "
+      + "sans avoir à recoller le lien à chaque fois. "
+      + "Sur iPhone, depuis Safari : touche le bouton Partager (le carré avec une flèche vers le "
+      + "haut, en bas de l'écran), fais défiler, puis « Sur l'écran d'accueil ». "
+      + "Sur Android, depuis Chrome : touche les trois points en haut à droite, puis « Ajouter à "
+      + "l'écran d'accueil » — ou accepte la bannière d'installation si elle apparaît d'elle-même.",
   });
   return etapes.map((e, i)=> ({ titre: `${i + 1}. ${e.titre}`, sous: e.sous, puces: [] }));
 }
@@ -106,7 +112,7 @@ function blocLienPersonnel(composeur, lien){
     doc.setFont('Host', 'normal'); doc.setFontSize(8 * k);
     o.encre(o.charte.muted);
     doc.text(o.lignes(matrice
-      ? "Scanne le carré avec l'appareil photo de ton téléphone, ou clique l'adresse. Ce lien est à toi, il ne change pas — garde-le."
+      ? "Scanne le qr-code avec l'appareil photo de ton téléphone, ou clique sur le lien. Ce lien est à toi, il ne change pas — garde-le."
       : "Ce lien est à toi, il ne change pas — garde-le.", largeur),
       xTexte, yTexte, { baseline:'top' });
 
