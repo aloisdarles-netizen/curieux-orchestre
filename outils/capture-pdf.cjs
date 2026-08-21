@@ -28,6 +28,9 @@ const selecteur = process.argv[3] || '[data-pdf]';
   const erreurs = [];
   page.on('pageerror', (e) => erreurs.push(String(e).slice(0, 200)));
   page.on('console', (m) => { if (m.type() === 'error') erreurs.push(m.text().slice(0, 200)); });
+  // Playwright referme seul les alertes : sans ce témoin, un export refusé par
+  // une alerte ressemble à un export qui n'a jamais répondu.
+  page.on('dialog', (d) => { erreurs.push(`alerte : ${d.message().slice(0, 160)}`); d.dismiss().catch(() => {}); });
 
   const [fichier, requete] = cible.split('?');
   await page.goto(`${BASE}/${fichier}.html${requete ? '?' + requete : ''}`, { waitUntil: 'networkidle', timeout: 20000 });
@@ -35,12 +38,13 @@ const selecteur = process.argv[3] || '[data-pdf]';
   // pdf-charte.js) : sans cette pause, on capture un document sans logo.
   await page.waitForTimeout(1200);
 
-  // Quatrième argument : un sélecteur à cliquer d'abord — pour atteindre la
-  // date dont on veut l'export avant d'appuyer sur le bouton.
-  if (process.argv[4]) {
-    const prealable = await page.$(process.argv[4]);
-    if (prealable) { await prealable.click(); await page.waitForTimeout(500); }
-    else console.log(`  (rien à cliquer pour « ${process.argv[4]} »)`);
+  // Quatrième argument : les sélecteurs à cliquer d'abord, séparés par « | » —
+  // pour atteindre la date voulue, ou cocher les arrêts d'une mission, avant
+  // d'appuyer sur le bouton d'export.
+  for (const sel of (process.argv[4] || '').split('|').filter(Boolean)) {
+    const prealable = await page.$(sel);
+    if (prealable) { await prealable.click(); await page.waitForTimeout(300); }
+    else console.log(`  (rien à cliquer pour « ${sel} »)`);
   }
 
   const bouton = await page.$(selecteur);
@@ -52,7 +56,15 @@ const selecteur = process.argv[3] || '[data-pdf]';
 
   const attente = page.waitForEvent('download', { timeout: 20000 });
   await bouton.click();
-  const telechargement = await attente;
+  let telechargement = null;
+  try { telechargement = await attente; }
+  catch {
+    console.log(`Aucun téléchargement après le clic sur « ${selecteur} ».`);
+    erreurs.forEach((e) => console.log(`  · ${e}`));
+    await browser.close();
+    process.exitCode = 1;
+    return;
+  }
   const chemin = path.join(OUT, `${fichier}.pdf`);
   await telechargement.saveAs(chemin);
 

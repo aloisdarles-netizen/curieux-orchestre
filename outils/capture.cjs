@@ -56,7 +56,13 @@ const SEED = {
   ],
   // Un lot, un sous-lot et un lot sans provenance, avec des mouvements des deux
   // sens : sans eux, l'agenda du matériel se capture vide et ne dit rien.
-  prestataires: [{ id:'demo-prest-01', nom:'DUSHOW', notes:'' }],
+  prestataires: [{ id:'demo-prest-01', nom:'DUSHOW', notes:'',
+    adresse:'12 rue de la Fonderie, 93200 Saint-Denis', telephone:'01 48 09 20 20',
+    contactNom:'Sylvain, magasin' }],
+  chauffeurs: [
+    { id:'demo-chauf-01', prenom:'Bruno', nom:'Marchand', telephone:'06 45 78 91 23', email:'' },
+    { id:'demo-chauf-02', prenom:'Sonia', nom:'Vialla', telephone:'06 77 12 34 56', email:'' },
+  ],
   lots_materiel: [
     { id:'demo-lot-01', nom:'kit light', categorie:'lumiere', parentId:'', provenanceId:'demo-prest-01',
       description:'', elements:[], datePrepa:'2027-03-10', datePickup:'2027-03-11',

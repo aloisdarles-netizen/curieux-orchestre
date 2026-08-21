@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Curieux orchestre — Matériel</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
 <script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
+<script src="assets/pdf-charte.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
@@ -100,6 +102,18 @@
   .mvt-detail{color:var(--muted); min-width:0;}
   .lot-mvts{margin-top:9px; display:flex; flex-direction:column; gap:5px;}
 
+  /* Sélection des arrêts d'une mission. La case n'apparaît qu'en mode mission :
+     hors de là, l'agenda se lit, il ne se coche pas. */
+  .mvt-choix{flex:0 0 auto; width:16px; height:16px; accent-color:var(--accent); cursor:pointer;}
+  .mission-barre{
+    position:sticky; bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    margin-top:14px; padding:11px 14px; border-radius:var(--radius);
+    background:var(--accent-solid); color:#FCF2F0; box-shadow:var(--shadow-pop, 0 8px 24px rgba(20,22,23,.22));
+  }
+  .mission-barre[hidden]{display:none;}
+  .mission-compte{flex:1; min-width:150px; font-size:13px; font-weight:800;}
+  .mission-barre .co-btn{flex:0 0 auto;}
+
   @media (max-width:640px){
     .agenda-jour{grid-template-columns:minmax(0,1fr); gap:7px;}
     .agenda-quand{display:flex; align-items:baseline; gap:7px;}
@@ -128,9 +142,21 @@
       <div class="agenda-filtres">
         <button type="button" class="agenda-filtre" data-agenda-filtre="avenir" aria-pressed="true">À venir</button>
         <button type="button" class="agenda-filtre" data-agenda-filtre="tout" aria-pressed="false">Tout</button>
+        <button type="button" class="agenda-filtre" id="modeMissionBtn" aria-pressed="false" title="Cocher des mouvements pour en faire une feuille de mission">Feuille de mission</button>
       </div>
     </div>
     <div id="agendaListe"></div>
+
+    <!-- Une mission, c'est une suite d'arrêts : on les coche dans l'agenda, on
+         dit qui conduit, et le chauffeur reçoit une feuille qui reprend tout —
+         chez qui, à quelle adresse, à quelle heure, pour prendre ou déposer
+         quoi. Un seul arrêt ou six, c'est la même feuille. -->
+    <div class="mission-barre" id="missionBarre" hidden>
+      <div class="mission-compte" id="missionCompte">Aucun arrêt sélectionné</div>
+      <select class="co-select" id="missionChauffeur" aria-label="Chauffeur" style="width:auto; min-width:170px;"></select>
+      <button type="button" class="co-btn secondary sm" id="missionPdfBtn">Feuille PDF</button>
+      <button type="button" class="co-btn ghost sm" id="missionWaBtn">WhatsApp</button>
+    </div>
   </section>
 
   <div id="lotsListe"></div>
@@ -227,7 +253,13 @@ document.getElementById('lProvenance').addEventListener('change', async (e)=>{
   if(e.target.value !== '__nouveau__') return;
   const nom = prompt('Nom du prestataire :');
   if(!nom || !nom.trim()){ e.target.value = ''; return; }
-  const obj = { id: genId('prest'), nom: nom.trim(), notes: '' };
+  // L'adresse et le téléphone se demandent tout de suite : ce sont eux qui
+  // rendront la feuille de mission d'un chauffeur utilisable. Facultatifs —
+  // on ne bloque pas la création d'un lot pour ça.
+  const adresse = prompt(`Adresse de « ${nom.trim()} » — pour les feuilles de mission :`) || '';
+  const telephone = prompt('Téléphone sur place (facultatif) :') || '';
+  const obj = { id: genId('prest'), nom: nom.trim(), notes: '',
+    adresse: adresse.trim(), telephone: telephone.trim(), contactNom: '' };
   await CurieuxDB.upsertOne('prestataires', obj);
   prestatairesCache.push(obj);
   fillProvenanceSelect();
@@ -334,6 +366,7 @@ function ligneMouvement(evt, options){
     ? fmtJourCourt(evt.date) + (evt.heure ? ' · ' + evt.heure : '')
     : (evt.heure || '—');
   return `<div class="mvt">
+    ${opts.cle ? `<input type="checkbox" class="mvt-choix" data-arret="${escapeAttr(opts.cle)}" ${missionArrets.has(opts.cle) ? 'checked' : ''} aria-label="Ajouter cet arrêt à la mission">` : ''}
     <span class="mvt-quand${evt.heure ? '' : ' vide'}">${escapeHtml(quand)}</span>
     <span class="mvt-sens ${classe}">${libelle}</span>
     ${opts.lot ? `<span class="mvt-lot">${escapeHtml(opts.lot)}${opts.presta ? ` <span class="mvt-presta">· ${escapeHtml(opts.presta)}</span>` : ''}</span>` : ''}
@@ -345,6 +378,12 @@ function ligneMouvement(evt, options){
 // Agenda de tête de page — tous les lots réunis, dans l'ordre du temps.
 // ============================================================================
 let agendaFiltre = 'avenir';
+// Composition d'une feuille de mission : les arrêts cochés, et tout l'agenda
+// sous la main pour les retrouver au moment d'écrire la feuille.
+let modeMission = false;
+let agendaComplet = [];
+const missionArrets = new Set();
+let chauffeursCache = [];
 function renderAgenda(){
   const section = document.getElementById('agenda');
   const box = document.getElementById('agendaListe');
@@ -357,9 +396,11 @@ function renderAgenda(){
     const presta = prestatairesCache.find(p=>p.id === l.provenanceId);
     const parent = l.parentId ? lotsCache.find(x=>x.id === l.parentId) : null;
     const nom = (parent ? (parent.nom || 'Sans nom') + ' › ' : '') + (l.nom || 'Sans nom');
-    evenementsDuLot(l).forEach(evt=> tous.push({ ...evt, lot:nom, presta: presta ? presta.nom : '' }));
+    evenementsDuLot(l).forEach((evt, i)=> tous.push({ ...evt, lot:nom, lotId:l.id, indice:i,
+      presta: presta ? presta.nom : '', prestaId: l.provenanceId || '' }));
   });
 
+  agendaComplet = tous;
   const visibles = (agendaFiltre === 'avenir' ? tous.filter(e=> e.date >= aujourdhui) : tous)
     .sort((a,b)=> (a.date + (a.heure || '99:99')).localeCompare(b.date + (b.heure || '99:99')));
 
@@ -387,12 +428,158 @@ function renderAgenda(){
           <span>${d.getFullYear()}</span>
         </div>
         <div class="agenda-lignes">
-          ${j.evts.map(evt=> ligneMouvement(evt, { lot: evt.lot, presta: evt.presta })).join('')}
+          ${j.evts.map(evt=> ligneMouvement(evt, { lot: evt.lot, presta: evt.presta,
+            cle: modeMission ? `${evt.lotId}:${evt.indice}` : null })).join('')}
         </div>
       </div>
     `;
   }).join('');
 }
+// ============================================================================
+// Feuille de mission d'un chauffeur.
+//
+// Un chauffeur ne se déplace pas « pour un mouvement » : il fait une tournée
+// d'arrêts. On coche donc dans l'agenda ceux qui lui reviennent — un ou six,
+// c'est la même feuille — et il reçoit de quoi partir : chez qui il va, à
+// quelle adresse, à quelle heure, pour prendre ou déposer quoi, et qui appeler
+// sur place. En PDF pour l'imprimer, en WhatsApp pour l'avoir dans la poche.
+// ============================================================================
+function arretsChoisis(){
+  return agendaComplet
+    .map((evt, i)=> ({ evt, cle: `${evt.lotId}:${evt.indice}` }))
+    .filter(x=> missionArrets.has(x.cle))
+    .map(x=> x.evt)
+    .sort((a, b)=> (a.date + (a.heure || '99:99')).localeCompare(b.date + (b.heure || '99:99')));
+}
+
+function majBarreMission(){
+  const barre = document.getElementById('missionBarre');
+  barre.hidden = !modeMission;
+  if(!modeMission) return;
+  const n = missionArrets.size;
+  document.getElementById('missionCompte').textContent = n === 0
+    ? 'Coche les arrêts de la mission'
+    : `${n} arrêt${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}`;
+  const sel = document.getElementById('missionChauffeur');
+  if(!sel.dataset.rempli){
+    sel.innerHTML = chauffeursCache.length
+      ? chauffeursCache.map(c=> `<option value="${escapeAttr(c.id)}">${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ') || 'Sans nom')}</option>`).join('')
+      : '<option value="">Aucun chauffeur enregistré</option>';
+    sel.dataset.rempli = '1';
+  }
+}
+
+function chauffeurChoisi(){
+  return chauffeursCache.find(c=> c.id === document.getElementById('missionChauffeur').value) || null;
+}
+
+// Ce qu'un arrêt demande de savoir, rassemblé en un endroit.
+function detailArret(evt){
+  const presta = prestatairesCache.find(p=> p.id === evt.prestaId);
+  const [, libelle] = SENS[evt.sens] || SENS.sortie;
+  return {
+    quand: `${new Date(evt.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })}${evt.heure ? ' · ' + evt.heure : ''}`,
+    chez: presta ? presta.nom : '—',
+    adresse: (presta && presta.adresse) || '',
+    telephone: (presta && presta.telephone) || '',
+    contact: (presta && presta.contactNom) || '',
+    quoi: `${libelle} — ${evt.lot}`,
+    precisions: evt.texte || '',
+  };
+}
+
+function feuilleMissionPdf(){
+  const arrets = arretsChoisis();
+  if(arrets.length === 0){ alert('Coche au moins un arrêt.'); return; }
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const chauffeur = chauffeurChoisi();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  registerHostFont(doc);
+
+  const jours = [...new Set(arrets.map(a=> a.date))];
+  const page = creerComposeurPdf(doc, { echelleMax: 1.25 }).entete({
+    titre: chauffeur ? [chauffeur.prenom, chauffeur.nom].filter(Boolean).join(' ') : 'Feuille de mission',
+    sousTitre: `${arrets.length} arrêt${arrets.length > 1 ? 's' : ''} · ${jours.map(fmtJourCourt).join(', ')}`,
+    mention: 'Feuille de mission',
+  });
+
+  const champ = (cle, val)=> val ? [cle, String(val)] : null;
+  page.grilleAeree(arrets.map((evt, i)=>{
+    const d = detailArret(evt);
+    return { titre: `Arrêt ${i + 1} — ${d.quand}`, lignes: [
+      champ('Chez', d.chez),
+      champ('Adresse', d.adresse),
+      champ('Sur place', [d.contact, d.telephone].filter(Boolean).join(' · ')),
+      champ('À faire', d.quoi),
+      champ('Précisions', d.precisions),
+    ].filter(Boolean) };
+  }));
+
+  if(chauffeur && chauffeur.telephone) page.paragraphe(`Chauffeur : ${chauffeur.telephone}`);
+  const nom = chauffeur ? [chauffeur.prenom, chauffeur.nom].filter(Boolean).join('_') : 'mission';
+  page.rendre(`Mission_${nom.replace(/[^a-z0-9_]+/gi, '_')}.pdf`);
+}
+
+function feuilleMissionTexte(){
+  const arrets = arretsChoisis();
+  const chauffeur = chauffeurChoisi();
+  const lignes = [
+    chauffeur ? `Bonjour ${chauffeur.prenom || ''},`.trim() : 'Bonjour,',
+    '',
+    `Voici ta mission — ${arrets.length} arrêt${arrets.length > 1 ? 's' : ''} :`,
+    '',
+  ];
+  arrets.forEach((evt, i)=>{
+    const d = detailArret(evt);
+    lignes.push(`${i + 1}. ${d.quand}`);
+    lignes.push(`   Chez : ${d.chez}${d.adresse ? ' — ' + d.adresse : ''}`);
+    if(d.contact || d.telephone) lignes.push(`   Sur place : ${[d.contact, d.telephone].filter(Boolean).join(' · ')}`);
+    lignes.push(`   À faire : ${d.quoi}`);
+    if(d.precisions) lignes.push(`   Précisions : ${d.precisions}`);
+    lignes.push('');
+  });
+  lignes.push('Merci !', 'Curieux orchestre');
+  return lignes.join('\n');
+}
+
+document.getElementById('modeMissionBtn').addEventListener('click', ()=>{
+  modeMission = !modeMission;
+  document.getElementById('modeMissionBtn').setAttribute('aria-pressed', String(modeMission));
+  if(!modeMission) missionArrets.clear();
+  renderAgenda();
+  majBarreMission();
+});
+document.getElementById('agendaListe').addEventListener('change', (e)=>{
+  const case_ = e.target.closest('[data-arret]');
+  if(!case_) return;
+  if(case_.checked) missionArrets.add(case_.dataset.arret); else missionArrets.delete(case_.dataset.arret);
+  majBarreMission();
+});
+document.getElementById('missionPdfBtn').addEventListener('click', feuilleMissionPdf);
+document.getElementById('missionWaBtn').addEventListener('click', async ()=>{
+  const arrets = arretsChoisis();
+  if(arrets.length === 0){ alert('Coche au moins un arrêt.'); return; }
+  const chauffeur = chauffeurChoisi();
+  const message = feuilleMissionTexte();
+  const numero = chauffeur ? normalizeWhatsappMateriel(chauffeur.telephone) : '';
+  if(numero){
+    window.open(`https://wa.me/${encodeURIComponent(numero)}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(message);
+    alert('Aucun numéro pour ce chauffeur — la mission est copiée, colle-la où tu le joins.');
+  }catch(e){ alert(message); }
+});
+
+function normalizeWhatsappMateriel(tel){
+  let chiffres = (tel || '').replace(/[^\d+]/g, '');
+  if(chiffres.startsWith('+')) chiffres = chiffres.slice(1);
+  else if(chiffres.startsWith('0') && chiffres.length === 10) chiffres = '33' + chiffres.slice(1);
+  return chiffres;
+}
+
 document.querySelectorAll('[data-agenda-filtre]').forEach(btn=> btn.addEventListener('click', ()=>{
   agendaFiltre = btn.dataset.agendaFiltre;
   document.querySelectorAll('[data-agenda-filtre]').forEach(b=>
@@ -521,8 +708,9 @@ document.getElementById('lotModalSave').addEventListener('click', async ()=>{
 });
 
 async function initData(){
-  [lotsCache, prestatairesCache] = await Promise.all([
+  [lotsCache, prestatairesCache, chauffeursCache] = await Promise.all([
     CurieuxDB.fetchAll('lots_materiel'), CurieuxDB.fetchAll('prestataires'),
+    CurieuxDB.fetchAll('chauffeurs'),
   ]);
   render();
 }
