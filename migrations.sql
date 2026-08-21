@@ -3132,3 +3132,74 @@ drop table if exists comptes_personnes;
 -- livraison prend la sienne. Rien à reprendre dans les données existantes.
 -- ============================================================================
 alter table lots_materiel add column if not exists retour_prestataire_heure_livraison text default '';
+
+-- ============================================================================
+-- Fiche de date : ce qui se valide de deux côtés, ce qui va de soi, et ce qui
+-- se règle semi par semi.
+--
+-- 1. Le plan de scène portait une case unique « validée de part et d'autre ».
+--    Une validation ne vaut pourtant que d'un côté à la fois : la nôtre ne dit
+--    rien de celle de la salle. Deux colonnes, donc, initialisées depuis
+--    l'ancienne (qui valait bien pour les deux quand elle était cochée).
+--    plan_valide reste en place, plus personne ne l'écrit.
+--
+-- 2. Un bureau d'étude est toujours prévu sur place : la case ne demande plus
+--    de le confirmer à chaque date, elle signale l'exception. Le défaut passe
+--    donc à vrai, et les fiches jamais renseignées sur ce point suivent — on ne
+--    touche pas à celles où quelqu'un a saisi un horaire ou un contact, leur
+--    « non » était voulu. Le contact en texte libre se scinde en nom et
+--    téléphone, avec le lien du dossier à côté.
+--
+-- 3. Le niveau de déchargement était unique pour toute la salle, alors qu'une
+--    semi peut décharger de plain-pied côté cour pendant qu'une autre monte sur
+--    scène. Il rejoint chaque entrée de emplacements_dechargement, en reprenant
+--    l'ancienne valeur commune. niveau_dechargement reste, plus personne ne
+--    l'écrit.
+--
+-- Les trois blocs ne s'exécutent qu'une fois : ils ne font rien si les
+-- colonnes sont déjà là, ou si les niveaux sont déjà posés.
+-- ============================================================================
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                 where table_name = 'moyens_salle' and column_name = 'plan_valide_nous') then
+    alter table moyens_salle add column plan_valide_nous boolean not null default false;
+    alter table moyens_salle add column plan_valide_salle boolean not null default false;
+    update moyens_salle set plan_valide_nous = true, plan_valide_salle = true where plan_valide;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                 where table_name = 'moyens_salle' and column_name = 'bureau_electrique_nom') then
+    alter table moyens_salle add column bureau_electrique_nom text not null default '';
+    alter table moyens_salle add column bureau_electrique_tel text not null default '';
+    alter table moyens_salle add column bureau_electrique_dossier_url text not null default '';
+    alter table moyens_salle add column bureau_accroche_nom text not null default '';
+    alter table moyens_salle add column bureau_accroche_tel text not null default '';
+    alter table moyens_salle add column bureau_accroche_dossier_url text not null default '';
+
+    update moyens_salle set bureau_electrique_nom = coalesce(bureau_electrique_contact, ''),
+                            bureau_accroche_nom   = coalesce(bureau_accroche_contact, '');
+
+    alter table moyens_salle alter column bureau_electrique_sur_place set default true;
+    alter table moyens_salle alter column bureau_accroche_sur_place   set default true;
+    update moyens_salle set bureau_electrique_sur_place = true
+      where bureau_electrique_sur_place is not true
+        and coalesce(bureau_electrique_horaire, '') = ''
+        and coalesce(bureau_electrique_contact, '') = '';
+    update moyens_salle set bureau_accroche_sur_place = true
+      where bureau_accroche_sur_place is not true
+        and coalesce(bureau_accroche_horaire, '') = ''
+        and coalesce(bureau_accroche_contact, '') = '';
+  end if;
+end $$;
+
+update moyens_salle
+   set emplacements_dechargement = (
+         select jsonb_agg(e || jsonb_build_object('niveau', coalesce(niveau_dechargement, 'inconnu')))
+           from jsonb_array_elements(emplacements_dechargement) e)
+ where jsonb_typeof(emplacements_dechargement) = 'array'
+   and jsonb_array_length(emplacements_dechargement) > 0
+   and not (emplacements_dechargement -> 0 ? 'niveau');

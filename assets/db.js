@@ -86,18 +86,31 @@ const CurieuxDB = (()=>{
         id: m.id, tournee_id: m.tourneeId, date_id: m.dateId,
         statut: m.statut || 'non_demande',
         plan_statut: m.planStatut || 'non_demande', plan_url: m.planUrl || '',
-        plan_valide: !!m.planValide,
+        // Une validation d'implantation ne vaut que d'un côté : la nôtre ne dit
+        // rien de celle de la salle. plan_valide, qui prétendait valoir pour les
+        // deux, n'est plus écrite (la colonne reste, pour les rangs anciens).
+        plan_valide_nous: !!m.planValideNous,
+        plan_valide_salle: !!m.planValideSalle,
         plan_charge_statut: m.planChargeStatut || 'non_envoye',
-        bureau_electrique_sur_place: !!m.bureauElectriqueSurPlace,
+        // Un bureau d'étude est prévu sur place par défaut : c'est son absence
+        // qui fait exception. bureau_*_contact, texte libre, s'est scindé en
+        // nom + téléphone, avec le lien du dossier à côté.
+        bureau_electrique_sur_place: m.bureauElectriqueSurPlace !== false,
         bureau_electrique_horaire: m.bureauElectriqueHoraire || '',
-        bureau_electrique_contact: m.bureauElectriqueContact || '',
-        bureau_accroche_sur_place: !!m.bureauAccrocheSurPlace,
+        bureau_electrique_nom: m.bureauElectriqueNom || '',
+        bureau_electrique_tel: m.bureauElectriqueTel || '',
+        bureau_electrique_dossier_url: m.bureauElectriqueDossierUrl || '',
+        bureau_accroche_sur_place: m.bureauAccrocheSurPlace !== false,
         bureau_accroche_horaire: m.bureauAccrocheHoraire || '',
-        bureau_accroche_contact: m.bureauAccrocheContact || '',
+        bureau_accroche_nom: m.bureauAccrocheNom || '',
+        bureau_accroche_tel: m.bureauAccrocheTel || '',
+        bureau_accroche_dossier_url: m.bureauAccrocheDossierUrl || '',
         nombre_semis_simultanees: m.nombreSemisSimultanees != null ? m.nombreSemisSimultanees : null,
-        // [{emplacement:'scene'|'cote_scene'|'fosse'|'autre'}, ...] — une entrée par semi simultanée.
+        // [{emplacement:'scene'|'cote_scene'|'fosse'|'autre',
+        //   niveau:'inconnu'|'scene'|'sol'|'les_deux'}, ...] — une entrée par
+        // semi simultanée. Le niveau se règle par semi : l'une peut décharger
+        // de plain-pied pendant qu'une autre monte sur scène.
         emplacements_dechargement: m.emplacementsDechargement || [],
-        niveau_dechargement: m.niveauDechargement || 'inconnu',
         acces_notes: m.accesNotes || '',
         // [{horaireDebut, horaireFin, nombreDemande, confirme, notes, equipes:[{departement,couleur,nombre}]}, ...]
         roadies_vacations: m.roadiesVacations || [],
@@ -129,17 +142,21 @@ const CurieuxDB = (()=>{
         id: r.id, tourneeId: r.tournee_id, dateId: r.date_id,
         statut: r.statut || 'non_demande',
         planStatut: r.plan_statut || 'non_demande', planUrl: r.plan_url || '',
-        planValide: !!r.plan_valide,
+        planValideNous: !!r.plan_valide_nous,
+        planValideSalle: !!r.plan_valide_salle,
         planChargeStatut: r.plan_charge_statut || 'non_envoye',
-        bureauElectriqueSurPlace: !!r.bureau_electrique_sur_place,
+        bureauElectriqueSurPlace: r.bureau_electrique_sur_place !== false,
         bureauElectriqueHoraire: r.bureau_electrique_horaire || '',
-        bureauElectriqueContact: r.bureau_electrique_contact || '',
-        bureauAccrocheSurPlace: !!r.bureau_accroche_sur_place,
+        bureauElectriqueNom: r.bureau_electrique_nom || '',
+        bureauElectriqueTel: r.bureau_electrique_tel || '',
+        bureauElectriqueDossierUrl: r.bureau_electrique_dossier_url || '',
+        bureauAccrocheSurPlace: r.bureau_accroche_sur_place !== false,
         bureauAccrocheHoraire: r.bureau_accroche_horaire || '',
-        bureauAccrocheContact: r.bureau_accroche_contact || '',
+        bureauAccrocheNom: r.bureau_accroche_nom || '',
+        bureauAccrocheTel: r.bureau_accroche_tel || '',
+        bureauAccrocheDossierUrl: r.bureau_accroche_dossier_url || '',
         nombreSemisSimultanees: r.nombre_semis_simultanees,
         emplacementsDechargement: r.emplacements_dechargement || [],
-        niveauDechargement: r.niveau_dechargement || 'inconnu',
         accesNotes: r.acces_notes || '',
         roadiesVacations: r.roadies_vacations || [],
         chariotsVacations: r.chariots_vacations || [],

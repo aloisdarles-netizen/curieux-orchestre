@@ -63,9 +63,17 @@
   .sous-ligne > *{flex:1; min-width:0;}
   .sous-retirer{flex:0 0 auto !important; align-self:center;}
 
+  /* Deux cases à cocher côte à côte tiennent sur un écran large, pas sur un
+     téléphone : leurs libellés y sont plus longs que la colonne. */
+  @media (max-width:560px){ .field-row .field-coche{ flex:1 1 100%; } }
   .emplacement-liste{display:flex; flex-direction:column; gap:8px; margin-bottom:10px;}
-  .emplacement-ligne{display:flex; align-items:center; gap:8px;}
-  .emplacement-ligne span{font-size:12.5px; color:var(--muted); width:60px; flex:0 0 auto;}
+  .emplacement-ligne{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .emplacement-ligne .semi{font-size:12.5px; color:var(--muted); width:60px; flex:0 0 auto;}
+  .emplacement-ligne select{flex:1 1 150px; min-width:0;}
+  .emplacement-entete{display:flex; gap:8px; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:800;}
+  .emplacement-entete .semi{width:60px; flex:0 0 auto;}
+  .emplacement-entete span:not(.semi){flex:1 1 150px; min-width:0;}
+  @media (max-width:560px){ .emplacement-entete{display:none;} }
 
   .equipe-ligne{display:flex; gap:8px; align-items:center; background:var(--card); border:1px solid var(--border); border-radius:6px; padding:6px 8px; margin-bottom:6px;}
   .equipe-ligne input[type=color]{width:34px; height:34px; padding:2px; flex:0 0 auto; border-radius:6px;}
@@ -154,32 +162,26 @@
     <div id="analyseResultat" style="display:none; margin-top:14px;"></div>
   </fieldset>
 
-  <fieldset class="groupe">
-    <legend>Réponse de la salle</legend>
-    <div class="field">
-      <label for="fStatut">Statut général</label>
-      <select id="fStatut">
-        <option value="non_demande">Pas encore demandé</option>
-        <option value="demande">Demandé</option>
-        <option value="recu">Reçu</option>
-        <option value="valide">Validé</option>
-      </select>
-    </div>
-  </fieldset>
+  <!-- « Réponse de la salle » a disparu : son statut général doublait le suivi
+       réel, qui se lit au plan de scène, au plan de charge et à la fiche
+       déposée ci-dessus. La colonne reste en base, plus personne ne l'écrit. -->
 
   <fieldset class="groupe">
     <legend>Plan de scène</legend>
+    <div class="field">
+      <label for="fPlanStatut">Envoi</label>
+      <select id="fPlanStatut">
+        <option value="non_demande">Pas encore envoyé</option>
+        <option value="demande">Envoyé, en attente</option>
+        <option value="recu">Retour reçu</option>
+      </select>
+    </div>
+    <!-- Une validation ne vaut que d'un côté à la fois : la nôtre ne dit rien
+         de celle de la salle, et l'inverse non plus. Deux cases, donc, au lieu
+         d'une seule qui prétendait valoir pour les deux. -->
     <div class="field-row">
-      <div class="field"><label for="fPlanStatut">Envoi</label>
-        <select id="fPlanStatut">
-          <option value="non_demande">Pas encore envoyé</option>
-          <option value="demande">Envoyé, en attente</option>
-          <option value="recu">Retour reçu</option>
-        </select>
-      </div>
-      <div class="field" style="justify-content:flex-end;">
-        <label class="chk"><input type="checkbox" id="fPlanValide"> Implantation générale validée à l'échelle, de part et d'autre</label>
-      </div>
+      <div class="field field-coche"><label class="chk"><input type="checkbox" id="fPlanValideNous"> Implantation validée <strong>de notre côté</strong></label></div>
+      <div class="field field-coche"><label class="chk"><input type="checkbox" id="fPlanValideSalle"> Implantation validée <strong>par la salle</strong></label></div>
     </div>
     <div class="field"><label for="fPlanUrl">Lien du plan de scène</label><input type="url" id="fPlanUrl" placeholder="https://…"></div>
   </fieldset>
@@ -196,37 +198,37 @@
     </div>
   </fieldset>
 
+  <!-- Un bureau d'étude est toujours prévu sur place : la case ne demande donc
+       plus de le confirmer à chaque date, elle signale l'exception. Et ses
+       coordonnées se détaillent — un nom seul ne se rappelle pas le jour J. -->
   <fieldset class="groupe">
     <legend>Bureau d'étude électrique</legend>
-    <div class="field"><label class="chk"><input type="checkbox" id="fBureauElecSurPlace"> Prévu sur place</label></div>
-    <div class="field-row" id="bureauElecDetailRow" style="display:none;">
+    <div class="field"><label class="chk"><input type="checkbox" id="fBureauElecAbsent"> Ne sera <strong>pas</strong> présent sur place</label></div>
+    <div class="field-row">
+      <div class="field"><label for="fBureauElecNom">Nom</label><input type="text" id="fBureauElecNom" placeholder="Nom du bureau, ou de la personne"></div>
+      <div class="field"><label for="fBureauElecTel">Téléphone</label><input type="tel" id="fBureauElecTel" placeholder="06 …"></div>
       <div class="field"><label for="fBureauElecHoraire">À quelle heure</label><input type="text" id="fBureauElecHoraire" placeholder="Ex: 14h00"></div>
-      <div class="field"><label for="fBureauElecContact">Avec quel contact</label><input type="text" id="fBureauElecContact" placeholder="Nom, téléphone…"></div>
     </div>
+    <div class="field"><label for="fBureauElecDossier">Dossier (lien)</label><input type="url" id="fBureauElecDossier" placeholder="https://…"></div>
   </fieldset>
 
   <fieldset class="groupe">
     <legend>Bureau d'étude accroche</legend>
-    <div class="field"><label class="chk"><input type="checkbox" id="fBureauAccrocheSurPlace"> Prévu sur place</label></div>
-    <div class="field-row" id="bureauAccrocheDetailRow" style="display:none;">
+    <div class="field"><label class="chk"><input type="checkbox" id="fBureauAccrocheAbsent"> Ne sera <strong>pas</strong> présent sur place</label></div>
+    <div class="field-row">
+      <div class="field"><label for="fBureauAccrocheNom">Nom</label><input type="text" id="fBureauAccrocheNom" placeholder="Nom du bureau, ou de la personne"></div>
+      <div class="field"><label for="fBureauAccrocheTel">Téléphone</label><input type="tel" id="fBureauAccrocheTel" placeholder="06 …"></div>
       <div class="field"><label for="fBureauAccrocheHoraire">À quelle heure</label><input type="text" id="fBureauAccrocheHoraire" placeholder="Ex: 14h00"></div>
-      <div class="field"><label for="fBureauAccrocheContact">Avec quel contact</label><input type="text" id="fBureauAccrocheContact" placeholder="Nom, téléphone…"></div>
     </div>
+    <div class="field"><label for="fBureauAccrocheDossier">Dossier (lien)</label><input type="url" id="fBureauAccrocheDossier" placeholder="https://…"></div>
   </fieldset>
 
+  <!-- Le niveau de déchargement se règle par semi, et non pour la salle
+       entière : une semi peut décharger de plain-pied côté cour pendant qu'une
+       autre monte sur scène. -->
   <fieldset class="groupe">
     <legend>Déchargement</legend>
-    <div class="field-row">
-      <div class="field"><label for="fNombreSemis">Semis en simultané</label><input type="number" id="fNombreSemis" min="0" step="1"></div>
-      <div class="field"><label for="fNiveau">Niveau</label>
-        <select id="fNiveau">
-          <option value="inconnu">Inconnu</option>
-          <option value="scene">Sur scène</option>
-          <option value="sol">Au sol</option>
-          <option value="les_deux">Les deux</option>
-        </select>
-      </div>
-    </div>
+    <div class="field"><label for="fNombreSemis">Semis en simultané</label><input type="number" id="fNombreSemis" min="0" step="1"></div>
     <div class="emplacement-liste" id="emplacementsListe"></div>
     <div class="field"><label for="fAccesNotes">Notes d'accès</label><textarea id="fAccesNotes" placeholder="Marches, largeur de porte, distance…"></textarea></div>
   </fieldset>
@@ -611,19 +613,22 @@ const EMPLACEMENT_LABEL = { scene:'Sur scène', cote_scene:'Côté de scène', f
 function renderEmplacements(){
   const n = moyens.nombreSemisSimultanees || 0;
   const box = document.getElementById('emplacementsListe');
-  while(moyens.emplacementsDechargement.length < n) moyens.emplacementsDechargement.push({ emplacement:'scene' });
+  while(moyens.emplacementsDechargement.length < n) moyens.emplacementsDechargement.push({ emplacement:'scene', niveau:'inconnu' });
   moyens.emplacementsDechargement.length = n;
   if(n === 0){ box.innerHTML = ''; return; }
-  box.innerHTML = moyens.emplacementsDechargement.map((e,i)=>`
-    <div class="emplacement-ligne">
-      <span>Semi ${i+1}</span>
-      <select data-i="${i}">
-        ${Object.entries(EMPLACEMENT_LABEL).map(([v,l])=>`<option value="${v}" ${e.emplacement===v?'selected':''}>${l}</option>`).join('')}
-      </select>
-    </div>
-  `).join('');
+  const options = (labels, valeur)=> Object.entries(labels)
+    .map(([v,l])=>`<option value="${v}" ${valeur===v?'selected':''}>${l}</option>`).join('');
+  box.innerHTML = `
+    <div class="emplacement-entete"><span class="semi"></span><span>Emplacement</span><span>Niveau</span></div>
+    ${moyens.emplacementsDechargement.map((e,i)=>`
+      <div class="emplacement-ligne">
+        <span class="semi">Semi ${i+1}</span>
+        <select data-i="${i}" data-f="emplacement" aria-label="Emplacement de déchargement de la semi ${i+1}">${options(EMPLACEMENT_LABEL, e.emplacement)}</select>
+        <select data-i="${i}" data-f="niveau" aria-label="Niveau de déchargement de la semi ${i+1}">${options(NIVEAU_LABEL, e.niveau || 'inconnu')}</select>
+      </div>
+    `).join('')}`;
   box.querySelectorAll('select[data-i]').forEach(sel=> sel.addEventListener('change', ()=>{
-    moyens.emplacementsDechargement[sel.dataset.i].emplacement = sel.value;
+    moyens.emplacementsDechargement[sel.dataset.i][sel.dataset.f] = sel.value;
   }));
 }
 document.getElementById('fNombreSemis').addEventListener('input', (e)=>{
@@ -764,32 +769,38 @@ document.getElementById('fPlanImage').addEventListener('change', async (e)=>{
 function moyensVierge(){
   return {
     id: `${tourneeId}::${dateId}`, tourneeId, dateId,
-    statut:'non_demande', planStatut:'non_demande', planUrl:'', planValide:false,
+    statut:'non_demande', planStatut:'non_demande', planUrl:'',
+    planValideNous:false, planValideSalle:false,
     planChargeStatut:'non_envoye',
-    bureauElectriqueSurPlace:false, bureauElectriqueHoraire:'', bureauElectriqueContact:'',
-    bureauAccrocheSurPlace:false, bureauAccrocheHoraire:'', bureauAccrocheContact:'',
-    nombreSemisSimultanees:null, emplacementsDechargement:[], niveauDechargement:'inconnu', accesNotes:'',
+    // Un bureau d'étude est prévu sur place par défaut : c'est son absence qui
+    // fait exception, et qui se coche.
+    bureauElectriqueSurPlace:true, bureauElectriqueHoraire:'',
+    bureauElectriqueNom:'', bureauElectriqueTel:'', bureauElectriqueDossierUrl:'',
+    bureauAccrocheSurPlace:true, bureauAccrocheHoraire:'',
+    bureauAccrocheNom:'', bureauAccrocheTel:'', bureauAccrocheDossierUrl:'',
+    nombreSemisSimultanees:null, emplacementsDechargement:[], accesNotes:'',
     horairesJournee:[], roadiesVacations:[], chariotsVacations:[], riggVacations:[],
     hauteurGrill:'', ouvertureScene:'', profondeurScene:'', puissance:'', typeCourant:'', chargeMaxAccroche:'', typeSol:'',
     contactsSalle:[], contactsTechniciensIds:[], planImagePath:'', semisPositions:[], notes:''
   };
 }
 function peupler(){
-  document.getElementById('fStatut').value = moyens.statut;
   document.getElementById('fPlanStatut').value = moyens.planStatut;
-  document.getElementById('fPlanValide').checked = moyens.planValide;
+  document.getElementById('fPlanValideNous').checked = moyens.planValideNous;
+  document.getElementById('fPlanValideSalle').checked = moyens.planValideSalle;
   document.getElementById('fPlanUrl').value = moyens.planUrl;
   document.getElementById('fPlanCharge').value = moyens.planChargeStatut;
-  document.getElementById('fBureauElecSurPlace').checked = moyens.bureauElectriqueSurPlace;
-  document.getElementById('bureauElecDetailRow').style.display = moyens.bureauElectriqueSurPlace ? 'flex' : 'none';
+  document.getElementById('fBureauElecAbsent').checked = !moyens.bureauElectriqueSurPlace;
+  document.getElementById('fBureauElecNom').value = moyens.bureauElectriqueNom;
+  document.getElementById('fBureauElecTel').value = moyens.bureauElectriqueTel;
   document.getElementById('fBureauElecHoraire').value = moyens.bureauElectriqueHoraire;
-  document.getElementById('fBureauElecContact').value = moyens.bureauElectriqueContact;
-  document.getElementById('fBureauAccrocheSurPlace').checked = moyens.bureauAccrocheSurPlace;
-  document.getElementById('bureauAccrocheDetailRow').style.display = moyens.bureauAccrocheSurPlace ? 'flex' : 'none';
+  document.getElementById('fBureauElecDossier').value = moyens.bureauElectriqueDossierUrl;
+  document.getElementById('fBureauAccrocheAbsent').checked = !moyens.bureauAccrocheSurPlace;
+  document.getElementById('fBureauAccrocheNom').value = moyens.bureauAccrocheNom;
+  document.getElementById('fBureauAccrocheTel').value = moyens.bureauAccrocheTel;
   document.getElementById('fBureauAccrocheHoraire').value = moyens.bureauAccrocheHoraire;
-  document.getElementById('fBureauAccrocheContact').value = moyens.bureauAccrocheContact;
+  document.getElementById('fBureauAccrocheDossier').value = moyens.bureauAccrocheDossierUrl;
   document.getElementById('fNombreSemis').value = moyens.nombreSemisSimultanees != null ? moyens.nombreSemisSimultanees : '';
-  document.getElementById('fNiveau').value = moyens.niveauDechargement;
   document.getElementById('fAccesNotes').value = moyens.accesNotes;
   document.getElementById('fHauteurGrill').value = moyens.hauteurGrill;
   document.getElementById('fOuvertureScene').value = moyens.ouvertureScene;
@@ -815,12 +826,8 @@ function peupler(){
   }
   renderPlanZone();
 }
-document.getElementById('fBureauElecSurPlace').addEventListener('change', (e)=>{
-  document.getElementById('bureauElecDetailRow').style.display = e.target.checked ? 'flex' : 'none';
-});
-document.getElementById('fBureauAccrocheSurPlace').addEventListener('change', (e)=>{
-  document.getElementById('bureauAccrocheDetailRow').style.display = e.target.checked ? 'flex' : 'none';
-});
+// Les coordonnées du bureau d'étude restent visibles quoi qu'il arrive : elles
+// servent aussi quand il suit le dossier à distance. Plus rien à replier, donc.
 
 // ============================================================================
 // Lecture d'une fiche technique de salle par Claude
@@ -842,10 +849,24 @@ const ANALYSE_CHAMPS = [
   { groupe:'electricite', champ:'puissance',           label:'Puissance disponible', cible:'fPuissance' },
   { groupe:'electricite', champ:'type_courant',        label:'Type de courant', cible:'fTypeCourant' },
   { groupe:'acces',       champ:'nombre_semis_simultanees', label:'Semis en simultané', cible:'fNombreSemis' },
-  { groupe:'acces',       champ:'niveau_dechargement', label:'Niveau de déchargement', cible:'fNiveau' },
+  // La fiche de salle ne donne qu'un niveau pour toute la salle, alors que le
+  // niveau se règle par semi : la valeur lue se pose donc sur toutes les semis,
+  // à ajuster ensuite si l'une d'elles décharge autrement.
+  { groupe:'acces',       champ:'niveau_dechargement', label:'Niveau de déchargement (toutes les semis)', cible:'__niveauxSemis' },
   { groupe:'acces',       champ:'notes',               label:"Notes d'accès", cible:'fAccesNotes' },
 ];
 const NIVEAU_LABEL = { inconnu:'Inconnu', scene:'Sur scène', sol:'Au sol', les_deux:'Les deux' };
+
+function valeurActuelleChamp(def){
+  if(def.cible === '__niveauxSemis'){
+    const niveaux = [...new Set((moyens.emplacementsDechargement||[]).map(e=> e.niveau || 'inconnu'))]
+      .filter(n=> n !== 'inconnu');
+    return niveaux.map(n=> NIVEAU_LABEL[n] || n).join(', ');
+  }
+  if(!def.cible) return '';
+  const el = document.getElementById(def.cible);
+  return el ? String(el.value || '').trim() : '';
+}
 
 document.getElementById('fAnalyseFichier').addEventListener('change', (e)=>{
   const fichier = e.target.files[0];
@@ -907,8 +928,7 @@ function renderAnalyse(){
     const brut = String(((ex[def.groupe]||{})[def.champ]) || '').trim();
     if(!brut) return '';
     if(def.champ === 'niveau_dechargement' && brut === 'inconnu') return '';
-    let actuel = def.cible ? String(document.getElementById(def.cible).value || '').trim() : '';
-    if(def.cible === 'fNiveau') actuel = actuel === 'inconnu' ? '' : (NIVEAU_LABEL[actuel] || actuel);
+    const actuel = valeurActuelleChamp(def);
     const affiche = def.champ === 'niveau_dechargement' ? (NIVEAU_LABEL[brut] || brut) : brut;
     const proposable = !!def.cible;
     const coche = proposable && !actuel;
@@ -992,8 +1012,14 @@ function appliquerAnalyse(){
     const def = ANALYSE_CHAMPS[Number(chk.dataset.champ)];
     if(!def || !def.cible) return;
     const valeur = String(((ex[def.groupe]||{})[def.champ]) || '').trim();
+    if(def.cible === '__niveauxSemis'){
+      if(!NIVEAU_LABEL[valeur]) return;
+      (moyens.emplacementsDechargement||[]).forEach(e=> e.niveau = valeur);
+      renderEmplacements();
+      return;
+    }
     const cible = document.getElementById(def.cible);
-    if(def.cible === 'fNiveau' && !NIVEAU_LABEL[valeur]) return;
+    if(!cible) return;
     if(def.cible === 'fNombreSemis'){
       const n = parseInt(valeur, 10);
       if(!Number.isFinite(n)) return;
@@ -1024,18 +1050,21 @@ function appliquerAnalyse(){
 }
 
 async function enregistrer(){
-  moyens.statut = document.getElementById('fStatut').value;
   moyens.planStatut = document.getElementById('fPlanStatut').value;
-  moyens.planValide = document.getElementById('fPlanValide').checked;
+  moyens.planValideNous = document.getElementById('fPlanValideNous').checked;
+  moyens.planValideSalle = document.getElementById('fPlanValideSalle').checked;
   moyens.planUrl = document.getElementById('fPlanUrl').value.trim();
   moyens.planChargeStatut = document.getElementById('fPlanCharge').value;
-  moyens.bureauElectriqueSurPlace = document.getElementById('fBureauElecSurPlace').checked;
+  moyens.bureauElectriqueSurPlace = !document.getElementById('fBureauElecAbsent').checked;
+  moyens.bureauElectriqueNom = document.getElementById('fBureauElecNom').value.trim();
+  moyens.bureauElectriqueTel = document.getElementById('fBureauElecTel').value.trim();
   moyens.bureauElectriqueHoraire = document.getElementById('fBureauElecHoraire').value.trim();
-  moyens.bureauElectriqueContact = document.getElementById('fBureauElecContact').value.trim();
-  moyens.bureauAccrocheSurPlace = document.getElementById('fBureauAccrocheSurPlace').checked;
+  moyens.bureauElectriqueDossierUrl = document.getElementById('fBureauElecDossier').value.trim();
+  moyens.bureauAccrocheSurPlace = !document.getElementById('fBureauAccrocheAbsent').checked;
+  moyens.bureauAccrocheNom = document.getElementById('fBureauAccrocheNom').value.trim();
+  moyens.bureauAccrocheTel = document.getElementById('fBureauAccrocheTel').value.trim();
   moyens.bureauAccrocheHoraire = document.getElementById('fBureauAccrocheHoraire').value.trim();
-  moyens.bureauAccrocheContact = document.getElementById('fBureauAccrocheContact').value.trim();
-  moyens.niveauDechargement = document.getElementById('fNiveau').value;
+  moyens.bureauAccrocheDossierUrl = document.getElementById('fBureauAccrocheDossier').value.trim();
   moyens.accesNotes = document.getElementById('fAccesNotes').value.trim();
   moyens.hauteurGrill = document.getElementById('fHauteurGrill').value.trim();
   moyens.ouvertureScene = document.getElementById('fOuvertureScene').value.trim();

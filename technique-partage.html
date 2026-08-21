@@ -41,7 +41,8 @@
   .bloc{background:var(--card); box-shadow:0 0 0 .5px var(--border); padding:11px 13px 13px; display:flex; flex-direction:column; gap:6px;}
   .bloc .titre{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700;}
   .champ{display:flex; justify-content:space-between; gap:10px; font-size:13px; align-items:baseline;}
-  .champ .k{color:var(--muted);}
+  /* L'intitulé ne se coupe jamais : « Semi 1 » sur deux lignes ne se lit pas. */
+  .champ .k{color:var(--muted); white-space:nowrap;}
   .champ .v{font-weight:700; text-align:right;}
   .vide-champ{color:var(--old-champagne); font-size:12.5px;}
 
@@ -152,6 +153,7 @@ const TR = {
     champ_semis_simultanes:'Semis en simultané', champ_dechargement:'Déchargement', champ_emplacements:'Emplacements',
     champ_hauteur_grill:'Hauteur de grill', champ_ouverture_scene:'Ouverture de scène', champ_puissance:'Puissance',
     champ_sur_place:'Sur place', champ_horaire:'Horaire', champ_contact:'Contact', champ_plan_scene:'Plan de scène',
+    champ_semi:'Semi', champ_nom:'Nom', champ_tel:'Téléphone', champ_dossier:'Dossier',
     oui:'oui', non:'non', ouvrir:'Ouvrir ↗',
     demande_label:'Demandé', confirmee:'confirmée',
     chariots_demandes:'Chariots demandés', caristes_demandes:'Caristes demandés',
@@ -179,6 +181,7 @@ const TR = {
     champ_semis_simultanes:'Trucks at once', champ_dechargement:'Unloading', champ_emplacements:'Unloading spots',
     champ_hauteur_grill:'Grid height', champ_ouverture_scene:'Stage opening', champ_puissance:'Power available',
     champ_sur_place:'On site', champ_horaire:'Time', champ_contact:'Contact', champ_plan_scene:'Stage plan',
+    champ_semi:'Truck', champ_nom:'Name', champ_tel:'Phone', champ_dossier:'File',
     oui:'yes', non:'no', ouvrir:'Open ↗',
     demande_label:'Requested', confirmee:'confirmed',
     chariots_demandes:'Forklifts requested', caristes_demandes:'Forklift operators requested',
@@ -202,6 +205,7 @@ const TR = {
     champ_semis_simultanes:'Sattelzüge gleichzeitig', champ_dechargement:'Entladung', champ_emplacements:'Entladestellen',
     champ_hauteur_grill:'Traversenhöhe', champ_ouverture_scene:'Bühnenöffnung', champ_puissance:'Verfügbare Leistung',
     champ_sur_place:'Vor Ort', champ_horaire:'Uhrzeit', champ_contact:'Kontakt', champ_plan_scene:'Bühnenplan',
+    champ_semi:'Lkw', champ_nom:'Name', champ_tel:'Telefon', champ_dossier:'Unterlagen',
     oui:'ja', non:'nein', ouvrir:'Öffnen ↗',
     demande_label:'Angefragt', confirmee:'bestätigt',
     chariots_demandes:'Gabelstapler angefragt', caristes_demandes:'Staplerfahrer angefragt',
@@ -225,6 +229,7 @@ const TR = {
     champ_semis_simultanes:'Tráileres simultáneos', champ_dechargement:'Descarga', champ_emplacements:'Puntos de descarga',
     champ_hauteur_grill:'Altura de parrilla', champ_ouverture_scene:'Boca de escena', champ_puissance:'Potencia disponible',
     champ_sur_place:'En el lugar', champ_horaire:'Hora', champ_contact:'Contacto', champ_plan_scene:'Plano de escena',
+    champ_semi:'Camión', champ_nom:'Nombre', champ_tel:'Teléfono', champ_dossier:'Expediente',
     oui:'sí', non:'no', ouvrir:'Abrir ↗',
     demande_label:'Solicitado', confirmee:'confirmado',
     chariots_demandes:'Carretillas solicitadas', caristes_demandes:'Operarios solicitados',
@@ -248,6 +253,7 @@ const TR = {
     champ_semis_simultanes:'Trucks tegelijk', champ_dechargement:'Lossen', champ_emplacements:'Losplekken',
     champ_hauteur_grill:'Rijghoogte', champ_ouverture_scene:'Podiumopening', champ_puissance:'Beschikbaar vermogen',
     champ_sur_place:'Ter plaatse', champ_horaire:'Tijdstip', champ_contact:'Contact', champ_plan_scene:'Podiumplan',
+    champ_semi:'Truck', champ_nom:'Naam', champ_tel:'Telefoon', champ_dossier:'Dossier',
     oui:'ja', non:'nee', ouvrir:'Openen ↗',
     demande_label:'Aangevraagd', confirmee:'bevestigd',
     chariots_demandes:'Vorkheftrucks aangevraagd', caristes_demandes:'Heftruckchauffeurs aangevraagd',
@@ -545,6 +551,20 @@ function blocMouvementsMateriel(d){
   </div>`;
 }
 
+// Un bureau d'étude est prévu sur place par défaut : la fiche ne signale donc
+// que son absence, et détaille sinon qui joindre, à quelle heure, et où lire
+// le dossier.
+function blocBureauEtude(titre, surPlace, nom, tel, horaire, dossierUrl){
+  return `<div class="bloc"><span class="titre">${titre}</span>
+    ${surPlace === false ? champ(t('champ_sur_place'), t('non')) : `
+      ${champ(t('champ_nom'), nom)}
+      ${champ(t('champ_tel'), tel)}
+      ${champ(t('champ_horaire'), horaire)}
+      ${dossierUrl ? `<div class="champ"><span class="k">${t('champ_dossier')}</span><span class="v"><a href="${escapeHtml(dossierUrl)}" target="_blank" rel="noopener">${t('ouvrir')}</a></span></div>` : ''}
+    `}
+  </div>`;
+}
+
 function ficheDateComplete(d, m, editableSalle, editableStageManager){
   if(!m) m = { date_id: d.id };
   const jour = jourLong(d.date);
@@ -558,24 +578,24 @@ function ficheDateComplete(d, m, editableSalle, editableStageManager){
         <div class="fiche-grille">
           <div class="bloc"><span class="titre">${t('bloc_acces')}</span>
             ${champ(t('champ_semis_simultanes'), m.nombre_semis_simultanees)}
-            ${champ(t('champ_dechargement'), m.niveau_dechargement && m.niveau_dechargement!=='inconnu' ? t(NIVEAU_LABEL[m.niveau_dechargement]) : null)}
-            ${(m.emplacements_dechargement||[]).length ? champ(t('champ_emplacements'), m.emplacements_dechargement.map(e=>t(EMPLACEMENT_LABEL[e.emplacement])||e.emplacement).join(', ')) : ''}
+            ${/* Emplacement et niveau se règlent par semi : une semi peut
+                 décharger de plain-pied côté cour pendant qu'une autre monte
+                 sur scène. Une ligne par semi, donc, et non deux résumés. */''}
+            ${(m.emplacements_dechargement||[]).map((e,i)=> champ(
+              `${t('champ_semi')} ${i+1}`,
+              [
+                t(EMPLACEMENT_LABEL[e.emplacement]) || e.emplacement,
+                e.niveau && e.niveau !== 'inconnu' ? t(NIVEAU_LABEL[e.niveau]) : '',
+              ].filter(Boolean).join(' · ')
+            )).join('')}
           </div>
           <div class="bloc"><span class="titre">${t('bloc_faits_techniques')}</span>
             ${champ(t('champ_hauteur_grill'), m.hauteur_grill)}
             ${champ(t('champ_ouverture_scene'), m.ouverture_scene)}
             ${champ(t('champ_puissance'), m.puissance)}
           </div>
-          <div class="bloc"><span class="titre">${t('bloc_bureau_elec')}</span>
-            ${champ(t('champ_sur_place'), m.bureau_electrique_sur_place ? t('oui') : t('non'))}
-            ${m.bureau_electrique_sur_place ? champ(t('champ_horaire'), m.bureau_electrique_horaire) : ''}
-            ${m.bureau_electrique_sur_place ? champ(t('champ_contact'), m.bureau_electrique_contact) : ''}
-          </div>
-          <div class="bloc"><span class="titre">${t('bloc_bureau_accroche')}</span>
-            ${champ(t('champ_sur_place'), m.bureau_accroche_sur_place ? t('oui') : t('non'))}
-            ${m.bureau_accroche_sur_place ? champ(t('champ_horaire'), m.bureau_accroche_horaire) : ''}
-            ${m.bureau_accroche_sur_place ? champ(t('champ_contact'), m.bureau_accroche_contact) : ''}
-          </div>
+          ${blocBureauEtude(t('bloc_bureau_elec'), m.bureau_electrique_sur_place, m.bureau_electrique_nom, m.bureau_electrique_tel, m.bureau_electrique_horaire, m.bureau_electrique_dossier_url)}
+          ${blocBureauEtude(t('bloc_bureau_accroche'), m.bureau_accroche_sur_place, m.bureau_accroche_nom, m.bureau_accroche_tel, m.bureau_accroche_horaire, m.bureau_accroche_dossier_url)}
           ${(m.contacts_salle||[]).length ? `<div class="bloc"><span class="titre">${t('bloc_contacts_salle')}</span>
             ${m.contacts_salle.map(c=>champ(c.role || t('champ_contact'), [c.nom, c.tel].filter(Boolean).join(' · '))).join('')}
           </div>` : ''}

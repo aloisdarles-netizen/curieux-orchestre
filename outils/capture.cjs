@@ -81,6 +81,28 @@ const SEED = {
     cachetStatut:'defini', cachetMontant:320, dates:DATES,
     nomenclature:[{pupitre:'Cordes',nombre:5},{pupitre:'Bois',nombre:4}],
   }],
+  // Une fiche de date déjà remplie, pour capturer technique-date.html.
+  moyens_salle: [{
+    id:'demo-tour1::d1', tourneeId:'demo-tour1', dateId:'d1',
+    planStatut:'recu', planUrl:'https://exemple.fr/plan.pdf',
+    planValideNous:true, planValideSalle:false, planChargeStatut:'envoye',
+    bureauElectriqueSurPlace:true, bureauElectriqueHoraire:'14h00',
+    bureauElectriqueNom:'Michel Ferrand', bureauElectriqueTel:'06 11 22 33 44',
+    bureauElectriqueDossierUrl:'https://exemple.fr/dossier-elec.pdf',
+    bureauAccrocheSurPlace:false, bureauAccrocheHoraire:'', bureauAccrocheNom:'',
+    bureauAccrocheTel:'', bureauAccrocheDossierUrl:'',
+    nombreSemisSimultanees:3,
+    emplacementsDechargement:[
+      {emplacement:'cote_scene', niveau:'sol'}, {emplacement:'fosse', niveau:'sol'},
+      {emplacement:'scene', niveau:'scene'},
+    ],
+    accesNotes:'Porte de 3,50 m, 12 marches côté cour.',
+    horairesJournee:[{id:'h1', label:'Load in', heure:'08:00'}],
+    roadiesVacations:[], chariotsVacations:[], riggVacations:[],
+    hauteurGrill:'17', ouvertureScene:'25', profondeurScene:'12', puissance:'2× 400A',
+    typeCourant:'triphasé', chargeMaxAccroche:'2 t', typeSol:'béton',
+    contactsSalle:[], contactsTechniciensIds:[], planImagePath:'', semisPositions:[], notes:'',
+  }],
   // Réponse de get_recap_logistique — technique-partage.html ne lit pas les
   // tables, mais cette seule fonction. Assez de dates pour que le sommaire ait
   // quelque chose à sommer, en snake_case comme le renvoie la base.
@@ -101,18 +123,24 @@ const SEED = {
       ],
     },
     moyens: [
-      { date_id:'r0', nombre_semis_simultanees:4, niveau_dechargement:'sol',
-        emplacements_dechargement:[{emplacement:'cote_scene'},{emplacement:'fosse'},{emplacement:'scene'}],
+      { date_id:'r0', nombre_semis_simultanees:4,
+        emplacements_dechargement:[
+          {emplacement:'cote_scene', niveau:'sol'}, {emplacement:'fosse', niveau:'sol'},
+          {emplacement:'scene', niveau:'scene'}, {emplacement:'scene', niveau:'les_deux'},
+        ],
         hauteur_grill:'17', ouverture_scene:'25', puissance:'2× 400A',
-        bureau_electrique_sur_place:true, bureau_electrique_horaire:'08:00', bureau_electrique_contact:'Michel · 06 11 22 33 44',
+        bureau_electrique_sur_place:true, bureau_electrique_horaire:'08:00',
+        bureau_electrique_nom:'Michel Ferrand', bureau_electrique_tel:'06 11 22 33 44',
+        bureau_electrique_dossier_url:'https://exemple.fr/dossier-elec.pdf',
         bureau_accroche_sur_place:false,
         contacts_salle:[{role:'rigg', nom:'Michel', tel:'06 11 22 33 44'}],
         horaires_journee:[{heure:'08:00',label:'Load in'},{heure:'12:30',label:'Get in'}],
         roadies_vacations:[{horaireDebut:'11:00',horaireFin:'16:00',nombreDemande:26,equipes:[{equipeId:'eq1',nombre:5},{equipeId:'eq2',nombre:5}]}],
         chariots_vacations:[{horaireDebut:'06:00',horaireFin:'12:30',nombreChariotsDemande:2,nombreCaristesDemande:2,confirme:true}],
         rigg_vacations:[], acces_notes:'Porte de 3,50 m, 12 marches côté cour.' },
-      { date_id:'r1', nombre_semis_simultanees:2, niveau_dechargement:'scene',
-        emplacements_dechargement:[], hauteur_grill:'14', ouverture_scene:'18', puissance:'400A',
+      { date_id:'r1', nombre_semis_simultanees:2,
+        emplacements_dechargement:[{emplacement:'scene', niveau:'scene'},{emplacement:'cote_scene', niveau:'sol'}],
+        hauteur_grill:'14', ouverture_scene:'18', puissance:'400A',
         horaires_journee:[{heure:'09:00',label:'Load in'}],
         roadies_vacations:[], chariots_vacations:[], rigg_vacations:[] },
     ],
@@ -233,7 +261,12 @@ window.CurieuxDB = CurieuxDB;
           .slice(0, 3).map(e => `${chaine(e)} (→${Math.round(e.getBoundingClientRect().right)}px)`) };
     });
     const f = `${OUT}/${fichier}-${format}.png`;
-    await page.screenshot({ path:f, fullPage:true });
+    // Cinquième argument : un sélecteur à cadrer. Une page de formulaire fait
+    // dix mille pixels de haut ; relire un détail dessus revient à le chercher
+    // dans une vignette. On capture alors le seul bloc qui nous occupe.
+    const cadre = process.argv[5] ? await page.$(process.argv[5]) : null;
+    if(cadre) await cadre.screenshot({ path:f });
+    else await page.screenshot({ path:f, fullPage:true });
     const deborde = debord.defile;
     console.log(`${fichier.padEnd(16)} ${format.padEnd(7)} ${deborde ? `⚠ DÉBORDE ${debord.largeurDoc}px > ${debord.largeurVue}px → ${debord.coupables.join(', ')}` : '✓ pas de débordement'}${erreurs.length ? ` · ${erreurs.length} erreur(s) JS : ${erreurs[0]}` : ''}`);
     await page.close();

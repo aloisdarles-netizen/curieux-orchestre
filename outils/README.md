@@ -24,11 +24,22 @@ npm i playwright-core --no-save          # Chromium est déjà là
 python3 -m http.server 8099 &            # servir le site
 node outils/capture.cjs tournees,recap mobile
 node outils/capture.cjs accueil bureau
+node outils/capture.cjs tournees bureau ':nth-match([data-assign], 3)'
+node outils/capture.cjs "technique-date?t=demo-tour1&d=d1" mobile "" "fieldset.groupe:nth-of-type(3)"
 ```
 
-Trois arguments, tous optionnels : les pages séparées par des virgules (sans
-`.html`), puis `mobile` (390 px) ou `bureau` (1280 px). Les images vont dans
-`$CAPTURES`, `/tmp/captures` par défaut.
+Quatre arguments, tous optionnels :
+
+1. les pages, séparées par des virgules et sans `.html` — chacune peut porter
+   sa requête (`technique-partage?jeton=demo`) pour les écrans qui ne s'ouvrent
+   que sur un jeton ;
+2. `mobile` (390 px) ou `bureau` (1280 px) ;
+3. un sélecteur à cliquer avant la capture — sans lui, les panneaux qui ne
+   s'ouvrent qu'au clic resteraient invisibles ;
+4. un sélecteur à cadrer : une page de formulaire fait dix mille pixels de
+   haut, y relire un détail revient sinon à le chercher dans une vignette.
+
+Les images vont dans `$CAPTURES`, `/tmp/captures` par défaut.
 
 Chaque page rapporte trois choses : un débordement horizontal s'il y en a un,
 avec les éléments fautifs ; les erreurs JavaScript survenues au chargement ; et

@@ -147,6 +147,7 @@ const T = {
     roadies:'roadies', chariots:'chariots élévateurs', caristes:'cariste', rigg:'rigg',
     sol:'au sol', grillPos:'au grill', fourchesLongues:'fourches longues', fourchesCourtes:'fourches courtes',
     niveau:{scene:'sur scène', sol:'au sol', les_deux:'les deux', inconnu:'inconnu'},
+    semi:'Semi', emplacement:{scene:'sur scène', cote_scene:'côté de scène', fosse:'dans la fosse', autre:'autre'},
     aucuneDate:'Aucune date à envoyer à une salle pour cette tournée.',
   },
   en: {
@@ -161,6 +162,7 @@ const T = {
     roadies:'roadies', chariots:'forklifts', caristes:'operator', rigg:'rigging',
     sol:'on the ground', grillPos:'on the grid', fourchesLongues:'long forks', fourchesCourtes:'short forks',
     niveau:{scene:'on stage', sol:'on the ground', les_deux:'both', inconnu:'unknown'},
+    semi:'Truck', emplacement:{scene:'on stage', cote_scene:'stage side', fosse:'in the pit', autre:'other'},
     aucuneDate:'No date to send to a venue for this tour.',
   },
   de: {
@@ -175,6 +177,7 @@ const T = {
     roadies:'Roadies', chariots:'Gabelstapler', caristes:'Staplerfahrer', rigg:'Rigging',
     sol:'am Boden', grillPos:'an der Traverse', fourchesLongues:'lange Gabeln', fourchesCourtes:'kurze Gabeln',
     niveau:{scene:'auf der Bühne', sol:'am Boden', les_deux:'beides', inconnu:'unbekannt'},
+    semi:'Lkw', emplacement:{scene:'auf der Bühne', cote_scene:'seitlich der Bühne', fosse:'im Graben', autre:'anderes'},
     aucuneDate:'Kein Termin für eine Spielstätte in dieser Tour.',
   },
   es: {
@@ -189,6 +192,7 @@ const T = {
     roadies:'roadies', chariots:'carretillas elevadoras', caristes:'operario', rigg:'rigging',
     sol:'en el suelo', grillPos:'en la parrilla', fourchesLongues:'horquillas largas', fourchesCourtes:'horquillas cortas',
     niveau:{scene:'en el escenario', sol:'en el suelo', les_deux:'ambos', inconnu:'desconocido'},
+    semi:'Tráiler', emplacement:{scene:'en el escenario', cote_scene:'lateral del escenario', fosse:'en el foso', autre:'otro'},
     aucuneDate:'Ninguna fecha para enviar a una sala en esta gira.',
   },
   nl: {
@@ -203,6 +207,7 @@ const T = {
     roadies:'roadies', chariots:'vorkheftrucks', caristes:'heftruckchauffeur', rigg:'rigging',
     sol:'op de grond', grillPos:'aan de rijg', fourchesLongues:'lange vorken', fourchesCourtes:'korte vorken',
     niveau:{scene:'op het podium', sol:'op de grond', les_deux:'beide', inconnu:'onbekend'},
+    semi:'Truck', emplacement:{scene:'op het podium', cote_scene:'naast het podium', fosse:'in de bak', autre:'andere'},
     aucuneDate:'Geen datum om naar een zaal te sturen in deze tour.',
   },
 };
@@ -327,18 +332,30 @@ function ligneVacation(vac, index, type, equipesRoad){
   `;
 }
 
+function texteSemi(e, L){
+  return [
+    (L.emplacement && L.emplacement[e.emplacement]) || e.emplacement || '',
+    e.niveau && e.niveau !== 'inconnu' ? L.niveau[e.niveau] : '',
+  ].filter(Boolean).join(' · ');
+}
+
 function corpsDate(d){
   const L = tr();
   const m = moyensDe(d.id);
   const t = tourneeCourante();
   if(!m) return '';
 
-  const niveau = L.niveau[m.niveauDechargement] || L.niveau.inconnu;
+  // Emplacement et niveau de déchargement se règlent par semi, et non pour la
+  // salle entière : une semi peut décharger de plain-pied côté cour pendant
+  // qu'une autre monte sur scène.
+  const lignesSemis = (m.emplacementsDechargement || [])
+    .map((e, i)=> champ(`${L.semi} ${i+1}`, texteSemi(e, L)))
+    .join('');
   const blocAcces = `<div class="salle-bloc">
       <div class="salle-bloc-titre">${escapeHtml(L.acces)}</div>
       <div class="salle-champs">
         ${champ(L.semis, m.nombreSemisSimultanees != null ? String(m.nombreSemisSimultanees) : '')}
-        ${champ(L.dech, niveau)}
+        ${lignesSemis}
         ${m.planUrl
           ? `<div class="salle-champ"><span class="k">${escapeHtml(L.plan)}</span><a class="v" href="${escapeAttr(m.planUrl)}" target="_blank" rel="noopener">${escapeHtml(L.ouvrir)}</a></div>`
           : champ(L.plan, '')}
@@ -469,7 +486,7 @@ function exporterPdf(){
 
     const lignes = [
       [L.semis, m.nombreSemisSimultanees != null ? String(m.nombreSemisSimultanees) : '—'],
-      [L.dech, L.niveau[m.niveauDechargement] || L.niveau.inconnu],
+      ...(m.emplacementsDechargement || []).map((e, i)=> [`${L.semi} ${i+1}`, texteSemi(e, L) || '—']),
       [L.grill, m.hauteurGrill || '—'],
       [L.ouv, m.ouvertureScene || '—'],
       [L.puis, m.puissance || '—'],
