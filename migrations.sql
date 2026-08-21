@@ -3320,3 +3320,133 @@ begin
 end;
 $$;
 grant execute on function update_own_disponibilites_by_token(text, jsonb, jsonb, text, text) to anon, authenticated;
+
+-- ============================================================================
+-- Où va le chauffeur, ce que la tournée demande, et ce que les gens en disent.
+--
+-- Trois manques qui se tenaient : on ne pouvait pas dire à un chauffeur chez
+-- qui il allait faute d'adresse, on redécrivait à chaque date des exigences de
+-- tournée qui ne changent pas, et personne ne pouvait nous signaler un problème
+-- depuis un lien partagé autrement qu'en téléphonant.
+-- ============================================================================
+
+-- 1. Un prestataire a une adresse. Sans elle, « chez quel prestataire va-t-il ? »
+--    reste sans réponse utilisable sur une feuille de mission.
+alter table prestataires add column if not exists adresse text not null default '';
+alter table prestataires add column if not exists telephone text not null default '';
+alter table prestataires add column if not exists contact_nom text not null default '';
+
+-- 2. Les exigences techniques de la tournée : elles ne changent pas d'une date
+--    à l'autre, mais doivent pouvoir évoluer. On les pose sur la tournée plutôt
+--    que de les recopier sur chaque fiche de date.
+--
+--    { pointsJus:      [{id, position, puissance, typePrise, differentiel}],
+--      accesScene:     [{id, position, notes}],
+--      shakes:         {nombre, depart, notes} }
+alter table tournees add column if not exists technique_tournee jsonb not null default '{}'::jsonb;
+
+-- 3. Ce que la salle indique en retour, date par date : où sont ses points de
+--    distribution électrique. [{id, position, notes}]
+alter table moyens_salle add column if not exists points_distribution jsonb not null default '[]'::jsonb;
+
+-- 4. Remarques laissées depuis un lien partagé.
+--
+--    Une salle ou un stage manager qui repère une erreur n'avait aucun moyen de
+--    nous le dire dans l'outil : il fallait téléphoner, et l'information restait
+--    dans la tête de celui qui décrochait. Elles remontent désormais ici, et
+--    s'affichent côté production sur la date concernée.
+create table if not exists remarques (
+  id text primary key,
+  tournee_id text,
+  date_id text,
+  acces_id text,
+  auteur text not null default '',
+  sujet text not null default '',
+  message text not null default '',
+  traitee boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_remarques_updated_at on remarques;
+create trigger trg_remarques_updated_at before update on remarques
+  for each row execute function set_updated_at();
+
+alter table remarques enable row level security;
+-- Écriture par la fonction à jeton uniquement (security definer) : la clé
+-- anonyme n'a aucun droit direct sur cette table, ni en lecture ni en écriture.
+drop policy if exists "remarques lecture" on remarques;
+create policy "remarques lecture" on remarques for select to authenticated
+  using (has_access());
+drop policy if exists "remarques ecriture" on remarques;
+create policy "remarques ecriture" on remarques for all to authenticated
+  using (has_access()) with check (has_access());
+
+create or replace function ajouter_remarque_par_jeton(
+  p_token text, p_date_id text, p_sujet text, p_message text
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces acces_logistique%rowtype;
+begin
+  select * into acces from acces_logistique where id = p_token and actif limit 1;
+  if not found then return false; end if;
+  if coalesce(trim(p_message), '') = '' then return false; end if;
+
+  insert into remarques (id, tournee_id, date_id, acces_id, auteur, sujet, message)
+  values (replace(gen_random_uuid()::text, '-', ''), acces.tournee_id, p_date_id,
+          acces.id, coalesce(acces.libelle, ''), coalesce(p_sujet, ''),
+          -- Bornée : un lien public ne doit pas pouvoir écrire un roman en base.
+          left(trim(p_message), 2000));
+  return true;
+end;
+$$;
+grant execute on function ajouter_remarque_par_jeton(text, text, text, text) to anon, authenticated;
+
+-- Les remarques déjà laissées, pour que la page partagée les montre à son auteur
+-- plutôt que de lui faire croire que rien n'est parti.
+create or replace function get_remarques_par_jeton(p_token text)
+returns table(id text, date_id text, sujet text, message text, traitee boolean, created_at timestamptz)
+language sql
+security definer
+set search_path = public
+as $$
+  select r.id, r.date_id, r.sujet, r.message, r.traitee, r.created_at
+    from remarques r
+    join acces_logistique a on a.id = r.acces_id
+   where a.id = p_token and a.actif
+   order by r.created_at desc;
+$$;
+grant execute on function get_remarques_par_jeton(text) to anon, authenticated;
+
+-- 5. Dépôt du plan de salle par le stage manager.
+--
+--    Il pouvait positionner les semis mais pas déposer l'image : celle-ci ne se
+--    chargeait que depuis la fiche de date, côté production. Le fichier lui-même
+--    passe par api/deposer-plan-salle.js — le bucket exige un compte, et ouvrir
+--    l'écriture à la clé anonyme aurait offert un dépôt de fichiers sans
+--    authentification à qui lit le code source. Cette fonction ne fait que
+--    rattacher le chemin déjà déposé à la bonne date, après contrôle du jeton.
+create or replace function enregistrer_plan_salle_par_jeton(
+  p_token text, p_date_id text, p_chemin text
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces acces_logistique%rowtype;
+  n int;
+begin
+  select * into acces from acces_logistique
+   where id = p_token and actif and type = 'stage_manager' limit 1;
+  if not found then return false; end if;
+  update moyens_salle set plan_image_path = coalesce(p_chemin, '')
+   where tournee_id = acces.tournee_id and date_id = p_date_id;
+  get diagnostics n = row_count;
+  return n > 0;
+end;
+$$;
+grant execute on function enregistrer_plan_salle_par_jeton(text, text, text) to anon, authenticated;

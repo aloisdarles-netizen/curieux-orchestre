@@ -76,6 +76,17 @@ const SEED = {
       mouvements:[], retourPrestataireDate:'', retourPrestataireHeurePickup:'',
       retourPrestataireHeureLivraison:'', notes:'' },
   ],
+  // Deux remarques reçues depuis des liens partagés, dont une déjà traitée.
+  remarques: [
+    { id:'rem1', tourneeId:'demo-tour1', dateId:'d1', accesId:'acc-salle-01',
+      auteur:'Salle 3000 — Lyon', sujet:'Horaires',
+      message:"Le load in à 8h est trop tôt : notre quai n'ouvre qu'à 9h.",
+      traitee:false, createdAt:'2026-08-20T09:12:00Z' },
+    { id:'rem2', tourneeId:'demo-tour1', dateId:'d1', accesId:'acc-sm-01',
+      auteur:'Karim (stage manager)', sujet:'Déchargement',
+      message:'La fosse est inaccessible en semi, il faut passer par le côté cour.',
+      traitee:true, createdAt:'2026-08-19T16:40:00Z' },
+  ],
   // Trois listes de remplaçant·es aux trois états : complète, incomplète, vide.
   remplacant_prefs: [
     { id:'demo-mus-01', items:[
@@ -337,6 +348,8 @@ const CurieuxDB = new Proxy({
   getFicheTechniqueByToken: async () => null,
   // Le jeton choisit le gabarit : les trois (stage manager, technicien,
   // salle) partagent la même page et n'en montrent pas les mêmes blocs.
+  getRemarquesParJeton: async () => [],
+  ajouterRemarqueParJeton: async () => ({ ok: true }),
   getRecapLogistique: async (jeton) => {
     if(!__seed.__recap) return null;
     const types = { salle:'salle', technicien:'technicien' };

@@ -73,8 +73,11 @@ const CurieuxDB = (()=>{
         // [{id, label, couleur}, ...] — équipes road nommées, réutilisées comme
         // base de répartition sur chaque vacation roadies.
         equipes_road: t.equipesRoad || [],
+        // Exigences techniques constantes de la tournée — elles ne changent pas
+        // d'une date à l'autre, on ne les recopie donc pas sur chaque fiche.
+        technique_tournee: t.techniqueTournee || {},
       }),
-      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [], equipesRoad: r.equipes_road || [] })
+      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [], equipesRoad: r.equipes_road || [], techniqueTournee: r.technique_tournee || {} })
     },
     // ——— Outils de direction technique (août 2026) ———
     // Ce que la salle fournit, date par date (B2). "id" = `${tourneeId}::${dateId}`,
@@ -111,6 +114,8 @@ const CurieuxDB = (()=>{
         // semi simultanée. Le niveau se règle par semi : l'une peut décharger
         // de plain-pied pendant qu'une autre monte sur scène.
         emplacements_dechargement: m.emplacementsDechargement || [],
+        // Ce que la salle indique en retour : où sont ses arrivées de courant.
+        points_distribution: m.pointsDistribution || [],
         acces_notes: m.accesNotes || '',
         // [{horaireDebut, horaireFin, nombreDemande, confirme, notes, equipes:[{departement,couleur,nombre}]}, ...]
         roadies_vacations: m.roadiesVacations || [],
@@ -157,6 +162,7 @@ const CurieuxDB = (()=>{
         bureauAccrocheDossierUrl: r.bureau_accroche_dossier_url || '',
         nombreSemisSimultanees: r.nombre_semis_simultanees,
         emplacementsDechargement: r.emplacements_dechargement || [],
+        pointsDistribution: r.points_distribution || [],
         accesNotes: r.acces_notes || '',
         roadiesVacations: r.roadies_vacations || [],
         chariotsVacations: r.chariots_vacations || [],
@@ -176,8 +182,13 @@ const CurieuxDB = (()=>{
     },
     // Registre partagé des prestataires (provenance matériel, loueur véhicule).
     prestataires: {
-      toDb: (p)=> ({ id: p.id, nom: p.nom || '', notes: p.notes || '' }),
-      fromDb: (r)=> ({ id: r.id, nom: r.nom || '', notes: r.notes || '' })
+      // L'adresse et le téléphone servent aux feuilles de mission des
+      // chauffeurs : « chez quel prestataire vas-tu » n'a pas de réponse
+      // utilisable sans elles.
+      toDb: (p)=> ({ id: p.id, nom: p.nom || '', notes: p.notes || '',
+        adresse: p.adresse || '', telephone: p.telephone || '', contact_nom: p.contactNom || '' }),
+      fromDb: (r)=> ({ id: r.id, nom: r.nom || '', notes: r.notes || '',
+        adresse: r.adresse || '', telephone: r.telephone || '', contactNom: r.contact_nom || '' })
     },
     // Lots de matériel (B3) : ce qu'on AMÈNE. Un lot peut contenir d'autres
     // lots (parentId) — "Kit lumière" peut contenir "Barres LED sol" comme
@@ -354,6 +365,16 @@ const CurieuxDB = (()=>{
     // Signalements du widget "Signaler un bug" (voir injectBugReportWidget dans
     // brand-assets.js) — écriture publique, lecture réservée aux comptes 'admin'.
     // "type" distingue bug / amélioration / incohérence.
+    // Remarques laissées depuis un lien partagé (salle, stage manager) —
+    // écriture par la fonction à jeton uniquement, lecture côté production.
+    remarques: {
+      toDb: (r)=> ({ id: r.id, tournee_id: r.tourneeId || null, date_id: r.dateId || null,
+        acces_id: r.accesId || null, auteur: r.auteur || '', sujet: r.sujet || '',
+        message: r.message || '', traitee: !!r.traitee }),
+      fromDb: (r)=> ({ id: r.id, tourneeId: r.tournee_id || '', dateId: r.date_id || '',
+        accesId: r.acces_id || '', auteur: r.auteur || '', sujet: r.sujet || '',
+        message: r.message || '', traitee: !!r.traitee, createdAt: r.created_at })
+    },
     bug_reports: {
       toDb: (b)=> ({ id: b.id, message: b.message || '', page: b.page || '', type: b.type || 'bug' }),
       fromDb: (r)=> ({ id: r.id, message: r.message, page: r.page, type: r.type || 'bug', createdAt: r.created_at })
@@ -1240,6 +1261,37 @@ const CurieuxDB = (()=>{
     if(error){ console.warn('[CurieuxDB] enregistrerPositionsSemis', error.message); return { error }; }
     return { ok: !!data };
   }
+  // Une remarque laissée depuis un lien partagé. Bornée à 2000 caractères côté
+  // base : un lien public ne doit pas pouvoir écrire un roman.
+  async function ajouterRemarqueParJeton(token, dateId, sujet, message){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { data, error } = await supabaseClient.rpc('ajouter_remarque_par_jeton', {
+      p_token: token, p_date_id: dateId || null, p_sujet: sujet || '', p_message: message || ''
+    });
+    if(error){ console.warn('[CurieuxDB] ajouterRemarqueParJeton', error.message); return { error }; }
+    return { ok: !!data };
+  }
+  // Les remarques déjà envoyées par ce lien — pour que son auteur les relise au
+  // lieu de croire que rien n'est parti.
+  async function getRemarquesParJeton(token){
+    if(!supabaseClient) return [];
+    const { data, error } = await supabaseClient.rpc('get_remarques_par_jeton', { p_token: token });
+    if(error){ console.warn('[CurieuxDB] getRemarquesParJeton', error.message); return []; }
+    return (data || []).map(r=> ({ id:r.id, dateId:r.date_id || '', sujet:r.sujet || '',
+      message:r.message || '', traitee: !!r.traitee, createdAt: r.created_at }));
+  }
+  // Rattache à une date le plan de salle déposé par le stage manager. Le fichier
+  // lui-même passe par api/deposer-plan-salle.js : le bucket exige un compte, et
+  // l'ouvrir à la clé anonyme offrirait un dépôt de fichiers sans
+  // authentification à qui lit le code source.
+  async function enregistrerPlanSalleParJeton(token, dateId, chemin){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { data, error } = await supabaseClient.rpc('enregistrer_plan_salle_par_jeton', {
+      p_token: token, p_date_id: dateId, p_chemin: chemin || ''
+    });
+    if(error){ console.warn('[CurieuxDB] enregistrerPlanSalleParJeton', error.message); return { error }; }
+    return { ok: !!data };
+  }
   // Le stage manager (jeton type='stage_manager') modifie les horaires de la
   // journée (load in, get in…) d'une date.
   async function enregistrerHorairesJournee(token, dateId, horaires){
@@ -1279,6 +1331,7 @@ const CurieuxDB = (()=>{
     fetchReglages, setPhaseTest, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
     getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis, enregistrerHorairesJournee,
+    ajouterRemarqueParJeton, getRemarquesParJeton, enregistrerPlanSalleParJeton,
     deposerPlanSalle, urlPubliquePlanSalle,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,

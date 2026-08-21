@@ -135,6 +135,9 @@
 </div>
 <script>
 let RECAP = null, TOKEN = '';
+// Remarques déjà envoyées par ce lien — on les remontre à leur auteur plutôt
+// que de le laisser croire que rien n'est parti.
+let remarquesEnvoyees = [];
 
 // ============================================================================
 // Langue — les salles peuvent lire la page en français, anglais, allemand ou
@@ -167,6 +170,13 @@ const TR = {
     // Le bloc « mouvements » ne s'affiche pas sur les liens de salle : ces
     // clés ne sont donc pas traduites, t() retombe de lui-même sur le français.
     sommaire_titre:'Dates', bloc_mouvements:'Mouvements de matériel',
+    plan_depot_invite:"Aucun plan pour l'instant. Dépose-le ici — JPEG, PNG ou WebP, 8 Mo maximum — et tu pourras y placer les semis.",
+    plan_deposer:'Déposer un plan', plan_remplacer:'Remplacer le plan',
+    plan_depot_encours:'Dépôt en cours…', plan_depot_ok:'✓ Plan déposé.',
+    bloc_remarques:'Une remarque ?',
+    remarque_invite:"Quelque chose ne colle pas sur cette date ? Écris-le ici : la production le lit sur sa propre fiche.",
+    remarque_sujet:'À propos de', remarque_message:'Ta remarque…', remarque_envoyer:'Envoyer la remarque',
+    remarque_envoyee:'✓ Envoyée à la production.', remarque_deja:'Déjà envoyé',
     mvt_sortie:'Sortie', mvt_entree:'Entrée', mvt_retour:'Retour presta.',
   },
   en: {
@@ -365,6 +375,22 @@ function blocVacationsRigg(m, editable){
   </div>`;
 }
 document.addEventListener('click', async (e)=>{
+  const btnRemarque = e.target.closest('[data-envoyer-remarque]');
+  if(btnRemarque){
+    const zone = btnRemarque.closest('[data-remarque]');
+    const sujet = zone.querySelector('[data-champ="sujet"]').value.trim();
+    const message = zone.querySelector('[data-champ="message"]').value.trim();
+    if(!message){ zone.querySelector('[data-champ="message"]').focus(); return; }
+    btnRemarque.disabled = true;
+    const res = await CurieuxDB.ajouterRemarqueParJeton(TOKEN, zone.dataset.remarque, sujet, message);
+    btnRemarque.disabled = false;
+    if(res.error || !res.ok){ alert("La remarque n'a pas pu être envoyée — réessaie."); return; }
+    zone.querySelector('[data-ok]').style.display = 'inline';
+    remarquesEnvoyees = await CurieuxDB.getRemarquesParJeton(TOKEN);
+    renderContenu();
+    return;
+  }
+
   const btn = e.target.closest('[data-repondre]');
   if(!btn) return;
   const form = btn.closest('.reponse-form');
@@ -384,8 +410,81 @@ document.addEventListener('click', async (e)=>{
 // ============================================================================
 // Gabarit STAGE MANAGER — tout, avec plan de salle positionnable.
 // ============================================================================
+// Dépôt du plan par le stage manager. Le fichier part vers api/deposer-plan-salle.js,
+// qui vérifie le jeton avec la clé de service : le bucket n'accepte pas la clé
+// anonyme, et l'ouvrir aurait offert un dépôt de fichiers sans authentification.
+function choisirEtDeposerPlan(dateId){
+  const champ = document.createElement('input');
+  champ.type = 'file';
+  champ.accept = 'image/jpeg,image/png,image/webp';
+  champ.addEventListener('change', async ()=>{
+    const fichier = champ.files[0];
+    if(!fichier) return;
+    const statut = document.querySelector(`[data-plan-statut="${CSS.escape(dateId)}"]`);
+    const dire = (texte)=>{ if(statut) statut.textContent = texte; };
+    if(fichier.size > 8 * 1024 * 1024){
+      dire(`Trop lourd (${(fichier.size/1024/1024).toFixed(1)} Mo) — 8 Mo maximum.`);
+      return;
+    }
+    dire(t('plan_depot_encours'));
+    try{
+      const base64 = await new Promise((resolve, reject)=>{
+        const lecteur = new FileReader();
+        lecteur.onload = ()=> resolve(String(lecteur.result).split(',')[1] || '');
+        lecteur.onerror = ()=> reject(new Error('Fichier illisible.'));
+        lecteur.readAsDataURL(fichier);
+      });
+      const rep = await fetch('/api/deposer-plan-salle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jeton: TOKEN, dateId, typeMime: fichier.type, fichier: base64 }),
+      });
+      const data = await rep.json().catch(()=> ({}));
+      if(!rep.ok || !data.ok){ dire(data.erreur || `Le dépôt a échoué (${rep.status}).`); return; }
+      dire(t('plan_depot_ok'));
+      // On recharge le récap : la page redessine alors la zone de plan avec
+      // l'image, prête à recevoir les pastilles de semis.
+      RECAP = await CurieuxDB.getRecapLogistique(TOKEN);
+      renderContenu();
+    }catch(e){
+      dire("Le dépôt a échoué : " + (e && e.message ? e.message : 'raison inconnue'));
+    }
+  });
+  champ.click();
+}
+
+// Une remarque qui remonte à la production.
+//
+// Une salle ou un stage manager qui repérait une erreur n'avait aucun moyen de
+// nous le dire dans l'outil : il fallait téléphoner, et l'information restait
+// dans la tête de celui qui décrochait.
+function blocRemarques(d){
+  const miennes = remarquesEnvoyees.filter(r=> r.dateId === d.id);
+  return `<div class="bloc" style="grid-column:1/-1;"><span class="titre">${t('bloc_remarques')}</span>
+    <p class="plan-statut" style="margin:0 0 8px;">${t('remarque_invite')}</p>
+    ${miennes.map(r=> `<div class="registre-item" style="margin-bottom:6px;">
+        <div class="sub">${escapeHtml(r.sujet || '—')}${r.traitee ? ' · <strong style="color:var(--ok);">traitée</strong>' : ' · ' + t('remarque_deja')}</div>
+        <div>${escapeHtml(r.message)}</div>
+      </div>`).join('')}
+    <div class="reponse-form" data-remarque="${escapeAttr(d.id)}">
+      <input type="text" data-champ="sujet" placeholder="${escapeAttr(t('remarque_sujet'))}" style="flex:0 1 160px;">
+      <input type="text" data-champ="message" placeholder="${escapeAttr(t('remarque_message'))}" style="flex:1; min-width:180px;">
+      <button type="button" data-envoyer-remarque>${t('remarque_envoyer')}</button>
+      <span class="reponse-ok" data-ok style="display:none;">${t('remarque_envoyee')}</span>
+    </div>
+  </div>`;
+}
+
 function blocPlanSalle(m, editable){
-  if(!m.plan_image_path) return '';
+  // Sans plan, le stage manager voyait un vide : le bloc n'existait pas, et
+  // rien ne lui disait qu'il pouvait en déposer un. Il en dépose un désormais.
+  if(!m.plan_image_path){
+    if(!editable) return '';
+    return `<div><span class="titre" style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700;">${t('bloc_plan_salle')}</span>
+      <p class="plan-statut" style="margin:6px 0 8px;">${t('plan_depot_invite')}</p>
+      <div class="plan-outils"><button type="button" data-deposer-plan="${escapeAttr(m.date_id)}">${t('plan_deposer')}</button></div>
+      <p class="plan-statut" data-plan-statut="${escapeAttr(m.date_id)}"></p>
+    </div>`;
+  }
   const url = supabaseClient.storage.from('fiches-techniques').getPublicUrl(m.plan_image_path).data.publicUrl;
   const idZone = 'plan-' + m.date_id;
   setTimeout(()=> initPlanZone(idZone, url, m, editable), 0);
@@ -393,7 +492,9 @@ function blocPlanSalle(m, editable){
     ${editable ? `<div class="plan-outils" id="${idZone}Outils">
       <button type="button" data-mode="semi" data-plan="${idZone}">+ Semi</button>
       <button type="button" data-mode="note" data-plan="${idZone}">+ Note</button>
-    </div>` : ''}
+      <button type="button" data-deposer-plan="${escapeAttr(m.date_id)}">${t('plan_remplacer')}</button>
+    </div>
+    <p class="plan-statut" data-plan-statut="${escapeAttr(m.date_id)}"></p>` : ''}
     <div id="${idZone}"></div>
     ${editable ? `<p class="plan-statut">${t('plan_hint')}</p>` : ''}
   </div>`;
@@ -608,6 +709,7 @@ function ficheDateComplete(d, m, editableSalle, editableStageManager){
           ${blocVacationsRoadies(m, editableSalle)}
           ${blocVacationsChariots(m, editableSalle)}
           ${blocVacationsRigg(m, editableSalle)}
+          ${blocRemarques(d)}
         </div>
         ${/* Le plan de salle est un outil de placement des semis, à l'usage du
               stage manager. Une salle n'a rien à y faire : elle connaît son
@@ -637,6 +739,7 @@ async function init(){
   LANG = localStorage.getItem('curieux_lang_' + TOKEN) || 'fr';
 
   RECAP = await CurieuxDB.getRecapLogistique(TOKEN);
+  remarquesEnvoyees = await CurieuxDB.getRemarquesParJeton(TOKEN);
   if(!RECAP || !RECAP.tournee){ box.innerHTML = `<div class="state-box">${t('lien_inactif')}</div>`; return; }
 
   renderContenu();
@@ -738,6 +841,9 @@ document.addEventListener('click', (e)=>{
     if(matchMedia('(max-width:860px)').matches) document.querySelector('.mise-en-page').scrollIntoView({ block:'start' });
     return;
   }
+  const depotBtn = e.target.closest('[data-deposer-plan]');
+  if(depotBtn){ choisirEtDeposerPlan(depotBtn.dataset.deposerPlan); return; }
+
   const pdfBtn = e.target.closest('[data-pdf]');
   if(pdfBtn){ exporterJourneePdf(pdfBtn.dataset.pdf); }
 });
