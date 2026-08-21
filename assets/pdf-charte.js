@@ -457,6 +457,19 @@ function creerComposeurPdf(doc, options){
     return api;
   };
 
+  // Une section dessinée à la main, pour ce que la charte ne prévoit pas — un
+  // QR code, par exemple. Elle reçoit l'échelle en cours et la boîte à outils
+  // du composeur, et rend sa hauteur comme n'importe quelle autre section :
+  // elle participe donc au calcul qui fait tenir la page.
+  //
+  //   composeur.libre((k, dessiner, y, outils) => { … ; return hauteur; })
+  api.libre = function(fn){
+    if(typeof fn !== 'function') return api;
+    const outils = { doc, marge: o.marge, utile, hLigne, encre, fond, trait, lignes, charte: PDF_CHARTE };
+    sections.push((k, dessiner, yDepart)=> fn(k, dessiner, yDepart, outils));
+    return api;
+  };
+
   // --- rendu --------------------------------------------------------------
   function hauteurTotale(k){
     return sections.reduce((h, s)=> h + s(k, false, 0), 0);

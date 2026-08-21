@@ -382,6 +382,9 @@ const CurieuxDB = new Proxy({
     tailleVetement:'M', extra:{},
   }),
   getCachetOverrideByToken: async () => null,
+  // Jeton personnel permanent : la fiche de prise en main en dépend, et un
+  // jeton vide ferait rendre une fiche sans lien — donc sans QR à relire.
+  ensureAccesPersonnel: async (id) => ({ token: 'demo-jeton-' + id }),
   getContactProduction: async () => ({ nom:'Aloïs — production', telephone:'06 12 34 56 78' }),
   // Le tableau des comptes de l'admin : sans lui, la page se capture vide et
   // la case d'accès à la direction technique reste invisible.
