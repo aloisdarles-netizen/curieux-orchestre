@@ -8,22 +8,19 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:760px; margin:0 auto; font-variant-numeric:tabular-nums;}
+  .wrap{max-width:900px; margin:0 auto; font-variant-numeric:tabular-nums;}
   button{ cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700; padding:9px 15px; font-family:inherit; }
-  .btn-secondary{background:var(--accent-tint); color:var(--accent-dark);}
-  .btn-ghost{background:transparent; color:var(--muted); padding:6px 10px;}
-  .btn-danger{background:transparent; color:var(--danger); padding:6px 10px;}
-  .btn-sm{padding:7px 11px; font-size:12px;}
   input[type=text], input[type=url]{ padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%; background:var(--card); color:var(--text); font-family:inherit; }
   label{font-size:12px; color:var(--muted); font-weight:600;}
   .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
 
   .toolbar{display:flex; justify-content:flex-end; margin-bottom:16px;}
-  .fiche-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; margin-bottom:12px;}
+  .fiche-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:12px;}
   .fiche-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
   .fiche-nom{font-weight:800; font-size:15px;}
   .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap;}
@@ -51,14 +48,14 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="brand-header">
-    <a href="technique.html">← Direction technique</a>
-    <nav class="page-nav" data-curieux-nav></nav>
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Fiches techniques</h1>
+      <p class="subtitle">Le lien pointe directement sur le fichier partagé — toujours à jour, sans rien à synchroniser.</p>
+    </div>
+    <div class="co-actions"><button type="button" class="co-btn primary md" id="addFicheBtn">+ Nouvelle fiche</button></div>
   </div>
-  <h1>Fiches techniques</h1>
-  <p class="subtitle">Le lien pointe directement sur le fichier partagé — toujours à jour, sans rien à synchroniser.</p>
 
-  <div class="toolbar"><button type="button" class="btn-secondary" id="addFicheBtn">+ Nouvelle fiche</button></div>
   <div id="fichesListe"></div>
   <div class="empty-hint" id="fichesEmpty" style="display:none;">Aucune fiche technique — crée-en une avec le bouton ci-dessus.</div>
 </div>
@@ -70,8 +67,8 @@
     <div class="field"><label for="fNom">Nom</label><input type="text" id="fNom" placeholder="Ex: Fiche technique — Expédition 33"></div>
     <div class="field"><label for="fDriveUrl">Lien Drive partagé (accès "avec le lien" activé)</label><input type="url" id="fDriveUrl" placeholder="https://drive.google.com/…"></div>
     <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="ficheModalCancel">Annuler</button>
-      <button type="button" class="btn-secondary" id="ficheModalSave">Enregistrer</button>
+      <button type="button" class="co-btn ghost" id="ficheModalCancel">Annuler</button>
+      <button type="button" class="co-btn secondary" id="ficheModalSave">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -83,8 +80,8 @@
     <div class="field"><label for="vLabel">Étiquette</label><input type="text" id="vLabel" placeholder="Ex: v6"></div>
     <div class="field"><label for="vNote">Ce qui a changé</label><input type="text" id="vNote" placeholder="Ex: puissance mise à jour, contact modifié"></div>
     <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="versionModalCancel">Annuler</button>
-      <button type="button" class="btn-secondary" id="versionModalSave">Publier</button>
+      <button type="button" class="co-btn ghost" id="versionModalCancel">Annuler</button>
+      <button type="button" class="co-btn secondary" id="versionModalSave">Publier</button>
     </div>
   </div>
 </div>
@@ -94,7 +91,7 @@ let fichesCache = [];
 let ficheVersionOuverte = '';
 
 function ligneLienCopie(url, btnClass){
-  return `<div class="lien-copie"><code>${escapeHtml(url)}</code><button type="button" class="btn-ghost btn-sm ${btnClass}" data-url="${escapeAttr(url)}">Copier</button></div>`;
+  return `<div class="lien-copie"><code>${escapeHtml(url)}</code><button type="button" class="co-btn ghost sm ${btnClass}" data-url="${escapeAttr(url)}">Copier</button></div>`;
 }
 document.addEventListener('click', (e)=>{
   const btn = e.target.closest('.btn-copier');
@@ -134,10 +131,10 @@ function render(){
       ${f.driveUrl ? `<div class="fiche-drive"><a href="${escapeHtml(f.driveUrl)}" target="_blank" rel="noopener">Ouvrir dans Drive ↗</a></div>` : `<div class="fiche-drive" style="color:var(--danger);">Aucun lien Drive renseigné</div>`}
       ${ligneLienCopie(lienCanonique(f.token), 'btn-copier')}
       <div class="fiche-actions">
-        <button type="button" class="btn-ghost btn-sm" data-edit="${f.id}">Modifier</button>
-        <button type="button" class="btn-secondary btn-sm" data-publier="${f.id}">Publier une version</button>
-        <button type="button" class="btn-ghost btn-sm" data-historique="${f.id}">Historique</button>
-        <button type="button" class="btn-danger btn-sm" data-del="${f.id}">Supprimer</button>
+        <button type="button" class="co-btn ghost sm" data-edit="${f.id}">Modifier</button>
+        <button type="button" class="co-btn secondary sm" data-publier="${f.id}">Publier une version</button>
+        <button type="button" class="co-btn ghost sm" data-historique="${f.id}">Historique</button>
+        <button type="button" class="co-btn danger sm" data-del="${f.id}">Supprimer</button>
       </div>
       <div class="historique" data-versions-de="${f.id}"></div>
     </div>
@@ -219,8 +216,6 @@ async function initData(){
 CurieuxDB.subscribe('fiches_techniques', ()=> CurieuxDB.fetchAll('fiches_techniques').then(l=>{ fichesCache=l; curieuxRafraichir(render); }));
 
 injectCurieuxFonts();
-initNavDropdowns();
-initGlobalSearch(document.querySelector('.page-nav'));
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 initData();

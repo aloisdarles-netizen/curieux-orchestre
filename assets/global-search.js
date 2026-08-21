@@ -78,7 +78,7 @@
     wrap.id = 'globalSearchWrap';
     wrap.className = 'gsearch-wrap';
     wrap.innerHTML = `
-      <input type="text" id="globalSearchInput" class="gsearch-input" placeholder="Rechercher…" autocomplete="off">
+      <input type="text" id="globalSearchInput" class="gsearch-input" placeholder="Rechercher…  ⌘K" autocomplete="off">
       <div id="globalSearchResults" class="gsearch-results"></div>
     `;
     navEl.appendChild(wrap);
