@@ -398,3 +398,34 @@ function injecterModeEmploiApp(conteneur, options){
   }
   window.addEventListener('appinstalled', ()=> injecterModeEmploiApp(boite, opt));
 }
+
+// ============================================================================
+// Filet de sécurité sur la feuille de style.
+//
+// assets/base.css porte tout le socle visuel : sans elle, la page s'affiche en
+// texte brut, liens soulignés et logo en taille native. Cela s'est produit en
+// production environ une fois sur dix, le service worker faisant échouer la
+// requête au moindre incident de stockage (corrigé dans sw.js).
+//
+// Reste le cas qu'aucun service worker ne couvre : la toute première visite,
+// où il n'est pas encore enregistré, et où un simple à-coup de réseau — une
+// salle, un partage de connexion — suffit à perdre le fichier. On s'en aperçoit
+// alors et on le redemande une fois, sous une adresse neuve pour contourner
+// tout cache.
+//
+// `link.sheet` est le signal : au chargement complet de la page, une feuille
+// appliquée en a une, une feuille en échec vaut null.
+// ============================================================================
+function reprendreFeuilleDeStyle(){
+  document.querySelectorAll('link[rel="stylesheet"]').forEach((lien)=>{
+    if(lien.sheet || lien.dataset.reprise) return;
+    lien.dataset.reprise = '1';
+    const neuf = document.createElement('link');
+    neuf.rel = 'stylesheet';
+    const sep = lien.href.includes('?') ? '&' : '?';
+    neuf.href = lien.href + sep + 'reprise=' + Date.now();
+    lien.parentNode.insertBefore(neuf, lien.nextSibling);
+    console.warn('[Curieux] feuille de style non chargée, seconde tentative :', lien.href);
+  });
+}
+if(typeof window !== 'undefined') window.addEventListener('load', reprendreFeuilleDeStyle);

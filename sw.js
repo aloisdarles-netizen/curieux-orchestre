@@ -22,7 +22,7 @@
  * statiques. Cela purge les anciens caches à l'activation.
  */
 
-const VERSION = 'curieux-v1';
+const VERSION = 'curieux-v2';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
@@ -41,6 +41,10 @@ self.addEventListener('install', (event) => {
       // addAll échoue en bloc si un seul fichier manque : on tolère les
       // absences pour ne jamais empêcher l'installation du service worker.
       .then((cache) => Promise.allSettled(SOCLE.map((url) => cache.add(url))))
+      // Un stockage qui refuse de s'ouvrir ne doit pas non plus empêcher
+      // l'installation : sans cache, le service worker sert le réseau nu,
+      // ce qui reste préférable à une version qui reste bloquée en attente.
+      .catch(() => {})
       .then(() => self.skipWaiting())
   );
 });
@@ -70,11 +74,17 @@ function estRequeteDePage(request) {
 // l'a déjà vue, sinon la page « hors connexion ». On ne renvoie jamais
 // undefined — cela afficherait l'écran d'erreur brut du navigateur.
 async function reponseDeSecours(request) {
-  const dejaVue = await caches.match(request, { ignoreSearch: true });
-  if (dejaVue) return dejaVue;
+  // Même précaution qu'au service des actifs : si le stockage refuse de
+  // répondre, on tombe sur le message ci-dessous plutôt que de laisser le
+  // rejet remonter à respondWith, ce qui donnerait l'écran d'erreur du
+  // navigateur au lieu de la page hors connexion.
+  try {
+    const dejaVue = await caches.match(request, { ignoreSearch: true });
+    if (dejaVue) return dejaVue;
 
-  const secours = await caches.match(PAGE_HORS_LIGNE);
-  if (secours) return secours;
+    const secours = await caches.match(PAGE_HORS_LIGNE);
+    if (secours) return secours;
+  } catch (e) { /* stockage indisponible */ }
 
   return new Response(
     '<!doctype html><meta charset="utf-8"><title>Hors connexion</title>'
@@ -82,6 +92,59 @@ async function reponseDeSecours(request) {
     + "n'a pas encore été consultée sur cet appareil.</p>",
     { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
   );
+}
+
+// Sert un fichier de présentation : le cache d'abord pour la vitesse, le
+// réseau ensuite, et le réseau seul si le stockage fait défaut.
+//
+// Cette fonction ne doit JAMAIS lever ni rendre undefined. event.respondWith()
+// traite les deux comme une erreur réseau : le fichier n'arrive pas, et une
+// feuille de style manquante affiche la page en texte brut. C'est ce qui se
+// produisait environ une fois sur dix — le moindre incident du stockage
+// (navigation privée, quota, purge d'un ancien cache en cours, éviction par
+// Safari après sept jours) suffisait, alors que le réseau, lui, répondait.
+async function servirActif(request) {
+  let cache = null;
+  let cachee = null;
+  try {
+    cache = await caches.open(CACHE_ACTIFS);
+    cachee = await cache.match(request);
+  } catch (e) {
+    // Stockage indisponible : on continuera sans lui, sans faire échouer la
+    // requête pour autant.
+  }
+
+  if (cachee) {
+    rafraichirEnFond(cache, request);
+    return cachee;
+  }
+
+  try {
+    const reponse = await fetch(request);
+    mettreEnCache(cache, request, reponse);
+    return reponse;
+  } catch (e) {
+    // Réseau injoignable et rien en cache. On rend une réponse en propre :
+    // le navigateur saura que le fichier manque, au lieu de subir une erreur
+    // réseau opaque.
+    return new Response('', { status: 504, statusText: 'Fichier indisponible hors connexion' });
+  }
+}
+
+// Le rafraîchissement se fait derrière la page : son échec ne la concerne pas.
+function rafraichirEnFond(cache, request) {
+  if (!cache) return;
+  fetch(request).then((reponse) => mettreEnCache(cache, request, reponse)).catch(() => {});
+}
+
+// cache.put() rejette sur une réponse partielle (206) ou en erreur, et peut
+// rejeter tout court quand le quota est atteint. Aucune de ces situations ne
+// doit remonter jusqu'à la page.
+function mettreEnCache(cache, request, reponse) {
+  if (!cache || !reponse || reponse.status !== 200) return;
+  try {
+    cache.put(request, reponse.clone()).catch(() => {});
+  } catch (e) { /* clone() sur un corps déjà lu */ }
 }
 
 self.addEventListener('fetch', (event) => {
@@ -105,9 +168,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then((reponse) => {
-          if (reponse && reponse.ok) {
+          if (reponse && reponse.status === 200) {
             const copie = reponse.clone();
-            caches.open(CACHE_PAGES).then((c) => c.put(request, copie));
+            // Le stockage peut refuser : la page est déjà servie, cet échec
+            // ne doit pas remonter en rejet non traité.
+            caches.open(CACHE_PAGES).then((c) => c.put(request, copie)).catch(() => {});
           }
           return reponse;
         })
@@ -118,20 +183,9 @@ self.addEventListener('fetch', (event) => {
 
   // Règle 3 — fichiers de présentation : cache d'abord, rafraîchi derrière.
   //
-  // La recherche est volontairement limitée au cache des actifs. `caches.match`
-  // global inspecterait aussi le cache des pages et pourrait rendre une copie
-  // de page là où le code attend un fichier — donc une version périmée.
-  event.respondWith(
-    caches.open(CACHE_ACTIFS).then((cache) =>
-      cache.match(request).then((cachee) => {
-        const reseau = fetch(request)
-          .then((reponse) => {
-            if (reponse && reponse.ok) cache.put(request, reponse.clone());
-            return reponse;
-          })
-          .catch(() => cachee);
-        return cachee || reseau;
-      })
-    )
-  );
+  // La recherche est volontairement limitée au cache des actifs (voir
+  // servirActif) : `caches.match` global inspecterait aussi le cache des pages
+  // et pourrait rendre une copie de page là où le code attend un fichier —
+  // donc une version périmée.
+  event.respondWith(servirActif(request));
 });
