@@ -29,7 +29,9 @@
 // restaient sans effet. Toute modification d'un fichier de assets/ doit
 // s'accompagner d'un incrément ici.
 // v4 : pdf-prise-en-main.js sait rendre un blob pour l'envoi WhatsApp.
-const VERSION = 'curieux-v4';
+// v5 : correctifs d'audit — contraste des boutons secondaires en sombre
+// (base.css), widget de retour réduit en mobile (brand-assets.js).
+const VERSION = 'curieux-v5';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

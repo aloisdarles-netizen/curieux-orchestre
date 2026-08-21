@@ -374,6 +374,19 @@ function injectBugReportWidget(){
   }
   if(document.getElementById('curieuxBugWidget')) return;
 
+  // Sur mobile il n'y a pas de gouttière : l'onglet complet « Un retour ? » se
+  // posait par-dessus le début des cartes. Sous 640 px il se réduit à son icône
+  // (le libellé reste dans le title), assez petit pour ne plus masquer le
+  // contenu. !important car la position et le padding sont posés en inline.
+  if(!document.getElementById('curieuxBugWidgetCss')){
+    const css = document.createElement('style');
+    css.id = 'curieuxBugWidgetCss';
+    css.textContent = '@media (max-width:640px){'
+      + '#curieuxBugWidget{bottom:76px !important; padding:9px !important; gap:0 !important;}'
+      + '#curieuxBugWidget span{display:none;}}';
+    document.head.appendChild(css);
+  }
+
   const FONT = "'Host Grotesk',-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif";
 
   const tab = document.createElement('button');
