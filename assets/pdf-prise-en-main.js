@@ -214,7 +214,14 @@ async function genererPriseEnMainPdf(personnes, options){
     if(i > 0) doc.addPage();
     pagePriseEnMain(doc, f.personne, f.lien).rendre(null);
   });
-  doc.save(nomFichierPriseEnMain(fiches.map(f=> f.personne)));
 
-  return { ok:true, generees: fiches.length, ignorees };
+  const nomFichier = nomFichierPriseEnMain(fiches.map(f=> f.personne));
+  // sortie:'blob' rend le document au lieu de le télécharger : c'est ce qui
+  // permet de le tendre à la feuille de partage du téléphone (WhatsApp en
+  // pièce jointe) plutôt que de seulement le déposer dans les téléchargements.
+  if(opts.sortie === 'blob'){
+    return { ok:true, generees: fiches.length, ignorees, blob: doc.output('blob'), nomFichier };
+  }
+  doc.save(nomFichier);
+  return { ok:true, generees: fiches.length, ignorees, nomFichier };
 }

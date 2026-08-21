@@ -28,7 +28,8 @@
 // pdf-charte.js — et les boutons d'export qui s'appuient sur la nouveauté
 // restaient sans effet. Toute modification d'un fichier de assets/ doit
 // s'accompagner d'un incrément ici.
-const VERSION = 'curieux-v3';
+// v4 : pdf-prise-en-main.js sait rendre un blob pour l'envoi WhatsApp.
+const VERSION = 'curieux-v4';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -282,6 +282,24 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="priseEnMainOverlay">
+  <div class="modal" style="max-width:520px;">
+    <h2 id="pemTitre">Fiche de prise en main</h2>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 14px;" id="pemSousTitre"></p>
+    <div class="field">
+      <label for="pemMessage">Message d'accompagnement</label>
+      <textarea id="pemMessage" rows="5" style="width:100%; font-size:14px; font-family:inherit; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); resize:vertical;"></textarea>
+      <p style="font-size:12px; color:var(--muted); margin:4px 0 0;">Ce texte part avec la fiche. Écris-le comme un message WhatsApp normal.</p>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin:10px 0 0;" id="pemNote"></p>
+    <div class="modal-actions">
+      <button type="button" class="co-btn ghost" id="pemAnnulerBtn">Annuler</button>
+      <button type="button" class="co-btn secondary" id="pemPdfBtn">Télécharger le PDF</button>
+      <button type="button" class="co-btn primary" id="pemWhatsappBtn">Envoyer par WhatsApp</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="remplacantsModalOverlay">
   <div class="modal">
     <h2 id="remplacantsModalTitle">Remplaçant·es</h2>
@@ -460,7 +478,7 @@ function render(){
   grid.querySelectorAll('[data-prise-en-main]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const m = loadMusicians().find(x=> x.id === btn.dataset.priseEnMain);
-      if(m) lancerPriseEnMain([m], btn);
+      if(m) ouvrirPriseEnMain(m);
     });
   });
   grid.querySelectorAll('[data-view-remplacants]').forEach(btn=>{
@@ -969,6 +987,100 @@ async function lancerPriseEnMain(personnes, bouton){
     if(bouton){ bouton.disabled = false; if(libelleInitial) bouton.textContent = libelleInitial; }
   }
 }
+
+// ============================================================================
+// Envoi de la fiche par WhatsApp, avec un message qu'on écrit soi-même.
+//
+// Aucun site ne peut joindre de force un fichier à un message WhatsApp. Deux
+// chemins réels existent, et on prend le meilleur disponible :
+//  - sur téléphone, la feuille de partage du navigateur (navigator.share)
+//    accepte le PDF en pièce jointe avec le texte — on choisit WhatsApp puis
+//    le destinataire, et tout part ensemble ;
+//  - sur ordinateur, elle n'existe pas pour les fichiers : on télécharge le
+//    PDF, on ouvre la conversation avec le texte pré-rempli, et il reste à
+//    glisser le PDF dedans — la fenêtre le dit clairement plutôt que de
+//    laisser croire que la pièce jointe est partie.
+// ============================================================================
+let pemPersonne = null;
+
+function messageParDefautPriseEnMain(m){
+  const prenom = (m.prenom || '').trim();
+  return `${prenom ? 'Salut ' + prenom : 'Salut'} !\n\n`
+    + `Voici ta fiche de prise en main pour l'outil des Soudaines : ton lien personnel est dedans, `
+    + `en qr-code et en lien direct. Prends deux minutes pour l'ouvrir et suivre les étapes — `
+    + `dis-moi si quelque chose coince.\n\nÀ très vite !`;
+}
+
+function ouvrirPriseEnMain(m){
+  pemPersonne = m;
+  document.getElementById('pemTitre').textContent = `Fiche de prise en main — ${fullName(m)}`;
+  document.getElementById('pemSousTitre').textContent =
+    'Le PDF contient son lien personnel. Il est généré au moment de l\'envoi.';
+  document.getElementById('pemMessage').value = messageParDefautPriseEnMain(m);
+  const waPossible = !!normalizeWhatsappPhone(m.telephone);
+  const partage = !!(navigator.canShare);
+  document.getElementById('pemNote').textContent = partage
+    ? ''
+    : (waPossible
+      ? 'Depuis un ordinateur : le PDF sera téléchargé et la conversation s\'ouvrira avec ton message — il restera à glisser le PDF dedans.'
+      : 'Pas de numéro de téléphone sur cette fiche : le PDF sera téléchargé et ton message copié, à coller où tu la joins.');
+  document.getElementById('priseEnMainOverlay').classList.add('open');
+  document.getElementById('pemMessage').focus();
+}
+function fermerPriseEnMain(){ document.getElementById('priseEnMainOverlay').classList.remove('open'); pemPersonne = null; }
+
+document.getElementById('pemAnnulerBtn').addEventListener('click', fermerPriseEnMain);
+document.getElementById('priseEnMainOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'priseEnMainOverlay') fermerPriseEnMain();
+});
+document.getElementById('pemPdfBtn').addEventListener('click', async (e)=>{
+  if(!pemPersonne) return;
+  const m = pemPersonne;
+  fermerPriseEnMain();
+  await lancerPriseEnMain([m], e.currentTarget);
+});
+
+document.getElementById('pemWhatsappBtn').addEventListener('click', async (e)=>{
+  if(!pemPersonne) return;
+  const bouton = e.currentTarget;
+  const m = pemPersonne;
+  const message = document.getElementById('pemMessage').value.trim();
+  bouton.disabled = true; bouton.textContent = 'Préparation…';
+  try{
+    const res = await genererPriseEnMainPdf([m], { personType:'musicien', sortie:'blob' });
+    if(!res.ok){ alert(res.erreur || "La fiche n'a pas pu être produite."); return; }
+
+    const fichier = new File([res.blob], res.nomFichier, { type:'application/pdf' });
+
+    // Téléphone : la feuille de partage embarque le PDF et le texte ensemble.
+    if(navigator.canShare && navigator.canShare({ files:[fichier] })){
+      try{
+        await navigator.share({ files:[fichier], text: message, title: res.nomFichier });
+        fermerPriseEnMain();
+      }catch(err){ /* partage annulé : la fenêtre reste ouverte pour réessayer */ }
+      return;
+    }
+
+    // Ordinateur : téléchargement, puis la conversation avec le texte.
+    const url = URL.createObjectURL(res.blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = res.nomFichier;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 30000);
+
+    const numero = normalizeWhatsappPhone(m.telephone);
+    if(numero){
+      window.open(`https://wa.me/${encodeURIComponent(numero)}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+      alert('Le PDF vient d\'être téléchargé. Dans la conversation qui s\'ouvre, glisse-le (ou joins-le avec le trombone) : WhatsApp ne permet pas de joindre un fichier automatiquement depuis un site.');
+    } else {
+      try{ await navigator.clipboard.writeText(message); }catch(err){}
+      alert('Pas de numéro sur cette fiche. Le PDF est téléchargé et ton message copié : colle-les où tu joins cette personne.');
+    }
+    fermerPriseEnMain();
+  } finally {
+    bouton.disabled = false; bouton.textContent = 'Envoyer par WhatsApp';
+  }
+});
 
 document.getElementById('bulkPriseEnMainBtn').addEventListener('click', (e)=>{
   if(selectedIds.size === 0) return;

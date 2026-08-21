@@ -390,6 +390,13 @@ const SEED = {
 // CurieuxDB — deux copies auraient divergé au premier champ ajouté.
 async function preparerContexte(ctx) {
 
+  // THEME=dark force le mode sombre : le choix manuel stocké dans localStorage
+  // l'emporte sur le système (voir applyAutoTheme dans brand-assets.js), c'est
+  // donc le canal fiable pour capturer les deux thèmes.
+  if (process.env.THEME === 'dark') {
+    await ctx.addInitScript(() => { try { localStorage.setItem('curieuxTheme', 'dark'); } catch (e) {} });
+  }
+
   // Court-circuite la couche données : les pages appellent CurieuxDB, on lui
   // fait rendre le jeu de démo sans réseau ni authentification.
   await ctx.addInitScript(seed => {
