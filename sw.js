@@ -34,7 +34,9 @@
 // v6 : suite de l'audit visuel — matrices de vue d'ensemble étirées, panneaux
 // d'état vide coiffés d'une icône, boutons d'en-tête recollés à droite
 // (base.css).
-const VERSION = 'curieux-v6';
+// v7 : la fiche de prise en main pointe toujours vers prod.lessoudaines.fr,
+// et non plus vers l'hôte d'où elle est générée (pdf-prise-en-main.js).
+const VERSION = 'curieux-v7';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

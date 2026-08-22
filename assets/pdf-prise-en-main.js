@@ -19,6 +19,14 @@
  * Dépendances : jsPDF, assets/pdf-charte.js, assets/qr.js, assets/db.js.
  * ========================================================================== */
 
+// Base des liens imprimés sur la fiche. Volontairement fixée à l'adresse de
+// production, et NON déduite de location.origin : une fiche générée depuis un
+// aperçu Vercel, un domaine de préversion ou le poste local aurait sinon porté
+// un lien injoignable pour le destinataire. La fiche est faite pour être
+// envoyée à de vraies personnes — son lien doit toujours viser la prod.
+// Un appelant peut malgré tout forcer une autre base via options.base.
+const BASE_CANONIQUE = 'https://prod.lessoudaines.fr/';
+
 // Ce que la personne peut faire, dans l'ordre où elle le découvrira. Les
 // remplaçant·es n'ont pas de liste de remplaçant·es à tenir : l'étape saute.
 function etapesPriseEnMain(estTitulaire){
@@ -182,7 +190,7 @@ function nomFichierPriseEnMain(personnes){
 async function genererPriseEnMainPdf(personnes, options){
   const opts = options || {};
   const personType = opts.personType || 'musicien';
-  const base = opts.base || location.href.slice(0, location.href.lastIndexOf('/') + 1);
+  const base = opts.base || BASE_CANONIQUE;
 
   if(!window.jspdf) return { ok:false, erreur:"La librairie PDF n'a pas pu être chargée." };
   if(!personnes || !personnes.length) return { ok:false, erreur:'Aucune personne sélectionnée.' };
