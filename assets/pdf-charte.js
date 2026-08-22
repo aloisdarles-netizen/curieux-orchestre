@@ -300,9 +300,15 @@ function creerComposeurPdf(doc, options){
         const decalage = enTete && puces.length
           ? puces.reduce((s, p)=> s + largeurPuce(p) + 1.6 * k, 0) : 0;
 
+        // Pastillon rond numéroté (fiche de prise en main) : chiffre coloré qui
+        // ouvre la ligne de titre, comme les pastilles d'avatar du site. Le
+        // sous-titre s'indente pour s'aligner sous le titre, pas sous le rond.
+        const dNum = 8 * k;
+        const indentNum = c.numero ? dNum + 3 * k : 0;
+
         doc.setFont('Host', 'normal'); doc.setFontSize(ptSous);
-        const nSous = c.sous ? lignes(c.sous, utile - pad * 2 - decalage).length : 0;
-        const hLigneTitre = Math.max(hLigne(ptTitre), enTete && puces.length ? hPuce : 0);
+        const nSous = c.sous ? lignes(c.sous, utile - pad * 2 - decalage - indentNum).length : 0;
+        const hLigneTitre = Math.max(hLigne(ptTitre), c.numero ? dNum : 0, enTete && puces.length ? hPuce : 0);
         const h = pad + hLigneTitre
           + (nSous ? nSous * hLigne(ptSous) + 1 * k : 0)
           + (!enTete && puces.length ? hPuce + 1.6 * k : 0)
@@ -329,6 +335,18 @@ function creerComposeurPdf(doc, options){
             xTitre = x;
           }
 
+          if(c.numero){
+            const r = dNum / 2;
+            const cx = o.marge + pad + r;
+            const cy = yc + hLigneTitre / 2;
+            fond(c.numeroFond || PDF_CHARTE.bleu);
+            doc.circle(cx, cy, r, 'F');
+            doc.setFont('Host', 'bold'); doc.setFontSize(ptTitre * 0.92);
+            encre(c.numeroEncre || PDF_CHARTE.bleuEncre);
+            doc.text(String(c.numero), cx, cy + 0.2 * k, { baseline:'middle', align:'center' });
+            xTitre = o.marge + pad + dNum + 3 * k;
+          }
+
           doc.setFont('Host', 'bold'); doc.setFontSize(ptTitre); encre(PDF_CHARTE.noir);
           doc.text(String(c.titre || ''), xTitre,
             yc + (hLigneTitre - hLigne(ptTitre)) / 2, { baseline:'top' });
@@ -341,7 +359,7 @@ function creerComposeurPdf(doc, options){
 
           if(nSous){
             doc.setFont('Host', 'normal'); doc.setFontSize(ptSous); encre(PDF_CHARTE.muted);
-            doc.text(lignes(c.sous, utile - pad * 2 - decalage), o.marge + pad + decalage, yc, { baseline:'top' });
+            doc.text(lignes(c.sous, utile - pad * 2 - decalage - indentNum), o.marge + pad + decalage + indentNum, yc, { baseline:'top' });
             yc += nSous * hLigne(ptSous) + 1 * k;
           }
 

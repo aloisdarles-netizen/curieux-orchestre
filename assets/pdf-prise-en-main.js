@@ -59,7 +59,20 @@ function etapesPriseEnMain(estTitulaire){
       + "Sur Android, depuis Chrome : touche les trois points en haut à droite, puis « Ajouter à "
       + "l'écran d'accueil » — ou accepte la bannière d'installation si elle apparaît d'elle-même.",
   });
-  return etapes.map((e, i)=> ({ titre: `${i + 1}. ${e.titre}`, sous: e.sous, puces: [] }));
+  // Un pastillon rond coloré par étape, dans l'ordre de la charte (bleu, orange,
+  // rose, prune) : c'est ce qui donne à la fiche l'allure accueillante des
+  // pastilles d'avatar du site, plutôt qu'une liste numérotée en noir.
+  const COULEURS_ETAPES = [
+    { fond: PDF_CHARTE.bleu,   encre: PDF_CHARTE.bleuEncre },
+    { fond: PDF_CHARTE.orange, encre: [255, 255, 255] },
+    { fond: PDF_CHARTE.rose,   encre: PDF_CHARTE.prune },
+    { fond: PDF_CHARTE.prune,  encre: PDF_CHARTE.pruneEncre },
+  ];
+  return etapes.map((e, i)=> {
+    const teinte = COULEURS_ETAPES[i % COULEURS_ETAPES.length];
+    return { numero: i + 1, numeroFond: teinte.fond, numeroEncre: teinte.encre,
+             titre: e.titre, sous: e.sous, puces: [] };
+  });
 }
 
 // Le pavé du lien : QR à gauche, adresse cliquable à droite. C'est le cœur de
@@ -77,9 +90,12 @@ function blocLienPersonnel(composeur, lien){
 
     if(!dessiner) return hauteur + 4 * k;
 
-    o.fond(o.charte.carte);
-    o.trait(o.charte.bord);
-    doc.setLineWidth(0.3);
+    // Fond rose très pâle plutôt que blanc : c'est le pavé d'accueil de la
+    // fiche, il doit inviter — pas ressembler à un encadré administratif. Assez
+    // clair pour que l'adresse en noir et le QR restent parfaitement lisibles.
+    o.fond([253, 232, 242]);
+    o.trait(o.charte.rose);
+    doc.setLineWidth(0.4);
     doc.roundedRect(o.marge, y, o.utile, hauteur, 3, 3, 'FD');
 
     const xQr = o.marge + pad;
