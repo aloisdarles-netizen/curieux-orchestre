@@ -8,8 +8,9 @@
  *   - POST : réserver un créneau vacant au nom « Curieux & Friends », ou
  *            annuler une réservation qui porte déjà ce nom (et aucune autre).
  *
- * MISE EN PLACE (une fois, ~5 minutes) :
- *   1. Ouvre le tableur → Extensions → Apps Script.
+ * MISE EN PLACE (une fois, ~5 minutes) — depuis TON compte Google (celui qui
+ * a les droits d'écriture sur le tableur), pas besoin d'en être propriétaire :
+ *   1. Va sur script.google.com → Nouveau projet.
  *   2. Colle tout ce fichier à la place du contenu par défaut, Enregistre.
  *   3. Roue dentée (Paramètres du projet) → Propriétés du script → ajoute
  *      une propriété nommée SECRET avec une longue valeur aléatoire.
@@ -40,8 +41,17 @@ var CRENEAUX = [
   { cle: 'soir', libelle: '18h30 – 21h30', col: 10 },
 ];
 
+// L'identifiant du tableur (dans son URL, entre /d/ et /edit). Le script peut
+// ainsi vivre dans N'IMPORTE QUEL compte ayant les droits d'écriture sur le
+// tableur — pas forcément celui du studio qui le possède : un déploiement
+// refusé sur le script « collé dans le tableur » se fait alors depuis
+// script.google.com avec son propre compte, sans rien changer d'autre.
+var TABLEUR_ID = '1BJKkJnlit1hAWCI4BFlw6vRn5Y2lxoNNDiclsUkSeIg';
+
 function feuille_() {
-  var classeur = SpreadsheetApp.getActiveSpreadsheet();
+  var classeur;
+  try { classeur = SpreadsheetApp.openById(TABLEUR_ID); }
+  catch (e) { classeur = SpreadsheetApp.getActiveSpreadsheet(); }
   var feuilles = classeur.getSheets();
   for (var i = 0; i < feuilles.length; i++) {
     if (feuilles[i].getSheetId() === 0) return feuilles[i];
