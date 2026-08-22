@@ -135,17 +135,17 @@ function render(){
   const liste = accesCache.filter(a=> a.tourneeId === activeTourneeId());
   if(liste.length===0){ box.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
-  const lien = (a)=> location.origin + location.pathname.replace('partage.html','technique-partage.html') + '?jeton=' + a.id;
+  const lien = (a)=> lienPublic('technique-partage.html', 'jeton=' + a.id);
 
   // Certaines salles préfèrent une pièce jointe à un lien — elles la classent
   // dans leur dossier de production. On sait produire leur PDF (page-salle.html
   // en mode &pdf=1, restreint à leurs dates), et pré-écrire le message qui
   // l'accompagne. Le navigateur ne sait pas joindre un fichier à un brouillon
   // de courrier : le texte le dit, et rappelle le lien, qui reste valable.
-  const lienPdf = (a)=> location.origin + location.pathname.replace('partage.html','page-salle.html')
-    + '?t=' + encodeURIComponent(a.tourneeId)
+  const lienPdf = (a)=> lienPublic('page-salle.html',
+    't=' + encodeURIComponent(a.tourneeId)
     + ((a.datesIds||[]).length ? '&dates=' + encodeURIComponent((a.datesIds||[]).join(',')) : '')
-    + '&pdf=1';
+    + '&pdf=1');
   const lienCourrier = (a)=>{
     const t = tourneesCache.find(x=> x.id === a.tourneeId);
     const nomTournee = (t && t.nom) || 'notre tournée';
@@ -230,7 +230,7 @@ function openAccesModal(id){
     document.getElementById('datesChoixField').style.display = a.type === 'salle' ? 'block' : 'none';
     renderDatesChoix(a.datesIds || []);
     document.getElementById('accesLienBloc').style.display = 'block';
-    document.getElementById('accesLienTexte').textContent = location.origin + location.pathname.replace('partage.html','technique-partage.html') + '?jeton=' + a.id;
+    document.getElementById('accesLienTexte').textContent = lienPublic('technique-partage.html', 'jeton=' + a.id);
   } else {
     document.getElementById('accesModalTitle').textContent = 'Nouvel accès';
     document.getElementById('aLibelle').value = '';

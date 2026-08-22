@@ -36,7 +36,10 @@
 // (base.css).
 // v7 : la fiche de prise en main pointe toujours vers prod.lessoudaines.fr,
 // et non plus vers l'hôte d'où elle est générée (pdf-prise-en-main.js).
-const VERSION = 'curieux-v7';
+// v8 : tous les liens partagés (accès techniques, fiches techniques, page
+// salle, liens dispo/espace perso) passent par la même base prod, centralisée
+// dans db.js (lienPublic / CURIEUX_BASE_PUBLIQUE).
+const VERSION = 'curieux-v8';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

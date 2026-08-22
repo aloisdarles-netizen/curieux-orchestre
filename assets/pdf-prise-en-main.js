@@ -24,8 +24,11 @@
 // aperçu Vercel, un domaine de préversion ou le poste local aurait sinon porté
 // un lien injoignable pour le destinataire. La fiche est faite pour être
 // envoyée à de vraies personnes — son lien doit toujours viser la prod.
-// Un appelant peut malgré tout forcer une autre base via options.base.
-const BASE_CANONIQUE = 'https://prod.lessoudaines.fr/';
+// Source unique dans db.js (CURIEUX_BASE_PUBLIQUE) ; repli en dur au cas où ce
+// fichier serait chargé seul. Un appelant peut forcer une autre base via
+// options.base.
+const BASE_CANONIQUE = (typeof CURIEUX_BASE_PUBLIQUE !== 'undefined' && CURIEUX_BASE_PUBLIQUE)
+  || 'https://prod.lessoudaines.fr/';
 
 // Ce que la personne peut faire, dans l'ordre où elle le découvrira. Les
 // remplaçant·es n'ont pas de liste de remplaçant·es à tenir : l'étape saute.

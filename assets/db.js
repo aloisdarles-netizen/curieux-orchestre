@@ -12,6 +12,24 @@
 const SUPABASE_URL = 'https://nffqcvysweidquouulzs.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_-QZnJEZi01-5fjkjv_2SPw_wODqHcJQ';
 
+// Base publique canonique de TOUS les liens qu'on partage vers l'extérieur :
+// espace perso et dispo (mon-espace, mes-remplacants), accès techniques
+// (technique-partage), fiches techniques (fiche-technique), page salle. Fixée à
+// la prod, et NON déduite de location.origin : un lien copié — ou collé dans un
+// WhatsApp, un mail — depuis un aperçu Vercel, un domaine de préversion ou le
+// poste local pointerait sinon vers un hôte injoignable pour son destinataire.
+// Un seul endroit à changer si l'adresse de prod évolue (voir aussi le repli
+// dans pdf-prise-en-main.js).
+const CURIEUX_BASE_PUBLIQUE = 'https://prod.lessoudaines.fr/';
+// Compose un lien public : lienPublic('mon-espace.html', 'token=abc').
+function lienPublic(fichier, requete){
+  return CURIEUX_BASE_PUBLIQUE + fichier + (requete ? '?' + requete : '');
+}
+if(typeof window !== 'undefined'){
+  window.CURIEUX_BASE_PUBLIQUE = CURIEUX_BASE_PUBLIQUE;
+  window.lienPublic = lienPublic;
+}
+
 const supabaseClient = (typeof window !== 'undefined' && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;

@@ -491,6 +491,14 @@ const CurieuxDB = new Proxy({
 });
 window.CurieuxDB = CurieuxDB;
 
+// Le vrai db.js expose aussi la base publique des liens partagés ; ce faux le
+// remplaçant au niveau réseau, on redéfinit lienPublic à l'identique — sinon les
+// pages qui composent un lien de partage lèvent « lienPublic is not defined ».
+const CURIEUX_BASE_PUBLIQUE = 'https://prod.lessoudaines.fr/';
+function lienPublic(fichier, requete){ return CURIEUX_BASE_PUBLIQUE + fichier + (requete ? '?' + requete : ''); }
+window.CURIEUX_BASE_PUBLIQUE = CURIEUX_BASE_PUBLIQUE;
+window.lienPublic = lienPublic;
+
 // Plusieurs pages appellent supabaseClient.rpc() directement, sans passer par
 // CurieuxDB — dispo-titulaire.html notamment. Sans ce faux client, elles
 // tombent sur un ReferenceError avant d'avoir rien affiché.
