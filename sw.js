@@ -41,7 +41,9 @@
 // dans db.js (lienPublic / CURIEUX_BASE_PUBLIQUE).
 // v9 : fiche de prise en main plus accueillante — pastillons ronds colorés par
 // étape et pavé du lien en rose pâle (pdf-charte.js, pdf-prise-en-main.js).
-const VERSION = 'curieux-v9';
+// v10 : retrait de l'espace studio (studio-commun.js supprimé) — le
+// déploiement du script Google côté tableur n'a pas pu aboutir.
+const VERSION = 'curieux-v10';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
