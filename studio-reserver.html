@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio — réserver</title>
+<script src="assets/brand-assets.js"></script>
+<!-- Réservation des créneaux du studio, toujours au nom « Curieux & Friends »
+     — c'est le script côté tableur qui impose le nom, la page ne fait que
+     choisir le créneau. Même jeton que l'affichage mural
+     (studio-reserver.html?jeton=…), « demo » pour essayer sans réseau.
+     Seule l'Option 1 du tableur est concernée. -->
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{ max-width:640px; margin:0 auto; }
+  .brand-logo-img{ height:30px; width:auto; display:block; margin:0 0 18px; }
+
+  .entete h1{ font-family:var(--font-display); font-weight:500; font-size:28px; color:var(--accent); margin:0 0 4px; }
+  .entete p{ color:var(--muted); font-size:13.5px; margin:0 0 20px; line-height:1.5; }
+
+  .jour-bloc{ background:var(--card); border:1px solid var(--border); border-radius:12px; margin-bottom:10px; padding:11px 13px; }
+  .jour-bloc.aujourdhui{ box-shadow:0 0 0 2px var(--accent); }
+  .jour-titre{ font-weight:800; font-size:14.5px; margin-bottom:8px; }
+  .jour-titre small{ color:var(--muted); font-weight:600; margin-left:6px; }
+
+  .creneaux{ display:grid; grid-template-columns:repeat(3, 1fr); gap:7px; }
+  .creneau-btn{ border:none; font-family:inherit; border-radius:9px; padding:8px 6px 7px; font-size:12px; font-weight:700; cursor:pointer; display:flex; flex-direction:column; gap:2px; align-items:flex-start; text-align:left; min-width:0; }
+  .creneau-btn .h{ font-size:10.5px; font-weight:600; opacity:.8; }
+  .creneau-btn .qui{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+  .creneau-btn.vacant{ background:var(--bg); color:var(--accent-dark); border:1.5px dashed var(--border); }
+  .creneau-btn.vacant:hover{ border-color:var(--accent); }
+  .creneau-btn.nous{ background:#791649; color:#FCF2F0; }
+  .creneau-btn.autre{ background:#CEE1F4; color:#3d5876; cursor:default; }
+  :root[data-theme="dark"] .creneau-btn.autre{ background:#2a3f52; color:#CEE1F4; }
+
+  .etat-page{ text-align:center; color:var(--muted); padding:60px 16px; font-size:14.5px; }
+
+  /* Confirmation : une feuille simple, pas une usine. */
+  .voile{ position:fixed; inset:0; background:rgba(20,22,23,.45); display:none; align-items:center; justify-content:center; padding:18px; z-index:50; }
+  .voile.ouvert{ display:flex; }
+  .feuille{ background:var(--card); border-radius:14px; max-width:420px; width:100%; padding:20px 18px; }
+  .feuille h2{ margin:0 0 4px; font-size:17px; }
+  .feuille .sous{ color:var(--muted); font-size:13px; margin:0 0 14px; }
+  .feuille label{ display:block; font-size:12px; font-weight:700; color:var(--muted); margin:0 0 5px; }
+  .feuille input{ width:100%; box-sizing:border-box; padding:9px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; background:var(--bg); color:var(--text); }
+  .feuille .actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+  .feuille button{ font-family:inherit; border:none; cursor:pointer; border-radius:9px; padding:9px 15px; font-size:13px; font-weight:700; }
+  .feuille .annuler{ background:var(--bg); color:var(--muted); }
+  .feuille .valider{ background:#791649; color:#FCF2F0; }
+  .feuille .danger{ background:var(--danger, #b3261e); color:#fff; }
+  .feuille .erreur{ color:var(--danger, #b3261e); font-size:13px; margin:10px 0 0; display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="brand-logo-img" alt="Curieux orchestre">
+  <div class="entete">
+    <h1>Réserver le studio</h1>
+    <p>Touche un créneau vacant pour le réserver au nom de <b>Curieux &amp; Friends</b> —
+       il part directement dans le tableur du studio. Touche une de nos réservations
+       pour l'annuler.</p>
+  </div>
+  <div id="listeJours"></div>
+  <div class="etat-page" id="etatPage">Chargement des créneaux…</div>
+</div>
+
+<div class="voile" id="voile">
+  <div class="feuille">
+    <h2 id="feuilleTitre"></h2>
+    <p class="sous" id="feuilleSous"></p>
+    <div id="feuilleChampRemarque">
+      <label for="feuilleRemarque">Une précision pour le studio ? (facultatif)</label>
+      <input type="text" id="feuilleRemarque" maxlength="200" placeholder="Ex : répétition cordes, enregistrement…">
+    </div>
+    <p class="erreur" id="feuilleErreur"></p>
+    <div class="actions">
+      <button type="button" class="annuler" id="feuilleFermer">Retour</button>
+      <button type="button" class="valider" id="feuilleValider">Réserver</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/studio-commun.js"></script>
+<script>
+'use strict';
+
+// Le logo du bandeau : posé maintenant que l'image existe — l'appel du
+// <head> précédait le corps de page.
+try{ applyAutoTheme(); }catch(e){}
+
+// Trois semaines de visibilité : c'est l'horizon utile pour caler une répé.
+const NB_JOURS = 21;
+
+let joursCache = [];
+let enCours = null;   // { action, date, creneau, libelle } pendant la feuille
+
+const liste = document.getElementById('listeJours');
+const etatPage = document.getElementById('etatPage');
+const voile = document.getElementById('voile');
+
+function labelJour(iso){
+  const d = new Date(iso + 'T12:00:00');
+  return `${JOURS_FR[d.getDay()]} ${d.getDate()} ${MOIS_FR[d.getMonth()]}`;
+}
+
+function render(){
+  const todayIso = isoDuJour();
+  liste.innerHTML = joursCache.map(j=>{
+    const creneaux = j.creneaux.map(c=>{
+      const etat = !c.nom ? 'vacant' : (c.nom === NOM_NOUS ? 'nous' : 'autre');
+      const qui = !c.nom ? 'Vacant' : c.nom;
+      const heure = c.libelle.replace(' – ', '–');
+      // Un créneau d'un autre loueur ne se touche pas ; les nôtres s'annulent.
+      const attrs = etat === 'autre' ? 'disabled' :
+        `data-date="${j.date}" data-creneau="${c.cle}" data-etat="${etat}"`;
+      return `<button type="button" class="creneau-btn ${etat}" ${attrs}>`
+        + `<span class="h">${escapeHtmlStudio(heure)}</span>`
+        + `<span class="qui">${escapeHtmlStudio(qui)}</span>`
+        + `</button>`;
+    }).join('');
+    return `<div class="jour-bloc${j.date === todayIso ? ' aujourdhui' : ''}">`
+      + `<div class="jour-titre">${labelJour(j.date)}</div>`
+      + `<div class="creneaux">${creneaux}</div></div>`;
+  }).join('');
+  etatPage.style.display = joursCache.length ? 'none' : 'block';
+}
+
+async function charger(){
+  try{
+    joursCache = await chargerPlanningStudio(NB_JOURS);
+    render();
+  }catch(e){
+    etatPage.textContent = e && e.message ? e.message : 'Les créneaux sont injoignables.';
+  }
+}
+
+liste.addEventListener('click', (ev)=>{
+  const btn = ev.target.closest('.creneau-btn[data-date]');
+  if(!btn) return;
+  const jour = joursCache.find(j=> j.date === btn.dataset.date);
+  const c = jour && jour.creneaux.find(x=> x.cle === btn.dataset.creneau);
+  if(!c) return;
+
+  const reserver = btn.dataset.etat === 'vacant';
+  enCours = { action: reserver ? 'reserver' : 'annuler', date: btn.dataset.date, creneau: c.cle };
+  document.getElementById('feuilleTitre').textContent = reserver ? 'Réserver ce créneau ?' : 'Annuler notre réservation ?';
+  document.getElementById('feuilleSous').textContent =
+    `${labelJour(btn.dataset.date)} · ${c.libelle}` + (reserver ? ' — au nom de Curieux & Friends.' : '');
+  document.getElementById('feuilleChampRemarque').style.display = reserver ? 'block' : 'none';
+  document.getElementById('feuilleRemarque').value = '';
+  const valider = document.getElementById('feuilleValider');
+  valider.textContent = reserver ? 'Réserver' : 'Annuler la réservation';
+  valider.className = reserver ? 'valider' : 'danger';
+  document.getElementById('feuilleErreur').style.display = 'none';
+  voile.classList.add('ouvert');
+});
+
+document.getElementById('feuilleFermer').addEventListener('click', ()=> voile.classList.remove('ouvert'));
+voile.addEventListener('click', (ev)=>{ if(ev.target === voile) voile.classList.remove('ouvert'); });
+
+document.getElementById('feuilleValider').addEventListener('click', async ()=>{
+  if(!enCours) return;
+  const valider = document.getElementById('feuilleValider');
+  const erreur = document.getElementById('feuilleErreur');
+  valider.disabled = true; valider.textContent = 'Envoi…';
+  const res = await ecrireCreneauStudio(
+    enCours.action, enCours.date, enCours.creneau,
+    document.getElementById('feuilleRemarque').value.trim()
+  );
+  valider.disabled = false;
+  if(res && res.ok){
+    // La feuille se ferme et la liste se recharge depuis le tableur : ce qui
+    // s'affiche est ce qui est réellement écrit, pas une supposition locale.
+    voile.classList.remove('ouvert');
+    enCours = null;
+    await charger();
+    return;
+  }
+  valider.textContent = 'Réessayer';
+  erreur.textContent = res && res.par
+    ? `Ce créneau vient d'être pris par « ${res.par} » — le tableur a bougé entre-temps.`
+    : (res && (res.raison || res.erreur)) || "L'écriture n'a pas abouti.";
+  erreur.style.display = 'block';
+  // Le refus le plus courant est un créneau pris entre-temps : on recharge
+  // pour que la liste dise la vérité derrière la feuille.
+  charger();
+});
+
+charger();
+</script>
+</body>
+</html>

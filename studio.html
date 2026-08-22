@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio — planning</title>
+<script src="assets/brand-assets.js"></script>
+<!-- Affichage mural du planning du studio, pensé pour tourner en plein écran
+     sur un ordinateur (Full Page OS). Source : le tableur Google, via
+     /api/studio — voir outils/studio-apps-script.gs pour la mise en place.
+     Accès par jeton dans l'URL (studio.html?jeton=…), comme les autres liens
+     partagés. « ?jeton=demo » rend un jeu de démonstration sans réseau.
+     Seule l'Option 1 du tableur est montrée : les options 2 et 3 ne servent
+     jamais. -->
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  /* Un mur d'affichage se lit à trois mètres : tout est plus grand qu'à
+     l'écran de travail, et rien ne défile — la page montre ce qui tient. */
+  body{ padding:22px 26px 18px; overflow:hidden; }
+  .mur{ max-width:none; display:flex; flex-direction:column; height:calc(100vh - 40px); }
+
+  .mur-tete{ display:flex; align-items:baseline; gap:18px; margin-bottom:14px; flex-wrap:wrap; }
+  .mur-tete img{ height:34px; width:auto; }
+  .mur-tete h1{ font-family:var(--font-display); font-weight:500; font-size:30px; color:var(--accent); margin:0; }
+  .mur-tete .maj{ margin-left:auto; color:var(--muted); font-size:14px; }
+
+  .legende{ display:flex; gap:16px; margin-bottom:12px; font-size:13.5px; color:var(--muted); flex-wrap:wrap; }
+  .legende span{ display:inline-flex; align-items:center; gap:6px; }
+  .legende i{ width:14px; height:14px; border-radius:4px; display:inline-block; }
+
+  .semaines{ flex:1; display:grid; grid-auto-rows:1fr; gap:10px; min-height:0; }
+  .semaine{ display:grid; grid-template-columns:repeat(7, 1fr); gap:10px; min-height:0; }
+
+  .jour{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:8px 9px 9px; display:flex; flex-direction:column; gap:5px; min-height:0; overflow:hidden; }
+  .jour.passe{ opacity:.45; }
+  .jour.aujourdhui{ box-shadow:0 0 0 2.5px var(--accent); }
+  .jour-date{ font-weight:800; font-size:14.5px; display:flex; justify-content:space-between; align-items:baseline; }
+  .jour-date small{ color:var(--muted); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; }
+
+  .creneau{ flex:1; border-radius:7px; padding:3px 7px; font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:6px; min-height:0; overflow:hidden; white-space:nowrap; }
+  .creneau .h{ font-size:10px; font-weight:600; opacity:.75; flex:0 0 auto; }
+  .creneau .qui{ overflow:hidden; text-overflow:ellipsis; }
+
+  /* Les trois états, aux couleurs de la charte : vacant en fond discret,
+     Curieux & Friends en prune plein — c'est notre planning, nos créneaux
+     doivent se voir du fond de la pièce — et les autres loueurs en bleu. */
+  .creneau.vacant{ background:var(--bg); color:var(--muted); border:1px dashed var(--border); font-weight:600; }
+  .creneau.nous{ background:var(--prune, #791649); background:#791649; color:#FCF2F0; }
+  .creneau.autre{ background:#CEE1F4; color:#3d5876; }
+
+  .etat-page{ text-align:center; color:var(--muted); padding:80px 20px; font-size:16px; }
+
+  :root[data-theme="dark"] .creneau.autre{ background:#2a3f52; color:#CEE1F4; }
+  :root[data-theme="dark"] .creneau.nous{ background:#791649; color:#FCF2F0; }
+</style>
+</head>
+<body>
+<div class="mur">
+  <div class="mur-tete">
+    <img class="brand-logo-img" alt="Curieux orchestre">
+    <h1>Studio — planning</h1>
+    <span class="maj" id="majTexte"></span>
+  </div>
+  <div class="legende">
+    <span><i style="background:#791649;"></i> Curieux &amp; Friends</span>
+    <span><i style="background:#CEE1F4;"></i> Autre occupant</span>
+    <span><i style="background:transparent; border:1.5px dashed var(--border);"></i> Vacant</span>
+  </div>
+  <div class="semaines" id="semaines"></div>
+  <div class="etat-page" id="etatPage">Chargement du planning…</div>
+</div>
+
+<script src="assets/studio-commun.js"></script>
+<script>
+'use strict';
+
+// Le logo du bandeau : posé maintenant que l'image existe — l'appel du
+// <head> précédait le corps de page.
+try{ applyAutoTheme(); }catch(e){}
+
+// Nombre de semaines affichées : ce qui tient sur un écran sans défiler.
+// 4 semaines × 7 jours en paysage ; resserré à 3 en écran bas.
+const SEMAINES = (window.innerHeight < 760) ? 3 : 4;
+
+const conteneur = document.getElementById('semaines');
+const etatPage = document.getElementById('etatPage');
+
+function renderPlanning(jours){
+  const parDate = {};
+  jours.forEach(j=>{ parDate[j.date] = j; });
+
+  // Grille alignée sur les semaines : on part du lundi de la semaine courante.
+  const debut = new Date();
+  debut.setHours(12, 0, 0, 0);
+  debut.setDate(debut.getDate() - ((debut.getDay() + 6) % 7));
+
+  const todayIso = isoDuJour();
+  let html = '';
+  for(let s = 0; s < SEMAINES; s++){
+    html += '<div class="semaine">';
+    for(let d = 0; d < 7; d++){
+      const date = new Date(debut);
+      date.setDate(debut.getDate() + s * 7 + d);
+      const iso = isoDe(date);
+      const j = parDate[iso];
+      const classes = ['jour'];
+      if(iso < todayIso) classes.push('passe');
+      if(iso === todayIso) classes.push('aujourdhui');
+      html += `<div class="${classes.join(' ')}">`
+        + `<div class="jour-date"><span>${date.getDate()}</span><small>${JOURS_FR[date.getDay()]} ${MOIS_FR[date.getMonth()]}</small></div>`;
+      (j ? j.creneaux : CRENEAUX_VIDES).forEach(c=>{
+        const etat = !c.nom ? 'vacant' : (c.nom === NOM_NOUS ? 'nous' : 'autre');
+        const qui = !c.nom ? 'Vacant' : c.nom;
+        html += `<div class="creneau ${etat}"><span class="h">${escapeHtmlStudio(c.libelle.replace(/ – .*/, ''))}</span><span class="qui">${escapeHtmlStudio(qui)}</span></div>`;
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  conteneur.innerHTML = html;
+  etatPage.style.display = 'none';
+  document.getElementById('majTexte').textContent =
+    'Mis à jour à ' + new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+}
+
+async function rafraichir(){
+  try{
+    const jours = await chargerPlanningStudio(SEMAINES * 7 + 7);
+    renderPlanning(jours);
+  }catch(e){
+    // Ne pas effacer un planning déjà affiché pour une erreur passagère : le
+    // mur préfère une donnée d'il y a cinq minutes à un écran d'erreur.
+    if(!conteneur.innerHTML){
+      etatPage.textContent = e && e.message ? e.message : 'Le planning est injoignable.';
+    }
+  }
+}
+
+rafraichir();
+// Le mur tourne toute la journée : rafraîchi toutes les 5 minutes, et au
+// retour de veille éventuel de l'écran.
+setInterval(rafraichir, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) rafraichir(); });
+</script>
+</body>
+</html>
