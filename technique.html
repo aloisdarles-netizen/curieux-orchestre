@@ -393,10 +393,15 @@ async function initData(){
     CurieuxDB.fetchAll('moyens_salle'),
   ]);
   const sel = document.getElementById('tourneeSelect');
+  tourneesCache = tourneesCache.filter(t=> t.type !== 'recording');
   if(tourneesCache.length === 0){
     sel.innerHTML = '<option value="">Aucune tournée</option>';
   } else {
-    sel.innerHTML = tourneesCache.map(t=>`<option value="${t.id}">${escapeHtml((t.nom || 'Tournée sans nom') + suffixeProjetTexte(t))}</option>`).join('');
+    // Les recordings sont écartés : cet écran suit ce que la SALLE fournit —
+    // plan de scène à valider des deux côtés, plan de charge, bureau d'étude,
+    // accès plateau. Un studio apporte tout cela lui-même, il n'y a rien à
+    // suivre. On préfère ne pas proposer l'outil plutôt que de le vider.
+    sel.innerHTML = tourneesCache.map(t=>`<option value="${t.id}">${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('');
   }
   // renderExigences() ne suit que le changement de tournée, pas les rafraîchis-
   // sements de render() : il redessine des champs de saisie, et le faire sous

@@ -215,8 +215,8 @@
      identique à celle d'une tournée — c'est le même travail de planification.
      ------------------------------------------------------------------------ */
   .recording-rows .date-row{
-    min-width:1180px;
-    grid-template-columns:96px 92px minmax(210px,1fr) 118px 122px 118px 92px minmax(196px,auto) 88px 88px;
+    min-width:1080px;
+    grid-template-columns:96px 100px minmax(210px,1fr) 118px 128px 92px minmax(196px,auto) 92px 88px;
   }
   .col-lieu .ligne-studio{flex-basis:100%; display:flex; gap:6px; min-width:0; margin-top:1px;}
   .col-lieu .saisie-cabine{flex:0 1 42%; min-width:0; font-size:12px; color:var(--muted);}
@@ -596,6 +596,9 @@ async function createFdrForDate(d, tourneeName){
   if(EST_RECORDING){
     entry.projetType = 'recording';
     entry.studio = { cabine: d.cabine || '', seance: d.seance || 'journee', titres: d.titres || '' };
+    // En studio, l'orchestre dort chez lui et vient par ses propres moyens :
+    // Voyage et Hôtel partent décochés, à rouvrir pour qui vient de loin.
+    entry.sectionsEnabled = { voyage: false, hotel: false };
   }
   // Si personne n'est encore affecté à cette date, on laisse le champ absent pour que
   // la FDR reprenne les 2 contacts de base (régisseur/prod) au lieu d'une liste vide.
@@ -747,7 +750,8 @@ document.getElementById('importConfirm').addEventListener('click', (e)=>{
   let added = 0;
   parsed.forEach(p=>{
     if(existingDates.has(p.date)) return;
-    tournee.dates.push({ id: genId('date'), date: p.date, ville: p.ville, lieu: p.lieu, commentaire:'', statut:'option', type: typeDateValide(PROJET_TYPE, ''), travelMode:'tourbus', musiciensAssignes:[], techniciensAssignes:[], ...(EST_RECORDING ? { seance:'journee', cabine:'', titres:'' } : {}) });
+    tournee.dates.push({ id: genId('date'), date: p.date, ville: p.ville, lieu: p.lieu, commentaire:'', statut:'option', type: typeDateValide(PROJET_TYPE, ''), musiciensAssignes:[], techniciensAssignes:[],
+      ...(EST_RECORDING ? { seance:'journee', cabine:'', titres:'' } : { travelMode:'tourbus' }) });
     existingDates.add(p.date);
     added++;
   });
@@ -1385,13 +1389,18 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             </select>
           </span>
         `;
+        // Le mode de voyage n'a pas d'objet en studio : l'orchestre enregistre
+        // dans sa propre ville et vient par ses propres moyens. La colonne
+        // disparaît plutôt que d'imposer un « Tourbus » qui ne veut rien dire.
         const travelMode = ['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus';
-        const travelSelect = `
-          <select class="type-select" data-field="travelMode" data-date-id="${escapeAttr(d.id)}">
-            <option value="tourbus" ${travelMode==='tourbus'?'selected':''}>Tourbus</option>
-            <option value="train" ${travelMode==='train'?'selected':''}>Train</option>
-            <option value="avion" ${travelMode==='avion'?'selected':''}>Avion</option>
-          </select>
+        const travelCell = EST_RECORDING ? '' : `
+          <span class="col-voyage"><span class="col-icone" title="Mode de voyage">${ {tourbus:'\u26DF', train:'\u26ED', avion:'\u2708'}[travelMode] }</span>
+            <select class="type-select" data-field="travelMode" data-date-id="${escapeAttr(d.id)}">
+              <option value="tourbus" ${travelMode==='tourbus'?'selected':''}>Tourbus</option>
+              <option value="train" ${travelMode==='train'?'selected':''}>Train</option>
+              <option value="avion" ${travelMode==='avion'?'selected':''}>Avion</option>
+            </select>
+          </span>
         `;
         // Une seule pastille qui tourne au clic : option → validée → annulée,
         // comme dans la maquette. La cible suivante est portée par l'attribut,
@@ -1409,13 +1418,21 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         let blocBadge = '';
         if(blocInfo){
           let note = '';
-          if(blocInfo.isFirst) note = `depuis la veille ${fmtDateFR(blocInfo.veille)}`;
+          // Un bloc de tournée, c'est un départ la veille et un retour le
+          // lendemain. En studio on rentre dormir chez soi : le bloc ne sert
+          // plus qu'à grouper des séances consécutives (nature et statut
+          // communs), et il ne doit surtout pas annoncer un voyage.
+          if(EST_RECORDING) note = `${blocInfo.blocDates.length} jours`;
+          else if(blocInfo.isFirst) note = `depuis la veille ${fmtDateFR(blocInfo.veille)}`;
           else if(blocInfo.isLast) note = `jusqu'au lendemain ${fmtDateFR(blocInfo.lendemain)}`;
-          blocBadge = `<div class="bloc-badge" title="Bloc de ${blocInfo.blocDates.length} dates — départ la veille (${fmtDateFR(blocInfo.veille)}), retour le lendemain (${fmtDateFR(blocInfo.lendemain)})"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></line></svg>Bloc${note ? ' — ' + note : ''}</div>`;
+          const blocTitre = EST_RECORDING
+            ? `Session de ${blocInfo.blocDates.length} jours consécutifs — nature et statut communs`
+            : `Bloc de ${blocInfo.blocDates.length} dates — départ la veille (${fmtDateFR(blocInfo.veille)}), retour le lendemain (${fmtDateFR(blocInfo.lendemain)})`;
+          blocBadge = `<div class="bloc-badge" title="${escapeAttr(blocTitre)}"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></line></svg>${EST_RECORDING ? 'Session' : 'Bloc'}${note ? ' — ' + note : ''}</div>`;
         }
         const scissorsIcon = '<svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><circle cx="6" cy="6" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle><circle cx="6" cy="18" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle><line x1="7.8" y1="7.6" x2="20" y2="18.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line><line x1="7.8" y1="16.4" x2="20" y2="5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line></svg>';
         const linkToggle = hasNext
-          ? `<button type="button" class="co-btn ghost sm" data-toggle-link="${escapeAttr(d.id)}" style="padding:2px 6px; font-size:10.5px; margin-top:2px;">${d.linkedToNext ? scissorsIcon + 'Délier du bloc' : '+ Lier à la suivante'}</button>`
+          ? `<button type="button" class="co-btn ghost sm" data-toggle-link="${escapeAttr(d.id)}" style="padding:2px 6px; font-size:10.5px; margin-top:2px;">${d.linkedToNext ? scissorsIcon + (EST_RECORDING ? 'Détacher' : 'Délier du bloc') : '+ Lier à la suivante'}</button>`
           : '';
         // Type et statut sont communs à tout un bloc : un seul contrôle par bloc
         // (fusionné visuellement sur toutes ses lignes via rowspan), pas un par date.
@@ -1436,7 +1453,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             </span>
             <span class="col-type">${showTypeStatut ? `<span class="col-icone" title="Nature de la date">${iconeTypeDate(PROJET_TYPE, type)}</span>${typeSelect}` : ''}</span>
             ${seanceSelect}
-            <span class="col-voyage"><span class="col-icone" title="Mode de voyage">${ {tourbus:'\u26DF', train:'\u26ED', avion:'\u2708'}[travelMode] }</span>${travelSelect}</span>
+            ${travelCell}
             <span class="col-statut">${showTypeStatut ? statutGroup : ''}</span>
             <span class="col-equipe" title="${escapeAttr(summaryText)}">
               ${manqueBadgeHtml(t, d, musicianById)}
@@ -1552,11 +1569,12 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <select class="type-select" data-new-seance="${escapeAttr(t.id)}" style="flex:0 0 130px;">
               ${CURIEUX_SEANCES.map(([val, lib]) => `<option value="${val}">${lib}</option>`).join('')}
             </select>` : ''}
+            ${EST_RECORDING ? '' : `
             <select class="type-select" data-new-travel="${escapeAttr(t.id)}" style="flex:0 0 120px;">
               <option value="tourbus">Tourbus</option>
               <option value="train">Train</option>
               <option value="avion">Avion</option>
-            </select>
+            </select>`}
             <input type="text" data-new-ville="${escapeAttr(t.id)}" placeholder="Ville">
             <input type="text" data-new-lieu="${escapeAttr(t.id)}" placeholder="${VOC.Lieu}">
             <button type="button" class="co-btn primary sm" data-add-date="${escapeAttr(t.id)}">+ Ajouter ${EST_RECORDING ? 'une séance' : 'une date'}</button>
@@ -1566,11 +1584,10 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <div class="co-rows dates-rows${EST_RECORDING ? ' recording-rows' : ''}">
               <div class="co-rows-head date-row">
                 <span class="col-date">Date</span>
-                <span class="col-bloc">Bloc</span>
+                <span class="col-bloc">${EST_RECORDING ? 'Session' : 'Bloc'}</span>
                 <span class="col-lieu co-row-name">${VOC.colonneLieu}</span>
                 <span class="col-type">Nature</span>
-                ${EST_RECORDING ? '<span class="col-seance">Séance</span>' : ''}
-                <span class="col-voyage">Voyage</span>
+                ${EST_RECORDING ? '<span class="col-seance">Séance</span>' : '<span class="col-voyage">Voyage</span>'}
                 <span class="col-statut">Statut</span>
                 <span class="col-equipe">Équipe</span>
                 <span class="col-fdr">${EST_RECORDING ? 'Feuille' : 'FDR'}</span>
@@ -1687,8 +1704,10 @@ function exportTourneePdf(tourneeId){
   doc.autoTable({
     startY: 29,
     margin: { left: 10, right: 10 },
+    // En studio, ni départ la veille ni retour le lendemain, ni transport : la
+    // quatrième colonne devient la séance, et la place gagnée va aux titres.
     head: [EST_RECORDING
-      ? ['Date', 'Nature', 'Statut', 'Dép. / Retour', 'Séance', 'Ville', 'Studio', 'Cabine / titres']
+      ? ['Date', 'Nature', 'Statut', 'Séance', 'Ville', 'Studio', 'Cabine', 'Titres / commentaire']
       : ['Date', 'Type', 'Statut', 'Dép. / Retour', 'Transport', 'Ville', 'Salle', 'Commentaire']],
     body: dates.map((d, idx)=>{
       const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
@@ -1705,19 +1724,21 @@ function exportTourneePdf(tourneeId){
         const span = blocInfo ? blocInfo.blocDates.length : 1;
         row.push({ content: typeLabelPdf(type), rowSpan: span, styles: { valign: 'middle' } });
         row.push({ content: STATUT_PDF_LABEL[statut], rowSpan: span, styles: { valign: 'middle' } });
-        const depRetour = blocInfo ? `Dép. veille ${fmtDateFRShortNoYear(blocInfo.veille)}\nRetour lend. ${fmtDateFRShortNoYear(blocInfo.lendemain)}` : '';
-        row.push({ content: depRetour, rowSpan: span, styles: { valign: 'middle', fontSize: 6.6, textColor: [120,105,113] } });
+        if(!EST_RECORDING){
+          const depRetour = blocInfo ? `Dép. veille ${fmtDateFRShortNoYear(blocInfo.veille)}\nRetour lend. ${fmtDateFRShortNoYear(blocInfo.lendemain)}` : '';
+          row.push({ content: depRetour, rowSpan: span, styles: { valign: 'middle', fontSize: 6.6, textColor: [120,105,113] } });
+        }
       }
       // Transport et Ville dans deux colonnes séparées (au lieu d'un seul texte
       // combiné "[Bus] Lyon") pour que le lien entre les deux infos soit lisible.
       // Sur un recording, la colonne « Transport » cède la place à la séance —
       // ce qu'on cherche sur une feuille de studio, c'est l'heure d'appel — et
       // la dernière colonne réunit cabine et titres travaillés.
-      const travelLabel = { tourbus: 'Bus', train: 'Train', avion: 'Avion' }[['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus'];
       if(EST_RECORDING){
-        const detail = [d.cabine || '', d.titres || '', d.commentaire || ''].filter(Boolean).join(' — ');
-        row.push(libelleSeance(d.seance) || 'Journée', d.ville || '', d.lieu || '', detail);
+        row.push(libelleSeance(d.seance) || 'Journée', d.ville || '', d.lieu || '', d.cabine || '',
+          [d.titres || '', d.commentaire || ''].filter(Boolean).join(' — '));
       } else {
+        const travelLabel = { tourbus: 'Bus', train: 'Train', avion: 'Avion' }[['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus'];
         row.push(travelLabel, d.ville || '', d.lieu || '', d.commentaire || '');
       }
       return row;
@@ -1728,7 +1749,7 @@ function exportTourneePdf(tourneeId){
     // reste le plus souvent vide quand les séances ne forment pas de bloc.
     columnStyles: EST_RECORDING ? {
       0: { cellWidth: 24 }, 1: { cellWidth: 20 }, 2: { cellWidth: 20 },
-      3: { cellWidth: 26 }, 4: { cellWidth: 24 }, 5: { cellWidth: 28 }, 6: { cellWidth: 30 },
+      3: { cellWidth: 24 }, 4: { cellWidth: 28 }, 5: { cellWidth: 34 }, 6: { cellWidth: 30 },
     } : {
       0: { cellWidth: 24 }, 1: { cellWidth: 18 }, 2: { cellWidth: 20 },
       3: { cellWidth: 32 }, 4: { cellWidth: 16 }, 5: { cellWidth: 30 }, 6: { cellWidth: 30 },
@@ -2128,7 +2149,8 @@ function bindTourneeEvents(){
       if(!t) return;
       if(!t.dates) t.dates = [];
       const seanceInput = document.querySelector(`[data-new-seance="${tourneeId}"]`);
-      const nouvelle = { id: genId('date'), date: dateInput.value, ville: villeInput.value.trim(), lieu: lieuInput.value.trim(), commentaire:'', statut:'option', type: typeDateValide(PROJET_TYPE, typeInput.value), travelMode: travelInput.value || 'tourbus', musiciensAssignes:[], techniciensAssignes:[] };
+      const nouvelle = { id: genId('date'), date: dateInput.value, ville: villeInput.value.trim(), lieu: lieuInput.value.trim(), commentaire:'', statut:'option', type: typeDateValide(PROJET_TYPE, typeInput.value), musiciensAssignes:[], techniciensAssignes:[] };
+      if(!EST_RECORDING) nouvelle.travelMode = (travelInput && travelInput.value) || 'tourbus';
       if(EST_RECORDING){
         nouvelle.seance = (seanceInput && seanceInput.value) || 'journee';
         nouvelle.cabine = '';

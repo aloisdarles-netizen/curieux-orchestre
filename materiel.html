@@ -1252,7 +1252,7 @@ function renderOrphelins(){
     `${orphelins.length} kit${orphelins.length > 1 ? 's' : ''} sans tournée : ${orphelins.map(l=> l.nom || 'sans nom').join(', ')}`;
   const sel = document.getElementById('orphelinsTournee');
   if(sel.dataset.signature !== tourneesCache.map(t=> t.id).join(',')){
-    sel.innerHTML = tourneesCache.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Tournée')}</option>`).join('');
+    sel.innerHTML = tourneesCache.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml((t.nom || 'Tournée') + suffixeProjetTexte(t))}</option>`).join('');
     sel.dataset.signature = tourneesCache.map(t=> t.id).join(',');
   }
 }
@@ -1468,7 +1468,7 @@ async function initData(){
 
   const sel = document.getElementById('tourneeSelect');
   sel.innerHTML = tourneesCache.length
-    ? tourneesCache.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('')
+    ? tourneesCache.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml((t.nom || 'Tournée sans nom') + suffixeProjetTexte(t))}</option>`).join('')
     : '<option value="">Aucune tournée</option>';
   // Arrivée depuis une autre page qui désignait déjà une tournée.
   const voulue = new URLSearchParams(location.search).get('t');

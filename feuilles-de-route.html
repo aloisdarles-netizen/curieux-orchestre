@@ -153,6 +153,9 @@ document.getElementById('newFdrBtn').addEventListener('click', async ()=>{
   // Créée depuis la page filtrée, la feuille naît déjà de la bonne nature :
   // on n'a pas à repasser par le sélecteur de l'éditeur.
   const fresh = { id: genId('fdr'), artistName:'', eventDate:'', venueCity:'', venueSalle:'', projetType: FDR_TYPE };
+  // En studio, l'orchestre dort chez lui et vient par ses propres moyens :
+  // Voyage et Hôtel partent décochés, à rouvrir pour qui vient de loin.
+  if(FDR_EST_STUDIO) fresh.sectionsEnabled = { voyage:false, hotel:false };
   await CurieuxDB.upsertOne('feuilles_route', fresh);
   location.href = 'feuille-de-route.html?id=' + encodeURIComponent(fresh.id);
 });

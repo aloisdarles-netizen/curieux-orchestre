@@ -58,9 +58,11 @@
 // entrée « Recording » et détection de page à requête dans nav.js, bandeau
 // élargi à huit sections et dégradé de fin de menu dans base.css, lien de
 // recherche vers la page filtrée dans global-search.js.
-// v17 : feuille de studio — la feuille de route s'adapte à la nature du projet
-// et les feuilles se filtrent (nav.js : sous-menu Recording, détection de page
-// à requête ; ui-helpers.js : libelleSeance lu par le PDF de la feuille).
+// v17 : feuille de studio — la feuille de route s'adapte à la nature du projet,
+// les feuilles se filtrent, et tout ce qui relève de la route (mode de voyage,
+// bloc départ-veille/retour-lendemain, hôtel, merchandising) disparaît des
+// écrans de studio (nav.js : sous-menu Recording et détection de page à
+// requête ; ui-helpers.js : libelleSeance, lu par le PDF de la feuille).
 const VERSION = 'curieux-v17';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;

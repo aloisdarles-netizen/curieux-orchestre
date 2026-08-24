@@ -287,7 +287,10 @@ const SEED = {
       lieu:{ nom:'Studio Ferber', adresse:'96 rue du Faubourg Saint-Antoine, 75012 Paris', jauge:'', billetterie:'' },
       hotel:{ nom:'', adresse:'', tel:'', checkin:'', checkout:'', mapsLink:'', breakfast:'', type:'hotel', typeDetail:'' },
       partitions:{ lien:'https://drive.google.com/drive/folders/demo-partitions-studio', note:'Conducteurs v3', parPersonne:[] },
-      bonus:'Prévoir les sourdines pour les cuivres.', merchandisingOk:false, ticketLinks:[] },
+      bonus:'Prévoir les sourdines pour les cuivres.', merchandisingOk:false, ticketLinks:[],
+      // Ce que l'application pose d'office sur une feuille de studio : ni
+      // voyage ni hôtel, l'orchestre enregistre dans sa propre ville.
+      sectionsEnabled:{ voyage:false, hotel:false } },
   ],
   // Une fiche de date déjà remplie, pour capturer technique-date.html.
   moyens_salle: [{

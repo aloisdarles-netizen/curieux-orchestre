@@ -245,7 +245,7 @@
       <label class="section-toggle"><input type="checkbox" data-section-toggle="voyage" checked> Inclure cette section</label>
     </div>
     <div class="card-body" data-section-body="voyage">
-    <p class="card-sub">Les horaires définitifs retenus.</p>
+    <p class="card-sub" id="voyageSousTitre">Les horaires définitifs retenus.</p>
     <div class="grid-table-wrap">
       <table class="grid-table" id="trajetsTable">
         <thead>
@@ -334,6 +334,7 @@
       <label class="section-toggle"><input type="checkbox" data-section-toggle="hotel" checked> Inclure cette section</label>
     </div>
     <div class="card-body" data-section-body="hotel">
+    <p class="card-sub" id="hotelSousTitre"></p>
     <div class="field-row">
       <div class="field">
         <label for="h_type">Type d'hébergement</label>
@@ -417,7 +418,7 @@
     <textarea id="bonusNotes" style="min-height:70px; margin-bottom:14px;" placeholder="Notes libres..."></textarea>
 
     <h3>Billets de train (liens Drive)</h3>
-    <p class="card-sub">Un lien par personne si besoin (artiste, accompagnant·es...).</p>
+    <p class="card-sub" id="billetsSousTitre">Un lien par personne si besoin (artiste, accompagnant·es...).</p>
     <div class="grid-table-wrap">
       <table class="grid-table" id="ticketLinksTable">
         <thead>
@@ -434,7 +435,7 @@
       <button class="co-btn ghost" id="addTicketLinkBtn">+ Ajouter un lien</button>
     </div>
 
-    <label class="highlight-toggle" style="justify-content:flex-start; font-size:14px;">
+    <label class="highlight-toggle" id="merchandisingLabel" style="justify-content:flex-start; font-size:14px;">
       <input type="checkbox" id="merchandisingOk"> <svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M6 8.5h12l-1 11.5a1.5 1.5 0 0 1-1.5 1.4H8.5A1.5 1.5 0 0 1 7 20l-1-11.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><path d="M9 8.5V6.8a3 3 0 0 1 6 0v1.7" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg>Espace merchandising OK
     </label>
     </div>
@@ -712,7 +713,22 @@ async function createNewFdr(){
  * On bascule donc les libellés et une ligne de champs, plutôt que d'entretenir
  * une seconde page presque identique. Le reste du formulaire ne bouge pas.
  */
-function appliquerNatureProjet(){
+// Une section porte-t-elle quelque chose ? Sert à ne jamais décocher — donc
+// masquer du PDF — une section que quelqu'un a pris la peine de remplir.
+function sectionARempli(cle){
+  if(cle === 'voyage'){
+    return (state.trajets || []).some(t=> (t.departVille||'').trim() || (t.arriveeVille||'').trim()
+      || (t.train||'').trim() || (t.departHeure||'').trim() || (t.arriveeHeure||'').trim());
+  }
+  if(cle === 'hotel'){
+    const h = state.hotel || {};
+    return !!((h.nom||'').trim() || (h.adresse||'').trim() || (h.tel||'').trim()
+      || (h.checkin||'').trim() || (h.checkout||'').trim() || (h.mapsLink||'').trim());
+  }
+  return true;
+}
+
+function appliquerNatureProjet(ajusterSections){
   const reco = state.projetType === 'recording';
   const voc = vocabulaireProjet(state.projetType);
 
@@ -729,6 +745,42 @@ function appliquerNatureProjet(){
   const placer = (id, texte)=>{ const el = document.getElementById(id); if(el) el.placeholder = texte; };
   placer('venueSalle', reco ? 'Ex: Studio Ferber' : 'Ex: Salle Boris Vian');
   placer('l_nom', reco ? 'Ex: Studio Ferber — 96 rue du Faubourg Saint-Antoine' : 'Ex: Salle Boris Vian - Maison de la culture');
+
+  // Chez Curieux, un enregistrement se fait dans la ville où vit la plupart de
+  // l'orchestre : ni train ni hôtel pour presque tout le monde. Voyage et Hôtel
+  // deviennent donc l'exception — décochés d'office, à rouvrir pour les rares
+  // personnes qui viennent de loin. On ne décoche QUE si la section est vide :
+  // une feuille déjà remplie ne doit jamais perdre son contenu sur un simple
+  // changement de nature.
+  poser('voyageSousTitre', reco
+    ? "Rare en studio : la plupart de l'orchestre habite la ville. N'ajoute des trajets que pour celles et ceux qui viennent de loin."
+    : 'Les horaires définitifs retenus.');
+  poser('billetsSousTitre', reco
+    ? "Seulement pour les personnes qui prennent le train — la plupart viennent par leurs propres moyens."
+    : 'Un lien par personne si besoin (artiste, accompagnant·es...).');
+  poser('hotelSousTitre', reco
+    ? "Rare en studio, pour la même raison — à remplir seulement si quelqu'un dort sur place."
+    : '');
+
+  // Seulement quand on change la nature à la main (ajusterSections), jamais au
+  // chargement : sinon une case rouverte exprès pour la remplir plus tard se
+  // refermerait toute seule à la visite suivante.
+  if(ajusterSections){
+    ['voyage', 'hotel'].forEach(cle=>{
+      if(sectionARempli(cle)) return;            // du contenu : on n'y touche pas
+      const attendu = !reco;
+      if(state.sectionsEnabled[cle] === attendu) return;
+      state.sectionsEnabled[cle] = attendu;
+      const cb = document.querySelector(`[data-section-toggle="${cle}"]`);
+      const corps = document.querySelector(`[data-section-body="${cle}"]`);
+      if(cb) cb.checked = attendu;
+      if(corps) corps.classList.toggle('section-off', !attendu);
+    });
+  }
+
+  // Pas de stand de merchandising dans une cabine de studio.
+  const merch = document.getElementById('merchandisingLabel');
+  if(merch) merch.style.display = reco ? 'none' : '';
 
   const champsSalle = document.getElementById('champsSalle');
   const champsStudio = document.getElementById('champsStudio');
@@ -749,7 +801,7 @@ function bindTopFields(){
   bindSimpleField('eventDate', ()=>state.eventDate, v=>state.eventDate=v);
   bindSimpleField('venueCity', ()=>state.venueCity, v=>state.venueCity=v);
   bindSimpleField('venueSalle', ()=>state.venueSalle, v=>state.venueSalle=v);
-  bindSimpleField('projetType', ()=>state.projetType, v=>{ state.projetType = v; appliquerNatureProjet(); });
+  bindSimpleField('projetType', ()=>state.projetType, v=>{ state.projetType = v; appliquerNatureProjet(true); });
 
   bindSimpleField('l_nom', ()=>state.lieu.nom, v=>state.lieu.nom=v);
   bindSimpleField('l_adresse', ()=>state.lieu.adresse, v=>state.lieu.adresse=v);
