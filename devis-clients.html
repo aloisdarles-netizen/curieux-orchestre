@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Clients</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/devis-commun.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:1080px; margin:0 auto;}
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  input, textarea, select{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13.5px;
+    background:var(--card); color:var(--text); font-family:inherit; width:100%;
+  }
+  textarea{resize:vertical; min-height:38px;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .field label{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
+  .grille{display:grid; grid-template-columns:1fr 1fr; gap:0 14px;}
+  .grille.trois{grid-template-columns:1fr 1fr 1fr;}
+  @media (max-width:720px){ .grille, .grille.trois{grid-template-columns:1fr;} }
+
+  /* Deux colonnes : la liste à gauche, la fiche à droite. */
+  .colonnes{display:grid; grid-template-columns:290px minmax(0,1fr); gap:18px; align-items:start;}
+  @media (max-width:860px){ .colonnes{grid-template-columns:1fr;} }
+
+  .liste{background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden;}
+  .cli-item{
+    display:block; width:100%; text-align:left; background:transparent; border:none;
+    padding:12px 15px; border-bottom:1px solid var(--border); cursor:pointer; font-family:inherit;
+  }
+  .cli-item:last-child{border-bottom:none;}
+  .cli-item:hover{background:var(--bg);}
+  .cli-item[aria-current="true"]{background:var(--accent-tint); box-shadow:inset 3px 0 0 var(--accent);}
+  .cli-item b{display:block; font-size:13.5px; color:var(--text);}
+  .cli-item small{display:block; font-size:11.5px; color:var(--muted); margin-top:2px;}
+
+  .fiche{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 20px;}
+  .fiche h2{
+    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent-dark); margin:0 0 12px; padding-top:14px; border-top:1px solid var(--border);
+  }
+  .fiche h2:first-of-type{padding-top:0; border-top:none;}
+  .fiche-tete{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:16px;}
+  .fiche-tete .nom{font-family:var(--font-display); font-size:22px; font-weight:500; flex:1 1 200px;}
+
+  .devis-lie{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:9px 0; border-bottom:1px solid var(--border); font-size:13px;
+  }
+  .devis-lie:last-child{border-bottom:none;}
+  .devis-lie .t{flex:1 1 180px; font-weight:700;}
+  .devis-lie .m{font-weight:800; font-variant-numeric:tabular-nums;}
+  .statut-badge{
+    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    padding:3px 9px; border-radius:12px; white-space:nowrap;
+  }
+  .statut-brouillon{background:var(--bg); color:var(--muted); border:1px solid var(--border);}
+  .statut-envoye{background:#CEE1F4; color:#3d5876;}
+  .statut-accepte{background:#dcf2e5; color:#2f8f5b;}
+  .statut-refuse{background:#fbe2db; color:#b03a14;}
+  :root[data-theme="dark"] .statut-accepte{background:#1d3a2a; color:#7fd6a4;}
+  :root[data-theme="dark"] .statut-refuse{background:#42201a; color:#f0967a;}
+  :root[data-theme="dark"] .statut-envoye{background:#2a3f52; color:#CEE1F4;}
+
+  .totaux-cli{display:flex; gap:20px; flex-wrap:wrap; margin-bottom:4px;}
+  .totaux-cli div{font-size:12px; color:var(--muted); font-weight:700;}
+  .totaux-cli b{display:block; font-family:var(--font-display); font-size:20px; font-weight:500; color:var(--text); font-variant-numeric:tabular-nums;}
+
+  .etat-enr{font-size:11.5px; color:var(--muted); margin-left:auto;}
+  @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <a class="co-back" href="devis.html">← Devis</a>
+      <h1>Clients</h1>
+      <p class="subtitle">Coordonnées de facturation, contacts et conditions — reprises automatiquement sur les devis.</p>
+    </div>
+    <div class="co-actions">
+      <button type="button" class="co-btn primary md" id="nouveauBtn">+ Nouveau client</button>
+    </div>
+  </div>
+
+  <div class="colonnes">
+    <div>
+      <div class="liste" id="liste"></div>
+      <p class="empty-hint co-vide" id="listeVide" style="display:none;">Aucun client pour l'instant.</p>
+    </div>
+    <div id="ficheHolder"></div>
+  </div>
+</div>
+
+<script>
+let clients = [], devisTous = [], choisi = null;
+
+async function charger(){
+  const [cs, ds] = await Promise.all([
+    CurieuxDB.fetchAll('devis_clients'),
+    CurieuxDB.fetchAll('devis'),
+  ]);
+  clients = cs; devisTous = ds;
+  const demande = new URLSearchParams(location.search).get('id');
+  choisi = (demande && clients.find(c=> c.id === demande)) ? demande : (clients[0] ? clients[0].id : null);
+  render();
+}
+
+function render(){ renderListe(); renderFiche(); }
+
+function renderListe(){
+  const holder = document.getElementById('liste');
+  document.getElementById('listeVide').style.display = clients.length ? 'none' : 'block';
+  holder.innerHTML = clients.map(c=>{
+    const nb = devisTous.filter(d=> d.clientId === c.id).length;
+    return `<button type="button" class="cli-item" data-cli="${escapeAttr(c.id)}" ${c.id === choisi ? 'aria-current="true"' : ''}>
+      <b>${escapeHtml(c.nom || '(sans nom)')}</b>
+      <small>${nb ? nb + ' devis' : 'aucun devis'}${c.ville ? ' · ' + escapeHtml(c.ville) : ''}</small>
+    </button>`;
+  }).join('');
+  holder.querySelectorAll('[data-cli]').forEach(b=> b.addEventListener('click', ()=>{
+    choisi = b.dataset.cli; render();
+    history.replaceState(null, '', 'devis-clients.html?id=' + encodeURIComponent(choisi));
+  }));
+}
+
+function renderFiche(){
+  const holder = document.getElementById('ficheHolder');
+  const c = clients.find(x=> x.id === choisi);
+  if(!c){
+    holder.innerHTML = '<p class="empty-hint co-vide">Choisis un client à gauche, ou crée-en un.</p>';
+    return;
+  }
+  const lies = devisTous.filter(d=> d.clientId === c.id);
+  const totalAccepte = lies.filter(d=> d.statut === 'accepte')
+    .reduce((s, d)=> s + calculerDevis(d).totalHT, 0);
+  const totalEnCours = lies.filter(d=> d.statut === 'envoye')
+    .reduce((s, d)=> s + calculerDevis(d).totalHT, 0);
+
+  const champ = (cle, libelle, type)=> `<div class="field">
+    <label>${libelle}</label>
+    ${type === 'zone'
+      ? `<textarea data-c="${cle}" rows="2">${escapeHtml(c[cle] || '')}</textarea>`
+      : `<input type="text" data-c="${cle}" value="${escapeAttr(c[cle] || '')}">`}
+  </div>`;
+
+  holder.innerHTML = `<div class="fiche">
+    <div class="fiche-tete">
+      <span class="nom" id="ficheNom">${escapeHtml(c.nom || '(sans nom)')}</span>
+      <span class="etat-enr" id="etatEnr"></span>
+      <button type="button" class="co-btn danger sm" id="suppBtn">Supprimer</button>
+    </div>
+
+    <h2>Identité</h2>
+    <div class="grille">
+      ${champ('nom', 'Raison sociale')}
+      ${champ('formeJuridique', 'Forme juridique (SAS, association…)')}
+      ${champ('siret', 'SIRET')}
+      ${champ('tvaIntracom', 'TVA intracommunautaire')}
+    </div>
+
+    <h2>Adresse de facturation</h2>
+    ${champ('adresse', 'Adresse', 'zone')}
+    <div class="grille trois">
+      ${champ('codePostal', 'Code postal')}
+      ${champ('ville', 'Ville')}
+      ${champ('pays', 'Pays')}
+    </div>
+
+    <h2>Contact principal</h2>
+    <div class="grille">
+      ${champ('contactNom', 'Nom')}
+      ${champ('contactFonction', 'Fonction')}
+      ${champ('email', 'Email')}
+      ${champ('tel', 'Téléphone')}
+    </div>
+
+    <h2>Comptabilité / facturation</h2>
+    <div class="grille">
+      ${champ('comptaNom', 'Contact compta')}
+      ${champ('comptaEmail', 'Email compta')}
+      ${champ('delaiPaiement', 'Délai de paiement (ex. 30 jours)')}
+      ${champ('referenceInterne', 'Référence à rappeler (n° de commande…)')}
+    </div>
+    ${champ('conditionsParticulieres', 'Conditions particulières (reprises sur le devis si renseignées)', 'zone')}
+
+    <h2>Notes</h2>
+    ${champ('notes', 'Notes internes (jamais imprimées)', 'zone')}
+
+    <h2>Devis de ce client</h2>
+    <div class="totaux-cli">
+      <div>Accepté<b>${escapeHtml(fmtEurosDevis(totalAccepte))}</b></div>
+      <div>En attente<b>${escapeHtml(fmtEurosDevis(totalEnCours))}</b></div>
+      <div>Devis<b>${lies.length}</b></div>
+    </div>
+    ${lies.length ? lies.map(d=> `<div class="devis-lie">
+      <span class="t">${escapeHtml(d.titre || 'Sans titre')}${d.variante ? ' · ' + escapeHtml(d.variante) : ''}</span>
+      <span class="statut-badge statut-${escapeAttr(d.statut || 'brouillon')}">${escapeHtml(DEVIS_STATUTS[d.statut] || 'Brouillon')}</span>
+      <span class="m">${escapeHtml(fmtEurosDevis(calculerDevis(d).totalHT))} HT</span>
+      <a class="co-btn secondary sm" href="devis-editeur.html?id=${encodeURIComponent(d.id)}">Ouvrir</a>
+    </div>`).join('') : `<p style="color:var(--muted); font-size:13px; margin:6px 0 0;">Aucun devis rattaché pour l'instant.</p>`}
+  </div>`;
+
+  holder.querySelectorAll('[data-c]').forEach(el=> el.addEventListener('input', ()=>{
+    c[el.dataset.c] = el.value;
+    if(el.dataset.c === 'nom'){
+      document.getElementById('ficheNom').textContent = el.value || '(sans nom)';
+      renderListe();
+    }
+    marquerModifie(c);
+  }));
+  document.getElementById('suppBtn').addEventListener('click', async ()=>{
+    const nb = lies.length;
+    if(!confirm(`Supprimer « ${c.nom || 'ce client'} » ?` + (nb ? `\n\n${nb} devis y sont rattachés : ils gardent leur contenu, mais perdent le lien vers ce client.` : ''))) return;
+    await CurieuxDB.removeOne('devis_clients', c.id);
+    clients = clients.filter(x=> x.id !== c.id);
+    choisi = clients[0] ? clients[0].id : null;
+    render();
+  });
+}
+
+// Sauvegarde débouncée, comme l'éditeur de devis.
+let minuteur = null;
+function marquerModifie(c){
+  const etat = document.getElementById('etatEnr');
+  if(etat) etat.textContent = 'Modifications…';
+  clearTimeout(minuteur);
+  minuteur = setTimeout(async ()=>{
+    const { error } = await CurieuxDB.upsertOne('devis_clients', c);
+    if(etat) etat.textContent = error ? '⚠ Non enregistré' : 'Enregistré ✓';
+  }, 600);
+}
+
+document.getElementById('nouveauBtn').addEventListener('click', async ()=>{
+  const client = { id: genId('cli'), nom: 'Nouveau client', pays: 'France' };
+  const { error } = await CurieuxDB.upsertOne('devis_clients', client);
+  if(error){ alert('Création impossible :\n\n' + error.message); return; }
+  clients.push(client); choisi = client.id; render();
+  const champ = document.querySelector('[data-c="nom"]');
+  if(champ){ champ.focus(); champ.select(); }
+});
+
+charger();
+</script>
+</body>
+</html>

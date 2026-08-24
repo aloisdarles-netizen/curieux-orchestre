@@ -45,7 +45,9 @@
 // déploiement du script Google côté tableur n'a pas pu aboutir.
 // v11 : espace Devis — deux nouveaux actifs (devis-commun.js, pdf-devis.js),
 // adaptateurs dans db.js, option mentionDebordement dans pdf-charte.js.
-const VERSION = 'curieux-v11';
+// v12 : feuille de chiffrage relisible (libellés courts de régime dans
+// devis-commun.js), fiche client reprise dans le PDF (pdf-devis.js).
+const VERSION = 'curieux-v12';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

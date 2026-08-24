@@ -27,12 +27,15 @@
  *   - discuter : surlignée (le jaune du tableur), sans effet sur les calculs.
  * ========================================================================== */
 
+// [clé, libellé complet, libellé court]. Le court sert aux pastilles de la
+// feuille de chiffrage, où la place est comptée ; le complet reste pour les
+// écrans qui expliquent (charges, aide).
 const DEVIS_REGIMES = [
-  ['production', 'Production'],
-  ['musicien',   'Musicien·ne (cachet)'],
-  ['auteur',     'Auteur·rice'],
-  ['facture',    'Prestataire facturé'],
-  ['aucun',      'Sans charges'],
+  ['production', 'Production',           'Prod.'],
+  ['musicien',   'Musicien·ne (cachet)', 'Cachet'],
+  ['auteur',     'Auteur·rice',          'Auteur'],
+  ['facture',    'Prestataire facturé',  'Facturé'],
+  ['aucun',      'Sans charges',         '—'],
 ];
 
 const DEVIS_STATUTS = {

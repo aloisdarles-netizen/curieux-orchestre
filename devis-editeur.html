@@ -17,7 +17,14 @@
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:1080px; margin:0 auto;}
+  /* Cette page seule s'affranchit de la largeur de lecture du site : une
+     feuille de chiffrage porte huit colonnes de chiffres, la brider à 1080 px
+     tassait toute la partie droite. On prend la largeur de l'écran, avec un
+     plafond pour ne pas étirer les lignes à l'infini sur un grand moniteur. */
+  .wrap{max-width:min(1720px, 97vw); margin:0 auto;}
+  /* Le bandeau du site est centré sur 1240 px : sur cette page élargie, on
+     l'aligne sur le contenu pour que la navigation ne flotte pas à gauche. */
+  body.co-has-topbar .co-topbar-in{ max-width:min(1720px, 97vw); }
   button{
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
@@ -42,44 +49,143 @@
   }
   :root[data-theme="dark"] .fige-note{ color:var(--text); }
 
-  /* --- Tableau des lignes --------------------------------------------- */
-  .sec-carte{margin-bottom:16px;}
-  .sec-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
-  .sec-head .sec-titre{flex:1 1 260px; font-weight:800; font-size:14px;}
-  .sec-head select{width:auto;}
-  .grp-titre{margin:10px 0 4px;}
-  .grp-titre input{
-    font-weight:800; font-size:12px; text-transform:uppercase; letter-spacing:.04em;
-    border:none; background:transparent; padding:4px 2px; width:100%; color:var(--accent-dark);
+  /* --- La feuille de chiffrage ----------------------------------------
+     Assumée comme un outil de travail : on quitte ici l'habillage de la
+     charte (cartes crème, texte de lecture) pour une grille de tableur —
+     filets fins, chiffres tabulaires alignés à droite, lignes zébrées. La
+     charte reste sur le bandeau, les titres et les boutons ; le tableau,
+     lui, doit se lire en diagonale sur quarante lignes. */
+  .sec-carte{margin-bottom:18px; padding:0; overflow:hidden;}
+  .sec-head{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:12px 16px; background:var(--bg); border-bottom:1px solid var(--border);
   }
-  .grp-titre input::placeholder{text-transform:none; letter-spacing:0; font-weight:600;}
+  .sec-head .sec-num{
+    flex:0 0 auto; width:22px; height:22px; border-radius:50%; display:grid; place-items:center;
+    background:var(--accent); color:var(--card); font-size:11.5px; font-weight:800;
+  }
+  .sec-head .sec-titre{
+    flex:1 1 240px; font-weight:800; font-size:14.5px; border:none; background:transparent;
+    padding:4px 2px; color:var(--text);
+  }
+  .sec-head .sec-titre:focus{background:var(--card); border-radius:6px; outline:1px solid var(--accent);}
+  .sec-head select{width:auto; font-size:11.5px; padding:5px 7px;}
+  .sec-outils{display:flex; gap:2px; opacity:.45; transition:opacity .15s;}
+  .sec-carte:hover .sec-outils, .sec-carte:focus-within .sec-outils{opacity:1;}
 
   .lignes-scroll{overflow-x:auto;}
-  table.lignes{width:100%; border-collapse:collapse; min-width:840px;}
-  table.lignes th{
-    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
-    color:var(--muted); text-align:left; padding:4px 6px; border-bottom:1.5px solid var(--accent);
-  }
-  table.lignes td{padding:3px 4px; border-bottom:1px solid var(--border); vertical-align:top;}
-  table.lignes input, table.lignes select{width:100%; border-color:transparent; background:transparent; padding:6px 6px;}
-  table.lignes input:focus, table.lignes select:focus{border-color:var(--accent); background:var(--card); outline:none;}
-  table.lignes input.num{text-align:right; font-variant-numeric:tabular-nums;}
-  td.total-cell{white-space:nowrap; text-align:right; font-weight:800; font-variant-numeric:tabular-nums; font-size:13px; padding-top:9px;}
-  td.outils-cell{white-space:nowrap; text-align:right;}
-  .l-btn{
-    background:transparent; border:none; padding:4px 5px; font-size:12px; color:var(--muted);
-    border-radius:6px; cursor:pointer; line-height:1;
-  }
-  .l-btn:hover{background:var(--bg); color:var(--text);}
-  tr.ligne-discuter td{background:rgba(255, 214, 0, .14);}
-  tr.ligne-optionnelle td{opacity:.82;}
-  tr.ligne-optionnelle .total-cell{color:var(--muted);}
-  tr.ligne-hors td .total-cell, tr.ligne-hors td{color:var(--muted);}
-  .etat-select{max-width:104px; font-size:11px !important;}
-  .regime-select{max-width:150px; font-size:11px !important;}
+  table.feuille{width:100%; border-collapse:collapse; min-width:1020px; font-variant-numeric:tabular-nums;}
 
-  .sec-pied{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px;}
-  .sec-soustotal{margin-left:auto; font-weight:800; font-variant-numeric:tabular-nums; font-size:13.5px;}
+  /* En-tête de colonnes : une seule fois par section (et non par groupe,
+     qui répétait la même rangée jusqu'à cinq fois dans une seule section).
+     Pas de position:sticky ici : la table vit dans un conteneur à défilement
+     horizontal, où un sticky vertical n'a aucun effet — autant ne pas le
+     laisser croire. Les sections restent courtes, l'en-tête reste proche. */
+  table.feuille thead th{
+    font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--muted); text-align:left; padding:7px 8px; white-space:nowrap;
+    background:var(--card); border-bottom:1.5px solid var(--accent);
+  }
+  table.feuille th.n, table.feuille td.n{text-align:right;}
+
+  /* Bandeau de groupe : une rangée pleine largeur, pas un titre flottant. */
+  tr.grp-band td{
+    background:var(--bg); padding:0; border-top:1px solid var(--border);
+    border-bottom:1px solid var(--border);
+  }
+  tr.grp-band input{
+    width:100%; border:none; background:transparent; padding:6px 10px;
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.07em;
+    color:var(--accent-dark);
+  }
+  tr.grp-band input::placeholder{text-transform:none; letter-spacing:0; font-weight:600; opacity:.55;}
+
+  /* Les lignes : zébrées, séparées par des filets fins, surlignées au survol. */
+  tr.lg > td{
+    padding:0; border-bottom:1px solid var(--border);
+    background:var(--card); transition:background .1s;
+  }
+  tbody tr.lg:nth-child(even) > td{background:var(--bg);}
+  tr.lg:hover > td{background:var(--accent-tint);}
+  tr.lg > td + td{border-left:1px solid var(--border);}
+
+  /* Les champs ne se dessinent qu'au survol ou à la saisie : au repos, on lit
+     des valeurs, pas une forêt de boîtes. */
+  table.feuille input, table.feuille select{
+    width:100%; border:1px solid transparent; background:transparent;
+    padding:7px 8px; font-size:13px; border-radius:0; color:inherit;
+  }
+  table.feuille input.n{text-align:right; font-weight:700;}
+  tr.lg:hover input, tr.lg:hover select{border-color:var(--border);}
+  table.feuille input:focus, table.feuille select:focus{
+    outline:none; border-color:var(--accent); background:var(--card);
+    box-shadow:inset 0 0 0 1px var(--accent);
+  }
+  td.c-intitule input{font-weight:700;}
+  td.c-noms input{font-size:12px; color:var(--muted);}
+
+  /* Le total : la colonne qu'on cherche des yeux. */
+  td.c-total{
+    text-align:right; font-weight:800; font-size:13.5px; white-space:nowrap;
+    padding:7px 10px !important;
+  }
+  td.c-total .opt{display:block; font-size:9.5px; font-weight:800; color:var(--orange); letter-spacing:.05em;}
+
+  /* Régime et état : des pastilles colorées, lisibles d'un coup d'œil, qui
+     restent des menus déroulants. Une ligne « normale » ne montre donc aucune
+     commande — seules les exceptions se signalent. */
+  select.chip{
+    font-size:10.5px !important; font-weight:800; padding:4px 6px !important;
+    border-radius:20px !important; text-align:center; -webkit-appearance:none; appearance:none;
+    border:1px solid transparent !important; cursor:pointer;
+  }
+  select.chip.r-production{background:#e6eefa; color:#33526f;}
+  select.chip.r-musicien{background:#fde4ef; color:#8a1c55;}
+  select.chip.r-auteur{background:#fde8dd; color:#a03c12;}
+  select.chip.r-facture{background:#eceaf0; color:#5b4f63;}
+  select.chip.r-aucun{background:transparent; color:var(--muted);}
+  select.chip.e-incluse{background:transparent; color:var(--muted);}
+  select.chip.e-optionnelle{background:#fde8dd; color:#a03c12;}
+  select.chip.e-hors_devis{background:#eceaf0; color:#5b4f63;}
+  :root[data-theme="dark"] select.chip.r-production{background:#26364a; color:#bcd6f2;}
+  :root[data-theme="dark"] select.chip.r-musicien{background:#4a2436; color:#f5bcd8;}
+  :root[data-theme="dark"] select.chip.r-auteur{background:#4a2a18; color:#f3b48c;}
+  :root[data-theme="dark"] select.chip.r-facture{background:#33303a; color:#c3b9cc;}
+  :root[data-theme="dark"] select.chip.e-optionnelle{background:#4a2a18; color:#f3b48c;}
+  :root[data-theme="dark"] select.chip.e-hors_devis{background:#33303a; color:#c3b9cc;}
+
+  /* Les outils de ligne n'apparaissent qu'au survol : ils encombraient chaque
+     rangée de cinq icônes permanentes. */
+  td.c-outils{white-space:nowrap; text-align:right; padding-right:6px !important;}
+  td.c-outils .outils{display:inline-flex; gap:1px; opacity:0; transition:opacity .12s;}
+  tr.lg:hover .outils, tr.lg:focus-within .outils{opacity:1;}
+  .l-btn{
+    background:transparent; border:none; padding:5px 5px; font-size:11.5px; color:var(--muted);
+    border-radius:5px; cursor:pointer; line-height:1;
+  }
+  .l-btn:hover{background:var(--border); color:var(--text);}
+  .l-btn.actif{opacity:1; color:var(--orange);}
+
+  /* États particuliers d'une ligne. */
+  tr.lg.discuter > td{background:#fff6d6;}
+  tr.lg.discuter:hover > td{background:#ffefb8;}
+  :root[data-theme="dark"] tr.lg.discuter > td{background:#3a3320;}
+  :root[data-theme="dark"] tr.lg.discuter:hover > td{background:#463d26;}
+  tr.lg.hors td.c-intitule input, tr.lg.hors td.c-total{color:var(--muted); text-decoration:line-through;}
+  tr.lg.optionnelle td.c-total{color:var(--muted);}
+
+  /* Rangée d'ajout, discrète, en fin de groupe. */
+  tr.ajout td{padding:5px 8px; border-bottom:1px solid var(--border); background:var(--card);}
+  tr.ajout .co-btn{padding:5px 11px; font-size:11.5px;}
+
+  .sec-pied{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:10px 16px; background:var(--bg); border-top:1px solid var(--border);
+  }
+  .sec-soustotal{
+    margin-left:auto; font-weight:800; font-variant-numeric:tabular-nums; font-size:14px;
+  }
+  .sec-soustotal small{font-weight:700; font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-right:6px;}
 
   /* --- Charges / divers / totaux --------------------------------------- */
   .calc-ligne{display:flex; align-items:baseline; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); flex-wrap:wrap;}
@@ -298,7 +404,7 @@ function renderEditeur(){
     <h2>En-tête</h2>
     <div class="entete-grid">
       <div class="field"><label>Titre du projet</label><input type="text" id="dTitre" value="${escapeAttr(devis.titre || '')}" placeholder="Expe 33 — Budget Prévisionnel" ${fige}></div>
-      <div class="field"><label>Client</label><select id="dClient" ${fige}>${optionsClients()}</select></div>
+      <div class="field"><label>Client ${devis.clientId ? `<a href="devis-clients.html?id=${encodeURIComponent(devis.clientId)}" style="font-weight:700; text-transform:none; letter-spacing:0;">· voir la fiche</a>` : ''}</label><select id="dClient" ${fige}>${optionsClients()}</select></div>
       <div class="field"><label>Variante</label><input type="text" id="dVariante" value="${escapeAttr(devis.variante || '')}" placeholder="Avec clip" ${fige}></div>
       <div class="field"><label>Date</label><input type="text" id="dDate" value="${escapeAttr(devis.date || '')}" placeholder="Juillet 2026 — ou TBD" ${fige}></div>
       <div class="field"><label>Validité (jours)</label><input type="number" id="dValidite" value="${escapeAttr(devis.validiteJours != null ? devis.validiteJours : 30)}" ${fige}></div>
@@ -348,28 +454,29 @@ function renderEditeur(){
 function renderSection(sec, si){
   const fige = devis.fige ? 'disabled' : '';
   const tvaDefaut = devisNombre(devis.tvaDefaut, 20);
+  const nbCols = sec.remuneration ? 9 : 8;
+
+  // Une seule table par section : un en-tête de colonnes, puis un <tbody> par
+  // groupe. Avant, chaque groupe portait sa propre table et donc sa propre
+  // rangée d'intitulés — la même ligne répétée cinq fois dans une section.
   const corps = (sec.groupes || []).map((grp, gi)=> `
-    ${(sec.groupes.length > 1 || grp.titre) ? `<div class="grp-titre"><input type="text" value="${escapeAttr(grp.titre || '')}" placeholder="Titre du groupe (Préparation, REC, Captation…)" data-grp-titre="${si}:${gi}" ${fige}></div>` : ''}
-    <div class="lignes-scroll"><table class="lignes"><thead><tr>
-      <th style="width:24%;">Intitulé</th><th style="width:17%;">Nom / infos</th>
-      <th style="width:56px;">Journées</th><th style="width:50px;">Qté</th><th style="width:90px;">Unité</th>
-      <th style="width:84px;">Coût unit. €</th>
-      ${sec.remuneration ? '<th style="width:120px;">Régime</th>' : ''}
-      <th style="width:92px; text-align:right;">Total</th><th style="width:120px;"></th>
-    </tr></thead><tbody>
+    <tbody data-groupe="${si}:${gi}">
+      ${(sec.groupes.length > 1 || grp.titre) ? `<tr class="grp-band"><td colspan="${nbCols}">
+        <input type="text" value="${escapeAttr(grp.titre || '')}" placeholder="Titre du groupe (Préparation, REC, Captation…)" data-grp-titre="${si}:${gi}" ${fige}>
+      </td></tr>` : ''}
       ${(grp.lignes || []).map((l, li)=> renderLigne(sec, si, gi, l, li)).join('')}
-    </tbody></table></div>
-    <div class="sec-pied peut-figer">
-      <button type="button" class="co-btn ghost sm" data-ajout-ligne="${si}:${gi}" ${fige}>+ Ligne</button>
-      <button type="button" class="co-btn ghost sm" data-ajout-poste="${si}:${gi}" ${fige}>+ Depuis la bibliothèque</button>
-    </div>
-  `).join('');
+      <tr class="ajout"><td colspan="${nbCols}">
+        <button type="button" class="co-btn ghost sm peut-figer" data-ajout-ligne="${si}:${gi}" ${fige}>+ Ligne</button>
+        <button type="button" class="co-btn ghost sm peut-figer" data-ajout-poste="${si}:${gi}" ${fige}>+ Depuis la bibliothèque</button>
+      </td></tr>
+    </tbody>`).join('');
 
   return `<div class="carte sec-carte peut-figer" data-section="${si}">
     <div class="sec-head">
+      <span class="sec-num">${si + 1}</span>
       <input type="text" class="sec-titre" value="${escapeAttr(sec.titre || '')}" placeholder="Titre de la section" data-sec-titre="${si}" ${fige}>
-      <label style="font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:5px;">
-        <input type="checkbox" data-sec-rem="${si}" ${sec.remuneration ? 'checked' : ''} ${fige}> rémunération (charges)
+      <label style="font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:5px; white-space:nowrap;">
+        <input type="checkbox" data-sec-rem="${si}" ${sec.remuneration ? 'checked' : ''} ${fige} style="width:auto;"> rémunération
       </label>
       <select data-sec-tva="${si}" title="TVA de la section" ${fige}>
         <option value="" ${sec.tva == null || sec.tva === '' ? 'selected' : ''}>TVA ${tvaDefaut.toLocaleString('fr-FR')} % (défaut)</option>
@@ -377,11 +484,29 @@ function renderSection(sec, si){
         <option value="20" ${String(sec.tva) === '20' ? 'selected' : ''}>TVA 20 %</option>
         <option value="0" ${String(sec.tva) === '0' ? 'selected' : ''}>TVA 0 %</option>
       </select>
-      <button type="button" class="l-btn" data-sec-monter="${si}" title="Monter la section" ${fige}>▲</button>
-      <button type="button" class="l-btn" data-sec-descendre="${si}" title="Descendre la section" ${fige}>▼</button>
-      <button type="button" class="l-btn" data-sec-suppr="${si}" title="Supprimer la section" ${fige}>✕</button>
+      <span class="sec-outils">
+        <button type="button" class="l-btn" data-sec-monter="${si}" title="Monter la section" ${fige}>▲</button>
+        <button type="button" class="l-btn" data-sec-descendre="${si}" title="Descendre la section" ${fige}>▼</button>
+        <button type="button" class="l-btn" data-sec-suppr="${si}" title="Supprimer la section" ${fige}>✕</button>
+      </span>
     </div>
-    ${corps}
+
+    <div class="lignes-scroll"><table class="feuille">
+      <colgroup>
+        <col style="width:25%"><col style="width:20%">
+        <col style="width:64px"><col style="width:60px"><col style="width:124px"><col style="width:110px">
+        ${sec.remuneration ? '<col style="width:104px">' : ''}
+        <col style="width:128px"><col style="width:120px">
+      </colgroup>
+      <thead><tr>
+        <th>Intitulé</th><th>Nom / infos</th>
+        <th class="n">Jours</th><th class="n">Qté</th><th>Unité</th><th class="n">P.U. €</th>
+        ${sec.remuneration ? '<th>Régime</th>' : ''}
+        <th class="n">Total</th><th></th>
+      </tr></thead>
+      ${corps}
+    </table></div>
+
     <div class="sec-pied">
       <button type="button" class="co-btn ghost sm peut-figer" data-ajout-groupe="${si}" ${fige}>+ Groupe</button>
       <span class="sec-soustotal" data-sec-soustotal="${si}"></span>
@@ -392,29 +517,28 @@ function renderSection(sec, si){
 function renderLigne(sec, si, gi, l, li){
   const fige = devis.fige ? 'disabled' : '';
   const cle = `${si}:${gi}:${li}`;
-  const classes = [
-    l.discuter ? 'ligne-discuter' : '',
-    l.etat === 'optionnelle' ? 'ligne-optionnelle' : '',
-    l.etat === 'hors_devis' ? 'ligne-hors' : '',
+  const classes = ['lg',
+    l.discuter ? 'discuter' : '',
+    l.etat === 'optionnelle' ? 'optionnelle' : '',
+    l.etat === 'hors_devis' ? 'hors' : '',
   ].filter(Boolean).join(' ');
+  const etat = l.etat || 'incluse';
   return `<tr class="${classes}" data-ligne="${cle}">
-    <td><input type="text" value="${escapeAttr(l.intitule || '')}" data-l="${cle}:intitule" placeholder="Intitulé" ${fige}></td>
-    <td><input type="text" value="${escapeAttr(l.noms || '')}" data-l="${cle}:noms" list="annuaireNoms" placeholder="Nom / infos" ${fige}></td>
-    <td><input type="text" inputmode="decimal" class="num" value="${escapeAttr(l.journees === '' || l.journees == null ? '' : l.journees)}" data-l="${cle}:journees" ${fige}></td>
-    <td><input type="text" inputmode="decimal" class="num" value="${escapeAttr(l.qte === '' || l.qte == null ? '' : l.qte)}" data-l="${cle}:qte" ${fige}></td>
+    <td class="c-intitule"><input type="text" value="${escapeAttr(l.intitule || '')}" data-l="${cle}:intitule" placeholder="Intitulé" ${fige}></td>
+    <td class="c-noms"><input type="text" value="${escapeAttr(l.noms || '')}" data-l="${cle}:noms" list="annuaireNoms" ${fige}></td>
+    <td><input type="text" inputmode="decimal" class="n" value="${escapeAttr(l.journees === '' || l.journees == null ? '' : l.journees)}" data-l="${cle}:journees" ${fige}></td>
+    <td><input type="text" inputmode="decimal" class="n" value="${escapeAttr(l.qte === '' || l.qte == null ? '' : l.qte)}" data-l="${cle}:qte" ${fige}></td>
     <td><input type="text" value="${escapeAttr(l.unite || '')}" data-l="${cle}:unite" list="unitesUsuelles" ${fige}></td>
-    <td><input type="text" inputmode="decimal" class="num" value="${escapeAttr(l.prix === '' || l.prix == null ? '' : l.prix)}" data-l="${cle}:prix" ${fige}></td>
-    ${sec.remuneration ? `<td><select class="regime-select" data-l="${cle}:regime" ${fige}>
-      ${DEVIS_REGIMES.map(([v, lib])=> `<option value="${v}" ${l.regime === v ? 'selected' : ''}>${lib}</option>`).join('')}
+    <td><input type="text" inputmode="decimal" class="n" value="${escapeAttr(l.prix === '' || l.prix == null ? '' : l.prix)}" data-l="${cle}:prix" ${fige}></td>
+    ${sec.remuneration ? `<td><select class="chip r-${escapeAttr(l.regime || 'aucun')}" data-l="${cle}:regime" ${fige}>
+      ${DEVIS_REGIMES.map(([v, lib, court])=> `<option value="${v}" ${l.regime === v ? 'selected' : ''} title="${escapeAttr(lib)}">${escapeHtml(court || lib)}</option>`).join('')}
     </select></td>` : ''}
-    <td class="total-cell" data-total="${cle}">${l.etat === 'optionnelle' ? 'option · ' : ''}${fmtEurosDevis(totalLigneDevis(l))}</td>
-    <td class="outils-cell">
-      <select class="etat-select" data-l="${cle}:etat" title="État de la ligne" ${fige}>
-        <option value="incluse" ${l.etat === 'incluse' || !l.etat ? 'selected' : ''}>Incluse</option>
-        <option value="optionnelle" ${l.etat === 'optionnelle' ? 'selected' : ''}>Option</option>
-        <option value="hors_devis" ${l.etat === 'hors_devis' ? 'selected' : ''}>Hors devis</option>
-      </select><button type="button" class="l-btn" data-l-discuter="${cle}" title="À discuter (surligne la ligne)" ${fige}>${l.discuter ? '💬' : '◌'}</button><button type="button" class="l-btn" data-l-poste="${cle}" title="Enregistrer dans la bibliothèque" ${fige}>☆</button><button type="button" class="l-btn" data-l-monter="${cle}" title="Monter" ${fige}>▲</button><button type="button" class="l-btn" data-l-descendre="${cle}" title="Descendre" ${fige}>▼</button><button type="button" class="l-btn" data-l-suppr="${cle}" title="Supprimer" ${fige}>✕</button>
-    </td>
+    <td class="c-total" data-total="${cle}">${l.etat === 'optionnelle' ? '<span class="opt">OPTION</span>' : ''}${fmtEurosDevis(totalLigneDevis(l))}</td>
+    <td class="c-outils"><span class="outils"><select class="chip e-${escapeAttr(etat)}" data-l="${cle}:etat" title="État de la ligne" ${fige}>
+        <option value="incluse" ${etat === 'incluse' ? 'selected' : ''}>Incluse</option>
+        <option value="optionnelle" ${etat === 'optionnelle' ? 'selected' : ''}>Option</option>
+        <option value="hors_devis" ${etat === 'hors_devis' ? 'selected' : ''}>Hors devis</option>
+      </select><button type="button" class="l-btn${l.discuter ? ' actif' : ''}" data-l-discuter="${cle}" title="À discuter" ${fige}>${l.discuter ? '●' : '○'}</button><button type="button" class="l-btn" data-l-poste="${cle}" title="Enregistrer dans la bibliothèque" ${fige}>☆</button><button type="button" class="l-btn" data-l-monter="${cle}" title="Monter" ${fige}>▲</button><button type="button" class="l-btn" data-l-descendre="${cle}" title="Descendre" ${fige}>▼</button><button type="button" class="l-btn" data-l-suppr="${cle}" title="Supprimer" ${fige}>✕</button></span></td>
   </tr>`;
 }
 
@@ -532,11 +656,13 @@ function majTotaux(){
   document.querySelectorAll('[data-total]').forEach(el=>{
     const [si, gi, li] = el.dataset.total.split(':').map(Number);
     const l = devis.sections[si].groupes[gi].lignes[li];
-    if(l) el.textContent = (l.etat === 'optionnelle' ? 'option · ' : '') + fmtEurosDevis(totalLigneDevis(l));
+    if(!l) return;
+    el.innerHTML = (l.etat === 'optionnelle' ? '<span class="opt">OPTION</span>' : '')
+      + escapeHtml(fmtEurosDevis(totalLigneDevis(l)));
   });
   calc.sections.forEach((s, si)=>{
     const el = document.querySelector(`[data-sec-soustotal="${si}"]`);
-    if(el) el.textContent = 'Sous-total : ' + fmtEurosDevis(s.sousTotal);
+    if(el) el.innerHTML = '<small>Sous-total</small>' + escapeHtml(fmtEurosDevis(s.sousTotal));
   });
   calc.chargesLignes.forEach(c=>{
     const el = document.querySelector(`[data-charge-mont="${c.cle}"]`);
@@ -591,7 +717,17 @@ function brancherSections(){
       } else {
         l[champ] = el.value;
       }
-      if(champ === 'etat'){ renderEditeur(); majTotaux(); }
+      if(champ === 'regime'){
+        el.className = 'chip r-' + (l.regime || 'aucun');
+      }
+      if(champ === 'etat'){
+        el.className = 'chip e-' + (l.etat || 'incluse');
+        const tr = el.closest('tr');
+        if(tr){
+          tr.classList.toggle('optionnelle', l.etat === 'optionnelle');
+          tr.classList.toggle('hors', l.etat === 'hors_devis');
+        }
+      }
       marquerModifie(); majTotaux();
     });
   });
@@ -657,7 +793,11 @@ function brancherSections(){
     const [si, gi, li] = el.dataset.lDiscuter.split(':').map(Number);
     const l = devis.sections[si].groupes[gi].lignes[li];
     l.discuter = !l.discuter;
-    marquerModifie(); renderEditeur(); majTotaux();
+    el.textContent = l.discuter ? '●' : '○';
+    el.classList.toggle('actif', !!l.discuter);
+    const tr = el.closest('tr');
+    if(tr) tr.classList.toggle('discuter', !!l.discuter);
+    marquerModifie();
   }));
   ed.querySelectorAll('[data-l-monter]').forEach(el=> el.addEventListener('click', ()=> bougerLigne(el.dataset.lMonter, -1)));
   ed.querySelectorAll('[data-l-descendre]').forEach(el=> el.addEventListener('click', ()=> bougerLigne(el.dataset.lDescendre, +1)));

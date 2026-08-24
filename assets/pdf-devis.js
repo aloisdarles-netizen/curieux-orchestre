@@ -56,10 +56,17 @@ function genererDevisPdf(devis, client, reglages){
       r.representant || '',
       [r.email, r.tel].filter(Boolean).join(' — '),
     ].filter(Boolean);
+    // L'adresse se recompose depuis la fiche client (rue, CP, ville, pays) —
+    // saisie une fois là-bas, jamais recopiée dans le devis.
+    const ligneVille = [client && client.codePostal, client && client.ville].filter(Boolean).join(' ');
     const destinataire = client ? [
-      [client.siret ? 'SIRET : ' + client.siret : '', client.tvaIntracom ? 'TVA : ' + client.tvaIntracom : ''].filter(Boolean).join(' ; '),
+      [client.formeJuridique || '',
+       client.siret ? 'SIRET : ' + client.siret : '',
+       client.tvaIntracom ? 'TVA : ' + client.tvaIntracom : ''].filter(Boolean).join(' ; '),
       client.adresse || '',
+      [ligneVille, (client.pays && client.pays !== 'France') ? client.pays : ''].filter(Boolean).join(' — '),
       [client.contactNom, client.email].filter(Boolean).join(' — '),
+      client.referenceInterne ? 'Réf. à rappeler : ' + client.referenceInterne : '',
     ].filter(Boolean) : [];
 
     doc.setFont('Host', 'normal'); doc.setFontSize(ptTexte);
@@ -392,7 +399,12 @@ function genererDevisPdf(devis, client, reglages){
   }
 
   // --- Conditions + bon pour accord -----------------------------------------
-  if(devis.conditionsReglement) composeur.paragraphe(devis.conditionsReglement);
+  const conditions = [
+    (client && client.conditionsParticulieres) || '',
+    client && client.delaiPaiement ? 'Délai de paiement convenu : ' + client.delaiPaiement + '.' : '',
+    devis.conditionsReglement || '',
+  ].filter(Boolean).join(' ');
+  if(conditions) composeur.paragraphe(conditions);
 
   composeur.libre((k, dessiner, y, o)=>{
     const h = 26;
