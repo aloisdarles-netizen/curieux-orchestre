@@ -64,13 +64,36 @@ function fmtDateFR(iso){
 
 let fdrsCache = [];
 
+// Feuilles de route (dates de tournée) ou feuilles de studio (séances de
+// recording) : la même page, filtrée par ?type=recording. Une feuille sans
+// nature est une feuille de route — c'est le cas de toutes celles d'avant.
+const FDR_TYPE = (()=>{
+  try{ return new URLSearchParams(location.search).get('type') === 'recording' ? 'recording' : 'tournee'; }
+  catch(e){ return 'tournee'; }
+})();
+const FDR_EST_STUDIO = FDR_TYPE === 'recording';
+const FDR_NOM = FDR_EST_STUDIO ? 'feuille de studio' : 'feuille de route';
+const FDR_NOMS = FDR_EST_STUDIO ? 'feuilles de studio' : 'feuilles de route';
+
+(function habillerLaPage(){
+  if(!FDR_EST_STUDIO) return;
+  document.title = 'Curieux orchestre — Feuilles de studio';
+  const h1 = document.querySelector('.co-page-head h1');
+  if(h1) h1.textContent = 'Feuilles de studio';
+  const sous = document.querySelector('.co-page-head .subtitle');
+  if(sous) sous.textContent = 'Toutes les feuilles de séance de studio, tous projets et dates confondus.';
+  const bouton = document.getElementById('newFdrBtn');
+  if(bouton) bouton.textContent = '+ Nouvelle feuille de studio';
+})();
+
 function render(){
   const holder = document.getElementById('holder');
-  if(fdrsCache.length === 0){
-    holder.innerHTML = `<div class="empty-hint">Aucune feuille de route pour l'instant.</div>`;
+  const feuilles = fdrsCache.filter(f=> (f.projetType === 'recording') === FDR_EST_STUDIO);
+  if(feuilles.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Aucune ${FDR_NOM} pour l'instant.</div>`;
     return;
   }
-  const sorted = fdrsCache.slice().sort((a,b)=>{
+  const sorted = feuilles.slice().sort((a,b)=>{
     if(!a.eventDate && !b.eventDate) return 0;
     if(!a.eventDate) return 1;
     if(!b.eventDate) return -1;
@@ -80,7 +103,7 @@ function render(){
     ['Contacts',   f=> (f.contacts||[]).some(c=> c.nom || c.tel)],
     ['Voyage',     f=> (f.trajets||[]).some(t=> t.departVille || t.arriveeVille || t.train)],
     ['Planning',   f=> (f.planning||[]).some(p=> p.heure || p.evenement)],
-    ['Lieu',       f=> !!((f.lieu||{}).nom || (f.lieu||{}).adresse)],
+    [FDR_EST_STUDIO ? 'Studio' : 'Lieu', f=> !!((f.lieu||{}).nom || (f.lieu||{}).adresse)],
     ['Hôtel',      f=> !!((f.hotel||{}).nom || (f.hotel||{}).adresse)],
     ['Bonus',      f=> !!(f.bonus || '').trim()],
   ];
@@ -90,13 +113,13 @@ function render(){
     const pretes = etats.filter(([, ok])=> ok).length;
     const pct = Math.round(pretes / etats.length * 100);
     const couleur = pct === 100 ? 'var(--ok)' : pct >= 60 ? 'var(--maybe)' : 'var(--ko)';
-    const title = f.artistName || 'Feuille de route sans titre';
+    const title = f.artistName || `${FDR_EST_STUDIO ? 'Feuille de studio' : 'Feuille de route'} sans titre`;
     const venue = [f.venueCity, f.venueSalle].filter(Boolean).join(' · ');
     const meta = [fmtDateFR(f.eventDate) || 'Sans date', venue].filter(Boolean).join('  —  ');
     return `
       <div class="fdr-card">
         <div class="fdr-info">
-          <div class="fdr-title ${f.artistName ? '' : 'untitled'}">${escapeHtml(title)}${pastilleProjetHtml(f.projetType)}</div>
+          <div class="fdr-title ${f.artistName ? '' : 'untitled'}">${escapeHtml(title)}</div>
           <div class="fdr-meta">${escapeHtml(meta)}</div>
           <div class="fdr-jauge">
             <div class="co-progress co-progress-thin"><i style="width:${pct}%; background:${couleur};"></i></div>
@@ -106,7 +129,7 @@ function render(){
             `<span class="co-pill ${ok ? 'ok' : 'att'}">${escapeHtml(nom)}</span>`).join('')}</div>
         </div>
         <div class="fdr-actions">
-          <a class="co-btn ghost" style="text-decoration:none; display:inline-block;" href="feuille-de-route.html?id=${encodeURIComponent(f.id)}">Ouvrir →</a>
+          <a class="co-btn ghost" style="text-decoration:none; display:inline-block;" href="feuille-de-route.html?id=${encodeURIComponent(f.id)}${FDR_EST_STUDIO ? '&type=recording' : ''}">Ouvrir →</a>
           <button type="button" class="co-btn danger sm" data-delete="${f.id}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg> Supprimer</button>
         </div>
       </div>
@@ -116,8 +139,8 @@ function render(){
   holder.querySelectorAll('[data-delete]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const fdr = fdrsCache.find(f=> f.id === btn.dataset.delete);
-      const title = (fdr && fdr.artistName) || 'Feuille de route sans titre';
-      if(!confirm(`Supprimer DÉFINITIVEMENT la feuille de route "${title}" ?\n\nCette action est irréversible.`)) return;
+      const title = (fdr && fdr.artistName) || `${FDR_EST_STUDIO ? 'Feuille de studio' : 'Feuille de route'} sans titre`;
+      if(!confirm(`Supprimer DÉFINITIVEMENT la ${FDR_NOM} "${title}" ?\n\nCette action est irréversible.`)) return;
       btn.disabled = true;
       await CurieuxDB.removeOne('feuilles_route', btn.dataset.delete);
       fdrsCache = fdrsCache.filter(f=> f.id !== btn.dataset.delete);
@@ -127,7 +150,9 @@ function render(){
 }
 
 document.getElementById('newFdrBtn').addEventListener('click', async ()=>{
-  const fresh = { id: genId('fdr'), artistName:'', eventDate:'', venueCity:'', venueSalle:'' };
+  // Créée depuis la page filtrée, la feuille naît déjà de la bonne nature :
+  // on n'a pas à repasser par le sélecteur de l'éditeur.
+  const fresh = { id: genId('fdr'), artistName:'', eventDate:'', venueCity:'', venueSalle:'', projetType: FDR_TYPE };
   await CurieuxDB.upsertOne('feuilles_route', fresh);
   location.href = 'feuille-de-route.html?id=' + encodeURIComponent(fresh.id);
 });

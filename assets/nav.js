@@ -27,11 +27,13 @@ const CURIEUX_SECTIONS = [
     { libelle:'Feuilles de route', href:'feuilles-de-route.html', pages:['feuilles-de-route.html','feuille-de-route.html'] },
     { libelle:'Journal des changements', href:'newsletter.html', pages:['newsletter.html'] },
   ]},
-  // Les enregistrements en studio vivent dans la même page que les tournées,
-  // filtrée par ?type=recording : mêmes dates, mêmes affectations, mêmes
-  // feuilles, seul le vocabulaire change (voir CURIEUX_VOCABULAIRE). Une
-  // section sans sous-entrées, comme « Vue d'ensemble » : un seul écran.
-  { libelle:'Recording', href:'tournees.html?type=recording', pages:['tournees.html?type=recording'] },
+  // Les enregistrements en studio vivent dans les mêmes pages que les tournées,
+  // filtrées par ?type=recording : mêmes dates, mêmes affectations, mêmes
+  // feuilles, seul le vocabulaire change (voir CURIEUX_VOCABULAIRE).
+  { libelle:'Recording', href:'tournees.html?type=recording', entrees:[
+    { libelle:'Gérer les recordings', href:'tournees.html?type=recording', pages:['tournees.html?type=recording'] },
+    { libelle:'Feuilles de studio', href:'feuilles-de-route.html?type=recording', pages:['feuilles-de-route.html?type=recording','feuille-de-route.html?type=recording'] },
+  ]},
   { libelle:'Annuaires', href:'annuaire.html', entrees:[
     { libelle:'Musicien·nes', href:'annuaire.html', pages:['annuaire.html'] },
     { libelle:'Technicien·nes', href:'techniciens.html', pages:['techniciens.html'] },

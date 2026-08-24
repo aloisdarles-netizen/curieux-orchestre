@@ -257,6 +257,38 @@ const SEED = {
     ],
     techniqueTournee:{},
   }],
+  // Deux feuilles : une de route (date de tournée) et une de studio (séance de
+  // recording). Sans elles, feuilles-de-route.html se capture vide dans les
+  // deux sens et on ne voit rien de ce que le filtre par nature change.
+  feuilles_route: [
+    { id:'demo-fdr-01', artistName:"L'Atelier de Joe Hisaishi", eventDate:'2027-03-12',
+      venueCity:'Lyon', venueSalle:'Salle 3000', projetType:'tournee',
+      contacts:[{ id:'c1', role:'Régie', nom:'Karim Bel', indicatif:'+33', tel:'6 12 00 11 22', email:'karim@salle3000.fr' }],
+      trajets:[{ id:'t1', label:'Aller', mode:'train', train:'TGV 6607',
+                 departVille:'Paris Gare de Lyon', departHeure:'08:12',
+                 arriveeVille:'Lyon Part-Dieu', arriveeHeure:'10:08',
+                 passengers:[{ id:'pa1', nom:'Orchestre', voiture:'12', place:'41' }] }],
+      planning:[{ id:'p1', heure:'14:00', texte:'Balances', highlight:false, tag:'' },
+                { id:'p2', heure:'20:30', texte:'Concert', highlight:true, tag:'' }],
+      lieu:{ nom:'Salle 3000 — Cité internationale', adresse:'50 quai Charles de Gaulle, 69006 Lyon', jauge:'2 900 pax', billetterie:'1840' },
+      hotel:{ nom:'Hôtel Mercure Cité Internationale', adresse:'Quai Charles de Gaulle, Lyon', tel:'04 78 17 50 50',
+              checkin:'15:00', checkout:'11:00', mapsLink:'', breakfast:'inclus', type:'hotel', typeDetail:'' },
+      partitions:{ lien:'https://drive.google.com/drive/folders/demo-partitions', note:'Version du 2 mars', parPersonne:[] },
+      bonus:'Loges au niveau -1.', merchandisingOk:true, ticketLinks:[] },
+    { id:'demo-fdr-02', artistName:'Album — Les Soudaines vol. II', eventDate:'2027-02-08',
+      venueCity:'Paris', venueSalle:'Studio Ferber', projetType:'recording',
+      studio:{ cabine:'Grand studio', seance:'journee', titres:'Ouverture, Nocturne' },
+      contacts:[{ id:'c2', role:'Direction artistique', nom:'Claire Fontenoy', indicatif:'+33', tel:'6 44 55 66 77', email:'claire@lessoudaines.fr' },
+                { id:'c3', role:'Ingé son', nom:'Marie Dupont', indicatif:'+33', tel:'6 32 51 72 90', email:'marie@mail.com' }],
+      trajets:[],
+      planning:[{ id:'p3', heure:'08:30', texte:'Installation et balance micros', highlight:false, tag:'' },
+                { id:'p4', heure:'10:00', texte:'Première prise — Ouverture', highlight:true, tag:'' },
+                { id:'p5', heure:'13:00', texte:'Déjeuner', highlight:false, tag:'repas' }],
+      lieu:{ nom:'Studio Ferber', adresse:'96 rue du Faubourg Saint-Antoine, 75012 Paris', jauge:'', billetterie:'' },
+      hotel:{ nom:'', adresse:'', tel:'', checkin:'', checkout:'', mapsLink:'', breakfast:'', type:'hotel', typeDetail:'' },
+      partitions:{ lien:'https://drive.google.com/drive/folders/demo-partitions-studio', note:'Conducteurs v3', parPersonne:[] },
+      bonus:'Prévoir les sourdines pour les cuivres.', merchandisingOk:false, ticketLinks:[] },
+  ],
   // Une fiche de date déjà remplie, pour capturer technique-date.html.
   moyens_salle: [{
     id:'demo-tour1::d1', tourneeId:'demo-tour1', dateId:'d1',

@@ -162,8 +162,8 @@
 <div class="wrap">
   <div class="co-page-head co-fade">
     <div>
-      <h1>Feuille de route</h1>
-      <p class="subtitle">Prépare la feuille de route complète d'une date (contacts, trajets confirmés, planning, lieu, hôtel), puis génère le PDF.</p>
+      <h1 id="fdrTitre">Feuille de route</h1>
+      <p class="subtitle" id="fdrSousTitre">Prépare la feuille de route complète d'une date (contacts, trajets confirmés, planning, lieu, hôtel), puis génère le PDF.</p>
     </div>
   </div>
   <div id="fdrSaveStatus" class="fdr-save-status">Chargement…</div>
@@ -188,11 +188,18 @@
         <input type="text" id="venueCity" placeholder="Ex: Clermont-Ferrand">
       </div>
       <div class="field">
-        <label for="venueSalle">Salle</label>
+        <label for="venueSalle" id="venueSalleLabel">Salle</label>
         <input type="text" id="venueSalle" placeholder="Ex: Salle Boris Vian">
       </div>
+      <div class="field">
+        <label for="projetType">Nature</label>
+        <select id="projetType" title="Une feuille de studio remplace la jauge et la billetterie par la cabine, la séance et les titres travaillés.">
+          <option value="tournee">Date de tournée</option>
+          <option value="recording">Séance de studio</option>
+        </select>
+      </div>
     </div>
-    <h3 style="margin-top:14px;">Logo sur la feuille de route</h3>
+    <h3 style="margin-top:14px;" id="logoTitre">Logo sur la feuille de route</h3>
     <div class="actions-row" style="margin-top:0;">
       <label class="highlight-toggle" style="font-size:14px;"><input type="radio" name="logoChoice" value="none"> Logo Curieux orchestre</label>
       <label class="highlight-toggle" style="font-size:14px;"><input type="radio" name="logoChoice" value="custom"> Logo importé</label>
@@ -292,17 +299,31 @@
 
   <div class="card fdr-section" data-icone="⌖" style="--sec-fond:#EC4B15; --sec-encre:#FCF2F0; --sec-tilt:-5deg;">
     <div class="card-head">
-      <h2>Lieu</h2>
+      <h2 id="lieuTitre">Lieu</h2>
       <label class="section-toggle"><input type="checkbox" data-section-toggle="lieu" checked> Inclure cette section</label>
     </div>
     <div class="card-body" data-section-body="lieu">
     <div class="field-row">
-      <div class="field"><label for="l_nom">Nom du lieu</label><input type="text" id="l_nom" placeholder="Ex: Salle Boris Vian - Maison de la culture"></div>
+      <div class="field"><label for="l_nom" id="l_nomLabel">Nom du lieu</label><input type="text" id="l_nom" placeholder="Ex: Salle Boris Vian - Maison de la culture"></div>
       <div class="field"><label for="l_adresse">Adresse</label><input type="text" id="l_adresse" placeholder="Adresse complète"></div>
     </div>
-    <div class="field-row">
+    <!-- Jauge et billetterie n'ont pas d'objet en studio : la ligne bascule
+         d'un bloc sur cabine / séance / titres (voir appliquerNatureProjet). -->
+    <div class="field-row" id="champsSalle">
       <div class="field"><label for="l_jauge">Jauge</label><input type="text" id="l_jauge" placeholder="Ex: 53 pax"></div>
       <div class="field"><label for="l_billetterie">Billets vendus à ce jour (optionnel)</label><input type="number" id="l_billetterie" placeholder="Ex: 450" min="0" step="1"></div>
+    </div>
+    <div class="field-row" id="champsStudio" style="display:none;">
+      <div class="field"><label for="s_cabine">Cabine / salle de prise</label><input type="text" id="s_cabine" placeholder="Ex: Grand studio"></div>
+      <div class="field"><label for="s_seance">Séance</label>
+        <select id="s_seance">
+          <option value="journee">Journée — 9h00 à 18h00</option>
+          <option value="matin">Matin — 8h30 à 13h30</option>
+          <option value="aprem">Après-midi — 13h30 à 18h30</option>
+          <option value="soir">Soir — 18h30 à 21h30</option>
+        </select>
+      </div>
+      <div class="field"><label for="s_titres">Titres travaillés</label><input type="text" id="s_titres" placeholder="Ex: Ouverture, Nocturne, Marche"></div>
     </div>
     </div>
   </div>
@@ -513,6 +534,11 @@ function buildDefaultState(){
   return {
     id: genId('fdr'),
     artistName:'', eventDate:'', venueCity:'', venueSalle:'',
+    // 'tournee' ou 'recording'. Écrit d'office quand la feuille naît d'une
+    // séance de studio (voir tournees.html), modifiable ici sinon.
+    projetType:'tournee',
+    // Ce qui n'existe qu'en studio. Vide et ignoré sur une date de tournée.
+    studio:{ cabine:'', seance:'journee', titres:'' },
     logoChoice:'none', customLogoDataUrl:'',
     contacts: defaultContactsList(),
     merchandisingOk:false,
@@ -558,6 +584,17 @@ function normalizeFdrEntry(parsed){
     planning: (Array.isArray(parsed.planning) ? parsed.planning : base.planning).map(migratePlanningRow),
     lieu:{...base.lieu, ...(parsed.lieu||{})},
     hotel:{...base.hotel, ...(parsed.hotel||{})},
+    projetType: parsed.projetType === 'recording' ? 'recording' : 'tournee',
+    // Les toutes premières feuilles nées d'une séance portaient ces trois
+    // valeurs à plat (cabineStudio, seanceStudio, titresStudio) : on les
+    // récupère ici plutôt que de les perdre au premier chargement.
+    studio:{
+      ...base.studio,
+      ...(parsed.cabineStudio ? { cabine: parsed.cabineStudio } : {}),
+      ...(parsed.seanceStudio ? { seance: parsed.seanceStudio } : {}),
+      ...(parsed.titresStudio ? { titres: parsed.titresStudio } : {}),
+      ...(parsed.studio || {}),
+    },
     // Les feuilles enregistrées avant l'arrivée des partitions n'ont pas la
     // clé : la valeur par défaut la comble, et parPersonne garde toujours au
     // moins une ligne vide pour que le tableau ne s'affiche pas vide.
@@ -665,6 +702,42 @@ async function createNewFdr(){
   localStorage.setItem(FDR_LAST_ID_KEY, fresh.id);
   location.href = 'feuille-de-route.html?id=' + encodeURIComponent(fresh.id);
 }
+/* Feuille de route ou feuille de studio.
+ *
+ * Le travail est le même : qui contacter, comment on y va, ce qui se passe
+ * heure par heure, où l'on dort. Trois choses seulement changent — le mot
+ * « salle » devient « studio », la jauge et la billetterie n'ont pas d'objet,
+ * et il faut savoir dans quelle cabine on enregistre et sur quels titres.
+ *
+ * On bascule donc les libellés et une ligne de champs, plutôt que d'entretenir
+ * une seconde page presque identique. Le reste du formulaire ne bouge pas.
+ */
+function appliquerNatureProjet(){
+  const reco = state.projetType === 'recording';
+  const voc = vocabulaireProjet(state.projetType);
+
+  const poser = (id, texte)=>{ const el = document.getElementById(id); if(el) el.textContent = texte; };
+  poser('fdrTitre', reco ? 'Feuille de studio' : 'Feuille de route');
+  poser('venueSalleLabel', voc.Lieu);
+  poser('lieuTitre', reco ? 'Studio' : 'Lieu');
+  poser('l_nomLabel', reco ? 'Nom du studio' : 'Nom du lieu');
+  poser('logoTitre', reco ? 'Logo sur la feuille de studio' : 'Logo sur la feuille de route');
+  poser('fdrSousTitre', reco
+    ? "Prépare la feuille d'une séance de studio (contacts, trajets confirmés, planning, studio, hôtel), puis génère le PDF."
+    : "Prépare la feuille de route complète d'une date (contacts, trajets confirmés, planning, lieu, hôtel), puis génère le PDF.");
+
+  const placer = (id, texte)=>{ const el = document.getElementById(id); if(el) el.placeholder = texte; };
+  placer('venueSalle', reco ? 'Ex: Studio Ferber' : 'Ex: Salle Boris Vian');
+  placer('l_nom', reco ? 'Ex: Studio Ferber — 96 rue du Faubourg Saint-Antoine' : 'Ex: Salle Boris Vian - Maison de la culture');
+
+  const champsSalle = document.getElementById('champsSalle');
+  const champsStudio = document.getElementById('champsStudio');
+  if(champsSalle) champsSalle.style.display = reco ? 'none' : '';
+  if(champsStudio) champsStudio.style.display = reco ? '' : 'none';
+
+  document.title = reco ? 'Curieux orchestre — Feuille de studio' : 'Curieux orchestre — Feuille de route';
+}
+
 function bindSimpleField(elId, getter, setter){
   const el = document.getElementById(elId);
   el.value = getter();
@@ -676,11 +749,15 @@ function bindTopFields(){
   bindSimpleField('eventDate', ()=>state.eventDate, v=>state.eventDate=v);
   bindSimpleField('venueCity', ()=>state.venueCity, v=>state.venueCity=v);
   bindSimpleField('venueSalle', ()=>state.venueSalle, v=>state.venueSalle=v);
+  bindSimpleField('projetType', ()=>state.projetType, v=>{ state.projetType = v; appliquerNatureProjet(); });
 
   bindSimpleField('l_nom', ()=>state.lieu.nom, v=>state.lieu.nom=v);
   bindSimpleField('l_adresse', ()=>state.lieu.adresse, v=>state.lieu.adresse=v);
   bindSimpleField('l_jauge', ()=>state.lieu.jauge, v=>state.lieu.jauge=v);
   bindSimpleField('l_billetterie', ()=>state.lieu.billetterie, v=>state.lieu.billetterie=v);
+  bindSimpleField('s_cabine', ()=>state.studio.cabine, v=>state.studio.cabine=v);
+  bindSimpleField('s_seance', ()=>state.studio.seance, v=>state.studio.seance=v);
+  bindSimpleField('s_titres', ()=>state.studio.titres, v=>state.studio.titres=v);
 
   bindSimpleField('h_nom', ()=>state.hotel.nom, v=>state.hotel.nom=v);
   bindSimpleField('h_adresse', ()=>state.hotel.adresse, v=>state.hotel.adresse=v);
@@ -727,6 +804,8 @@ function bindTopFields(){
     };
     reader.readAsDataURL(file);
   });
+
+  appliquerNatureProjet();
 }
 
 // Cases "Inclure cette section" (Contacts, Voyage, Planning, Lieu, Hôtel,
@@ -1332,7 +1411,14 @@ function layoutBody(doc, pageWidth, marginX, s){
 
   // Planning du jour (gauche, ~62%) + Lieu (droite, ~38%) côte à côte, comme le modèle
   const planningWithData = state.planning.filter(p => p.heure || p.texte);
-  const lieuHasData = state.lieu.nom || state.lieu.adresse || state.lieu.jauge || state.lieu.billetterie;
+  // En studio, la jauge et la billetterie ne comptent pas ; la cabine, la
+  // séance et les titres du jour, si. Les deux jeux de champs coexistent dans
+  // l'état (on peut retyper une feuille sans rien perdre) : seule la nature du
+  // projet décide de ce qui s'imprime.
+  const estStudio = state.projetType === 'recording';
+  const lieuHasData = estStudio
+    ? (state.lieu.nom || state.lieu.adresse || state.studio.cabine || state.studio.titres)
+    : (state.lieu.nom || state.lieu.adresse || state.lieu.jauge || state.lieu.billetterie);
 
   if((state.sectionsEnabled.planning && planningWithData.length) || (state.sectionsEnabled.lieu && lieuHasData)){
     const gap = 8;
@@ -1372,7 +1458,7 @@ function layoutBody(doc, pageWidth, marginX, s){
     }
 
     if(state.sectionsEnabled.lieu && lieuHasData){
-      rightY = sectionTitle(doc, 'Lieu', rightX, rightY, rightW, s);
+      rightY = sectionTitle(doc, estStudio ? 'Studio' : 'Lieu', rightX, rightY, rightW, s);
       doc.setTextColor(...NOIR);
       if(state.lieu.nom){
         rightY = highlightedName(doc, state.lieu.nom, rightX, rightY, rightW, s);
@@ -1380,8 +1466,15 @@ function layoutBody(doc, pageWidth, marginX, s){
       doc.setFont('JakartaSans','normal'); doc.setFontSize(8.7*sf);
       const lieuLines = [];
       if(state.lieu.adresse) lieuLines.push(...doc.splitTextToSize(state.lieu.adresse, rightW));
-      if(state.lieu.jauge) lieuLines.push(`Jauge : ${state.lieu.jauge}`);
-      if(state.lieu.billetterie) lieuLines.push(`Billetterie : ${state.lieu.billetterie} billet${state.lieu.billetterie > 1 ? 's' : ''} vendu${state.lieu.billetterie > 1 ? 's' : ''} à ce jour`);
+      if(estStudio){
+        if(state.studio.cabine) lieuLines.push(`Cabine : ${state.studio.cabine}`);
+        const seance = libelleSeance(state.studio.seance, true);
+        if(seance) lieuLines.push(`Séance : ${seance}`);
+        if(state.studio.titres) lieuLines.push(...doc.splitTextToSize(`Titres : ${state.studio.titres}`, rightW));
+      } else {
+        if(state.lieu.jauge) lieuLines.push(`Jauge : ${state.lieu.jauge}`);
+        if(state.lieu.billetterie) lieuLines.push(`Billetterie : ${state.lieu.billetterie} billet${state.lieu.billetterie > 1 ? 's' : ''} vendu${state.lieu.billetterie > 1 ? 's' : ''} à ce jour`);
+      }
       if(lieuLines.length){
         doc.text(lieuLines, rightX, rightY + 3.5*s);
         rightY += lieuLines.length * 4.3*s + 3*s;
@@ -1570,7 +1663,8 @@ function generateFdrPDF(){
   doc.setFont('JakartaSans','bold');
   doc.setFontSize(10);
   doc.setTextColor(...PALATINATE);
-  doc.text('FEUILLE DE ROUTE', pageWidth - marginX, 13, { align:'right' });
+  doc.text(state.projetType === 'recording' ? 'FEUILLE DE STUDIO' : 'FEUILLE DE ROUTE',
+    pageWidth - marginX, 13, { align:'right' });
 
   layoutBody(doc, pageWidth, marginX, s);
 
@@ -1584,9 +1678,10 @@ function generateFdrPDF(){
     doc.text(`${p} / ${pageCount}`, pageWidth - marginX, 290, { align:'right' });
   }
 
-  const fileArtist = (state.artistName || 'feuille-de-route').trim().replace(/[^a-z0-9]+/gi,'_');
+  const estStudioPdf = state.projetType === 'recording';
+  const fileArtist = (state.artistName || (estStudioPdf ? 'feuille-de-studio' : 'feuille-de-route')).trim().replace(/[^a-z0-9]+/gi,'_');
   const fileDate = (state.eventDate || today.toISOString().slice(0,10));
-  doc.save(`Feuille_de_route_${fileArtist}_${fileDate}.pdf`);
+  doc.save(`${estStudioPdf ? 'Feuille_de_studio' : 'Feuille_de_route'}_${fileArtist}_${fileDate}.pdf`);
 }
 
 document.getElementById('generateFdrBtn').addEventListener('click', generateFdrPDF);

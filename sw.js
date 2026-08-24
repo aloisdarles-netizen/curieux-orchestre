@@ -58,7 +58,10 @@
 // entrée « Recording » et détection de page à requête dans nav.js, bandeau
 // élargi à huit sections et dégradé de fin de menu dans base.css, lien de
 // recherche vers la page filtrée dans global-search.js.
-const VERSION = 'curieux-v16';
+// v17 : feuille de studio — la feuille de route s'adapte à la nature du projet
+// et les feuilles se filtrent (nav.js : sous-menu Recording, détection de page
+// à requête ; ui-helpers.js : libelleSeance lu par le PDF de la feuille).
+const VERSION = 'curieux-v17';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

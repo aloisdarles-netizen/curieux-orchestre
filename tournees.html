@@ -595,9 +595,7 @@ async function createFdrForDate(d, tourneeName){
   // d'un studio et non d'une salle, sans avoir à remonter jusqu'à la tournée.
   if(EST_RECORDING){
     entry.projetType = 'recording';
-    if(d.seance) entry.seanceStudio = d.seance;
-    if(d.cabine) entry.cabineStudio = d.cabine;
-    if(d.titres) entry.titresStudio = d.titres;
+    entry.studio = { cabine: d.cabine || '', seance: d.seance || 'journee', titres: d.titres || '' };
   }
   // Si personne n'est encore affecté à cette date, on laisse le champ absent pour que
   // la FDR reprenne les 2 contacts de base (régisseur/prod) au lieu d'une liste vide.
@@ -1346,7 +1344,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
       const rows = dates.map((d, dIdx)=>{
         const fdr = fdrs.find(f=>f.eventDate === d.date);
         const fdrAction = fdr
-          ? `<a class="co-btn secondary sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}">Ouvrir ${EST_RECORDING ? 'la feuille' : 'FDR'}</a>`
+          ? `<a class="co-btn secondary sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}${EST_RECORDING ? '&type=recording' : ''}">Ouvrir ${EST_RECORDING ? 'la feuille' : 'FDR'}</a>`
           : `<button type="button" class="co-btn tint sm" data-create-fdr="${escapeAttr(d.id)}">Créer ${EST_RECORDING ? 'la feuille' : 'FDR'}</button>`;
         const indispoSurDate = (p)=> !!(p && (p.disponibilites || {})[d.date] === 'indispo');
         const marqueIndispo = ' style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;"';
