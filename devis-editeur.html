@@ -41,6 +41,24 @@
   .carte h2{font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--accent-dark); margin:0 0 12px;}
 
   .entete-grid{display:grid; grid-template-columns:2fr 1fr 1fr; gap:12px;}
+
+  /* Rappel du projet rattaché : ce que la tournée sait déjà et que le devis
+     n'a plus à retaper. Posé sous l'en-tête, discret, mais assez présent pour
+     qu'on voie l'écart quand il y en a un. */
+  .rappel-projet{
+    margin-top:10px; padding:9px 12px; border-radius:10px;
+    background:var(--bg); border:1px solid var(--border); font-size:12.5px;
+  }
+  .rappel-projet.vide{ color:var(--muted); }
+  .rappel-creer{ display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; margin-left:6px; }
+  .rappel-tete{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .rappel-tete a{ font-weight:800; color:var(--accent); text-decoration:none; }
+  .rappel-tete a:hover{ text-decoration:underline; }
+  .rappel-chiffres{ color:var(--muted); flex:1; min-width:180px; }
+  .rappel-ecart{
+    margin-top:7px; padding-top:7px; border-top:1px solid var(--border);
+    color:var(--maybe); font-weight:700; font-size:12px;
+  }
   @media (max-width:760px){ .entete-grid{grid-template-columns:1fr;} }
 
   .fige-note{
@@ -287,6 +305,9 @@ const UNITES_USUELLES = ['Forfait','Forfaits','Journée','Journées','Cachet','C
 let devis = null;            // le document en cours d'édition
 let tousDevis = [];          // pour la numérotation et les variantes
 let clientsCache = [], postesCache = [], reglagesCache = {}, annuaireNoms = [];
+// Les tournées et recordings, pour le rattachement du chiffrage à son projet.
+// Lecture seule ici : on ne modifie jamais un projet depuis un devis.
+let tourneesCache = [];
 let posteCibleGroupe = null; // groupe qui recevra le poste choisi dans la modale
 
 // --- Sauvegarde débouncée ---------------------------------------------------
@@ -314,15 +335,17 @@ window.addEventListener('beforeunload', ()=>{ if(timerSauvegarde){ clearTimeout(
 // --- Chargement -------------------------------------------------------------
 async function charger(){
   const id = new URLSearchParams(location.search).get('id');
-  const [tous, clients, postes, reglages, musiciens, techniciens] = await Promise.all([
+  const [tous, clients, postes, reglages, musiciens, techniciens, tournees] = await Promise.all([
     CurieuxDB.fetchAll('devis'),
     CurieuxDB.fetchAll('devis_clients'),
     CurieuxDB.fetchAll('devis_postes'),
     CurieuxDB.fetchDevisReglages(),
     CurieuxDB.fetchAll('musiciens'),
     CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('tournees'),
   ]);
   tousDevis = tous; clientsCache = clients; postesCache = postes; reglagesCache = reglages;
+  tourneesCache = tournees;
   annuaireNoms = [...musiciens, ...techniciens].map(p=> [p.prenom, p.nom].filter(Boolean).join(' ')).filter(Boolean).sort();
   devis = tous.find(d=> d.id === id);
   if(!devis){
@@ -450,6 +473,63 @@ function renderTete(){
   });
 }
 
+// Le projet auquel ce chiffrage se rapporte. À ne pas confondre avec
+// devis.projetId, qui groupe les variantes d'un même devis entre elles :
+// celui-ci pointe une ligne de la table tournees (voir devis-commun.js).
+function projetRattache(){
+  return devis.tourneeId ? tourneesCache.find(t=> t.id === devis.tourneeId) || null : null;
+}
+
+function optionsProjets(){
+  const groupe = (titre, liste)=> liste.length ? `<optgroup label="${titre}">${liste.map(t=>
+    `<option value="${escapeAttr(t.id)}" ${t.id === devis.tourneeId ? 'selected' : ''}>${escapeHtml(t.nom || 'Sans nom')}</option>`
+  ).join('')}</optgroup>` : '';
+  const tries = tourneesCache.slice().sort((a, b)=> (a.nom || '').localeCompare(b.nom || ''));
+  return `<option value="">— Aucun projet rattaché —</option>`
+    + groupe('Tournées', tries.filter(t=> !estRecording(t)))
+    + groupe('Recordings', tries.filter(t=> estRecording(t)));
+}
+
+/* Le rappel de ce que le projet sait déjà.
+ *
+ * Un devis dit « 5 journées × 17 musiciens × 280 € ». Ces trois nombres sont
+ * dans la tournée : dates validées, nomenclature, cachet standard. Les retaper
+ * est une perte de temps, et rien ne signalait qu'ils avaient divergé quand une
+ * date tombait. On les affiche, on propose de les reprendre, et on signale
+ * l'écart — sans jamais corriger tout seul : les deux peuvent légitimement
+ * différer (on chiffre parfois une date de plus, au cas où). */
+function rappelProjetHtml(){
+  const projet = projetRattache();
+  if(!projet){
+    return `<div class="rappel-projet vide">
+      Aucun projet rattaché. En choisir un permet de reprendre d'un clic le nombre de dates,
+      l'effectif attendu et le cachet standard.
+      ${devis.fige ? '' : `<span class="rappel-creer">
+        Rien à rattacher&nbsp;?
+        <button type="button" class="co-btn ghost sm" data-creer-projet="tournee">Créer la tournée</button>
+        <button type="button" class="co-btn ghost sm" data-creer-projet="recording">Créer le recording</button>
+      </span>`}
+    </div>`;
+  }
+  const c = chiffresDuProjet(projet);
+  const morceaux = [
+    `${c.datesValidees || c.dates} ${c.estRecording ? 'séance' : 'date'}${(c.datesValidees || c.dates) > 1 ? 's' : ''}${c.datesValidees && c.datesValidees !== c.dates ? ` validée${c.datesValidees > 1 ? 's' : ''} sur ${c.dates}` : ''}`,
+    c.effectif ? `${c.effectif} attendu·es à la nomenclature` : '',
+    c.cachet != null ? `${fmtEurosDevis(c.cachet)} de cachet standard` : 'cachet non défini',
+  ].filter(Boolean);
+  const ecarts = ecartsDevisProjet(devis, c);
+  return `
+    <div class="rappel-projet">
+      <div class="rappel-tete">
+        <a href="tournees.html${c.estRecording ? '?type=recording' : ''}#tournee-${encodeURIComponent(projet.id)}">${escapeHtml(projet.nom || 'Sans nom')}</a>
+        ${c.estRecording ? '<span class="co-pastille-projet">Recording</span>' : ''}
+        <span class="rappel-chiffres">${escapeHtml(morceaux.join(' · '))}</span>
+        ${devis.fige ? '' : '<button type="button" class="co-btn tint sm" id="reprendreProjetBtn">Reprendre du projet</button>'}
+      </div>
+      ${ecarts.length ? `<div class="rappel-ecart">⚠ ${ecarts.map(escapeHtml).join(' · ')}</div>` : ''}
+    </div>`;
+}
+
 function optionsClients(){
   return '<option value="">— Aucun client —</option>' + clientsCache.map(c=>
     `<option value="${escapeAttr(c.id)}" ${c.id === devis.clientId ? 'selected' : ''}>${escapeHtml(c.nom || '(sans nom)')}</option>`).join('');
@@ -465,11 +545,13 @@ function renderEditeur(){
     <div class="entete-grid">
       <div class="field"><label>Titre du projet</label><input type="text" id="dTitre" value="${escapeAttr(devis.titre || '')}" placeholder="Expe 33 — Budget Prévisionnel" ${fige}></div>
       <div class="field"><label>Client ${devis.clientId ? `<a href="devis-clients.html?id=${encodeURIComponent(devis.clientId)}" style="font-weight:700; text-transform:none; letter-spacing:0; color:var(--accent);">· voir la fiche</a>` : ''}</label><select id="dClient" ${fige}>${optionsClients()}</select></div>
+      <div class="field"><label>Projet rattaché</label><select id="dProjet" ${fige}>${optionsProjets()}</select></div>
       <div class="field"><label>Variante</label><input type="text" id="dVariante" value="${escapeAttr(devis.variante || '')}" placeholder="Avec clip" ${fige}></div>
       <div class="field"><label>Date</label><input type="text" id="dDate" value="${escapeAttr(devis.date || '')}" placeholder="Juillet 2026 — ou TBD" ${fige}></div>
       <div class="field"><label>Validité (jours)</label><input type="number" id="dValidite" value="${escapeAttr(devis.validiteJours != null ? devis.validiteJours : 30)}" ${fige}></div>
       <div class="field"><label>Acompte à la commande (%)</label><input type="number" id="dAcompte" value="${escapeAttr(devis.acomptePct != null ? devis.acomptePct : 30)}" ${fige}></div>
     </div>
+    <div id="rappelProjet">${rappelProjetHtml()}</div>
     <div class="field" style="margin-top:12px;"><label>Intervention</label><textarea id="dIntervention" rows="3" placeholder="Ce que couvre le devis, en clair — imprimé en tête du document." ${fige}>${escapeHtml(devis.intervention || '')}</textarea></div>
     <div class="field" style="margin-top:10px;"><label>Rendus (colonnes du document)</label>
       <div id="rendusHolder"></div>
@@ -508,6 +590,7 @@ function renderEditeur(){
   renderCharges();
   renderDivers();
   brancherEntete();
+  brancherRappelProjet();
   brancherSections();
 }
 
@@ -766,6 +849,7 @@ function brancherEntete(){
   };
   lier('dTitre', el=> { devis.titre = el.value; document.getElementById('pageTitre').textContent = el.value || 'Devis sans titre'; });
   lier('dClient', el=> devis.clientId = el.value, 'change');
+  lier('dProjet', el=> { devis.tourneeId = el.value; rafraichirRappelProjet(); }, 'change');
   lier('dVariante', el=> devis.variante = el.value);
   lier('dDate', el=> devis.date = el.value);
   lier('dValidite', el=> devis.validiteJours = devisNombre(el.value, 30));
@@ -780,6 +864,106 @@ function brancherEntete(){
     devis.rendus.push({ titre: '', texte: '' });
     marquerModifie(); renderRendus();
   });
+}
+
+// Le rappel se redessine seul (choix du projet, report des chiffres) sans
+// refaire tout l'éditeur : on ne veut pas perdre le focus ni le défilement.
+function rafraichirRappelProjet(){
+  const holder = document.getElementById('rappelProjet');
+  if(!holder) return;
+  holder.innerHTML = rappelProjetHtml();
+  brancherRappelProjet();
+}
+
+function brancherRappelProjet(){
+  const btn = document.getElementById('reprendreProjetBtn');
+  if(btn) btn.addEventListener('click', reprendreChiffresDuProjet);
+  document.querySelectorAll('[data-creer-projet]').forEach(b=>
+    b.addEventListener('click', ()=> creerProjetDepuisDevis(b.dataset.creerProjet)));
+}
+
+/* Monter le projet à partir du chiffrage.
+ *
+ * Le cas de l'affaire qu'on gagne : le devis existe, la tournée n'existe pas
+ * encore. Plutôt que de tout ressaisir, on crée le projet avec ce que le devis
+ * sait déjà — son nom, l'effectif et le cachet des lignes de cachet — et on le
+ * rattache. Les dates, elles, ne sont pas dans le devis : elles restent à poser
+ * dans le projet, c'est le premier travail de production.
+ */
+async function creerProjetDepuisDevis(type){
+  const nom = (devis.titre || '').trim();
+  if(!nom){
+    alert('Donne d\'abord un titre au devis : il servira de nom au projet.');
+    return;
+  }
+  const lignes = lignesCachetDevis(devis);
+  const effectifs = [...new Set(lignes.map(l=> devisNombre(l.qte, 0)))].filter(n=> n > 0);
+  const prix = [...new Set(lignes.map(l=> devisNombre(l.prix, 0)))].filter(n=> n > 0);
+  const effectif = effectifs.length === 1 ? effectifs[0] : 0;
+  const cachet = prix.length === 1 ? prix[0] : null;
+
+  const quoi = type === 'recording' ? 'le recording' : 'la tournée';
+  const repris = [
+    effectif ? `${effectif} personne${effectif > 1 ? 's' : ''} à la nomenclature` : '',
+    cachet != null ? `${fmtEurosDevis(cachet)} de cachet standard` : '',
+  ].filter(Boolean);
+  if(!confirm(`Créer ${quoi} « ${nom} » et y rattacher ce devis ?\n\n`
+    + (repris.length ? `Repris du devis : ${repris.join(', ')}.\n` : '')
+    + `Les dates restent à poser dans le projet.`)) return;
+
+  const projet = {
+    id: genId('tour'), nom, type, recording: {},
+    dates: [], equipesRoad: [], techniqueTournee: {},
+    nomenclature: effectif ? [{ pupitre: (lignes[0] && lignes[0].intitule) || 'Orchestre', nombre: effectif }] : [],
+    cachetStatut: cachet != null ? 'defini' : 'non_defini',
+    cachetMontant: cachet,
+  };
+  const { error } = await CurieuxDB.upsertOne('tournees', projet);
+  if(error){ alert("Le projet n'a pas pu être créé :\n\n" + error.message); return; }
+  tourneesCache = [...tourneesCache, projet];
+  devis.tourneeId = projet.id;
+  marquerModifie();
+  renderEditeur();
+}
+
+/* Reporter les chiffres du projet sur les lignes de cachet.
+ *
+ * On ne touche qu'aux lignes de rémunération au régime « musicien·ne » : ce
+ * sont elles qui portent « journées × personnes × cachet ». Les lignes de
+ * production, d'auteur ou de prestataire facturé suivent une autre logique et
+ * ne doivent pas être écrasées.
+ *
+ * On annonce ce qui va changer avant de le faire : ces valeurs ont pu être
+ * saisies exprès. */
+function reprendreChiffresDuProjet(){
+  const projet = projetRattache();
+  if(!projet) return;
+  const c = chiffresDuProjet(projet);
+  const lignes = lignesCachetDevis(devis);
+  if(!lignes.length){
+    alert('Aucune ligne de cachet à remplir.\n\nAjoute d\'abord une ligne dans une section de rémunération, au régime « Musicien·ne (cachet) ».');
+    return;
+  }
+  const journees = c.datesValidees || c.dates;
+  const quoi = [
+    journees ? `${journees} journée${journees > 1 ? 's' : ''}` : '',
+    c.effectif ? `${c.effectif} personne${c.effectif > 1 ? 's' : ''}` : '',
+    c.cachet != null ? `${fmtEurosDevis(c.cachet)} par cachet` : '',
+  ].filter(Boolean);
+  if(!quoi.length){
+    alert("Ce projet n'a encore ni dates validées, ni nomenclature, ni cachet défini : il n'y a rien à reprendre.");
+    return;
+  }
+  if(!confirm(`Reporter ${quoi.join(', ')} sur ${lignes.length} ligne${lignes.length > 1 ? 's' : ''} de cachet ?\n\nCe qui y est saisi sera remplacé.`)) return;
+
+  lignes.forEach(l=>{
+    if(journees) l.journees = journees;
+    if(c.effectif) l.qte = c.effectif;
+    if(c.cachet != null) l.prix = c.cachet;
+  });
+  marquerModifie();
+  renderEditeur();
+  renderTotaux();
 }
 
 function brancherSections(){

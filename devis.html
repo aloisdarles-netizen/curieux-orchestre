@@ -38,6 +38,18 @@
   .projet-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:4px;}
   .projet-titre{font-family:var(--font-display); font-size:18px; font-weight:500;}
   .projet-client{color:var(--muted); font-size:12.5px; font-weight:700;}
+  /* Le projet chiffré, à côté du titre : savoir de quelle tournée on parle sans
+     ouvrir le document. */
+  .projet-tournee{
+    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    padding:2px 9px; border-radius:20px; text-decoration:none;
+    background:var(--accent-tint); color:var(--tint-ink);
+  }
+  .projet-tournee:hover{ background:var(--accent); color:var(--blanc); }
+  #filtreProjetHolder select{
+    padding:8px 11px; border:1px solid var(--border); border-radius:8px;
+    font-size:13px; font-weight:700; background:var(--card); color:var(--text); font-family:inherit;
+  }
   .variante-row{
     display:flex; align-items:center; gap:10px; flex-wrap:wrap;
     padding:9px 0; border-top:1px solid var(--border);
@@ -95,6 +107,7 @@
       <p class="subtitle">Le budget interne d'abord, le devis client généré ensuite — charges par régime, variantes, PDF à la charte.</p>
     </div>
     <div class="co-actions">
+      <span id="filtreProjetHolder"></span>
       <a class="co-btn secondary md" href="devis-clients.html">Clients</a>
       <button type="button" class="co-btn secondary md" id="reglagesBtn">Réglages</button>
       <button type="button" class="co-btn primary md" id="nouveauBtn">+ Nouveau budget</button>
@@ -150,15 +163,19 @@
 </div>
 
 <script>
-let devisCache = [], clientsCache = [], reglagesCache = {};
+let devisCache = [], clientsCache = [], reglagesCache = {}, tourneesCache = [];
+// Filtre par projet rattaché : '' = tous, 'sans' = les chiffrages orphelins.
+let filtreProjet = '';
 
 async function chargerTout(){
-  const [devis, clients, reglages] = await Promise.all([
+  const [devis, clients, reglages, tournees] = await Promise.all([
     CurieuxDB.fetchAll('devis'),
     CurieuxDB.fetchAll('devis_clients'),
     CurieuxDB.fetchDevisReglages(),
+    CurieuxDB.fetchAll('tournees'),
   ]);
-  devisCache = devis; clientsCache = clients; reglagesCache = reglages;
+  devisCache = devis; clientsCache = clients; reglagesCache = reglages; tourneesCache = tournees;
+  renderFiltreProjet();
   document.getElementById('migrationNote').style.display = reglages.absent ? 'block' : 'none';
   renderProjets();
 }
@@ -168,12 +185,45 @@ function nomClient(id){
   return c ? (c.nom || '(client sans nom)') : '';
 }
 
+function projetDe(id){
+  return id ? tourneesCache.find(t=> t.id === id) || null : null;
+}
+
+// Le filtre ne s'affiche que s'il a quelque chose à filtrer : avec deux devis
+// tous rattachés au même projet, c'est du bruit.
+function renderFiltreProjet(){
+  const holder = document.getElementById('filtreProjetHolder');
+  if(!holder) return;
+  const rattaches = new Set(devisCache.map(d=> d.tourneeId).filter(Boolean));
+  if(rattaches.size < 2 && !devisCache.some(d=> !d.tourneeId && rattaches.size)){
+    holder.innerHTML = ''; filtreProjet = ''; return;
+  }
+  const options = tourneesCache
+    .filter(t=> rattaches.has(t.id))
+    .sort((a, b)=> (a.nom || '').localeCompare(b.nom || ''))
+    .map(t=> `<option value="${escapeAttr(t.id)}" ${t.id === filtreProjet ? 'selected' : ''}>${escapeHtml((t.nom || 'Sans nom') + suffixeProjetTexte(t))}</option>`)
+    .join('');
+  holder.innerHTML = `<select id="filtreProjet" title="Ne montrer que les chiffrages d'un projet">
+      <option value="">Tous les projets</option>${options}
+      <option value="sans" ${filtreProjet === 'sans' ? 'selected' : ''}>Sans projet rattaché</option>
+    </select>`;
+  document.getElementById('filtreProjet').addEventListener('change', (e)=>{
+    filtreProjet = e.target.value;
+    renderProjets();
+  });
+}
+
 /* Les devis se groupent par projetId : chaque groupe est une carte, chaque
    devis du groupe une variante. Tri : projets les plus récents d'abord
    (l'ordre de fetchAll est created_at croissant → on parcourt à l'envers). */
 function renderProjets(){
   const parProjet = new Map();
-  devisCache.forEach(d=>{
+  const retenus = devisCache.filter(d=>{
+    if(!filtreProjet) return true;
+    if(filtreProjet === 'sans') return !d.tourneeId;
+    return d.tourneeId === filtreProjet;
+  });
+  retenus.forEach(d=>{
     const cle = d.projetId || d.id;
     if(!parProjet.has(cle)) parProjet.set(cle, []);
     parProjet.get(cle).push(d);
@@ -196,6 +246,8 @@ function renderProjets(){
     const ordonnes = [...budgets, ...devisClients];
     const principale = docs.find(v=> v.retenue) || docs[0];
     const client = nomClient(principale.clientId);
+    // Tous les documents d'une carte chiffrent le même projet : le premier fait foi.
+    const projet = projetDe(principale.tourneeId);
 
     // L'écart budget → devis : la marge entre ce que le projet coûte (budget
     // retenu ou premier budget) et ce qui est proposé au client (devis le
@@ -213,6 +265,7 @@ function renderProjets(){
     return `<div class="projet-card">
       <div class="projet-head">
         <span class="projet-titre">${escapeHtml(principale.titre || 'Projet sans titre')}</span>
+        ${projet ? `<a class="projet-tournee" href="tournees.html${estRecording(projet) ? '?type=recording' : ''}#tournee-${encodeURIComponent(projet.id)}" title="Ouvrir le projet chiffré">${escapeHtml(projet.nom || 'Sans nom')}${estRecording(projet) ? ' · Recording' : ''}</a>` : ''}
         ${client ? `<span class="projet-client">${escapeHtml(client)}</span>` : ''}
       </div>
       ${ordonnes.map(v=>{

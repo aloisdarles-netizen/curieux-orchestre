@@ -10,6 +10,9 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<!-- Le moteur de calcul des devis, pour afficher le budget d'un projet sans
+     dupliquer la formule : les totaux vus ici sont ceux de l'espace Devis. -->
+<script src="assets/devis-commun.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
@@ -98,6 +101,23 @@
     padding:14px 20px 16px; border-bottom:1px solid var(--border); background:var(--bg);
     display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;
   }
+  /* Le chiffrage du projet, sous le bandeau d'outils : combien il coûte, ce
+     qu'on en a vendu, et l'écart quand le cachet vendu n'est pas celui payé. */
+  .chiffrage-ligne{
+    flex-basis:100%; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    margin-top:6px; font-size:12px; font-weight:700;
+  }
+  .chiffrage-ligne .sep{ color:var(--border); }
+  .chiffrage-lien{
+    text-decoration:none; color:var(--tint-ink); background:var(--accent-tint);
+    padding:3px 10px; border-radius:20px;
+  }
+  .chiffrage-lien:hover{ background:var(--accent); color:var(--blanc); }
+  .chiffrage-ecart{
+    display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;
+    color:var(--maybe); font-weight:700;
+  }
+
   .outils-legend{
     font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
     color:var(--accent); margin-bottom:8px;
@@ -514,6 +534,9 @@ let cachetOverridesCache = [];
 // que chaque titulaire a choisi, et donc celui qu'on doit suivre quand il ou
 // elle décline. Le panneau d'affectation les ignorait complètement.
 let remplacantPrefsCache = [];
+// Les chiffrages rattachés aux projets (voir devis.tourneeId). Vide pour un
+// compte non administrateur : RLS s'en charge.
+let devisCache = [];
 
 function loadDispoDemandes(){ return dispoDemandesCache; }
 
@@ -1334,6 +1357,54 @@ document.addEventListener('click', (e)=>{
   }
 });
 
+/* Le chiffrage d'un projet, vu depuis le projet.
+ *
+ * On ne montre qu'une chose de chaque : le budget de référence (celui marqué
+ * retenu, sinon le premier) et le devis client le plus avancé (accepté, sinon
+ * envoyé, sinon le dernier brouillon) — c'est la même règle que la carte de
+ * devis.html, pour que les deux écrans ne racontent pas deux histoires.
+ *
+ * Rien du tout pour un compte non administrateur : devisCache est alors vide,
+ * RLS ayant refusé la lecture. */
+function chiffrageDuProjet(tourneeId){
+  const docs = devisCache.filter(d=> d.tourneeId === tourneeId);
+  if(!docs.length) return null;
+  const budgets = docs.filter(d=> typeDocDe(d) === 'budget');
+  const clients = docs.filter(d=> typeDocDe(d) === 'devis');
+  const budget = budgets.find(b=> b.retenue) || budgets[0] || null;
+  const devisClient = clients.find(d=> d.statut === 'accepte')
+    || clients.find(d=> d.statut === 'envoye')
+    || clients[clients.length - 1] || null;
+  return { docs, budget, devisClient, accepte: clients.find(d=> d.statut === 'accepte') || null };
+}
+
+// Le cachet inscrit dans un devis accepté : c'est ce qu'on a vendu. Il peut
+// différer de ce que porte la tournée — d'où l'alerte, jamais la correction
+// automatique : décider ce qu'on paie n'est pas au chiffrage de le faire.
+function cachetVendu(chiffrage){
+  if(!chiffrage || !chiffrage.accepte) return null;
+  const prix = [...new Set(lignesCachetDevis(chiffrage.accepte).map(l=> devisNombre(l.prix, 0)))];
+  return prix.length === 1 && prix[0] > 0 ? prix[0] : null;
+}
+
+function chiffrageHtml(t){
+  const c = chiffrageDuProjet(t.id);
+  if(!c) return '';
+  const lien = (d, libelle)=> `<a class="chiffrage-lien" href="devis-editeur.html?id=${encodeURIComponent(d.id)}">${libelle} ${fmtEurosDevis(calculerDevis(d).totalHT)} HT</a>`;
+  const morceaux = [];
+  if(c.budget) morceaux.push(lien(c.budget, 'Budget'));
+  if(c.devisClient) morceaux.push(lien(c.devisClient, `Devis ${(DEVIS_STATUTS[c.devisClient.statut] || 'brouillon').toLowerCase()}`));
+  if(!morceaux.length) return '';
+
+  const vendu = cachetVendu(c);
+  const porte = t.cachetStatut === 'defini' && t.cachetMontant != null ? devisNombre(t.cachetMontant, 0) : null;
+  const ecart = (vendu != null && porte !== vendu)
+    ? `<span class="chiffrage-ecart">Le devis accepté prévoit ${fmtEurosDevis(vendu)} par cachet${porte != null ? `, la ${EST_RECORDING ? 'séance' : 'date'} en porte ${fmtEurosDevis(porte)}` : ''}.
+        <button type="button" class="co-btn ghost sm" data-reprendre-cachet="${escapeAttr(t.id)}" data-montant="${escapeAttr(String(vendu))}">Reprendre ce montant</button></span>`
+    : '';
+  return `<div class="chiffrage-ligne">${morceaux.join('<span class="sep">·</span>')}${ecart}</div>`;
+}
+
 function renderTourneeCard(t, fdrs, musicianById, technicianById){
       const dates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
       const blocMap = computeBlocMap(dates);
@@ -1498,6 +1569,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
               ].filter(Boolean).join(' · ')}</span>
               <span class="outils-caret">▾</span>
             </button>
+            ${chiffrageHtml(t)}
           </div>
           <!-- Cachet et effectif attendu sont désormais toujours affichés côte à
                côte, et non repliés derrière un bouton : ce sont deux réglages de
@@ -2252,6 +2324,23 @@ function bindTourneeEvents(){
     });
   });
   // Réglages constants du disque : écrits dans t.recording, pas sur les dates.
+  // Reprendre sur la tournée le cachet inscrit au devis accepté. Un clic
+  // explicite : les deux montants peuvent légitimement différer, c'est à la
+  // production de trancher, pas au chiffrage.
+  document.querySelectorAll('[data-reprendre-cachet]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const tournees = loadTournees();
+      const t = tournees.find(x=> x.id === btn.dataset.reprendreCachet);
+      if(!t) return;
+      const montant = devisNombre(btn.dataset.montant, 0);
+      if(!confirm(`Porter le cachet standard ${EST_RECORDING ? 'de ce recording' : 'de cette tournée'} à ${fmtEurosDevis(montant)} brut ?\n\nC'est le montant inscrit au devis accepté. Les cachets d'exception déjà saisis ne changent pas.`)) return;
+      t.cachetStatut = 'defini';
+      t.cachetMontant = montant;
+      saveTournees(tournees);
+      render();
+    });
+  });
+
   document.querySelectorAll('[data-reco]').forEach(el=>{
     el.addEventListener('change', ()=>{
       const tournees = loadTournees();
@@ -2313,7 +2402,7 @@ function scrollToHash(){
 }
 
 async function initData(){
-  [tourneesCache, fdrsCache, musiciansCache, techniciansCache, dispoDemandesCache, cachetOverridesCache, remplacantPrefsCache] = await Promise.all([
+  [tourneesCache, fdrsCache, musiciansCache, techniciansCache, dispoDemandesCache, cachetOverridesCache, remplacantPrefsCache, devisCache] = await Promise.all([
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('feuilles_route'),
     CurieuxDB.fetchAll('musiciens'),
@@ -2321,6 +2410,10 @@ async function initData(){
     CurieuxDB.fetchAll('dispo_demandes'),
     CurieuxDB.fetchAll('cachet_overrides'),
     CurieuxDB.fetchAll('remplacant_prefs'),
+    // La table devis est réservée aux comptes 'admin' par RLS : pour les autres
+    // elle rend une liste vide, et le rappel de budget ne s'affiche pas. Les
+    // montants restent donc cloisonnés sans garde-fou supplémentaire ici.
+    CurieuxDB.fetchAll('devis'),
   ]);
   render();
   scrollToHash();

@@ -53,7 +53,10 @@ const DATES = [
 const EXEMPLES_DEVIS = require('../modeles/devis-exemples.json');
 
 const SEED = {
-  devis: EXEMPLES_DEVIS.devis,
+  // Le premier chiffrage est rattaché à la tournée de démo : sans cela, ni le
+  // rappel de budget sur la carte de tournée ni le rappel de projet dans
+  // l'éditeur n'ont quoi que ce soit à montrer.
+  devis: EXEMPLES_DEVIS.devis.map((d, i) => (i === 0 ? { ...d, tourneeId: 'demo-tour1' } : d)),
   devis_clients: EXEMPLES_DEVIS.clients,
   devis_postes: [
     { id:'demo-poste-01', intitule:'Ingénieur du son', unite:'Journée', prix:280, regime:'production' },
