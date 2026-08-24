@@ -243,6 +243,21 @@
   .calc-ligne .mont{margin-left:auto; font-weight:800; font-variant-numeric:tabular-nums;}
   .calc-ligne input.pct{width:76px; text-align:right;}
   .calc-ligne input.mt{width:110px; text-align:right;}
+  /* Les assiettes qui n'engendrent rien : présentes, mais visiblement muettes. */
+  .calc-ligne.calc-muette{ color:var(--muted); }
+  .calc-ligne.calc-muette .pourquoi{ font-size:11px; font-style:italic; flex:1; }
+  .legende-regimes{ margin-top:10px; font-size:12px; }
+  .legende-regimes summary{
+    cursor:pointer; font-weight:700; color:var(--accent); padding:4px 0;
+  }
+  .legende-regimes dl{ margin:6px 0 0; }
+  .legende-regimes dt{ font-weight:700; margin-top:8px; display:flex; align-items:center; gap:7px; }
+  .legende-regimes dd{ margin:2px 0 0 0; color:var(--muted); line-height:1.5; }
+  .legende-regimes .jeton{
+    flex:0 0 auto; min-width:52px; text-align:center; font-size:10px; font-weight:800;
+    padding:2px 6px; border-radius:3px; border:1px solid var(--border); border-left-width:3px;
+  }
+  .legende-regimes p{ margin:10px 0 0; color:var(--muted); line-height:1.55; }
 
   .totaux-barre{
     position:sticky; bottom:0; z-index:30;
@@ -661,7 +676,7 @@ function renderSection(sec, si){
       <colgroup>
         <col style="width:25%"><col style="width:20%">
         <col style="width:64px"><col style="width:60px"><col style="width:124px"><col style="width:110px">
-        ${sec.remuneration ? '<col style="width:104px">' : ''}
+        ${sec.remuneration ? '<col style="width:118px">' : ''}
         <col style="width:128px"><col style="width:120px">
       </colgroup>
       <thead><tr>
@@ -758,6 +773,53 @@ function alerteRoutageHtml(){
   </div>`;
 }
 
+/* Ce que les deux régimes non chargeables représentent.
+ *
+ * La carte ne montrait que les trois lignes qui produisent des charges. Sur un
+ * devis où 3 000 € partent en prestation facturée, rien ne disait où cet argent
+ * était passé côté charges — et on ne peut pas distinguer « aucune charge parce
+ * que c'est voulu » de « aucune charge parce que j'ai oublié de choisir le
+ * régime ». On affiche donc les deux assiettes muettes, à 0 €, avec la raison.
+ *
+ * Elles ne comptent que les lignes des sections « rémunération » : ailleurs, la
+ * question ne se pose pas.
+ */
+function assiettesSansChargesHtml(calc){
+  const muets = [
+    ['facture', 'vous n\'êtes pas l\'employeur, la facture porte ses propres charges'],
+    ['aucun', 'ce n\'est pas de la rémunération'],
+  ].filter(([cle])=> (calc.assiettes[cle] || 0) > 0);
+  if(!muets.length) return '';
+  return muets.map(([cle, pourquoi])=> {
+    const r = DEVIS_REGIMES.find(x=> x[0] === cle) || [];
+    return `<div class="calc-ligne calc-muette">
+      <span class="lib">${escapeHtml(r[1] || cle)}</span>
+      <span class="assiette">assiette ${fmtEurosDevis(calc.assiettes[cle])}</span>
+      <span class="pourquoi">${escapeHtml(pourquoi)}</span>
+      <span class="mont">${fmtEurosDevis(0)}</span>
+    </div>`;
+  }).join('');
+}
+
+/* Qui va dans quel régime.
+ *
+ * La question qui revient le plus : un·e régisseur·euse n'a pas les charges
+ * d'un·e musicien·ne, et il faut pouvoir le trancher sans quitter la feuille.
+ * La légende le dit là où on regarde les charges, plutôt que dans une aide que
+ * personne n'ouvre.
+ */
+function legendeRegimesHtml(){
+  return `<details class="legende-regimes">
+    <summary>Qui va dans quel régime&nbsp;?</summary>
+    <dl>${DEVIS_REGIMES.map(([cle, lib, court])=> `
+      <dt><span class="jeton r-${escapeAttr(cle)}">${escapeHtml(court)}</span> ${escapeHtml(lib)}</dt>
+      <dd>${escapeHtml(expliquerRegimeDevis(cle))}</dd>`).join('')}</dl>
+    <p>La ligne de partage entre <b>Cachet</b> et <b>Tech./adm.</b> n'est pas une habitude de maison :
+    le cachet est réservé aux artistes-interprètes par la loi. Un·e régisseur·euse, un·e ingé son,
+    un·e chargé·e de production relèvent de <b>Tech./adm.</b>, quel que soit le montant.</p>
+  </details>`;
+}
+
 function renderCharges(){
   const fige = devis.fige ? 'disabled' : '';
   const calc = calculerDevis(devis);
@@ -772,7 +834,8 @@ function renderCharges(){
       </div>`).join('')}
     <div class="calc-ligne"><span class="lib" style="font-weight:800;">Sous-total charges</span>
       <span class="mont" id="chargesTotal">${fmtEurosDevis(calc.chargesTotal)}</span></div>
-    <p style="font-size:11.5px; color:var(--muted); margin:8px 0 0;">L'assiette suit les régimes cochés ligne à ligne dans les sections « rémunération ». Un prestataire facturé ou une ligne sans charges n'y entre jamais — plus de formule à surveiller.</p>
+    ${assiettesSansChargesHtml(calc)}
+    ${legendeRegimesHtml()}
     ${alerteRoutageHtml()}`;
   document.querySelectorAll('[data-taux]').forEach(el=> el.addEventListener('input', ()=>{
     devis.taux[el.dataset.taux] = devisNombre(el.value, 0);

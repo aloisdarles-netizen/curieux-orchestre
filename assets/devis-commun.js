@@ -35,16 +35,62 @@
  *   - discuter : surlignée (le jaune du tableur), sans effet sur les calculs.
  * ========================================================================== */
 
-// [clé, libellé complet, libellé court]. Le court sert aux pastilles de la
-// feuille de chiffrage, où la place est comptée ; le complet reste pour les
-// écrans qui expliquent (charges, aide).
+/* Les régimes de charges — [clé, libellé, libellé court, qui c'est].
+ *
+ * Le court sert aux jetons de la feuille, où la place est comptée ; le libellé
+ * et l'explication servent partout où l'on décide.
+ *
+ * LA LIGNE DE PARTAGE, qui n'est pas une convention interne mais la loi : le
+ * cachet est RÉSERVÉ AUX ARTISTES-INTERPRÈTES. Un·e technicien·ne ne peut pas
+ * être payé·e au cachet, quelle que soit sa mission. C'est ce qui sépare
+ * « Cachet » de « Production », et non le montant ou la durée.
+ *   - artistes  → annexe X de l'assurance chômage, rémunération au cachet ;
+ *   - technicien·nes → annexe VIII, rémunération à l'heure ou à la journée ;
+ *   - administratif·ves permanent·es → régime général.
+ *
+ * Pourquoi le taux artiste (60 %) est INFÉRIEUR au taux production (67 %)
+ * alors que l'intermittence coûte plus cher : une partie des cotisations de
+ * Sécurité sociale des artistes se calcule sur 70 % du brut seulement, après
+ * un abattement de 30 % pour frais professionnels. En sens inverse, la
+ * réduction générale de cotisations patronales ne s'applique PAS aux artistes,
+ * alors qu'elle joue pour les autres. Les deux effets se compensent en partie ;
+ * les taux d'ici restent des moyennes de maison, à ajuster dans Réglages.
+ *
+ * RÉSERVE ASSUMÉE : « Production » couvre deux populations aux règles
+ * différentes — technicien·nes intermittent·es (annexe VIII, chômage à 11,40 %)
+ * et permanent·es administratif·ves (régime général, chômage à 4 %). Un taux
+ * unique est donc une approximation. Elle tient tant que le mélange reste
+ * stable d'un devis à l'autre ; si l'écart devient sensible, il faudra scinder
+ * le régime en deux plutôt que moyenner.
+ */
 const DEVIS_REGIMES = [
-  ['production', 'Production',           'Prod.'],
-  ['musicien',   'Musicien·ne (cachet)', 'Cachet'],
-  ['auteur',     'Auteur·rice',          'Auteur'],
-  ['facture',    'Prestataire facturé',  'Facturé'],
-  ['aucun',      'Sans charges',         '—'],
+  // « Prod. » disait « production » — mot qui, dans une maison de production,
+  // désigne aussi bien le projet entier que l'équipe ou le budget. Le jeton
+  // nomme donc les deux populations qu'il couvre, sans ambiguïté possible avec
+  // les artistes.
+  ['production', 'Technicien·ne ou administratif·ve', 'Tech./adm.',
+   "Toute personne salariée qui n'est PAS artiste : ingé son, régie, lumière, plateau, "
+   + "direction technique, administration, chargé·e de production. Payée à l'heure ou à "
+   + "la journée — jamais au cachet."],
+  ['musicien', 'Artiste au cachet', 'Cachet',
+   "Les artistes-interprètes, et eux seuls : musicien·nes, chef·fe d'orchestre, "
+   + "choristes, solistes. Le cachet leur est réservé par la loi."],
+  ['auteur', 'Auteur·rice', 'Auteur',
+   "L'écriture, pas l'exécution : commande d'arrangement, d'orchestration, de "
+   + "composition. Régime et taux distincts des deux précédents."],
+  ['facture', 'Prestataire facturé', 'Facturé',
+   "Qui vous envoie une facture : société, indépendant·e, auto-entrepreneur·se. "
+   + "Vous n'êtes pas l'employeur, aucune charge patronale n'est due."],
+  ['aucun', 'Sans charges', '—',
+   "Tout ce qui n'est pas de la rémunération : studio, matériel, transport, repas, "
+   + "hébergement, droits, achats."],
 ];
+
+// L'explication d'un régime, pour les infobulles et les légendes.
+function expliquerRegimeDevis(cle){
+  const r = DEVIS_REGIMES.find(x=> x[0] === cle);
+  return r ? (r[3] || r[1]) : '';
+}
 
 function typeDocDe(d){
   if(d && d.typeDoc) return d.typeDoc;
@@ -242,11 +288,15 @@ function calculerDevis(devis){
   const options = [];
   // Assiettes de charges par régime, et la TVA à laquelle chaque assiette se
   // rattache (celle de la section d'où viennent les lignes).
-  const assiettes = { auteur: 0, musicien: 0, production: 0 };
+  // Les cinq régimes, y compris les deux qui n'engendrent rien : on veut
+  // pouvoir MONTRER que leur argent est bien compté quelque part et qu'il ne
+  // produit aucune charge par décision, non par oubli. Seules les trois
+  // premières clés sont reprises dans chargesLignes.
+  const assiettes = { auteur: 0, musicien: 0, production: 0, facture: 0, aucun: 0 };
   // Assiette des seules sections SORTIES de la base des frais généraux : leurs
   // charges patronales doivent en sortir aussi, sinon on facturerait des frais
   // généraux sur les charges d'un poste qu'on a justement voulu exclure.
-  const assiettesHorsFG = { auteur: 0, musicien: 0, production: 0 };
+  const assiettesHorsFG = { auteur: 0, musicien: 0, production: 0, facture: 0, aucun: 0 };
   let totalSectionsDansFG = 0;
 
   (d.sections || []).forEach(sec=>{

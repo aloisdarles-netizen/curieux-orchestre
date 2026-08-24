@@ -70,7 +70,10 @@
 // nouvel actif), le composeur PDF apprend le filigrane (pdf-charte.js) que
 // pdf-devis.js pose sur les budgets, et devis-commun.js gagne le détecteur de
 // lignes à régime chargeable hors section de rémunération.
-const VERSION = 'curieux-v19';
+// v20 : les régimes de charges se nomment par ce qu'ils couvrent
+// (devis-commun.js), et l'éditeur montre les assiettes qui n'engendrent rien
+// plus une légende « qui va dans quel régime » (espace-budget.css).
+const VERSION = 'curieux-v20';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
