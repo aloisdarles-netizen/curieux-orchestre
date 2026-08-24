@@ -312,7 +312,8 @@ function genererDevisPdf(devis, client, reglages){
 
   // --- Divers (frais généraux, imprévus, fiches de paie, remise) ------------
   const diversLignes = [
-    calc.fraisGeneraux ? ['Frais généraux', `${devisNombre(devis.fraisGenerauxPct, 0).toLocaleString('fr-FR')} % de ${fmtEurosDevis(calc.baseFG)}`, calc.fraisGeneraux] : null,
+    calc.fraisGeneraux ? ['Frais généraux', `${devisNombre(devis.fraisGenerauxPct, 0).toLocaleString('fr-FR')} % de ${fmtEurosDevis(calc.baseFG)}`
+      + (calc.sectionsHorsFG.length ? ` (hors ${calc.sectionsHorsFG.join(', ')})` : ''), calc.fraisGeneraux] : null,
     calc.imprevus ? ['Imprévus', `${devisNombre(devis.imprevusPct, 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} % de ${fmtEurosDevis(calc.baseFG)}`, calc.imprevus] : null,
     calc.fichesPaie ? ['Émission fiches de paie / forfait compta', `${fmtQteDevis((devis.fichesPaie || {}).nb)} fiches × ${fmtEurosDevis((devis.fichesPaie || {}).prix)}`, calc.fichesPaie] : null,
     calc.remise ? [(devis.remise || {}).libelle || 'Remise commerciale', '', -calc.remise] : null,

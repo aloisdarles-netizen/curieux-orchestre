@@ -67,10 +67,10 @@ function nouveauDevis(reglages, projetId){
     tvaDefaut: r.tvaDefaut != null ? r.tvaDefaut : 20,
     remise: { libelle: 'Remise commerciale', montant: 0 },
     sections: [
-      { id: genId('sec'), titre: 'Rémunération équipe (brut hors charges)', remuneration: true, tva: null, groupes: [
+      { id: genId('sec'), titre: 'Rémunération équipe (brut hors charges)', remuneration: true, tva: null, horsFG: false, groupes: [
         { id: genId('grp'), titre: '', lignes: [] },
       ]},
-      { id: genId('sec'), titre: 'VHR et matériel', remuneration: false, tva: null, groupes: [
+      { id: genId('sec'), titre: 'VHR et matériel', remuneration: false, tva: null, horsFG: false, groupes: [
         { id: genId('grp'), titre: '', lignes: [] },
       ]},
     ],
@@ -111,6 +111,11 @@ function calculerDevis(devis){
   // Assiettes de charges par régime, et la TVA à laquelle chaque assiette se
   // rattache (celle de la section d'où viennent les lignes).
   const assiettes = { auteur: 0, musicien: 0, production: 0 };
+  // Assiette des seules sections SORTIES de la base des frais généraux : leurs
+  // charges patronales doivent en sortir aussi, sinon on facturerait des frais
+  // généraux sur les charges d'un poste qu'on a justement voulu exclure.
+  const assiettesHorsFG = { auteur: 0, musicien: 0, production: 0 };
+  let totalSectionsDansFG = 0;
 
   (d.sections || []).forEach(sec=>{
     const tvaSection = sec.tva != null && sec.tva !== '' ? devisNombre(sec.tva, tvaDefaut) : tvaDefaut;
@@ -126,11 +131,13 @@ function calculerDevis(devis){
         sousTotal += total;
         if(sec.remuneration && l.etat === 'incluse' && assiettes[l.regime] != null){
           assiettes[l.regime] += total;
+          if(sec.horsFG) assiettesHorsFG[l.regime] += total;
         }
         return { ligne: l, total, tva: tvaLigne };
       });
       return { groupe: grp, lignes };
     });
+    if(!sec.horsFG) totalSectionsDansFG += sousTotal;
     sections.push({ section: sec, groupes, sousTotal, tva: tvaSection });
   });
 
@@ -142,9 +149,15 @@ function calculerDevis(devis){
   const chargesTotal = chargesLignes.reduce((s, c)=> s + c.montant, 0);
 
   const totalSections = sections.reduce((s, x)=> s + x.sousTotal, 0);
-  // La base des frais généraux et des imprévus : tout ce qui précède — les
-  // sections ET les charges (c'est la formule du tableur historique).
-  const baseFG = totalSections + chargesTotal;
+  // La base des frais généraux et des imprévus : par défaut tout ce qui précède
+  // — les sections ET les charges (la formule du tableur historique). Les
+  // sections cochées « hors base » en sortent, elles et leurs charges : c'est
+  // ce qu'exigent certains financeurs (voir l'arrêté du 7 février 2011, qui
+  // plafonne les frais généraux à 7 % d'une assiette définie).
+  const chargesHorsFG = chargesLignes.reduce(
+    (s, c)=> s + assiettesHorsFG[c.cle] * c.taux / 100, 0);
+  const baseFG = totalSectionsDansFG + (chargesTotal - chargesHorsFG);
+  const sectionsHorsFG = sections.filter(x=> x.section.horsFG).map(x=> x.section.titre || 'section sans titre');
   const fraisGeneraux = baseFG * devisNombre(d.fraisGenerauxPct, 0) / 100;
   const imprevus = baseFG * devisNombre(d.imprevusPct, 0) / 100;
   const fp = d.fichesPaie || {};
@@ -174,7 +187,7 @@ function calculerDevis(devis){
   const totalTVA = ventilationTva.reduce((s, v)=> s + v.montant, 0);
 
   return {
-    sections, chargesLignes, chargesTotal, assiettes,
+    sections, chargesLignes, chargesTotal, assiettes, sectionsHorsFG,
     totalSections, baseFG, fraisGeneraux, imprevus, fichesPaie, coutsComptables,
     remise, totalHT, ventilationTva, totalTVA, totalTTC: totalHT + totalTVA,
     options, optionsTotal: options.reduce((s, o)=> s + o.total, 0),

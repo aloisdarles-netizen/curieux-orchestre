@@ -47,7 +47,9 @@
 // adaptateurs dans db.js, option mentionDebordement dans pdf-charte.js.
 // v12 : feuille de chiffrage relisible (libellés courts de régime dans
 // devis-commun.js), fiche client reprise dans le PDF (pdf-devis.js).
-const VERSION = 'curieux-v12';
+// v13 : assiette des frais généraux paramétrable par section (devis-commun.js),
+// mention de l'assiette réduite sur le PDF (pdf-devis.js).
+const VERSION = 'curieux-v13';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

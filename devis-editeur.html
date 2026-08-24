@@ -90,7 +90,7 @@
 
   /* Bandeau de groupe : une rangée pleine largeur, pas un titre flottant. */
   tr.grp-band td{
-    background:var(--bg); padding:0; border-top:1px solid var(--border);
+    background:var(--accent-tint); padding:0; border-top:1px solid var(--border);
     border-bottom:1px solid var(--border);
   }
   tr.grp-band input{
@@ -121,14 +121,21 @@
     outline:none; border-color:var(--accent); background:var(--card);
     box-shadow:inset 0 0 0 1px var(--accent);
   }
-  td.c-intitule input{font-weight:700;}
-  td.c-noms input{font-size:12px; color:var(--muted);}
+  /* Hiérarchie de lecture, du plus fort au plus discret :
+     1. le TOTAL (prune, gros) — ce qu'on cherche des yeux ;
+     2. l'INTITULÉ (noir, gras) — ce dont on parle ;
+     3. les nombres saisis (jours, qté, P.U.) — fermes mais neutres ;
+     4. noms et unités (gris, italique pour les noms) — le contexte. */
+  td.c-intitule input{font-weight:800; font-size:13.5px; color:var(--text);}
+  td.c-noms input{font-size:12px; font-style:italic; color:var(--muted);}
+  td.c-unite input{font-size:12px; color:var(--muted);}
 
   /* Le total : la colonne qu'on cherche des yeux. */
   td.c-total{
-    text-align:right; font-weight:800; font-size:13.5px; white-space:nowrap;
-    padding:7px 10px !important;
+    text-align:right; font-weight:800; font-size:14.5px; white-space:nowrap;
+    padding:7px 10px !important; color:var(--accent-dark);
   }
+  tr.lg.hors td.c-total, tr.lg.optionnelle td.c-total{color:var(--muted); font-size:13px;}
   td.c-total .opt{display:block; font-size:9.5px; font-weight:800; color:var(--orange); letter-spacing:.05em;}
 
   /* Régime et état : des pastilles colorées, lisibles d'un coup d'œil, qui
@@ -256,6 +263,11 @@
 </div>
 
 <script>
+function montantCibleSuggere(total){
+  const pas = total >= 20000 ? 1000 : (total >= 5000 ? 500 : 100);
+  return Math.max(pas, Math.ceil((total - 1) / pas) * pas);
+}
+
 const UNITES_USUELLES = ['Forfait','Forfaits','Journée','Journées','Cachet','Cachets','Cachets (0,5j)','Services','Repas','Jours','Unité','Fiches'];
 
 let devis = null;            // le document en cours d'édition
@@ -475,8 +487,13 @@ function renderSection(sec, si){
     <div class="sec-head">
       <span class="sec-num">${si + 1}</span>
       <input type="text" class="sec-titre" value="${escapeAttr(sec.titre || '')}" placeholder="Titre de la section" data-sec-titre="${si}" ${fige}>
-      <label style="font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:5px; white-space:nowrap;">
+      <label style="font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:5px; white-space:nowrap;"
+             title="Coché, les lignes de cette section alimentent les charges patronales, selon le régime choisi ligne par ligne.">
         <input type="checkbox" data-sec-rem="${si}" ${sec.remuneration ? 'checked' : ''} ${fige} style="width:auto;"> rémunération
+      </label>
+      <label style="font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:5px; white-space:nowrap;"
+             title="Coché, cette section — et les charges patronales qu'elle génère — sort de l'assiette sur laquelle les frais généraux et les imprévus sont calculés. Le montant des lignes reste dans le total du devis : seuls les frais généraux et les imprévus diminuent. À utiliser quand un financeur impose de ne pas prélever de frais généraux sur un poste (sous-traitance refacturée, achats à l'euro l'euro…).">
+        <input type="checkbox" data-sec-horsfg="${si}" ${sec.horsFG ? 'checked' : ''} ${fige} style="width:auto;"> hors frais généraux
       </label>
       <select data-sec-tva="${si}" title="TVA de la section" ${fige}>
         <option value="" ${sec.tva == null || sec.tva === '' ? 'selected' : ''}>TVA ${tvaDefaut.toLocaleString('fr-FR')} % (défaut)</option>
@@ -528,7 +545,7 @@ function renderLigne(sec, si, gi, l, li){
     <td class="c-noms"><input type="text" value="${escapeAttr(l.noms || '')}" data-l="${cle}:noms" list="annuaireNoms" ${fige}></td>
     <td><input type="text" inputmode="decimal" class="n" value="${escapeAttr(l.journees === '' || l.journees == null ? '' : l.journees)}" data-l="${cle}:journees" ${fige}></td>
     <td><input type="text" inputmode="decimal" class="n" value="${escapeAttr(l.qte === '' || l.qte == null ? '' : l.qte)}" data-l="${cle}:qte" ${fige}></td>
-    <td><input type="text" value="${escapeAttr(l.unite || '')}" data-l="${cle}:unite" list="unitesUsuelles" ${fige}></td>
+    <td class="c-unite"><input type="text" value="${escapeAttr(l.unite || '')}" data-l="${cle}:unite" list="unitesUsuelles" ${fige}></td>
     <td><input type="text" inputmode="decimal" class="n" value="${escapeAttr(l.prix === '' || l.prix == null ? '' : l.prix)}" data-l="${cle}:prix" ${fige}></td>
     ${sec.remuneration ? `<td><select class="chip r-${escapeAttr(l.regime || 'aucun')}" data-l="${cle}:regime" ${fige}>
       ${DEVIS_REGIMES.map(([v, lib, court])=> `<option value="${v}" ${l.regime === v ? 'selected' : ''} title="${escapeAttr(lib)}">${escapeHtml(court || lib)}</option>`).join('')}
@@ -589,6 +606,11 @@ function renderDivers(){
   const fp = devis.fichesPaie || { nb: 0, prix: 28 };
   document.getElementById('diversCarte').innerHTML = `
     <h2>Divers — frais généraux, imprévus, paie</h2>
+    <p style="font-size:11.5px; color:var(--muted); margin:0 0 10px; line-height:1.5;">
+      ${calc.sectionsHorsFG.length
+        ? `Base des frais généraux et des imprévus : toutes les sections et leurs charges, <b>sauf ${calc.sectionsHorsFG.map(t=> escapeHtml(t)).join(', ')}</b> (case « hors frais généraux »). Les lignes de ${calc.sectionsHorsFG.length > 1 ? 'ces sections' : 'cette section'} restent comptées dans le total du devis.`
+        : 'Base des frais généraux et des imprévus : toutes les sections et les charges patronales qu\'elles génèrent. Pour en sortir un poste, coche « hors frais généraux » dans son en-tête de section.'}
+    </p>
     <div class="calc-ligne">
       <span class="lib">Frais généraux</span>
       <span class="assiette">base ${fmtEurosDevis(calc.baseFG)}</span>
@@ -614,7 +636,7 @@ function renderDivers(){
     </div>
     <div class="calc-ligne cible-bloc" style="border-top:1.5px solid var(--accent); padding-top:12px;">
       <span class="lib" style="font-weight:800;">Caler sur un montant cible (HT)</span>
-      <input type="number" step="0.01" id="cibleMontant" placeholder="35 000" ${fige}>
+      <input type="number" step="0.01" id="cibleMontant" value="${escapeAttr(montantCibleSuggere(calc.totalHT))}" ${fige}>
       <button type="button" class="co-btn secondary sm" id="cibleBtn" ${fige}>Caler via les imprévus</button>
       <span style="font-size:11.5px; color:var(--muted);">ajuste le % d'imprévus pour tomber pile</span>
     </div>`;
@@ -627,6 +649,8 @@ function renderDivers(){
   lier('dRemiseLib', ()=> { devis.remise = devis.remise || {}; devis.remise.libelle = document.getElementById('dRemiseLib').value; });
   lier('dRemiseMont', ()=> { devis.remise = devis.remise || {}; devis.remise.montant = devisNombre(document.getElementById('dRemiseMont').value, 0); });
 
+  const cibleChamp = document.getElementById('cibleMontant');
+  cibleChamp.addEventListener('input', ()=>{ cibleChamp.dataset.touche = '1'; });
   document.getElementById('cibleBtn').addEventListener('click', ()=>{
     const cible = devisNombre(document.getElementById('cibleMontant').value, 0);
     if(!cible){ alert('Indique le montant HT visé.'); return; }
@@ -675,6 +699,10 @@ function majTotaux(){
   const im = document.getElementById('imprevusMont'); if(im) im.textContent = fmtEurosDevis(calc.imprevus);
   const fi = document.getElementById('fichesMont'); if(fi) fi.textContent = fmtEurosDevis(calc.fichesPaie);
   document.querySelectorAll('#diversCarte .assiette').forEach(el=> el.textContent = 'base ' + fmtEurosDevis(calc.baseFG));
+  const cible = document.getElementById('cibleMontant');
+  if(cible && !cible.dataset.touche && document.activeElement !== cible){
+    cible.value = montantCibleSuggere(calc.totalHT);
+  }
   renderTotaux();
 }
 
@@ -738,6 +766,10 @@ function brancherSections(){
   ed.querySelectorAll('[data-grp-titre]').forEach(el=> el.addEventListener('input', ()=>{
     const [si, gi] = el.dataset.grpTitre.split(':').map(Number);
     devis.sections[si].groupes[gi].titre = el.value; marquerModifie();
+  }));
+  ed.querySelectorAll('[data-sec-horsfg]').forEach(el=> el.addEventListener('change', ()=>{
+    devis.sections[+el.dataset.secHorsfg].horsFG = el.checked;
+    marquerModifie(); renderDivers(); majTotaux();
   }));
   ed.querySelectorAll('[data-sec-rem]').forEach(el=> el.addEventListener('change', ()=>{
     devis.sections[+el.dataset.secRem].remuneration = el.checked;
