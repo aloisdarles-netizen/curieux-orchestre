@@ -63,7 +63,10 @@
 // bloc départ-veille/retour-lendemain, hôtel, merchandising) disparaît des
 // écrans de studio (nav.js : sous-menu Recording et détection de page à
 // requête ; ui-helpers.js : libelleSeance, lu par le PDF de la feuille).
-const VERSION = 'curieux-v17';
+// v18 : devis-commun.js gagne le rattachement à un projet (tourneeId, gabarit
+// de sections par nature, chiffres et écarts) ; base.css n'a pas bougé, mais un
+// actif modifié impose l'incrément — voir la note de la v3.
+const VERSION = 'curieux-v18';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

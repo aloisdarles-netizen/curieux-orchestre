@@ -13,7 +13,79 @@
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:980px; margin:0 auto;}
+  .wrap{max-width:1280px; margin:0 auto;}
+
+  /* ------------------------------------------------------------------------
+     Avec deux productions la page se lisait encore ; avec douze tournées et dix
+     recordings, c'est un mur. On la coupe en deux : un sommaire collant à
+     gauche, qui dit d'un coup d'œil où il manque des réponses et permet d'y
+     aller, et les cartes à droite, repliées d'office.
+     ------------------------------------------------------------------------ */
+  .suivi-colonnes{ display:grid; grid-template-columns:250px minmax(0, 1fr); gap:20px; align-items:start; }
+  @media (max-width:900px){ .suivi-colonnes{ grid-template-columns:1fr; } }
+
+  .projets-menu{
+    position:sticky; top:74px; background:var(--card); border:1px solid var(--border);
+    border-radius:14px; padding:12px 12px 10px; max-height:calc(100vh - 100px);
+    display:flex; flex-direction:column; gap:9px;
+  }
+  @media (max-width:900px){ .projets-menu{ position:static; max-height:none; } }
+  .projets-menu-titre{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent); margin:0;
+  }
+  .projets-filtres{ display:flex; gap:4px; flex-wrap:wrap; }
+  .projets-filtres button{
+    font-size:11px; font-weight:700; padding:5px 10px; border-radius:20px;
+    background:var(--bg); color:var(--muted); border:1px solid var(--border);
+  }
+  .projets-filtres button[aria-pressed="true"]{
+    background:var(--accent); color:var(--blanc); border-color:var(--accent);
+  }
+  .projets-option{
+    display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted);
+    cursor:pointer; padding:1px 2px;
+  }
+  .projets-liste{ overflow-y:auto; display:flex; flex-direction:column; gap:2px; margin:0 -4px; padding:0 4px; }
+  .projets-liste a{
+    display:flex; align-items:center; gap:7px; text-decoration:none; color:var(--text);
+    font-size:12.5px; font-weight:700; padding:7px 8px; border-radius:8px; line-height:1.25;
+  }
+  .projets-liste a:hover{ background:var(--bg); }
+  .projets-liste a.actif{ background:var(--accent-tint); color:var(--tint-ink); }
+  .projets-liste .nom{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .projets-liste .compte{
+    flex:0 0 auto; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:20px;
+    background:var(--ok-tint); color:var(--ok);
+  }
+  .projets-liste .compte.reste{ background:var(--maybe-tint); color:var(--maybe); }
+  .projets-liste .marque-reco{
+    flex:0 0 auto; width:7px; height:7px; border-radius:50%; background:var(--accent);
+    opacity:.55;
+  }
+  .projets-menu-pied{ display:flex; gap:5px; border-top:1px solid var(--border); padding-top:8px; }
+  .projets-menu-pied button{ font-size:11px; padding:5px 9px; background:var(--bg); color:var(--muted); }
+  .projets-menu-pied button:hover{ background:var(--accent-tint); color:var(--tint-ink); }
+
+  /* En-tête de carte cliquable : on replie ce qu'on ne regarde pas. */
+  .tournee-head{ cursor:pointer; user-select:none; }
+  .tournee-head .caret{
+    margin-left:auto; flex:0 0 auto; color:var(--muted); font-size:12px;
+    transition:transform .15s ease;
+  }
+  .tournee-card[data-replie="1"] .caret{ transform:rotate(-90deg); }
+  .tournee-card[data-replie="1"] .carte-corps{ display:none; }
+  .tournee-resume{
+    font-size:11.5px; font-weight:700; color:var(--muted); white-space:nowrap;
+  }
+  .tournee-resume b{ color:var(--maybe); }
+
+  /* Liens personnels : une ligne par personne, et une seule. */
+  .perso-ligne{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:8px 0; border-bottom:1px solid var(--border);
+  }
+  .perso-ligne:last-child{ border-bottom:none; }
 
   button{
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
@@ -53,7 +125,7 @@
   <div class="co-page-head co-fade">
     <div>
       <h1>Demandes titulaires</h1>
-      <p class="subtitle">Génère un lien personnel par titulaire et par tournée, et suis qui a répondu — les remplaçant·es sont contacté·es via le rang de priorité dans l'annuaire quand un·e titulaire décline.</p>
+      <p class="subtitle">Suis qui a répondu, projet par projet. Les musicien·nes titulaires sont sollicité·es d'office ; les technicien·nes le sont sur les tournées seulement — en studio, on les ajoute à la main, séance par séance.</p>
     </div>
   </div>
 
@@ -71,7 +143,25 @@
     </div>
   </div>
 
-  <div id="holder"><div class="empty-hint">Chargement…</div></div>
+  <div class="suivi-colonnes">
+    <aside class="projets-menu co-fade" id="projetsMenu" hidden>
+      <p class="projets-menu-titre">Projets</p>
+      <div class="projets-filtres" id="projetsFiltres">
+        <button type="button" data-filtre-nature="tous" aria-pressed="true">Tous</button>
+        <button type="button" data-filtre-nature="tournee" aria-pressed="false">Tournées</button>
+        <button type="button" data-filtre-nature="recording" aria-pressed="false">Recordings</button>
+      </div>
+      <label class="projets-option">
+        <input type="checkbox" id="filtreEnAttente"> Seulement ceux où il manque des réponses
+      </label>
+      <div class="projets-liste" id="projetsListe"></div>
+      <div class="projets-menu-pied">
+        <button type="button" id="toutReplierBtn">Tout replier</button>
+        <button type="button" id="toutDeplierBtn">Tout déplier</button>
+      </div>
+    </aside>
+    <div id="holder"><div class="empty-hint">Chargement…</div></div>
+  </div>
 </div>
 
 <script>
@@ -117,18 +207,33 @@ function normalizeWhatsappPhone(phone){
 // venir qui a au moins une date à répondre. L'opération est sans effet si les
 // liens existent déjà, et se fait en une seule écriture. Les remplaçant·es
 // gardent leur régime : on ne les sollicite qu'à la demande.
-async function assurerLiensTitulaires(tourneesAVenir){
-  const titulaires = [
-    ...loadMusicians().filter(m=> (m.statutPoste || 'titulaire') === 'titulaire').map(p=> ({ p, type:'musicien' })),
+// Qui reçoit une demande d'office sur un projet ?
+//
+// Sur une tournée : tous les titulaires, musicien·nes comme technicien·nes —
+// la tournée part avec son équipe complète.
+//
+// Sur un recording : les musicien·nes seulement. Une séance de studio ne
+// mobilise pas la régie plateau, la lumière ni le son de façade ; elle demande
+// un·e ingé son, parfois une direction artistique, et c'est tout. Réclamer
+// leurs dispo à quinze technicien·nes qui ne viendront pas, c'est du bruit pour
+// eux et une liste illisible pour nous. Celles et ceux qui sont concerné·es
+// s'ajoutent à la main, par le champ de recherche en bas de carte.
+function titulairesPourProjet(tournee){
+  const musiciens = loadMusicians()
+    .filter(m=> (m.statutPoste || 'titulaire') === 'titulaire').map(p=> ({ p, type:'musicien' }));
+  if(estRecording(tournee)) return musiciens;
+  return [
+    ...musiciens,
     ...loadTechnicians().filter(t=> (t.statutPoste || 'titulaire') === 'titulaire').map(p=> ({ p, type:'technicien' })),
   ];
-  if(titulaires.length === 0) return 0;
+}
 
+async function assurerLiensTitulaires(tourneesAVenir){
   const existantes = new Set(loadDispoDemandes().map(d=> `${d.tourneeId}:${d.personType}:${d.personId}`));
   const aCreer = [];
   tourneesAVenir.forEach(t=>{
     if(!(t.dates || []).some(d=> d.date && d.statut !== 'annulee')) return;
-    titulaires.forEach(({ p, type })=>{
+    titulairesPourProjet(t).forEach(({ p, type })=>{
       if(existantes.has(`${t.id}:${type}:${p.id}`)) return;
       aCreer.push({ id: genId('demande'), tourneeId: t.id, personType: type, personId: p.id, dates: [] });
     });
@@ -238,11 +343,17 @@ function renderAddRemplacantResults(tourneeId, query, holder){
     demandes.filter(d=> d.tourneeId === tourneeId).map(d=> `${d.personType}:${d.personId}`)
   );
 
+  // Sur un recording, aucun·e technicien·ne n'a reçu de demande d'office : la
+  // recherche doit donc les proposer tous, titulaires compris — c'est le seul
+  // moyen d'ajouter l'ingé son de la séance. Sur une tournée, les titulaires
+  // sont déjà dans la carte : on ne propose que les remplaçant·es de régie.
+  const reco = estRecording(loadTournees().find(t=> t.id === tourneeId));
   const remplacantMusiciens = loadMusicians()
     .filter(m=> (m.statutPoste||'titulaire') === 'remplacant' && !alreadyDemanded.has(`musicien:${m.id}`))
     .map(m=> ({ person:m, personType:'musicien', roleLabel: m.instrument || 'Musicien·ne' }));
   const remplacantTechniciens = loadTechnicians()
-    .filter(t=> t.pole === 'Régie générale' && (t.statutPoste||'titulaire') === 'remplacant' && !alreadyDemanded.has(`technicien:${t.id}`))
+    .filter(t=> !alreadyDemanded.has(`technicien:${t.id}`)
+      && (reco || (t.pole === 'Régie générale' && (t.statutPoste||'titulaire') === 'remplacant')))
     .map(t=> ({ person:t, personType:'technicien', roleLabel: t.poste || 'Technicien·ne' }));
 
   const results = [...remplacantMusiciens, ...remplacantTechniciens].filter(r=>{
@@ -251,7 +362,7 @@ function renderAddRemplacantResults(tourneeId, query, holder){
   }).slice(0, 8);
 
   if(results.length === 0){
-    holder.innerHTML = `<div class="empty-hint" style="padding:10px 4px;">Aucun·e remplaçant·e trouvé·e.</div>`;
+    holder.innerHTML = `<div class="empty-hint" style="padding:10px 4px;">Personne à ajouter sous ce nom.</div>`;
     return;
   }
   holder.innerHTML = results.map(r=> `
@@ -350,8 +461,7 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
           ${statusHtml}
           ${relanceHtml}
           ${url
-            ? `<a class="co-btn ghost sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line></svg> Ouvrir</a>
-               <button type="button" class="co-btn ghost sm" data-lien-permanent data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}" title="Lien personnel permanent : il ne dépend d'aucune tournée et survit à la suppression de celles-ci">Lien permanent</button>
+            ? `<a class="co-btn ghost sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></line></svg> Ouvrir</a>
                <button type="button" class="co-btn ghost sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>
                ${showDatesOption ? `<button type="button" class="co-btn ghost sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.6"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line></svg>Dates</button>` : ''}
                <button type="button" class="co-btn ghost sm" data-delete-link="${escapeAttr(existing.id)}" title="Supprimer ce lien" style="color:var(--ko, #b23b2e);"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg></button>`
@@ -479,6 +589,179 @@ async function relancerRetardataires(){
 }
 document.getElementById('relancerTousBtn').addEventListener('click', relancerRetardataires);
 
+// Ces contrôles vivent hors de #holder : ils sont branchés une seule fois, et
+// non à chaque rendu comme ceux des cartes.
+document.querySelectorAll('#projetsFiltres [data-filtre-nature]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    filtreNature = btn.dataset.filtreNature;
+    document.querySelectorAll('#projetsFiltres [data-filtre-nature]').forEach(b=>
+      b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+    render();
+  });
+});
+document.getElementById('filtreEnAttente').addEventListener('change', (e)=>{
+  filtreEnAttenteSeul = e.target.checked;
+  render();
+});
+document.getElementById('toutReplierBtn').addEventListener('click', ()=>{
+  loadTournees().forEach(t=> poserRepli(t.id, true));
+  poserRepli('__perso', true);
+  render();
+});
+document.getElementById('toutDeplierBtn').addEventListener('click', ()=>{
+  loadTournees().forEach(t=> poserRepli(t.id, false));
+  render();
+});
+
+/* Où en est un projet : combien de personnes sollicitées, combien ont fini.
+ * Sert au sommaire (le compteur à droite de chaque ligne) et au résumé posé
+ * sur la barre de titre d'une carte repliée — c'est ce qui permet de replier
+ * sans rien perdre de vue. */
+function avancementProjet(t){
+  const answerable = (t.dates || []).filter(d=> d.date && d.statut !== 'annulee');
+  let total = 0, repondu = 0;
+  loadDispoDemandes().filter(d=> d.tourneeId === t.id).forEach(dem=>{
+    const personne = (dem.personType === 'musicien' ? loadMusicians() : loadTechnicians())
+      .find(x=> x.id === dem.personId);
+    if(!personne) return;
+    const pertinentes = (dem.dates && dem.dates.length)
+      ? answerable.filter(d=> dem.dates.includes(d.id))
+      : answerable;
+    if(pertinentes.length === 0) return;
+    total++;
+    const dispo = personne.disponibilites || {};
+    if(pertinentes.every(d=> dispo[d.date])) repondu++;
+  });
+  return { total, repondu, reste: total - repondu };
+}
+
+/* Repli des cartes.
+ *
+ * Au-delà de quatre projets, tout déplier fait une page de plusieurs milliers
+ * de pixels où l'on ne trouve plus rien : on replie d'office et le sommaire
+ * devient le point d'entrée. Le choix de chacun est retenu d'une visite à
+ * l'autre, pour ne pas rouvrir vingt fois la même carte. */
+const REPLI_CLE = 'suiviDispoReplis';
+let repliManuel = (()=>{ try{ return JSON.parse(localStorage.getItem(REPLI_CLE) || '{}'); }catch(e){ return {}; } })();
+let repliDefaut = false;
+function estReplie(id){
+  return Object.prototype.hasOwnProperty.call(repliManuel, id) ? !!repliManuel[id] : repliDefaut;
+}
+function poserRepli(id, valeur){
+  repliManuel[id] = valeur;
+  try{ localStorage.setItem(REPLI_CLE, JSON.stringify(repliManuel)); }catch(e){}
+}
+
+// Filtres du sommaire, en mémoire seulement : ils répondent à « qu'est-ce que
+// je regarde là, maintenant », pas à une préférence durable.
+let filtreNature = 'tous';
+let filtreEnAttenteSeul = false;
+
+function projetsVisibles(liste){
+  return liste.filter(t=>{
+    if(filtreNature === 'recording' && !estRecording(t)) return false;
+    if(filtreNature === 'tournee' && estRecording(t)) return false;
+    if(filtreEnAttenteSeul && avancementProjet(t).reste === 0) return false;
+    return true;
+  });
+}
+
+/* Le lien personnel permanent appartient à la PERSONNE, pas au projet.
+ *
+ * mon-espace.html regroupe déjà toutes les demandes en cours de quelqu'un :
+ * un seul lien suffit, quel que soit le nombre de projets. Il figurait pourtant
+ * sur chaque ligne de chaque carte — avec douze tournées et dix recordings, la
+ * même URL apparaissait vingt-deux fois pour la même personne, ce qui laissait
+ * croire qu'il fallait en envoyer un par projet. Il est donc sorti des cartes
+ * pour ce volet, où chaque personne figure une fois et une seule. */
+function renderLiensPersonnels(projets){
+  const enCours = new Map();          // `${type}:${id}` -> { personne, type, projets:Set }
+  const idsProjets = new Set(projets.map(t=> t.id));
+  loadDispoDemandes().forEach(dem=>{
+    if(!idsProjets.has(dem.tourneeId)) return;
+    const personne = (dem.personType === 'musicien' ? loadMusicians() : loadTechnicians())
+      .find(x=> x.id === dem.personId);
+    if(!personne) return;
+    const cle = `${dem.personType}:${dem.personId}`;
+    if(!enCours.has(cle)) enCours.set(cle, { personne, type: dem.personType, projets: new Set() });
+    enCours.get(cle).projets.add(dem.tourneeId);
+  });
+  if(enCours.size === 0) return '';
+
+  const lignes = [...enCours.values()]
+    .sort((a, b)=> fullName(a.personne).localeCompare(fullName(b.personne)))
+    .map(({ personne, type, projets: p })=> `
+      <div class="perso-ligne" data-perso-nom="${escapeAttr(fullName(personne).toLowerCase())}">
+        <div style="flex:1; min-width:150px;">
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(personne))}</div>
+          <div style="font-size:11.5px; color:var(--muted);">${p.size} projet${p.size>1?'s':''} en cours</div>
+        </div>
+        <button type="button" class="co-btn ghost sm" data-lien-permanent
+          data-person-type="${type}" data-person-id="${escapeAttr(personne.id)}"
+          title="Copier le lien personnel de ${escapeAttr(fullName(personne))} — il couvre tous ses projets et survit à la suppression de l'un d'eux">Copier son lien</button>
+      </div>`).join('');
+
+  return `
+    <div class="tournee-card" data-tournee-id="__perso" id="projet-__perso" data-replie="1">
+      <div class="tournee-head" data-replier="__perso" role="button" tabindex="0" aria-expanded="false">
+        <div class="tournee-name">Liens personnels</div>
+        <span class="tournee-resume">${enCours.size} personne${enCours.size>1?'s':''}</span>
+        <span class="caret" aria-hidden="true">▾</span>
+      </div>
+      <div class="carte-corps">
+        <div class="tournee-meta">Un seul lien par personne, valable pour tous ses projets — c'est celui qu'on envoie. La page qu'il ouvre liste elle-même les demandes en cours.</div>
+        <input type="text" id="recherchePerso" placeholder="Chercher une personne…"
+          style="width:100%; padding:9px 11px; margin-bottom:6px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit; box-sizing:border-box;">
+        ${lignes}
+      </div>
+    </div>`;
+}
+
+/* Le sommaire des projets, à gauche.
+ *
+ * Il porte trois choses : où il manque des réponses (le compteur), comment y
+ * aller (le lien d'ancre, qui déplie la carte au passage), et de quoi réduire
+ * la liste quand elle compte vingt entrées. */
+function renderSommaire(tous, visibles){
+  const menu = document.getElementById('projetsMenu');
+  const liste = document.getElementById('projetsListe');
+  if(!menu || !liste) return;
+  menu.hidden = tous.length < 2;          // sous deux projets, un sommaire est du bruit
+  if(menu.hidden) return;
+
+  const idsVisibles = new Set(visibles.map(t=> t.id));
+  liste.innerHTML = tous.map(t=>{
+    const av = avancementProjet(t);
+    const compte = av.reste
+      ? `<span class="compte reste" title="${av.reste} personne${av.reste>1?'s':''} n'a pas fini de répondre">${av.reste}</span>`
+      : `<span class="compte" title="Tout le monde a répondu">✓</span>`;
+    // Un projet écarté par le filtre reste dans le sommaire, en retrait : on
+    // veut voir qu'il existe, et retrouver son compteur sans changer de filtre.
+    return `<a href="#projet-${escapeAttr(t.id)}" data-aller="${escapeAttr(t.id)}"
+      style="${idsVisibles.has(t.id) ? '' : 'opacity:.4;'}">
+      ${estRecording(t) ? '<span class="marque-reco" title="Recording"></span>' : ''}
+      <span class="nom">${escapeHtml(t.nom || 'Sans nom')}</span>${compte}
+    </a>`;
+  }).join('');
+
+  // Un clic dans le sommaire déplie la carte visée : arriver sur un titre
+  // replié n'apprendrait rien.
+  liste.querySelectorAll('[data-aller]').forEach(a=>{
+    a.addEventListener('click', ()=>{
+      const id = a.dataset.aller;
+      poserRepli(id, false);
+      const carte = document.getElementById('projet-' + id);
+      if(carte){
+        carte.dataset.replie = '0';
+        const tete = carte.querySelector('[data-replier]');
+        if(tete) tete.setAttribute('aria-expanded', 'true');
+      }
+      liste.querySelectorAll('a').forEach(x=> x.classList.remove('actif'));
+      a.classList.add('actif');
+    });
+  });
+}
+
 function render(){
   const tournees = loadTournees();
   const holder = document.getElementById('holder');
@@ -501,40 +784,73 @@ function render(){
   const pastTournees = tournees.filter(isPastTournee);
 
   const renderTourneeCard = (t) => {
+    const reco = estRecording(t);
     const answerableDates = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
     const demandes = loadDispoDemandes();
-    const demandedRemplacantIds = new Set(
+    const dejaSollicites = new Set(
       demandes.filter(d=> d.tourneeId === t.id).map(d=> `${d.personType}:${d.personId}`)
     );
     const remplacantMusiciens = loadMusicians()
-      .filter(m=> (m.statutPoste||'titulaire') === 'remplacant' && demandedRemplacantIds.has(`musicien:${m.id}`))
+      .filter(m=> (m.statutPoste||'titulaire') === 'remplacant' && dejaSollicites.has(`musicien:${m.id}`))
       .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+    // Sur un recording, aucun·e technicien·ne n'est sollicité·e d'office : on ne
+    // liste donc que celles et ceux à qui on a déjà demandé quelque chose,
+    // titulaires compris. Sur une tournée, les titulaires sont là par défaut.
+    const technicienTitulairesAffiches = reco
+      ? titulaireTechniciens.filter(p=> dejaSollicites.has(`technicien:${p.id}`))
+      : titulaireTechniciens;
     const remplacantTechniciens = loadTechnicians()
-      .filter(p=> (p.statutPoste||'titulaire') === 'remplacant' && demandedRemplacantIds.has(`technicien:${p.id}`))
+      .filter(p=> (p.statutPoste||'titulaire') === 'remplacant' && dejaSollicites.has(`technicien:${p.id}`))
       .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+    // Les recordings créés avant ce changement ont reçu des demandes pour tous
+    // les technicien·nes titulaires : elles sont là sans que personne l'ait
+    // décidé. On propose de les retirer en bloc — mais seulement celles restées
+    // sans la moindre réponse, jamais un travail déjà fait.
+    const technicienSansReponse = !reco ? [] : demandes.filter(dem=>{
+      if(dem.tourneeId !== t.id || dem.personType !== 'technicien') return false;
+      const p = loadTechnicians().find(x=> x.id === dem.personId);
+      if(!p || (p.statutPoste || 'titulaire') !== 'titulaire') return false;
+      const dispo = p.disponibilites || {};
+      const pertinentes = (dem.dates && dem.dates.length)
+        ? answerableDates.filter(d=> dem.dates.includes(d.id)) : answerableDates;
+      return pertinentes.every(d=> !dispo[d.date]);
+    });
     const musicienRows = [
       ...titulaireMusiciens.map(m=> rowFor(t.id, m, 'musicien', m.instrument || 'Musicien·ne', answerableDates)),
       ...remplacantMusiciens.map(m=> rowFor(t.id, m, 'musicien', m.instrument || 'Musicien·ne', answerableDates)),
     ].join('');
     const technicienRows = [
-      ...titulaireTechniciens.map(p=> rowFor(t.id, p, 'technicien', p.poste || 'Technicien·ne', answerableDates)),
+      ...technicienTitulairesAffiches.map(p=> rowFor(t.id, p, 'technicien', p.poste || 'Technicien·ne', answerableDates)),
       ...remplacantTechniciens.map(p=> rowFor(t.id, p, 'technicien', p.poste || 'Technicien·ne', answerableDates)),
     ].join('');
     const rows = `
       ${musicienRows ? `<div class="role-subheader">Musicien·nes</div>${musicienRows}` : ''}
       ${technicienRows ? `<div class="role-subheader">Technicien·nes</div>${technicienRows}` : ''}
     `;
+    const av = avancementProjet(t);
+    const replie = estReplie(t.id) ? '1' : '0';
     return `
-      <div class="tournee-card" data-tournee-id="${escapeAttr(t.id)}">
-        <div class="tournee-head">
+      <div class="tournee-card" data-tournee-id="${escapeAttr(t.id)}" id="projet-${escapeAttr(t.id)}" data-replie="${replie}">
+        <div class="tournee-head" data-replier="${escapeAttr(t.id)}" role="button" tabindex="0"
+             aria-expanded="${replie === '1' ? 'false' : 'true'}">
           <div class="tournee-name">${escapeHtml(t.nom || 'Tournée sans nom')}${pastilleProjetHtml(t)}</div>
-          <button type="button" class="co-btn secondary sm" data-copy-all="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>
+          <span class="tournee-resume">${av.total === 0 ? 'personne sollicité·e'
+            : (av.reste ? `<b>${av.reste} en attente</b> · ${av.repondu}/${av.total} répondu` : `${av.total} réponse${av.total>1?'s':''} complète${av.total>1?'s':''}`)}</span>
+          <span class="caret" aria-hidden="true">▾</span>
         </div>
-        <div class="tournee-meta">${answerableDates.length} date${answerableDates.length>1?'s':''}</div>
-        ${(musicienRows || technicienRows) ? rows : `<div class="empty-hint">Aucun·e titulaire dans l'annuaire pour l'instant.</div>`}
-        <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
-          <input type="text" data-remplacant-search data-tournee="${escapeAttr(t.id)}" placeholder="Ajouter un·e remplaçant·e à la demande…" style="width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit; box-sizing:border-box;">
-          <div data-remplacant-results data-tournee="${escapeAttr(t.id)}" style="margin-top:6px;"></div>
+        <div class="carte-corps">
+          <div class="tournee-meta">${answerableDates.length} ${reco ? 'séance' : 'date'}${answerableDates.length>1?'s':''}
+            <button type="button" class="co-btn secondary sm" style="margin-left:10px;" data-copy-all="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>
+          </div>
+          ${reco && technicienSansReponse.length ? `<div class="empty-hint" style="text-align:left; padding:9px 12px; margin-bottom:10px;">
+            ${technicienSansReponse.length} technicien·ne${technicienSansReponse.length>1?'s ont':' a'} reçu une demande sur ce recording, avant qu'on cesse de les solliciter d'office. ${technicienSansReponse.length>1?'Aucune n\'a':'Elle n\'a'} encore répondu.
+            <button type="button" class="co-btn ghost sm" style="margin-left:8px;" data-purger-techs="${escapeAttr(t.id)}">Retirer ${technicienSansReponse.length>1?'ces demandes':'cette demande'}</button>
+          </div>` : ''}
+          ${(musicienRows || technicienRows) ? rows : `<div class="empty-hint">Personne n'est encore sollicité·e sur ${reco ? 'ce recording' : 'cette tournée'}.</div>`}
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+            <input type="text" data-remplacant-search data-tournee="${escapeAttr(t.id)}" placeholder="${reco ? 'Ajouter un·e technicien·ne ou remplaçant·e à la demande…' : 'Ajouter un·e remplaçant·e à la demande…'}" style="width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit; box-sizing:border-box;">
+            <div data-remplacant-results data-tournee="${escapeAttr(t.id)}" style="margin-top:6px;"></div>
+          </div>
         </div>
       </div>
     `;
@@ -542,16 +858,51 @@ function render(){
 
   renderResume(upcomingTournees);
 
-  const upcomingHtml = upcomingTournees.length
-    ? upcomingTournees.map(renderTourneeCard).join('')
-    : (pastTournees.length ? `<div class="empty-hint">Aucune tournée à venir — ${pastTournees.length} tournée${pastTournees.length>1?'s':''} passée${pastTournees.length>1?'s':''} plus bas.</div>` : '');
+  // Au-delà de quatre projets, on replie d'office : c'est le seuil à partir
+  // duquel la page cesse de se parcourir d'un coup d'œil.
+  repliDefaut = upcomingTournees.length > 4;
+
+  const visibles = projetsVisibles(upcomingTournees);
+  renderSommaire(upcomingTournees, visibles);
+
+  const upcomingHtml = visibles.length
+    ? visibles.map(renderTourneeCard).join('')
+    : (upcomingTournees.length
+        ? `<div class="empty-hint">Aucun projet ne correspond au filtre — décoche ou choisis « Tous » à gauche.</div>`
+        : (pastTournees.length ? `<div class="empty-hint">Aucun projet à venir — ${pastTournees.length} projet${pastTournees.length>1?'s':''} passé${pastTournees.length>1?'s':''} plus bas.</div>` : ''));
   const pastHtml = pastTournees.length
     ? `<details style="margin-top:20px;">
-        <summary style="cursor:pointer; font-weight:700; color:var(--muted); padding:10px 4px;">Tournées passées (${pastTournees.length})</summary>
+        <summary style="cursor:pointer; font-weight:700; color:var(--muted); padding:10px 4px;">Projets passés (${pastTournees.length})</summary>
         ${pastTournees.map(renderTourneeCard).join('')}
       </details>`
     : '';
-  holder.innerHTML = upcomingHtml + pastHtml;
+  holder.innerHTML = renderLiensPersonnels(upcomingTournees) + upcomingHtml + pastHtml;
+
+  // Replier / déplier une carte, à la souris comme au clavier.
+  holder.querySelectorAll('[data-replier]').forEach(tete=>{
+    const basculer = ()=>{
+      const carte = tete.closest('.tournee-card');
+      const replie = carte.dataset.replie === '1';
+      carte.dataset.replie = replie ? '0' : '1';
+      tete.setAttribute('aria-expanded', replie ? 'true' : 'false');
+      poserRepli(tete.dataset.replier, !replie);
+    };
+    tete.addEventListener('click', (e)=>{
+      if(e.target.closest('button[data-copy-all]')) return;   // le bouton garde son rôle
+      basculer();
+    });
+    tete.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); basculer(); }
+    });
+  });
+
+  const recherchePerso = document.getElementById('recherchePerso');
+  if(recherchePerso) recherchePerso.addEventListener('input', ()=>{
+    const q = recherchePerso.value.toLowerCase().trim();
+    holder.querySelectorAll('[data-perso-nom]').forEach(l=>{
+      l.style.display = (!q || l.dataset.persoNom.includes(q)) ? '' : 'none';
+    });
+  });
 
   holder.querySelectorAll('[data-remplacant-search]').forEach(input=>{
     input.addEventListener('input', (e)=>{
@@ -596,6 +947,28 @@ function render(){
       markReminderSent(a.dataset.markReminder).then(render);
     });
   });
+  holder.querySelectorAll('[data-purger-techs]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const t = loadTournees().find(x=> x.id === btn.dataset.purgerTechs);
+      if(!t) return;
+      const answerable = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
+      const aRetirer = loadDispoDemandes().filter(dem=>{
+        if(dem.tourneeId !== t.id || dem.personType !== 'technicien') return false;
+        const p = loadTechnicians().find(x=> x.id === dem.personId);
+        if(!p || (p.statutPoste || 'titulaire') !== 'titulaire') return false;
+        const dispo = p.disponibilites || {};
+        const pertinentes = (dem.dates && dem.dates.length)
+          ? answerable.filter(d=> dem.dates.includes(d.id)) : answerable;
+        return pertinentes.every(d=> !dispo[d.date]);
+      });
+      if(!aRetirer.length) return;
+      if(!confirm(`Retirer ${aRetirer.length} demande${aRetirer.length>1?'s':''} de dispo adressée${aRetirer.length>1?'s':''} aux technicien·nes sur « ${t.nom || 'ce recording'} » ?\n\nAucune n'a reçu de réponse. Tu pourras réajouter qui tu veux par le champ de recherche.`)) return;
+      btn.disabled = true; btn.textContent = '…';
+      for(const dem of aRetirer) await removeDispoLink(dem.id);
+      render();
+    });
+  });
+
   holder.querySelectorAll('[data-delete-link]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       if(!confirm('Supprimer ce lien ? La personne ne pourra plus y accéder pour donner ou mettre à jour ses dispo.')) return;
