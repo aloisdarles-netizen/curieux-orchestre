@@ -48,6 +48,16 @@
   .variante-total{font-variant-numeric:tabular-nums; font-weight:800; font-size:13.5px;}
   .retenue-star{color:var(--orange); font-size:15px;}
 
+  .type-badge{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    padding:3px 9px; border-radius:12px; white-space:nowrap;
+    background:var(--accent); color:var(--card);
+  }
+  .ecart-ligne{
+    font-size:12px; color:var(--muted); font-weight:700;
+    padding:8px 0 2px; border-top:1px solid var(--border); margin-top:2px;
+  }
+  .ecart-ligne b{font-variant-numeric:tabular-nums; color:var(--text);}
   .statut-badge{
     font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
     padding:3px 9px; border-radius:12px; white-space:nowrap;
@@ -82,12 +92,12 @@
   <div class="co-page-head co-fade">
     <div>
       <h1>Devis</h1>
-      <p class="subtitle">Chiffrage des projets — charges calculées par régime, variantes comparées, PDF à la charte.</p>
+      <p class="subtitle">Le budget interne d'abord, le devis client généré ensuite — charges par régime, variantes, PDF à la charte.</p>
     </div>
     <div class="co-actions">
       <a class="co-btn secondary md" href="devis-clients.html">Clients</a>
       <button type="button" class="co-btn secondary md" id="reglagesBtn">Réglages</button>
-      <button type="button" class="co-btn primary md" id="nouveauBtn">+ Nouveau devis</button>
+      <button type="button" class="co-btn primary md" id="nouveauBtn">+ Nouveau budget</button>
     </div>
   </div>
 
@@ -179,27 +189,49 @@ function renderProjets(){
   }
   empty.style.display = 'none';
 
-  holder.innerHTML = [...parProjet.values()].reverse().map(variantes=>{
-    const principale = variantes.find(v=> v.retenue) || variantes[0];
+  holder.innerHTML = [...parProjet.values()].reverse().map(docs=>{
+    // Les budgets (le travail interne) d'abord, les devis clients ensuite.
+    const budgets = docs.filter(d=> typeDocDe(d) === 'budget');
+    const devisClients = docs.filter(d=> typeDocDe(d) === 'devis');
+    const ordonnes = [...budgets, ...devisClients];
+    const principale = docs.find(v=> v.retenue) || docs[0];
     const client = nomClient(principale.clientId);
+
+    // L'écart budget → devis : la marge entre ce que le projet coûte (budget
+    // retenu ou premier budget) et ce qui est proposé au client (devis le
+    // plus avancé : accepté, sinon envoyé, sinon dernier brouillon).
+    let ecart = '';
+    if(budgets.length && devisClients.length){
+      const budgetRef = budgets.find(b=> b.retenue) || budgets[0];
+      const devisRef = devisClients.find(d=> d.statut === 'accepte')
+        || devisClients.find(d=> d.statut === 'envoye')
+        || devisClients[devisClients.length - 1];
+      const delta = calculerDevis(devisRef).totalHT - calculerDevis(budgetRef).totalHT;
+      ecart = `<div class="ecart-ligne">Écart budget → devis client : <b>${delta >= 0 ? '+' : '−'}${fmtEurosDevis(Math.abs(delta))} HT</b></div>`;
+    }
+
     return `<div class="projet-card">
       <div class="projet-head">
-        <span class="projet-titre">${escapeHtml(principale.titre || 'Devis sans titre')}</span>
+        <span class="projet-titre">${escapeHtml(principale.titre || 'Projet sans titre')}</span>
         ${client ? `<span class="projet-client">${escapeHtml(client)}</span>` : ''}
       </div>
-      ${variantes.map(v=>{
+      ${ordonnes.map(v=>{
         const calc = calculerDevis(v);
+        const estBudget = typeDocDe(v) === 'budget';
         return `<div class="variante-row">
           <span class="variante-nom">
-            ${v.retenue && variantes.length > 1 ? '<span class="retenue-star" title="Variante retenue">★</span> ' : ''}
-            ${escapeHtml(variantes.length > 1 ? (v.variante || 'Variante sans nom') : (v.variante || 'Version unique'))}
+            ${v.retenue && docs.length > 1 ? '<span class="retenue-star" title="Variante retenue">★</span> ' : ''}
+            ${escapeHtml(v.variante || (docs.length > 1 ? (estBudget ? 'Budget' : 'Devis') : 'Version unique'))}
             ${v.numero ? `<small>${escapeHtml(v.numero)}</small>` : ''}
           </span>
-          <span class="statut-badge statut-${escapeAttr(v.statut || 'brouillon')}">${escapeHtml(DEVIS_STATUTS[v.statut] || 'Brouillon')}</span>
+          ${estBudget
+            ? '<span class="type-badge">Budget</span>'
+            : `<span class="statut-badge statut-${escapeAttr(v.statut || 'brouillon')}">${escapeHtml(DEVIS_STATUTS[v.statut] || 'Brouillon')}</span>`}
           <span class="variante-total">${fmtEurosDevis(calc.totalHT)} HT</span>
           <a class="co-btn secondary sm" href="devis-editeur.html?id=${encodeURIComponent(v.id)}">Ouvrir</a>
         </div>`;
       }).join('')}
+      ${ecart}
     </div>`;
   }).join('');
 }

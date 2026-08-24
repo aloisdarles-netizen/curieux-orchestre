@@ -48,6 +48,13 @@
     border-radius:12px; padding:12px 16px; font-size:13.5px; font-weight:700; margin-bottom:14px;
   }
   :root[data-theme="dark"] .fige-note{ color:var(--text); }
+  .budget-note, .devis-note{
+    border-radius:12px; padding:12px 16px; font-size:13px; margin-bottom:14px; line-height:1.55;
+  }
+  .budget-note{ background:var(--accent-tint); color:var(--accent-dark); }
+  .devis-note{ background:var(--secondary-tint, #FEC9E0); color:var(--accent-dark); }
+  :root[data-theme="dark"] .budget-note, :root[data-theme="dark"] .devis-note{ color:var(--text); }
+  .budget-note a, .devis-note a, .fige-note a{ color:inherit; }
 
   /* --- La feuille de chiffrage ----------------------------------------
      Assumée comme un outil de travail : on quitte ici l'habillage de la
@@ -93,6 +100,13 @@
     background:var(--accent-tint); padding:0; border-top:1px solid var(--border);
     border-bottom:1px solid var(--border);
   }
+  .grp-band-in{display:flex; align-items:center; gap:8px;}
+  .grp-band-in input{flex:1 1 auto;}
+  .grp-detacher{
+    flex:0 0 auto; white-space:nowrap; font-size:10.5px !important; font-weight:800;
+    opacity:0; transition:opacity .12s; margin-right:8px; color:var(--accent-dark);
+  }
+  tr.grp-band:hover .grp-detacher, tr.grp-band:focus-within .grp-detacher{opacity:1;}
   tr.grp-band input{
     width:100%; border:none; background:transparent; padding:6px 10px;
     font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.07em;
@@ -327,31 +341,64 @@ function renderTout(){
 }
 
 function renderTete(){
-  document.getElementById('pageTitre').textContent = devis.titre || 'Devis sans titre';
-  const morceaux = [];
+  const estBudget = typeDocDe(devis) === 'budget';
+  document.getElementById('pageTitre').textContent = devis.titre || 'Sans titre';
+  const morceaux = [estBudget ? 'Budget prévisionnel (interne)' : 'Devis client'];
   if(devis.numero) morceaux.push(devis.numero);
-  morceaux.push(DEVIS_STATUTS[devis.statut] || 'Brouillon');
+  if(!estBudget) morceaux.push(DEVIS_STATUTS[devis.statut] || 'Brouillon');
   if(devis.variante) morceaux.push('variante « ' + devis.variante + ' »');
   document.getElementById('pageSousTitre').textContent = morceaux.join(' · ');
 
-  const fige = document.getElementById('figeNote');
+  // Le bandeau dit toujours à quel document on touche : un budget se retravaille
+  // sans fin, un devis envoyé est figé.
+  const note = document.getElementById('figeNote');
+  const budgetSource = devis.budgetId ? tousDevis.find(d=> d.id === devis.budgetId) : null;
   if(devis.fige){
-    fige.style.display = 'block';
-    fige.textContent = 'Ce devis a été envoyé : il est figé, à l\'image de ce que le client a reçu. Pour continuer à travailler, duplique-le en nouvelle variante.';
-  } else fige.style.display = 'none';
+    note.style.display = 'block'; note.className = 'fige-note';
+    note.innerHTML = 'Ce devis a été envoyé : il est figé, à l\'image de ce que le client a reçu. '
+      + 'Pour continuer à travailler, duplique-le en nouvelle variante'
+      + (budgetSource ? ` — ou reprends <a href="devis-editeur.html?id=${encodeURIComponent(budgetSource.id)}">son budget</a>.` : '.');
+  } else if(estBudget){
+    note.style.display = 'block'; note.className = 'budget-note';
+    note.innerHTML = '<b>Budget prévisionnel — document interne.</b> Il n\'est ni numéroté ni envoyé : '
+      + 'c\'est ton outil de travail, tu le retouches quand tu veux. Quand le chiffrage tient, '
+      + '« Générer le devis client » en tire la version commerciale, que tu pourras dépouiller sans y toucher.';
+  } else {
+    note.style.display = 'block'; note.className = 'devis-note';
+    note.innerHTML = '<b>Devis client.</b> C\'est ce document qui part chez le client et suit le cycle '
+      + 'brouillon → envoyé → accepté.'
+      + (budgetSource ? ` Il vient du budget <a href="devis-editeur.html?id=${encodeURIComponent(budgetSource.id)}">${escapeHtml(budgetSource.titre || 'sans titre')}</a>.` : '');
+  }
 
   const variantes = tousDevis.filter(d=> d.projetId === devis.projetId);
   const actions = [];
-  actions.push('<button type="button" class="co-btn secondary md" id="pdfBtn">PDF</button>');
-  actions.push('<button type="button" class="co-btn secondary md" id="dupliquerBtn">Dupliquer en variante</button>');
-  if(variantes.length > 1 && !devis.retenue) actions.push('<button type="button" class="co-btn secondary md" id="retenueBtn">Marquer retenue</button>');
-  if(!devis.fige && devis.statut === 'brouillon') actions.push('<button type="button" class="co-btn primary md" id="envoyerBtn">Passer en « envoyé »</button>');
-  if(devis.statut === 'envoye'){
+  actions.push(`<button type="button" class="co-btn secondary md" id="pdfBtn">${estBudget ? 'PDF budget' : 'PDF'}</button>`);
+  if(estBudget) actions.push('<button type="button" class="co-btn primary md" id="genererBtn">Générer le devis client</button>');
+  actions.push(`<button type="button" class="co-btn secondary md" id="dupliquerBtn">Dupliquer${estBudget ? ' ce budget' : ' en variante'}</button>`);
+  if(variantes.length > 1 && !devis.retenue) actions.push('<button type="button" class="co-btn secondary md" id="retenueBtn">Marquer retenu</button>');
+  if(!estBudget && !devis.fige && devis.statut === 'brouillon') actions.push('<button type="button" class="co-btn primary md" id="envoyerBtn">Passer en « envoyé »</button>');
+  if(!estBudget && devis.statut === 'envoye'){
     actions.push('<button type="button" class="co-btn primary md" id="accepteBtn">Accepté ✓</button>');
     actions.push('<button type="button" class="co-btn ghost md" id="refuseBtn">Refusé</button>');
   }
   actions.push('<button type="button" class="co-btn danger md" id="supprimerBtn">Supprimer</button>');
   document.getElementById('actionsHaut').innerHTML = actions.join('');
+
+  const genererBtn = document.getElementById('genererBtn');
+  if(genererBtn) genererBtn.addEventListener('click', async ()=>{
+    const dejaTires = tousDevis.filter(d=> d.budgetId === devis.id).length;
+    if(dejaTires && !confirm(`Ce budget a déjà donné ${dejaTires} devis client. En générer un de plus ?`)) return;
+    const copie = JSON.parse(JSON.stringify(devis));
+    copie.id = genId('devis');
+    copie.typeDoc = 'devis';
+    copie.budgetId = devis.id;
+    copie.numero = ''; copie.statut = 'brouillon'; copie.fige = false; copie.retenue = false;
+    copie.memo = '';                       // le mémo interne ne suit pas côté client
+    copie.variante = dejaTires ? `Devis client ${dejaTires + 1}` : 'Devis client';
+    const { error } = await CurieuxDB.upsertOne('devis', copie);
+    if(error){ alert('Génération impossible :\n\n' + error.message); return; }
+    location.href = 'devis-editeur.html?id=' + encodeURIComponent(copie.id);
+  });
 
   document.getElementById('pdfBtn').addEventListener('click', ()=>{
     const client = clientsCache.find(c=> c.id === devis.clientId) || null;
@@ -361,6 +408,7 @@ function renderTete(){
   document.getElementById('dupliquerBtn').addEventListener('click', async ()=>{
     const copie = JSON.parse(JSON.stringify(devis));
     copie.id = genId('devis');
+    copie.typeDoc = typeDocDe(devis);
     copie.numero = ''; copie.statut = 'brouillon'; copie.fige = false; copie.retenue = false;
     copie.variante = prompt('Nom de la nouvelle variante ? (ex. « Sans clip »)', devis.variante ? devis.variante + ' (copie)' : 'Variante 2') || 'Variante';
     const { error } = await CurieuxDB.upsertOne('devis', copie);
@@ -416,7 +464,7 @@ function renderEditeur(){
     <h2>En-tête</h2>
     <div class="entete-grid">
       <div class="field"><label>Titre du projet</label><input type="text" id="dTitre" value="${escapeAttr(devis.titre || '')}" placeholder="Expe 33 — Budget Prévisionnel" ${fige}></div>
-      <div class="field"><label>Client ${devis.clientId ? `<a href="devis-clients.html?id=${encodeURIComponent(devis.clientId)}" style="font-weight:700; text-transform:none; letter-spacing:0;">· voir la fiche</a>` : ''}</label><select id="dClient" ${fige}>${optionsClients()}</select></div>
+      <div class="field"><label>Client ${devis.clientId ? `<a href="devis-clients.html?id=${encodeURIComponent(devis.clientId)}" style="font-weight:700; text-transform:none; letter-spacing:0; color:var(--accent);">· voir la fiche</a>` : ''}</label><select id="dClient" ${fige}>${optionsClients()}</select></div>
       <div class="field"><label>Variante</label><input type="text" id="dVariante" value="${escapeAttr(devis.variante || '')}" placeholder="Avec clip" ${fige}></div>
       <div class="field"><label>Date</label><input type="text" id="dDate" value="${escapeAttr(devis.date || '')}" placeholder="Juillet 2026 — ou TBD" ${fige}></div>
       <div class="field"><label>Validité (jours)</label><input type="number" id="dValidite" value="${escapeAttr(devis.validiteJours != null ? devis.validiteJours : 30)}" ${fige}></div>
@@ -474,7 +522,11 @@ function renderSection(sec, si){
   const corps = (sec.groupes || []).map((grp, gi)=> `
     <tbody data-groupe="${si}:${gi}">
       ${(sec.groupes.length > 1 || grp.titre) ? `<tr class="grp-band"><td colspan="${nbCols}">
-        <input type="text" value="${escapeAttr(grp.titre || '')}" placeholder="Titre du groupe (Préparation, REC, Captation…)" data-grp-titre="${si}:${gi}" ${fige}>
+        <div class="grp-band-in">
+          <input type="text" value="${escapeAttr(grp.titre || '')}" placeholder="Titre du groupe (Préparation, REC, Captation…)" data-grp-titre="${si}:${gi}" ${fige}>
+          <button type="button" class="l-btn grp-detacher" data-grp-detacher="${si}:${gi}" ${fige}
+            title="Détacher ce groupe : il devient une section à part entière, avec son propre sous-total, son taux de TVA et sa case « hors frais généraux ».">⤴ En faire une section</button>
+        </div>
       </td></tr>` : ''}
       ${(grp.lignes || []).map((l, li)=> renderLigne(sec, si, gi, l, li)).join('')}
       <tr class="ajout"><td colspan="${nbCols}">
@@ -799,6 +851,28 @@ function brancherSections(){
     const champ = document.querySelector(`[data-l="${si}:${gi}:${lignes.length - 1}:intitule"]`);
     if(champ) champ.focus();
   }));
+  ed.querySelectorAll('[data-grp-detacher]').forEach(el=> el.addEventListener('click', ()=>{
+    const [si, gi] = el.dataset.grpDetacher.split(':').map(Number);
+    const sec = devis.sections[si];
+    const grp = sec.groupes[gi];
+    if(sec.groupes.length === 1){
+      alert('Ce groupe est le seul de sa section : elle joue déjà ce rôle.');
+      return;
+    }
+    sec.groupes.splice(gi, 1);
+    devis.sections.splice(si + 1, 0, {
+      id: genId('sec'),
+      titre: grp.titre || 'Nouvelle section',
+      remuneration: sec.remuneration,
+      tva: sec.tva,
+      horsFG: !!sec.horsFG,
+      // Le titre remonte sur la section : le garder aussi sur le groupe le
+      // ferait apparaître deux fois, l'un sous l'autre.
+      groupes: [{ ...grp, titre: '' }],
+    });
+    marquerModifie(); renderEditeur(); majTotaux();
+  }));
+
   ed.querySelectorAll('[data-ajout-groupe]').forEach(el=> el.addEventListener('click', ()=>{
     devis.sections[+el.dataset.ajoutGroupe].groupes.push({ id: genId('grp'), titre: '', lignes: [] });
     marquerModifie(); renderEditeur();

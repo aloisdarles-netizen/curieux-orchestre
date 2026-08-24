@@ -49,7 +49,9 @@
 // devis-commun.js), fiche client reprise dans le PDF (pdf-devis.js).
 // v13 : assiette des frais généraux paramétrable par section (devis-commun.js),
 // mention de l'assiette réduite sur le PDF (pdf-devis.js).
-const VERSION = 'curieux-v13';
+// v14 : budget et devis client deviennent deux natures de document
+// (devis-commun.js), le PDF d'un budget porte son bandeau (pdf-devis.js).
+const VERSION = 'curieux-v14';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -38,6 +38,12 @@ const DEVIS_REGIMES = [
   ['aucun',      'Sans charges',         '—'],
 ];
 
+function typeDocDe(d){
+  if(d && d.typeDoc) return d.typeDoc;
+  if(d && (d.fige || d.numero || (d.statut && d.statut !== 'brouillon'))) return 'devis';
+  return 'budget';
+}
+
 const DEVIS_STATUTS = {
   brouillon: 'Brouillon',
   envoye:    'Envoyé',
@@ -50,6 +56,7 @@ function nouveauDevis(reglages, projetId){
   return {
     id: genId('devis'),
     projetId: projetId || genId('projet'),
+    typeDoc: 'budget', budgetId: '',
     variante: '', retenue: false,
     numero: '', statut: 'brouillon', fige: false,
     titre: '', clientId: '', date: '',

@@ -36,12 +36,28 @@ function genererDevisPdf(devis, client, reglages){
 
   const calc = calculerDevis(devis);
   const r = reglages || {};
+  // Un budget prévisionnel ne doit jamais pouvoir passer pour un devis : il le
+  // dit dans son sous-titre, dans son pied de page, et par un bandeau en tête.
+  const estBudget = (typeof typeDocDe === 'function' ? typeDocDe(devis) : devis.typeDoc) === 'budget';
   const composeur = creerComposeurPdf(doc, { echelleMin: 1, echelleMax: 1, mentionDebordement: false }).entete({
-    titre: devis.titre || 'Devis',
-    sousTitre: [devis.numero, devis.variante ? 'Variante ' + devis.variante : '']
-      .filter(Boolean).join(' · '),
-    mention: devis.numero || 'Devis',
+    titre: devis.titre || (estBudget ? 'Budget prévisionnel' : 'Devis'),
+    sousTitre: [estBudget ? 'BUDGET PRÉVISIONNEL — DOCUMENT INTERNE' : devis.numero,
+      devis.variante ? 'Variante ' + devis.variante : ''].filter(Boolean).join(' · '),
+    mention: estBudget ? 'Budget interne' : (devis.numero || 'Devis'),
   });
+
+  if(estBudget){
+    composeur.libre((k, dessiner, y, o)=>{
+      const h = o.hLigne(8) + 7;
+      if(!dessiner) return h;
+      o.fond(o.charte.orange);
+      doc.roundedRect(o.marge, y, o.utile, h - 3, 2, 2, 'F');
+      doc.setFont('Host', 'bold'); doc.setFontSize(8); o.encre([255, 255, 255]);
+      doc.text('BUDGET PRÉVISIONNEL — DOCUMENT INTERNE, NE PAS DIFFUSER AU CLIENT',
+        o.marge + o.utile / 2, y + 2.6, { baseline: 'top', align: 'center' });
+      return h;
+    });
+  }
 
   const jaune = [255, 240, 170];
 
