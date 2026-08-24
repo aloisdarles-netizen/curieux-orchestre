@@ -350,6 +350,42 @@
     </div>
   </div>
 
+  <div class="card fdr-section" data-icone="♪" style="--sec-fond:#CEE1F4; --sec-encre:#3d5876; --sec-tilt:4deg;">
+    <div class="card-head">
+      <h2>Partitions</h2>
+      <label class="section-toggle"><input type="checkbox" data-section-toggle="partitions" checked> Inclure cette section</label>
+    </div>
+    <div class="card-body" data-section-body="partitions">
+    <p class="card-sub">Le dossier où l'équipe trouve la musique de la date. Le lien général suffit dans la plupart des cas ; les liens par personne servent quand chacun·e a son propre dossier de pupitre.</p>
+    <div class="field">
+      <label for="partitionsLien">Lien du dossier de partitions (Drive, Dropbox…)</label>
+      <input type="text" id="partitionsLien" placeholder="https://drive.google.com/drive/folders/...">
+    </div>
+    <div class="field">
+      <label for="partitionsNote">Précision (facultatif)</label>
+      <input type="text" id="partitionsNote" placeholder="Ex : version du 12 mars, jouer la reprise B">
+    </div>
+
+    <h3>Liens par personne ou par pupitre (facultatif)</h3>
+    <p class="card-sub">Un lien par musicien·ne ou par pupitre, quand le dossier général ne suffit pas.</p>
+    <div class="grid-table-wrap">
+      <table class="grid-table" id="partitionsTable">
+        <thead>
+          <tr>
+            <th style="width:28%;">Personne / pupitre</th>
+            <th>Lien</th>
+            <th class="col-del"></th>
+          </tr>
+        </thead>
+        <tbody id="partitionsBody"></tbody>
+      </table>
+    </div>
+    <div class="actions-row">
+      <button class="co-btn ghost" id="addPartitionLinkBtn">+ Ajouter un lien</button>
+    </div>
+    </div>
+  </div>
+
   <div class="card fdr-section" data-icone="★" style="--sec-fond:#791649; --sec-encre:#FCF2F0; --sec-tilt:-5deg;">
     <div class="card-head">
       <h2>Bonus / Notes</h2>
@@ -469,6 +505,10 @@ function defaultContactsList(){
 function defaultTicketLink(nom, lien){
   return { id: uid(), nom: nom || '', lien: lien || '' };
 }
+// Même forme qu'un lien de billet : une personne (ou un pupitre) et une adresse.
+function defaultPartitionLink(nom, lien){
+  return { id: uid(), nom: nom || '', lien: lien || '' };
+}
 function buildDefaultState(){
   return {
     id: genId('fdr'),
@@ -481,11 +521,14 @@ function buildDefaultState(){
     lieu:{ nom:'', adresse:'', jauge:'', billetterie:'' },
     hotel:{ nom:'', adresse:'', tel:'', checkin:'', checkout:'', mapsLink:'', breakfast:'', type:'hotel', typeDetail:'' },
     ticketLinks: [ defaultTicketLink() ],
+    // Partitions : un lien général vers le dossier de la date, et au besoin un
+    // lien par personne ou par pupitre (même forme que les billets de train).
+    partitions:{ lien:'', note:'', parPersonne:[ defaultPartitionLink() ] },
     bonus:'',
     // Sections optionnelles : décochées, une section ne s'affiche ni dans le
     // formulaire (repliée) ni dans le PDF généré, même si elle contient des
     // données (ex : "Voyage" pour une date sans trajet à organiser).
-    sectionsEnabled:{ contacts:true, voyage:true, planning:true, lieu:true, hotel:true, bonus:true }
+    sectionsEnabled:{ contacts:true, voyage:true, planning:true, lieu:true, hotel:true, partitions:true, bonus:true }
   };
 }
 
@@ -515,6 +558,14 @@ function normalizeFdrEntry(parsed){
     planning: (Array.isArray(parsed.planning) ? parsed.planning : base.planning).map(migratePlanningRow),
     lieu:{...base.lieu, ...(parsed.lieu||{})},
     hotel:{...base.hotel, ...(parsed.hotel||{})},
+    // Les feuilles enregistrées avant l'arrivée des partitions n'ont pas la
+    // clé : la valeur par défaut la comble, et parPersonne garde toujours au
+    // moins une ligne vide pour que le tableau ne s'affiche pas vide.
+    partitions:(()=>{
+      const p = {...base.partitions, ...(parsed.partitions||{})};
+      if(!Array.isArray(p.parPersonne) || !p.parPersonne.length) p.parPersonne = [ defaultPartitionLink() ];
+      return p;
+    })(),
     sectionsEnabled:{...base.sectionsEnabled, ...(parsed.sectionsEnabled||{})}
   };
 }
@@ -647,6 +698,8 @@ function bindTopFields(){
   toggleHotelTypeDetail();
 
   bindSimpleField('bonusNotes', ()=>state.bonus, v=>state.bonus=v);
+  bindSimpleField('partitionsLien', ()=>state.partitions.lien, v=>state.partitions.lien=v);
+  bindSimpleField('partitionsNote', ()=>state.partitions.note, v=>state.partitions.note=v);
 
   const merchEl = document.getElementById('merchandisingOk');
   merchEl.checked = !!state.merchandisingOk;
@@ -834,6 +887,33 @@ document.getElementById('addTicketLinkBtn').addEventListener('click', ()=>{
   saveState(); renderTicketLinks();
 });
 
+function renderPartitionLinks(){
+  const tbody = document.getElementById('partitionsBody');
+  tbody.innerHTML = '';
+  state.partitions.parPersonne.forEach((pl, idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" data-f="nom" placeholder="Ex : Violons 1" value="${escapeAttr(pl.nom)}"></td>
+      <td><input type="text" data-f="lien" placeholder="https://drive.google.com/..." value="${escapeAttr(pl.lien)}"></td>
+      <td class="col-del"><button class="small-del" title="Supprimer">✕</button></td>
+    `;
+    tr.querySelectorAll('[data-f]').forEach(inp=>{
+      inp.addEventListener('input', e=>{ pl[e.target.dataset.f] = e.target.value; saveState(); });
+    });
+    tr.querySelector('.small-del').addEventListener('click', ()=>{
+      if(!confirm(`Supprimer le lien ${pl.nom || 'sans nom'} ?`)) return;
+      state.partitions.parPersonne.splice(idx, 1);
+      if(state.partitions.parPersonne.length === 0) state.partitions.parPersonne.push(defaultPartitionLink());
+      saveState(); renderPartitionLinks();
+    });
+    tbody.appendChild(tr);
+  });
+}
+document.getElementById('addPartitionLinkBtn').addEventListener('click', ()=>{
+  state.partitions.parPersonne.push(defaultPartitionLink());
+  saveState(); renderPartitionLinks();
+});
+
 function renderTrajets(){
   const tbody = document.getElementById('trajetsBody');
   tbody.innerHTML = '';
@@ -947,7 +1027,7 @@ document.getElementById('resetFdrBtn').addEventListener('click', ()=>{
     state = buildDefaultState();
     state.id = keepId;
     saveState();
-    bindTopFields(); bindSectionToggles(); renderContacts(); renderTrajets(); renderPlanning(); renderTicketLinks();
+    bindTopFields(); bindSectionToggles(); renderContacts(); renderTrajets(); renderPlanning(); renderTicketLinks(); renderPartitionLinks();
   }
 });
 document.getElementById('newFdrBtn').addEventListener('click', createNewFdr);
@@ -1311,6 +1391,47 @@ function layoutBody(doc, pageWidth, marginX, s){
     y = Math.max(leftY, rightY) + 7*s;
   }
 
+  // Partitions : un bandeau pleine largeur avant le duo Hôtel/Bonus. Placé là,
+  // il se lit juste après le déroulé de la journée — c'est le moment où l'on
+  // cherche sa musique — et il reste visible même quand la feuille se resserre.
+  const partitionsLiens = (state.partitions.parPersonne || [])
+    .filter(pl => (pl.nom || '').trim() && (pl.lien || '').trim());
+  const partitionsHasData = (state.partitions.lien || '').trim() || partitionsLiens.length;
+
+  if(state.sectionsEnabled.partitions && partitionsHasData){
+    const largeur = pageWidth - marginX * 2;
+    y = sectionTitle(doc, 'Partitions', marginX, y, largeur, s);
+
+    if((state.partitions.lien || '').trim()){
+      doc.setFont('JakartaSans','bold'); doc.setFontSize(8.7*sf); doc.setTextColor(...NOIR);
+      doc.text('Dossier de la date : ', marginX, y + 3.5*s);
+      const largeurIntitule = doc.getTextWidth('Dossier de la date : ');
+      doc.setFont('JakartaSans','normal'); doc.setTextColor(...PALATINATE);
+      doc.textWithLink('ouvrir le dossier', marginX + largeurIntitule, y + 3.5*s,
+        { url: state.partitions.lien.trim() });
+      doc.setTextColor(...NOIR);
+      y += 4.3*s;
+      if((state.partitions.note || '').trim()){
+        doc.setFont('JakartaSans','normal'); doc.setFontSize(8.7*sf);
+        const lignesNote = doc.splitTextToSize(state.partitions.note.trim(), largeur);
+        doc.text(lignesNote, marginX, y + 3.5*s);
+        y += lignesNote.length * 4.3*s;
+      }
+    }
+
+    partitionsLiens.forEach(pl=>{
+      doc.setFont('JakartaSans','normal'); doc.setFontSize(8.7*sf); doc.setTextColor(...NOIR);
+      doc.text(`${pl.nom} — `, marginX, y + 3.5*s);
+      const largeurNom = doc.getTextWidth(`${pl.nom} — `);
+      doc.setTextColor(...PALATINATE);
+      doc.textWithLink('partitions', marginX + largeurNom, y + 3.5*s, { url: pl.lien.trim() });
+      doc.setTextColor(...NOIR);
+      y += 4.3*s;
+    });
+
+    y += 4*s;
+  }
+
   // Hôtel (gauche, ~42%) + Bonus / Notes (droite, ~58%) côte à côte
   const hotelHasData = state.hotel.nom || state.hotel.adresse || state.hotel.tel || state.hotel.checkin || state.hotel.checkout || state.hotel.mapsLink || state.hotel.breakfast;
   const ticketLinksWithData = state.ticketLinks.filter(tl => (tl.nom||'').trim() && (tl.lien||'').trim());
@@ -1489,6 +1610,7 @@ async function initData(){
   renderTrajets();
   renderPlanning();
   renderTicketLinks();
+  renderPartitionLinks();
   setFdrSaveStatus('', '');
 }
 initData();

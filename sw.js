@@ -51,7 +51,9 @@
 // mention de l'assiette réduite sur le PDF (pdf-devis.js).
 // v14 : budget et devis client deviennent deux natures de document
 // (devis-commun.js), le PDF d'un budget porte son bandeau (pdf-devis.js).
-const VERSION = 'curieux-v14';
+// v15 : partitions sur la feuille de route et sauvegarde quotidienne des devis
+// (assets/db.js : listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis).
+const VERSION = 'curieux-v15';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

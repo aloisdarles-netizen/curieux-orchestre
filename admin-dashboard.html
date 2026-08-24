@@ -295,6 +295,23 @@
   </section>
 
   <section>
+    <h2>Sauvegardes des devis</h2>
+    <p class="section-lead" style="font-size:12.5px; color:var(--muted); margin:0 0 12px;">
+      Un export complet des devis (devis, clients, postes, réglages) est archivé chaque nuit à 3 h.
+      Les archives restent privées : seuls les comptes administrateurs peuvent les télécharger,
+      et le lien obtenu expire au bout de deux minutes.
+    </p>
+    <div class="card">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px;">
+        <button type="button" class="co-btn secondary sm" id="sauvegardeMaintenantBtn">Sauvegarder maintenant</button>
+        <span id="sauvegardeEtat" style="font-size:12.5px; color:var(--muted);"></span>
+      </div>
+      <div id="sauvegardesListe"></div>
+      <div class="empty-hint co-vide" id="sauvegardesVide" style="display:none;">Aucune archive pour l'instant — la première partira cette nuit, ou tout de suite avec le bouton ci-dessus.</div>
+    </div>
+  </section>
+
+  <section>
     <h2>Réinitialisation</h2>
     <p style="font-size:12px; color:var(--muted); margin:-6px 0 12px;">Vider les données saisies pendant la phase de test, avant l'ouverture aux équipes. Se désactive tout·e seul·e une fois la phase de test terminée.</p>
     <div class="card" id="reinitCard">
@@ -900,6 +917,59 @@ async function exportAllData(){
 document.getElementById('exportAllBtn').addEventListener('click', exportAllData);
 
 // ============================================================================
+// --- Sauvegardes des devis --------------------------------------------------
+// Les archives vivent dans un bucket privé : on ne peut pas en donner une URL
+// fixe, chaque téléchargement passe par un lien signé demandé au moment du clic.
+function formaterOctets(n){
+  if(!n) return '';
+  return n > 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + ' Mo' : Math.round(n / 1024) + ' Ko';
+}
+
+async function chargerSauvegardes(){
+  const holder = document.getElementById('sauvegardesListe');
+  const vide = document.getElementById('sauvegardesVide');
+  if(!holder) return;
+  const archives = await CurieuxDB.listerSauvegardes();
+  if(!archives.length){
+    holder.innerHTML = '';
+    vide.style.display = 'block';
+    return;
+  }
+  vide.style.display = 'none';
+  holder.innerHTML = archives.map(a=>{
+    const taille = formaterOctets(a.metadata && a.metadata.size);
+    const jour = a.name.replace(/\.json$/, '');
+    return `<div style="display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--border); flex-wrap:wrap;">
+      <b style="flex:1 1 140px; font-size:13.5px;">${escapeHtml(jour)}</b>
+      <span style="font-size:12px; color:var(--muted);">${escapeHtml(taille)}</span>
+      <button type="button" class="co-btn secondary sm" data-archive="${escapeAttr(a.name)}">Télécharger</button>
+    </div>`;
+  }).join('');
+
+  holder.querySelectorAll('[data-archive]').forEach(b=> b.addEventListener('click', async ()=>{
+    const libelle = b.textContent;
+    b.disabled = true; b.textContent = 'Préparation…';
+    const url = await CurieuxDB.lienSauvegarde(b.dataset.archive);
+    b.disabled = false; b.textContent = libelle;
+    if(!url){ alert("Le lien n'a pas pu être créé — vérifie que la migration des sauvegardes est passée."); return; }
+    window.open(url, '_blank', 'noopener');
+  }));
+}
+
+const sauvegardeBtn = document.getElementById('sauvegardeMaintenantBtn');
+if(sauvegardeBtn) sauvegardeBtn.addEventListener('click', async ()=>{
+  const etat = document.getElementById('sauvegardeEtat');
+  sauvegardeBtn.disabled = true; etat.textContent = 'Sauvegarde en cours…';
+  const res = await CurieuxDB.lancerSauvegardeDevis();
+  sauvegardeBtn.disabled = false;
+  if(res.erreur){ etat.textContent = '⚠ ' + res.erreur; return; }
+  const total = Object.values(res.lignes || {}).reduce((s, n)=> s + n, 0);
+  etat.textContent = `✓ ${res.chemin} — ${total} enregistrement${total > 1 ? 's' : ''}`;
+  chargerSauvegardes();
+});
+
+chargerSauvegardes();
+
 // Réinitialisation (I11) — vider les données saisies en phase de test.
 // Doublement verrouillé côté base (compte admin + phase_test), l'interface ne
 // fait que proposer ; purger_donnees_essai refuse silencieusement sinon.

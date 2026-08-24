@@ -3735,3 +3735,26 @@ insert into devis_reglages (id, data) values (1, jsonb_build_object(
   'tvaDefaut', 20, 'validiteJours', 30,
   'conditionsReglement', 'Acompte de 30 % à la commande, solde à livraison. Paiement à 30 jours. Pénalités de retard : taux BCE + 10 points ; indemnité forfaitaire de recouvrement : 40 €.'
 )) on conflict (id) do nothing;
+
+
+-- ============================================================================
+-- Sauvegardes automatiques (août 2026)
+--
+-- Un bucket PRIVÉ où la tâche planifiée dépose chaque nuit un export JSON des
+-- devis (voir api/sauvegarde-devis.js). Privé, contrairement au bucket des
+-- fiches techniques : une sauvegarde contient les montants, les marges et les
+-- coordonnées des clients — rien qui doive être lisible par une URL devinée.
+--
+-- L'écriture est faite par la clé service_role, qui ignore RLS : aucune policy
+-- d'insertion n'est donc nécessaire. Seule la lecture est ouverte, et
+-- uniquement aux comptes 'admin', pour que le tableau de bord puisse lister et
+-- télécharger les archives.
+-- ============================================================================
+
+insert into storage.buckets (id, name, public)
+values ('sauvegardes', 'sauvegardes', false)
+on conflict (id) do update set public = false;
+
+drop policy if exists "sauvegardes lecture admin" on storage.objects;
+create policy "sauvegardes lecture admin" on storage.objects for select to authenticated
+  using (bucket_id = 'sauvegardes' and is_admin());

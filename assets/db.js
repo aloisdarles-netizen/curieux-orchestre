@@ -1256,6 +1256,41 @@ const CurieuxDB = (()=>{
       () => supabaseClient.from('reglages').upsert({ id: 1, phase_test: !!actif }, { onConflict: 'id' }));
   }
 
+  // --- Sauvegardes automatiques ---------------------------------------------
+  // Les archives de devis déposées chaque nuit par api/sauvegarde-devis.js dans
+  // le bucket privé « sauvegardes ». La lecture est ouverte aux seuls comptes
+  // 'admin' par policy ; le lien de téléchargement est signé, donc temporaire.
+  async function listerSauvegardes(){
+    if(!supabaseClient) return [];
+    const { data, error } = await supabaseClient.storage.from('sauvegardes')
+      .list('devis', { limit: 60, sortBy: { column: 'name', order: 'desc' } });
+    if(error){ console.warn('[CurieuxDB] listerSauvegardes', error.message); return []; }
+    return (data || []).filter(o=> o.name && o.name.endsWith('.json'));
+  }
+  async function lienSauvegarde(nom){
+    if(!supabaseClient) return '';
+    const { data, error } = await supabaseClient.storage.from('sauvegardes')
+      .createSignedUrl(`devis/${nom}`, 120);
+    if(error){ console.warn('[CurieuxDB] lienSauvegarde', error.message); return ''; }
+    return (data && data.signedUrl) || '';
+  }
+  // Déclenche une sauvegarde immédiate, avec le jeton de session de l'admin :
+  // c'est la même route que le planificateur appelle chaque nuit.
+  async function lancerSauvegardeDevis(){
+    if(!supabaseClient) return { erreur: 'Supabase non chargé' };
+    const { data } = await supabaseClient.auth.getSession();
+    const jeton = data && data.session && data.session.access_token;
+    if(!jeton) return { erreur: 'Session expirée — reconnecte-toi.' };
+    try{
+      const rep = await fetch('/api/sauvegarde-devis', {
+        method: 'POST', headers: { Authorization: `Bearer ${jeton}` },
+      });
+      const corps = await rep.json().catch(()=> ({}));
+      if(!rep.ok) return { erreur: corps.erreur || `Erreur ${rep.status}` };
+      return corps;
+    }catch(e){ return { erreur: e.message }; }
+  }
+
   // Réglages de l'espace Devis (identité de l'émetteur, taux par défaut) —
   // une seule ligne jsonb, réservée aux admins par RLS. `absent:true` signale
   // que la migration n'est pas passée : la page l'explique au lieu de planter.
@@ -1431,6 +1466,7 @@ const CurieuxDB = (()=>{
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
     fetchReglages, setPhaseTest, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
+    listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
     getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis, enregistrerHorairesJournee,
     ajouterRemarqueParJeton, getRemarquesParJeton, enregistrerPlanSalleParJeton,
