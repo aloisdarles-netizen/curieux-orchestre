@@ -493,17 +493,20 @@ function optionsProjets(){
 /* Le rappel de ce que le projet sait déjà.
  *
  * Un devis dit « 5 journées × 17 musiciens × 280 € ». Ces trois nombres sont
- * dans la tournée : dates validées, nomenclature, cachet standard. Les retaper
- * est une perte de temps, et rien ne signalait qu'ils avaient divergé quand une
- * date tombait. On les affiche, on propose de les reprendre, et on signale
- * l'écart — sans jamais corriger tout seul : les deux peuvent légitimement
- * différer (on chiffre parfois une date de plus, au cas où). */
+ * aussi dans la tournée : dates validées, nomenclature, cachet standard. On les
+ * affiche à côté du chiffrage, et on signale quand les deux s'écartent.
+ *
+ * Rien de plus : pas de report automatique. Un chiffrage n'est pas la copie
+ * d'un planning — on chiffre volontiers une date de plus au cas où, un effectif
+ * réduit sur une partie des dates, un cachet négocié différemment. Un bouton
+ * qui écrase ces choix ferait plus de dégâts qu'il n'épargne de frappe ; les
+ * avoir sous les yeux suffit. */
 function rappelProjetHtml(){
   const projet = projetRattache();
   if(!projet){
     return `<div class="rappel-projet vide">
-      Aucun projet rattaché. En choisir un permet de reprendre d'un clic le nombre de dates,
-      l'effectif attendu et le cachet standard.
+      Aucun projet rattaché. En choisir un rappelle ici le nombre de dates, l'effectif attendu
+      et le cachet standard, et signale quand le chiffrage s'en écarte.
       ${devis.fige ? '' : `<span class="rappel-creer">
         Rien à rattacher&nbsp;?
         <button type="button" class="co-btn ghost sm" data-creer-projet="tournee">Créer la tournée</button>
@@ -524,7 +527,6 @@ function rappelProjetHtml(){
         <a href="tournees.html${c.estRecording ? '?type=recording' : ''}#tournee-${encodeURIComponent(projet.id)}">${escapeHtml(projet.nom || 'Sans nom')}</a>
         ${c.estRecording ? '<span class="co-pastille-projet">Recording</span>' : ''}
         <span class="rappel-chiffres">${escapeHtml(morceaux.join(' · '))}</span>
-        ${devis.fige ? '' : '<button type="button" class="co-btn tint sm" id="reprendreProjetBtn">Reprendre du projet</button>'}
       </div>
       ${ecarts.length ? `<div class="rappel-ecart">⚠ ${ecarts.map(escapeHtml).join(' · ')}</div>` : ''}
     </div>`;
@@ -876,8 +878,6 @@ function rafraichirRappelProjet(){
 }
 
 function brancherRappelProjet(){
-  const btn = document.getElementById('reprendreProjetBtn');
-  if(btn) btn.addEventListener('click', reprendreChiffresDuProjet);
   document.querySelectorAll('[data-creer-projet]').forEach(b=>
     b.addEventListener('click', ()=> creerProjetDepuisDevis(b.dataset.creerProjet)));
 }
@@ -924,46 +924,6 @@ async function creerProjetDepuisDevis(type){
   devis.tourneeId = projet.id;
   marquerModifie();
   renderEditeur();
-}
-
-/* Reporter les chiffres du projet sur les lignes de cachet.
- *
- * On ne touche qu'aux lignes de rémunération au régime « musicien·ne » : ce
- * sont elles qui portent « journées × personnes × cachet ». Les lignes de
- * production, d'auteur ou de prestataire facturé suivent une autre logique et
- * ne doivent pas être écrasées.
- *
- * On annonce ce qui va changer avant de le faire : ces valeurs ont pu être
- * saisies exprès. */
-function reprendreChiffresDuProjet(){
-  const projet = projetRattache();
-  if(!projet) return;
-  const c = chiffresDuProjet(projet);
-  const lignes = lignesCachetDevis(devis);
-  if(!lignes.length){
-    alert('Aucune ligne de cachet à remplir.\n\nAjoute d\'abord une ligne dans une section de rémunération, au régime « Musicien·ne (cachet) ».');
-    return;
-  }
-  const journees = c.datesValidees || c.dates;
-  const quoi = [
-    journees ? `${journees} journée${journees > 1 ? 's' : ''}` : '',
-    c.effectif ? `${c.effectif} personne${c.effectif > 1 ? 's' : ''}` : '',
-    c.cachet != null ? `${fmtEurosDevis(c.cachet)} par cachet` : '',
-  ].filter(Boolean);
-  if(!quoi.length){
-    alert("Ce projet n'a encore ni dates validées, ni nomenclature, ni cachet défini : il n'y a rien à reprendre.");
-    return;
-  }
-  if(!confirm(`Reporter ${quoi.join(', ')} sur ${lignes.length} ligne${lignes.length > 1 ? 's' : ''} de cachet ?\n\nCe qui y est saisi sera remplacé.`)) return;
-
-  lignes.forEach(l=>{
-    if(journees) l.journees = journees;
-    if(c.effectif) l.qte = c.effectif;
-    if(c.cachet != null) l.prix = c.cachet;
-  });
-  marquerModifie();
-  renderEditeur();
-  renderTotaux();
 }
 
 function brancherSections(){
