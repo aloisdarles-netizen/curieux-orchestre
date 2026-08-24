@@ -39,7 +39,14 @@ function genererDevisPdf(devis, client, reglages){
   // Un budget prévisionnel ne doit jamais pouvoir passer pour un devis : il le
   // dit dans son sous-titre, dans son pied de page, et par un bandeau en tête.
   const estBudget = (typeof typeDocDe === 'function' ? typeDocDe(devis) : devis.typeDoc) === 'budget';
-  const composeur = creerComposeurPdf(doc, { echelleMin: 1, echelleMax: 1, mentionDebordement: false }).entete({
+  // Un budget prévisionnel est un document de travail interne : il n'engage
+  // personne et ses montants bougeront encore. Le filigrane le dit à qui le
+  // reçoit par erreur ou le retrouve imprimé six mois plus tard. Le devis
+  // client, lui, n'en porte évidemment pas.
+  const composeur = creerComposeurPdf(doc, {
+    echelleMin: 1, echelleMax: 1, mentionDebordement: false,
+    filigrane: estBudget ? 'Provisoire' : '',
+  }).entete({
     titre: devis.titre || (estBudget ? 'Budget prévisionnel' : 'Devis'),
     sousTitre: [estBudget ? 'BUDGET PRÉVISIONNEL — DOCUMENT INTERNE' : devis.numero,
       devis.variante ? 'Variante ' + devis.variante : ''].filter(Boolean).join(' · '),

@@ -71,6 +71,9 @@ function creerComposeurPdf(doc, options){
     // page, ce qui est aussi ce qui la rend lisible de loin, sur un quai.
     echelleMax: 1,
     hauteurEntete: 25,
+    // Texte du filigrane, en gris très clair sous le contenu de chaque page.
+    // Vide par défaut : seul un document qui n'engage à rien en porte un.
+    filigrane: '',
   }, options || {});
 
   const LARGEUR = doc.internal.pageSize.getWidth();
@@ -649,6 +652,30 @@ function creerComposeurPdf(doc, options){
     return sections.reduce((h, s)=> h + s(k, false, 0), 0);
   }
 
+  /* Le filigrane, posé AVANT le contenu de chaque page.
+   *
+   * On aurait pu le peindre à la fin, en transparence (jsPDF sait le faire via
+   * GState). Le dessiner dessous est plus sûr : aucune dépendance à une
+   * fonctionnalité optionnelle du moteur, et surtout aucun risque qu'un
+   * lecteur PDF qui gère mal la transparence rende le texte illisible sous un
+   * aplat gris. Un gris très clair suffit : il se voit, il ne gêne pas.
+   */
+  function poserFiligrane(){
+    const texte = o.filigrane;
+    if(!texte) return;
+    doc.saveGraphicsState && doc.saveGraphicsState();
+    doc.setFont('Host', 'bold');
+    doc.setFontSize(74);
+    doc.setTextColor(233, 233, 235);
+    doc.text(String(texte).toUpperCase(), LARGEUR / 2, HAUTEUR / 2, {
+      align: 'center', baseline: 'middle', angle: 38,
+    });
+    doc.restoreGraphicsState && doc.restoreGraphicsState();
+    // Le composeur reprend la main sur les réglages qu'il croit connaître.
+    doc.setTextColor(0, 0, 0);
+    doc.setCharSpace(0);
+  }
+
   api.rendre = function(nomFichier){
     const dispo = HAUTEUR - o.hauteurEntete - 4 - 12;   // 12 : pied de page
     let k = o.echelleMax;
@@ -665,12 +692,14 @@ function creerComposeurPdf(doc, options){
     }
 
     const deborde = hauteurTotale(k) > dispo;
+    poserFiligrane();
     dessinerEntete(true);
     let y = o.hauteurEntete + 4;
     sections.forEach((s)=>{
       const h = s(k, false, 0);
       if(y + h > HAUTEUR - 12 && y > o.hauteurEntete + 6){
         doc.addPage();
+        poserFiligrane();
         y = o.marge;
       }
       s(k, true, y);

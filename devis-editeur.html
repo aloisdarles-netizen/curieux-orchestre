@@ -50,7 +50,6 @@
     background:var(--bg); border:1px solid var(--border); font-size:12.5px;
   }
   .rappel-projet.vide{ color:var(--muted); }
-  .rappel-creer{ display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; margin-left:6px; }
   .rappel-tete{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .rappel-tete a{ font-weight:800; color:var(--accent); text-decoration:none; }
   .rappel-tete a:hover{ text-decoration:underline; }
@@ -59,6 +58,16 @@
     margin-top:7px; padding-top:7px; border-top:1px solid var(--border);
     color:var(--maybe); font-weight:700; font-size:12px;
   }
+  /* De l'argent qui devrait porter des charges et n'en porte pas : la seule
+     erreur de chiffrage que la feuille ne peut pas rattraper toute seule. */
+  .alerte-routage{
+    margin-top:10px; padding:10px 12px; border-radius:6px; font-size:12.5px; line-height:1.55;
+    background:var(--danger-tint); color:var(--danger-dark);
+    border-left:3px solid var(--danger);
+  }
+  :root[data-theme="dark"] .alerte-routage{ color:var(--text); }
+  .alerte-routage ul{ margin:6px 0; padding-left:18px; }
+  .alerte-routage li{ margin:2px 0; }
   @media (max-width:760px){ .entete-grid{grid-template-columns:1fr;} }
 
   .fige-note{
@@ -263,8 +272,12 @@
   .poste-row b{flex:1;}
   @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
 </style>
+<!-- L'habillage propre à l'espace Devis : une feuille de calcul se lit à
+     l'encre sur du papier, pas dans les aplats de la charte. Chargée après le
+     style de la page pour l'emporter à spécificité égale. -->
+<link rel="stylesheet" href="assets/espace-budget.css">
 </head>
-<body>
+<body data-espace="budget">
 <div class="wrap" id="page">
   <div class="co-page-head co-fade">
     <div>
@@ -507,11 +520,6 @@ function rappelProjetHtml(){
     return `<div class="rappel-projet vide">
       Aucun projet rattaché. En choisir un rappelle ici le nombre de dates, l'effectif attendu
       et le cachet standard, et signale quand le chiffrage s'en écarte.
-      ${devis.fige ? '' : `<span class="rappel-creer">
-        Rien à rattacher&nbsp;?
-        <button type="button" class="co-btn ghost sm" data-creer-projet="tournee">Créer la tournée</button>
-        <button type="button" class="co-btn ghost sm" data-creer-projet="recording">Créer le recording</button>
-      </span>`}
     </div>`;
   }
   const c = chiffresDuProjet(projet);
@@ -611,6 +619,8 @@ function renderSection(sec, si){
           <input type="text" value="${escapeAttr(grp.titre || '')}" placeholder="Titre du groupe (Préparation, REC, Captation…)" data-grp-titre="${si}:${gi}" ${fige}>
           <button type="button" class="l-btn grp-detacher" data-grp-detacher="${si}:${gi}" ${fige}
             title="Détacher ce groupe : il devient une section à part entière, avec son propre sous-total, son taux de TVA et sa case « hors frais généraux ».">⤴ En faire une section</button>
+          <button type="button" class="l-btn grp-detacher" data-grp-suppr="${si}:${gi}" ${fige}
+            title="Supprimer ce groupe et toutes ses lignes.">✕</button>
         </div>
       </td></tr>` : ''}
       ${(grp.lignes || []).map((l, li)=> renderLigne(sec, si, gi, l, li)).join('')}
@@ -641,6 +651,8 @@ function renderSection(sec, si){
       <span class="sec-outils">
         <button type="button" class="l-btn" data-sec-monter="${si}" title="Monter la section" ${fige}>▲</button>
         <button type="button" class="l-btn" data-sec-descendre="${si}" title="Descendre la section" ${fige}>▼</button>
+        ${si > 0 ? `<button type="button" class="l-btn" data-sec-rattacher="${si}" ${fige}
+          title="Rattacher cette section à celle du dessus : elle y devient un groupe. C'est l'inverse de « En faire une section ». Pour la rattacher ailleurs, déplace-la d'abord avec ▲ ▼.">⤵</button>` : ''}
         <button type="button" class="l-btn" data-sec-suppr="${si}" title="Supprimer la section" ${fige}>✕</button>
       </span>
     </div>
@@ -716,6 +728,36 @@ function renderRendus(){
   }));
 }
 
+/* L'alerte de routage.
+ *
+ * Le seul endroit où de l'argent peut cesser d'engendrer ses charges sans que
+ * rien ne le dise : une ligne au régime « musicien », « auteur » ou
+ * « production » qui se retrouve dans une section non cochée « rémunération ».
+ * Le sélecteur de régime n'y est même pas affiché — la ligne garde son régime
+ * en mémoire, invisible, et l'assiette perd son montant en silence.
+ *
+ * On ne corrige pas : recocher la section ou remettre la ligne au régime
+ * « sans charges » sont deux décisions différentes. On les nomme, avec les
+ * montants, pour qu'elles se prennent en connaissance de cause.
+ */
+function alerteRoutageHtml(){
+  const orphelines = lignesSansChargesAttendues(devis);
+  if(!orphelines.length) return '';
+  const somme = orphelines.reduce((t, o)=> t + o.total, 0);
+  const detail = orphelines.map(o=>
+    `<li>« ${escapeHtml(o.ligne.intitule || 'ligne sans intitulé')} » — ${fmtEurosDevis(o.total)} au régime « ${escapeHtml((DEVIS_REGIMES.find(r=> r[0] === o.ligne.regime) || [,''])[1])} », dans la section « ${escapeHtml(o.section.titre || 'sans titre')} »</li>`
+  ).join('');
+  return `<div class="alerte-routage">
+    <b>${fmtEurosDevis(somme)} n'engendre aucune charge alors que le régime en prévoit.</b>
+    ${orphelines.length > 1 ? 'Ces lignes portent' : 'Cette ligne porte'} un régime chargeable,
+    mais ${orphelines.length > 1 ? 'leurs sections ne sont pas cochées' : 'sa section n\'est pas cochée'} « rémunération » :
+    l'assiette les ignore.
+    <ul>${detail}</ul>
+    Deux corrections possibles, selon l'intention : cocher « rémunération » sur la section,
+    ou remettre ${orphelines.length > 1 ? 'ces lignes' : 'cette ligne'} au régime « Sans charges ».
+  </div>`;
+}
+
 function renderCharges(){
   const fige = devis.fige ? 'disabled' : '';
   const calc = calculerDevis(devis);
@@ -730,7 +772,8 @@ function renderCharges(){
       </div>`).join('')}
     <div class="calc-ligne"><span class="lib" style="font-weight:800;">Sous-total charges</span>
       <span class="mont" id="chargesTotal">${fmtEurosDevis(calc.chargesTotal)}</span></div>
-    <p style="font-size:11.5px; color:var(--muted); margin:8px 0 0;">L'assiette suit les régimes cochés ligne à ligne dans les sections « rémunération ». Un prestataire facturé ou une ligne sans charges n'y entre jamais — plus de formule à surveiller.</p>`;
+    <p style="font-size:11.5px; color:var(--muted); margin:8px 0 0;">L'assiette suit les régimes cochés ligne à ligne dans les sections « rémunération ». Un prestataire facturé ou une ligne sans charges n'y entre jamais — plus de formule à surveiller.</p>
+    ${alerteRoutageHtml()}`;
   document.querySelectorAll('[data-taux]').forEach(el=> el.addEventListener('input', ()=>{
     devis.taux[el.dataset.taux] = devisNombre(el.value, 0);
     marquerModifie(); majTotaux();
@@ -877,54 +920,9 @@ function rafraichirRappelProjet(){
   brancherRappelProjet();
 }
 
-function brancherRappelProjet(){
-  document.querySelectorAll('[data-creer-projet]').forEach(b=>
-    b.addEventListener('click', ()=> creerProjetDepuisDevis(b.dataset.creerProjet)));
-}
-
-/* Monter le projet à partir du chiffrage.
- *
- * Le cas de l'affaire qu'on gagne : le devis existe, la tournée n'existe pas
- * encore. Plutôt que de tout ressaisir, on crée le projet avec ce que le devis
- * sait déjà — son nom, l'effectif et le cachet des lignes de cachet — et on le
- * rattache. Les dates, elles, ne sont pas dans le devis : elles restent à poser
- * dans le projet, c'est le premier travail de production.
- */
-async function creerProjetDepuisDevis(type){
-  const nom = (devis.titre || '').trim();
-  if(!nom){
-    alert('Donne d\'abord un titre au devis : il servira de nom au projet.');
-    return;
-  }
-  const lignes = lignesCachetDevis(devis);
-  const effectifs = [...new Set(lignes.map(l=> devisNombre(l.qte, 0)))].filter(n=> n > 0);
-  const prix = [...new Set(lignes.map(l=> devisNombre(l.prix, 0)))].filter(n=> n > 0);
-  const effectif = effectifs.length === 1 ? effectifs[0] : 0;
-  const cachet = prix.length === 1 ? prix[0] : null;
-
-  const quoi = type === 'recording' ? 'le recording' : 'la tournée';
-  const repris = [
-    effectif ? `${effectif} personne${effectif > 1 ? 's' : ''} à la nomenclature` : '',
-    cachet != null ? `${fmtEurosDevis(cachet)} de cachet standard` : '',
-  ].filter(Boolean);
-  if(!confirm(`Créer ${quoi} « ${nom} » et y rattacher ce devis ?\n\n`
-    + (repris.length ? `Repris du devis : ${repris.join(', ')}.\n` : '')
-    + `Les dates restent à poser dans le projet.`)) return;
-
-  const projet = {
-    id: genId('tour'), nom, type, recording: {},
-    dates: [], equipesRoad: [], techniqueTournee: {},
-    nomenclature: effectif ? [{ pupitre: (lignes[0] && lignes[0].intitule) || 'Orchestre', nombre: effectif }] : [],
-    cachetStatut: cachet != null ? 'defini' : 'non_defini',
-    cachetMontant: cachet,
-  };
-  const { error } = await CurieuxDB.upsertOne('tournees', projet);
-  if(error){ alert("Le projet n'a pas pu être créé :\n\n" + error.message); return; }
-  tourneesCache = [...tourneesCache, projet];
-  devis.tourneeId = projet.id;
-  marquerModifie();
-  renderEditeur();
-}
+// Le rappel n'a plus aucune commande : il informe, c'est tout. La fonction
+// reste comme point d'accroche si un contrôle y revient un jour.
+function brancherRappelProjet(){}
 
 function brancherSections(){
   const ed = document.getElementById('editeur');
@@ -1014,6 +1012,77 @@ function brancherSections(){
       // ferait apparaître deux fois, l'un sous l'autre.
       groupes: [{ ...grp, titre: '' }],
     });
+    marquerModifie(); renderEditeur(); majTotaux();
+  }));
+
+  // Supprimer un groupe. Le dernier groupe d'une section ne se supprime pas :
+  // c'est la section elle-même qu'on veut alors retirer, et son bouton est là.
+  ed.querySelectorAll('[data-grp-suppr]').forEach(el=> el.addEventListener('click', ()=>{
+    const [si, gi] = el.dataset.grpSuppr.split(':').map(Number);
+    const sec = devis.sections[si];
+    const grp = sec.groupes[gi];
+    if(sec.groupes.length === 1){
+      alert("C'est le seul groupe de la section : supprime la section entière (✕ dans son en-tête), ou vide-la ligne à ligne.");
+      return;
+    }
+    const nb = (grp.lignes || []).length;
+    const nom = grp.titre ? `« ${grp.titre} »` : 'ce groupe sans titre';
+    if(nb && !confirm(`Supprimer ${nom} et ses ${nb} ligne${nb > 1 ? 's' : ''} ?`)) return;
+    sec.groupes.splice(gi, 1);
+    marquerModifie(); renderEditeur(); majTotaux();
+  }));
+
+  /* Rattacher une section à celle du dessus : elle y devient un groupe.
+   *
+   * C'est l'exact symétrique de « En faire une section », qui insère la
+   * nouvelle section juste après. Pas de sélecteur de destination : ▲ ▼ mettent
+   * la section au bon endroit, puis ⤵ la rattache. Deux gestes simples plutôt
+   * qu'une liste déroulante de plus.
+   *
+   * Le point délicat est ailleurs : la section absorbée perd SES réglages pour
+   * ceux de l'hôte — « rémunération », TVA, « hors frais généraux ». Ce sont
+   * eux qui décident des charges patronales et de l'assiette des frais
+   * généraux, donc le total peut bouger. On énumère ce qui change avant de le
+   * faire ; on ne laisse pas la surprise pour plus tard.
+   */
+  ed.querySelectorAll('[data-sec-rattacher]').forEach(el=> el.addEventListener('click', ()=>{
+    const si = Number(el.dataset.secRattacher);
+    if(si <= 0) return;
+    const sec = devis.sections[si];
+    const hote = devis.sections[si - 1];
+
+    const changements = [];
+    if(!!sec.remuneration !== !!hote.remuneration){
+      changements.push(hote.remuneration
+        ? `ses lignes se mettront à générer des charges patronales (la section d'accueil est cochée « rémunération »)`
+        : `ses lignes cesseront de générer des charges patronales (la section d'accueil n'est pas cochée « rémunération »)`);
+    }
+    if(String(sec.tva ?? '') !== String(hote.tva ?? '')){
+      const dire = (v)=> v == null || v === '' ? 'le taux par défaut' : `${String(v).replace('.', ',')} %`;
+      changements.push(`sa TVA passera de ${dire(sec.tva)} à ${dire(hote.tva)}`);
+    }
+    if(!!sec.horsFG !== !!hote.horsFG){
+      changements.push(hote.horsFG
+        ? `ses lignes sortiront de l'assiette des frais généraux`
+        : `ses lignes entreront dans l'assiette des frais généraux`);
+    }
+
+    const message = `Rattacher « ${sec.titre || 'cette section'} » à « ${hote.titre || 'la section du dessus'} » ?\n\n`
+      + `Elle y deviendra un groupe.`
+      + (changements.length
+          ? `\n\nElle prendra les réglages de la section d'accueil :\n— ${changements.join('\n— ')}\n\nLe total du devis peut donc changer.`
+          : `\n\nLes deux sections ont les mêmes réglages : le total ne bougera pas.`);
+    if(!confirm(message)) return;
+
+    // Les groupes de la section absorbée deviennent des groupes de l'hôte. Le
+    // titre de la section descend sur son premier groupe s'il n'en a pas :
+    // sans cela, l'intitulé disparaîtrait purement et simplement.
+    const groupes = (sec.groupes || []).map((g, i)=> ({
+      ...g,
+      titre: g.titre || (i === 0 ? (sec.titre || '') : ''),
+    }));
+    hote.groupes = [...(hote.groupes || []), ...groupes];
+    devis.sections.splice(si, 1);
     marquerModifie(); renderEditeur(); majTotaux();
   }));
 

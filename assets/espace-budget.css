@@ -1,0 +1,344 @@
+/* ============================================================================
+ * espace-budget.css — l'habillage propre à l'espace Devis.
+ *
+ * POURQUOI UNE FEUILLE À PART
+ *
+ * La charte Les Alfredines est faite pour être vue : aplats chauds, prune
+ * franc, contours blancs, étiquettes de travers. Elle sert bien tout le site.
+ * Elle dessert une seule chose — une feuille de chiffrage.
+ *
+ * Sur quarante lignes de nombres, ses partis pris se retournent :
+ *   - les filets sont roses (--border: #f0dbe6) : chaque règle du tableau tire
+ *     l'œil au lieu de le guider ;
+ *   - le prune porte tout — l'en-tête, les totaux, le survol — donc plus rien
+ *     ne ressort, et surtout pas le chiffre qu'on cherche ;
+ *   - cinq pastilles de régime colorées font un confetti dès la dixième ligne ;
+ *   - le fond crème réduit le contraste là où il faudrait le maximum.
+ *
+ * On sort donc de la charte POUR CETTE SEULE ZONE, et pas par goût : un
+ * tableur se lit à l'encre sur du papier, et la couleur y sert à interrompre
+ * (une option, une ligne hors devis, un écart), jamais à décorer. Le bandeau
+ * du site garde son prune : on reste chez Curieux, c'est la feuille qui
+ * devient du papier.
+ *
+ * COMMENT
+ *
+ * Tout est porté par body[data-espace="budget"]. Rien ne fuit hors des pages
+ * devis, et revenir en arrière tient au retrait de l'attribut. La feuille est
+ * chargée APRÈS le <style> de chaque page, pour l'emporter à spécificité
+ * égale.
+ *
+ * NOTE SUR LES CHIFFRES — vérifié, pas supposé : Host Grotesk n'expose pas la
+ * fonction OpenType 'tnum', donc font-variant-numeric:tabular-nums n'a aucun
+ * effet sur elle. Ce n'est pas un problème : ses dix chiffres font tous 650
+ * unités, la police est nativement tabulaire. On garde la déclaration pour les
+ * polices de secours, qui, elles, en ont besoin.
+ * ========================================================================== */
+
+body[data-espace="budget"]{
+  /* --- L'encre et le papier -------------------------------------------
+     Une grille neutre, froide, à fort contraste. Aucun de ces tons n'est
+     dans la charte : c'est délibéré, ils ne doivent rien raconter. */
+  --bu-papier:      #ffffff;   /* la feuille */
+  --bu-bureau:      #f2f4f6;   /* le plan de travail, sous la feuille */
+  --bu-zebre:       #fafbfc;   /* une ligne sur deux, à peine */
+  --bu-filet:       #e2e6ea;   /* les règles fines */
+  --bu-filet-fort:  #c3cad2;   /* les séparations qui comptent */
+  --bu-encre:       #14181d;   /* le texte et les nombres */
+  --bu-encre-2:     #5a636e;   /* le contexte : unités, noms, en-têtes */
+  --bu-encre-3:     #8c949e;   /* le presque effacé */
+
+  /* --- Ce qui interrompt ------------------------------------------------
+     Quatre couleurs, pas une de plus, et chacune veut dire quelque chose. */
+  --bu-actif:       #1d4e89;   /* interaction : focus, sélection, liens */
+  --bu-actif-pale:  #e8eff8;
+  --bu-option:      #9a5300;   /* chiffré mais hors total */
+  --bu-option-pale: #fdf3e6;
+  --bu-alerte:      #a8201a;   /* un écart, une erreur */
+  --bu-alerte-pale: #fbeceb;
+  --bu-discuter:    #fff8d9;   /* le surlignage jaune du tableur d'origine */
+
+  background: var(--bu-bureau);
+  color: var(--bu-encre);
+}
+
+:root[data-theme="dark"] body[data-espace="budget"],
+body[data-espace="budget"]:where(:root[data-theme="dark"] *){
+  --bu-papier:      #191d22;
+  --bu-bureau:      #101317;
+  --bu-zebre:       #1d2228;
+  --bu-filet:       #2b3138;
+  --bu-filet-fort:  #414a54;
+  --bu-encre:       #e9ecef;
+  --bu-encre-2:     #a2abb5;
+  --bu-encre-3:     #79828c;
+  --bu-actif:       #7fb0e8;
+  --bu-actif-pale:  #1c2a3a;
+  --bu-option:      #e0a35c;
+  --bu-option-pale: #33261a;
+  --bu-alerte:      #f0928c;
+  --bu-alerte-pale: #351d1c;
+  --bu-discuter:    #33301c;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) body[data-espace="budget"]{
+    --bu-papier:      #191d22;
+    --bu-bureau:      #101317;
+    --bu-zebre:       #1d2228;
+    --bu-filet:       #2b3138;
+    --bu-filet-fort:  #414a54;
+    --bu-encre:       #e9ecef;
+    --bu-encre-2:     #a2abb5;
+    --bu-encre-3:     #79828c;
+    --bu-actif:       #7fb0e8;
+    --bu-actif-pale:  #1c2a3a;
+    --bu-option:      #e0a35c;
+    --bu-option-pale: #33261a;
+    --bu-alerte:      #f0928c;
+    --bu-alerte-pale: #351d1c;
+    --bu-discuter:    #33301c;
+  }
+}
+
+/* --- Les cartes deviennent des feuilles ---------------------------------
+   Plus de coins arrondis à 14 px ni d'ombre portée : une feuille de calcul
+   n'a pas besoin de flotter, elle a besoin d'être posée à plat et de tenir
+   le plus de lignes possible à l'écran. */
+body[data-espace="budget"] .carte,
+body[data-espace="budget"] .sec-carte{
+  background: var(--bu-papier);
+  border: 1px solid var(--bu-filet);
+  border-radius: 4px;
+  box-shadow: none;
+}
+body[data-espace="budget"] .carte{ padding: 14px 16px; margin-bottom: 12px; }
+body[data-espace="budget"] .carte h2{
+  color: var(--bu-encre-2); letter-spacing: .07em; margin-bottom: 10px;
+}
+
+body[data-espace="budget"] .field label{ color: var(--bu-encre-2); }
+body[data-espace="budget"] input,
+body[data-espace="budget"] textarea,
+body[data-espace="budget"] select{
+  background: var(--bu-papier); color: var(--bu-encre);
+  border: 1px solid var(--bu-filet); border-radius: 3px;
+}
+body[data-espace="budget"] input:focus,
+body[data-espace="budget"] textarea:focus,
+body[data-espace="budget"] select:focus{
+  outline: none; border-color: var(--bu-actif);
+  box-shadow: 0 0 0 2px var(--bu-actif-pale);
+}
+
+/* --- La tête de section ------------------------------------------------
+   Une barre d'encre plutôt qu'une pastille prune : elle indexe, elle ne
+   décore pas. */
+body[data-espace="budget"] .sec-head{
+  background: var(--bu-papier);
+  border-bottom: 2px solid var(--bu-filet-fort);
+  padding: 10px 14px;
+}
+body[data-espace="budget"] .sec-head .sec-num{
+  background: transparent; color: var(--bu-encre-3);
+  border: 1px solid var(--bu-filet-fort); border-radius: 3px;
+  width: 20px; height: 20px; font-size: 11px;
+}
+body[data-espace="budget"] .sec-head .sec-titre{
+  color: var(--bu-encre); font-size: 14px;
+}
+body[data-espace="budget"] .sec-head .sec-titre:focus{
+  background: var(--bu-papier); outline: 1px solid var(--bu-actif);
+}
+
+/* --- La grille ----------------------------------------------------------
+   Des filets horizontaux, un seul filet vertical devant le bloc de nombres.
+   C'est la mise en page d'un grand livre : on suit une ligne, puis on
+   descend une colonne. Les traits verticaux partout hachaient les deux. */
+body[data-espace="budget"] table.feuille{ font-variant-numeric: tabular-nums; }
+body[data-espace="budget"] table.feuille thead th{
+  background: var(--bu-papier); color: var(--bu-encre-2);
+  border-bottom: 1px solid var(--bu-filet-fort);
+  font-size: 9.5px; letter-spacing: .07em; padding: 8px 8px;
+}
+
+/* L'en-tête de colonnes suit le défilement. Il ne le pouvait pas tant que la
+   table vivait dans un conteneur à défilement horizontal : un sticky vertical
+   n'y a pas de prise. Au-dessus de 1100 px la table tient sans défiler, on
+   rend donc la boîte transparente au défilement et l'en-tête se colle sous le
+   bandeau. En dessous, on retrouve le défilement horizontal et l'en-tête fixe
+   redevient impossible — c'est le prix, et il est bas : sur un écran étroit,
+   les sections tiennent de toute façon dans la hauteur. */
+@media (min-width: 1100px){
+  body[data-espace="budget"] .lignes-scroll{ overflow-x: visible; }
+  body[data-espace="budget"] table.feuille thead th{
+    position: sticky; top: 56px; z-index: 3;
+  }
+}
+
+/* Bandeau de groupe : un filet d'encre et des capitales, pas un aplat bleu. */
+body[data-espace="budget"] tr.grp-band td{
+  background: var(--bu-bureau);
+  border-top: 1px solid var(--bu-filet-fort);
+  border-bottom: 1px solid var(--bu-filet);
+}
+body[data-espace="budget"] tr.grp-band input{ color: var(--bu-encre-2); }
+body[data-espace="budget"] .grp-detacher{ color: var(--bu-encre-2); }
+
+/* --- Les lignes ---------------------------------------------------------
+   Plus serrées : chaque ligne gagnée est une ligne de plus sous les yeux, et
+   un chiffrage se juge par masses, pas ligne à ligne. */
+body[data-espace="budget"] tr.lg > td{
+  background: var(--bu-papier);
+  border-bottom: 1px solid var(--bu-filet);
+}
+body[data-espace="budget"] tbody tr.lg:nth-child(even) > td{ background: var(--bu-zebre); }
+body[data-espace="budget"] tr.lg:hover > td{ background: var(--bu-actif-pale); }
+body[data-espace="budget"] tr.lg > td + td{ border-left: none; }
+/* Le seul filet vertical : celui qui sépare le texte des nombres. */
+body[data-espace="budget"] table.feuille th.c-journees,
+body[data-espace="budget"] table.feuille td.c-journees{ border-left: 1px solid var(--bu-filet); }
+
+/* Dans la grille, les champs restent invisibles au repos : on lit des valeurs,
+   pas une forêt de boîtes. La règle générale ci-dessus leur redonnait un
+   contour — il faut le reprendre explicitement, faute de quoi chaque cellule
+   redessine son cadre et le tableau se met à ressembler à un formulaire. */
+body[data-espace="budget"] table.feuille input,
+body[data-espace="budget"] table.feuille select{
+  padding: 5px 8px; font-size: 12.5px; color: var(--bu-encre);
+  border: 1px solid transparent; background: transparent;
+  border-radius: 2px; box-shadow: none;
+}
+body[data-espace="budget"] tr.lg:hover input,
+body[data-espace="budget"] tr.lg:hover select{ border-color: var(--bu-filet); }
+body[data-espace="budget"] table.feuille input:focus,
+body[data-espace="budget"] table.feuille select:focus{
+  border-color: var(--bu-actif); background: var(--bu-papier);
+  box-shadow: inset 0 0 0 1px var(--bu-actif);
+}
+
+body[data-espace="budget"] td.c-intitule input{
+  font-weight: 600; font-size: 13px; color: var(--bu-encre);
+}
+body[data-espace="budget"] td.c-noms input{ color: var(--bu-encre-2); }
+body[data-espace="budget"] td.c-unite input{ color: var(--bu-encre-2); }
+
+/* Le total : en encre, pas en couleur. C'est le POIDS qui le fait ressortir,
+   et il ressort d'autant mieux que rien d'autre n'est coloré autour. */
+body[data-espace="budget"] td.c-total{
+  color: var(--bu-encre); font-weight: 700; font-size: 13.5px;
+  padding: 5px 10px !important;
+}
+body[data-espace="budget"] tr.lg.hors td.c-total,
+body[data-espace="budget"] tr.lg.optionnelle td.c-total{ color: var(--bu-encre-3); }
+body[data-espace="budget"] td.c-total .opt{ color: var(--bu-option); }
+
+/* --- Régimes et états ---------------------------------------------------
+   Les cinq pastilles colorées deviennent un même jeton gris, distingué par
+   un liseré et non par un aplat. On lit toujours le régime d'un coup d'œil,
+   mais quarante lignes ne font plus un confetti. La couleur est gardée pour
+   ce qui doit vraiment interrompre : une option, une ligne hors devis. */
+body[data-espace="budget"] select.chip{
+  border-radius: 3px !important; font-size: 10px !important;
+  background: var(--bu-bureau) !important; color: var(--bu-encre-2) !important;
+  border: 1px solid var(--bu-filet) !important;
+  border-left-width: 3px !important;
+}
+body[data-espace="budget"] select.chip.r-production{ border-left-color: #4a72a8 !important; }
+body[data-espace="budget"] select.chip.r-musicien  { border-left-color: #9c4f7a !important; }
+body[data-espace="budget"] select.chip.r-auteur    { border-left-color: #a8703a !important; }
+body[data-espace="budget"] select.chip.r-facture   { border-left-color: #6b7280 !important; }
+body[data-espace="budget"] select.chip.r-aucun     { border-left-color: var(--bu-filet) !important; }
+
+body[data-espace="budget"] select.chip.e-incluse{
+  background: transparent !important; border-color: transparent !important;
+  color: var(--bu-encre-3) !important;
+}
+body[data-espace="budget"] select.chip.e-optionnelle{
+  background: var(--bu-option-pale) !important; color: var(--bu-option) !important;
+  border-color: var(--bu-option) !important; border-left-width: 1px !important;
+}
+body[data-espace="budget"] select.chip.e-hors_devis{
+  background: var(--bu-bureau) !important; color: var(--bu-encre-3) !important;
+  border-color: var(--bu-filet) !important; border-left-width: 1px !important;
+}
+
+body[data-espace="budget"] tr.lg.discuter > td{ background: var(--bu-discuter); }
+body[data-espace="budget"] tr.lg.discuter:hover > td{ background: var(--bu-discuter); filter: brightness(.97); }
+body[data-espace="budget"] .l-btn{ color: var(--bu-encre-3); }
+body[data-espace="budget"] .l-btn:hover{ background: var(--bu-filet); color: var(--bu-encre); }
+body[data-espace="budget"] .l-btn.actif{ color: var(--bu-option); }
+
+/* --- Les encadrés d'explication ----------------------------------------
+   Ils gardaient les roses de la charte : ici, un filet à gauche suffit. */
+body[data-espace="budget"] .budget-note,
+body[data-espace="budget"] .devis-note,
+body[data-espace="budget"] .fige-note{
+  background: var(--bu-papier); color: var(--bu-encre-2);
+  border: 1px solid var(--bu-filet); border-left: 3px solid var(--bu-encre-3);
+  border-radius: 3px; font-weight: 400;
+}
+body[data-espace="budget"] .budget-note b,
+body[data-espace="budget"] .devis-note b,
+body[data-espace="budget"] .fige-note{ color: var(--bu-encre); }
+body[data-espace="budget"] .fige-note{ border-left-color: var(--bu-alerte); }
+body[data-espace="budget"] .devis-note{ border-left-color: var(--bu-actif); }
+
+body[data-espace="budget"] .rappel-projet{
+  background: var(--bu-papier); border: 1px solid var(--bu-filet); border-radius: 3px;
+}
+body[data-espace="budget"] .rappel-tete a{ color: var(--bu-actif); }
+body[data-espace="budget"] .rappel-chiffres{ color: var(--bu-encre-2); }
+body[data-espace="budget"] .rappel-ecart{
+  color: var(--bu-alerte); border-top-color: var(--bu-filet);
+}
+
+/* --- Le pied de totaux -------------------------------------------------
+   Il était déjà collé au bas de l'écran, mais en aplat prune : le nombre que
+   l'on regarde en permanence, posé sur la couleur la plus forte de la charte.
+   Il devient une réglure de bas de page — encre sur papier, un filet épais
+   au-dessus, et c'est le CORPS du chiffre qui le fait ressortir. */
+body[data-espace="budget"] .totaux-barre{
+  background: var(--bu-papier);
+  color: var(--bu-encre);
+  border-top: 2px solid var(--bu-filet-fort);
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 -6px 18px rgba(20, 24, 29, .09);
+  padding: 10px 18px;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-theme="dark"] body[data-espace="budget"] .totaux-barre{ color: var(--bu-encre); }
+body[data-espace="budget"] .totaux-barre b{
+  font-family: var(--font-body); font-weight: 700; font-size: 20px; color: var(--bu-encre);
+}
+body[data-espace="budget"] .totaux-barre .tt{
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--bu-encre-3); opacity: 1;
+}
+body[data-espace="budget"] .totaux-barre .etat-sauvegarde{ color: var(--bu-encre-3); opacity: 1; }
+
+body[data-espace="budget"] .calc-ligne .lib{ color: var(--bu-encre); }
+body[data-espace="budget"] .calc-ligne .assiette{ color: var(--bu-encre-3); }
+body[data-espace="budget"] .calc-ligne .mont{
+  color: var(--bu-encre); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
+/* --- La liste des devis -------------------------------------------------
+   Mêmes principes : des lignes, pas des cartes molles. */
+body[data-espace="budget"] .projet-card{
+  background: var(--bu-papier); border: 1px solid var(--bu-filet);
+  border-radius: 4px; box-shadow: none;
+}
+body[data-espace="budget"] .projet-titre{ color: var(--bu-encre); }
+body[data-espace="budget"] .projet-client{ color: var(--bu-encre-2); }
+body[data-espace="budget"] .projet-tournee{
+  background: var(--bu-bureau); color: var(--bu-actif);
+  border: 1px solid var(--bu-filet); border-radius: 3px;
+}
+body[data-espace="budget"] .projet-tournee:hover{
+  background: var(--bu-actif); color: var(--bu-papier); border-color: var(--bu-actif);
+}
+body[data-espace="budget"] .variante-row{ border-top: 1px solid var(--bu-filet); }
+body[data-espace="budget"] .variante-total{
+  font-variant-numeric: tabular-nums; color: var(--bu-encre); font-weight: 700;
+}
+body[data-espace="budget"] .ecart-ligne{ color: var(--bu-encre-2); }

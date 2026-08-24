@@ -145,6 +145,40 @@ function lignesCachetDevis(d){
   return trouvees;
 }
 
+/* De l'argent qui devrait porter des charges et n'en porte pas.
+ *
+ * Le moteur ne compte les charges patronales que sur les lignes d'une section
+ * cochée « rémunération » (voir calculerDevis). C'est le bon garde-fou — mais
+ * il est silencieux : le sélecteur de régime n'est même pas affiché hors des
+ * sections de rémunération. Une ligne qui porte « musicien » et qui atterrit,
+ * par déplacement ou par décochage de sa section, dans une section ordinaire
+ * cesse d'engendrer ses charges sans que rien ne le dise. Sur un devis à
+ * 200 000 €, cela peut faire disparaître des dizaines de milliers d'euros.
+ *
+ * Cette fonction rend la liste de ces lignes-là, pour que l'éditeur puisse le
+ * signaler. Elle ne corrige rien : recocher la section ou changer le régime
+ * sont deux décisions différentes, et c'est à la production de trancher.
+ *
+ * Le régime « facture » (prestataire qui facture) et « aucun » ne sont PAS
+ * concernés : ils ne doivent effectivement engendrer aucune charge, où qu'ils
+ * se trouvent.
+ */
+const DEVIS_REGIMES_CHARGES = ['auteur', 'musicien', 'production'];
+
+function lignesSansChargesAttendues(d){
+  const trouvees = [];
+  (d.sections || []).forEach(sec=>{
+    if(sec.remuneration) return;
+    (sec.groupes || []).forEach(grp=> (grp.lignes || []).forEach(l=>{
+      if(l.etat !== 'incluse') return;
+      if(!DEVIS_REGIMES_CHARGES.includes(l.regime)) return;
+      if(totalLigneDevis(l) <= 0) return;
+      trouvees.push({ ligne: l, section: sec, total: totalLigneDevis(l) });
+    }));
+  });
+  return trouvees;
+}
+
 /* Ce que le devis dit, comparé à ce que le projet dit.
  * Rend la liste des écarts en clair, vide quand tout concorde. Purement
  * indicatif : les deux peuvent légitimement diverger (on chiffre parfois une

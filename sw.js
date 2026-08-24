@@ -66,7 +66,11 @@
 // v18 : devis-commun.js gagne le rattachement à un projet (tourneeId, gabarit
 // de sections par nature, chiffres et écarts) ; base.css n'a pas bougé, mais un
 // actif modifié impose l'incrément — voir la note de la v3.
-const VERSION = 'curieux-v18';
+// v19 : l'espace Devis prend son propre habillage (assets/espace-budget.css,
+// nouvel actif), le composeur PDF apprend le filigrane (pdf-charte.js) que
+// pdf-devis.js pose sur les budgets, et devis-commun.js gagne le détecteur de
+// lignes à régime chargeable hors section de rémunération.
+const VERSION = 'curieux-v19';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

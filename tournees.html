@@ -1396,11 +1396,14 @@ function chiffrageHtml(t){
   if(c.devisClient) morceaux.push(lien(c.devisClient, `Devis ${(DEVIS_STATUTS[c.devisClient.statut] || 'brouillon').toLowerCase()}`));
   if(!morceaux.length) return '';
 
+  // On signale l'écart entre le cachet vendu et le cachet porté par le projet,
+  // sans proposer de le reporter : décider ce qu'on paie ne se fait pas d'un
+  // clic depuis un chiffrage, et les deux peuvent différer en connaissance de
+  // cause. Le dire suffit.
   const vendu = cachetVendu(c);
   const porte = t.cachetStatut === 'defini' && t.cachetMontant != null ? devisNombre(t.cachetMontant, 0) : null;
   const ecart = (vendu != null && porte !== vendu)
-    ? `<span class="chiffrage-ecart">Le devis accepté prévoit ${fmtEurosDevis(vendu)} par cachet${porte != null ? `, la ${EST_RECORDING ? 'séance' : 'date'} en porte ${fmtEurosDevis(porte)}` : ''}.
-        <button type="button" class="co-btn ghost sm" data-reprendre-cachet="${escapeAttr(t.id)}" data-montant="${escapeAttr(String(vendu))}">Reprendre ce montant</button></span>`
+    ? `<span class="chiffrage-ecart">Le devis accepté prévoit ${fmtEurosDevis(vendu)} par cachet${porte != null ? `, la ${EST_RECORDING ? 'séance' : 'date'} en porte ${fmtEurosDevis(porte)}` : ''}.</span>`
     : '';
   return `<div class="chiffrage-ligne">${morceaux.join('<span class="sep">·</span>')}${ecart}</div>`;
 }
@@ -2324,23 +2327,6 @@ function bindTourneeEvents(){
     });
   });
   // Réglages constants du disque : écrits dans t.recording, pas sur les dates.
-  // Reprendre sur la tournée le cachet inscrit au devis accepté. Un clic
-  // explicite : les deux montants peuvent légitimement différer, c'est à la
-  // production de trancher, pas au chiffrage.
-  document.querySelectorAll('[data-reprendre-cachet]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const tournees = loadTournees();
-      const t = tournees.find(x=> x.id === btn.dataset.reprendreCachet);
-      if(!t) return;
-      const montant = devisNombre(btn.dataset.montant, 0);
-      if(!confirm(`Porter le cachet standard ${EST_RECORDING ? 'de ce recording' : 'de cette tournée'} à ${fmtEurosDevis(montant)} brut ?\n\nC'est le montant inscrit au devis accepté. Les cachets d'exception déjà saisis ne changent pas.`)) return;
-      t.cachetStatut = 'defini';
-      t.cachetMontant = montant;
-      saveTournees(tournees);
-      render();
-    });
-  });
-
   document.querySelectorAll('[data-reco]').forEach(el=>{
     el.addEventListener('change', ()=>{
       const tournees = loadTournees();
