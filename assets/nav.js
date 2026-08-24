@@ -49,7 +49,45 @@ const CURIEUX_SECTIONS = [
     { libelle:'Page salle', href:'page-salle.html', pages:['page-salle.html'] },
   ]},
   { libelle:"Vue d'ensemble", href:'recap.html', pages:['recap.html'] },
+  // Réservée aux comptes 'admin' : elle n'entre dans le bandeau qu'après
+  // vérification (voir ajouterEntreeAdmin), pour éviter d'afficher à toute
+  // l'équipe une porte qui lui serait refusée.
+  { libelle:'Admin', href:'admin-dashboard.html', admin:true, entrees:[
+    { libelle:'Tableau de bord', href:'admin-dashboard.html', pages:['admin-dashboard.html'] },
+    { libelle:'Devis', href:'devis.html', pages:['devis.html','devis-editeur.html'] },
+    { libelle:'Clients', href:'devis-clients.html', pages:['devis-clients.html'] },
+  ]},
 ];
+
+/* L'entrée « Admin » du bandeau, ajoutée après coup.
+ *
+ * Le rôle se lit côté base (isSuperAdmin), donc de façon asynchrone : attendre
+ * cette réponse avant de dessiner le bandeau ferait clignoter toute la
+ * navigation à chaque page. On dessine donc sans l'entrée, et on l'ajoute si le
+ * compte y a droit — ce qui évite au passage de montrer aux comptes 'user' une
+ * porte qui leur serait refusée.
+ *
+ * Sans réponse (page publique à jeton, session absente, base injoignable),
+ * l'entrée reste absente : c'est le comportement prudent. Elle ne remplace
+ * évidemment pas le garde de chaque page admin, qui reste seul à protéger.
+ */
+async function ajouterEntreeAdmin(topbar, sectionCourante){
+  const secAdmin = CURIEUX_SECTIONS.find(s => s.admin);
+  if(!secAdmin || secAdmin === sectionCourante) return;   // déjà présente
+  const nav = topbar.querySelector('.co-topnav');
+  if(!nav || typeof CurieuxDB === 'undefined') return;
+
+  let autorise = false;
+  try{ autorise = await CurieuxDB.isSuperAdmin(); }
+  catch(e){ return; }
+  if(!autorise || nav.querySelector('[data-entree-admin]')) return;
+
+  const lien = document.createElement('a');
+  lien.href = secAdmin.href;
+  lien.textContent = secAdmin.libelle;
+  lien.setAttribute('data-entree-admin', '1');
+  nav.appendChild(lien);
+}
 
 function curieuxPageCourante(){
   return (location.pathname.split('/').pop() || 'accueil.html').toLowerCase();
@@ -77,10 +115,12 @@ function initCurieuxTopbar(){
 
   const topbar = document.createElement('header');
   topbar.className = 'co-topbar';
-  const liens = CURIEUX_SECTIONS.map(sec => {
-    const actif = sec === section ? ' aria-current="page"' : '';
-    return `<a href="${sec.href}"${actif}>${sec.libelle}</a>`;
-  }).join('');
+  const liens = CURIEUX_SECTIONS
+    .filter(sec => !sec.admin || sec === section)
+    .map(sec => {
+      const actif = sec === section ? ' aria-current="page"' : '';
+      return `<a href="${sec.href}"${actif}>${sec.libelle}</a>`;
+    }).join('');
 
   topbar.innerHTML = `
     <div class="co-topbar-in">
@@ -116,6 +156,7 @@ function initCurieuxTopbar(){
   document.querySelectorAll('.brand-header').forEach(el => el.remove());
   document.querySelectorAll('nav.page-nav[data-curieux-nav]').forEach(el => el.remove());
 
+  ajouterEntreeAdmin(topbar, section);
   initCurieuxThemeToggle();
   initCurieuxAvatar();
   try{ if(typeof initGlobalSearch === 'function') initGlobalSearch(topbar.querySelector('.co-topbar-actions')); }catch(e){}
