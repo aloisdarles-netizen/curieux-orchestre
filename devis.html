@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Devis</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/devis-commun.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:860px; margin:0 auto;}
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  input[type=text], input[type=number], textarea, select{
+    padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13.5px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  textarea{resize:vertical; min-height:38px; width:100%;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .field label{font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
+  .field-row{display:flex; gap:10px; flex-wrap:wrap;}
+  .field-row .field{flex:1 1 150px;}
+
+  /* Une carte par projet : la variante retenue donne le titre, les variantes
+     s'alignent dessous avec leur statut et leur total. */
+  .projet-card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:16px 18px; margin-bottom:12px;
+  }
+  .projet-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:4px;}
+  .projet-titre{font-family:var(--font-display); font-size:18px; font-weight:500;}
+  .projet-client{color:var(--muted); font-size:12.5px; font-weight:700;}
+  .variante-row{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:9px 0; border-top:1px solid var(--border);
+  }
+  .variante-row:first-of-type{border-top:none;}
+  .variante-nom{font-weight:800; font-size:13.5px; flex:1 1 140px; min-width:0;}
+  .variante-nom small{display:block; font-weight:600; color:var(--muted); font-size:11px;}
+  .variante-total{font-variant-numeric:tabular-nums; font-weight:800; font-size:13.5px;}
+  .retenue-star{color:var(--orange); font-size:15px;}
+
+  .statut-badge{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    padding:3px 9px; border-radius:12px; white-space:nowrap;
+  }
+  .statut-brouillon{background:var(--bg); color:var(--muted); border:1px solid var(--border);}
+  .statut-envoye{background:var(--secondary-tint, #CEE1F4); color:#3d5876;}
+  .statut-accepte{background:#dcf2e5; color:#2f8f5b;}
+  .statut-refuse{background:#fbe2db; color:#b03a14;}
+  :root[data-theme="dark"] .statut-accepte{background:#1d3a2a; color:#7fd6a4;}
+  :root[data-theme="dark"] .statut-refuse{background:#42201a; color:#f0967a;}
+  :root[data-theme="dark"] .statut-envoye{background:#2a3f52; color:#CEE1F4;}
+
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(20,15,10,.5); align-items:center; justify-content:center; padding:20px; z-index:50; overflow-y:auto;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--card); border-radius:14px; padding:24px; max-width:620px; width:100%; max-height:88vh; overflow-y:auto; margin:auto;}
+  .modal h2{font-size:17px; margin:0 0 16px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
+
+  .client-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+  .client-row b{flex:1 1 160px;}
+  .client-row .co-btn{padding:5px 11px; font-size:12px;}
+
+  .migration-note{
+    background:var(--accent-tint); border-radius:12px; padding:14px 18px;
+    font-size:13.5px; line-height:1.5; margin-bottom:18px;
+  }
+  @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Devis</h1>
+      <p class="subtitle">Chiffrage des projets — charges calculées par régime, variantes comparées, PDF à la charte.</p>
+    </div>
+    <div class="co-actions">
+      <button type="button" class="co-btn secondary md" id="clientsBtn">Clients</button>
+      <button type="button" class="co-btn secondary md" id="reglagesBtn">Réglages</button>
+      <button type="button" class="co-btn primary md" id="nouveauBtn">+ Nouveau devis</button>
+    </div>
+  </div>
+
+  <div class="migration-note" id="migrationNote" style="display:none;">
+    Les tables de l'espace Devis n'existent pas encore côté base : colle la section
+    « Espace Devis » de <code>migrations.sql</code> dans l'éditeur SQL de Supabase, puis recharge cette page.
+  </div>
+
+  <div id="projetsListe"></div>
+  <div class="empty-hint co-vide" id="projetsEmpty" style="display:none;">
+    Aucun devis pour l'instant — crée le premier avec le bouton ci-dessus,
+    ou <button type="button" class="co-btn secondary sm" id="importExemplesBtn" style="vertical-align:baseline;">importe les devis Expédition 33</button> pour partir du réel.
+  </div>
+</div>
+
+<!-- Carnet de clients -->
+<div class="modal-overlay" id="clientsOverlay">
+  <div class="modal">
+    <h2>Clients</h2>
+    <div id="clientsListe"></div>
+    <details style="margin-top:14px;" id="clientFormBloc">
+      <summary style="cursor:pointer; font-weight:700; font-size:13.5px; color:var(--accent-dark);" id="clientFormTitre">Ajouter un client</summary>
+      <div style="margin-top:12px;">
+        <input type="hidden" id="cliId">
+        <div class="field"><label>Raison sociale</label><input type="text" id="cliNom" placeholder="Sandfall Interactive"></div>
+        <div class="field-row">
+          <div class="field"><label>SIRET</label><input type="text" id="cliSiret"></div>
+          <div class="field"><label>TVA intracom.</label><input type="text" id="cliTva"></div>
+        </div>
+        <div class="field"><label>Adresse de facturation</label><textarea id="cliAdresse" rows="2"></textarea></div>
+        <div class="field-row">
+          <div class="field"><label>Contact</label><input type="text" id="cliContact" placeholder="Nom, rôle"></div>
+          <div class="field"><label>Email</label><input type="text" id="cliEmail"></div>
+          <div class="field"><label>Téléphone</label><input type="text" id="cliTel"></div>
+        </div>
+        <div class="field"><label>Notes</label><textarea id="cliNotes" rows="2" placeholder="Conditions habituelles, particularités…"></textarea></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+          <button type="button" class="co-btn ghost sm" id="cliAnnuler">Annuler</button>
+          <button type="button" class="co-btn secondary sm" id="cliEnregistrer">Enregistrer</button>
+        </div>
+      </div>
+    </details>
+    <div class="modal-actions"><button type="button" class="co-btn ghost" id="clientsFermer">Fermer</button></div>
+  </div>
+</div>
+
+<!-- Réglages : identité de l'émetteur + défauts -->
+<div class="modal-overlay" id="reglagesOverlay">
+  <div class="modal">
+    <h2>Réglages des devis</h2>
+    <p style="font-size:12.5px; color:var(--muted); margin:0 0 14px;">L'en-tête légal imprimé sur chaque document, et les défauts repris par chaque nouveau devis.</p>
+    <div class="field"><label>Raison sociale</label><input type="text" id="regNom"></div>
+    <div class="field-row">
+      <div class="field"><label>SIRET</label><input type="text" id="regSiret"></div>
+      <div class="field"><label>TVA intracommunautaire</label><input type="text" id="regTvaIntracom"></div>
+    </div>
+    <div class="field"><label>Adresse</label><input type="text" id="regAdresse"></div>
+    <div class="field-row">
+      <div class="field"><label>Code APE (libellé)</label><input type="text" id="regApe"></div>
+      <div class="field"><label>Représentant·e</label><input type="text" id="regRepresentant"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Email</label><input type="text" id="regEmail"></div>
+      <div class="field"><label>Téléphone</label><input type="text" id="regTel"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Charges auteur (%)</label><input type="number" id="regTauxAuteur" step="0.1"></div>
+      <div class="field"><label>Charges musiciens (%)</label><input type="number" id="regTauxMusicien" step="0.1"></div>
+      <div class="field"><label>Charges production (%)</label><input type="number" id="regTauxProduction" step="0.1"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>TVA par défaut (%)</label><input type="number" id="regTvaDefaut" step="0.1"></div>
+      <div class="field"><label>Validité des devis (jours)</label><input type="number" id="regValidite"></div>
+    </div>
+    <div class="field"><label>Conditions de règlement</label><textarea id="regConditions" rows="3"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="co-btn ghost" id="reglagesAnnuler">Annuler</button>
+      <button type="button" class="co-btn primary" id="reglagesEnregistrer">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let devisCache = [], clientsCache = [], reglagesCache = {};
+
+async function chargerTout(){
+  const [devis, clients, reglages] = await Promise.all([
+    CurieuxDB.fetchAll('devis'),
+    CurieuxDB.fetchAll('devis_clients'),
+    CurieuxDB.fetchDevisReglages(),
+  ]);
+  devisCache = devis; clientsCache = clients; reglagesCache = reglages;
+  document.getElementById('migrationNote').style.display = reglages.absent ? 'block' : 'none';
+  renderProjets();
+}
+
+function nomClient(id){
+  const c = clientsCache.find(x=> x.id === id);
+  return c ? (c.nom || '(client sans nom)') : '';
+}
+
+/* Les devis se groupent par projetId : chaque groupe est une carte, chaque
+   devis du groupe une variante. Tri : projets les plus récents d'abord
+   (l'ordre de fetchAll est created_at croissant → on parcourt à l'envers). */
+function renderProjets(){
+  const parProjet = new Map();
+  devisCache.forEach(d=>{
+    const cle = d.projetId || d.id;
+    if(!parProjet.has(cle)) parProjet.set(cle, []);
+    parProjet.get(cle).push(d);
+  });
+
+  const holder = document.getElementById('projetsListe');
+  const empty = document.getElementById('projetsEmpty');
+  if(parProjet.size === 0){
+    holder.innerHTML = '';
+    empty.style.display = 'block';
+    brancherImportExemples();
+    return;
+  }
+  empty.style.display = 'none';
+
+  holder.innerHTML = [...parProjet.values()].reverse().map(variantes=>{
+    const principale = variantes.find(v=> v.retenue) || variantes[0];
+    const client = nomClient(principale.clientId);
+    return `<div class="projet-card">
+      <div class="projet-head">
+        <span class="projet-titre">${escapeHtml(principale.titre || 'Devis sans titre')}</span>
+        ${client ? `<span class="projet-client">${escapeHtml(client)}</span>` : ''}
+      </div>
+      ${variantes.map(v=>{
+        const calc = calculerDevis(v);
+        return `<div class="variante-row">
+          <span class="variante-nom">
+            ${v.retenue && variantes.length > 1 ? '<span class="retenue-star" title="Variante retenue">★</span> ' : ''}
+            ${escapeHtml(variantes.length > 1 ? (v.variante || 'Variante sans nom') : (v.variante || 'Version unique'))}
+            ${v.numero ? `<small>${escapeHtml(v.numero)}</small>` : ''}
+          </span>
+          <span class="statut-badge statut-${escapeAttr(v.statut || 'brouillon')}">${escapeHtml(DEVIS_STATUTS[v.statut] || 'Brouillon')}</span>
+          <span class="variante-total">${fmtEurosDevis(calc.totalHT)} HT</span>
+          <a class="co-btn secondary sm" href="devis-editeur.html?id=${encodeURIComponent(v.id)}">Ouvrir</a>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+
+// --- Nouveau devis ----------------------------------------------------------
+document.getElementById('nouveauBtn').addEventListener('click', async ()=>{
+  const d = nouveauDevis(reglagesCache);
+  const { error } = await CurieuxDB.upsertOne('devis', d);
+  if(error){ alert('Le devis n\'a pas pu être créé :\n\n' + error.message); return; }
+  location.href = 'devis-editeur.html?id=' + encodeURIComponent(d.id);
+});
+
+// --- Import des devis réels (modeles/*.json) --------------------------------
+function brancherImportExemples(){
+  const btn = document.getElementById('importExemplesBtn');
+  if(!btn || btn.dataset.pret) return;
+  btn.dataset.pret = '1';
+  btn.addEventListener('click', async ()=>{
+    btn.disabled = true; btn.textContent = 'Import…';
+    try{
+      const reponse = await fetch('modeles/devis-exemples.json');
+      if(!reponse.ok) throw new Error('fichier d\'exemples introuvable');
+      const exemples = await reponse.json();
+      for(const client of exemples.clients || []){
+        if(!clientsCache.some(c=> c.id === client.id)) await CurieuxDB.upsertOne('devis_clients', client);
+      }
+      for(const d of exemples.devis || []){
+        if(!devisCache.some(x=> x.id === d.id)) await CurieuxDB.upsertOne('devis', d);
+      }
+      await chargerTout();
+    }catch(e){
+      alert('Import impossible : ' + e.message);
+      btn.disabled = false; btn.textContent = 'importe les devis Expédition 33';
+    }
+  });
+}
+
+// --- Clients ----------------------------------------------------------------
+function renderClients(){
+  const holder = document.getElementById('clientsListe');
+  if(clientsCache.length === 0){
+    holder.innerHTML = '<p style="color:var(--muted); font-size:13px;">Aucun client pour l\'instant.</p>';
+    return;
+  }
+  holder.innerHTML = clientsCache.map(c=> `
+    <div class="client-row">
+      <b>${escapeHtml(c.nom || '(sans nom)')}</b>
+      <span style="color:var(--muted); font-size:12px;">${escapeHtml([c.contactNom, c.email].filter(Boolean).join(' · '))}</span>
+      <button type="button" class="co-btn secondary sm" data-cli-edit="${escapeAttr(c.id)}">Modifier</button>
+      <button type="button" class="co-btn danger sm" data-cli-del="${escapeAttr(c.id)}">Retirer</button>
+    </div>`).join('');
+
+  holder.querySelectorAll('[data-cli-edit]').forEach(b=> b.addEventListener('click', ()=> ouvrirClientForm(b.dataset.cliEdit)));
+  holder.querySelectorAll('[data-cli-del]').forEach(b=> b.addEventListener('click', async ()=>{
+    const c = clientsCache.find(x=> x.id === b.dataset.cliDel);
+    if(!confirm(`Retirer « ${c && c.nom || 'ce client'} » du carnet ?\n\nLes devis déjà liés gardent leur contenu, seul le lien se vide.`)) return;
+    await CurieuxDB.removeOne('devis_clients', b.dataset.cliDel);
+    clientsCache = clientsCache.filter(x=> x.id !== b.dataset.cliDel);
+    renderClients(); renderProjets();
+  }));
+}
+
+function ouvrirClientForm(id){
+  const c = clientsCache.find(x=> x.id === id) || {};
+  document.getElementById('cliId').value = c.id || '';
+  document.getElementById('cliNom').value = c.nom || '';
+  document.getElementById('cliSiret').value = c.siret || '';
+  document.getElementById('cliTva').value = c.tvaIntracom || '';
+  document.getElementById('cliAdresse').value = c.adresse || '';
+  document.getElementById('cliContact').value = c.contactNom || '';
+  document.getElementById('cliEmail').value = c.email || '';
+  document.getElementById('cliTel').value = c.tel || '';
+  document.getElementById('cliNotes').value = c.notes || '';
+  document.getElementById('clientFormTitre').textContent = id ? 'Modifier ce client' : 'Ajouter un client';
+  document.getElementById('clientFormBloc').open = true;
+}
+
+document.getElementById('cliEnregistrer').addEventListener('click', async ()=>{
+  const id = document.getElementById('cliId').value || genId('cli');
+  const client = {
+    id,
+    nom: document.getElementById('cliNom').value.trim(),
+    siret: document.getElementById('cliSiret').value.trim(),
+    tvaIntracom: document.getElementById('cliTva').value.trim(),
+    adresse: document.getElementById('cliAdresse').value.trim(),
+    contactNom: document.getElementById('cliContact').value.trim(),
+    email: document.getElementById('cliEmail').value.trim(),
+    tel: document.getElementById('cliTel').value.trim(),
+    notes: document.getElementById('cliNotes').value.trim(),
+  };
+  if(!client.nom){ alert('La raison sociale est le minimum pour un client.'); return; }
+  const { error } = await CurieuxDB.upsertOne('devis_clients', client);
+  if(error){ alert('Enregistrement impossible :\n\n' + error.message); return; }
+  const i = clientsCache.findIndex(x=> x.id === id);
+  if(i >= 0) clientsCache[i] = client; else clientsCache.push(client);
+  document.getElementById('clientFormBloc').open = false;
+  document.getElementById('cliId').value = '';
+  renderClients(); renderProjets();
+});
+document.getElementById('cliAnnuler').addEventListener('click', ()=>{
+  document.getElementById('clientFormBloc').open = false;
+});
+
+document.getElementById('clientsBtn').addEventListener('click', ()=>{
+  renderClients();
+  document.getElementById('clientsOverlay').classList.add('open');
+});
+document.getElementById('clientsFermer').addEventListener('click', ()=> document.getElementById('clientsOverlay').classList.remove('open'));
+
+// --- Réglages ---------------------------------------------------------------
+document.getElementById('reglagesBtn').addEventListener('click', ()=>{
+  const r = reglagesCache;
+  document.getElementById('regNom').value = r.nom || '';
+  document.getElementById('regSiret').value = r.siret || '';
+  document.getElementById('regTvaIntracom').value = r.tvaIntracom || '';
+  document.getElementById('regAdresse').value = r.adresse || '';
+  document.getElementById('regApe').value = r.ape || '';
+  document.getElementById('regRepresentant').value = r.representant || '';
+  document.getElementById('regEmail').value = r.email || '';
+  document.getElementById('regTel').value = r.tel || '';
+  document.getElementById('regTauxAuteur').value = r.tauxAuteur != null ? r.tauxAuteur : 4;
+  document.getElementById('regTauxMusicien').value = r.tauxMusicien != null ? r.tauxMusicien : 60;
+  document.getElementById('regTauxProduction').value = r.tauxProduction != null ? r.tauxProduction : 67;
+  document.getElementById('regTvaDefaut').value = r.tvaDefaut != null ? r.tvaDefaut : 20;
+  document.getElementById('regValidite').value = r.validiteJours != null ? r.validiteJours : 30;
+  document.getElementById('regConditions').value = r.conditionsReglement || '';
+  document.getElementById('reglagesOverlay').classList.add('open');
+});
+document.getElementById('reglagesAnnuler').addEventListener('click', ()=> document.getElementById('reglagesOverlay').classList.remove('open'));
+document.getElementById('reglagesEnregistrer').addEventListener('click', async ()=>{
+  const r = {
+    nom: document.getElementById('regNom').value.trim(),
+    siret: document.getElementById('regSiret').value.trim(),
+    tvaIntracom: document.getElementById('regTvaIntracom').value.trim(),
+    adresse: document.getElementById('regAdresse').value.trim(),
+    ape: document.getElementById('regApe').value.trim(),
+    representant: document.getElementById('regRepresentant').value.trim(),
+    email: document.getElementById('regEmail').value.trim(),
+    tel: document.getElementById('regTel').value.trim(),
+    tauxAuteur: devisNombre(document.getElementById('regTauxAuteur').value, 4),
+    tauxMusicien: devisNombre(document.getElementById('regTauxMusicien').value, 60),
+    tauxProduction: devisNombre(document.getElementById('regTauxProduction').value, 67),
+    tvaDefaut: devisNombre(document.getElementById('regTvaDefaut').value, 20),
+    validiteJours: devisNombre(document.getElementById('regValidite').value, 30),
+    conditionsReglement: document.getElementById('regConditions').value.trim(),
+  };
+  const { error } = await CurieuxDB.saveDevisReglages(r);
+  if(error){ alert('Enregistrement impossible :\n\n' + error.message); return; }
+  reglagesCache = { ...r, absent: false };
+  document.getElementById('reglagesOverlay').classList.remove('open');
+});
+
+[['clientsOverlay'], ['reglagesOverlay']].forEach(([id])=>{
+  const ov = document.getElementById(id);
+  ov.addEventListener('click', (e)=>{ if(e.target === ov) ov.classList.remove('open'); });
+});
+
+chargerTout();
+</script>
+</body>
+</html>

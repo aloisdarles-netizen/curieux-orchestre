@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Éditeur de devis</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/devis-commun.js"></script>
+<script src="assets/pdf-charte.js"></script>
+<script src="assets/pdf-devis.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:1080px; margin:0 auto;}
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
+    padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
+  }
+  input, textarea, select{
+    padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-size:13px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  textarea{resize:vertical; width:100%;}
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
+
+  .carte{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:14px;}
+  .carte h2{font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--accent-dark); margin:0 0 12px;}
+
+  .entete-grid{display:grid; grid-template-columns:2fr 1fr 1fr; gap:12px;}
+  @media (max-width:760px){ .entete-grid{grid-template-columns:1fr;} }
+
+  .fige-note{
+    background:var(--secondary-tint, #FEC9E0); color:var(--accent-dark);
+    border-radius:12px; padding:12px 16px; font-size:13.5px; font-weight:700; margin-bottom:14px;
+  }
+  :root[data-theme="dark"] .fige-note{ color:var(--text); }
+
+  /* --- Tableau des lignes --------------------------------------------- */
+  .sec-carte{margin-bottom:16px;}
+  .sec-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+  .sec-head .sec-titre{flex:1 1 260px; font-weight:800; font-size:14px;}
+  .sec-head select{width:auto;}
+  .grp-titre{margin:10px 0 4px;}
+  .grp-titre input{
+    font-weight:800; font-size:12px; text-transform:uppercase; letter-spacing:.04em;
+    border:none; background:transparent; padding:4px 2px; width:100%; color:var(--accent-dark);
+  }
+  .grp-titre input::placeholder{text-transform:none; letter-spacing:0; font-weight:600;}
+
+  .lignes-scroll{overflow-x:auto;}
+  table.lignes{width:100%; border-collapse:collapse; min-width:840px;}
+  table.lignes th{
+    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); text-align:left; padding:4px 6px; border-bottom:1.5px solid var(--accent);
+  }
+  table.lignes td{padding:3px 4px; border-bottom:1px solid var(--border); vertical-align:top;}
+  table.lignes input, table.lignes select{width:100%; border-color:transparent; background:transparent; padding:6px 6px;}
+  table.lignes input:focus, table.lignes select:focus{border-color:var(--accent); background:var(--card); outline:none;}
+  table.lignes input.num{text-align:right; font-variant-numeric:tabular-nums;}
+  td.total-cell{white-space:nowrap; text-align:right; font-weight:800; font-variant-numeric:tabular-nums; font-size:13px; padding-top:9px;}
+  td.outils-cell{white-space:nowrap; text-align:right;}
+  .l-btn{
+    background:transparent; border:none; padding:4px 5px; font-size:12px; color:var(--muted);
+    border-radius:6px; cursor:pointer; line-height:1;
+  }
+  .l-btn:hover{background:var(--bg); color:var(--text);}
+  tr.ligne-discuter td{background:rgba(255, 214, 0, .14);}
+  tr.ligne-optionnelle td{opacity:.82;}
+  tr.ligne-optionnelle .total-cell{color:var(--muted);}
+  tr.ligne-hors td .total-cell, tr.ligne-hors td{color:var(--muted);}
+  .etat-select{max-width:104px; font-size:11px !important;}
+  .regime-select{max-width:150px; font-size:11px !important;}
+
+  .sec-pied{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px;}
+  .sec-soustotal{margin-left:auto; font-weight:800; font-variant-numeric:tabular-nums; font-size:13.5px;}
+
+  /* --- Charges / divers / totaux --------------------------------------- */
+  .calc-ligne{display:flex; align-items:baseline; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+  .calc-ligne:last-child{border-bottom:none;}
+  .calc-ligne .lib{flex:1 1 240px;}
+  .calc-ligne .assiette{color:var(--muted); font-size:12px;}
+  .calc-ligne .mont{margin-left:auto; font-weight:800; font-variant-numeric:tabular-nums;}
+  .calc-ligne input.pct{width:76px; text-align:right;}
+  .calc-ligne input.mt{width:110px; text-align:right;}
+
+  .totaux-barre{
+    position:sticky; bottom:0; z-index:30;
+    background:var(--accent); color:#FCF2F0; border-radius:14px 14px 0 0;
+    padding:12px 20px; display:flex; gap:18px; align-items:baseline; flex-wrap:wrap;
+    box-shadow:0 -6px 24px rgba(20,22,23,.18); margin-top:20px;
+  }
+  /* En sombre, l'accent devient le bleu glacier (clair) : l'encre passe au
+     noir — crème sur glacier était illisible. */
+  :root[data-theme="dark"] .totaux-barre{ color:#141617; }
+  .totaux-barre b{font-size:19px; font-variant-numeric:tabular-nums; font-family:var(--font-display); font-weight:500;}
+  .totaux-barre .tt{font-size:12px; opacity:.85;}
+  .totaux-barre .etat-sauvegarde{margin-left:auto; font-size:11.5px; opacity:.8;}
+
+  .cible-bloc{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .cible-bloc input{width:130px; text-align:right;}
+
+  .options-note{font-size:12.5px; color:var(--muted); margin-top:8px;}
+
+  .fige .peut-figer{pointer-events:none; opacity:.62;}
+
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(20,15,10,.5); align-items:center; justify-content:center; padding:20px; z-index:50; overflow-y:auto;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--card); border-radius:14px; padding:24px; max-width:560px; width:100%; max-height:88vh; overflow-y:auto; margin:auto;}
+  .modal h2{font-size:17px; margin:0 0 14px;}
+  .poste-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border);}
+  .poste-row b{flex:1;}
+  @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="page">
+  <div class="co-page-head co-fade">
+    <div>
+      <a class="co-back" href="devis.html">← Tous les devis</a>
+      <h1 id="pageTitre">Devis</h1>
+      <p class="subtitle" id="pageSousTitre"></p>
+    </div>
+    <div class="co-actions" id="actionsHaut"></div>
+  </div>
+
+  <div class="fige-note" id="figeNote" style="display:none;"></div>
+
+  <div id="editeur"></div>
+
+  <div class="totaux-barre" id="totauxBarre"></div>
+</div>
+
+<!-- Bibliothèque de postes -->
+<div class="modal-overlay" id="postesOverlay">
+  <div class="modal">
+    <h2>Bibliothèque de postes</h2>
+    <p style="font-size:12.5px; color:var(--muted); margin:0 0 12px;">Clique un poste pour l'ajouter au groupe choisi. L'étoile ☆ d'une ligne du devis l'enregistre ici.</p>
+    <div id="postesListe"></div>
+    <div class="modal-actions" style="display:flex; justify-content:flex-end; margin-top:16px;">
+      <button type="button" class="co-btn ghost" id="postesFermer">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const UNITES_USUELLES = ['Forfait','Forfaits','Journée','Journées','Cachet','Cachets','Cachets (0,5j)','Services','Repas','Jours','Unité','Fiches'];
+
+let devis = null;            // le document en cours d'édition
+let tousDevis = [];          // pour la numérotation et les variantes
+let clientsCache = [], postesCache = [], reglagesCache = {}, annuaireNoms = [];
+let posteCibleGroupe = null; // groupe qui recevra le poste choisi dans la modale
+
+// --- Sauvegarde débouncée ---------------------------------------------------
+let timerSauvegarde = null, sauvegardeEnCours = false;
+function marquerModifie(){
+  if(devis.fige) return;
+  afficherEtatSauvegarde('Modifications…');
+  clearTimeout(timerSauvegarde);
+  timerSauvegarde = setTimeout(sauvegarder, 700);
+}
+async function sauvegarder(){
+  if(sauvegardeEnCours){ marquerModifie(); return; }
+  sauvegardeEnCours = true;
+  afficherEtatSauvegarde('Enregistrement…');
+  const { error } = await CurieuxDB.upsertOne('devis', devis);
+  sauvegardeEnCours = false;
+  afficherEtatSauvegarde(error ? '⚠ Non enregistré — réessaie' : 'Enregistré ✓');
+}
+function afficherEtatSauvegarde(texte){
+  const el = document.getElementById('etatSauvegarde');
+  if(el) el.textContent = texte;
+}
+window.addEventListener('beforeunload', ()=>{ if(timerSauvegarde){ clearTimeout(timerSauvegarde); sauvegarder(); } });
+
+// --- Chargement -------------------------------------------------------------
+async function charger(){
+  const id = new URLSearchParams(location.search).get('id');
+  const [tous, clients, postes, reglages, musiciens, techniciens] = await Promise.all([
+    CurieuxDB.fetchAll('devis'),
+    CurieuxDB.fetchAll('devis_clients'),
+    CurieuxDB.fetchAll('devis_postes'),
+    CurieuxDB.fetchDevisReglages(),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+  ]);
+  tousDevis = tous; clientsCache = clients; postesCache = postes; reglagesCache = reglages;
+  annuaireNoms = [...musiciens, ...techniciens].map(p=> [p.prenom, p.nom].filter(Boolean).join(' ')).filter(Boolean).sort();
+  devis = tous.find(d=> d.id === id);
+  if(!devis){
+    document.getElementById('editeur').innerHTML = '<p class="empty-hint co-vide">Ce devis n\'existe pas (ou la migration SQL n\'est pas passée).</p>';
+    return;
+  }
+  renderTout();
+}
+
+// --- Rendu ------------------------------------------------------------------
+function renderTout(){
+  document.getElementById('page').classList.toggle('fige', !!devis.fige);
+  renderTete();
+  renderEditeur();
+  renderTotaux();
+}
+
+function renderTete(){
+  document.getElementById('pageTitre').textContent = devis.titre || 'Devis sans titre';
+  const morceaux = [];
+  if(devis.numero) morceaux.push(devis.numero);
+  morceaux.push(DEVIS_STATUTS[devis.statut] || 'Brouillon');
+  if(devis.variante) morceaux.push('variante « ' + devis.variante + ' »');
+  document.getElementById('pageSousTitre').textContent = morceaux.join(' · ');
+
+  const fige = document.getElementById('figeNote');
+  if(devis.fige){
+    fige.style.display = 'block';
+    fige.textContent = 'Ce devis a été envoyé : il est figé, à l\'image de ce que le client a reçu. Pour continuer à travailler, duplique-le en nouvelle variante.';
+  } else fige.style.display = 'none';
+
+  const variantes = tousDevis.filter(d=> d.projetId === devis.projetId);
+  const actions = [];
+  actions.push('<button type="button" class="co-btn secondary md" id="pdfBtn">PDF</button>');
+  actions.push('<button type="button" class="co-btn secondary md" id="dupliquerBtn">Dupliquer en variante</button>');
+  if(variantes.length > 1 && !devis.retenue) actions.push('<button type="button" class="co-btn secondary md" id="retenueBtn">Marquer retenue</button>');
+  if(!devis.fige && devis.statut === 'brouillon') actions.push('<button type="button" class="co-btn primary md" id="envoyerBtn">Passer en « envoyé »</button>');
+  if(devis.statut === 'envoye'){
+    actions.push('<button type="button" class="co-btn primary md" id="accepteBtn">Accepté ✓</button>');
+    actions.push('<button type="button" class="co-btn ghost md" id="refuseBtn">Refusé</button>');
+  }
+  actions.push('<button type="button" class="co-btn danger md" id="supprimerBtn">Supprimer</button>');
+  document.getElementById('actionsHaut').innerHTML = actions.join('');
+
+  document.getElementById('pdfBtn').addEventListener('click', ()=>{
+    const client = clientsCache.find(c=> c.id === devis.clientId) || null;
+    try{ genererDevisPdf(devis, client, reglagesCache); }
+    catch(e){ alert('Le PDF n\'a pas pu être généré :\n\n' + e.message); }
+  });
+  document.getElementById('dupliquerBtn').addEventListener('click', async ()=>{
+    const copie = JSON.parse(JSON.stringify(devis));
+    copie.id = genId('devis');
+    copie.numero = ''; copie.statut = 'brouillon'; copie.fige = false; copie.retenue = false;
+    copie.variante = prompt('Nom de la nouvelle variante ? (ex. « Sans clip »)', devis.variante ? devis.variante + ' (copie)' : 'Variante 2') || 'Variante';
+    const { error } = await CurieuxDB.upsertOne('devis', copie);
+    if(error){ alert('Duplication impossible :\n\n' + error.message); return; }
+    location.href = 'devis-editeur.html?id=' + encodeURIComponent(copie.id);
+  });
+  const retenueBtn = document.getElementById('retenueBtn');
+  if(retenueBtn) retenueBtn.addEventListener('click', async ()=>{
+    for(const v of variantes){
+      const doitEtre = v.id === devis.id;
+      if(!!v.retenue !== doitEtre){ v.retenue = doitEtre; await CurieuxDB.upsertOne('devis', v); }
+    }
+    devis.retenue = true;
+    renderTete();
+  });
+  const envoyerBtn = document.getElementById('envoyerBtn');
+  if(envoyerBtn) envoyerBtn.addEventListener('click', async ()=>{
+    if(!confirm('Passer ce devis en « envoyé » ?\n\nIl reçoit son numéro définitif et devient figé — la suite du travail se fait en le dupliquant.')) return;
+    devis.numero = devis.numero || prochainNumeroDevis(tousDevis);
+    devis.statut = 'envoye'; devis.fige = true;
+    devis.dateEnvoi = new Date().toISOString().slice(0, 10);
+    await CurieuxDB.upsertOne('devis', devis);
+    renderTout();
+  });
+  const accepteBtn = document.getElementById('accepteBtn');
+  if(accepteBtn) accepteBtn.addEventListener('click', async ()=>{
+    devis.statut = 'accepte';
+    await CurieuxDB.upsertOne('devis', devis); renderTete();
+  });
+  const refuseBtn = document.getElementById('refuseBtn');
+  if(refuseBtn) refuseBtn.addEventListener('click', async ()=>{
+    devis.statut = 'refuse';
+    await CurieuxDB.upsertOne('devis', devis); renderTete();
+  });
+  document.getElementById('supprimerBtn').addEventListener('click', async ()=>{
+    if(!confirm(`Supprimer définitivement « ${devis.titre || 'ce devis'} »${devis.variante ? ' (' + devis.variante + ')' : ''} ?`)) return;
+    await CurieuxDB.removeOne('devis', devis.id);
+    location.href = 'devis.html';
+  });
+}
+
+function optionsClients(){
+  return '<option value="">— Aucun client —</option>' + clientsCache.map(c=>
+    `<option value="${escapeAttr(c.id)}" ${c.id === devis.clientId ? 'selected' : ''}>${escapeHtml(c.nom || '(sans nom)')}</option>`).join('');
+}
+
+function renderEditeur(){
+  const fige = devis.fige ? 'disabled' : '';
+  const html = [];
+
+  // ---- En-tête du devis ----
+  html.push(`<div class="carte peut-figer">
+    <h2>En-tête</h2>
+    <div class="entete-grid">
+      <div class="field"><label>Titre du projet</label><input type="text" id="dTitre" value="${escapeAttr(devis.titre || '')}" placeholder="Expe 33 — Budget Prévisionnel" ${fige}></div>
+      <div class="field"><label>Client</label><select id="dClient" ${fige}>${optionsClients()}</select></div>
+      <div class="field"><label>Variante</label><input type="text" id="dVariante" value="${escapeAttr(devis.variante || '')}" placeholder="Avec clip" ${fige}></div>
+      <div class="field"><label>Date</label><input type="text" id="dDate" value="${escapeAttr(devis.date || '')}" placeholder="Juillet 2026 — ou TBD" ${fige}></div>
+      <div class="field"><label>Validité (jours)</label><input type="number" id="dValidite" value="${escapeAttr(devis.validiteJours != null ? devis.validiteJours : 30)}" ${fige}></div>
+      <div class="field"><label>Acompte à la commande (%)</label><input type="number" id="dAcompte" value="${escapeAttr(devis.acomptePct != null ? devis.acomptePct : 30)}" ${fige}></div>
+    </div>
+    <div class="field" style="margin-top:12px;"><label>Intervention</label><textarea id="dIntervention" rows="3" placeholder="Ce que couvre le devis, en clair — imprimé en tête du document." ${fige}>${escapeHtml(devis.intervention || '')}</textarea></div>
+    <div class="field" style="margin-top:10px;"><label>Rendus (colonnes du document)</label>
+      <div id="rendusHolder"></div>
+      <div><button type="button" class="co-btn ghost sm" id="ajouterRendu" ${fige}>+ Ajouter une colonne de rendus</button></div>
+    </div>
+    <div class="entete-grid" style="margin-top:10px;">
+      <div class="field"><label>Hors devis (mention d'en-tête)</label><input type="text" id="dHorsDevis" value="${escapeAttr(devis.horsDevisTexte || '')}" placeholder="Ce que le devis ne couvre pas" ${fige}></div>
+      <div class="field" style="grid-column:span 2;"><label>Mémo interne (jamais imprimé)</label><input type="text" id="dMemo" value="${escapeAttr(devis.memo || '')}" placeholder="Feuille SACEM, nb jours REC…" ${fige}></div>
+    </div>
+  </div>`);
+
+  // ---- Sections ----
+  (devis.sections || []).forEach((sec, si)=>{
+    html.push(renderSection(sec, si));
+  });
+  html.push(`<div class="peut-figer" style="margin-bottom:14px;">
+    <button type="button" class="co-btn secondary md" id="ajouterSection" ${fige}>+ Ajouter une section</button>
+  </div>`);
+
+  // ---- Charges ----
+  html.push(`<div class="carte peut-figer" id="chargesCarte"></div>`);
+
+  // ---- Divers / coûts comptables ----
+  html.push(`<div class="carte peut-figer" id="diversCarte"></div>`);
+
+  // ---- Conditions ----
+  html.push(`<div class="carte peut-figer">
+    <h2>Conditions</h2>
+    <div class="field"><label>Conditions de règlement (imprimées sous le total)</label>
+      <textarea id="dConditions" rows="2" ${fige}>${escapeHtml(devis.conditionsReglement || '')}</textarea></div>
+  </div>`);
+
+  document.getElementById('editeur').innerHTML = html.join('');
+
+  renderRendus();
+  renderCharges();
+  renderDivers();
+  brancherEntete();
+  brancherSections();
+}
+
+function renderSection(sec, si){
+  const fige = devis.fige ? 'disabled' : '';
+  const tvaDefaut = devisNombre(devis.tvaDefaut, 20);
+  const corps = (sec.groupes || []).map((grp, gi)=> `
+    ${(sec.groupes.length > 1 || grp.titre) ? `<div class="grp-titre"><input type="text" value="${escapeAttr(grp.titre || '')}" placeholder="Titre du groupe (Préparation, REC, Captation…)" data-grp-titre="${si}:${gi}" ${fige}></div>` : ''}
+    <div class="lignes-scroll"><table class="lignes"><thead><tr>
+      <th style="width:24%;">Intitulé</th><th style="width:17%;">Nom / infos</th>
+      <th style="width:56px;">Journées</th><th style="width:50px;">Qté</th><th style="width:90px;">Unité</th>
+      <th style="width:84px;">Coût unit. €</th>
+      ${sec.remuneration ? '<th style="width:120px;">Régime</th>' : ''}
+      <th style="width:92px; text-align:right;">Total</th><th style="width:120px;"></th>
+    </tr></thead><tbody>
+      ${(grp.lignes || []).map((l, li)=> renderLigne(sec, si, gi, l, li)).join('')}
+    </tbody></table></div>
+    <div class="sec-pied peut-figer">
+      <button type="button" class="co-btn ghost sm" data-ajout-ligne="${si}:${gi}" ${fige}>+ Ligne</button>
+      <button type="button" class="co-btn ghost sm" data-ajout-poste="${si}:${gi}" ${fige}>+ Depuis la bibliothèque</button>
+    </div>
+  `).join('');
+
+  return `<div class="carte sec-carte peut-figer" data-section="${si}">
+    <div class="sec-head">
+      <input type="text" class="sec-titre" value="${escapeAttr(sec.titre || '')}" placeholder="Titre de la section" data-sec-titre="${si}" ${fige}>
+      <label style="font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:5px;">
+        <input type="checkbox" data-sec-rem="${si}" ${sec.remuneration ? 'checked' : ''} ${fige}> rémunération (charges)
+      </label>
+      <select data-sec-tva="${si}" title="TVA de la section" ${fige}>
+        <option value="" ${sec.tva == null || sec.tva === '' ? 'selected' : ''}>TVA ${tvaDefaut.toLocaleString('fr-FR')} % (défaut)</option>
+        <option value="5.5" ${String(sec.tva) === '5.5' ? 'selected' : ''}>TVA 5,5 %</option>
+        <option value="20" ${String(sec.tva) === '20' ? 'selected' : ''}>TVA 20 %</option>
+        <option value="0" ${String(sec.tva) === '0' ? 'selected' : ''}>TVA 0 %</option>
+      </select>
+      <button type="button" class="l-btn" data-sec-monter="${si}" title="Monter la section" ${fige}>▲</button>
+      <button type="button" class="l-btn" data-sec-descendre="${si}" title="Descendre la section" ${fige}>▼</button>
+      <button type="button" class="l-btn" data-sec-suppr="${si}" title="Supprimer la section" ${fige}>✕</button>
+    </div>
+    ${corps}
+    <div class="sec-pied">
+      <button type="button" class="co-btn ghost sm peut-figer" data-ajout-groupe="${si}" ${fige}>+ Groupe</button>
+      <span class="sec-soustotal" data-sec-soustotal="${si}"></span>
+    </div>
+  </div>`;
+}
+
+function renderLigne(sec, si, gi, l, li){
+  const fige = devis.fige ? 'disabled' : '';
+  const cle = `${si}:${gi}:${li}`;
+  const classes = [
+    l.discuter ? 'ligne-discuter' : '',
+    l.etat === 'optionnelle' ? 'ligne-optionnelle' : '',
+    l.etat === 'hors_devis' ? 'ligne-hors' : '',
+  ].filter(Boolean).join(' ');
+  return `<tr class="${classes}" data-ligne="${cle}">
+    <td><input type="text" value="${escapeAttr(l.intitule || '')}" data-l="${cle}:intitule" placeholder="Intitulé" ${fige}></td>
+    <td><input type="text" value="${escapeAttr(l.noms || '')}" data-l="${cle}:noms" list="annuaireNoms" placeholder="Nom / infos" ${fige}></td>
+    <td><input type="text" inputmode="decimal" class="num" value="${escapeAttr(l.journees === '' || l.journees == null ? '' : l.journees)}" data-l="${cle}:journees" ${fige}></td>
+    <td><input type="text" inputmode="decimal" class="num" value="${escapeAttr(l.qte === '' || l.qte == null ? '' : l.qte)}" data-l="${cle}:qte" ${fige}></td>
+    <td><input type="text" value="${escapeAttr(l.unite || '')}" data-l="${cle}:unite" list="unitesUsuelles" ${fige}></td>
+    <td><input type="text" inputmode="decimal" class="num" value="${escapeAttr(l.prix === '' || l.prix == null ? '' : l.prix)}" data-l="${cle}:prix" ${fige}></td>
+    ${sec.remuneration ? `<td><select class="regime-select" data-l="${cle}:regime" ${fige}>
+      ${DEVIS_REGIMES.map(([v, lib])=> `<option value="${v}" ${l.regime === v ? 'selected' : ''}>${lib}</option>`).join('')}
+    </select></td>` : ''}
+    <td class="total-cell" data-total="${cle}">${l.etat === 'optionnelle' ? 'option · ' : ''}${fmtEurosDevis(totalLigneDevis(l))}</td>
+    <td class="outils-cell">
+      <select class="etat-select" data-l="${cle}:etat" title="État de la ligne" ${fige}>
+        <option value="incluse" ${l.etat === 'incluse' || !l.etat ? 'selected' : ''}>Incluse</option>
+        <option value="optionnelle" ${l.etat === 'optionnelle' ? 'selected' : ''}>Option</option>
+        <option value="hors_devis" ${l.etat === 'hors_devis' ? 'selected' : ''}>Hors devis</option>
+      </select><button type="button" class="l-btn" data-l-discuter="${cle}" title="À discuter (surligne la ligne)" ${fige}>${l.discuter ? '💬' : '◌'}</button><button type="button" class="l-btn" data-l-poste="${cle}" title="Enregistrer dans la bibliothèque" ${fige}>☆</button><button type="button" class="l-btn" data-l-monter="${cle}" title="Monter" ${fige}>▲</button><button type="button" class="l-btn" data-l-descendre="${cle}" title="Descendre" ${fige}>▼</button><button type="button" class="l-btn" data-l-suppr="${cle}" title="Supprimer" ${fige}>✕</button>
+    </td>
+  </tr>`;
+}
+
+function renderRendus(){
+  const fige = devis.fige ? 'disabled' : '';
+  const holder = document.getElementById('rendusHolder');
+  holder.innerHTML = (devis.rendus || []).map((r, i)=> `
+    <div style="display:flex; gap:8px; margin-bottom:8px; align-items:flex-start;">
+      <div style="flex:0 0 200px;"><input type="text" value="${escapeAttr(r.titre || '')}" placeholder="Version concert" data-rendu-titre="${i}" style="width:100%;" ${fige}></div>
+      <textarea rows="3" data-rendu-texte="${i}" placeholder="Un titre par ligne" style="flex:1;" ${fige}>${escapeHtml(r.texte || '')}</textarea>
+      <button type="button" class="l-btn" data-rendu-suppr="${i}" ${fige}>✕</button>
+    </div>`).join('');
+  holder.querySelectorAll('[data-rendu-titre]').forEach(el=> el.addEventListener('input', ()=>{
+    devis.rendus[+el.dataset.renduTitre].titre = el.value; marquerModifie();
+  }));
+  holder.querySelectorAll('[data-rendu-texte]').forEach(el=> el.addEventListener('input', ()=>{
+    devis.rendus[+el.dataset.renduTexte].texte = el.value; marquerModifie();
+  }));
+  holder.querySelectorAll('[data-rendu-suppr]').forEach(el=> el.addEventListener('click', ()=>{
+    devis.rendus.splice(+el.dataset.renduSuppr, 1); marquerModifie(); renderRendus();
+  }));
+}
+
+function renderCharges(){
+  const fige = devis.fige ? 'disabled' : '';
+  const calc = calculerDevis(devis);
+  document.getElementById('chargesCarte').innerHTML = `
+    <h2>Charges patronales — calculées</h2>
+    ${calc.chargesLignes.map(c=> `
+      <div class="calc-ligne">
+        <span class="lib">${escapeHtml(c.libelle)}</span>
+        <span class="assiette">assiette ${fmtEurosDevis(c.assiette)}</span>
+        <input type="number" step="0.1" class="pct" value="${escapeAttr(devis.taux[c.cle] != null ? devis.taux[c.cle] : c.taux)}" data-taux="${c.cle}" ${fige}> %
+        <span class="mont" data-charge-mont="${c.cle}">${fmtEurosDevis(c.montant)}</span>
+      </div>`).join('')}
+    <div class="calc-ligne"><span class="lib" style="font-weight:800;">Sous-total charges</span>
+      <span class="mont" id="chargesTotal">${fmtEurosDevis(calc.chargesTotal)}</span></div>
+    <p style="font-size:11.5px; color:var(--muted); margin:8px 0 0;">L'assiette suit les régimes cochés ligne à ligne dans les sections « rémunération ». Un prestataire facturé ou une ligne sans charges n'y entre jamais — plus de formule à surveiller.</p>`;
+  document.querySelectorAll('[data-taux]').forEach(el=> el.addEventListener('input', ()=>{
+    devis.taux[el.dataset.taux] = devisNombre(el.value, 0);
+    marquerModifie(); majTotaux();
+  }));
+}
+
+function renderDivers(){
+  const fige = devis.fige ? 'disabled' : '';
+  const calc = calculerDevis(devis);
+  const fp = devis.fichesPaie || { nb: 0, prix: 28 };
+  document.getElementById('diversCarte').innerHTML = `
+    <h2>Divers — frais généraux, imprévus, paie</h2>
+    <div class="calc-ligne">
+      <span class="lib">Frais généraux</span>
+      <span class="assiette">base ${fmtEurosDevis(calc.baseFG)}</span>
+      <input type="number" step="0.01" class="pct" id="dFraisGeneraux" value="${escapeAttr(devis.fraisGenerauxPct != null ? devis.fraisGenerauxPct : 10)}" ${fige}> %
+      <span class="mont" id="fgMont">${fmtEurosDevis(calc.fraisGeneraux)}</span>
+    </div>
+    <div class="calc-ligne">
+      <span class="lib">Imprévus</span>
+      <span class="assiette">base ${fmtEurosDevis(calc.baseFG)}</span>
+      <input type="number" step="0.0001" class="pct" id="dImprevus" value="${escapeAttr(devis.imprevusPct != null ? devis.imprevusPct : 7)}" ${fige}> %
+      <span class="mont" id="imprevusMont">${fmtEurosDevis(calc.imprevus)}</span>
+    </div>
+    <div class="calc-ligne">
+      <span class="lib">Émission fiches de paie / forfait compta</span>
+      <input type="number" class="pct" id="dFichesNb" value="${escapeAttr(fp.nb || 0)}" ${fige}> fiches ×
+      <input type="number" step="0.5" class="pct" id="dFichesPrix" value="${escapeAttr(fp.prix != null ? fp.prix : 28)}" ${fige}> €
+      <span class="mont" id="fichesMont">${fmtEurosDevis(calc.fichesPaie)}</span>
+    </div>
+    <div class="calc-ligne">
+      <span class="lib">Remise commerciale (déduite du total HT)</span>
+      <input type="text" id="dRemiseLib" value="${escapeAttr((devis.remise || {}).libelle || 'Remise commerciale')}" style="flex:1 1 150px;" ${fige}>
+      − <input type="number" step="0.01" class="mt" id="dRemiseMont" value="${escapeAttr((devis.remise || {}).montant || 0)}" ${fige}> €
+    </div>
+    <div class="calc-ligne cible-bloc" style="border-top:1.5px solid var(--accent); padding-top:12px;">
+      <span class="lib" style="font-weight:800;">Caler sur un montant cible (HT)</span>
+      <input type="number" step="0.01" id="cibleMontant" placeholder="35 000" ${fige}>
+      <button type="button" class="co-btn secondary sm" id="cibleBtn" ${fige}>Caler via les imprévus</button>
+      <span style="font-size:11.5px; color:var(--muted);">ajuste le % d'imprévus pour tomber pile</span>
+    </div>`;
+
+  const lier = (id, fn)=> document.getElementById(id).addEventListener('input', ()=>{ fn(); marquerModifie(); majTotaux(); });
+  lier('dFraisGeneraux', ()=> devis.fraisGenerauxPct = devisNombre(document.getElementById('dFraisGeneraux').value, 0));
+  lier('dImprevus', ()=> devis.imprevusPct = devisNombre(document.getElementById('dImprevus').value, 0));
+  lier('dFichesNb', ()=> { devis.fichesPaie = devis.fichesPaie || {}; devis.fichesPaie.nb = devisNombre(document.getElementById('dFichesNb').value, 0); });
+  lier('dFichesPrix', ()=> { devis.fichesPaie = devis.fichesPaie || {}; devis.fichesPaie.prix = devisNombre(document.getElementById('dFichesPrix').value, 0); });
+  lier('dRemiseLib', ()=> { devis.remise = devis.remise || {}; devis.remise.libelle = document.getElementById('dRemiseLib').value; });
+  lier('dRemiseMont', ()=> { devis.remise = devis.remise || {}; devis.remise.montant = devisNombre(document.getElementById('dRemiseMont').value, 0); });
+
+  document.getElementById('cibleBtn').addEventListener('click', ()=>{
+    const cible = devisNombre(document.getElementById('cibleMontant').value, 0);
+    if(!cible){ alert('Indique le montant HT visé.'); return; }
+    const p = resoudreImprevusPourCible(devis, cible);
+    if(p == null){ alert('Impossible : la cible est plus basse que le devis sans aucun imprévu. Baisse d\'abord des lignes ou la remise.'); return; }
+    devis.imprevusPct = Math.round(p * 100000) / 100000;
+    document.getElementById('dImprevus').value = devis.imprevusPct;
+    marquerModifie(); majTotaux();
+  });
+}
+
+function renderTotaux(){
+  const calc = calculerDevis(devis);
+  const tva = calc.ventilationTva.map(v=>
+    `<span class="tt">TVA ${v.taux.toLocaleString('fr-FR')} % : ${fmtEurosDevis(v.montant)}</span>`).join(' ');
+  document.getElementById('totauxBarre').innerHTML = `
+    <span><span class="tt">TOTAL HT</span><br><b id="totalHT">${fmtEurosDevis(calc.totalHT)}</b></span>
+    <span>${tva}<br><span class="tt">TOTAL TTC</span> <b id="totalTTC" style="font-size:16px;">${fmtEurosDevis(calc.totalTTC)}</b></span>
+    ${calc.options.length ? `<span class="tt">+ ${calc.options.length} option${calc.options.length > 1 ? 's' : ''} : ${fmtEurosDevis(calc.optionsTotal)} HT</span>` : ''}
+    <span class="etat-sauvegarde" id="etatSauvegarde">Enregistré ✓</span>`;
+}
+
+/* Recalcule et met à jour les montants SANS re-rendre les champs : la frappe
+   garde le focus, seuls les totaux bougent. */
+function majTotaux(){
+  const calc = calculerDevis(devis);
+  document.querySelectorAll('[data-total]').forEach(el=>{
+    const [si, gi, li] = el.dataset.total.split(':').map(Number);
+    const l = devis.sections[si].groupes[gi].lignes[li];
+    if(l) el.textContent = (l.etat === 'optionnelle' ? 'option · ' : '') + fmtEurosDevis(totalLigneDevis(l));
+  });
+  calc.sections.forEach((s, si)=>{
+    const el = document.querySelector(`[data-sec-soustotal="${si}"]`);
+    if(el) el.textContent = 'Sous-total : ' + fmtEurosDevis(s.sousTotal);
+  });
+  calc.chargesLignes.forEach(c=>{
+    const el = document.querySelector(`[data-charge-mont="${c.cle}"]`);
+    if(el) el.textContent = fmtEurosDevis(c.montant);
+    const assiette = el && el.closest('.calc-ligne') && el.closest('.calc-ligne').querySelector('.assiette');
+    if(assiette) assiette.textContent = 'assiette ' + fmtEurosDevis(c.assiette);
+  });
+  const ct = document.getElementById('chargesTotal'); if(ct) ct.textContent = fmtEurosDevis(calc.chargesTotal);
+  const fg = document.getElementById('fgMont'); if(fg) fg.textContent = fmtEurosDevis(calc.fraisGeneraux);
+  const im = document.getElementById('imprevusMont'); if(im) im.textContent = fmtEurosDevis(calc.imprevus);
+  const fi = document.getElementById('fichesMont'); if(fi) fi.textContent = fmtEurosDevis(calc.fichesPaie);
+  document.querySelectorAll('#diversCarte .assiette').forEach(el=> el.textContent = 'base ' + fmtEurosDevis(calc.baseFG));
+  renderTotaux();
+}
+
+// --- Branchements -----------------------------------------------------------
+function brancherEntete(){
+  const lier = (id, fn, evenement)=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener(evenement || 'input', ()=>{ fn(el); marquerModifie(); });
+  };
+  lier('dTitre', el=> { devis.titre = el.value; document.getElementById('pageTitre').textContent = el.value || 'Devis sans titre'; });
+  lier('dClient', el=> devis.clientId = el.value, 'change');
+  lier('dVariante', el=> devis.variante = el.value);
+  lier('dDate', el=> devis.date = el.value);
+  lier('dValidite', el=> devis.validiteJours = devisNombre(el.value, 30));
+  lier('dAcompte', el=> devis.acomptePct = devisNombre(el.value, 30));
+  lier('dIntervention', el=> devis.intervention = el.value);
+  lier('dHorsDevis', el=> devis.horsDevisTexte = el.value);
+  lier('dMemo', el=> devis.memo = el.value);
+  lier('dConditions', el=> devis.conditionsReglement = el.value);
+  const aj = document.getElementById('ajouterRendu');
+  if(aj) aj.addEventListener('click', ()=>{
+    devis.rendus = devis.rendus || [];
+    devis.rendus.push({ titre: '', texte: '' });
+    marquerModifie(); renderRendus();
+  });
+}
+
+function brancherSections(){
+  const ed = document.getElementById('editeur');
+
+  // Champs de ligne : la frappe met à jour le modèle + les totaux, sans re-rendu.
+  ed.querySelectorAll('[data-l]').forEach(el=>{
+    const [si, gi, li, champ] = el.dataset.l.split(':');
+    const evenement = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(evenement, ()=>{
+      const l = devis.sections[+si].groupes[+gi].lignes[+li];
+      if(!l) return;
+      if(champ === 'journees' || champ === 'qte' || champ === 'prix'){
+        l[champ] = el.value === '' ? '' : el.value.replace(',', '.');
+      } else {
+        l[champ] = el.value;
+      }
+      if(champ === 'etat'){ renderEditeur(); majTotaux(); }
+      marquerModifie(); majTotaux();
+    });
+  });
+
+  ed.querySelectorAll('[data-sec-titre]').forEach(el=> el.addEventListener('input', ()=>{
+    devis.sections[+el.dataset.secTitre].titre = el.value; marquerModifie();
+  }));
+  ed.querySelectorAll('[data-grp-titre]').forEach(el=> el.addEventListener('input', ()=>{
+    const [si, gi] = el.dataset.grpTitre.split(':').map(Number);
+    devis.sections[si].groupes[gi].titre = el.value; marquerModifie();
+  }));
+  ed.querySelectorAll('[data-sec-rem]').forEach(el=> el.addEventListener('change', ()=>{
+    devis.sections[+el.dataset.secRem].remuneration = el.checked;
+    marquerModifie(); renderEditeur(); majTotaux();
+  }));
+  ed.querySelectorAll('[data-sec-tva]').forEach(el=> el.addEventListener('change', ()=>{
+    devis.sections[+el.dataset.secTva].tva = el.value === '' ? null : devisNombre(el.value, null);
+    marquerModifie(); majTotaux();
+  }));
+  ed.querySelectorAll('[data-sec-monter]').forEach(el=> el.addEventListener('click', ()=> bougerSection(+el.dataset.secMonter, -1)));
+  ed.querySelectorAll('[data-sec-descendre]').forEach(el=> el.addEventListener('click', ()=> bougerSection(+el.dataset.secDescendre, +1)));
+  ed.querySelectorAll('[data-sec-suppr]').forEach(el=> el.addEventListener('click', ()=>{
+    const si = +el.dataset.secSuppr;
+    const sec = devis.sections[si];
+    const nb = (sec.groupes || []).reduce((s, g)=> s + (g.lignes || []).length, 0);
+    if(!confirm(`Supprimer la section « ${sec.titre || 'sans titre'} »${nb ? ` et ses ${nb} ligne${nb > 1 ? 's' : ''}` : ''} ?`)) return;
+    devis.sections.splice(si, 1);
+    marquerModifie(); renderEditeur(); majTotaux();
+  }));
+
+  ed.querySelectorAll('[data-ajout-ligne]').forEach(el=> el.addEventListener('click', ()=>{
+    const [si, gi] = el.dataset.ajoutLigne.split(':').map(Number);
+    devis.sections[si].groupes[gi].lignes.push(nouvelleLigneDevis(devis.sections[si].remuneration));
+    marquerModifie(); renderEditeur(); majTotaux();
+    // Le focus va sur l'intitulé de la ligne qu'on vient d'ajouter.
+    const lignes = devis.sections[si].groupes[gi].lignes;
+    const champ = document.querySelector(`[data-l="${si}:${gi}:${lignes.length - 1}:intitule"]`);
+    if(champ) champ.focus();
+  }));
+  ed.querySelectorAll('[data-ajout-groupe]').forEach(el=> el.addEventListener('click', ()=>{
+    devis.sections[+el.dataset.ajoutGroupe].groupes.push({ id: genId('grp'), titre: '', lignes: [] });
+    marquerModifie(); renderEditeur();
+  }));
+  ed.querySelectorAll('[data-ajout-poste]').forEach(el=> el.addEventListener('click', ()=>{
+    posteCibleGroupe = el.dataset.ajoutPoste;
+    renderPostes();
+    document.getElementById('postesOverlay').classList.add('open');
+  }));
+
+  const ajSection = document.getElementById('ajouterSection');
+  if(ajSection) ajSection.addEventListener('click', ()=>{
+    devis.sections.push({ id: genId('sec'), titre: '', remuneration: false, tva: null,
+      groupes: [{ id: genId('grp'), titre: '', lignes: [] }] });
+    marquerModifie(); renderEditeur();
+  });
+
+  ed.querySelectorAll('[data-l-suppr]').forEach(el=> el.addEventListener('click', ()=>{
+    const [si, gi, li] = el.dataset.lSuppr.split(':').map(Number);
+    devis.sections[si].groupes[gi].lignes.splice(li, 1);
+    marquerModifie(); renderEditeur(); majTotaux();
+  }));
+  ed.querySelectorAll('[data-l-discuter]').forEach(el=> el.addEventListener('click', ()=>{
+    const [si, gi, li] = el.dataset.lDiscuter.split(':').map(Number);
+    const l = devis.sections[si].groupes[gi].lignes[li];
+    l.discuter = !l.discuter;
+    marquerModifie(); renderEditeur(); majTotaux();
+  }));
+  ed.querySelectorAll('[data-l-monter]').forEach(el=> el.addEventListener('click', ()=> bougerLigne(el.dataset.lMonter, -1)));
+  ed.querySelectorAll('[data-l-descendre]').forEach(el=> el.addEventListener('click', ()=> bougerLigne(el.dataset.lDescendre, +1)));
+  ed.querySelectorAll('[data-l-poste]').forEach(el=> el.addEventListener('click', async ()=>{
+    const [si, gi, li] = el.dataset.lPoste.split(':').map(Number);
+    const l = devis.sections[si].groupes[gi].lignes[li];
+    const poste = { id: genId('poste'), intitule: l.intitule || '', unite: l.unite || '',
+      prix: devisNombre(l.prix, 0), regime: l.regime || 'aucun' };
+    if(!poste.intitule){ alert('Donne d\'abord un intitulé à la ligne.'); return; }
+    const { error } = await CurieuxDB.upsertOne('devis_postes', poste);
+    if(error){ alert('Enregistrement impossible :\n\n' + error.message); return; }
+    postesCache.push(poste);
+    el.textContent = '★';
+  }));
+}
+
+function bougerLigne(cle, delta){
+  const [si, gi, li] = cle.split(':').map(Number);
+  const lignes = devis.sections[si].groupes[gi].lignes;
+  const vers = li + delta;
+  if(vers < 0 || vers >= lignes.length) return;
+  [lignes[li], lignes[vers]] = [lignes[vers], lignes[li]];
+  marquerModifie(); renderEditeur(); majTotaux();
+}
+function bougerSection(si, delta){
+  const vers = si + delta;
+  if(vers < 0 || vers >= devis.sections.length) return;
+  [devis.sections[si], devis.sections[vers]] = [devis.sections[vers], devis.sections[si]];
+  marquerModifie(); renderEditeur(); majTotaux();
+}
+
+// --- Bibliothèque de postes -------------------------------------------------
+function renderPostes(){
+  const holder = document.getElementById('postesListe');
+  if(postesCache.length === 0){
+    holder.innerHTML = '<p style="color:var(--muted); font-size:13px;">Vide pour l\'instant — enregistre une ligne avec son étoile ☆ pour la retrouver ici.</p>';
+    return;
+  }
+  holder.innerHTML = postesCache.map(p=> `
+    <div class="poste-row">
+      <b>${escapeHtml(p.intitule)}</b>
+      <span style="color:var(--muted); font-size:12px;">${escapeHtml([p.unite, p.prix != null ? fmtEurosDevis(p.prix) : ''].filter(Boolean).join(' · '))}</span>
+      <button type="button" class="co-btn secondary sm" data-poste-prendre="${escapeAttr(p.id)}">Ajouter</button>
+      <button type="button" class="l-btn" data-poste-suppr="${escapeAttr(p.id)}" title="Retirer de la bibliothèque">✕</button>
+    </div>`).join('');
+  holder.querySelectorAll('[data-poste-prendre]').forEach(b=> b.addEventListener('click', ()=>{
+    const p = postesCache.find(x=> x.id === b.dataset.postePrendre);
+    if(!p || !posteCibleGroupe) return;
+    const [si, gi] = posteCibleGroupe.split(':').map(Number);
+    const l = nouvelleLigneDevis(devis.sections[si].remuneration);
+    l.intitule = p.intitule; l.unite = p.unite || ''; l.prix = p.prix != null ? p.prix : 0;
+    if(devis.sections[si].remuneration && p.regime) l.regime = p.regime;
+    devis.sections[si].groupes[gi].lignes.push(l);
+    document.getElementById('postesOverlay').classList.remove('open');
+    marquerModifie(); renderEditeur(); majTotaux();
+  }));
+  holder.querySelectorAll('[data-poste-suppr]').forEach(b=> b.addEventListener('click', async ()=>{
+    await CurieuxDB.removeOne('devis_postes', b.dataset.posteSuppr);
+    postesCache = postesCache.filter(x=> x.id !== b.dataset.posteSuppr);
+    renderPostes();
+  }));
+}
+document.getElementById('postesFermer').addEventListener('click', ()=> document.getElementById('postesOverlay').classList.remove('open'));
+document.getElementById('postesOverlay').addEventListener('click', (e)=>{
+  if(e.target === document.getElementById('postesOverlay')) document.getElementById('postesOverlay').classList.remove('open');
+});
+
+// Autocomplétions partagées (annuaire + unités usuelles).
+const dl1 = document.createElement('datalist'); dl1.id = 'unitesUsuelles';
+dl1.innerHTML = UNITES_USUELLES.map(u=> `<option value="${escapeAttr(u)}">`).join('');
+document.body.appendChild(dl1);
+const dl2 = document.createElement('datalist'); dl2.id = 'annuaireNoms';
+document.body.appendChild(dl2);
+
+charger().then(()=>{
+  dl2.innerHTML = annuaireNoms.map(n=> `<option value="${escapeAttr(n)}">`).join('');
+});
+</script>
+</body>
+</html>

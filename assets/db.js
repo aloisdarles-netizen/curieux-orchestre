@@ -461,6 +461,20 @@ const CurieuxDB = (()=>{
       toDb: (f)=> ({ id: f.id, data: f }),
       fromDb: (r)=> ({ ...(r.data || {}), id: r.id, _updatedAt: r.updated_at })
     },
+    // Espace Devis : trois documents jsonb sur le modèle des feuilles de route.
+    // Accès réservé aux comptes 'admin' par RLS (is_admin()) — voir migrations.sql.
+    devis: {
+      toDb: (d)=> { const { _updatedAt, ...data } = d; return { id: d.id, data }; },
+      fromDb: (r)=> ({ ...(r.data || {}), id: r.id, _updatedAt: r.updated_at })
+    },
+    devis_clients: {
+      toDb: (c)=> { const { _updatedAt, ...data } = c; return { id: c.id, data }; },
+      fromDb: (r)=> ({ ...(r.data || {}), id: r.id })
+    },
+    devis_postes: {
+      toDb: (p)=> { const { _updatedAt, ...data } = p; return { id: p.id, data }; },
+      fromDb: (r)=> ({ ...(r.data || {}), id: r.id })
+    },
     carnet_contacts: {
       toDb: (c)=> ({
         id: c.id, role: c.role || '', nom: c.nom || '',
@@ -1242,6 +1256,23 @@ const CurieuxDB = (()=>{
       () => supabaseClient.from('reglages').upsert({ id: 1, phase_test: !!actif }, { onConflict: 'id' }));
   }
 
+  // Réglages de l'espace Devis (identité de l'émetteur, taux par défaut) —
+  // une seule ligne jsonb, réservée aux admins par RLS. `absent:true` signale
+  // que la migration n'est pas passée : la page l'explique au lieu de planter.
+  async function fetchDevisReglages(){
+    if(!supabaseClient) return { absent: true };
+    const { data, error } = await supabaseClient.from('devis_reglages').select('*').eq('id', 1).maybeSingle();
+    if(error){ console.warn('[CurieuxDB] fetchDevisReglages', error.message); return { absent: true }; }
+    if(!data) return { absent: true };
+    return { ...(data.data || {}), absent: false };
+  }
+  async function saveDevisReglages(reglages){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { absent, ...data } = reglages || {};
+    return _ecrire('saveDevisReglages',
+      () => supabaseClient.from('devis_reglages').upsert({ id: 1, data }, { onConflict: 'id' }));
+  }
+
   // Compte les lignes de chaque table purgeable, pour annoncer ce qu'on
   // s'apprête à supprimer AVANT de le supprimer.
   async function compterLignesPurgeables(){
@@ -1399,6 +1430,7 @@ const CurieuxDB = (()=>{
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
     fetchReglages, setPhaseTest, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
+    fetchDevisReglages, saveDevisReglages,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
     getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis, enregistrerHorairesJournee,
     ajouterRemarqueParJeton, getRemarquesParJeton, enregistrerPlanSalleParJeton,

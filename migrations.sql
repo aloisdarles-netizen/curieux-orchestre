@@ -3645,3 +3645,93 @@ from lots_materiel l,
      lateral jsonb_array_elements(coalesce(l.mouvements, '[]'::jsonb)) with ordinality as t(mv, ord)
 where coalesce(mv->>'date', '') <> ''
 on conflict (id) do nothing;
+
+
+-- ============================================================================
+-- Espace Devis (août 2026) — chiffrage des projets de production.
+--
+-- Trois tables + un réglage, toutes réservées aux comptes 'admin' : un devis
+-- porte des salaires, des taux de charges et des marges — rien de tout cela ne
+-- regarde les comptes 'user' ni, a fortiori, les pages à jeton.
+--
+-- Le devis entier (en-tête éditorial, sections, groupes, lignes, taux) vit
+-- dans "data" en jsonb, comme les feuilles de route : c'est un document qu'on
+-- édite d'un seul tenant, pas une collection qu'on requête ligne à ligne.
+-- ============================================================================
+
+-- Le carnet de clients (studios, salles, festivals, agences).
+create table if not exists devis_clients (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_devis_clients_updated_at on devis_clients;
+create trigger trg_devis_clients_updated_at before update on devis_clients
+  for each row execute function set_updated_at();
+alter table devis_clients enable row level security;
+drop policy if exists "devis clients acces" on devis_clients;
+create policy "devis clients acces" on devis_clients for all to authenticated
+  using (is_admin()) with check (is_admin());
+
+-- Les devis eux-mêmes. Un projet peut porter plusieurs variantes : elles
+-- partagent data->>'projetId' et se comparent côte à côte.
+create table if not exists devis (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_devis_updated_at on devis;
+create trigger trg_devis_updated_at before update on devis
+  for each row execute function set_updated_at();
+alter table devis enable row level security;
+drop policy if exists "devis acces" on devis;
+create policy "devis acces" on devis for all to authenticated
+  using (is_admin()) with check (is_admin());
+
+-- La bibliothèque de postes réutilisables (« Ingé son 280 €/j », « Repas 20 € »).
+create table if not exists devis_postes (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_devis_postes_updated_at on devis_postes;
+create trigger trg_devis_postes_updated_at before update on devis_postes
+  for each row execute function set_updated_at();
+alter table devis_postes enable row level security;
+drop policy if exists "devis postes acces" on devis_postes;
+create policy "devis postes acces" on devis_postes for all to authenticated
+  using (is_admin()) with check (is_admin());
+
+-- L'identité de l'émetteur et les défauts (taux de charges, TVA, validité),
+-- une seule ligne. Pré-remplie avec l'en-tête légal des Soudaines tel qu'il
+-- figure sur les devis existants — modifiable depuis la page Devis.
+create table if not exists devis_reglages (
+  id int primary key default 1 check (id = 1),
+  data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_devis_reglages_updated_at on devis_reglages;
+create trigger trg_devis_reglages_updated_at before update on devis_reglages
+  for each row execute function set_updated_at();
+alter table devis_reglages enable row level security;
+drop policy if exists "devis reglages acces" on devis_reglages;
+create policy "devis reglages acces" on devis_reglages for all to authenticated
+  using (is_admin()) with check (is_admin());
+
+insert into devis_reglages (id, data) values (1, jsonb_build_object(
+  'nom', 'LES SOUDAINES',
+  'siret', '938 916 244 00016',
+  'adresse', '61 rue de Lyon 75012 Paris',
+  'ape', 'Arts du spectacle vivant (90.01Z)',
+  'tvaIntracom', 'FR82938916244',
+  'representant', 'Représentée par Daniel SICARD, son président',
+  'email', 'lessoudaines@gmail.com',
+  'tel', '+33 6 08 18 43 90',
+  'tauxAuteur', 4, 'tauxMusicien', 60, 'tauxProduction', 67,
+  'tvaDefaut', 20, 'validiteJours', 30,
+  'conditionsReglement', 'Acompte de 30 % à la commande, solde à livraison. Paiement à 30 jours. Pénalités de retard : taux BCE + 10 points ; indemnité forfaitaire de recouvrement : 40 €.'
+)) on conflict (id) do nothing;

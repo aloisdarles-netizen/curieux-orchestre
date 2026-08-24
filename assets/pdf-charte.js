@@ -149,7 +149,11 @@ function creerComposeurPdf(doc, options){
     doc.text('Curieux orchestre', o.marge, y, { baseline:'top' });
     const droite = entete.mention || '';
     if(droite) doc.text(droite, LARGEUR - o.marge, y, { baseline:'top', align:'right' });
-    if(debordement){
+    // Un document pensé pour tenir sur une feuille (feuille de route, page
+    // salle) prévient quand il déborde. Un document multi-pages par nature
+    // (devis) passe mentionDebordement:false — « suite au verso » sur la
+    // DERNIÈRE page serait un contresens.
+    if(debordement && o.mentionDebordement !== false){
       doc.text('suite au verso', LARGEUR / 2, y, { baseline:'top', align:'center' });
     }
   }

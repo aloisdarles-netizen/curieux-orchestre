@@ -43,7 +43,9 @@
 // étape et pavé du lien en rose pâle (pdf-charte.js, pdf-prise-en-main.js).
 // v10 : retrait de l'espace studio (studio-commun.js supprimé) — le
 // déploiement du script Google côté tableur n'a pas pu aboutir.
-const VERSION = 'curieux-v10';
+// v11 : espace Devis — deux nouveaux actifs (devis-commun.js, pdf-devis.js),
+// adaptateurs dans db.js, option mentionDebordement dans pdf-charte.js.
+const VERSION = 'curieux-v11';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -48,7 +48,18 @@ const DATES = [
   techniciensAssignes:['demo-tech-01','demo-tech-02'], linkedToNext: i===1,
 }));
 
+// L'espace Devis se capture avec les devis réels d'exemple : le fichier de
+// modèles est LA vérité (les mêmes données que le bouton d'import de la page).
+const EXEMPLES_DEVIS = require('../modeles/devis-exemples.json');
+
 const SEED = {
+  devis: EXEMPLES_DEVIS.devis,
+  devis_clients: EXEMPLES_DEVIS.clients,
+  devis_postes: [
+    { id:'demo-poste-01', intitule:'Ingénieur du son', unite:'Journée', prix:280, regime:'production' },
+    { id:'demo-poste-02', intitule:'Musicien·ne (cachet)', unite:'Cachets', prix:280, regime:'musicien' },
+    { id:'demo-poste-03', intitule:'Déjeuner', unite:'Repas', prix:20, regime:'aucun' },
+  ],
   musiciens: MUS,
   techniciens: [
     {id:'demo-tech-01',prenom:'Marie',nom:'Dupont',poste:'Ingé son façade',pole:'Son',telephone:'06 32 51 72 90',email:'marie@mail.com',disponibilites:{}},
@@ -466,6 +477,18 @@ const CurieuxDB = new Proxy({
   getContactProduction: async () => ({ nom:'Aloïs — production', telephone:'06 12 34 56 78' }),
   // Le tableau des comptes de l'admin : sans lui, la page se capture vide et
   // la case d'accès à la direction technique reste invisible.
+  // Réglages de l'espace Devis : l'identité légale telle que la migration la
+  // pré-remplit — sans elle, l'en-tête du PDF de devis se capture vide.
+  fetchDevisReglages: async () => ({
+    absent: false, nom: 'LES SOUDAINES', siret: '938 916 244 00016',
+    adresse: '61 rue de Lyon 75012 Paris', ape: 'Arts du spectacle vivant (90.01Z)',
+    tvaIntracom: 'FR82938916244', representant: 'Représentée par Daniel SICARD, son président',
+    email: 'lessoudaines@gmail.com', tel: '+33 6 08 18 43 90',
+    tauxAuteur: 4, tauxMusicien: 60, tauxProduction: 67,
+    tvaDefaut: 20, validiteJours: 30,
+    conditionsReglement: 'Acompte de 30 % à la commande, solde à livraison. Paiement à 30 jours.',
+  }),
+  saveDevisReglages: async () => ({ error: null }),
   listAccounts: async () => [
     { email:'alois@lessoudaines.fr', role:'admin', direction_technique:true },
     { email:'marie@lessoudaines.fr', role:'user', direction_technique:true },
