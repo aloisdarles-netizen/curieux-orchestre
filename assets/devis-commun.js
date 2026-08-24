@@ -5,8 +5,16 @@
  * PDF (pdf-devis.js) : les totaux affichés à l'écran et imprimés au client
  * sortent du MÊME calcul, ils ne peuvent pas diverger.
  *
+ * ATTENTION à deux champs de noms proches et de sens opposés :
+ *   - projetId groupe les VARIANTES d'un même chiffrage entre elles (le budget
+ *     interne, le devis client qui en sort, la variante « avec clip »). C'est
+ *     lui qui fait une carte dans devis.html. Il ne désigne rien d'autre.
+ *   - tourneeId rattache le chiffrage à une TOURNÉE ou un RECORDING de la table
+ *     tournees. Vide tant qu'on n'a rien rattaché. C'est par lui que le devis
+ *     connaît le nombre de dates, l'effectif attendu et le cachet standard.
+ *
  * Le document devis (stocké tel quel en jsonb) :
- *   { id, projetId, variante, retenue, numero, statut, fige,
+ *   { id, projetId, tourneeId, variante, retenue, numero, statut, fige,
  *     titre, clientId, date, validiteJours, conditionsReglement, acomptePct,
  *     intervention, rendus:[{titre, texte}], horsDevisTexte, memo,
  *     taux:{auteur, musicien, production}, fraisGenerauxPct, imprevusPct,
@@ -51,11 +59,15 @@ const DEVIS_STATUTS = {
   refuse:    'Refusé',
 };
 
-function nouveauDevis(reglages, projetId){
+// projetId groupe les variantes (voir l'en-tête) ; tourneeId rattache à une
+// tournée ou un recording ; typeProjet ne sert qu'à choisir le gabarit de
+// sections — un disque ne se découpe pas comme une tournée.
+function nouveauDevis(reglages, projetId, tourneeId, typeProjet){
   const r = reglages || {};
   return {
     id: genId('devis'),
     projetId: projetId || genId('projet'),
+    tourneeId: tourneeId || '',
     typeDoc: 'budget', budgetId: '',
     variante: '', retenue: false,
     numero: '', statut: 'brouillon', fige: false,
@@ -73,15 +85,94 @@ function nouveauDevis(reglages, projetId){
     fichesPaie: { nb: 0, prix: 28 },
     tvaDefaut: r.tvaDefaut != null ? r.tvaDefaut : 20,
     remise: { libelle: 'Remise commerciale', montant: 0 },
-    sections: [
-      { id: genId('sec'), titre: 'Rémunération équipe (brut hors charges)', remuneration: true, tva: null, horsFG: false, groupes: [
-        { id: genId('grp'), titre: '', lignes: [] },
-      ]},
-      { id: genId('sec'), titre: 'VHR et matériel', remuneration: false, tva: null, horsFG: false, groupes: [
-        { id: genId('grp'), titre: '', lignes: [] },
-      ]},
-    ],
+    sections: gabaritSectionsDevis(typeProjet),
   };
+}
+
+// Un devis de tournée se découpe en rémunération puis VHR et matériel ; un
+// devis de recording en rémunération, studio et post-production. Même moteur,
+// charpente différente : on part du bon squelette plutôt que de renommer des
+// sections à la main à chaque disque.
+function gabaritSectionsDevis(typeProjet){
+  const titres = typeProjet === 'recording'
+    ? [['Rémunération équipe (brut hors charges)', true], ['Studio et technique', false], ['Post-production', false]]
+    : [['Rémunération équipe (brut hors charges)', true], ['VHR et matériel', false]];
+  return titres.map(([titre, remuneration])=> ({
+    id: genId('sec'), titre, remuneration, tva: null, horsFG: false,
+    groupes: [{ id: genId('grp'), titre: '', lignes: [] }],
+  }));
+}
+
+/* Ce qu'une tournée (ou un recording) sait déjà, et que le devis retapait.
+ *
+ * Le devis réel dit « 5 journées × 17 musiciens × 280 € ». Ces trois nombres
+ * existent déjà côté projet : le nombre de dates validées, le total de la
+ * nomenclature, et le cachet standard. On les lit ici une fois, pour que
+ * l'éditeur puisse les reporter et signaler quand ils ont divergé.
+ *
+ * Les dates ANNULÉES ne comptent pas — un devis ne se chiffre pas dessus. Les
+ * options non plus dans « validees », mais on rend les deux : au stade du
+ * budget, on chiffre volontiers l'ensemble des dates envisagées.
+ */
+function chiffresDuProjet(tournee){
+  if(!tournee) return null;
+  const dates = (tournee.dates || []).filter(d=> d.statut !== 'annulee');
+  const validees = dates.filter(d=> d.statut === 'validee');
+  const effectif = (tournee.nomenclature || []).reduce((n, r)=> n + (devisNombre(r.nombre, 0)), 0);
+  return {
+    id: tournee.id,
+    nom: tournee.nom || '',
+    estRecording: tournee.type === 'recording',
+    dates: dates.length,
+    datesValidees: validees.length,
+    effectif,
+    cachet: tournee.cachetStatut === 'defini' && tournee.cachetMontant != null
+      ? devisNombre(tournee.cachetMontant, 0) : null,
+  };
+}
+
+// Les lignes qui décrivent la présence de l'équipe : ce sont elles qui portent
+// le nombre de journées, l'effectif et le cachet, et donc elles seules que le
+// report du projet et l'alerte de divergence regardent.
+function lignesCachetDevis(d){
+  const trouvees = [];
+  (d.sections || []).forEach(sec=>{
+    if(!sec.remuneration) return;
+    (sec.groupes || []).forEach(grp=> (grp.lignes || []).forEach(l=>{
+      if(l.regime === 'musicien' && l.etat !== 'hors_devis') trouvees.push(l);
+    }));
+  });
+  return trouvees;
+}
+
+/* Ce que le devis dit, comparé à ce que le projet dit.
+ * Rend la liste des écarts en clair, vide quand tout concorde. Purement
+ * indicatif : les deux peuvent légitimement diverger (on chiffre parfois une
+ * date en plus « au cas où »), on signale, on ne corrige jamais tout seul.
+ */
+function ecartsDevisProjet(d, chiffres){
+  if(!chiffres) return [];
+  const lignes = lignesCachetDevis(d);
+  if(!lignes.length) return [];
+  const ecarts = [];
+
+  const journees = [...new Set(lignes.map(l=> devisNombre(l.journees, 1)))];
+  const attendu = chiffres.datesValidees || chiffres.dates;
+  if(attendu && journees.length === 1 && journees[0] !== attendu){
+    ecarts.push(`${fmtQteDevis(journees[0])} journée${journees[0] > 1 ? 's' : ''} chiffrée${journees[0] > 1 ? 's' : ''} pour ${attendu} date${attendu > 1 ? 's' : ''} au planning`);
+  }
+
+  const effectifs = [...new Set(lignes.map(l=> devisNombre(l.qte, 1)))];
+  if(chiffres.effectif && effectifs.length === 1 && effectifs[0] !== chiffres.effectif){
+    ecarts.push(`${fmtQteDevis(effectifs[0])} personne${effectifs[0] > 1 ? 's' : ''} chiffrée${effectifs[0] > 1 ? 's' : ''} pour ${chiffres.effectif} attendue${chiffres.effectif > 1 ? 's' : ''} à la nomenclature`);
+  }
+
+  const prix = [...new Set(lignes.map(l=> devisNombre(l.prix, 0)))];
+  if(chiffres.cachet != null && prix.length === 1 && prix[0] !== chiffres.cachet){
+    ecarts.push(`${fmtEurosDevis(prix[0])} par cachet ici, ${fmtEurosDevis(chiffres.cachet)} sur le projet`);
+  }
+
+  return ecarts;
 }
 
 function nouvelleLigneDevis(remuneration){

@@ -277,7 +277,7 @@ const SEED = {
       bonus:'Loges au niveau -1.', merchandisingOk:true, ticketLinks:[] },
     { id:'demo-fdr-02', artistName:'Album — Les Soudaines vol. II', eventDate:'2027-02-08',
       venueCity:'Paris', venueSalle:'Studio Ferber', projetType:'recording',
-      studio:{ cabine:'Grand studio', seance:'journee', titres:'Ouverture, Nocturne' },
+      studio:{ cabine:'Grand studio', titres:'Ouverture, Nocturne' },
       contacts:[{ id:'c2', role:'Direction artistique', nom:'Claire Fontenoy', indicatif:'+33', tel:'6 44 55 66 77', email:'claire@lessoudaines.fr' },
                 { id:'c3', role:'Ingé son', nom:'Marie Dupont', indicatif:'+33', tel:'6 32 51 72 90', email:'marie@mail.com' }],
       trajets:[],
@@ -511,7 +511,18 @@ const CurieuxDB = new Proxy({
   isSuperAdmin: async () => !location.search.includes('refus=admin'),
   hasDirectionTechniqueAccess: async () => !location.search.includes('refus=technique'),
   currentRole: async () => 'admin',
-  mesDemandesDispo: async () => null,
+  // Deux demandes en attente, une par nature de projet : c'est le seul moyen de
+  // vérifier que l'espace perso ne leur donne pas la même icône.
+  mesDemandesDispo: async () => ({
+    personId:'demo-mus-01', personType:'musicien', prenom:'Roxanne', nom:'Rabatti',
+    statutPoste:'titulaire',
+    demandes:[
+      { token:'jeton-demo', tourneeNom:"L'Atelier de Joe Hisaishi — Printemps 2027",
+        tourneeType:'tournee', repondu:false, creeLe:'2026-08-01T10:00:00Z' },
+      { token:'jeton-demo-reco', tourneeNom:'Album — Les Soudaines vol. II',
+        tourneeType:'recording', repondu:false, creeLe:'2026-08-02T10:00:00Z' },
+    ],
+  }),
   // Pages à jeton : la tournée est rendue telle qu'elle est en base (colonnes
   // brutes), la personne aussi.
   getTourneeByToken: async () => {

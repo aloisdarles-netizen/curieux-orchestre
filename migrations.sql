@@ -3782,3 +3782,63 @@ alter table tournees add column if not exists type text not null default 'tourne
 -- principe que technique_tournee : ils ne changent pas d'une séance à l'autre,
 -- on ne les recopie donc pas sur chaque date.
 alter table tournees add column if not exists recording jsonb not null default '{}'::jsonb;
+
+
+-- ============================================================================
+-- Espace perso : dire de quelle nature est le projet (août 2026)
+--
+-- mes_demandes_dispo ne rendait que le nom de la tournée. Depuis l'arrivée des
+-- recordings, une même personne peut avoir en attente une demande de tournée et
+-- une demande de studio : sans la nature, les deux s'affichent à l'identique
+-- dans son espace, avec la même icône de calendrier. On ajoute donc le type,
+-- que mon-espace.html traduit en icône (un disque plutôt qu'un calendrier).
+--
+-- Seul le champ 'tourneeType' est nouveau : le reste de la fonction est
+-- rigoureusement identique à sa version précédente.
+-- ============================================================================
+
+create or replace function mes_demandes_dispo(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cible record;
+  resultat jsonb;
+begin
+  select * into cible from resolve_person_token(p_token);
+  if not found or cible.person_id is null then
+    return null;
+  end if;
+
+  select jsonb_build_object(
+    'personId', cible.person_id,
+    'personType', cible.person_type,
+    'prenom', coalesce(
+      (select m.prenom from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.prenom from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'), ''),
+    'nom', coalesce(
+      (select m.nom from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.nom from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'), ''),
+    'statutPoste', coalesce(
+      (select m.statut_poste from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      'titulaire'),
+    'demandes', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'token', d.id,
+               'tourneeNom', t.nom,
+               'tourneeType', coalesce(t.type, 'tournee'),
+               'repondu', d.last_responded_at is not null,
+               'creeLe', d.created_at)
+             order by d.created_at desc)
+      from dispo_demandes d
+      join tournees t on t.id = d.tournee_id
+      where d.person_id = cible.person_id and d.person_type = cible.person_type
+    ), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
+grant execute on function mes_demandes_dispo(text) to anon, authenticated;

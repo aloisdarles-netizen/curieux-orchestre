@@ -315,14 +315,6 @@
     </div>
     <div class="field-row" id="champsStudio" style="display:none;">
       <div class="field"><label for="s_cabine">Cabine / salle de prise</label><input type="text" id="s_cabine" placeholder="Ex: Grand studio"></div>
-      <div class="field"><label for="s_seance">Séance</label>
-        <select id="s_seance">
-          <option value="journee">Journée — 9h00 à 18h00</option>
-          <option value="matin">Matin — 8h30 à 13h30</option>
-          <option value="aprem">Après-midi — 13h30 à 18h30</option>
-          <option value="soir">Soir — 18h30 à 21h30</option>
-        </select>
-      </div>
       <div class="field"><label for="s_titres">Titres travaillés</label><input type="text" id="s_titres" placeholder="Ex: Ouverture, Nocturne, Marche"></div>
     </div>
     </div>
@@ -539,7 +531,7 @@ function buildDefaultState(){
     // séance de studio (voir tournees.html), modifiable ici sinon.
     projetType:'tournee',
     // Ce qui n'existe qu'en studio. Vide et ignoré sur une date de tournée.
-    studio:{ cabine:'', seance:'journee', titres:'' },
+    studio:{ cabine:'', titres:'' },
     logoChoice:'none', customLogoDataUrl:'',
     contacts: defaultContactsList(),
     merchandisingOk:false,
@@ -592,7 +584,6 @@ function normalizeFdrEntry(parsed){
     studio:{
       ...base.studio,
       ...(parsed.cabineStudio ? { cabine: parsed.cabineStudio } : {}),
-      ...(parsed.seanceStudio ? { seance: parsed.seanceStudio } : {}),
       ...(parsed.titresStudio ? { titres: parsed.titresStudio } : {}),
       ...(parsed.studio || {}),
     },
@@ -808,7 +799,6 @@ function bindTopFields(){
   bindSimpleField('l_jauge', ()=>state.lieu.jauge, v=>state.lieu.jauge=v);
   bindSimpleField('l_billetterie', ()=>state.lieu.billetterie, v=>state.lieu.billetterie=v);
   bindSimpleField('s_cabine', ()=>state.studio.cabine, v=>state.studio.cabine=v);
-  bindSimpleField('s_seance', ()=>state.studio.seance, v=>state.studio.seance=v);
   bindSimpleField('s_titres', ()=>state.studio.titres, v=>state.studio.titres=v);
 
   bindSimpleField('h_nom', ()=>state.hotel.nom, v=>state.hotel.nom=v);
@@ -1520,8 +1510,6 @@ function layoutBody(doc, pageWidth, marginX, s){
       if(state.lieu.adresse) lieuLines.push(...doc.splitTextToSize(state.lieu.adresse, rightW));
       if(estStudio){
         if(state.studio.cabine) lieuLines.push(`Cabine : ${state.studio.cabine}`);
-        const seance = libelleSeance(state.studio.seance, true);
-        if(seance) lieuLines.push(`Séance : ${seance}`);
         if(state.studio.titres) lieuLines.push(...doc.splitTextToSize(`Titres : ${state.studio.titres}`, rightW));
       } else {
         if(state.lieu.jauge) lieuLines.push(`Jauge : ${state.lieu.jauge}`);

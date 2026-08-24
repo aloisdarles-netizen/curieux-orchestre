@@ -92,17 +92,14 @@ const HOME_SECTIONS = [
   { titre:'Tournées',
     fond:'#CEE1F4', encre:'#791649', chip:'♩', chipFond:'#791649', chipEncre:'#FCF2F0',
     chipTilt:'-6deg', tilt:'-1.1deg', lienFond:'rgba(252,242,240,.65)', lienEncre:'#791649',
-    liens:[['Gérer les tournées','tournees.html'],['Journal des changements','newsletter.html']] },
+    liens:[['Gérer les tournées','tournees.html'],['Feuilles de route','feuilles-de-route.html'],['Journal des changements','newsletter.html']] },
 
-  { titre:'Feuilles',
-    fond:'#e2ece4', encre:'#791649', chip:'✎', chipFond:'#791649', chipEncre:'#FCF2F0',
-    chipTilt:'-4deg', tilt:'.5deg', lienFond:'rgba(252,242,240,.7)', lienEncre:'#791649',
-    liens:[['Feuilles de route','feuilles-de-route.html'],['Feuilles de studio','feuilles-de-route.html?type=recording']] },
-
+  // Le recording a sa propre liste de feuilles : ce sont des feuilles de
+  // studio, elles n'ont rien à faire dans celle des tournées.
   { titre:'Recording',
     fond:'#f3ddd0', encre:'#791649', chip:'◉', chipFond:'#791649', chipEncre:'#FCF2F0',
     chipTilt:'4deg', tilt:'.7deg', lienFond:'rgba(252,242,240,.65)', lienEncre:'#791649',
-    liens:[['Gérer les recordings','tournees.html?type=recording']] },
+    liens:[['Gérer les recordings','tournees.html?type=recording'],['Feuilles de studio','feuilles-de-route.html?type=recording']] },
 
   { titre:'Disponibilités',
     fond:'#FEC9E0', encre:'#791649', chip:'✓', chipFond:'#EC4B15', chipEncre:'#FCF2F0',
@@ -168,26 +165,29 @@ function statsHtml(){
   }).join('')}</div>`;
 }
 
+function stickerHtml(sec, nuit){
+  const fond = nuit ? (HOME_SOMBRE[sec.fond] || sec.fond) : sec.fond;
+  const encre = nuit ? '#FCF2F0' : sec.encre;
+  const lienFond = nuit ? 'rgba(252,242,240,.13)' : sec.lienFond;
+  const lienEncre = nuit ? '#FCF2F0' : sec.lienEncre;
+  const chipFond = nuit ? (HOME_SOMBRE[sec.chipFond] || sec.chipFond) : sec.chipFond;
+  const chipEncre = nuit ? '#FCF2F0' : sec.chipEncre;
+  return `<section class="co-sticker${sec.wide ? ' wide' : ''}" style="--co-tilt:${sec.tilt}; background:${fond};">
+    <div class="home-sticker-head">
+      <span class="co-badge" style="--co-tilt:${sec.chipTilt}; background:${chipFond}; color:${chipEncre};" aria-hidden="true">${sec.chip}</span>
+      <h2 class="co-sticker-title" style="color:${encre};">${escapeHtml(sec.titre)}</h2>
+    </div>
+    ${sec.stats ? statsHtml() : ''}
+    <div class="home-links">${sec.liens.map(([label, href])=>
+      `<a href="${href}" style="background:${lienFond}; color:${lienEncre};">${escapeHtml(label)}</a>`
+    ).join('')}</div>
+  </section>`;
+}
+
 function renderBoard(){
   const nuit = sombre();
-  document.getElementById('homeBoard').innerHTML = HOME_SECTIONS.map(sec=>{
-    const fond = nuit ? (HOME_SOMBRE[sec.fond] || sec.fond) : sec.fond;
-    const encre = nuit ? '#FCF2F0' : sec.encre;
-    const lienFond = nuit ? 'rgba(252,242,240,.13)' : sec.lienFond;
-    const lienEncre = nuit ? '#FCF2F0' : sec.lienEncre;
-    const chipFond = nuit ? (HOME_SOMBRE[sec.chipFond] || sec.chipFond) : sec.chipFond;
-    const chipEncre = nuit ? '#FCF2F0' : sec.chipEncre;
-    return `<section class="co-sticker${sec.wide ? ' wide' : ''}" style="--co-tilt:${sec.tilt}; background:${fond};">
-      <div class="home-sticker-head">
-        <span class="co-badge" style="--co-tilt:${sec.chipTilt}; background:${chipFond}; color:${chipEncre};" aria-hidden="true">${sec.chip}</span>
-        <h2 class="co-sticker-title" style="color:${encre};">${escapeHtml(sec.titre)}</h2>
-      </div>
-      ${sec.stats ? statsHtml() : ''}
-      <div class="home-links">${sec.liens.map(([label, href])=>
-        `<a href="${href}" style="background:${lienFond}; color:${lienEncre};">${escapeHtml(label)}</a>`
-      ).join('')}</div>
-    </section>`;
-  }).join('');
+  document.getElementById('homeBoard').innerHTML =
+    HOME_SECTIONS.map(sec=> stickerHtml(sec, nuit)).join('');
 }
 
 // --- Chiffres clés ---------------------------------------------------------

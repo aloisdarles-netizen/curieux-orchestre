@@ -102,6 +102,10 @@ const ICONES = {
   dispos: `<svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.7"></rect><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><polyline points="8.5,14 11,16.3 15.5,12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>`,
   infos: `<svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"></rect><path d="M8 11V7.5a4 4 0 0 1 8 0V11" fill="none" stroke="currentColor" stroke-width="1.7"></path><circle cx="12" cy="15.6" r="1.35" fill="currentColor"></circle></svg>`,
   remplacants: `<svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h11a4 4 0 0 1 4 4v1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><polyline points="12,4.3 15.2,7.5 12,10.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></polyline><path d="M20 16.5H9a4 4 0 0 1-4-4v-1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><polyline points="12,13.3 8.8,16.5 12,19.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>`,
+  // Un disque, pas un calendrier : quand une même personne a en attente une
+  // demande de tournée et une demande de studio, les deux tuiles doivent se
+  // distinguer avant même d'avoir lu le nom du projet.
+  recording: `<svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.7"></circle><circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"></circle><circle cx="12" cy="12" r="1" fill="currentColor"></circle></svg>`,
 };
 
 function etat(html){
@@ -147,13 +151,13 @@ async function init(){
   let blocDispos = '';
   if(demandes.length === 0){
     blocDispos = `<div class="co-card co-pad etat-boite" style="text-align:left; padding:15px 17px;">
-      Aucune demande de disponibilité en cours. Tu recevras un message quand une tournée se prépare.
+      Aucune demande de disponibilité en cours. Tu recevras un message quand un projet se prépare.
     </div>`;
   } else {
     blocDispos = demandes.map(d => tuile(
       `dispo-titulaire.html?token=${encodeURIComponent(d.token)}`,
-      ICONES.dispos,
-      d.tourneeNom || 'Tournée',
+      d.tourneeType === 'recording' ? ICONES.recording : ICONES.dispos,
+      d.tourneeNom || (d.tourneeType === 'recording' ? 'Recording' : 'Tournée'),
       d.repondu ? 'Tu as déjà répondu — modifiable' : 'À compléter',
       d.repondu ? '<span class="pastille faite">Répondu</span>' : '<span class="pastille">À faire</span>'
     )).join('');
