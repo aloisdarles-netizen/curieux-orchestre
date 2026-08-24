@@ -53,7 +53,12 @@
 // (devis-commun.js), le PDF d'un budget porte son bandeau (pdf-devis.js).
 // v15 : partitions sur la feuille de route et sauvegarde quotidienne des devis
 // (assets/db.js : listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis).
-const VERSION = 'curieux-v15';
+// v16 : module Recording — vocabulaire adaptatif et pastille de nature dans
+// ui-helpers.js, colonne « type » portée par l'adaptateur tournees de db.js,
+// entrée « Recording » et détection de page à requête dans nav.js, bandeau
+// élargi à huit sections et dégradé de fin de menu dans base.css, lien de
+// recherche vers la page filtrée dans global-search.js.
+const VERSION = 'curieux-v16';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

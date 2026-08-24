@@ -205,9 +205,30 @@
   }
   .col-lieu textarea:focus{height:52px; resize:vertical;}
   .col-icone{font-size:13px; flex:0 0 auto; opacity:.75;}
-  .col-type, .col-voyage{display:flex; align-items:center; gap:5px; min-width:0;}
+  .col-type, .col-voyage, .col-seance{display:flex; align-items:center; gap:5px; min-width:0;}
   .col-statut, .col-fdr, .col-suppr{min-width:0;}
-  .col-type select, .col-voyage select{flex:1; min-width:0;}
+  .col-type select, .col-voyage select, .col-seance select{flex:1; min-width:0;}
+
+  /* ------------------------------------------------------------------------
+     Recording : une colonne de plus (la séance) et deux champs de plus dans la
+     cellule du studio (cabine, titres travaillés). Le reste de la ligne est
+     identique à celle d'une tournée — c'est le même travail de planification.
+     ------------------------------------------------------------------------ */
+  .recording-rows .date-row{
+    min-width:1180px;
+    grid-template-columns:96px 92px minmax(210px,1fr) 118px 122px 118px 92px minmax(196px,auto) 88px 88px;
+  }
+  .col-lieu .ligne-studio{flex-basis:100%; display:flex; gap:6px; min-width:0; margin-top:1px;}
+  .col-lieu .saisie-cabine{flex:0 1 42%; min-width:0; font-size:12px; color:var(--muted);}
+  .col-lieu .saisie-titres{flex:1 1 58%; min-width:0; font-size:12px; color:var(--muted);}
+
+  /* Réglages constants du disque, à côté du cachet et de la nomenclature. */
+  .recording-panel{min-width:0;}
+  .reco-champ{display:block; margin-bottom:7px;}
+  .reco-champ span{
+    display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:2px;
+  }
+  .reco-champ input{width:100%;}
   .col-equipe{display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;}
   .col-equipe .chips{flex-basis:100%; margin:4px 0 0;}
   /* Compteur d'effectif : chiffres alignés, et prune sur rose dès qu'il manque
@@ -441,6 +462,45 @@
 <script>
 const FDR_LAST_ID_KEY = 'fdr-last-id';
 
+// ---------------------------------------------------------------------------
+// Tournées ou recordings : la même page, filtrée.
+//
+// Un enregistrement en studio se planifie exactement comme une tournée — des
+// dates, des blocs, des affectations, une feuille par jour. Dupliquer cet
+// écran aurait dupliqué du même coup les treize pages qui lisent « tournees »
+// (dispos, récap, avancement technique, feuilles de route, liens partagés).
+// On filtre donc sur une colonne, et le vocabulaire s'adapte là où on le lit :
+// « studio » remplace « salle », la nature d'une date devient prise/overdub/
+// mixage, et trois réglages propres au disque apparaissent en tête de projet.
+//
+// PROJET_TYPE vaut 'recording' quand l'URL porte ?type=recording, 'tournee'
+// sinon — c'est ce que le lien « Recording » du bandeau ouvre (voir nav.js).
+// ---------------------------------------------------------------------------
+const PROJET_TYPE = (()=>{
+  try{ return new URLSearchParams(location.search).get('type') === 'recording' ? 'recording' : 'tournee'; }
+  catch(e){ return 'tournee'; }
+})();
+const VOC = vocabulaireProjet(PROJET_TYPE);
+const EST_RECORDING = PROJET_TYPE === 'recording';
+
+// Les libellés de la coquille (titre d'onglet, en-tête, champ de création) sont
+// dans le HTML pour que la page reste lisible sans JavaScript ; on les reprend
+// ici une fois, plutôt que d'entretenir deux pages presque identiques.
+(function habillerLaPage(){
+  if(!EST_RECORDING) return;
+  document.title = 'Curieux orchestre — Recordings';
+  const h1 = document.querySelector('.co-page-head h1');
+  if(h1) h1.textContent = 'Recordings';
+  const sous = document.querySelector('.co-page-head .subtitle');
+  if(sous) sous.textContent = "Séances, studios, équipes affectées et feuilles de studio — clique un statut pour le faire tourner.";
+  const champ = document.getElementById('newTourneeName');
+  if(champ) champ.placeholder = 'Nom du nouveau recording (ex : Album Hiver 2027)';
+  const bouton = document.getElementById('addTourneeBtn');
+  if(bouton) bouton.textContent = '+ Créer le recording';
+  const passees = document.querySelector('#pastTourneesWrap summary');
+  if(passees) passees.innerHTML = 'Recordings passés (<span id="pastTourneesCount">0</span>)';
+})();
+
 // Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
 // musiciens/techniciens sont en lecture seule ici (juste pour affichage/affectation) ;
 // tournees et feuilles_route sont aussi écrits depuis cette page.
@@ -531,6 +591,14 @@ async function createFdrForDate(d, tourneeName){
   ];
   const collection = loadFdrCollection();
   const entry = { id, artistName: tourneeName || '', eventDate: d.date, venueCity: d.ville || '', venueSalle: d.lieu || '' };
+  // La feuille garde la nature de son projet : elle sait ainsi qu'elle parle
+  // d'un studio et non d'une salle, sans avoir à remonter jusqu'à la tournée.
+  if(EST_RECORDING){
+    entry.projetType = 'recording';
+    if(d.seance) entry.seanceStudio = d.seance;
+    if(d.cabine) entry.cabineStudio = d.cabine;
+    if(d.titres) entry.titresStudio = d.titres;
+  }
   // Si personne n'est encore affecté à cette date, on laisse le champ absent pour que
   // la FDR reprenne les 2 contacts de base (régisseur/prod) au lieu d'une liste vide.
   if(contacts.length > 0) entry.contacts = contacts;
@@ -681,7 +749,7 @@ document.getElementById('importConfirm').addEventListener('click', (e)=>{
   let added = 0;
   parsed.forEach(p=>{
     if(existingDates.has(p.date)) return;
-    tournee.dates.push({ id: genId('date'), date: p.date, ville: p.ville, lieu: p.lieu, commentaire:'', statut:'option', type:'concert', travelMode:'tourbus', musiciensAssignes:[], techniciensAssignes:[] });
+    tournee.dates.push({ id: genId('date'), date: p.date, ville: p.ville, lieu: p.lieu, commentaire:'', statut:'option', type: typeDateValide(PROJET_TYPE, ''), travelMode:'tourbus', musiciensAssignes:[], techniciensAssignes:[], ...(EST_RECORDING ? { seance:'journee', cabine:'', titres:'' } : {}) });
     existingDates.add(p.date);
     added++;
   });
@@ -786,7 +854,7 @@ function computeDoubleBookings(dateIso, excludeTourneeId, excludeDateId){
       if(d.statut === 'annulee') return;
       if(d.date !== dateIso) return;
       if(t.id === excludeTourneeId && d.id === excludeDateId) return;
-      const tourneeName = t.nom || 'une autre tournée';
+      const tourneeName = t.nom || (t.type === 'recording' ? 'un autre recording' : 'une autre tournée');
       (d.musiciensAssignes || []).forEach(id=>{ if(!conflicts.has(id)) conflicts.set(id, tourneeName); });
       (d.techniciensAssignes || []).forEach(id=>{ if(!conflicts.has(id)) conflicts.set(id, tourneeName); });
     });
@@ -1002,7 +1070,7 @@ async function demanderDispo(personId, role){
   const message = [
     `Bonjour ${personne.prenom || ''},`.trim(),
     '',
-    `On monte l'équipe pour ${(tournee && tournee.nom) || 'une tournée'} et il nous manque ta réponse sur le ${fmtDateFR(assignDateIso)}.`,
+    `On monte l'équipe pour ${(tournee && tournee.nom) || VOC.unProjet} et il nous manque ta réponse sur le ${fmtDateFR(assignDateIso)}.`,
     `Tu peux répondre ici, en deux clics : ${lien}`,
     '',
     'Merci !',
@@ -1273,12 +1341,13 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         ...Array.from(technicianById.values()).map(m=>({ id: m.id, type: 'technicien', name: fullName(m) })),
       ].sort((a,b)=> a.name.localeCompare(b.name));
       const cachetOverrides = cachetOverridesForTournee(t.id);
+      const reco = t.recording || {};
       const overrideCount = rosterPeople.filter(p => cachetOverrides[p.id] != null).length;
       const rows = dates.map((d, dIdx)=>{
         const fdr = fdrs.find(f=>f.eventDate === d.date);
         const fdrAction = fdr
-          ? `<a class="co-btn secondary sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}">Ouvrir FDR</a>`
-          : `<button type="button" class="co-btn tint sm" data-create-fdr="${escapeAttr(d.id)}">Créer FDR</button>`;
+          ? `<a class="co-btn secondary sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}">Ouvrir ${EST_RECORDING ? 'la feuille' : 'FDR'}</a>`
+          : `<button type="button" class="co-btn tint sm" data-create-fdr="${escapeAttr(d.id)}">Créer ${EST_RECORDING ? 'la feuille' : 'FDR'}</button>`;
         const indispoSurDate = (p)=> !!(p && (p.disponibilites || {})[d.date] === 'indispo');
         const marqueIndispo = ' style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;"';
         const assignedChips = (d.musiciensAssignes||[]).map(id=>{
@@ -1297,12 +1366,26 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
           ? 'Aucun·e assigné·e'
           : [musCount ? `${musCount} musicien·ne${musCount>1?'s':''}` : '', techCount ? `${techCount} technicien·ne${techCount>1?'s':''}` : ''].filter(Boolean).join(' · ');
         const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
-        const type = ['concert','residence'].includes(d.type) ? d.type : 'concert';
+        // La nature d'une date dépend du projet : concert/résidence pour une
+        // tournée, prise/répétition/overdub/mixage pour un recording. Une valeur
+        // héritée de l'autre monde retombe sur la première du vocabulaire.
+        const type = typeDateValide(PROJET_TYPE, d.type);
         const typeSelect = `
           <select class="type-select" data-field="type" data-date-id="${escapeAttr(d.id)}">
-            <option value="concert" ${type==='concert'?'selected':''}>Concert</option>
-            <option value="residence" ${type==='residence'?'selected':''}>Résidence</option>
+            ${VOC.typesDate.map(([val, lib]) => `<option value="${val}" ${type===val?'selected':''}>${lib}</option>`).join('')}
           </select>
+        `;
+        // Séance de studio : purement indicatif. L'équipe est affectée à la
+        // journée (c'est la granularité qui a du sens pour la paie et les
+        // dispos) — la séance dit seulement à quelle heure on l'attend.
+        const seance = CURIEUX_SEANCES.some(x => x[0] === d.seance) ? d.seance : 'journee';
+        const seanceSelect = !EST_RECORDING ? '' : `
+          <span class="col-seance">
+            <span class="col-icone" title="${escapeAttr(libelleSeance(seance, true))}">◷</span>
+            <select class="type-select" data-field="seance" data-date-id="${escapeAttr(d.id)}" title="${escapeAttr(libelleSeance(seance, true))}">
+              ${CURIEUX_SEANCES.map(([val, lib]) => `<option value="${val}" ${seance===val?'selected':''}>${lib}</option>`).join('')}
+            </select>
+          </span>
         `;
         const travelMode = ['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus';
         const travelSelect = `
@@ -1345,10 +1428,16 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <span class="col-date"><b>${escapeHtml(fmtDateFR(d.date))}</b></span>
             <span class="col-bloc">${blocBadge}${linkToggle}</span>
             <span class="col-lieu co-row-name">
-              <input type="text" class="saisie-ville" data-field="ville" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.ville||'')}" placeholder="Ville"><span class="sep">·</span><input type="text" class="saisie-lieu" data-field="lieu" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.lieu||'')}" placeholder="Salle">
+              <input type="text" class="saisie-ville" data-field="ville" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.ville||'')}" placeholder="Ville"><span class="sep">·</span><input type="text" class="saisie-lieu" data-field="lieu" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.lieu||'')}" placeholder="${VOC.Lieu}">
+              ${EST_RECORDING ? `
+              <span class="ligne-studio">
+                <input type="text" class="saisie-cabine" data-field="cabine" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.cabine||'')}" placeholder="Cabine / salle de prise" title="Dans quelle cabine on enregistre — un studio en a souvent plusieurs.">
+                <input type="text" class="saisie-titres" data-field="titres" data-date-id="${escapeAttr(d.id)}" value="${escapeAttr(d.titres||'')}" placeholder="Titres travaillés" title="Les morceaux prévus ce jour-là, séparés par des virgules.">
+              </span>` : ''}
               <textarea data-field="commentaire" data-date-id="${escapeAttr(d.id)}" placeholder="Commentaire…">${escapeHtml(d.commentaire||'')}</textarea>
             </span>
-            <span class="col-type">${showTypeStatut ? `<span class="col-icone" title="Type de date">${type==='residence' ? '\u2302' : '\u266A'}</span>${typeSelect}` : ''}</span>
+            <span class="col-type">${showTypeStatut ? `<span class="col-icone" title="Nature de la date">${iconeTypeDate(PROJET_TYPE, type)}</span>${typeSelect}` : ''}</span>
+            ${seanceSelect}
             <span class="col-voyage"><span class="col-icone" title="Mode de voyage">${ {tourbus:'\u26DF', train:'\u26ED', avion:'\u2708'}[travelMode] }</span>${travelSelect}</span>
             <span class="col-statut">${showTypeStatut ? statutGroup : ''}</span>
             <span class="col-equipe" title="${escapeAttr(summaryText)}">
@@ -1370,23 +1459,23 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
       return `
         <div class="tournee-card" id="tournee-${escapeAttr(t.id)}" data-tournee-id="${escapeAttr(t.id)}">
           <div class="tournee-head">
-            <div class="tournee-name" contenteditable="true" data-rename-tournee="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Tournée sans nom')}</div>
+            <div class="tournee-name" contenteditable="true" data-rename-tournee="${escapeAttr(t.id)}">${escapeHtml(t.nom || `${VOC.Projet} sans nom`)}</div>
             <div class="row-actions">
               <button type="button" class="co-btn secondary sm" data-dispo-links="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line></svg>Demandes titulaires</button>
               <button type="button" class="co-btn secondary sm" data-export-tournee="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
-              <button type="button" class="co-btn danger sm" data-del-tournee="${escapeAttr(t.id)}">Supprimer la tournée</button>
+              <button type="button" class="co-btn danger sm" data-del-tournee="${escapeAttr(t.id)}">Supprimer ${EST_RECORDING ? 'le recording' : 'la tournée'}</button>
             </div>
           </div>
           <div class="tournee-meta">
             <span>${[
-            `${dates.length} date${dates.length>1?'s':''}`,
+            `${dates.length} ${EST_RECORDING ? 'séance' : 'date'}${dates.length>1?'s':''}`,
             dates.filter(d=>d.statut==='validee').length ? `${dates.filter(d=>d.statut==='validee').length} validée${dates.filter(d=>d.statut==='validee').length>1?'s':''}` : '',
             dates.filter(d=>(d.statut||'option')==='option').length ? `${dates.filter(d=>(d.statut||'option')==='option').length} option${dates.filter(d=>(d.statut||'option')==='option').length>1?'s':''}` : '',
             ].filter(Boolean).join(' · ')}</span>
             <button type="button" class="outils-toggle" data-toggle-outils="${escapeAttr(t.id)}"
               aria-expanded="false" title="Cachet et effectif attendu">
               <span class="outils-resume">${[
-                t.cachetStatut === 'defini' && t.cachetMontant != null ? `${t.cachetMontant} € / date` : 'cachet à définir',
+                t.cachetStatut === 'defini' && t.cachetMontant != null ? `${t.cachetMontant} € / ${EST_RECORDING ? 'séance' : 'date'}` : 'cachet à définir',
                 overrideCount ? `${overrideCount} exception${overrideCount>1?'s':''}` : '',
                 (t.nomenclature||[]).length ? `${(t.nomenclature||[]).reduce((n,r)=>n+(Number(r.nombre)||0),0)} attendu·es` : '',
               ].filter(Boolean).join(' · ')}</span>
@@ -1407,7 +1496,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
                 <span class="cachet-montant" style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">
                   <input type="number" data-cachet-montant="${escapeAttr(t.id)}" placeholder="Montant" min="0" step="0.01"
                     value="${t.cachetMontant != null ? escapeAttr(String(t.cachetMontant)) : ''}">
-                  <span class="cachet-unit">€ brut / date</span>
+                  <span class="cachet-unit">€ brut / ${EST_RECORDING ? 'séance' : 'date'}</span>
                 </span>
               </div>
               <button type="button" class="co-btn ghost sm" data-toggle-cachet-overrides="${escapeAttr(t.id)}"
@@ -1439,39 +1528,59 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
               <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
               <button type="button" class="co-btn tint sm" style="margin-top:8px;" data-add-nomenclature-row="${escapeAttr(t.id)}">+ Ajouter un pupitre</button>
             </div>
+            ${EST_RECORDING ? `
+            <div class="recording-panel">
+              <div class="outils-legend">Le disque</div>
+              <!-- Quatre informations constantes sur tout l'enregistrement : on
+                   les saisit une fois en tête de projet plutôt que de les
+                   recopier sur chaque séance. Même principe que le cachet. -->
+              <label class="reco-champ"><span>Label / éditeur</span>
+                <input type="text" data-reco="label" data-tournee-id="${escapeAttr(t.id)}" value="${escapeAttr(reco.label||'')}" placeholder="Qui édite le disque"></label>
+              <label class="reco-champ"><span>Direction artistique</span>
+                <input type="text" data-reco="directionArtistique" data-tournee-id="${escapeAttr(t.id)}" value="${escapeAttr(reco.directionArtistique||'')}" placeholder="Nom du/de la DA"></label>
+              <label class="reco-champ"><span>Format de livraison</span>
+                <input type="text" data-reco="livraison" data-tournee-id="${escapeAttr(t.id)}" value="${escapeAttr(reco.livraison||'')}" placeholder="ex : 24 bits / 96 kHz, stems + mix"></label>
+              <label class="reco-champ"><span>Dossier des masters</span>
+                <input type="url" data-reco="lienMasters" data-tournee-id="${escapeAttr(t.id)}" value="${escapeAttr(reco.lienMasters||'')}" placeholder="https://drive.google.com/…"></label>
+              ${reco.lienMasters ? `<a class="co-btn secondary sm" style="margin-top:6px;" href="${escapeAttr(reco.lienMasters)}" target="_blank" rel="noopener">Ouvrir le dossier</a>` : ''}
+            </div>` : ''}
           </div>
           <div class="add-date-row">
             <input type="date" data-new-date="${escapeAttr(t.id)}">
             <select class="type-select" data-new-type="${escapeAttr(t.id)}" style="flex:0 0 130px;">
-              <option value="concert">Concert</option>
-              <option value="residence">Résidence</option>
+              ${VOC.typesDate.map(([val, lib]) => `<option value="${val}">${lib}</option>`).join('')}
             </select>
+            ${EST_RECORDING ? `
+            <select class="type-select" data-new-seance="${escapeAttr(t.id)}" style="flex:0 0 130px;">
+              ${CURIEUX_SEANCES.map(([val, lib]) => `<option value="${val}">${lib}</option>`).join('')}
+            </select>` : ''}
             <select class="type-select" data-new-travel="${escapeAttr(t.id)}" style="flex:0 0 120px;">
               <option value="tourbus">Tourbus</option>
               <option value="train">Train</option>
               <option value="avion">Avion</option>
             </select>
             <input type="text" data-new-ville="${escapeAttr(t.id)}" placeholder="Ville">
-            <input type="text" data-new-lieu="${escapeAttr(t.id)}" placeholder="Salle">
-            <button type="button" class="co-btn primary sm" data-add-date="${escapeAttr(t.id)}">+ Ajouter une date</button>
+            <input type="text" data-new-lieu="${escapeAttr(t.id)}" placeholder="${VOC.Lieu}">
+            <button type="button" class="co-btn primary sm" data-add-date="${escapeAttr(t.id)}">+ Ajouter ${EST_RECORDING ? 'une séance' : 'une date'}</button>
             <button type="button" class="co-btn secondary sm" data-import-dates="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Importer des dates (coller)</button>
           </div>
           ${dates.length ? `
-            <div class="co-rows dates-rows">
+            <div class="co-rows dates-rows${EST_RECORDING ? ' recording-rows' : ''}">
               <div class="co-rows-head date-row">
                 <span class="col-date">Date</span>
                 <span class="col-bloc">Bloc</span>
-                <span class="col-lieu co-row-name">Ville · lieu</span>
-                <span class="col-type">Type</span>
+                <span class="col-lieu co-row-name">${VOC.colonneLieu}</span>
+                <span class="col-type">Nature</span>
+                ${EST_RECORDING ? '<span class="col-seance">Séance</span>' : ''}
                 <span class="col-voyage">Voyage</span>
                 <span class="col-statut">Statut</span>
                 <span class="col-equipe">Équipe</span>
-                <span class="col-fdr">FDR</span>
+                <span class="col-fdr">${EST_RECORDING ? 'Feuille' : 'FDR'}</span>
                 <span class="col-suppr"></span>
               </div>
               ${rows}
             </div>
-          ` : `<div class="empty-hint">Aucune date pour l'instant.</div>`}
+          ` : `<div class="empty-hint">Aucune ${EST_RECORDING ? 'séance' : 'date'} pour l'instant.</div>`}
         </div>
       `;
 }
@@ -1482,7 +1591,10 @@ function render(){
   const affectationEnCours = assignContext;
   rangerPanneauAffectation();
 
-  const tournees = loadTournees();
+  // Seuls les projets de la nature courante : la page « Recording » ne montre
+  // que les enregistrements, « Tournées » que les tournées. Les projets créés
+  // avant l'arrivée du recording n'ont pas de type — ce sont des tournées.
+  const tournees = loadTournees().filter(t => (t.type === 'recording') === EST_RECORDING);
   const fdrs = loadFdrCollection();
   const musicians = loadMusicians();
   const musicianById = new Map(musicians.map(m=>[m.id, m]));
@@ -1499,9 +1611,9 @@ function render(){
   const past = tournees.filter(isPastTournee);
 
   if(tournees.length === 0){
-    holder.innerHTML = `<div class="empty-hint">Aucune tournée pour l'instant — crée-en une ci-dessus.</div>`;
+    holder.innerHTML = `<div class="empty-hint">Aucun${EST_RECORDING?'':'e'} ${VOC.projet} pour l'instant — crée-en un${EST_RECORDING?'':'e'} ci-dessus.</div>`;
   } else if(upcoming.length === 0){
-    holder.innerHTML = `<div class="empty-hint">Aucune tournée à venir — ${past.length} tournée${past.length>1?'s':''} passée${past.length>1?'s':''} plus bas.</div>`;
+    holder.innerHTML = `<div class="empty-hint">Aucun${EST_RECORDING?'':'e'} ${VOC.projet} à venir — ${past.length} ${past.length>1?VOC.projets:VOC.projet} passé${EST_RECORDING?'':'e'}${past.length>1?'s':''} plus bas.</div>`;
   } else {
     holder.innerHTML = upcoming.map(t=> renderTourneeCard(t, fdrs, musicianById, technicianById)).join('');
   }
@@ -1526,7 +1638,10 @@ function render(){
 }
 
 const STATUT_PDF_LABEL = { option:'Option', validee:'Validée', annulee:'ANNULÉE' };
-const TYPE_PDF_LABEL = { concert:'Concert', residence:'Résidence' };
+// Les libellés de nature viennent du vocabulaire du projet courant : concert /
+// résidence pour une tournée, prise / répétition / overdub / mixage pour un
+// recording. (STATUT_PDF_LABEL, lui, est commun aux deux.)
+function typeLabelPdf(valeur){ return libelleTypeDate(PROJET_TYPE, valeur); }
 
 // Date courte sans année (pour la note de bloc, où l'année est déjà visible sur
 // chaque ligne et n'a pas besoin d'être répétée).
@@ -1554,7 +1669,7 @@ function exportTourneePdf(tourneeId){
   const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
   registerHostFont(doc);
   const pageWidth = doc.internal.pageSize.getWidth();
-  drawCurieuxPdfHeader(doc, pageWidth, (tournee.nom || 'TOURNÉE').toUpperCase());
+  drawCurieuxPdfHeader(doc, pageWidth, (tournee.nom || VOC.Projet).toUpperCase());
 
   // Résumé en un coup d'œil sous l'en-tête : nombre de dates par statut.
   const counts = { validee: 0, option: 0, annulee: 0 };
@@ -1563,7 +1678,7 @@ function exportTourneePdf(tourneeId){
   doc.setFontSize(9.5);
   doc.setTextColor(120, 105, 113);
   doc.text(
-    `${dates.length} date${dates.length>1?'s':''}  ·  ${counts.validee} validée${counts.validee>1?'s':''}  ·  ${counts.option} en option  ·  ${counts.annulee} annulée${counts.annulee>1?'s':''}`,
+    `${dates.length} ${EST_RECORDING ? (dates.length>1?'séances':'séance') : (dates.length>1?'dates':'date')}  ·  ${counts.validee} validée${counts.validee>1?'s':''}  ·  ${counts.option} en option  ·  ${counts.annulee} annulée${counts.annulee>1?'s':''}`,
     10, 24
   );
 
@@ -1574,10 +1689,12 @@ function exportTourneePdf(tourneeId){
   doc.autoTable({
     startY: 29,
     margin: { left: 10, right: 10 },
-    head: [['Date', 'Type', 'Statut', 'Dép. / Retour', 'Transport', 'Ville', 'Salle', 'Commentaire']],
+    head: [EST_RECORDING
+      ? ['Date', 'Nature', 'Statut', 'Dép. / Retour', 'Séance', 'Ville', 'Studio', 'Cabine / titres']
+      : ['Date', 'Type', 'Statut', 'Dép. / Retour', 'Transport', 'Ville', 'Salle', 'Commentaire']],
     body: dates.map((d, idx)=>{
       const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
-      const type = ['concert','residence'].includes(d.type) ? d.type : 'concert';
+      const type = typeDateValide(PROJET_TYPE, d.type);
       const blocInfo = blocMap.get(d.id);
       if(blocInfo) blocRowInfo.set(idx, blocInfo);
 
@@ -1588,19 +1705,33 @@ function exportTourneePdf(tourneeId){
       // (option/validée/annulée) avec les dates de trajet.
       if(!blocInfo || blocInfo.isFirst){
         const span = blocInfo ? blocInfo.blocDates.length : 1;
-        row.push({ content: TYPE_PDF_LABEL[type], rowSpan: span, styles: { valign: 'middle' } });
+        row.push({ content: typeLabelPdf(type), rowSpan: span, styles: { valign: 'middle' } });
         row.push({ content: STATUT_PDF_LABEL[statut], rowSpan: span, styles: { valign: 'middle' } });
         const depRetour = blocInfo ? `Dép. veille ${fmtDateFRShortNoYear(blocInfo.veille)}\nRetour lend. ${fmtDateFRShortNoYear(blocInfo.lendemain)}` : '';
         row.push({ content: depRetour, rowSpan: span, styles: { valign: 'middle', fontSize: 6.6, textColor: [120,105,113] } });
       }
       // Transport et Ville dans deux colonnes séparées (au lieu d'un seul texte
       // combiné "[Bus] Lyon") pour que le lien entre les deux infos soit lisible.
+      // Sur un recording, la colonne « Transport » cède la place à la séance —
+      // ce qu'on cherche sur une feuille de studio, c'est l'heure d'appel — et
+      // la dernière colonne réunit cabine et titres travaillés.
       const travelLabel = { tourbus: 'Bus', train: 'Train', avion: 'Avion' }[['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus'];
-      row.push(travelLabel, d.ville || '', d.lieu || '', d.commentaire || '');
+      if(EST_RECORDING){
+        const detail = [d.cabine || '', d.titres || '', d.commentaire || ''].filter(Boolean).join(' — ');
+        row.push(libelleSeance(d.seance) || 'Journée', d.ville || '', d.lieu || '', detail);
+      } else {
+        row.push(travelLabel, d.ville || '', d.lieu || '', d.commentaire || '');
+      }
       return row;
     }),
     styles: { font:'Host', fontSize:8.5, cellPadding:3, textColor:[20,22,23] },
-    columnStyles: {
+    // Sur un recording, la cinquième colonne porte « Après-midi » et non « Bus » :
+    // 16 mm la coupaient en deux. On lui en donne 24, pris sur Dép./Retour, qui
+    // reste le plus souvent vide quand les séances ne forment pas de bloc.
+    columnStyles: EST_RECORDING ? {
+      0: { cellWidth: 24 }, 1: { cellWidth: 20 }, 2: { cellWidth: 20 },
+      3: { cellWidth: 26 }, 4: { cellWidth: 24 }, 5: { cellWidth: 28 }, 6: { cellWidth: 30 },
+    } : {
       0: { cellWidth: 24 }, 1: { cellWidth: 18 }, 2: { cellWidth: 20 },
       3: { cellWidth: 32 }, 4: { cellWidth: 16 }, 5: { cellWidth: 30 }, 6: { cellWidth: 30 },
     },
@@ -1876,7 +2007,7 @@ function bindTourneeEvents(){
     el.addEventListener('blur', ()=>{
       const tournees = loadTournees();
       const t = tournees.find(x=>x.id === el.dataset.renameTournee);
-      if(t){ t.nom = el.textContent.trim() || 'Tournée sans nom'; saveTournees(tournees); }
+      if(t){ t.nom = el.textContent.trim() || `${VOC.Projet} sans nom`; saveTournees(tournees); }
     });
     el.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); el.blur(); } });
   });
@@ -1956,7 +2087,7 @@ function bindTourneeEvents(){
     btn.addEventListener('click', ()=>{
       const tournees = loadTournees();
       const t = tournees.find(x=>x.id === btn.dataset.delTournee);
-      if(t && confirm(`Supprimer la tournée "${t.nom}" et toutes ses dates ?`)){
+      if(t && confirm(`Supprimer ${EST_RECORDING ? 'le recording' : 'la tournée'} "${t.nom}" et toutes ses ${EST_RECORDING ? 'séances' : 'dates'} ?`)){
         tourneesCache = tournees.filter(x=>x.id !== btn.dataset.delTournee);
         CurieuxDB.removeOne('tournees', btn.dataset.delTournee);
         render();
@@ -1998,7 +2129,14 @@ function bindTourneeEvents(){
       const t = tournees.find(x=>x.id === tourneeId);
       if(!t) return;
       if(!t.dates) t.dates = [];
-      t.dates.push({ id: genId('date'), date: dateInput.value, ville: villeInput.value.trim(), lieu: lieuInput.value.trim(), commentaire:'', statut:'option', type: typeInput.value || 'concert', travelMode: travelInput.value || 'tourbus', musiciensAssignes:[], techniciensAssignes:[] });
+      const seanceInput = document.querySelector(`[data-new-seance="${tourneeId}"]`);
+      const nouvelle = { id: genId('date'), date: dateInput.value, ville: villeInput.value.trim(), lieu: lieuInput.value.trim(), commentaire:'', statut:'option', type: typeDateValide(PROJET_TYPE, typeInput.value), travelMode: travelInput.value || 'tourbus', musiciensAssignes:[], techniciensAssignes:[] };
+      if(EST_RECORDING){
+        nouvelle.seance = (seanceInput && seanceInput.value) || 'journee';
+        nouvelle.cabine = '';
+        nouvelle.titres = '';
+      }
+      t.dates.push(nouvelle);
       saveTournees(tournees);
       render();
     });
@@ -2091,6 +2229,20 @@ function bindTourneeEvents(){
       if(d) createFdrForDate(d, t.nom);
     });
   });
+  // Réglages constants du disque : écrits dans t.recording, pas sur les dates.
+  document.querySelectorAll('[data-reco]').forEach(el=>{
+    el.addEventListener('change', ()=>{
+      const tournees = loadTournees();
+      const t = tournees.find(x=>x.id === el.dataset.tourneeId);
+      if(!t) return;
+      if(!t.recording) t.recording = {};
+      t.recording[el.dataset.reco] = el.value.trim();
+      saveTournees(tournees);
+      // Le bouton « Ouvrir le dossier » apparaît/disparaît avec le lien :
+      // seul un nouveau rendu peut le refléter, et le cartouche reste ouvert.
+      if(el.dataset.reco === 'lienMasters') render();
+    });
+  });
   document.querySelectorAll('[data-field]').forEach(el=>{
     const handler = ()=>{
       const card = el.closest('[data-tournee-id]');
@@ -2101,7 +2253,7 @@ function bindTourneeEvents(){
       if(!d) return;
       d[el.dataset.field] = el.value;
       if(el.dataset.field === 'type'){
-        // Le type (concert/résidence) est commun à tout le bloc, comme le statut.
+        // La nature de la date est commune à tout le bloc, comme le statut.
         const sortedDates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
         const blocInfo = computeBlocMap(sortedDates).get(d.id);
         if(blocInfo) blocInfo.blocDates.forEach(gd=> gd.type = el.value);
@@ -2118,9 +2270,9 @@ function bindTourneeEvents(){
 document.getElementById('addTourneeBtn').addEventListener('click', ()=>{
   const input = document.getElementById('newTourneeName');
   const nom = input.value.trim();
-  if(!nom){ alert('Donne un nom à la tournée.'); return; }
+  if(!nom){ alert(`Donne un nom à ${EST_RECORDING ? 'ce recording' : 'la tournée'}.`); return; }
   const tournees = loadTournees();
-  tournees.unshift({ id: genId('tour'), nom, dates: [], cachetStatut: 'non_defini', cachetMontant: null });
+  tournees.unshift({ id: genId('tour'), nom, type: PROJET_TYPE, recording: {}, dates: [], cachetStatut: 'non_defini', cachetMontant: null });
   saveTournees(tournees);
   input.value = '';
   render();

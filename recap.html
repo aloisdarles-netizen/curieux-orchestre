@@ -84,7 +84,7 @@
   <div class="co-page-head co-fade">
     <div>
       <h1>Vue d'ensemble</h1>
-      <p class="subtitle">Qui joue où, toutes tournées confondues — case pleine = affecté·e, le contour indique la disponibilité renseignée.</p>
+      <p class="subtitle">Qui joue où, tournées et recordings confondus — case pleine = affecté·e, le contour indique la disponibilité renseignée.</p>
     </div>
   </div>
 
@@ -100,7 +100,7 @@
     </label>
     <span class="legend-actions">
       <select class="co-select" id="pdfTourneeSelect">
-        <option value="">Toutes les tournées</option>
+        <option value="">Tous les projets</option>
       </select>
       <button type="button" class="co-btn primary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
     </span>
@@ -231,7 +231,7 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
   }).join('');
 
   const tourneeLegend = loadTournees().map(t=>`
-    <span><span class="swatch" style="background:${colorByTournee.get(t.id)}; border-color:transparent;"></span> ${escapeHtml(t.nom || 'Tournée')}</span>
+    <span><span class="swatch" style="background:${colorByTournee.get(t.id)}; border-color:transparent;"></span> ${escapeHtml(t.nom || 'Tournée')}${pastilleProjetHtml(t)}</span>
   `).join('');
 
   holder.innerHTML = `
@@ -335,7 +335,7 @@ function renderDashboard(){
     {
       icon: kpiIcon('bus'), href:'tournees.html',
       value: String(tourneesActives),
-      label:'Tournée' + (tourneesActives>1?'s':'') + ' avec des dates à venir'
+      label:'Projet' + (tourneesActives>1?'s':'') + ' avec des dates à venir'
     },
     {
       icon: kpiIcon('music'), href:'annuaire.html',
@@ -460,8 +460,8 @@ document.getElementById('exportPdfBtn').addEventListener('click', exportRecapPdf
 function populateTourneeSelect(){
   const sel = document.getElementById('pdfTourneeSelect');
   const current = sel.value;
-  sel.innerHTML = `<option value="">Toutes les tournées</option>` +
-    loadTournees().map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(t.nom || 'Tournée')}</option>`).join('');
+  sel.innerHTML = `<option value="">Tous les projets</option>` +
+    loadTournees().map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml((t.nom || 'Tournée') + suffixeProjetTexte(t))}</option>`).join('');
   if(loadTournees().some(t=>t.id === current)) sel.value = current;
 }
 </script>

@@ -429,3 +429,111 @@ function reprendreFeuilleDeStyle(){
   });
 }
 if(typeof window !== 'undefined') window.addEventListener('load', reprendreFeuilleDeStyle);
+
+// ============================================================================
+// Vocabulaire des projets — tournée ou recording
+//
+// Un enregistrement en studio se planifie comme une tournée : mêmes dates,
+// mêmes affectations, mêmes blocs, même feuille par jour. Ce qui change tient
+// en quelques mots — on va dans un studio, pas dans une salle ; on y fait une
+// séance, pas un concert — et en trois ou quatre champs propres au studio.
+//
+// D'où ce dictionnaire, plutôt qu'un module parallèle : les treize pages qui
+// lisent déjà « tournees » continuent de fonctionner, et seuls les endroits
+// que l'on LIT VRAIMENT (en-tête de page, tableau des dates, feuille de route)
+// vont chercher le mot juste. Remplacer les 322 « salle » et 220 « tournée »
+// du code n'apporterait rien : ce sont des noms de variables et de colonnes,
+// personne ne les voit.
+// ============================================================================
+
+const CURIEUX_VOCABULAIRE = {
+  tournee: {
+    type: 'tournee',
+    projet: 'tournée', projets: 'tournées',
+    Projet: 'Tournée', Projets: 'Tournées',
+    unProjet: 'une tournée', ceProjet: 'cette tournée',
+    lieu: 'salle', Lieu: 'Salle',
+    colonneLieu: 'Ville · lieu',
+    // Les natures de date proposées dans le tableau : [valeur, libellé, icône].
+    typesDate: [
+      ['concert',   'Concert',   '♪'],
+      ['residence', 'Résidence', '⌂'],
+    ],
+    pastille: '',
+  },
+  recording: {
+    type: 'recording',
+    projet: 'recording', projets: 'recordings',
+    Projet: 'Recording', Projets: 'Recordings',
+    unProjet: 'un recording', ceProjet: 'ce recording',
+    lieu: 'studio', Lieu: 'Studio',
+    colonneLieu: 'Ville · studio',
+    typesDate: [
+      ['prise',      'Prise',       '●'],
+      ['repetition', 'Répétition',  '⌂'],
+      ['overdub',    'Overdub',     '◐'],
+      ['mixage',     'Mixage',      '▤'],
+    ],
+    pastille: 'Recording',
+  },
+};
+
+// Les trois créneaux d'une journée de studio. Purement informatif : l'équipe
+// est affectée à la journée (voir tournees.html), la séance dit seulement à
+// quelle heure on attend le monde.
+const CURIEUX_SEANCES = [
+  ['journee', 'Journée',      '9h00 – 18h00'],
+  ['matin',   'Matin',        '8h30 – 13h30'],
+  ['aprem',   'Après-midi',   '13h30 – 18h30'],
+  ['soir',    'Soir',         '18h30 – 21h30'],
+];
+
+function estRecording(projet){
+  return !!projet && (typeof projet === 'string' ? projet : projet.type) === 'recording';
+}
+
+// Accepte un objet tournée, une chaîne de type, ou rien du tout : toujours un
+// vocabulaire utilisable en retour, celui de la tournée par défaut.
+function vocabulaireProjet(projet){
+  return estRecording(projet) ? CURIEUX_VOCABULAIRE.recording : CURIEUX_VOCABULAIRE.tournee;
+}
+
+// Libellé d'une séance de studio ('Après-midi'), vide si la date n'en porte pas.
+function libelleSeance(cle, avecHoraire){
+  const s = CURIEUX_SEANCES.find(x => x[0] === cle);
+  if(!s) return '';
+  return avecHoraire ? `${s[1]} (${s[2]})` : s[1];
+}
+
+// Nature d'une date, ramenée à une valeur valide pour le type de projet.
+// Une date de tournée retypée en recording garderait sinon « concert ».
+function typeDateValide(projet, valeur){
+  const v = vocabulaireProjet(projet);
+  return v.typesDate.some(t => t[0] === valeur) ? valeur : v.typesDate[0][0];
+}
+
+function libelleTypeDate(projet, valeur){
+  const v = vocabulaireProjet(projet);
+  const t = v.typesDate.find(x => x[0] === valeur) || v.typesDate[0];
+  return t[1];
+}
+
+function iconeTypeDate(projet, valeur){
+  const v = vocabulaireProjet(projet);
+  const t = v.typesDate.find(x => x[0] === valeur) || v.typesDate[0];
+  return t[2];
+}
+
+// Pastille « Recording » à coller à côté d'un nom de projet, partout où les
+// deux natures se mélangent (dispos, vue d'ensemble, avancement technique,
+// feuilles de route). Rien pour une tournée : c'est le cas courant, et une
+// pastille sur chaque ligne ne distinguerait plus rien.
+function pastilleProjetHtml(projet){
+  return estRecording(projet) ? '<span class="co-pastille-projet">Recording</span>' : '';
+}
+
+// Même repère, en texte brut, pour les endroits où le HTML ne s'affiche pas :
+// une <option> de liste déroulante, un export texte, un message WhatsApp.
+function suffixeProjetTexte(projet){
+  return estRecording(projet) ? ' · Recording' : '';
+}

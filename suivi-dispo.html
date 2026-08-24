@@ -187,7 +187,7 @@ function datesChecklistHtml(tourneeId, checkedIds){
 function remplacantDatesPanelHtml(tourneeId, checkedIds, confirmLabel, allowTourneeSwitch){
   const tourneeSelectHtml = allowTourneeSwitch ? `
     <select data-tournee-select style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--card); color:var(--text); font-family:inherit; margin-bottom:8px;">
-      ${loadTournees().map(t=> `<option value="${escapeAttr(t.id)}" ${t.id===tourneeId?'selected':''}>${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('')}
+      ${loadTournees().map(t=> `<option value="${escapeAttr(t.id)}" ${t.id===tourneeId?'selected':''}>${escapeHtml((t.nom || 'Tournée sans nom') + suffixeProjetTexte(t))}</option>`).join('')}
     </select>
   ` : '';
   return `
@@ -527,7 +527,7 @@ function render(){
     return `
       <div class="tournee-card" data-tournee-id="${escapeAttr(t.id)}">
         <div class="tournee-head">
-          <div class="tournee-name">${escapeHtml(t.nom || 'Tournée sans nom')}</div>
+          <div class="tournee-name">${escapeHtml(t.nom || 'Tournée sans nom')}${pastilleProjetHtml(t)}</div>
           <button type="button" class="co-btn secondary sm" data-copy-all="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>
         </div>
         <div class="tournee-meta">${answerableDates.length} date${answerableDates.length>1?'s':''}</div>

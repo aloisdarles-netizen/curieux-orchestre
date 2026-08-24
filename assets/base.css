@@ -377,8 +377,12 @@ body.co-has-topbar > .co-footer{ padding-left:16px; padding-right:16px; }
   background:var(--topbar); color:var(--blanc);
   font-family:var(--font-body);
 }
+/* 1360 px et non plus 1240 : « Recording » ajoute une septième section, et à
+   1240 px la huitième entrée (« Admin », réservée aux comptes qui y ont droit)
+   passait sous le champ de recherche. La barre s'aligne au passage sur les
+   pages les plus larges, dont .wrap monte à 1380 px. */
 .co-topbar-in{
-  max-width:1240px; margin:0 auto; padding:0 20px;
+  max-width:1360px; margin:0 auto; padding:0 20px;
   display:flex; align-items:center; gap:18px; height:56px;
 }
 /* Le lockup droit est fourni en noir : inversé, il devient blanc et se pose
@@ -386,7 +390,17 @@ body.co-has-topbar > .co-footer{ padding-left:16px; padding-right:16px; }
 .co-topbar-logo{ height:40px; width:auto; display:block; flex-shrink:0; filter:invert(1) brightness(1.08); }
 .co-topbar-logo-link{ display:block; flex-shrink:0; line-height:0; }
 
-.co-topnav{ display:flex; gap:4px; align-items:center; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
+/* Le menu défile horizontalement quand les sections ne tiennent pas (écrans
+   étroits), et sa barre de défilement est masquée : rien n'indiquait alors
+   qu'il restait des entrées à droite. Le dégradé de fin le dit. Quand tout
+   tient, la nav est plus large que ses liens et le dégradé tombe sur du vide —
+   donc invisible. */
+.co-topnav{
+  display:flex; gap:4px; align-items:center; flex:1; min-width:0;
+  overflow-x:auto; scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 26px), transparent);
+  mask-image:linear-gradient(to right, #000 calc(100% - 26px), transparent);
+}
 .co-topnav::-webkit-scrollbar{ display:none; }
 .co-topnav > a{
   font-family:inherit; text-decoration:none; white-space:nowrap;
@@ -407,9 +421,11 @@ body.co-has-topbar > .co-footer{ padding-left:16px; padding-right:16px; }
 }
 .co-topbar .gsearch-input::placeholder{ color:rgba(252,242,240,.7); }
 .co-topbar .gsearch-input:focus{ width:210px; outline:2px solid var(--bleu); outline-offset:1px; }
-/* Sous 1060 px, la recherche s'effacerait au profit des sections : « Vue
-   d'ensemble » doit rester entier, c'est l'entrée principale du menu. */
-@media (max-width:1060px){ .co-topbar .gsearch-wrap{ display:none; } }
+/* Sous 1320 px, la recherche s'efface au profit des sections : les entrées du
+   menu passent avant, elles sont le seul chemin vers les écrans. Le seuil était
+   à 1060 px du temps des six sections ; à huit, un portable de 1280 px n'a plus
+   la place des deux. Au-dessus, les deux tiennent (mesuré à 1366 px). */
+@media (max-width:1320px){ .co-topbar .gsearch-wrap{ display:none; } }
 
 .co-theme-btn, .co-topbar-btn{
   cursor:pointer; border:1px solid rgba(252,242,240,.35); background:transparent;
@@ -629,6 +645,17 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
 :root[data-theme="dark"] .co-btn.secondary{ color:var(--blanc); }
 .co-btn.tonic{ background:var(--tonic); color:var(--blanc); }
 .co-btn.tint{ background:var(--accent-tint); color:var(--tint-ink); border-radius:8px; }
+
+/* Pastille de nature d'un projet — voir pastilleProjetHtml (ui-helpers.js).
+   Les recordings vivent dans les mêmes listes que les tournées : sans un
+   repère, « Album Hiver » et « Tournée Automne » se ressemblent trop pour
+   qu'on sache lequel demande une salle et lequel demande un studio. */
+.co-pastille-projet{
+  display:inline-block; margin-left:6px; padding:1px 7px 2px;
+  font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+  border-radius:var(--radius-pill); background:var(--accent-tint); color:var(--tint-ink);
+  vertical-align:2px; white-space:nowrap;
+}
 .co-btn.ghost{ border-color:var(--border); color:var(--text); }
 .co-btn.ghost:hover{ background:var(--border); }
 .co-btn.link{ background:transparent; padding:0; color:var(--accent); text-decoration:underline; border:none; }

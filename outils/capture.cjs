@@ -227,6 +227,35 @@ const SEED = {
        commentaire:'', musiciensAssignes:[], techniciensAssignes:[]},
     ],
     techniqueTournee:{},
+  }, {
+    // Un enregistrement en studio : même table, même page, filtrée par
+    // ?type=recording. Sans lui, la page Recording se capture vide.
+    id:'demo-reco1', nom:'Album — Les Soudaines vol. II', type:'recording',
+    cachetStatut:'defini', cachetMontant:280, nomenclature:[{pupitre:'Cordes',nombre:8}],
+    recording:{
+      label:'Les Soudaines Records', directionArtistique:'Claire Fontenoy',
+      livraison:'24 bits / 96 kHz — stems + mix stéréo',
+      lienMasters:'https://drive.google.com/drive/folders/demo-masters',
+    },
+    dates:[
+      {id:'r0', date:'2027-02-08', ville:'Paris', lieu:'Studio Ferber', cabine:'Grand studio',
+       titres:'Ouverture, Nocturne', seance:'journee', type:'prise', statut:'validee',
+       commentaire:'Balance micros dès 8h.', travelMode:'train', linkedToNext:true,
+       musiciensAssignes:MUS.slice(0,6).map(m=>m.id), techniciensAssignes:['demo-tech-01']},
+      {id:'r1', date:'2027-02-09', ville:'Paris', lieu:'Studio Ferber', cabine:'Grand studio',
+       titres:'Marche, Épilogue', seance:'matin', type:'prise', statut:'validee',
+       commentaire:'', travelMode:'train',
+       musiciensAssignes:MUS.slice(0,6).map(m=>m.id), techniciensAssignes:['demo-tech-01']},
+      {id:'r2', date:'2027-02-15', ville:'Paris', lieu:'Studio Ferber', cabine:'Cabine B',
+       titres:'Solos violon', seance:'aprem', type:'overdub', statut:'option',
+       commentaire:'', travelMode:'train',
+       musiciensAssignes:['demo-mus-01'], techniciensAssignes:[]},
+      {id:'r3', date:'2027-03-02', ville:'Bruxelles', lieu:'ICP Studios', cabine:'',
+       titres:'', seance:'soir', type:'mixage', statut:'option',
+       commentaire:'Mixage avec le DA.', travelMode:'train',
+       musiciensAssignes:[], techniciensAssignes:['demo-tech-01']},
+    ],
+    techniqueTournee:{},
   }],
   // Une fiche de date déjà remplie, pour capturer technique-date.html.
   moyens_salle: [{

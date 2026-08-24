@@ -27,6 +27,11 @@ const CURIEUX_SECTIONS = [
     { libelle:'Feuilles de route', href:'feuilles-de-route.html', pages:['feuilles-de-route.html','feuille-de-route.html'] },
     { libelle:'Journal des changements', href:'newsletter.html', pages:['newsletter.html'] },
   ]},
+  // Les enregistrements en studio vivent dans la même page que les tournées,
+  // filtrée par ?type=recording : mêmes dates, mêmes affectations, mêmes
+  // feuilles, seul le vocabulaire change (voir CURIEUX_VOCABULAIRE). Une
+  // section sans sous-entrées, comme « Vue d'ensemble » : un seul écran.
+  { libelle:'Recording', href:'tournees.html?type=recording', pages:['tournees.html?type=recording'] },
   { libelle:'Annuaires', href:'annuaire.html', entrees:[
     { libelle:'Musicien·nes', href:'annuaire.html', pages:['annuaire.html'] },
     { libelle:'Technicien·nes', href:'techniciens.html', pages:['techniciens.html'] },
@@ -89,8 +94,16 @@ async function ajouterEntreeAdmin(topbar, sectionCourante){
   nav.appendChild(lien);
 }
 
+// La clé d'une page, telle que les sections la déclarent. C'est le nom de
+// fichier, sauf pour les écrans qu'un paramètre suffit à distinguer :
+// tournees.html et tournees.html?type=recording sont deux entrées de menu
+// différentes servies par le même fichier, il faut donc que la clé les
+// sépare — sans quoi « Tournées » resterait allumé sur un recording.
 function curieuxPageCourante(){
-  return (location.pathname.split('/').pop() || 'accueil.html').toLowerCase();
+  const fichier = (location.pathname.split('/').pop() || 'accueil.html').toLowerCase();
+  let type = '';
+  try{ type = new URLSearchParams(location.search).get('type') || ''; }catch(e){}
+  return type === 'recording' ? `${fichier}?type=recording` : fichier;
 }
 
 function curieuxSectionCourante(page){

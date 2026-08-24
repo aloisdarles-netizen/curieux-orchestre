@@ -57,7 +57,15 @@
     });
     tournees.forEach(t=>{
       if((t.nom || '').toLowerCase().includes(q)){
-        results.push({ type:'tournee', label: t.nom || 'Tournée sans nom', sub: 'Tournée', href: `tournees.html#tournee-${t.id}` });
+        // Un recording vit dans la même page, filtrée : sans ?type=recording,
+        // le lien ouvrirait la liste des tournées, où sa carte n'existe pas.
+        const reco = t.type === 'recording';
+        results.push({
+          type: 'tournee',
+          label: t.nom || (reco ? 'Recording sans nom' : 'Tournée sans nom'),
+          sub: reco ? 'Recording' : 'Tournée',
+          href: `tournees.html${reco ? '?type=recording' : ''}#tournee-${t.id}`,
+        });
       }
     });
     return results.slice(0, 12);

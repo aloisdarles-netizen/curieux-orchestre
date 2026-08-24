@@ -85,6 +85,12 @@ const CurieuxDB = (()=>{
     tournees: {
       toDb: (t)=> ({
         id: t.id, nom: t.nom || '', dates: t.dates || [],
+        // 'tournee' ou 'recording' : même table, même page, vocabulaire et
+        // quelques champs qui changent (voir CURIEUX_VOCABULAIRE).
+        type: t.type === 'recording' ? 'recording' : 'tournee',
+        // Réglages constants d'un enregistrement (label, direction artistique,
+        // format de livraison, dossier des masters). Vide pour une tournée.
+        recording: t.recording || {},
         cachet_statut: t.cachetStatut === 'defini' ? 'defini' : 'non_defini',
         cachet_montant: t.cachetStatut === 'defini' ? (t.cachetMontant != null ? t.cachetMontant : null) : null,
         nomenclature: t.nomenclature || [],
@@ -95,7 +101,7 @@ const CurieuxDB = (()=>{
         // d'une date à l'autre, on ne les recopie donc pas sur chaque fiche.
         technique_tournee: t.techniqueTournee || {},
       }),
-      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [], equipesRoad: r.equipes_road || [], techniqueTournee: r.technique_tournee || {} })
+      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], type: r.type === 'recording' ? 'recording' : 'tournee', recording: r.recording || {}, cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [], equipesRoad: r.equipes_road || [], techniqueTournee: r.technique_tournee || {} })
     },
     // ——— Outils de direction technique (août 2026) ———
     // Ce que la salle fournit, date par date (B2). "id" = `${tourneeId}::${dateId}`,

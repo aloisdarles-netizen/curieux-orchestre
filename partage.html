@@ -275,6 +275,10 @@ document.getElementById('accesModalSave').addEventListener('click', async ()=>{
 async function initData(){
   [tourneesCache, accesCache] = await Promise.all([CurieuxDB.fetchAll('tournees'), CurieuxDB.fetchAll('acces_logistique')]);
   const sel = document.getElementById('tourneeSelect');
+  // Les recordings sont écartés : un accès logistique décrit l'arrivée dans une
+  // salle (parking, quai, loges), rien de tout cela n'a d'objet en studio. On
+  // préfère ne pas proposer l'outil plutôt que d'en traduire le vocabulaire.
+  tourneesCache = tourneesCache.filter(t=> t.type !== 'recording');
   sel.innerHTML = tourneesCache.length
     ? tourneesCache.map(t=>`<option value="${t.id}">${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('')
     : '<option value="">Aucune tournée</option>';

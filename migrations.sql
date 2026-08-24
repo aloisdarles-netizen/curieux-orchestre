@@ -3758,3 +3758,27 @@ on conflict (id) do update set public = false;
 drop policy if exists "sauvegardes lecture admin" on storage.objects;
 create policy "sauvegardes lecture admin" on storage.objects for select to authenticated
   using (bucket_id = 'sauvegardes' and is_admin());
+
+
+-- ============================================================================
+-- Recording en studio (août 2026)
+--
+-- Un enregistrement se planifie exactement comme une tournée : des dates, des
+-- personnes affectées, des blocs, une feuille par jour. Seul le vocabulaire et
+-- deux ou trois champs changent (studio au lieu de salle, séance au lieu de
+-- mode de voyage). Créer un module parallèle aurait dupliqué les treize pages
+-- qui lisent déjà « tournees » — dispos, récap, avancement technique, feuilles
+-- de route, liens partagés. On distingue donc par une colonne, et tout le reste
+-- continue de fonctionner sans le savoir.
+--
+-- 'tournee' par défaut : les projets existants ne bougent pas.
+-- ============================================================================
+
+alter table tournees add column if not exists type text not null default 'tournee'
+  check (type in ('tournee','recording'));
+
+-- Réglages propres à un recording, constants sur tout le projet (label,
+-- direction artistique, format de livraison, dossier des masters). Même
+-- principe que technique_tournee : ils ne changent pas d'une séance à l'autre,
+-- on ne les recopie donc pas sur chaque date.
+alter table tournees add column if not exists recording jsonb not null default '{}'::jsonb;
