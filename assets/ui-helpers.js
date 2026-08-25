@@ -455,9 +455,13 @@ const CURIEUX_VOCABULAIRE = {
     lieu: 'salle', Lieu: 'Salle',
     colonneLieu: 'Ville · lieu',
     // Les natures de date proposées dans le tableau : [valeur, libellé, icône].
+    // Une tournée ne se compose pas que de concerts : on répète aussi hors
+    // résidence — une journée de travail, sans public, qui n'occupe pas la
+    // salle de la même façon et ne se paie pas forcément pareil.
     typesDate: [
-      ['concert',   'Concert',   '♪'],
-      ['residence', 'Résidence', '⌂'],
+      ['concert',    'Concert',    '♪'],
+      ['repetition', 'Répétition', '⟳'],
+      ['residence',  'Résidence',  '⌂'],
     ],
     pastille: '',
   },

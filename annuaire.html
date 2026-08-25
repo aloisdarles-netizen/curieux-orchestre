@@ -76,6 +76,19 @@
     .m-tel, .m-mail, .m-rempl{width:auto; flex:0 0 auto; min-width:0;}
     .co-row.m-row{row-gap:6px;}
   }
+  /* Bandeau de pupitre dans la liste — même découpage que l'export PDF : sur
+     soixante-quinze fiches, l'ordre de l'orchestre ne se devine pas, il se
+     montre. */
+  .m-section{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--accent); background:var(--bg); padding:8px 16px;
+    border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px;
+  }
+  .m-section .compte{font-weight:700; color:var(--muted); letter-spacing:0; text-transform:none; font-size:11px;}
+  /* Les bandeaux s'intercalent entre les lignes : la parité de nth-child ne
+     suit plus l'alternance des blancs. On la calcule au rendu (classe zebre). */
+  #grid > .co-row:nth-child(even){ background:transparent; }
+  #grid > .co-row.zebre{ background:var(--row-alt); }
   .m-select-checkbox{margin-top:4px; width:16px; height:16px; accent-color:var(--accent); cursor:pointer; flex:0 0 auto;}
   .select-all-row{display:flex; align-items:center; gap:8px; margin:-6px 0 12px;}
   .select-all-row label{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); cursor:pointer; font-weight:600;}
@@ -364,10 +377,31 @@ function compareForRemplacantRanking(a, b){
 // Pour les titulaires, on classe par pupitre (ordre de l'orchestre, pas alphabétique)
 // puis par nom — plus simple à parcourir qu'un ordre alphabétique pur.
 const PUPITRE_ORDER = ["Chef d'orchestre", 'Cordes', 'Bois', 'Cuivres', 'Percussions', 'Autre'];
+function rangPupitre(personne){
+  const i = PUPITRE_ORDER.indexOf(personne.pupitre || 'Autre');
+  return i === -1 ? 99 : i;
+}
 function compareByPupitreThenName(a, b){
-  const ia = PUPITRE_ORDER.indexOf(a.pupitre || 'Autre');
-  const ib = PUPITRE_ORDER.indexOf(b.pupitre || 'Autre');
-  if(ia !== ib) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  const ia = rangPupitre(a), ib = rangPupitre(b);
+  if(ia !== ib) return ia - ib;
+  return fullName(a).localeCompare(fullName(b));
+}
+
+// Vue « Toutes » : le classement par pupitre doit tenir, sinon l'annuaire
+// complet devient une liste alphabétique où les cordes croisent les cuivres.
+// On garde donc l'ordre de l'orchestre, puis l'instrument — c'est là que le
+// rang des remplaçant·es prend son sens : sous chaque instrument, le ou la
+// titulaire d'abord, puis celles et ceux qu'on appelle, dans l'ordre.
+function compareAnnuaireComplet(a, b){
+  const ia = rangPupitre(a), ib = rangPupitre(b);
+  if(ia !== ib) return ia - ib;
+  const inst = (a.instrument || '').localeCompare(b.instrument || '');
+  if(inst !== 0) return inst;
+  const ta = (a.statutPoste || 'titulaire') === 'remplacant' ? 1 : 0;
+  const tb = (b.statutPoste || 'titulaire') === 'remplacant' ? 1 : 0;
+  if(ta !== tb) return ta - tb;
+  const ra = a.rang || Infinity, rb = b.rang || Infinity;
+  if(ra !== rb) return ra - rb;
   return fullName(a).localeCompare(fullName(b));
 }
 
@@ -414,7 +448,9 @@ function render(){
     if(!search) return true;
     const haystack = [m.prenom, m.nom, m.instrument, m.pupitre].filter(Boolean).join(' ').toLowerCase();
     return haystack.includes(search);
-  }).sort(statutPoste === 'remplacant' ? compareForRemplacantRanking : statutPoste === 'titulaire' ? compareByPupitreThenName : (a,b)=> fullName(a).localeCompare(fullName(b)));
+  }).sort(statutPoste === 'remplacant' ? compareForRemplacantRanking
+        : statutPoste === 'titulaire' ? compareByPupitreThenName
+        : compareAnnuaireComplet);
 
   const grid = document.getElementById('grid');
   const emptyHint = document.getElementById('emptyHint');
@@ -440,7 +476,23 @@ function render(){
   document.getElementById('annCount').textContent =
     `${filtered.length} fiche${filtered.length > 1 ? 's' : ''} — contact en un clic, remplaçant·es par ordre de préférence.`;
 
+  // Un bandeau par pupitre, comme dans l'export PDF : la liste est triée dans
+  // l'ordre de l'orchestre, encore faut-il le voir. Inutile quand un pupitre
+  // est déjà filtré (un seul groupe) ou quand la vue « Remplaçant·es » classe
+  // par instrument à travers les pupitres.
+  const bandeauxPupitre = !pupitre && statutPoste !== 'remplacant';
+  let pupitreCourant = null;
+  let rangAffiche = 0;              // parité de l'alternance, bandeaux non comptés
+
   grid.innerHTML = filtered.map((m, index)=>{
+    let bandeau = '';
+    if(bandeauxPupitre && (m.pupitre || 'Autre') !== pupitreCourant){
+      pupitreCourant = m.pupitre || 'Autre';
+      const n = filtered.filter(x=> (x.pupitre || 'Autre') === pupitreCourant).length;
+      bandeau = `<div class="m-section">${escapeHtml(pupitreCourant)}<span class="compte">${n} fiche${n>1?'s':''}</span></div>`;
+      rangAffiche = 0;              // chaque pupitre repart sur un fond clair
+    }
+    const zebre = (rangAffiche++ % 2) ? ' zebre' : '';
     const [pupFond, pupEncre] = couleurPupitre(m.pupitre);
     const waDigits = normalizeWhatsappPhone(m.telephone);
     const waHref = waDigits ? `https://wa.me/${encodeURIComponent(waDigits)}` : null;
@@ -449,7 +501,8 @@ function render(){
     const prefs = m.statutPoste !== 'remplacant' ? remplacantPrefsFor(m.id) : null;
     const nbRempl = prefs ? prefs.items.length : 0;
     return `
-      <div class="co-row m-row ${isSelected ? 'selected' : ''}">
+      ${bandeau}
+      <div class="co-row m-row${zebre} ${isSelected ? 'selected' : ''}">
         <input type="checkbox" class="m-select-checkbox" data-select="${m.id}" ${isSelected ? 'checked' : ''} aria-label="Sélectionner ${escapeHtml(fullName(m))}">
         <span class="m-avatar" aria-hidden="true" style="--co-tilt:${index % 2 ? '4deg' : '-5deg'}; background:${pupFond}; color:${pupEncre};">${escapeHtml(initialesDe(m))}</span>
         <span class="m-identite">

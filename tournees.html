@@ -20,6 +20,76 @@
 <style>
   .wrap{max-width:1380px; margin:0 auto;}
 
+  /* ------------------------------------------------------------------------
+     Sommaire latéral + cartes repliables — le motif validé sur la page
+     « Demandes titulaires » : au fil des saisons, la liste des projets devient
+     un mur de plusieurs écrans. Un sommaire collant à gauche dit où il reste
+     du travail et permet d'y aller ; les cartes se replient sur leur barre de
+     titre, qui garde le résumé (compteurs, chiffrage, reste à faire).
+     ------------------------------------------------------------------------ */
+  .tournees-colonnes{ display:grid; grid-template-columns:250px minmax(0, 1fr); gap:20px; align-items:start; }
+  /* Sommaire masqué (moins de deux projets) : la colonne de gauche disparaît
+     avec lui, sinon les cartes iraient s'écraser dans ses 250 pixels. */
+  .tournees-colonnes:has(> .projets-menu[hidden]){ grid-template-columns:1fr; }
+  @media (max-width:900px){ .tournees-colonnes{ grid-template-columns:1fr; } }
+  .colonne-cartes{ min-width:0; }
+
+  /* [hidden] pose display:none dans la feuille du navigateur, mais le
+     display:flex ci-dessous est une règle d'auteur : il l'emporterait, et le
+     sommaire resterait affiché, vide (même piège que .tournee-outils). */
+  .projets-menu[hidden]{ display:none; }
+  .projets-menu{
+    position:sticky; top:74px; background:var(--card); border:1px solid var(--border);
+    border-radius:14px; padding:12px 12px 10px; max-height:calc(100vh - 100px);
+    display:flex; flex-direction:column; gap:9px;
+  }
+  @media (max-width:900px){ .projets-menu{ position:static; max-height:none; } }
+  .projets-menu-titre{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent); margin:0;
+  }
+  .projets-liste{ overflow-y:auto; display:flex; flex-direction:column; gap:2px; margin:0 -4px; padding:0 4px; }
+  .projets-liste a{
+    display:flex; align-items:center; gap:7px; text-decoration:none; color:var(--text);
+    font-size:12.5px; font-weight:700; padding:7px 8px; border-radius:8px; line-height:1.25;
+  }
+  .projets-liste a:hover{ background:var(--bg); }
+  .projets-liste a.actif{ background:var(--accent-tint); color:var(--tint-ink); }
+  .projets-liste .nom{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .projets-liste .compte{
+    flex:0 0 auto; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:20px;
+    background:var(--ok-tint); color:var(--ok);
+  }
+  .projets-liste .compte.reste{ background:var(--maybe-tint); color:var(--maybe); }
+  .projets-menu-pied{ display:flex; gap:5px; border-top:1px solid var(--border); padding-top:8px; }
+  .projets-menu-pied button{ font-size:11px; padding:5px 9px; background:var(--bg); color:var(--muted); }
+  .projets-menu-pied button:hover{ background:var(--accent-tint); color:var(--tint-ink); }
+
+  /* Carte repliée : la barre de titre et la ligne de méta restent — le nom se
+     renomme toujours, les compteurs, le chiffrage et le reste à faire disent
+     s'il y a lieu de rouvrir. Le corps (outils, ajout de date, tableau)
+     disparaît. Le fond de la barre de titre replie ; ses contrôles — nom
+     éditable, boutons — gardent leur rôle. */
+  .tournee-head{ cursor:pointer; }
+  .tournee-head .tournee-name, .tournee-head .row-actions{ cursor:auto; }
+  /* Le caret précède le nom ; les actions restent collées à droite. */
+  .tournee-head .tournee-name{ margin-right:auto; }
+  .carte-caret{
+    flex:0 0 auto; background:none; border:none; padding:4px 7px; margin:0 -4px 0 -6px;
+    color:var(--muted); font-size:13px; line-height:1; transition:transform .15s ease;
+  }
+  .carte-caret:hover{ color:var(--accent); background:none; }
+  .tournee-card[data-replie="1"] .carte-caret,
+  .tournee-card[data-replie="1"] .carte-caret:active{ transform:rotate(-90deg); }
+  .tournee-card[data-replie="1"] > .tournee-outils,
+  .tournee-card[data-replie="1"] > .add-date-row,
+  .tournee-card[data-replie="1"] > .co-rows,
+  .tournee-card[data-replie="1"] > .empty-hint{ display:none; }
+  .tournee-card[data-replie="1"] .tournee-meta{ border-bottom:none; }
+  /* L'ancre du sommaire vise la carte : sans marge de défilement, elle
+     arriverait sous la barre de navigation collante. */
+  .tournee-card{ scroll-margin-top:84px; }
+
   button{
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
@@ -226,6 +296,9 @@
   .col-lieu textarea:focus{height:52px; resize:vertical;}
   .col-icone{font-size:13px; flex:0 0 auto; opacity:.75;}
   .col-type, .col-voyage, .col-seance{display:flex; align-items:center; gap:5px; min-width:0;}
+  /* Les jours suivants d'un bloc ne portent pas de voyage : on le dit en
+     retrait, pour que la colonne se lise comme « un trajet, trois jours ». */
+  .col-voyage.sur-place{font-size:12px; color:var(--muted); font-style:italic; padding-left:2px;}
   .col-statut, .col-fdr, .col-suppr{min-width:0;}
   .col-type select, .col-voyage select, .col-seance select{flex:1; min-width:0;}
 
@@ -303,13 +376,6 @@
   .col-lieu .saisie-cabine{flex:0 1 42%; min-width:0; font-size:12px; color:var(--muted);}
   .col-lieu .saisie-titres{flex:1 1 58%; min-width:0; font-size:12px; color:var(--muted);}
 
-  /* Réglages constants du disque, à côté du cachet et de la nomenclature. */
-  .recording-panel{min-width:0;}
-  .reco-champ{display:block; margin-bottom:7px;}
-  .reco-champ span{
-    display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:2px;
-  }
-  .reco-champ input{width:100%;}
   .col-equipe{display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;}
   .compteur-bouton{
     display:inline-flex; align-items:center; gap:5px;
@@ -467,12 +533,24 @@
     <button type="button" class="co-btn primary" id="addTourneeBtn">+ Créer la tournée</button>
   </div>
 
-  <div id="tourneesHolder"><div class="empty-hint">Chargement…</div></div>
+  <div class="tournees-colonnes">
+    <aside class="projets-menu co-fade" id="projetsMenu" hidden>
+      <p class="projets-menu-titre" id="projetsMenuTitre">Tournées</p>
+      <div class="projets-liste" id="projetsListe"></div>
+      <div class="projets-menu-pied">
+        <button type="button" id="toutReplierBtn">Tout replier</button>
+        <button type="button" id="toutDeplierBtn">Tout déplier</button>
+      </div>
+    </aside>
+    <div class="colonne-cartes">
+      <div id="tourneesHolder"><div class="empty-hint">Chargement…</div></div>
 
-  <details id="pastTourneesWrap" style="display:none; margin-bottom:20px;">
-    <summary style="cursor:pointer; font-weight:700; color:var(--muted); padding:10px 4px;">Tournées passées (<span id="pastTourneesCount">0</span>)</summary>
-    <div id="pastTourneesHolder"></div>
-  </details>
+      <details id="pastTourneesWrap" style="display:none; margin-bottom:20px;">
+        <summary style="cursor:pointer; font-weight:700; color:var(--muted); padding:10px 4px;">Tournées passées (<span id="pastTourneesCount">0</span>)</summary>
+        <div id="pastTourneesHolder"></div>
+      </details>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="importOverlay">
@@ -1225,6 +1303,47 @@ document.addEventListener('click', (e)=>{
   else outilsOuverts.delete(btn.dataset.toggleOutils);
 });
 
+/* Repli des cartes.
+ *
+ * Au-delà de quatre projets à venir, tout déplier fait une page de plusieurs
+ * milliers de pixels où l'on ne trouve plus rien : on replie d'office et le
+ * sommaire de gauche devient le point d'entrée. Le choix de chacun est retenu
+ * d'une visite à l'autre (même clé de raisonnement que suivi-dispo.html). */
+const REPLI_CLE = 'tourneesReplis';
+let repliManuel = (()=>{ try{ return JSON.parse(localStorage.getItem(REPLI_CLE) || '{}'); }catch(e){ return {}; } })();
+let repliDefaut = false;
+function estReplie(id){
+  return Object.prototype.hasOwnProperty.call(repliManuel, id) ? !!repliManuel[id] : repliDefaut;
+}
+function poserRepli(id, valeur){
+  repliManuel[id] = valeur;
+  try{ localStorage.setItem(REPLI_CLE, JSON.stringify(repliManuel)); }catch(e){}
+}
+function deplierCarte(carte){
+  if(!carte || carte.dataset.replie !== '1') return;
+  carte.dataset.replie = '0';
+  const caret = carte.querySelector('.carte-caret');
+  if(caret) caret.setAttribute('aria-expanded', 'true');
+  poserRepli(carte.dataset.tourneeId, false);
+}
+// Replier/déplier au clic sur la barre de titre — délégué sur le document,
+// comme le cartouche d'outils, pour survivre aux re-rendus. Les contrôles de
+// la barre (nom éditable, boutons d'action) gardent leur rôle : seuls le fond
+// et le caret replient.
+document.addEventListener('click', (e)=>{
+  const tete = e.target.closest('.tournee-head[data-replier]');
+  if(!tete) return;
+  if(e.target.closest('.tournee-name, a, input, select, textarea')) return;
+  if(e.target.closest('button') && !e.target.closest('.carte-caret')) return;
+  const carte = tete.closest('.tournee-card');
+  if(!carte) return;
+  const replie = carte.dataset.replie === '1';
+  carte.dataset.replie = replie ? '0' : '1';
+  const caret = tete.querySelector('.carte-caret');
+  if(caret) caret.setAttribute('aria-expanded', String(replie));
+  poserRepli(tete.dataset.replier, !replie);
+});
+
 document.getElementById('assignSearch').addEventListener('input', (e)=> renderAssignList(e.target.value));
 document.getElementById('assignList').addEventListener('click', (e)=>{
   // Demander sa dispo à quelqu'un dont on ne sait rien.
@@ -1474,12 +1593,12 @@ function cachetVendu(chiffrage){
  * Chaque pastille descend à la première date concernée et la signale.
  * Les dates passées ne comptent pas : on ne rattrape pas hier.
  */
-function resteAFaireHtml(t, fdrs, musicianById){
+function resteAFaire(t, fdrs, musicianById){
   const aujourdhui = new Date().toISOString().slice(0, 10);
   const dates = (t.dates || [])
     .filter(d=> d.date && d.date >= aujourdhui && d.statut !== 'annulee')
     .sort((a, b)=> a.date.localeCompare(b.date));
-  if(!dates.length) return '';
+  if(!dates.length) return null;
 
   const equipeIncomplete = dates.filter(d=>{
     const eff = effectifPourDate(t, d, musicianById);
@@ -1491,6 +1610,18 @@ function resteAFaireHtml(t, fdrs, musicianById){
   // Un cachet de séance pas encore fixé est un vrai reste à faire : le lien de
   // dispo l'affiche aux musicien·nes, et la paie en dépendra.
   const sansCachet = !EST_RECORDING ? [] : dates.filter(d=> d.cachetSeance == null || d.cachetSeance === '');
+
+  // Le compteur du sommaire compte les DATES qui appellent un geste, pas les
+  // pastilles : une date sans équipe ET sans lieu est un seul point à traiter.
+  const aTraiter = new Set([...equipeIncomplete, ...feuillesACreer, ...options, ...sansLieu, ...sansCachet]
+    .map(d=> d.id));
+  return { dates, equipeIncomplete, feuillesACreer, options, sansLieu, sansCachet, compte: aTraiter.size };
+}
+
+function resteAFaireHtml(t, fdrs, musicianById){
+  const r = resteAFaire(t, fdrs, musicianById);
+  if(!r) return '';
+  const { equipeIncomplete, feuillesACreer, options, sansLieu, sansCachet } = r;
 
   const pastille = (liste, classe, texte, titre)=> liste.length
     ? `<a class="af ${classe}" data-viser="${escapeAttr(liste.map(d=> d.id).join(','))}" title="${escapeAttr(titre)}">${texte}</a>`
@@ -1549,9 +1680,9 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         ...Array.from(technicianById.values()).map(m=>({ id: m.id, type: 'technicien', name: fullName(m) })),
       ].sort((a,b)=> a.name.localeCompare(b.name));
       const cachetOverrides = cachetOverridesForTournee(t.id);
-      const reco = t.recording || {};
       const overrideCount = rosterPeople.filter(p => cachetOverrides[p.id] != null).length;
       const rows = dates.map((d, dIdx)=>{
+        const blocInfo = blocMap.get(d.id);
         const fdr = fdrs.find(f=>f.eventDate === d.date);
         // La colonne FDR suit le statut de la date : une feuille ne s'écrit ni
         // pour une date annulée, ni avec la même urgence pour une option que
@@ -1615,16 +1746,26 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         // Le mode de voyage n'a pas d'objet en studio : l'orchestre enregistre
         // dans sa propre ville et vient par ses propres moyens. La colonne
         // disparaît plutôt que d'imposer un « Tourbus » qui ne veut rien dire.
+        //
+        // Un bloc de dates cons\u00E9cutives, c'est UN voyage : on part la veille de
+        // la premi\u00E8re et on rentre le lendemain de la derni\u00E8re. Le mode se
+        // choisit donc sur la premi\u00E8re date seulement \u2014 un menu sur chaque jour
+        // laisserait croire qu'on reprend le train tous les matins, et trois
+        // \u00AB Train \u00BB empil\u00E9s se lisent comme trois trajets.
+        const premierDuVoyage = !blocInfo || blocInfo.isFirst;
         const travelMode = ['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus';
-        const travelCell = EST_RECORDING ? '' : `
+        const travelCell = EST_RECORDING ? '' : (premierDuVoyage ? `
           <span class="col-voyage"><span class="col-icone" title="Mode de voyage">${ {tourbus:'\u26DF', train:'\u26ED', avion:'\u2708'}[travelMode] }</span>
-            <select class="type-select" data-field="travelMode" data-date-id="${escapeAttr(d.id)}">
+            <select class="type-select" data-field="travelMode" data-date-id="${escapeAttr(d.id)}"
+              title="${blocInfo ? 'Voyage du bloc \u2014 aller la veille, retour le lendemain' : 'Mode de voyage'}">
               <option value="tourbus" ${travelMode==='tourbus'?'selected':''}>Tourbus</option>
               <option value="train" ${travelMode==='train'?'selected':''}>Train</option>
               <option value="avion" ${travelMode==='avion'?'selected':''}>Avion</option>
             </select>
           </span>
-        `;
+        ` : `
+          <span class="col-voyage sur-place" title="M\u00EAme endroit que la veille \u2014 le voyage est celui du bloc">sur place</span>
+        `);
         // Une seule pastille qui tourne au clic : option → validée → annulée,
         // comme dans la maquette. La cible suivante est portée par l'attribut,
         // et le titre l'annonce pour qu'on sache où l'on va avant de cliquer.
@@ -1636,7 +1777,6 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             title="Statut : ${LIBELLE[statut]}. Clique pour passer à « ${LIBELLE[SUITE[statut]]} » (option → validée → annulée)"
             aria-label="Statut ${LIBELLE[statut]} — changer pour ${LIBELLE[SUITE[statut]]}">${LIBELLE[statut]}</button>
         `;
-        const blocInfo = blocMap.get(d.id);
         const hasNext = dIdx < dates.length - 1;
         let blocBadge = '';
         if(blocInfo){
@@ -1649,18 +1789,23 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
           else if(blocInfo.isFirst) note = `depuis la veille ${fmtDateFR(blocInfo.veille)}`;
           else if(blocInfo.isLast) note = `jusqu'au lendemain ${fmtDateFR(blocInfo.lendemain)}`;
           const blocTitre = EST_RECORDING
-            ? `Session de ${blocInfo.blocDates.length} jours consécutifs — nature et statut communs`
-            : `Bloc de ${blocInfo.blocDates.length} dates — départ la veille (${fmtDateFR(blocInfo.veille)}), retour le lendemain (${fmtDateFR(blocInfo.lendemain)})`;
+            ? `Session de ${blocInfo.blocDates.length} jours consécutifs — statut commun, nature libre par séance`
+            : `Bloc de ${blocInfo.blocDates.length} dates — un seul voyage (départ la veille ${fmtDateFR(blocInfo.veille)}, retour le lendemain ${fmtDateFR(blocInfo.lendemain)}), statut commun. La nature reste propre à chaque date.`;
           blocBadge = `<div class="bloc-badge" title="${escapeAttr(blocTitre)}"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></line></svg>${EST_RECORDING ? 'Session' : 'Bloc'}${note ? ' — ' + note : ''}</div>`;
         }
         const scissorsIcon = '<svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><circle cx="6" cy="6" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle><circle cx="6" cy="18" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle><line x1="7.8" y1="7.6" x2="20" y2="18.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line><line x1="7.8" y1="16.4" x2="20" y2="5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line></svg>';
         const linkToggle = hasNext
           ? `<button type="button" class="co-btn ghost sm" data-toggle-link="${escapeAttr(d.id)}" style="padding:2px 6px; font-size:10.5px; margin-top:2px;">${d.linkedToNext ? scissorsIcon + (EST_RECORDING ? 'Détacher' : 'Délier du bloc') : '+ Lier à la suivante'}</button>`
           : '';
-        // Type et statut sont communs à tout un bloc : un seul contrôle par bloc
-        // (fusionné visuellement sur toutes ses lignes via rowspan), pas un par date.
-        const showTypeStatut = !blocInfo || blocInfo.isFirst;
-        const groupRowspan = blocInfo ? blocInfo.blocDates.length : 1;
+        // Le STATUT est commun à tout un bloc — on ne confirme pas la deuxième
+        // date d'une résidence sans la première : un seul contrôle par bloc,
+        // porté par sa première ligne.
+        //
+        // La NATURE, elle, reste propre à chaque date : un bloc de trois jours
+        // au même endroit, c'est très souvent deux jours de répétition et un
+        // concert. La fusionner obligeait à délier les dates pour dire une
+        // chose vraie, et faisait perdre le voyage groupé avec.
+        const showStatut = !blocInfo || blocInfo.isFirst;
         return `
           <div class="co-row date-row ${blocInfo ? `bloc-row bloc-alt-${blocInfo.groupIndex % 2}` : ''}" data-row-date="${escapeAttr(d.id)}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
             <span class="col-date"><b>${escapeHtml(fmtDateFR(d.date))}</b></span>
@@ -1674,11 +1819,11 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
               </span>` : ''}
               <textarea data-field="commentaire" data-date-id="${escapeAttr(d.id)}" placeholder="Commentaire…">${escapeHtml(d.commentaire||'')}</textarea>
             </span>
-            <span class="col-type">${showTypeStatut ? `<span class="col-icone" title="Nature de la date">${iconeTypeDate(PROJET_TYPE, type)}</span>${typeSelect}` : ''}</span>
+            <span class="col-type"><span class="col-icone" title="Nature de la date">${iconeTypeDate(PROJET_TYPE, type)}</span>${typeSelect}</span>
             ${seanceSelect}
             ${cachetCell}
             ${travelCell}
-            <span class="col-statut">${showTypeStatut ? statutGroup : ''}</span>
+            <span class="col-statut">${showStatut ? statutGroup : ''}</span>
             <span class="col-equipe" title="${escapeAttr(summaryText)}">
               <!-- Le compteur EST le bouton qui déplie l'équipe : « Voir »
                    doublait l'information et prenait une place que chaque
@@ -1701,9 +1846,13 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         `;
       }).join('');
 
+      const replie = estReplie(t.id) ? '1' : '0';
       return `
-        <div class="tournee-card" id="tournee-${escapeAttr(t.id)}" data-tournee-id="${escapeAttr(t.id)}">
-          <div class="tournee-head">
+        <div class="tournee-card" id="tournee-${escapeAttr(t.id)}" data-tournee-id="${escapeAttr(t.id)}" data-replie="${replie}">
+          <div class="tournee-head" data-replier="${escapeAttr(t.id)}">
+            <button type="button" class="carte-caret" aria-expanded="${replie === '1' ? 'false' : 'true'}"
+              title="${replie === '1' ? 'Déplier' : 'Replier'} ${escapeAttr(t.nom || VOC.projet)}"
+              aria-label="${replie === '1' ? 'Déplier' : 'Replier'}">▾</button>
             <div class="tournee-name" contenteditable="true" data-rename-tournee="${escapeAttr(t.id)}">${escapeHtml(t.nom || `${VOC.Projet} sans nom`)}</div>
             <div class="row-actions">
               <button type="button" class="co-btn secondary sm" data-dispo-links="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line></svg>Demandes titulaires</button>
@@ -1781,22 +1930,6 @@ ${EST_RECORDING ? `
               <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
               <button type="button" class="co-btn tint sm" style="margin-top:8px;" data-add-nomenclature-row="${escapeAttr(t.id)}">+ Ajouter un pupitre</button>
             </div>
-            ${EST_RECORDING ? `
-            <div class="recording-panel">
-              <div class="outils-legend">Le disque</div>
-              <!-- Quatre informations constantes sur tout l'enregistrement : on
-                   les saisit une fois en tête de projet plutôt que de les
-                   recopier sur chaque séance. Même principe que le cachet. -->
-              <label class="reco-champ"><span>Label / éditeur</span>
-                <input type="text" data-reco="label" data-tournee-id="${escapeAttr(t.id)}" value="${escapeAttr(reco.label||'')}" placeholder="Qui édite le disque"></label>
-              <label class="reco-champ"><span>Direction artistique</span>
-                <input type="text" data-reco="directionArtistique" data-tournee-id="${escapeAttr(t.id)}" value="${escapeAttr(reco.directionArtistique||'')}" placeholder="Nom du/de la DA"></label>
-              <label class="reco-champ"><span>Format de livraison</span>
-                <input type="text" data-reco="livraison" data-tournee-id="${escapeAttr(t.id)}" value="${escapeAttr(reco.livraison||'')}" placeholder="ex : 24 bits / 96 kHz, stems + mix"></label>
-              <label class="reco-champ"><span>Dossier des masters</span>
-                <input type="url" data-reco="lienMasters" data-tournee-id="${escapeAttr(t.id)}" value="${escapeAttr(reco.lienMasters||'')}" placeholder="https://drive.google.com/…"></label>
-              ${reco.lienMasters ? `<a class="co-btn secondary sm" style="margin-top:6px;" href="${escapeAttr(reco.lienMasters)}" target="_blank" rel="noopener">Ouvrir le dossier</a>` : ''}
-            </div>` : ''}
           </div>
           <div class="add-date-row">
             <input type="date" data-new-date="${escapeAttr(t.id)}">
@@ -1838,6 +1971,32 @@ ${EST_RECORDING ? `
       `;
 }
 
+/* Le sommaire des projets, à gauche.
+ *
+ * Il porte trois choses : combien de dates appellent encore un geste (le
+ * compteur), comment y aller (le lien d'ancre, qui déplie la carte au
+ * passage), et de quoi tout replier quand la saison en compte quinze. */
+function renderSommaire(upcoming, fdrs, musicianById){
+  const menu = document.getElementById('projetsMenu');
+  const liste = document.getElementById('projetsListe');
+  const titre = document.getElementById('projetsMenuTitre');
+  if(!menu || !liste) return;
+  if(titre) titre.textContent = VOC.Projets;
+  menu.hidden = upcoming.length < 2;      // sous deux projets, un sommaire est du bruit
+  if(menu.hidden){ liste.innerHTML = ''; return; }
+
+  liste.innerHTML = upcoming.map(t=>{
+    const r = resteAFaire(t, fdrs, musicianById);
+    const n = r ? r.compte : 0;
+    const compte = n
+      ? `<span class="compte reste" title="${n} ${EST_RECORDING ? 'séance' : 'date'}${n>1?'s':''} à traiter">${n}</span>`
+      : `<span class="compte" title="Rien en attente sur les dates à venir">✓</span>`;
+    return `<a href="#tournee-${escapeAttr(t.id)}" data-aller="${escapeAttr(t.id)}">
+      <span class="nom">${escapeHtml(t.nom || `${VOC.Projet} sans nom`)}</span>${compte}
+    </a>`;
+  }).join('');
+}
+
 function render(){
   // Le panneau d'affectation est posé dans une ligne de date : on le met à
   // l'abri avant de refaire le HTML des cartes, on le repose ensuite.
@@ -1862,6 +2021,12 @@ function render(){
   const isPastTournee = tr => (tr.dates||[]).length > 0 && (tr.dates||[]).every(d=> d.date && d.date < today);
   const upcoming = tournees.filter(t=> !isPastTournee(t));
   const past = tournees.filter(isPastTournee);
+
+  // Au-delà de quatre projets à venir, on replie d'office : c'est le seuil à
+  // partir duquel la page cesse de se parcourir d'un coup d'œil. Le choix
+  // manuel de chacun l'emporte toujours (estReplie).
+  repliDefaut = upcoming.length > 4;
+  renderSommaire(upcoming, fdrs, musicianById);
 
   if(tournees.length === 0){
     holder.innerHTML = `<div class="empty-hint">Aucun${EST_RECORDING?'':'e'} ${VOC.projet} pour l'instant — crée-en un${EST_RECORDING?'':'e'} ci-dessus.</div>`;
@@ -1946,7 +2111,7 @@ function exportTourneePdf(tourneeId){
     // quatrième colonne devient la séance, et la place gagnée va aux titres.
     head: [EST_RECORDING
       ? ['Date', 'Nature', 'Statut', 'Séance', 'Ville', 'Studio', 'Cabine', 'Titres / commentaire']
-      : ['Date', 'Type', 'Statut', 'Dép. / Retour', 'Transport', 'Ville', 'Salle', 'Commentaire']],
+      : ['Date', 'Nature', 'Statut', 'Dép. / Retour', 'Transport', 'Ville', 'Salle', 'Commentaire']],
     body: dates.map((d, idx)=>{
       const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
       const type = typeDateValide(PROJET_TYPE, d.type);
@@ -1954,13 +2119,15 @@ function exportTourneePdf(tourneeId){
       if(blocInfo) blocRowInfo.set(idx, blocInfo);
 
       const row = [fmtDateFR(d.date)];
-      // Type, Statut et Dép./Retour sont communs à tout le bloc : une seule cellule
-      // fusionnée (rowSpan) sur toute la hauteur du bloc plutôt qu'une valeur répétée
-      // par date. Chaque info a sa propre colonne — Statut ne mélange plus le mot
+      // La nature figure sur chaque ligne : dans un bloc de trois jours, deux
+      // peuvent être des répétitions et le troisième le concert.
+      row.push(typeLabelPdf(type));
+      // Statut et Dép./Retour, eux, sont communs à tout le bloc : une seule cellule
+      // fusionnée (rowSpan) sur toute sa hauteur plutôt qu'une valeur répétée par
+      // date. Chaque info a sa propre colonne — Statut ne mélange plus le mot
       // (option/validée/annulée) avec les dates de trajet.
       if(!blocInfo || blocInfo.isFirst){
         const span = blocInfo ? blocInfo.blocDates.length : 1;
-        row.push({ content: typeLabelPdf(type), rowSpan: span, styles: { valign: 'middle' } });
         row.push({ content: STATUT_PDF_LABEL[statut], rowSpan: span, styles: { valign: 'middle' } });
         if(!EST_RECORDING){
           const depRetour = blocInfo ? `Dép. veille ${fmtDateFRShortNoYear(blocInfo.veille)}\nRetour lend. ${fmtDateFRShortNoYear(blocInfo.lendemain)}` : '';
@@ -1976,8 +2143,12 @@ function exportTourneePdf(tourneeId){
         row.push(libelleSeance(d.seance) || 'Journée', d.ville || '', d.lieu || '', d.cabine || '',
           [d.titres || '', d.commentaire || ''].filter(Boolean).join(' — '));
       } else {
+        // Le transport est celui du bloc, comme Dép./Retour : une cellule
+        // fusionnée sur toute sa hauteur, et non « Train » répété trois fois.
         const travelLabel = { tourbus: 'Bus', train: 'Train', avion: 'Avion' }[['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus'];
-        row.push(travelLabel, d.ville || '', d.lieu || '', d.commentaire || '');
+        if(!blocInfo) row.push(travelLabel);
+        else if(blocInfo.isFirst) row.push({ content: travelLabel, rowSpan: blocInfo.blocDates.length, styles: { valign: 'middle' } });
+        row.push(d.ville || '', d.lieu || '', d.commentaire || '');
       }
       return row;
     }),
@@ -1989,8 +2160,10 @@ function exportTourneePdf(tourneeId){
       0: { cellWidth: 24 }, 1: { cellWidth: 20 }, 2: { cellWidth: 20 },
       3: { cellWidth: 24 }, 4: { cellWidth: 28 }, 5: { cellWidth: 34 }, 6: { cellWidth: 30 },
     } : {
+      // « Transport » se coupait en deux à 16 mm : il en prend 21, rendus par
+      // Dép./Retour, qui n'écrit ses deux lignes que sur les blocs.
       0: { cellWidth: 24 }, 1: { cellWidth: 18 }, 2: { cellWidth: 20 },
-      3: { cellWidth: 32 }, 4: { cellWidth: 16 }, 5: { cellWidth: 30 }, 6: { cellWidth: 30 },
+      3: { cellWidth: 27 }, 4: { cellWidth: 21 }, 5: { cellWidth: 30 }, 6: { cellWidth: 30 },
     },
     headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold' },
     alternateRowStyles: { fillColor:[253,248,246] },
@@ -2262,6 +2435,9 @@ function bindTourneeEvents(){
   document.querySelectorAll('.a-faire [data-viser]').forEach(a=>{
     a.addEventListener('click', ()=>{
       const premierId = (a.dataset.viser || '').split(',')[0];
+      // Les pastilles restent lisibles sur une carte repliée : le geste
+      // commence donc par la rouvrir, sans quoi il n'y aurait rien à viser.
+      deplierCarte(a.closest('.tournee-card'));
       const ligne = document.querySelector(`[data-row-date="${CSS.escape(premierId)}"]`);
       if(!ligne) return;
       ligne.scrollIntoView({ behavior:'smooth', block:'center' });
@@ -2471,8 +2647,10 @@ function bindTourneeEvents(){
         const sortedDates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
         const blocInfo = computeBlocMap(sortedDates).get(d.id);
         if(blocInfo){
+          // Bloc nouvellement formé : statut et voyage s'alignent sur la
+          // première date. La nature, elle, reste celle de chaque journée.
           const ref = blocInfo.blocDates[0];
-          blocInfo.blocDates.forEach(gd=>{ gd.statut = ref.statut; gd.type = ref.type; });
+          blocInfo.blocDates.forEach(gd=>{ gd.statut = ref.statut; gd.travelMode = ref.travelMode; });
         }
       }
       saveTournees(tournees);
@@ -2497,20 +2675,6 @@ function bindTourneeEvents(){
       if(d) createFdrForDate(d, t.nom);
     });
   });
-  // Réglages constants du disque : écrits dans t.recording, pas sur les dates.
-  document.querySelectorAll('[data-reco]').forEach(el=>{
-    el.addEventListener('change', ()=>{
-      const tournees = loadTournees();
-      const t = tournees.find(x=>x.id === el.dataset.tourneeId);
-      if(!t) return;
-      if(!t.recording) t.recording = {};
-      t.recording[el.dataset.reco] = el.value.trim();
-      saveTournees(tournees);
-      // Le bouton « Ouvrir le dossier » apparaît/disparaît avec le lien :
-      // seul un nouveau rendu peut le refléter, et le cartouche reste ouvert.
-      if(el.dataset.reco === 'lienMasters') render();
-    });
-  });
   document.querySelectorAll('[data-field]').forEach(el=>{
     const handler = ()=>{
       const card = el.closest('[data-tournee-id]');
@@ -2530,10 +2694,18 @@ function bindTourneeEvents(){
       }
       d[el.dataset.field] = el.value;
       if(el.dataset.field === 'type'){
-        // La nature de la date est commune à tout le bloc, comme le statut.
+        // La nature est propre à la date — deux jours de répétition et un
+        // concert dans le même bloc, c'est le cas courant. Seule l'icône de la
+        // ligne suit, d'où le rendu.
+        saveTournees(tournees);
+        render();
+      } else if(el.dataset.field === 'travelMode'){
+        // Le voyage appartient au bloc : le menu n'est offert que sur sa
+        // première date, mais la valeur est recopiée sur toutes les autres —
+        // le PDF et les feuilles de route lisent chacune leur date.
         const sortedDates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
         const blocInfo = computeBlocMap(sortedDates).get(d.id);
-        if(blocInfo) blocInfo.blocDates.forEach(gd=> gd.type = el.value);
+        if(blocInfo) blocInfo.blocDates.forEach(gd=> gd.travelMode = el.value);
         saveTournees(tournees);
         render();
       } else {
@@ -2544,13 +2716,35 @@ function bindTourneeEvents(){
   });
 }
 
+// Sommaire : aller à un projet, c'est le déplier et s'y poser. Délégué sur la
+// liste, qui est refaite à chaque rendu.
+document.getElementById('projetsListe').addEventListener('click', (e)=>{
+  const a = e.target.closest('[data-aller]');
+  if(!a) return;
+  const carte = document.getElementById('tournee-' + a.dataset.aller);
+  deplierCarte(carte);
+  document.querySelectorAll('#projetsListe a').forEach(x=> x.classList.remove('actif'));
+  a.classList.add('actif');
+});
+document.getElementById('toutReplierBtn').addEventListener('click', ()=>{
+  loadTournees().forEach(t=> poserRepli(t.id, true));
+  render();
+});
+document.getElementById('toutDeplierBtn').addEventListener('click', ()=>{
+  loadTournees().forEach(t=> poserRepli(t.id, false));
+  render();
+});
+
 document.getElementById('addTourneeBtn').addEventListener('click', ()=>{
   const input = document.getElementById('newTourneeName');
   const nom = input.value.trim();
   if(!nom){ alert(`Donne un nom à ${EST_RECORDING ? 'ce recording' : 'la tournée'}.`); return; }
   const tournees = loadTournees();
-  tournees.unshift({ id: genId('tour'), nom, type: PROJET_TYPE, recording: {}, dates: [], cachetStatut: 'non_defini', cachetMontant: null });
+  const id = genId('tour');
+  tournees.unshift({ id, nom, type: PROJET_TYPE, recording: {}, dates: [], cachetStatut: 'non_defini', cachetMontant: null });
   saveTournees(tournees);
+  // On vient de la créer : elle s'ouvre, même si le repli d'office est actif.
+  poserRepli(id, false);
   input.value = '';
   render();
 });
@@ -2563,7 +2757,11 @@ setInterval(applyAutoTheme, 5 * 60 * 1000);
 function scrollToHash(){
   if(location.hash){
     const target = document.querySelector(location.hash);
-    if(target) setTimeout(()=> target.scrollIntoView({ behavior:'smooth', block:'start' }), 50);
+    if(!target) return;
+    // Arriver depuis un lien (récap, feuille de route, sommaire d'une autre
+    // page) sur une carte repliée n'apprendrait rien : on la rouvre.
+    deplierCarte(target.closest('.tournee-card'));
+    setTimeout(()=> target.scrollIntoView({ behavior:'smooth', block:'start' }), 50);
   }
 }
 
