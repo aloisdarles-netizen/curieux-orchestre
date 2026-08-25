@@ -1826,14 +1826,19 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         const precedente = dIdx > 0 ? dates[dIdx - 1] : null;
         const memeVilleQueLaVeille = !!precedente && !!villeDe(d) && villeDe(precedente) === villeDe(d);
         const premierDuVoyage = !blocInfo || blocInfo.isFirst || !memeVilleQueLaVeille;
-        const travelMode = ['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus';
+        // « Aucun » n'est pas un trou dans la donnée : c'est une réponse.
+        // Une date où chacun vient par ses moyens — la salle est en ville, on
+        // se retrouve sur place — n'a pas de transport à organiser, et forcer
+        // « Tourbus » faisait dire au tableau et au PDF quelque chose de faux.
+        const travelMode = ['tourbus','train','avion','aucun'].includes(d.travelMode) ? d.travelMode : 'tourbus';
         const travelCell = EST_RECORDING ? '' : (premierDuVoyage ? `
-          <span class="col-voyage"><span class="col-icone" title="Mode de voyage">${ {tourbus:'\u26DF', train:'\u26ED', avion:'\u2708'}[travelMode] }</span>
+          <span class="col-voyage"><span class="col-icone" title="Mode de voyage">${ {tourbus:'\u26DF', train:'\u26ED', avion:'\u2708', aucun:'\u2014'}[travelMode] }</span>
             <select class="type-select" data-field="travelMode" data-date-id="${escapeAttr(d.id)}"
               title="${memeVilleQueLaVeille || !blocInfo ? 'Mode de voyage' : 'Trajet vers cette ville \u2014 il vaut pour les jours qui y restent'}">
               <option value="tourbus" ${travelMode==='tourbus'?'selected':''}>Tourbus</option>
               <option value="train" ${travelMode==='train'?'selected':''}>Train</option>
               <option value="avion" ${travelMode==='avion'?'selected':''}>Avion</option>
+              <option value="aucun" ${travelMode==='aucun'?'selected':''}>Aucun</option>
             </select>
           </span>
         ` : `
@@ -2020,6 +2025,7 @@ ${EST_RECORDING ? `
               <option value="tourbus">Tourbus</option>
               <option value="train">Train</option>
               <option value="avion">Avion</option>
+              <option value="aucun">Aucun</option>
             </select>`}
             <input type="text" data-new-ville="${escapeAttr(t.id)}" placeholder="Ville">
             <input type="text" data-new-lieu="${escapeAttr(t.id)}" placeholder="${VOC.Lieu}">
@@ -2224,7 +2230,7 @@ function exportTourneePdf(tourneeId){
         // Le transport se fusionne sur les jours passés dans la MÊME ville :
         // un bloc peut en traverser plusieurs, et fusionner sur toute sa
         // hauteur faisait disparaître les trajets intermédiaires.
-        const travelLabel = { tourbus: 'Bus', train: 'Train', avion: 'Avion' }[['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus'];
+        const travelLabel = { tourbus: 'Bus', train: 'Train', avion: 'Avion', aucun: '—' }[['tourbus','train','avion','aucun'].includes(d.travelMode) ? d.travelMode : 'tourbus'];
         const ville = (x)=> ((x && x.ville) || '').trim().toLowerCase();
         const precedente = idx > 0 ? dates[idx - 1] : null;
         const suiteMemeVille = !!blocInfo && !!precedente && !!ville(d) && ville(precedente) === ville(d);
