@@ -3899,3 +3899,33 @@ begin
 end;
 $$;
 grant execute on function purger_donnees_essai(text[]) to authenticated;
+
+
+-- ============================================================================
+-- 2026-08 · Le rôle se dit projet par projet
+--
+-- Jusqu'ici, « titulaire » ou « remplaçant·e » était une propriété de la
+-- personne, valable partout. Deux choses s'y mélangeaient :
+--   1. est-ce qu'on lui demande ses dispos d'office, sur toutes les opés ?
+--   2. tient-elle le poste sur CE projet, ou vient-elle en remplacement ?
+--
+-- Ce sont deux questions différentes. Quelqu'un peut être titulaire du poste
+-- sur une tournée sans faire partie du noyau de l'orchestre : on a besoin de
+-- ses dispos sur cette tournée-là, et d'elle nulle part ailleurs. L'étiqueter
+-- « remplaçant·e » était faux, l'étiqueter « titulaire » le sollicitait sur
+-- tout.
+--
+-- Le statut de l'annuaire (musiciens.statut_poste) ne répond donc plus qu'à
+-- la question 1 — le noyau. La question 2 est portée par la demande de dispo,
+-- c'est-à-dire par le couple (personne, projet).
+--
+-- null = on s'en remet au statut global de la personne, ce qui est le cas de
+-- toutes les demandes existantes : rien à reprendre.
+-- ============================================================================
+
+alter table dispo_demandes
+  add column if not exists role text
+  check (role is null or role in ('titulaire','remplacant'));
+
+comment on column dispo_demandes.role is
+  'Rôle sur CE projet : titulaire (tient le poste) ou remplacant. null = on lit le statut global de la personne.';

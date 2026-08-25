@@ -217,7 +217,10 @@ async function genererPriseEnMainPdf(personnes, options){
   const ignorees = [];
   const fiches = [];
   for(const personne of personnes){
-    const res = await CurieuxDB.ensureAccesPersonnel(personne.id, personType);
+    // Une même liste peut mélanger musicien·nes et technicien·nes (page des
+    // demandes de dispo) : le type porté par la personne l'emporte sur celui
+    // de l'appel, qui reste le défaut.
+    const res = await CurieuxDB.ensureAccesPersonnel(personne.id, personne._personType || personType);
     if(!res || !res.token){
       ignorees.push({
         personne,

@@ -4,9 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Curieux orchestre — Demandes titulaires</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
 <script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
+<script src="assets/pdf-charte.js"></script>
+<script src="assets/qr.js"></script>
+<script src="assets/pdf-prise-en-main.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
@@ -80,12 +84,70 @@
   }
   .tournee-resume b{ color:var(--maybe); }
 
-  /* Liens personnels : une ligne par personne, et une seule. */
-  .perso-ligne{
-    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-    padding:8px 0; border-bottom:1px solid var(--border);
+  /* ------------------------------------------------------------------------
+     Deux lectures de la même chose.
+
+     « Par personne » répond à « qui dois-je relancer ? » — une ligne par
+     personne sollicitée, ses projets en pastilles, et UN seul lien : celui de
+     son espace, qui couvre déjà tous ses projets. Avoir un bouton « Générer »
+     par personne ET par projet laissait croire qu'il fallait envoyer une URL
+     différente à chaque fois ; c'est la même, depuis toujours.
+
+     « Par projet » répond à « où en est cette tournée ? » — les cartes, avec
+     leur sommaire à gauche.
+     ------------------------------------------------------------------------ */
+  .vue-bascule{ display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+  .vue-bascule button{
+    border:1px solid var(--border); background:transparent; color:var(--text);
+    border-radius:999px; padding:7px 15px; font-size:12.5px; font-weight:700;
   }
-  .perso-ligne:last-child{ border-bottom:none; }
+  .vue-bascule button[aria-pressed="true"]{
+    background:var(--accent-solid, var(--accent)); color:#fff; border-color:transparent;
+  }
+  .vue-bascule .vue-note{ font-size:11.5px; color:var(--muted); margin-left:4px; }
+
+  .perso-row{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    padding:var(--row-pad) 20px; border-bottom:1px solid var(--border);
+  }
+  .perso-row:nth-of-type(even){ background:var(--row-alt); }
+  .perso-row:last-child{ border-bottom:none; }
+  .perso-row .perso-id{ flex:1 1 200px; min-width:0; }
+  .perso-row .perso-nom{ font-weight:800; font-size:13.5px; }
+  .perso-row .perso-role{ display:block; font-size:11.5px; color:var(--muted); }
+  .perso-projets{ flex:2 1 320px; display:flex; gap:5px; flex-wrap:wrap; min-width:0; }
+  .perso-actions{ display:flex; gap:6px; align-items:center; flex-shrink:0; }
+
+  /* Une pastille par projet : le nom, et où en est la réponse. */
+  .proj-tag{
+    display:inline-flex; align-items:center; gap:5px; text-decoration:none;
+    font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px;
+    background:var(--bg); color:var(--muted); border:1px solid var(--border);
+    cursor:pointer; max-width:100%;
+  }
+  .proj-tag .nom{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .proj-tag.ok{ background:var(--ok-tint); color:var(--ok); border-color:transparent; }
+  .proj-tag.attente{ background:var(--maybe-tint); color:var(--maybe); border-color:transparent; }
+  .proj-tag .rempl{ font-weight:800; opacity:.7; font-size:9.5px; text-transform:uppercase; letter-spacing:.03em; }
+  /* Le nombre de dates encore à renseigner : un compteur, pas une quantité de
+     dates du projet — d'où la pastille dans la pastille. */
+  .proj-tag .reste{
+    font-size:10px; font-weight:800; padding:1px 6px; border-radius:10px;
+    background:rgba(0,0,0,.09); line-height:1.5;
+  }
+  :root[data-theme="dark"] .proj-tag .reste{ background:rgba(255,255,255,.16); }
+  .perso-vide{ font-size:12px; color:var(--muted); font-style:italic; }
+
+  /* Le rôle sur CE projet, sur la ligne d'une carte : un bouton qui bascule
+     entre titulaire et remplaçant·e. Le statut de l'annuaire, lui, ne dit plus
+     que le noyau — qui reçoit une demande d'office, partout. */
+  .role-chip{
+    font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em;
+    padding:3px 9px; border-radius:20px; border:1px solid transparent;
+    background:var(--bg); color:var(--muted); cursor:pointer; font-family:inherit;
+  }
+  .role-chip:hover{ border-color:var(--accent); color:var(--accent); }
+  .role-chip.remplacant{ background:var(--accent-tint); color:var(--accent-dark); }
 
   button{
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
@@ -113,6 +175,22 @@
   /* Le statut de réponse est l'information qu'on vient chercher : il passe de
      11 px à 14 px, sur une largeur fixe pour que la colonne s'aligne. */
   .dispo-statut{width:130px; font-size:14px; font-weight:800; white-space:nowrap;}
+  /* La fenêtre de la fiche de prise en main, venue de l'annuaire avec elle :
+     sans ces règles, la modale se déposait en bas de page comme du contenu
+     ordinaire. */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(20,15,10,.5);
+    align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--card); border-radius:14px; padding:24px; max-width:480px; width:100%;
+    max-height:88vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.25);
+  }
+  .modal h2{font-size:17px; margin:0 0 16px;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px; flex-wrap:wrap;}
+
   .suivi-resume{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
   .suivi-resume .pct{font-family:var(--font-display); font-size:26px; color:var(--accent); font-weight:500;}
   .suivi-resume .jauge{flex:1; min-width:200px;}
@@ -125,7 +203,7 @@
   <div class="co-page-head co-fade">
     <div>
       <h1>Demandes titulaires</h1>
-      <p class="subtitle">Suis qui a répondu, projet par projet. Les musicien·nes titulaires sont sollicité·es d'office ; les technicien·nes le sont sur les tournées seulement — en studio, on les ajoute à la main, séance par séance.</p>
+      <p class="subtitle">Qui a répondu, et sur quoi. Le noyau de l'orchestre est sollicité d'office — les technicien·nes sur les tournées seulement, en studio on les ajoute à la main. <b>Chaque personne n'a qu'un lien</b>, valable pour tous ses projets.</p>
     </div>
   </div>
 
@@ -143,7 +221,15 @@
     </div>
   </div>
 
-  <div class="suivi-colonnes">
+  <div class="vue-bascule co-fade" id="vueBascule">
+    <button type="button" data-vue="personne" aria-pressed="true">Par personne</button>
+    <button type="button" data-vue="projet" aria-pressed="false">Par projet</button>
+    <span class="vue-note" id="vueNote"></span>
+  </div>
+
+  <div id="holderPersonnes" class="co-card co-clip co-fade" style="margin-bottom:20px;"></div>
+
+  <div class="suivi-colonnes" id="vueProjet">
     <aside class="projets-menu co-fade" id="projetsMenu" hidden>
       <p class="projets-menu-titre">Projets</p>
       <div class="projets-filtres" id="projetsFiltres">
@@ -163,6 +249,25 @@
     <div id="holder"><div class="empty-hint">Chargement…</div></div>
   </div>
 </div>
+
+<div class="modal-overlay" id="priseEnMainOverlay">
+  <div class="modal" style="max-width:520px;">
+    <h2 id="pemTitre">Fiche de prise en main</h2>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 14px;" id="pemSousTitre"></p>
+    <div class="field">
+      <label for="pemMessage">Message d'accompagnement</label>
+      <textarea id="pemMessage" rows="5" style="width:100%; font-size:14px; font-family:inherit; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); resize:vertical;"></textarea>
+      <p style="font-size:12px; color:var(--muted); margin:4px 0 0;">Ce texte part avec la fiche. Écris-le comme un message WhatsApp normal.</p>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin:10px 0 0;" id="pemNote"></p>
+    <div class="modal-actions">
+      <button type="button" class="co-btn ghost" id="pemAnnulerBtn">Annuler</button>
+      <button type="button" class="co-btn secondary" id="pemPdfBtn">Télécharger le PDF</button>
+      <button type="button" class="co-btn primary" id="pemWhatsappBtn">Envoyer par WhatsApp</button>
+    </div>
+  </div>
+</div>
+
 
 <script>
 let tourneesCache = [];
@@ -249,11 +354,13 @@ async function assurerLiensTitulaires(tourneesAVenir){
   return aCreer.length;
 }
 
-async function generateDispoLink(tourneeId, personType, personId, dates){
+async function generateDispoLink(tourneeId, personType, personId, dates, role){
   const demandes = loadDispoDemandes();
   const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === personId);
   if(existing) return existing;
-  const entry = { id: genId('demande'), tourneeId, personType, personId, dates: dates || [] };
+  // Le rôle vaut pour CE projet seulement. Sans précision, on le laisse à null :
+  // roleSurProjet() s'en remet alors au statut global de la personne.
+  const entry = { id: genId('demande'), tourneeId, personType, personId, dates: dates || [], role: role || null };
   demandes.push(entry);
   dispoDemandesCache = demandes;
   const { error } = await CurieuxDB.upsertOne('dispo_demandes', entry);
@@ -440,7 +547,16 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
       relanceHtml = `<button type="button" class="co-btn ghost sm" data-copy-relance="${escapeAttr(message)}" data-mark-reminder="${escapeAttr(existing.id)}" title="Copier un message de relance (pas de contact enregistré)"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</button>`;
     }
   }
-  const isRemplacant = (person.statutPoste || 'titulaire') === 'remplacant';
+  // Le rôle affiché est celui du PROJET, pas le statut de l'annuaire : quelqu'un
+  // peut tenir le poste sur cette tournée sans faire partie du noyau. Le bouton
+  // le bascule ; sans demande, on n'a rien à qualifier et on affiche le statut
+  // global tel quel.
+  const role = existing ? roleSurProjet(existing, person) : ((person.statutPoste || 'titulaire') === 'remplacant' ? 'remplacant' : 'titulaire');
+  const isRemplacant = role === 'remplacant';
+  const roleChip = existing
+    ? `<button type="button" class="role-chip ${role}" data-role-toggle="${escapeAttr(existing.id)}"
+         title="Rôle sur ce projet — cliquer pour passer à « ${escapeAttr(libelleRoleProjet(role === 'titulaire' ? 'remplacant' : 'titulaire'))} ». Le statut de l'annuaire, lui, ne dit que l'appartenance au noyau.">${escapeHtml(libelleRoleProjet(role))}</button>`
+    : (isRemplacant ? `<span class="role-chip remplacant" title="Hors noyau : pas sollicité·e d'office">Hors noyau</span>` : '');
   // Les technicien·nes (titulaires ou remplaçant·es) peuvent être sollicité·es sur une
   // partie seulement des dates d'une tournée (contrairement aux musicien·nes titulaires,
   // engagé·es sur la tournée entière) — on leur propose donc toujours le choix des dates,
@@ -454,16 +570,14 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
     <div data-demande-wrap="${existing ? escapeAttr(existing.id) : ''}">
       <div class="dispo-row">
         <div style="flex:1; min-width:160px;">
-          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? '<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;">Remplaçant·e</span>' : ''} ${datesTag}</div>
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${roleChip} ${datesTag}</div>
           <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           ${statusHtml}
           ${relanceHtml}
           ${url
-            ? `<a class="co-btn ghost sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></line></svg> Ouvrir</a>
-               <button type="button" class="co-btn ghost sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>
-               ${showDatesOption ? `<button type="button" class="co-btn ghost sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.6"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line></svg>Dates</button>` : ''}
+            ? `${showDatesOption ? `<button type="button" class="co-btn ghost sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.6"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line></svg>Dates</button>` : ''}
                <button type="button" class="co-btn ghost sm" data-delete-link="${escapeAttr(existing.id)}" title="Supprimer ce lien" style="color:var(--ko, #b23b2e);"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg></button>`
             : (personType === 'technicien'
                 ? `<button type="button" class="co-btn secondary sm" data-toggle-new-dates data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">+ Générer</button>`
@@ -492,6 +606,20 @@ async function updateDispoLinkDates(demandeId, dates){
   await CurieuxDB.upsertOne('dispo_demandes', entry);
 }
 
+// Change le rôle d'une personne sur UN projet. Le statut de l'annuaire n'est
+// pas touché : quelqu'un peut tenir le poste sur une tournée sans appartenir au
+// noyau de l'orchestre, et l'inverse arrive aussi.
+async function basculerRoleProjet(demandeId){
+  const entry = dispoDemandesCache.find(d=> d.id === demandeId);
+  if(!entry) return;
+  const personne = (entry.personType === 'musicien' ? loadMusicians() : loadTechnicians())
+    .find(x=> x.id === entry.personId);
+  entry.role = roleSurProjet(entry, personne) === 'titulaire' ? 'remplacant' : 'titulaire';
+  const { error } = await CurieuxDB.upsertOne('dispo_demandes', entry);
+  if(error) alert("Le changement de rôle n'a pas été enregistré, réessaie. (" + error.message + ")");
+  render();
+}
+
 async function markReminderSent(demandeId){
   const entry = dispoDemandesCache.find(d=> d.id === demandeId);
   if(!entry) return;
@@ -505,7 +633,11 @@ async function markReminderSent(demandeId){
 function renderResume(tournees){
   const carte = document.getElementById('resumeCard');
   const demandes = loadDispoDemandes();
-  let total = 0, completes = 0, partielles = 0, jamaisOuvertes = 0, relancees = 0;
+  // On compte des PERSONNES, jamais des demandes : quelqu'un sollicité sur trois
+  // projets est une seule personne à relancer, et un seul message à écrire.
+  // Compter les demandes affichait « 28 personnes à relancer » là où dix
+  // suffisaient, et c'est exactement la confusion que le lien unique dissipe.
+  const etatParPersonne = new Map();     // cle -> { attendues, manquantes, relancee }
   const tourneesEnRetard = new Map();
   tournees.forEach(t=>{
     const answerable = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
@@ -518,15 +650,27 @@ function renderResume(tournees){
         ? answerable.filter(d=> dem.dates.includes(d.id))
         : answerable;
       if(pertinentes.length === 0) return;
-      total++;
       const manquantes = pertinentes.filter(d=> !dispo[d.date]).length;
-      if(manquantes === 0){ completes++; return; }
-      // Une personne qui n'a rien répondu du tout et une personne qui a répondu
-      // à moitié n'appellent pas la même relance : on les compte à part.
-      if(manquantes === pertinentes.length) jamaisOuvertes++; else partielles++;
-      if(dem.lastReminderAt) relancees++;
-      tourneesEnRetard.set(t.id, (tourneesEnRetard.get(t.id) || 0) + 1);
+
+      const cle = `${dem.personType}:${dem.personId}`;
+      if(!etatParPersonne.has(cle)) etatParPersonne.set(cle, { attendues: 0, manquantes: 0, relancee: false });
+      const e = etatParPersonne.get(cle);
+      e.attendues += pertinentes.length;
+      e.manquantes += manquantes;
+      if(dem.lastReminderAt) e.relancee = true;
+
+      if(manquantes > 0) tourneesEnRetard.set(t.id, (tourneesEnRetard.get(t.id) || 0) + 1);
     });
+  });
+
+  let total = 0, completes = 0, partielles = 0, jamaisOuvertes = 0, relancees = 0;
+  etatParPersonne.forEach(e=>{
+    total++;
+    if(e.manquantes === 0){ completes++; return; }
+    // Quelqu'un qui n'a rien répondu du tout et quelqu'un qui a répondu à
+    // moitié n'appellent pas la même relance : on les compte à part.
+    if(e.manquantes === e.attendues) jamaisOuvertes++; else partielles++;
+    if(e.relancee) relancees++;
   });
   if(total === 0){ carte.style.display = 'none'; return; }
   carte.style.display = '';
@@ -556,10 +700,14 @@ function renderResume(tournees){
   document.getElementById('resumeDetail').textContent = detail.join(' ');
 }
 
+// Une relance par PERSONNE, pas par demande : quelqu'un qui traîne sur trois
+// projets reçoit un message qui les nomme tous les trois, avec son lien — le
+// même pour les trois. Trois messages le même jour, c'est du harcèlement pour
+// un seul oubli.
 async function relancerRetardataires(){
   const demandes = loadDispoDemandes();
   const today = new Date().toISOString().slice(0, 10);
-  const lignes = [];
+  const parPersonne = new Map();          // cle -> { personne, manques: [texte] }
   loadTournees().forEach(t=>{
     const answerable = (t.dates||[]).filter(d=> d.date && d.statut !== 'annulee');
     if(answerable.length === 0 || answerable.every(d=> d.date < today)) return;
@@ -573,11 +721,15 @@ async function relancerRetardataires(){
         : answerable;
       const manquantes = pertinentes.filter(d=> !dispo[d.date]);
       if(manquantes.length === 0) return;
-      lignes.push(`${fullName(personne)} — ${t.nom || 'Tournée'} — manque : `
-        + manquantes.map(d=> fmtDateFR(d.date)).join(', ')
-        + ` — ${dispoLinkUrl(dem.id)}`);
+      const cle = `${dem.personType}:${dem.personId}`;
+      if(!parPersonne.has(cle)) parPersonne.set(cle, { personne, lien: dispoLinkUrl(dem.id), manques: [] });
+      parPersonne.get(cle).manques.push(`${t.nom || 'Tournée'} (${manquantes.map(d=> fmtDateFR(d.date)).join(', ')})`);
     });
   });
+  const lignes = [...parPersonne.values()]
+    .sort((a, b)=> fullName(a.personne).localeCompare(fullName(b.personne)))
+    .map(({ personne, lien, manques })=> `${fullName(personne)} — manque : ${manques.join(' ; ')} — ${lien}`);
+
   const btn = document.getElementById('relancerTousBtn');
   if(lignes.length === 0){ btn.textContent = '✓ Personne à relancer'; return; }
   try{
@@ -588,6 +740,128 @@ async function relancerRetardataires(){
   }
 }
 document.getElementById('relancerTousBtn').addEventListener('click', relancerRetardataires);
+
+// ============================================================================
+// Fiche de prise en main
+//
+// Une page par personne, avec SON lien personnel — en clair et en QR code. Le
+// jeton est créé à la demande côté base : générer la fiche suffit, il n'y a pas
+// de préalable à penser.
+// ============================================================================
+async function lancerPriseEnMain(personnes, bouton){
+  if(!personnes.length) return;
+  const libelleInitial = bouton ? bouton.textContent : '';
+  if(bouton){ bouton.disabled = true; if(libelleInitial) bouton.textContent = 'Préparation…'; }
+  try{
+    const res = await genererPriseEnMainPdf(personnes, { personType:'musicien' });   // type par défaut, chaque personne peut porter le sien
+    if(!res.ok){
+      alert(res.erreur || "La fiche n'a pas pu être produite.");
+    } else if(res.ignorees.length){
+      // Une fiche sans lien ne sert à rien : on le dit plutôt que de laisser
+      // croire que tout le monde a reçu la sienne.
+      alert(`${res.generees} fiche${res.generees > 1 ? 's' : ''} produite${res.generees > 1 ? 's' : ''}.\n\n`
+        + `Sans fiche, faute de lien :\n`
+        + res.ignorees.map(i=> `· ${fullName(i.personne)} — ${i.raison}`).join('\n'));
+    }
+  } finally {
+    if(bouton){ bouton.disabled = false; if(libelleInitial) bouton.textContent = libelleInitial; }
+  }
+}
+
+// ============================================================================
+// Envoi de la fiche par WhatsApp, avec un message qu'on écrit soi-même.
+//
+// Aucun site ne peut joindre de force un fichier à un message WhatsApp. Deux
+// chemins réels existent, et on prend le meilleur disponible :
+//  - sur téléphone, la feuille de partage du navigateur (navigator.share)
+//    accepte le PDF en pièce jointe avec le texte — on choisit WhatsApp puis
+//    le destinataire, et tout part ensemble ;
+//  - sur ordinateur, elle n'existe pas pour les fichiers : on télécharge le
+//    PDF, on ouvre la conversation avec le texte pré-rempli, et il reste à
+//    glisser le PDF dedans — la fenêtre le dit clairement plutôt que de
+//    laisser croire que la pièce jointe est partie.
+// ============================================================================
+let pemPersonne = null;
+
+function messageParDefautPriseEnMain(m){
+  const prenom = (m.prenom || '').trim();
+  return `${prenom ? 'Salut ' + prenom : 'Salut'} !\n\n`
+    + `Voici ta fiche de prise en main pour l'outil des Soudaines : ton lien personnel est dedans, `
+    + `en qr-code et en lien direct. Prends deux minutes pour l'ouvrir et suivre les étapes — `
+    + `dis-moi si quelque chose coince.\n\nÀ très vite !`;
+}
+
+function ouvrirPriseEnMain(m){
+  pemPersonne = m;
+  document.getElementById('pemTitre').textContent = `Fiche de prise en main — ${fullName(m)}`;
+  document.getElementById('pemSousTitre').textContent =
+    'Le PDF contient son lien personnel. Il est généré au moment de l\'envoi.';
+  document.getElementById('pemMessage').value = messageParDefautPriseEnMain(m);
+  const waPossible = !!normalizeWhatsappPhone(m.telephone);
+  const partage = !!(navigator.canShare);
+  document.getElementById('pemNote').textContent = partage
+    ? ''
+    : (waPossible
+      ? 'Depuis un ordinateur : le PDF sera téléchargé et la conversation s\'ouvrira avec ton message — il restera à glisser le PDF dedans.'
+      : 'Pas de numéro de téléphone sur cette fiche : le PDF sera téléchargé et ton message copié, à coller où tu la joins.');
+  document.getElementById('priseEnMainOverlay').classList.add('open');
+  document.getElementById('pemMessage').focus();
+}
+function fermerPriseEnMain(){ document.getElementById('priseEnMainOverlay').classList.remove('open'); pemPersonne = null; }
+
+document.getElementById('pemAnnulerBtn').addEventListener('click', fermerPriseEnMain);
+document.getElementById('priseEnMainOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'priseEnMainOverlay') fermerPriseEnMain();
+});
+document.getElementById('pemPdfBtn').addEventListener('click', async (e)=>{
+  if(!pemPersonne) return;
+  const m = pemPersonne;
+  fermerPriseEnMain();
+  await lancerPriseEnMain([m], e.currentTarget);
+});
+
+document.getElementById('pemWhatsappBtn').addEventListener('click', async (e)=>{
+  if(!pemPersonne) return;
+  const bouton = e.currentTarget;
+  const m = pemPersonne;
+  const message = document.getElementById('pemMessage').value.trim();
+  bouton.disabled = true; bouton.textContent = 'Préparation…';
+  try{
+    const res = await genererPriseEnMainPdf([m], { personType: m._personType || 'musicien', sortie:'blob' });
+    if(!res.ok){ alert(res.erreur || "La fiche n'a pas pu être produite."); return; }
+
+    const fichier = new File([res.blob], res.nomFichier, { type:'application/pdf' });
+
+    // Téléphone : la feuille de partage embarque le PDF et le texte ensemble.
+    if(navigator.canShare && navigator.canShare({ files:[fichier] })){
+      try{
+        await navigator.share({ files:[fichier], text: message, title: res.nomFichier });
+        fermerPriseEnMain();
+      }catch(err){ /* partage annulé : la fenêtre reste ouverte pour réessayer */ }
+      return;
+    }
+
+    // Ordinateur : téléchargement, puis la conversation avec le texte.
+    const url = URL.createObjectURL(res.blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = res.nomFichier;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 30000);
+
+    const numero = normalizeWhatsappPhone(m.telephone);
+    if(numero){
+      window.open(`https://wa.me/${encodeURIComponent(numero)}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+      alert('Le PDF vient d\'être téléchargé. Dans la conversation qui s\'ouvre, glisse-le (ou joins-le avec le trombone) : WhatsApp ne permet pas de joindre un fichier automatiquement depuis un site.');
+    } else {
+      try{ await navigator.clipboard.writeText(message); }catch(err){}
+      alert('Pas de numéro sur cette fiche. Le PDF est téléchargé et ton message copié : colle-les où tu joins cette personne.');
+    }
+    fermerPriseEnMain();
+  } finally {
+    bouton.disabled = false; bouton.textContent = 'Envoyer par WhatsApp';
+  }
+});
+
 
 // Ces contrôles vivent hors de #holder : ils sont branchés une seule fois, et
 // non à chaque rendu comme ceux des cartes.
@@ -641,6 +915,47 @@ function avancementProjet(t){
  * de pixels où l'on ne trouve plus rien : on replie d'office et le sommaire
  * devient le point d'entrée. Le choix de chacun est retenu d'une visite à
  * l'autre, pour ne pas rouvrir vingt fois la même carte. */
+/* Deux vues, un choix retenu.
+ *
+ * « Par personne » d'abord : c'est la question qu'on se pose le plus souvent en
+ * arrivant (qui dois-je relancer ?), et c'est la seule qui montre que le lien
+ * est unique. « Par projet » reste à un clic pour lire l'avancement d'une
+ * tournée. */
+const VUE_CLE = 'suiviDispoVue';
+let vueCourante = (()=>{ try{ return localStorage.getItem(VUE_CLE) === 'projet' ? 'projet' : 'personne'; }catch(e){ return 'personne'; } })();
+function poserVue(v){
+  vueCourante = v;
+  try{ localStorage.setItem(VUE_CLE, v); }catch(e){}
+  appliquerVue();
+}
+function appliquerVue(){
+  const parPersonne = vueCourante === 'personne';
+  const holderPersonnes = document.getElementById('holderPersonnes');
+  const vueProjet = document.getElementById('vueProjet');
+  if(holderPersonnes) holderPersonnes.style.display = parPersonne ? '' : 'none';
+  if(vueProjet) vueProjet.style.display = parPersonne ? 'none' : '';
+  document.querySelectorAll('#vueBascule [data-vue]').forEach(b=>
+    b.setAttribute('aria-pressed', b.dataset.vue === vueCourante ? 'true' : 'false'));
+  const note = document.getElementById('vueNote');
+  if(note) note.textContent = parPersonne
+    ? 'Un seul lien par personne — il ouvre tous ses projets.'
+    : 'Avancement projet par projet.';
+  if(parPersonne) filtrerPersonnes();
+}
+document.querySelectorAll('#vueBascule [data-vue]').forEach(b=>
+  b.addEventListener('click', ()=> poserVue(b.dataset.vue)));
+
+function filtrerPersonnes(){
+  const champ = document.getElementById('recherchePerso');
+  const seulesEnAttente = !!(document.getElementById('filtrePersonneAttente') || {}).checked;
+  const q = champ ? champ.value.toLowerCase().trim() : '';
+  document.querySelectorAll('#holderPersonnes [data-perso-nom]').forEach(l=>{
+    const ok = (!q || l.dataset.persoNom.includes(q))
+      && (!seulesEnAttente || l.dataset.persoAttente === '1');
+    l.style.display = ok ? '' : 'none';
+  });
+}
+
 const REPLI_CLE = 'suiviDispoReplis';
 let repliManuel = (()=>{ try{ return JSON.parse(localStorage.getItem(REPLI_CLE) || '{}'); }catch(e){ return {}; } })();
 let repliDefaut = false;
@@ -666,55 +981,128 @@ function projetsVisibles(liste){
   });
 }
 
-/* Le lien personnel permanent appartient à la PERSONNE, pas au projet.
+/* La vue « Par personne ».
  *
- * mon-espace.html regroupe déjà toutes les demandes en cours de quelqu'un :
- * un seul lien suffit, quel que soit le nombre de projets. Il figurait pourtant
- * sur chaque ligne de chaque carte — avec douze tournées et dix recordings, la
- * même URL apparaissait vingt-deux fois pour la même personne, ce qui laissait
- * croire qu'il fallait en envoyer un par projet. Il est donc sorti des cartes
- * pour ce volet, où chaque personne figure une fois et une seule. */
-function renderLiensPersonnels(projets){
-  const enCours = new Map();          // `${type}:${id}` -> { personne, type, projets:Set }
-  const idsProjets = new Set(projets.map(t=> t.id));
+ * Le lien de dispo appartient à la PERSONNE, pas au projet : mon-espace.html
+ * regroupe déjà toutes ses demandes en cours, et n'importe lequel de ses jetons
+ * ouvre la même page. Un bouton « Générer » par personne ET par projet laissait
+ * pourtant croire qu'il fallait envoyer une URL différente à chaque fois — avec
+ * douze tournées et dix recordings, la même adresse apparaissait vingt-deux
+ * fois pour la même personne.
+ *
+ * Ici, chacun·e figure une fois : ses projets en pastilles, l'état de sa
+ * réponse sur chacun, et un seul lien à copier. */
+function donneesParPersonne(projets){
+  const parPersonne = new Map();           // `${type}:${id}` -> { personne, type, entrees[] }
+  const projetsParId = new Map(projets.map(t=> [t.id, t]));
   loadDispoDemandes().forEach(dem=>{
-    if(!idsProjets.has(dem.tourneeId)) return;
+    const projet = projetsParId.get(dem.tourneeId);
+    if(!projet) return;
     const personne = (dem.personType === 'musicien' ? loadMusicians() : loadTechnicians())
       .find(x=> x.id === dem.personId);
     if(!personne) return;
+
+    const aRepondre = (projet.dates || []).filter(d=> d.date && d.statut !== 'annulee');
+    const concernees = (dem.dates && dem.dates.length)
+      ? aRepondre.filter(d=> dem.dates.includes(d.id))
+      : aRepondre;
+    const dispo = personne.disponibilites || {};
+    const manquantes = concernees.filter(d=> !dispo[d.date]);
+
     const cle = `${dem.personType}:${dem.personId}`;
-    if(!enCours.has(cle)) enCours.set(cle, { personne, type: dem.personType, projets: new Set() });
-    enCours.get(cle).projets.add(dem.tourneeId);
+    if(!parPersonne.has(cle)) parPersonne.set(cle, { personne, type: dem.personType, entrees: [] });
+    parPersonne.get(cle).entrees.push({
+      projet, demande: dem,
+      role: roleSurProjet(dem, personne),
+      concernees, manquantes,
+      complet: concernees.length > 0 && manquantes.length === 0,
+    });
   });
-  if(enCours.size === 0) return '';
+  return [...parPersonne.values()].sort((a, b)=> fullName(a.personne).localeCompare(fullName(b.personne)));
+}
 
-  const lignes = [...enCours.values()]
-    .sort((a, b)=> fullName(a.personne).localeCompare(fullName(b.personne)))
-    .map(({ personne, type, projets: p })=> `
-      <div class="perso-ligne" data-perso-nom="${escapeAttr(fullName(personne).toLowerCase())}">
-        <div style="flex:1; min-width:150px;">
-          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(personne))}</div>
-          <div style="font-size:11.5px; color:var(--muted);">${p.size} projet${p.size>1?'s':''} en cours</div>
+function renderParPersonne(projets){
+  const holder = document.getElementById('holderPersonnes');
+  if(!holder) return;
+  const gens = donneesParPersonne(projets);
+  if(gens.length === 0){
+    holder.innerHTML = `<div class="empty-hint">Personne n'est encore sollicité·e sur les projets à venir.</div>`;
+    return;
+  }
+
+  const enAttente = gens.filter(g=> g.entrees.some(e=> e.manquantes.length > 0));
+  const lignes = gens.map(({ personne, type, entrees })=>{
+    const role = type === 'musicien' ? (personne.instrument || 'Musicien·ne') : (personne.poste || 'Technicien·ne');
+    const noyau = estDuNoyau(personne);
+    // N'importe lequel de ses jetons ouvre son espace : on prend le premier.
+    const url = dispoLinkUrl(entrees[0].demande.id);
+    const restant = entrees.reduce((n, e)=> n + e.manquantes.length, 0);
+
+    const pastilles = entrees
+      .slice()
+      .sort((a, b)=> (a.projet.nom || '').localeCompare(b.projet.nom || ''))
+      .map(e=>{
+        const classe = e.complet ? 'ok' : (e.manquantes.length < e.concernees.length ? 'attente' : '');
+        const detail = e.concernees.length === 0
+          ? 'aucune date à répondre'
+          : (e.complet ? 'a répondu sur toutes ses dates'
+             : `${e.concernees.length - e.manquantes.length}/${e.concernees.length} dates renseignées`);
+        return `<a class="proj-tag ${classe}" data-aller-projet="${escapeAttr(e.projet.id)}"
+          title="${escapeAttr(`${libelleRoleProjet(e.role)} · ${detail}`)}">
+          <span class="nom">${escapeHtml(e.projet.nom || 'Sans nom')}</span>
+          ${e.role === 'remplacant' ? '<span class="rempl">rempl.</span>' : ''}
+          ${e.complet ? '✓' : (e.concernees.length ? `<span class="reste">${e.manquantes.length}</span>` : '')}
+        </a>`;
+      }).join('');
+
+    // Une seule relance, qui nomme tous les projets où il manque des réponses :
+    // envoyer trois messages à la même personne le même jour n'aide personne.
+    const aRelancer = entrees.filter(e=> e.manquantes.length > 0);
+    let relance = '';
+    if(aRelancer.length){
+      const detail = aRelancer.map(e=> `${e.projet.nom || 'projet'} (${e.manquantes.map(d=> fmtDateFR(d.date)).join(', ')})`).join(' ; ');
+      const message = `Bonjour ${personne.prenom || ''}, il te manque des dispo à renseigner : ${detail}. Tout est sur ton lien personnel : ${url}`;
+      const wa = normalizeWhatsappPhone(personne.telephone);
+      const ids = aRelancer.map(e=> e.demande.id).join(',');
+      if(wa) relance = `<a class="co-btn ghost sm" data-mark-reminder="${escapeAttr(ids)}" href="https://wa.me/${encodeURIComponent(wa)}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener">Relancer</a>`;
+      else if(personne.email) relance = `<a class="co-btn ghost sm" data-mark-reminder="${escapeAttr(ids)}" href="mailto:${encodeURIComponent(personne.email)}?subject=${encodeURIComponent('Dispo manquantes')}&body=${encodeURIComponent(message)}">Relancer</a>`;
+      else relance = `<button type="button" class="co-btn ghost sm" data-copy-relance="${escapeAttr(message)}" data-mark-reminder="${escapeAttr(ids)}" title="Aucun téléphone ni email enregistré — le message est copié">Relancer</button>`;
+    }
+
+    return `
+      <div class="perso-row" data-perso-nom="${escapeAttr(fullName(personne).toLowerCase())}" data-perso-attente="${restant > 0 ? '1' : '0'}">
+        <div class="perso-id">
+          <span class="perso-nom">${escapeHtml(fullName(personne))}</span>
+          <span class="perso-role">${escapeHtml(role)}${noyau ? '' : ' · hors noyau'}</span>
         </div>
-        <button type="button" class="co-btn ghost sm" data-lien-permanent
-          data-person-type="${type}" data-person-id="${escapeAttr(personne.id)}"
-          title="Copier le lien personnel de ${escapeAttr(fullName(personne))} — il couvre tous ses projets et survit à la suppression de l'un d'eux">Copier son lien</button>
-      </div>`).join('');
+        <div class="perso-projets">${pastilles}</div>
+        <div class="perso-actions">
+          ${relance}
+          <button type="button" class="co-btn ghost sm" data-fiche-prise-en-main
+            data-person-type="${type}" data-person-id="${escapeAttr(personne.id)}"
+            title="Fiche de prise en main : son lien personnel en clair et en QR code, avec la marche à suivre">Sa fiche</button>
+          <button type="button" class="co-btn secondary sm" data-lien-permanent
+            data-person-type="${type}" data-person-id="${escapeAttr(personne.id)}"
+            title="Son lien personnel — le même pour tous ses projets, présents et à venir, et il survit à la suppression de l'un d'eux">Copier son lien</button>
+        </div>
+      </div>`;
+  }).join('');
 
-  return `
-    <div class="tournee-card" data-tournee-id="__perso" id="projet-__perso" data-replie="1">
-      <div class="tournee-head" data-replier="__perso" role="button" tabindex="0" aria-expanded="false">
-        <div class="tournee-name">Liens personnels</div>
-        <span class="tournee-resume">${enCours.size} personne${enCours.size>1?'s':''}</span>
-        <span class="caret" aria-hidden="true">▾</span>
+  holder.innerHTML = `
+    <div class="co-pad-lg" style="padding-bottom:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; border-bottom:1px solid var(--border);">
+      <div style="flex:1; min-width:180px;">
+        <div style="font-weight:800; font-size:14px;">${gens.length} personne${gens.length>1?'s':''} sollicitée${gens.length>1?'s':''}</div>
+        <div style="font-size:12px; color:var(--muted);">${enAttente.length
+          ? `${enAttente.length} n'${enAttente.length>1?'ont':'a'} pas fini de répondre`
+          : 'tout le monde a répondu'} — un seul lien par personne, valable pour tous ses projets.</div>
       </div>
-      <div class="carte-corps">
-        <div class="tournee-meta">Un seul lien par personne, valable pour tous ses projets — c'est celui qu'on envoie. La page qu'il ouvre liste elle-même les demandes en cours.</div>
-        <input type="text" id="recherchePerso" placeholder="Chercher une personne…"
-          style="width:100%; padding:9px 11px; margin-bottom:6px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit; box-sizing:border-box;">
-        ${lignes}
-      </div>
-    </div>`;
+      <button type="button" class="co-btn secondary sm" id="fichesToutesBtn"
+        title="Une fiche de prise en main par personne affichée, en un seul PDF">Fiches de prise en main</button>
+      <label class="projets-option"><input type="checkbox" id="filtrePersonneAttente"> Seulement celles en attente</label>
+      <input type="text" id="recherchePerso" placeholder="Chercher une personne…"
+        style="flex:0 1 240px; padding:8px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit;">
+    </div>
+    ${lignes}`;
 }
 
 /* Le sommaire des projets, à gauche.
@@ -767,6 +1155,8 @@ function render(){
   const holder = document.getElementById('holder');
   if(tournees.length === 0){
     holder.innerHTML = `<div class="empty-hint">Aucune tournée pour l'instant — crée-en une dans <a href="tournees.html">Tournées</a>.</div>`;
+    renderParPersonne([]);
+    appliquerVue();
     return;
   }
 
@@ -876,7 +1266,74 @@ function render(){
         ${pastTournees.map(renderTourneeCard).join('')}
       </details>`
     : '';
-  holder.innerHTML = renderLiensPersonnels(upcomingTournees) + upcomingHtml + pastHtml;
+  holder.innerHTML = upcomingHtml + pastHtml;
+  renderParPersonne(upcomingTournees);
+  appliquerVue();
+
+  // Les deux vues sont rendues à chaque fois : les écouteurs qui valent pour
+  // l'une comme pour l'autre (copier, relancer) doivent balayer les deux.
+  const holderPersonnes = document.getElementById('holderPersonnes');
+  const partout = { querySelectorAll: (sel)=> [
+    ...holder.querySelectorAll(sel),
+    ...(holderPersonnes ? holderPersonnes.querySelectorAll(sel) : []),
+  ] };
+
+  // Une pastille de projet renvoie à la vue par projet, carte dépliée.
+  partout.querySelectorAll('[data-aller-projet]').forEach(tag=>{
+    tag.addEventListener('click', ()=>{
+      const id = tag.dataset.allerProjet;
+      poserRepli(id, false);
+      poserVue('projet');
+      const carte = document.getElementById('projet-' + id);
+      if(carte){
+        carte.dataset.replie = '0';
+        const tete = carte.querySelector('[data-replier]');
+        if(tete) tete.setAttribute('aria-expanded', 'true');
+        carte.scrollIntoView({ behavior:'smooth', block:'start' });
+      }
+    });
+  });
+
+  const filtreAttente = document.getElementById('filtrePersonneAttente');
+  if(filtreAttente) filtreAttente.addEventListener('change', ()=> filtrerPersonnes());
+
+  // La fiche de prise en main : elle porte le lien personnel, c'est donc ici
+  // qu'elle a sa place — auprès des liens, et non dans l'annuaire, qui décrit
+  // les personnes et ne s'occupe pas de les faire répondre.
+  partout.querySelectorAll('[data-fiche-prise-en-main]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const liste = btn.dataset.personType === 'musicien' ? loadMusicians() : loadTechnicians();
+      const personne = liste.find(x=> x.id === btn.dataset.personId);
+      if(personne) ouvrirPriseEnMain({ ...personne, _personType: btn.dataset.personType });
+    });
+  });
+  const fichesToutes = document.getElementById('fichesToutesBtn');
+  if(fichesToutes) fichesToutes.addEventListener('click', (e)=>{
+    // Seulement les personnes réellement à l'écran : la recherche et le filtre
+    // « en attente » servent aussi à choisir à qui l'on envoie une fiche.
+    const gens = [...document.querySelectorAll('#holderPersonnes .perso-row')]
+      .filter(l=> l.style.display !== 'none')
+      .map(l=> l.querySelector('[data-fiche-prise-en-main]'))
+      .filter(Boolean)
+      .map(b=>{
+        const liste = b.dataset.personType === 'musicien' ? loadMusicians() : loadTechnicians();
+        const personne = liste.find(x=> x.id === b.dataset.personId);
+        return personne ? { ...personne, _personType: b.dataset.personType } : null;
+      })
+      .filter(Boolean);
+    if(!gens.length) return;
+    if(gens.length > 1 && !confirm(`Produire ${gens.length} fiches de prise en main, une par page, dans un seul PDF ?`)) return;
+    lancerPriseEnMain(gens, e.currentTarget);
+  });
+
+  // Le rôle sur ce projet : titulaire ou remplaçant·e, indépendamment du noyau.
+  partout.querySelectorAll('[data-role-toggle]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      btn.disabled = true;
+      basculerRoleProjet(btn.dataset.roleToggle);
+    });
+  });
 
   // Replier / déplier une carte, à la souris comme au clavier.
   holder.querySelectorAll('[data-replier]').forEach(tete=>{
@@ -897,12 +1354,7 @@ function render(){
   });
 
   const recherchePerso = document.getElementById('recherchePerso');
-  if(recherchePerso) recherchePerso.addEventListener('input', ()=>{
-    const q = recherchePerso.value.toLowerCase().trim();
-    holder.querySelectorAll('[data-perso-nom]').forEach(l=>{
-      l.style.display = (!q || l.dataset.persoNom.includes(q)) ? '' : 'none';
-    });
-  });
+  if(recherchePerso) recherchePerso.addEventListener('input', filtrerPersonnes);
 
   holder.querySelectorAll('[data-remplacant-search]').forEach(input=>{
     input.addEventListener('input', (e)=>{
@@ -934,17 +1386,22 @@ function render(){
       });
     });
   });
-  holder.querySelectorAll('[data-copy-relance]').forEach(btn=>{
+  partout.querySelectorAll('[data-copy-relance]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       navigator.clipboard.writeText(btn.dataset.copyRelance);
       btn.textContent = '✓ Copié';
-      if(btn.dataset.markReminder) await markReminderSent(btn.dataset.markReminder);
+      if(btn.dataset.markReminder){
+        for(const id of btn.dataset.markReminder.split(',')) await markReminderSent(id);
+      }
       setTimeout(render, 1200);
     });
   });
-  holder.querySelectorAll('a[data-mark-reminder]').forEach(a=>{
-    a.addEventListener('click', ()=>{
-      markReminderSent(a.dataset.markReminder).then(render);
+  partout.querySelectorAll('a[data-mark-reminder]').forEach(a=>{
+    a.addEventListener('click', async ()=>{
+      // Une relance depuis la vue par personne couvre tous ses projets en
+      // attente d'un coup : le marqueur porte alors plusieurs identifiants.
+      for(const id of a.dataset.markReminder.split(',')) await markReminderSent(id);
+      render();
     });
   });
   holder.querySelectorAll('[data-purger-techs]').forEach(btn=>{
@@ -1003,7 +1460,7 @@ function render(){
   // Lien permanent (I3) : contrairement au lien de dispo, il n'est rattaché à
   // aucune tournée. Supprimer une vieille tournée ne coupe donc plus l'accès
   // de la personne à ses infos et à sa liste de remplaçant·es.
-  holder.querySelectorAll('[data-lien-permanent]').forEach(btn=>{
+  partout.querySelectorAll('[data-lien-permanent]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const libelle = btn.textContent;
       btn.disabled = true; btn.textContent = '…';
@@ -1023,7 +1480,7 @@ function render(){
     });
   });
 
-  holder.querySelectorAll('[data-copy-link]').forEach(btn=>{
+  partout.querySelectorAll('[data-copy-link]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       navigator.clipboard.writeText(btn.dataset.copyLink).then(()=>{
         const old = btn.textContent;

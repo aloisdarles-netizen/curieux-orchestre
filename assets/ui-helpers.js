@@ -543,6 +543,39 @@ function suffixeProjetTexte(projet){
 }
 
 // ============================================================================
+// Titulaire de quoi ?
+//
+// Deux questions se cachaient derrière un seul mot :
+//   · qui fait partie du NOYAU de l'orchestre — celles et ceux à qui l'on
+//     demande ses dispos d'office, sur toutes les opérations ;
+//   · qui TIENT LE POSTE sur un projet donné, par opposition à qui vient en
+//     remplacement.
+//
+// La première est une propriété de la personne (musiciens.statut_poste). La
+// seconde appartient au couple (personne, projet), et vit donc sur la demande
+// de dispo. Quelqu'un peut parfaitement tenir le poste sur une tournée sans
+// appartenir au noyau : on a besoin de ses dispos là, et nulle part ailleurs.
+// ============================================================================
+
+// Fait-elle partie du noyau — donc sollicitée d'office sur tous les projets ?
+function estDuNoyau(personne){
+  return !!personne && (personne.statutPoste || 'titulaire') === 'titulaire';
+}
+
+// Rôle sur UN projet : celui inscrit sur la demande s'il y en a un, sinon on
+// s'en remet au statut global (les demandes créées avant cette distinction
+// n'en portent pas).
+function roleSurProjet(demande, personne){
+  const r = demande && demande.role;
+  if(r === 'titulaire' || r === 'remplacant') return r;
+  return estDuNoyau(personne) ? 'titulaire' : 'remplacant';
+}
+
+function libelleRoleProjet(role){
+  return role === 'remplacant' ? 'Remplaçant·e' : 'Titulaire';
+}
+
+// ============================================================================
 // Parse d'une liste collée depuis une messagerie (WhatsApp, mail, notes).
 //
 // Le format qu'on reçoit vraiment n'est pas un tableau : c'est un fil de

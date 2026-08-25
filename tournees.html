@@ -572,8 +572,8 @@
 
 <div class="modal-overlay" id="dispoLinksOverlay">
   <div class="modal" style="max-width:640px;">
-    <h2>Demandes titulaires — liens personnels</h2>
-    <p class="modal-sub">Un lien personnel par titulaire (musicien·nes et technicien·nes) — les remplaçant·es ne sont sollicité·es qu'à la demande (ci-dessous), sinon on les contacte via le rang de priorité dans l'annuaire quand un·e titulaire décline.</p>
+    <h2>Qui est sollicité·e sur ce projet</h2>
+    <p class="modal-sub">Le noyau de l'orchestre est sollicité d'office ; les autres s'ajoutent ici, à la demande. <b>Le lien est unique par personne</b> — le même ouvre tous ses projets — et se copie depuis <a href="suivi-dispo.html">Demandes titulaires</a>, où chacun·e figure une fois.</p>
     <div class="modal-actions" style="justify-content:flex-start;">
       <button type="button" class="co-btn secondary sm" id="dispoLinksCopyAllBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>
     </div>
@@ -2292,21 +2292,26 @@ function renderDispoLinksModal(tourneeId){
     } else {
       statusHtml = `<span style="font-size:11px; color:var(--muted); white-space:nowrap;">En attente</span>`;
     }
-    const isRemplacant = (person.statutPoste || 'titulaire') === 'remplacant';
+    // Le rôle affiché est celui de CE projet : quelqu'un peut tenir le poste sur
+    // cette tournée sans faire partie du noyau de l'orchestre. Le statut de
+    // l'annuaire ne dit plus que le noyau — qui est sollicité·e d'office.
+    const role = existing
+      ? roleSurProjet(existing, person)
+      : (estDuNoyau(person) ? 'titulaire' : 'remplacant');
+    const isRemplacant = role === 'remplacant';
     const datesTag = existing && existing.dates && existing.dates.length > 0
       ? `<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--border); color:var(--muted); vertical-align:middle;" title="Lien restreint à ${existing.dates.length} date${existing.dates.length>1?'s':''}">${existing.dates.length} date${existing.dates.length>1?'s':''}</span>`
       : '';
     return `
       <div style="display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid var(--border);">
         <div style="flex:1; min-width:0;">
-          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? '<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;">Remplaçant·e</span>' : ''} ${datesTag}</div>
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${isRemplacant ? `<span style="font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); vertical-align:middle;" title="Remplaçant·e sur ce projet">Remplaçant·e</span>` : ''} ${datesTag}</div>
           <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
         </div>
         ${statusHtml}
         ${url
-          ? `<a class="co-btn ghost sm" href="${escapeAttr(url)}" target="_blank" rel="noopener" title="Ouvrir le lien tel que la personne le voit — pour vérifier ou y accéder rapidement"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M9 6.5H6a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><path d="M14 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><line x1="19.3" y1="4.7" x2="11.5" y2="12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></line></svg> Ouvrir</a>
-             <button type="button" class="co-btn ghost sm" data-copy-link="${escapeAttr(url)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier</button>`
-          : `<button type="button" class="co-btn secondary sm" data-gen-link data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
+          ? `<span style="font-size:11.5px; color:var(--muted); white-space:nowrap;" title="Sollicité·e sur ce projet. Son lien personnel — le même pour tous ses projets — se copie depuis « Demandes titulaires ».">Sollicité·e</span>`
+          : `<button type="button" class="co-btn secondary sm" data-gen-link data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Solliciter</button>`
         }
       </div>
     `;

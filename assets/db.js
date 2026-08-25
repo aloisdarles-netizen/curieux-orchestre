@@ -449,14 +449,18 @@ const CurieuxDB = (()=>{
         person_type: d.personType, person_id: d.personId,
         last_responded_at: d.lastRespondedAt || null,
         dates: d.dates || [],
-        last_reminder_at: d.lastReminderAt || null
+        last_reminder_at: d.lastReminderAt || null,
+        // Rôle sur CE projet — titulaire ou remplaçant·e. null : on s'en
+        // remet au statut global de la personne (le noyau de l'orchestre).
+        role: d.role || null
       }),
       fromDb: (r)=> ({
         id: r.id, tourneeId: r.tournee_id,
         personType: r.person_type, personId: r.person_id,
         lastRespondedAt: r.last_responded_at || undefined,
         dates: r.dates || [],
-        lastReminderAt: r.last_reminder_at || undefined
+        lastReminderAt: r.last_reminder_at || undefined,
+        role: r.role || null
       })
     },
     feuilles_route: {
