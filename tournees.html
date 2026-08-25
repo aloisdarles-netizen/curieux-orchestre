@@ -524,6 +524,23 @@
     display:inline-block; margin-top:3px; font-size:11px; font-weight:800;
     padding:2px 8px; border-radius:999px; background:var(--ko-tint); color:var(--ko);
   }
+  .aff-demander{
+    display:inline-block; margin-top:5px; font-size:11px; font-weight:800;
+    padding:3px 10px; border-radius:999px;
+    background:var(--accent-solid); color:#fff; cursor:pointer;
+  }
+  .aff-demander:hover{ background:var(--accent-dark); }
+  .aff-tuile.affecte .aff-demander{ background:rgba(255,255,255,.24); color:#fff; }
+
+  /* Les réserves — sans-réponse et fond d'annuaire — sont repliées : elles
+     répondent à « et si », pas à « qui affecte-t-on ». */
+  .aff-repli{ margin-top:12px; }
+  .aff-repli > summary{
+    cursor:pointer; font-size:11px; font-weight:800; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--muted); padding:6px 0;
+  }
+  .aff-repli > summary:hover{ color:var(--accent); }
+  .aff-repli[open] > summary{ color:var(--accent); }
   .aff-tuile.affecte .aff-pour{background:rgba(255,255,255,.22); color:#fff;}
 
   /* Les règles .assign-row de l'ancienne liste à cocher sont parties avec
@@ -1131,6 +1148,12 @@ function tuileAffectation(personne, role, selection, conflicts, pour){
           <span class="aff-dispo" data-aff-suivi="1" title="Ouvrir le suivi des demandes de dispo">${escapeHtml(DISPO_LIBELLE[dispo])}</span>
         </span>
         ${pour ? `<span class="aff-pour">↔ remplace ${escapeHtml(pour)}</span>` : ''}
+        ${/* Proposer quelqu'un dont on ignore les dispos ne mène à rien : le
+             bouton crée son lien et ouvre le message, pour la date en cours.
+             Même action que le libellé « Dispo non renseignée » (data-aff-suivi),
+             mais visible — c'est le geste attendu sur une proposition. */''}
+        ${(pour && sansDispo) ? `<span class="aff-demander" data-aff-suivi="1"
+          title="Créer son lien et lui écrire pour cette date">Demander ses dispos</span>` : ''}
         ${conflictBadge(conflicts, personne.id)}
       </span>
     </button>
@@ -1147,85 +1170,113 @@ function renderAssignList(search){
   const titulaires = assignMusicians.filter(m=> (m.statutPoste || 'titulaire') === 'titulaire');
   const remplacants = assignMusicians.filter(m=> (m.statutPoste || 'titulaire') === 'remplacant');
 
-  // Remplaçant·es proposé·es, pour chaque titulaire indisponible sur la date.
+  // Remplaçant·es proposé·es, pour chaque titulaire qui ne tiendra peut-être
+  // pas la date.
+  //
+  // Deux situations l'appellent, et elles n'ont pas la même urgence : quelqu'un
+  // qui s'est déclaré INDISPONIBLE (il faut le remplacer), et quelqu'un qui n'a
+  // PAS ENCORE RÉPONDU (il faudra peut-être). On les traite toutes les deux —
+  // ne regarder que la première faisait découvrir le trou la veille — mais
+  // séparément : les sans-réponse sont repliés, sinon un projet qui démarre
+  // noierait le panneau sous cinquante propositions.
   //
   // La source est d'abord la liste personnelle du ou de la titulaire — celle
   // qu'il ou elle a remplie dans son espace, par ordre de préférence. C'est cet
   // ordre-là qu'on suit quand quelqu'un décline, et c'est donc celui-là que le
-  // panneau doit montrer. Il l'ignorait complètement et se rabattait sur la
-  // famille d'instrument, en ordre alphabétique : on proposait n'importe quel
-  // violon de l'orchestre plutôt que celui que la personne avait désigné.
-  //
-  // La famille d'instrument reste, mais en repli, pour les titulaires qui n'ont
-  // pas encore fait leur liste — et elle est étiquetée comme telle, pour qu'on
-  // ne confonde pas une préférence avec une simple correspondance.
-  const indisponibles = titulaires.filter(m=> dispoDe(m) === 'indispo');
+  // panneau montre. La famille d'instrument reste en repli, pour les titulaires
+  // qui n'ont pas encore fait leur liste, et elle est étiquetée comme telle
+  // pour qu'on ne confonde pas une préférence avec une correspondance.
   const parId = new Map(assignMusicians.map(m=> [m.id, m]));
 
   // Une même personne peut être le premier choix de plusieurs titulaires
   // absents le même jour. Sa tuile doit le dire toutes les fois plutôt que de
   // n'en nommer qu'un : c'est précisément l'information qui fait décider.
-  const couverture = new Map();   // id du remplaçant -> [{titulaire, rang, motif}]
-  const noter = (personne, titulaire, rang, motif)=>{
-    if(!personne) return;
-    if(!couverture.has(personne.id)) couverture.set(personne.id, { personne, pour: [] });
-    couverture.get(personne.id).pour.push({ titulaire, rang, motif });
+  const construireCouverture = (aRemplacer, cause)=>{
+    const couverture = new Map();   // id du remplaçant -> { personne, pour: [] }
+    const noter = (personne, titulaire, rang, motif)=>{
+      if(!personne) return;
+      if(!couverture.has(personne.id)) couverture.set(personne.id, { personne, pour: [] });
+      couverture.get(personne.id).pour.push({ titulaire, rang, motif });
+    };
+
+    aRemplacer.forEach(titulaire=>{
+      const prefs = remplacantPrefsCache.find(r=> r.id === titulaire.id);
+      // Un contact saisi à la main ne figure pas dans l'annuaire : on ne peut
+      // pas l'affecter, il ne sert à rien de le proposer ici.
+      const choisis = (prefs ? prefs.items : [])
+        .filter(item=> item.source === 'roster' && parId.has(item.personId))
+        .sort((a, b)=> (a.rang || 99) - (b.rang || 99));
+
+      if(choisis.length){
+        choisis.forEach(item=> noter(parId.get(item.personId), titulaire, item.rang || 99, 'choix'));
+        return;
+      }
+      remplacants
+        .filter(r=> familleInstrument(r.instrument) === familleInstrument(titulaire.instrument))
+        .forEach(r=> noter(r, titulaire, 99, 'instrument'));
+    });
+
+    return [...couverture.values()].map(({ personne, pour })=>{
+      const trie = pour.slice().sort((a, b)=> a.rang - b.rang);
+      return {
+        personne,
+        rang: trie[0].rang,
+        pour: trie.map(x=> `${fullName(x.titulaire)} · ${x.motif === 'choix' ? `choix n° ${x.rang}` : 'même instrument'}${cause === 'attente' ? ', sans réponse' : ''}`).join(' — '),
+      };
+    }).sort((a, b)=> a.rang - b.rang || fullName(a.personne).localeCompare(fullName(b.personne)));
   };
 
-  indisponibles.forEach(titulaire=>{
-    const prefs = remplacantPrefsCache.find(r=> r.id === titulaire.id);
-    // Un contact saisi à la main ne figure pas dans l'annuaire : on ne peut pas
-    // l'affecter, il ne sert à rien de le proposer ici.
-    const choisis = (prefs ? prefs.items : [])
-      .filter(item=> item.source === 'roster' && parId.has(item.personId))
-      .sort((a, b)=> (a.rang || 99) - (b.rang || 99));
+  const proposesAbsence = construireCouverture(titulaires.filter(m=> dispoDe(m) === 'indispo'), 'indispo');
+  // Un·e remplaçant·e déjà proposé·e pour une absence n'a pas à réapparaître
+  // dans la liste des sans-réponse : la première raison suffit à le montrer.
+  const dejaProposes = new Set(proposesAbsence.map(x=> x.personne.id));
+  const proposesAttente = construireCouverture(titulaires.filter(m=> dispoDe(m) === ''), 'attente')
+    .filter(x=> !dejaProposes.has(x.personne.id));
+  proposesAttente.forEach(x=> dejaProposes.add(x.personne.id));
 
-    if(choisis.length){
-      choisis.forEach(item=> noter(parId.get(item.personId), titulaire, item.rang || 99, 'choix'));
-      return;
-    }
-    // Pas de liste exploitable : on retombe sur la famille d'instrument.
-    remplacants
-      .filter(r=> familleInstrument(r.instrument) === familleInstrument(titulaire.instrument))
-      .forEach(r=> noter(r, titulaire, 99, 'instrument'));
-  });
-
-  const proposes = [...couverture.values()].map(({ personne, pour })=>{
-    const trie = pour.slice().sort((a, b)=> a.rang - b.rang);
-    return {
-      personne,
-      rang: trie[0].rang,
-      pour: trie.map(x=> x.motif === 'choix'
-        ? `${fullName(x.titulaire)} · choix n° ${x.rang}`
-        : `${fullName(x.titulaire)} · même instrument`).join(' — '),
-    };
-  }).sort((a, b)=> a.rang - b.rang || fullName(a.personne).localeCompare(fullName(b.personne)));
-  const idsProposes = couverture;
-
-  const musiciensAffichables = [
-    ...titulaires,
-    ...remplacants.filter(r=> !idsProposes.has(r.id)),
-  ].filter(m=> correspond(m, [m.prenom, m.nom, m.instrument, m.pupitre]));
+  // Les titulaires d'abord, et eux seuls : c'est l'équipe du projet. Les
+  // remplaçant·es que rien n'appelle restent accessibles, mais plus bas.
+  const titulairesAffichables = titulaires
+    .filter(m=> correspond(m, [m.prenom, m.nom, m.instrument, m.pupitre]));
+  const autresRemplacants = remplacants
+    .filter(r=> !dejaProposes.has(r.id))
+    .filter(m=> correspond(m, [m.prenom, m.nom, m.instrument, m.pupitre]));
 
   const techniciensAffichables = assignTechnicians
     .filter(t=> correspond(t, [t.prenom, t.nom, t.poste, t.pole]));
 
-  const proposesAffichables = proposes
+  const filtrerProposes = (liste)=> liste
     .filter(x=> correspond(x.personne, [x.personne.prenom, x.personne.nom, x.personne.instrument]));
+  const proposesAbsenceAffichables = filtrerProposes(proposesAbsence);
+  const proposesAttenteAffichables = filtrerProposes(proposesAttente);
 
   const bloc = (titre, contenu, classe)=> contenu
     ? `<div class="aff-legende${classe ? ' ' + classe : ''}">${titre}</div><div class="aff-grille${classe ? ' ' + classe : ''}">${contenu}</div>`
     : '';
 
+  const tuilesDe = (liste)=> liste
+    .map(x=> tuileAffectation(x.personne, 'musicien', assignSelectedM, conflicts, x.pour)).join('');
+
   listEl.innerHTML = [
     assignMusicians.length === 0
       ? `<div class="empty-hint">Aucun·e musicien·ne dans l'<a href="annuaire.html">annuaire</a> pour l'instant.</div>`
-      : bloc('Musicien·nes',
-          musiciensAffichables.map(m=> tuileAffectation(m, 'musicien', assignSelectedM, conflicts, null)).join('')
+      : bloc('Titulaires',
+          titulairesAffichables.map(m=> tuileAffectation(m, 'musicien', assignSelectedM, conflicts, null)).join('')
           || `<div class="empty-hint">Aucun résultat.</div>`),
     bloc('Remplaçant·es proposé·es — titulaires indisponibles',
-      proposesAffichables.map(x=> tuileAffectation(x.personne, 'musicien', assignSelectedM, conflicts, x.pour)).join(''),
-      'aff-remplacants'),
+      tuilesDe(proposesAbsenceAffichables), 'aff-remplacants'),
+    // Repliés : au démarrage d'un projet, personne n'a encore répondu, et la
+    // liste complète des remplaçant·es possibles enterrerait tout le reste.
+    proposesAttenteAffichables.length ? `
+      <details class="aff-repli">
+        <summary>Titulaires sans réponse — ${proposesAttenteAffichables.length} remplaçant·e${proposesAttenteAffichables.length > 1 ? 's' : ''} en réserve</summary>
+        <div class="aff-grille aff-remplacants">${tuilesDe(proposesAttenteAffichables)}</div>
+      </details>` : '',
+    autresRemplacants.length ? `
+      <details class="aff-repli">
+        <summary>Autres remplaçant·es de l'annuaire (${autresRemplacants.length})</summary>
+        <div class="aff-grille">${autresRemplacants.map(m=> tuileAffectation(m, 'musicien', assignSelectedM, conflicts, null)).join('')}</div>
+      </details>` : '',
     assignTechnicians.length === 0
       ? `<div class="empty-hint">Aucun·e technicien·ne dans l'<a href="techniciens.html">annuaire technicien·nes</a> pour l'instant.</div>`
       : bloc('Technicien·nes',
@@ -1763,24 +1814,30 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         // dans sa propre ville et vient par ses propres moyens. La colonne
         // disparaît plutôt que d'imposer un « Tourbus » qui ne veut rien dire.
         //
-        // Un bloc de dates cons\u00E9cutives, c'est UN voyage : on part la veille de
-        // la premi\u00E8re et on rentre le lendemain de la derni\u00E8re. Le mode se
-        // choisit donc sur la premi\u00E8re date seulement \u2014 un menu sur chaque jour
-        // laisserait croire qu'on reprend le train tous les matins, et trois
-        // \u00AB Train \u00BB empil\u00E9s se lisent comme trois trajets.
-        const premierDuVoyage = !blocInfo || blocInfo.isFirst;
+        // Ce qui fait \u00AB sur place \u00BB, c'est de rester dans LA M\u00CAME VILLE que la
+        // veille \u2014 pas d'appartenir au m\u00EAme bloc. Un bloc de six dates traverse
+        // tr\u00E8s bien le pays : \u00C9pernay, \u00C9pernay, \u00C9pernay, Amn\u00E9ville, Strasbourg.
+        // Les jours d'\u00C9pernay ne font qu'un voyage ; les deux autres en
+        // demandent chacun un.
+        //
+        // Le bloc reste une condition : hors bloc, deux dates dans la m\u00EAme
+        // ville peuvent \u00EAtre s\u00E9par\u00E9es d'un mois, et on est rentr\u00E9 entre-temps.
+        const villeDe = (x)=> (x && (x.ville || '').trim().toLowerCase()) || '';
+        const precedente = dIdx > 0 ? dates[dIdx - 1] : null;
+        const memeVilleQueLaVeille = !!precedente && !!villeDe(d) && villeDe(precedente) === villeDe(d);
+        const premierDuVoyage = !blocInfo || blocInfo.isFirst || !memeVilleQueLaVeille;
         const travelMode = ['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus';
         const travelCell = EST_RECORDING ? '' : (premierDuVoyage ? `
           <span class="col-voyage"><span class="col-icone" title="Mode de voyage">${ {tourbus:'\u26DF', train:'\u26ED', avion:'\u2708'}[travelMode] }</span>
             <select class="type-select" data-field="travelMode" data-date-id="${escapeAttr(d.id)}"
-              title="${blocInfo ? 'Voyage du bloc \u2014 aller la veille, retour le lendemain' : 'Mode de voyage'}">
+              title="${memeVilleQueLaVeille || !blocInfo ? 'Mode de voyage' : 'Trajet vers cette ville \u2014 il vaut pour les jours qui y restent'}">
               <option value="tourbus" ${travelMode==='tourbus'?'selected':''}>Tourbus</option>
               <option value="train" ${travelMode==='train'?'selected':''}>Train</option>
               <option value="avion" ${travelMode==='avion'?'selected':''}>Avion</option>
             </select>
           </span>
         ` : `
-          <span class="col-voyage sur-place" title="M\u00EAme endroit que la veille \u2014 le voyage est celui du bloc">sur place</span>
+          <span class="col-voyage sur-place" title="M\u00EAme ville que la veille \u2014 pas de nouveau trajet">sur place</span>
         `);
         // Une seule pastille qui tourne au clic : option → validée → annulée,
         // comme dans la maquette. La cible suivante est portée par l'attribut,
@@ -2164,11 +2221,27 @@ function exportTourneePdf(tourneeId){
         row.push(libelleSeance(d.seance) || 'Journée', d.ville || '', d.lieu || '', d.cabine || '',
           [d.titres || '', d.commentaire || ''].filter(Boolean).join(' — '));
       } else {
-        // Le transport est celui du bloc, comme Dép./Retour : une cellule
-        // fusionnée sur toute sa hauteur, et non « Train » répété trois fois.
+        // Le transport se fusionne sur les jours passés dans la MÊME ville :
+        // un bloc peut en traverser plusieurs, et fusionner sur toute sa
+        // hauteur faisait disparaître les trajets intermédiaires.
         const travelLabel = { tourbus: 'Bus', train: 'Train', avion: 'Avion' }[['tourbus','train','avion'].includes(d.travelMode) ? d.travelMode : 'tourbus'];
-        if(!blocInfo) row.push(travelLabel);
-        else if(blocInfo.isFirst) row.push({ content: travelLabel, rowSpan: blocInfo.blocDates.length, styles: { valign: 'middle' } });
+        const ville = (x)=> ((x && x.ville) || '').trim().toLowerCase();
+        const precedente = idx > 0 ? dates[idx - 1] : null;
+        const suiteMemeVille = !!blocInfo && !!precedente && !!ville(d) && ville(precedente) === ville(d);
+        if(!suiteMemeVille){
+          // Combien de jours suivants restent dans cette ville, sans sortir du bloc.
+          let etendue = 1;
+          if(blocInfo){
+            for(let i = idx + 1; i < dates.length; i++){
+              if(!blocMap.get(dates[i].id) || blocMap.get(dates[i].id).groupIndex !== blocInfo.groupIndex) break;
+              if(ville(dates[i]) !== ville(d)) break;
+              etendue++;
+            }
+          }
+          row.push(etendue > 1
+            ? { content: travelLabel, rowSpan: etendue, styles: { valign: 'middle' } }
+            : travelLabel);
+        }
         row.push(d.ville || '', d.lieu || '', d.commentaire || '');
       }
       return row;
@@ -2673,10 +2746,16 @@ function bindTourneeEvents(){
         const sortedDates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
         const blocInfo = computeBlocMap(sortedDates).get(d.id);
         if(blocInfo){
-          // Bloc nouvellement formé : statut et voyage s'alignent sur la
-          // première date. La nature, elle, reste celle de chaque journée.
+          // Bloc nouvellement formé : le statut s'aligne sur la première date.
+          // Le voyage ne suit que tant qu'on reste dans la même ville — un bloc
+          // peut en traverser plusieurs. La nature, elle, reste celle de chaque
+          // journée.
           const ref = blocInfo.blocDates[0];
-          blocInfo.blocDates.forEach(gd=>{ gd.statut = ref.statut; gd.travelMode = ref.travelMode; });
+          const ville = (x)=> (x.ville || '').trim().toLowerCase();
+          blocInfo.blocDates.forEach(gd=>{
+            gd.statut = ref.statut;
+            if(ville(gd) === ville(ref)) gd.travelMode = ref.travelMode;
+          });
         }
       }
       saveTournees(tournees);
@@ -2726,12 +2805,21 @@ function bindTourneeEvents(){
         saveTournees(tournees);
         render();
       } else if(el.dataset.field === 'travelMode'){
-        // Le voyage appartient au bloc : le menu n'est offert que sur sa
-        // première date, mais la valeur est recopiée sur toutes les autres —
-        // le PDF et les feuilles de route lisent chacune leur date.
+        // Le trajet vaut pour l'étape, c'est-à-dire pour les jours qui suivent
+        // DANS LA MÊME VILLE — pas pour tout le bloc, qui peut en traverser
+        // plusieurs. La valeur est recopiée sur ces jours-là seulement : le PDF
+        // et les feuilles de route lisent chacune leur date.
         const sortedDates = (t.dates||[]).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
         const blocInfo = computeBlocMap(sortedDates).get(d.id);
-        if(blocInfo) blocInfo.blocDates.forEach(gd=> gd.travelMode = el.value);
+        if(blocInfo){
+          const ville = (x)=> (x.ville || '').trim().toLowerCase();
+          const suite = blocInfo.blocDates;
+          const depart = suite.findIndex(x=> x.id === d.id);
+          for(let i = depart; i < suite.length; i++){
+            if(i > depart && ville(suite[i]) !== ville(d)) break;
+            suite[i].travelMode = el.value;
+          }
+        }
         saveTournees(tournees);
         render();
       } else {
