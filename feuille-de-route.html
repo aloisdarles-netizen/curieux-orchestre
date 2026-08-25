@@ -18,6 +18,41 @@
   .wrap{max-width:1040px; margin:0 auto;}
   .brand-header{display:flex; align-items:center; gap:16px; margin-bottom:18px; justify-content:space-between;}
   .subtitle{color:var(--muted); margin:0 0 8px; font-size:14px;}
+  .fdr-contexte{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:9px 14px; margin-bottom:12px; font-size:13px;
+  }
+  .fdr-contexte .ctx-projet{ font-weight:800; color:var(--accent); }
+  .fdr-contexte .ctx-position{ color:var(--muted); font-weight:700; }
+  .fdr-contexte a.ctx-nav{
+    display:inline-flex; align-items:center; gap:4px; text-decoration:none;
+    font-weight:700; font-size:12.5px; color:var(--tint-ink);
+    background:var(--accent-tint); padding:4px 11px; border-radius:20px;
+  }
+  .fdr-contexte a.ctx-nav:hover{ background:var(--accent); color:var(--blanc); }
+  .fdr-contexte a.ctx-nav.off{ opacity:.35; pointer-events:none; }
+  .fdr-contexte .ctx-espace{ flex:1; }
+
+  /* La barre du bas : l'état de la feuille et sa sortie, toujours visibles. */
+  .barre-feuille{
+    position:sticky; bottom:0; z-index:30;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--card); border:1px solid var(--border); border-radius:14px 14px 0 0;
+    padding:10px 16px; margin:18px -2px 0;
+    box-shadow:0 -8px 22px rgba(20,22,23,.08);
+  }
+  .barre-feuille .barre-etat{ font-size:12px; color:var(--muted); min-width:110px; }
+  .barre-feuille .barre-etat.error{ color:var(--danger); font-weight:700; }
+  .barre-feuille .barre-sections{ flex:1; display:flex; gap:5px; flex-wrap:wrap; }
+  .barre-feuille .bs{
+    font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:20px;
+    cursor:pointer; border:1px solid transparent;
+  }
+  .barre-feuille .bs.ok{ background:var(--ok-tint); color:var(--ok); }
+  .barre-feuille .bs.vide{ background:var(--bg); color:var(--muted); border-color:var(--border); }
+  .barre-feuille .bs.exclue{ background:transparent; color:var(--muted); opacity:.45; text-decoration:line-through; }
+
   .fdr-save-status{font-size:12.5px; color:var(--muted); margin-bottom:18px; min-height:16px;}
   .fdr-save-status.saved{color:var(--accent-dark);}
   .fdr-save-status.error{color:var(--danger); font-weight:700;}
@@ -166,6 +201,11 @@
       <p class="subtitle" id="fdrSousTitre">Prépare la feuille de route complète d'une date (contacts, trajets confirmés, planning, lieu, hôtel), puis génère le PDF.</p>
     </div>
   </div>
+  <!-- D'où vient cette feuille, et où sont ses sœurs. Une feuille appartient
+       presque toujours à un projet : sans ce fil, on éditait « une feuille »
+       dans le vide, et passer à la date suivante voulait dire repasser par la
+       liste. Le bouton « Reprendre » vit ici : c'est un geste de projet. -->
+  <div id="fdrContexte" class="fdr-contexte" style="display:none;"></div>
   <div id="fdrSaveStatus" class="fdr-save-status">Chargement…</div>
   <div id="fdrConflictBanner" class="fdr-conflict-banner" style="display:none;">
     <svg width="16" height="16" viewBox="0 0 24 24" style="vertical-align:-3px; margin-right:5px;"><path d="M12 3.5 22 20.5H2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><line x1="12" y1="9.5" x2="12" y2="14.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><circle cx="12" cy="17.2" r="1" fill="currentColor"></circle></svg>Cette feuille de route a été modifiée par quelqu'un d'autre pendant que tu l'éditais. Tes derniers changements n'ont <strong>pas</strong> été enregistrés pour éviter d'écraser les siens.
@@ -199,15 +239,19 @@
         </select>
       </div>
     </div>
-    <h3 style="margin-top:14px;" id="logoTitre">Logo sur la feuille de route</h3>
-    <div class="actions-row" style="margin-top:0;">
-      <label class="highlight-toggle" style="font-size:14px;"><input type="radio" name="logoChoice" value="none"> Logo Curieux orchestre</label>
-      <label class="highlight-toggle" style="font-size:14px;"><input type="radio" name="logoChoice" value="custom"> Logo importé</label>
-    </div>
-    <div class="field" id="customLogoField" style="max-width:320px; margin-top:8px; display:none;">
-      <label for="customLogoInput">Importer un logo (PNG/JPG)</label>
-      <input type="file" id="customLogoInput" accept="image/*">
-    </div>
+    <!-- Réglage posé une fois par projet, pas un geste quotidien : replié
+         pour ne pas peser sur la saisie qui, elle, se fait chaque jour. -->
+    <details style="margin-top:14px;">
+      <summary style="cursor:pointer; font-weight:700; font-size:13px; color:var(--muted);" id="logoTitre">Logo sur la feuille de route</summary>
+      <div class="actions-row" style="margin-top:8px;">
+        <label class="highlight-toggle" style="font-size:14px;"><input type="radio" name="logoChoice" value="none"> Logo Curieux orchestre</label>
+        <label class="highlight-toggle" style="font-size:14px;"><input type="radio" name="logoChoice" value="custom"> Logo importé</label>
+      </div>
+      <div class="field" id="customLogoField" style="max-width:320px; margin-top:8px; display:none;">
+        <label for="customLogoInput">Importer un logo (PNG/JPG)</label>
+        <input type="file" id="customLogoInput" accept="image/*">
+      </div>
+    </details>
   </div>
 
   <div class="card fdr-section" data-icone="☎" style="--sec-fond:#CEE1F4; --sec-encre:#791649; --sec-tilt:4deg;">
@@ -433,6 +477,16 @@
     </div>
   </div>
 
+  <!-- Le travail de cette page a UNE sortie : le PDF. Il vivait à six mille
+       pixels du haut. La barre collante le garde sous la main, avec l'état
+       d'enregistrement et l'état des sections — on sait en permanence si la
+       feuille est prête à partir, et ce qui lui manque. -->
+  <div class="barre-feuille" id="barreFeuille">
+    <span class="barre-etat" id="barreEtat"></span>
+    <span class="barre-sections" id="barreSections"></span>
+    <button type="button" class="co-btn primary" id="barreGenererBtn">Générer le PDF</button>
+  </div>
+
   <div class="toolbar">
     <button class="co-btn primary" id="generateFdrBtn">Générer le PDF</button>
     <button class="co-btn ghost" id="newFdrBtn">+ Nouvelle feuille de route</button>
@@ -645,6 +699,151 @@ function setFdrSaveStatus(kind, text){
   if(!el) return;
   el.className = 'fdr-save-status' + (kind ? ' ' + kind : '');
   el.textContent = text || '';
+  // La barre du bas répète l'état : quand on travaille au milieu d'une longue
+  // feuille, le témoin du haut est hors de vue depuis longtemps.
+  const bas = document.getElementById('barreEtat');
+  if(bas){ bas.className = 'barre-etat' + (kind === 'error' ? ' error' : ''); bas.textContent = text || ''; }
+}
+
+/* --------------------------------------------------------------------------
+ * Le contexte de projet d'une feuille.
+ *
+ * Les sœurs d'une feuille sont les feuilles du même projet et de la même
+ * nature — le rapprochement se fait par artistName, qui est le nom de la
+ * tournée quand la feuille naît d'une date (voir tournees.html). Il n'y a pas
+ * d'identifiant plus solide dans les données existantes, et il suffit : deux
+ * projets homonymes de même nature seraient de toute façon indiscernables à
+ * l'écran aussi.
+ * ------------------------------------------------------------------------ */
+function feuillesSoeurs(){
+  const nom = (state.artistName || '').trim();
+  if(!nom) return [];
+  return loadFdrCollection()
+    .filter(f=> (f.artistName || '').trim() === nom
+      && (f.projetType === 'recording') === (state.projetType === 'recording'))
+    .sort((a, b)=> (a.eventDate || '').localeCompare(b.eventDate || ''));
+}
+
+function majContexteFeuille(){
+  const holder = document.getElementById('fdrContexte');
+  if(!holder) return;
+  const soeurs = feuillesSoeurs();
+  if(soeurs.length < 2){ holder.style.display = 'none'; return; }
+  const idx = soeurs.findIndex(f=> f.id === state.id);
+  if(idx < 0){ holder.style.display = 'none'; return; }
+  const avant = soeurs[idx - 1] || null;
+  const apres = soeurs[idx + 1] || null;
+  const suffixe = state.projetType === 'recording' ? '&type=recording' : '';
+  const lien = (f, texte, cls)=> f
+    ? `<a class="ctx-nav ${cls}" href="feuille-de-route.html?id=${encodeURIComponent(f.id)}${suffixe}" title="${escapeHtml(fmtDateFRLong(f.eventDate) || 'sans date')}">${texte}</a>`
+    : `<span class="ctx-nav ${cls} off">${texte}</span>`;
+  holder.style.display = '';
+  holder.innerHTML = `
+    <span class="ctx-projet">${escapeHtml(state.artistName)}</span>
+    <span class="ctx-position">${state.projetType === 'recording' ? 'feuille' : 'FDR'} ${idx + 1} / ${soeurs.length}</span>
+    <span class="ctx-espace"></span>
+    ${avant && aQuelqueChoseAReprendre(avant) ? `<button type="button" class="co-btn tint sm" id="reprendreFeuilleBtn" title="Recopier de la feuille du ${escapeHtml(fmtDateFRLong(avant.eventDate) || '?')} ce qui manque encore ici — sans rien écraser.">⤺ Reprendre du ${escapeHtml(fmtDateFRLong(avant.eventDate) || 'précédent')}</button>` : ''}
+    ${lien(avant, '← préc.', '')}
+    ${lien(apres, 'suiv. →', '')}
+  `;
+  const btn = document.getElementById('reprendreFeuilleBtn');
+  if(btn) btn.addEventListener('click', ()=> reprendreDeLaFeuille(avant));
+}
+
+/* --------------------------------------------------------------------------
+ * Reprendre de la feuille précédente.
+ *
+ * Sur une tournée de cinq dates, contacts, planning, partitions et notes sont
+ * aux trois quarts identiques d'une feuille à l'autre — et se retapaient cinq
+ * fois. On recopie CE QUI EST VIDE ICI, et rien d'autre : jamais d'écrasement,
+ * le geste est donc toujours sûr.
+ *
+ * Ce qui ne se reprend jamais : le lieu, l'hôtel, les trajets — ils changent
+ * par définition d'une ville à l'autre. Les recopier « pour aider » planterait
+ * l'hôtel de Lyon dans la feuille de Grenoble, l'erreur la plus coûteuse qui
+ * soit sur une feuille de route.
+ * ------------------------------------------------------------------------ */
+function aQuelqueChoseAReprendre(src){
+  const contactsVides = !(state.contacts || []).some(c=> (c.nom||'').trim() || (c.tel||'').trim());
+  const planningVide = !(state.planning || []).some(l=> (l.heure||'').trim() || (l.texte||'').trim());
+  const partitionsVides = !((state.partitions||{}).lien || '').trim();
+  const bonusVide = !((state.bonus || '').trim());
+  return (contactsVides && (src.contacts||[]).some(c=> (c.nom||'').trim()))
+      || (planningVide && (src.planning||[]).some(l=> (l.texte||'').trim()))
+      || (partitionsVides && ((src.partitions||{}).lien || '').trim())
+      || (bonusVide && (src.bonus||'').trim());
+}
+
+function reprendreDeLaFeuille(src){
+  if(!src) return;
+  const repris = [];
+  if(!(state.contacts || []).some(c=> (c.nom||'').trim() || (c.tel||'').trim())
+     && (src.contacts||[]).some(c=> (c.nom||'').trim())){
+    state.contacts = src.contacts.map(c=> ({ ...c, id: uid() }));
+    repris.push('les contacts');
+  }
+  if(!(state.planning || []).some(l=> (l.heure||'').trim() || (l.texte||'').trim())
+     && (src.planning||[]).some(l=> (l.texte||'').trim())){
+    state.planning = src.planning.map(l=> ({ ...l, id: uid() }));
+    repris.push('le planning du jour');
+  }
+  if(!((state.partitions||{}).lien || '').trim() && ((src.partitions||{}).lien || '').trim()){
+    state.partitions = {
+      lien: src.partitions.lien, note: src.partitions.note || '',
+      parPersonne: (src.partitions.parPersonne || []).map(x=> ({ ...x, id: uid() })),
+    };
+    if(!state.partitions.parPersonne.length) state.partitions.parPersonne = [ defaultPartitionLink() ];
+    repris.push('les partitions');
+  }
+  if(!(state.bonus || '').trim() && (src.bonus || '').trim()){
+    state.bonus = src.bonus;
+    repris.push('les notes');
+  }
+  if(!repris.length){
+    alert('Rien à reprendre : tout ce que la feuille précédente pourrait donner est déjà rempli ici.');
+    return;
+  }
+  saveState();
+  // Re-remplir les champs à l'écran sans recharger la page.
+  renderContacts(); renderPlanning(); renderPartitionLinks();
+  const pl = document.getElementById('partitionsLien'); if(pl) pl.value = state.partitions.lien || '';
+  const pn = document.getElementById('partitionsNote'); if(pn) pn.value = state.partitions.note || '';
+  const bn = document.getElementById('bonusNotes'); if(bn) bn.value = state.bonus || '';
+  majBarreSections(); majContexteFeuille();
+  alert(`Repris de la feuille du ${fmtDateFRLong(src.eventDate) || '?'} : ${repris.join(', ')}.\n\nLe lieu, l'hôtel et les trajets ne se reprennent jamais — ils changent d'une ville à l'autre.`);
+}
+
+/* --------------------------------------------------------------------------
+ * L'état des sections dans la barre du bas — la même règle de « prêt » que la
+ * liste des feuilles, pour que les deux écrans racontent la même histoire.
+ * Un clic descend à la section.
+ * ------------------------------------------------------------------------ */
+function majBarreSections(){
+  const holder = document.getElementById('barreSections');
+  if(!holder) return;
+  const estStudio = state.projetType === 'recording';
+  const SECTIONS = [
+    ['contacts', 'Contacts', ()=> (state.contacts||[]).some(c=> (c.nom||'').trim() || (c.tel||'').trim())],
+    ['voyage', 'Voyage', ()=> (state.trajets||[]).some(t=> (t.departVille||'').trim() || (t.arriveeVille||'').trim() || (t.train||'').trim())],
+    ['planning', 'Planning', ()=> (state.planning||[]).some(l=> (l.heure||'').trim() || (l.texte||'').trim())],
+    ['lieu', estStudio ? 'Studio' : 'Lieu', ()=> !!((state.lieu||{}).nom || (state.lieu||{}).adresse)],
+    ['hotel', 'Hôtel', ()=> !!((state.hotel||{}).nom || (state.hotel||{}).adresse)],
+    ['partitions', 'Partitions', ()=> !!((state.partitions||{}).lien || '').trim()],
+    ['bonus', 'Notes', ()=> !!(state.bonus || '').trim()],
+  ];
+  holder.innerHTML = SECTIONS.map(([cle, nom, prete])=>{
+    const exclue = state.sectionsEnabled[cle] === false;
+    const cls = exclue ? 'exclue' : (prete() ? 'ok' : 'vide');
+    const titre = exclue ? `${nom} — exclue de la feuille` : (prete() ? `${nom} — prête` : `${nom} — encore vide (cliquer pour y aller)`);
+    return `<span class="bs ${cls}" data-aller-section="${cle}" title="${escapeAttr(titre)}">${escapeHtml(nom)}</span>`;
+  }).join('');
+  holder.querySelectorAll('[data-aller-section]').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      const corps = document.querySelector(`[data-section-body="${chip.dataset.allerSection}"]`);
+      const carte = corps && corps.closest('.card');
+      if(carte) carte.scrollIntoView({ behavior:'smooth', block:'start' });
+    });
+  });
 }
 async function checkConflictAndSave(){
   if(!supabaseClient || fdrConflict) return;
@@ -686,6 +885,7 @@ function saveState(){
   fdrsCache = collection;
   localStorage.setItem(FDR_LAST_ID_KEY, state.id);
   scheduleStateSync();
+  majBarreSections();
 }
 async function createNewFdr(){
   const fresh = buildDefaultState();
@@ -1747,6 +1947,10 @@ async function initData(){
   renderTicketLinks();
   renderPartitionLinks();
   setFdrSaveStatus('', '');
+  majContexteFeuille();
+  majBarreSections();
+  const barreBtn = document.getElementById('barreGenererBtn');
+  if(barreBtn) barreBtn.addEventListener('click', generateFdrPDF);
 }
 initData();
 </script>

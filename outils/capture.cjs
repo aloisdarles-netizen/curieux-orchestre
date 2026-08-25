@@ -278,6 +278,14 @@ const SEED = {
               checkin:'15:00', checkout:'11:00', mapsLink:'', breakfast:'inclus', type:'hotel', typeDetail:'' },
       partitions:{ lien:'https://drive.google.com/drive/folders/demo-partitions', note:'Version du 2 mars', parPersonne:[] },
       bonus:'Loges au niveau -1.', merchandisingOk:true, ticketLinks:[] },
+    // Une feuille SŒUR de la première, quasi vide : c'est elle qui montre la
+    // navigation précédent/suivant et le bouton « Reprendre du … ».
+    { id:'demo-fdr-03', artistName:"L'Atelier de Joe Hisaishi", eventDate:'2027-03-13',
+      venueCity:'Grenoble', venueSalle:'Le Summum', projetType:'tournee',
+      contacts:[], trajets:[], planning:[],
+      lieu:{ nom:'Le Summum', adresse:'', jauge:'', billetterie:'' },
+      hotel:{ nom:'', adresse:'', tel:'', checkin:'', checkout:'', mapsLink:'', breakfast:'', type:'hotel', typeDetail:'' },
+      partitions:{ lien:'', note:'', parPersonne:[] }, bonus:'', merchandisingOk:false, ticketLinks:[] },
     { id:'demo-fdr-02', artistName:'Album — Les Soudaines vol. II', eventDate:'2027-02-08',
       venueCity:'Paris', venueSalle:'Studio Ferber', projetType:'recording',
       studio:{ cabine:'Grand studio', titres:'Ouverture, Nocturne' },
