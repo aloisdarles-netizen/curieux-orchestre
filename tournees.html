@@ -230,6 +230,58 @@
   .col-type select, .col-voyage select, .col-seance select{flex:1; min-width:0;}
 
   /* ------------------------------------------------------------------------
+     Lecture d'abord. La page se PARCOURT dix fois plus qu'elle ne s'édite :
+     la question en arrivant est « qu'est-ce qui n'est pas prêt ? », pas
+     « quel mode de voyage vais-je changer ? ». Nature et Voyage s'affichent
+     donc comme du texte — même règle que Ville · Salle — et redeviennent des
+     menus au survol ou au clavier. L'édition reste à un clic, elle cesse
+     seulement de crier sur chaque ligne.
+     ------------------------------------------------------------------------ */
+  .date-row select.type-select{
+    -webkit-appearance:none; appearance:none;
+    border-color:transparent; background:transparent; cursor:pointer;
+    font-size:13px; color:var(--text); padding:4px 6px;
+  }
+  .co-row.date-row:hover select.type-select{ background:var(--bg); border-color:var(--border); }
+  .date-row select.type-select:focus{
+    border-color:var(--accent); background:var(--card); outline:none;
+  }
+
+  /* Supprimer — une ligne ou la tournée — est rare et grave : il n'a pas à
+     être rouge en permanence sur chaque rangée. Gris au repos, rouge à
+     l'approche : la couleur revient exactement quand le geste se prépare. */
+  .sup-discret{ color:var(--muted) !important; background:transparent !important; }
+  .sup-discret:hover, .sup-discret:focus-visible{
+    color:var(--danger) !important; background:var(--danger-tint) !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     Le reste à faire, en tête de projet : la réponse à « qu'est-ce qui
+     m'attend ici ? » sans avoir à balayer les lignes. Chaque pastille est un
+     lien : elle descend à la première date concernée et la signale.
+     ------------------------------------------------------------------------ */
+  .a-faire{
+    flex-basis:100%; display:flex; align-items:center; gap:7px; flex-wrap:wrap;
+    margin-top:7px; font-size:12px; font-weight:700;
+  }
+  .a-faire .af{
+    display:inline-flex; align-items:center; gap:5px; text-decoration:none;
+    padding:3px 10px; border-radius:20px; cursor:pointer;
+  }
+  .a-faire .af-manque{ background:var(--danger-tint); color:var(--danger); }
+  .a-faire .af-fdr{ background:var(--accent-tint); color:var(--tint-ink); }
+  .a-faire .af-option{ background:var(--maybe-tint); color:var(--maybe); }
+  .a-faire .af-lieu{ background:var(--bg); color:var(--muted); border:1px solid var(--border); }
+  .a-faire .af:hover{ filter:brightness(.96); }
+  .a-faire .af-ok{ color:var(--ok); font-weight:700; }
+
+  /* La ligne visée par une pastille s'allume deux secondes le temps qu'on la
+     trouve, puis s'éteint : un repère, pas un état. */
+  @keyframes ligne-visee{ 0%, 60%{ box-shadow:inset 3px 0 0 var(--accent); background:var(--accent-tint); } 100%{ box-shadow:none; } }
+  .co-row.date-row.visee > *{ animation:none; }
+  .co-row.date-row.visee{ animation:ligne-visee 2s ease-out; }
+
+  /* ------------------------------------------------------------------------
      Recording : une colonne de plus (la séance) et deux champs de plus dans la
      cellule du studio (cabine, titres travaillés). Le reste de la ligne est
      identique à celle d'une tournée — c'est le même travail de planification.
@@ -1387,6 +1439,55 @@ function cachetVendu(chiffrage){
   return prix.length === 1 && prix[0] > 0 ? prix[0] : null;
 }
 
+/* Le reste à faire d'un projet, en une ligne de pastilles cliquables.
+ *
+ * C'est la réponse à la question qu'on se pose en arrivant sur la carte :
+ * « qu'est-ce qui n'est pas prêt ici ? ». Quatre choses seulement, celles qui
+ * appellent un geste de production :
+ *   - une équipe incomplète sur une date à venir non annulée (le plus grave) ;
+ *   - une feuille à créer sur une date validée (le document doit partir) ;
+ *   - une option à confirmer (une décision attend) ;
+ *   - une date sans ville ni lieu (l'information manque encore).
+ * Chaque pastille descend à la première date concernée et la signale.
+ * Les dates passées ne comptent pas : on ne rattrape pas hier.
+ */
+function resteAFaireHtml(t, fdrs, musicianById){
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const dates = (t.dates || [])
+    .filter(d=> d.date && d.date >= aujourdhui && d.statut !== 'annulee')
+    .sort((a, b)=> a.date.localeCompare(b.date));
+  if(!dates.length) return '';
+
+  const equipeIncomplete = dates.filter(d=>{
+    const eff = effectifPourDate(t, d, musicianById);
+    return eff && eff.attendu > 0 && eff.affecte < eff.attendu;
+  });
+  const feuillesACreer = dates.filter(d=> d.statut === 'validee' && !fdrs.some(f=> f.eventDate === d.date));
+  const options = dates.filter(d=> (d.statut || 'option') === 'option');
+  const sansLieu = dates.filter(d=> !(d.ville || '').trim() && !(d.lieu || '').trim());
+
+  const pastille = (liste, classe, texte, titre)=> liste.length
+    ? `<a class="af ${classe}" data-viser="${escapeAttr(liste.map(d=> d.id).join(','))}" title="${escapeAttr(titre)}">${texte}</a>`
+    : '';
+  const morceaux = [
+    pastille(equipeIncomplete, 'af-manque',
+      `♪ ${equipeIncomplete.length} ${EST_RECORDING ? 'séance' : 'date'}${equipeIncomplete.length > 1 ? 's' : ''} sans équipe complète`,
+      'Aller à la première date où il manque du monde'),
+    pastille(feuillesACreer, 'af-fdr',
+      `${feuillesACreer.length} ${EST_RECORDING ? (feuillesACreer.length > 1 ? 'feuilles' : 'feuille') : 'FDR'} à créer`,
+      'Dates validées sans feuille — aller à la première'),
+    pastille(options, 'af-option',
+      `${options.length} option${options.length > 1 ? 's' : ''} à confirmer`,
+      'Aller à la première date encore en option'),
+    pastille(sansLieu, 'af-lieu',
+      `${sansLieu.length} sans ${EST_RECORDING ? 'studio' : 'lieu'}`,
+      'Dates sans ville ni lieu — aller à la première'),
+  ].filter(Boolean);
+
+  if(!morceaux.length) return `<div class="a-faire"><span class="af-ok">✓ Rien en attente sur les dates à venir</span></div>`;
+  return `<div class="a-faire">${morceaux.join('')}</div>`;
+}
+
 function chiffrageHtml(t){
   const c = chiffrageDuProjet(t.id);
   if(!c) return '';
@@ -1423,9 +1524,15 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
       const overrideCount = rosterPeople.filter(p => cachetOverrides[p.id] != null).length;
       const rows = dates.map((d, dIdx)=>{
         const fdr = fdrs.find(f=>f.eventDate === d.date);
+        // La colonne FDR suit le statut de la date : une feuille ne s'écrit ni
+        // pour une date annulée, ni avec la même urgence pour une option que
+        // pour une date validée. Le bouton plein est réservé au vrai travail.
+        const statutPourFdr = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
         const fdrAction = fdr
           ? `<a class="co-btn secondary sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}${EST_RECORDING ? '&type=recording' : ''}">Ouvrir ${EST_RECORDING ? 'la feuille' : 'FDR'}</a>`
-          : `<button type="button" class="co-btn tint sm" data-create-fdr="${escapeAttr(d.id)}">Créer ${EST_RECORDING ? 'la feuille' : 'FDR'}</button>`;
+          : statutPourFdr === 'annulee'
+            ? `<span style="color:var(--muted); font-size:12px;">—</span>`
+            : `<button type="button" class="co-btn ${statutPourFdr === 'validee' ? 'tint' : 'ghost'} sm" data-create-fdr="${escapeAttr(d.id)}"${statutPourFdr === 'option' ? ' title="Date encore en option — la feuille peut attendre la validation."' : ''}>Créer ${EST_RECORDING ? 'la feuille' : 'FDR'}</button>`;
         const indispoSurDate = (p)=> !!(p && (p.disponibilites || {})[d.date] === 'indispo');
         const marqueIndispo = ' style="background:var(--danger-tint, #fbe6e2); color:var(--danger, #a5313f); font-weight:700;"';
         const assignedChips = (d.musiciensAssignes||[]).map(id=>{
@@ -1541,7 +1648,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             </span>
             <span class="col-fdr">${fdrAction}</span>
             <span class="col-suppr">
-              <button type="button" class="co-btn danger sm" data-del-date="${escapeAttr(d.id)}" title="Retrait complet — n'apparaîtra plus, même dans le récap">Supprimer</button>
+              <button type="button" class="co-btn ghost sm sup-discret" data-del-date="${escapeAttr(d.id)}" title="Retrait complet — n'apparaîtra plus, même dans le récap">Supprimer</button>
             </span>
           </div>
         `;
@@ -1554,7 +1661,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <div class="row-actions">
               <button type="button" class="co-btn secondary sm" data-dispo-links="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line></svg>Demandes titulaires</button>
               <button type="button" class="co-btn secondary sm" data-export-tournee="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
-              <button type="button" class="co-btn danger sm" data-del-tournee="${escapeAttr(t.id)}">Supprimer ${EST_RECORDING ? 'le recording' : 'la tournée'}</button>
+              <button type="button" class="co-btn ghost sm sup-discret" data-del-tournee="${escapeAttr(t.id)}">Supprimer ${EST_RECORDING ? 'le recording' : 'la tournée'}</button>
             </div>
           </div>
           <div class="tournee-meta">
@@ -1573,6 +1680,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
               <span class="outils-caret">▾</span>
             </button>
             ${chiffrageHtml(t)}
+            ${resteAFaireHtml(t, fdrs, musicianById)}
           </div>
           <!-- Cachet et effectif attendu sont désormais toujours affichés côte à
                côte, et non repliés derrière un bouton : ce sont deux réglages de
@@ -2096,6 +2204,20 @@ document.getElementById('dispoLinksCopyAllBtn').addEventListener('click', async 
 });
 
 function bindTourneeEvents(){
+  // Les pastilles du reste à faire : descendre à la première date concernée
+  // et l'allumer le temps qu'on la trouve.
+  document.querySelectorAll('.a-faire [data-viser]').forEach(a=>{
+    a.addEventListener('click', ()=>{
+      const premierId = (a.dataset.viser || '').split(',')[0];
+      const ligne = document.querySelector(`[data-row-date="${CSS.escape(premierId)}"]`);
+      if(!ligne) return;
+      ligne.scrollIntoView({ behavior:'smooth', block:'center' });
+      ligne.classList.remove('visee');
+      void ligne.offsetWidth;                     // relance l'animation
+      ligne.classList.add('visee');
+    });
+  });
+
   document.querySelectorAll('[data-import-dates]').forEach(btn=>{
     btn.addEventListener('click', ()=> openImportModal(btn.dataset.importDates));
   });
