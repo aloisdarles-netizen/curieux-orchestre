@@ -3842,3 +3842,60 @@ begin
 end;
 $$;
 grant execute on function mes_demandes_dispo(text) to anon, authenticated;
+
+
+-- ============================================================================
+-- Purge : compatible avec pg-safeupdate (août 2026)
+--
+-- Sur les projets Supabase où l'extension pg-safeupdate est active, tout
+-- DELETE sans clause WHERE est refusé — y compris à l'intérieur d'une fonction
+-- security definer. La purge échouait donc avec « DELETE requires a WHERE
+-- clause » au moment précis où l'on vide les données d'essai pour commencer
+-- l'exploitation réelle.
+--
+-- Le correctif est la clause « where ctid = ctid » : vraie pour toute ligne
+-- (ctid, l'adresse physique de la ligne, n'est jamais nul), elle ne change
+-- rien au résultat. On n'écrit PAS « where true » : le planificateur replie
+-- les constantes et le plan ressortirait sans qualification, exactement ce que
+-- l'extension refuse. Une comparaison colonne-à-colonne, elle, reste dans le
+-- plan. ctid plutôt que id : présent sur toutes les tables, quel que soit
+-- leur schéma.
+--
+-- Seule cette clause change ; le reste de la fonction est identique.
+-- ============================================================================
+
+create or replace function purger_donnees_essai(p_tables text[])
+returns table(table_videe text, lignes_supprimees bigint)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  autorisees constant text[] := array[
+    'dispo_demandes','infos_sociales','feuilles_route','carnet_contacts',
+    'newsletter_snapshot','cachet_overrides','remplacant_prefs','bug_reports',
+    'audit_log','moyens_salle','lots_materiel','carnets_ata','vehicules',
+    'chauffeurs','fiches_techniques_versions','fiches_techniques',
+    'acces_logistique','acces_personnels','tournees','musiciens','techniciens'
+  ];
+  t text;
+  n bigint;
+begin
+  if not is_admin() then
+    raise exception 'Réservé aux comptes administrateur.';
+  end if;
+  if not (select phase_test from reglages where id = 1) then
+    raise exception 'La phase de test est terminée : la purge est désactivée.';
+  end if;
+
+  foreach t in array coalesce(p_tables, array[]::text[]) loop
+    if t = any(autorisees) then
+      execute format('delete from %I where ctid = ctid', t);
+      get diagnostics n = row_count;
+      table_videe := t; lignes_supprimees := n;
+      return next;
+    end if;
+  end loop;
+end;
+$$;
+grant execute on function purger_donnees_essai(text[]) to authenticated;
