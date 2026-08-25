@@ -77,6 +77,12 @@
 // (devis-commun.js) ne rend plus de cachet global pour un recording.
 // v22 : le parseur de listes de messagerie déménage dans ui-helpers.js pour
 // servir aussi l'annuaire technique.
+// v23 : ui-helpers.js gagne le rôle par projet (roleSurProjet, estDuNoyau) et
+// db.js le porte sur dispo_demandes ; pdf-prise-en-main.js accepte un type par
+// personne, la fiche ayant quitté l'annuaire pour la page des demandes.
+// v24 : ui-helpers.js porte la liste des champs obligatoires d'une fiche
+// sociale (CURIEUX_INFOS_REQUISES), lue par mes-infos et par l'accueil du lien
+// personnel.
 const VERSION = 'curieux-v24';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
