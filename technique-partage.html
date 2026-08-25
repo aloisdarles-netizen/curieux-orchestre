@@ -349,15 +349,20 @@ function jourCourt(iso){
 
 // Sommaire des dates — l'index de la tournée, toujours sous la main.
 let dateActive = '';
-function sommaireDates(dates){
+function sommaireDates(groupes){
   return `<nav class="sommaire" aria-label="${escapeAttr(t('sommaire_titre'))}">
-    <div class="sommaire-titre">${t('sommaire_titre')} · ${dates.length}</div>
-    ${dates.map(d=>`
-      <button type="button" class="sommaire-date" data-aller="${escapeAttr(d.id)}" aria-current="${d.id === dateActive}">
-        <span class="sommaire-quand">${escapeHtml(jourCourt(d.date))}</span>
-        <span class="sommaire-ou">${escapeHtml(d.ville || d.lieu || '—')}</span>
-      </button>
-    `).join('')}
+    <div class="sommaire-titre">${t('sommaire_titre')} · ${groupes.length}</div>
+    ${groupes.map(g=>{
+      const d = g.reference;
+      const quand = g.dates.length > 1
+        ? `${jourCourt(g.dates[0].date)} → ${jourCourt(g.dates[g.dates.length - 1].date)}`
+        : jourCourt(d.date);
+      return `
+      <button type="button" class="sommaire-date" data-aller="${escapeAttr(g.id)}" aria-current="${g.id === dateActive}">
+        <span class="sommaire-quand">${escapeHtml(quand)}</span>
+        <span class="sommaire-ou">${escapeHtml(d.ville || d.lieu || '—')}${g.dates.length > 1 ? ` · ${g.dates.length}×` : ''}</span>
+      </button>`;
+    }).join('')}
   </nav>`;
 }
 
@@ -778,14 +783,20 @@ function blocDistribution(m){
     t('note_distrib'));
 }
 
-function ficheDateComplete(d, m, editableSalle, editableStageManager){
+function ficheDateComplete(d, m, editableSalle, editableStageManager, serie){
   if(!m) m = { date_id: d.id };
-  const jour = jourLong(d.date);
+  // Plusieurs soirs au même endroit : on les nomme tous en tête, et le « quand »
+  // devient la série. Sans cela, la salle croirait qu'on lui parle d'un seul
+  // soir et se demanderait où sont passés les autres.
+  const plusieurs = serie && serie.dates.length > 1;
+  const jour = plusieurs
+    ? serie.dates.filter(x=> x.date).map(x=> jourCourt(x.date)).join(' · ')
+    : jourLong(d.date);
   return `
     <div class="fiche-date">
       <div class="fiche-date-head">
         <h2>${escapeHtml(d.ville || d.lieu || 'Date')}${d.lieu && d.ville ? ` — ${escapeHtml(d.lieu)}` : ''}</h2>
-        <span class="quand">${escapeHtml(jour)}</span>
+        <span class="quand">${escapeHtml(jour)}${plusieurs ? ` · ${serie.dates.length} ${t('dates_suffixe')(serie.dates.length)}` : ''}</span>
       </div>
       <div class="fiche-date-body">
         <div class="fiche-grille">
@@ -872,6 +883,11 @@ function renderContenu(){
   const moyensParDate = {};
   (RECAP.moyens||[]).forEach(m=> moyensParDate[m.date_id] = m);
 
+  // Une salle qui nous accueille quatre soirs de suite ne doit pas répondre
+  // quatre fois au même questionnaire : les dates qui se suivent au même
+  // endroit forment une seule fiche, celle du montage.
+  const groupes = groupesFicheTechnique(dates, (id)=> !!moyensParDate[id]);
+
   let html = `<div class="entete">
     <h1 style="font-size:21px; margin:0 0 4px; font-weight:900;">${escapeHtml(RECAP.tournee.nom || 'Tournée')}</h1>
     <p class="qui">${escapeHtml(RECAP.libelle || 'Accès')} — ${dates.length} ${t('dates_suffixe')(dates.length)}.</p>
@@ -883,17 +899,18 @@ function renderContenu(){
 
   // Une date à la fois, choisie dans le sommaire : sur une tournée longue,
   // atteindre la dernière ne demande plus de traverser toutes les autres.
-  if(dates.length && !dates.some(d=> d.id === dateActive)) dateActive = dates[0].id;
-  document.body.classList.toggle('avec-sommaire', dates.length > 1);
+  if(groupes.length && !groupes.some(g=> g.id === dateActive)) dateActive = groupes[0].id;
+  document.body.classList.toggle('avec-sommaire', groupes.length > 1);
 
-  if(dates.length === 0){
+  if(groupes.length === 0){
     html += `<div class="state-box">${t('aucune_date')}</div>`;
   } else {
-    const d = dates.find(x=> x.id === dateActive) || dates[0];
-    const fiche = ficheDateComplete(d, moyensParDate[d.id], editableSalle, editableSM)
+    const g = groupes.find(x=> x.id === dateActive) || groupes[0];
+    const d = g.reference;
+    const fiche = ficheDateComplete(d, moyensParDate[d.id], editableSalle, editableSM, g)
       + (editableSM ? `<div style="margin-bottom:16px;"><button type="button" data-pdf="${escapeAttr(d.id)}">Export PDF — ${escapeHtml(d.ville||d.lieu||'Date')}</button></div>` : '');
-    html += dates.length > 1
-      ? `<div class="mise-en-page">${sommaireDates(dates)}<div>${fiche}</div></div>`
+    html += groupes.length > 1
+      ? `<div class="mise-en-page">${sommaireDates(groupes)}<div>${fiche}</div></div>`
       : fiche;
   }
 

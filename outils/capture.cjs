@@ -36,8 +36,14 @@ MUS.push(
     disponibilites:{'2027-03-15':'dispo'} },
 );
 
+// Trois soirs de suite au même endroit (Épernay) : c'est le cas qui met à
+// l'épreuve le regroupement des fiches techniques — une salle, un montage, une
+// fiche — et il n'existait nulle part dans le jeu de démo.
 const DATES = [
   ['2027-01-22','Paris','Studio Ferber — répétitions','validee','Amener les conducteurs v2'],
+  ['2027-02-10','Épernay','Le Millenium','validee',''],
+  ['2027-02-11','Épernay','Le Millenium','validee',''],
+  ['2027-02-12','Épernay','Le Millenium','validee',''],
   ['2027-03-12','Lyon','Salle 3000','validee',''],
   ['2027-03-13','Grenoble','Le Summum','validee',''],
   ['2027-03-15','Marseille','Le Dôme','option',''],
@@ -45,7 +51,9 @@ const DATES = [
 ].map(([date,ville,lieu,statut,commentaire],i) => ({
   id:`d${i}`, date, ville, lieu, statut, commentaire,
   musiciensAssignes: MUS.slice(0, statut==='option' ? 4 : 8).map(m=>m.id),
-  techniciensAssignes:['demo-tech-01','demo-tech-02'], linkedToNext: i===1,
+  techniciensAssignes:['demo-tech-01','demo-tech-02'],
+  // Le bloc d'Épernay (d1→d3) et celui de Lyon-Grenoble (d4).
+  linkedToNext: i === 1 || i === 2 || i === 4,
 }));
 
 // L'espace Devis se capture avec les devis réels d'exemple : le fichier de

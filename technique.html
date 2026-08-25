@@ -24,6 +24,13 @@
      à 11 px, l'état d'une date se devinait plus qu'il ne se lisait. */
   .date-card-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;}
   .date-card-nom{font-weight:800; font-size:17px;}
+  /* Une série de dates au même endroit : la carte le dit, sinon on croirait
+     qu'il manque des soirs dans la liste. */
+  .serie-badge{
+    display:inline-block; margin-left:8px; vertical-align:2px;
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    padding:2px 8px; border-radius:999px; background:var(--accent-tint); color:var(--tint-ink, var(--accent-dark));
+  }
   .date-card-quand{font-size:13px; color:var(--muted); font-weight:700; white-space:nowrap;}
 
   /* Une barre plutôt qu'un pourcentage seul : la part réglée se voit avant
@@ -87,7 +94,7 @@
   <div class="co-page-head co-fade">
     <div>
       <h1>Direction technique</h1>
-      <p class="subtitle">L'avancement, date par date — clique une carte pour ouvrir le détail.</p>
+      <p class="subtitle">L'avancement, salle par salle — les dates qui se suivent au même endroit ne font qu'une fiche. Clique une carte pour ouvrir le détail.</p>
     </div>
     <select class="tournee-select" id="tourneeSelect" aria-label="Tournée"></select>
   </div>
@@ -219,9 +226,20 @@ function render(){
   if(dates.length === 0){ box.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display = 'none';
   const t = activeTournee();
-  box.innerHTML = dates.map(d=>{
+
+  // Une salle, une fiche : quatre soirs au Millenium, c'est un seul montage —
+  // un seul plan de scène à demander, un seul déchargement à organiser, un
+  // seul questionnaire à envoyer. Les dates qui se suivent au même endroit ne
+  // font donc qu'une carte, portée par la date qui a déjà une fiche s'il y en
+  // a une (voir groupesFicheTechnique).
+  const groupes = groupesFicheTechnique(dates, (id)=> !!moyensFor(id));
+
+  box.innerHTML = groupes.map(g=>{
+    const d = g.reference;
     const m = moyensFor(d.id);
-    const jour = d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'2-digit' }) : '—';
+    const jour = g.dates.length > 1
+      ? libelleSerieDates(g.dates, { weekday:'short' })
+      : (d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'2-digit' }) : '—');
     const postes = postesDe(m);
     const regles = postes.filter(p => p.sev === 'ok').length;
     // L'avancement se lit sur les mêmes postes que la liste : c'est une part de
@@ -233,8 +251,9 @@ function render(){
     return `
       <a class="co-card-btn" href="technique-date.html?t=${encodeURIComponent(t.id)}&d=${encodeURIComponent(d.id)}">
         <div class="date-card-top">
-          <span class="date-card-nom">${escapeHtml(d.ville || d.lieu || 'Date')}${d.lieu && d.ville ? ' — ' + escapeHtml(d.lieu) : ''}</span>
-          <span class="date-card-quand">${jour}</span>
+          <span class="date-card-nom">${escapeHtml(d.ville || d.lieu || 'Date')}${d.lieu && d.ville ? ' — ' + escapeHtml(d.lieu) : ''}${
+            g.dates.length > 1 ? `<span class="serie-badge" title="${escapeAttr(g.dates.map(x=> x.date).filter(Boolean).join(' · '))}">${g.dates.length} dates</span>` : ''}</span>
+          <span class="date-card-quand">${escapeHtml(jour)}</span>
         </div>
         <div class="avancement">
           <span class="avancement-barre"><i style="width:${Math.round(regles / postes.length * 100)}%; background:${couleur};"></i></span>

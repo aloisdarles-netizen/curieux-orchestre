@@ -289,13 +289,20 @@ function moyensDe(dateId){
 // accès de partage. Une salle ne reçoit que les siennes ; sans ce filtre, le
 // PDF produit depuis partage.html lui donnerait toute la tournée.
 const datesDemandees = (params.get('dates') || '').split(',').filter(Boolean);
-function datesAEnvoyer(){
+// Les dates que la salle doit voir, groupées par montage.
+//
+// Le tri des dates « préparées » (celles qui ont une fiche) se fait APRÈS le
+// regroupement : dans une série de trois soirs, seule la première porte la
+// fiche, et filtrer avant aurait montré un soir au lieu de trois.
+function groupesAEnvoyer(){
   const t = tourneeCourante();
   if(!t) return [];
-  return (t.dates || [])
-    .filter(d=> d.date && d.statut !== 'annulee' && moyensDe(d.id))
+  const dates = (t.dates || [])
+    .filter(d=> d.date && d.statut !== 'annulee')
     .filter(d=> datesDemandees.length === 0 || datesDemandees.includes(d.id))
     .sort((a, b)=> (a.date || '').localeCompare(b.date || ''));
+  return groupesFicheTechnique(dates, (id)=> !!moyensDe(id))
+    .filter(g=> g.dates.some(d=> moyensDe(d.id)));
 }
 
 function jourLong(iso){
@@ -543,22 +550,29 @@ function render(){
   document.getElementById('salleLangues').innerHTML = Object.entries(LANGUES).map(([code, label])=>
     `<button type="button" data-lang="${code}" aria-pressed="${code === LANG}">${label}</button>`).join('');
 
-  const dates = datesAEnvoyer();
+  // Une salle, une fiche : les soirs qui se suivent chez elle ne font qu'un
+  // montage, et donc qu'une section. Lui présenter quatre fois le même
+  // déchargement l'obligerait à répondre quatre fois la même chose.
+  const groupes = groupesAEnvoyer();
   const holder = document.getElementById('holder');
-  if(dates.length === 0){
+  if(groupes.length === 0){
     holder.innerHTML = `<div class="empty-hint">${escapeHtml(L.aucuneDate)}</div>`;
     return;
   }
-  if(!dates.some(d=> d.id === dateOuverte)) dateOuverte = dates[0].id;
+  if(!groupes.some(g=> g.id === dateOuverte)) dateOuverte = groupes[0].id;
 
-  holder.innerHTML = dates.map(d=>{
-    const ouvert = d.id === dateOuverte;
+  holder.innerHTML = groupes.map(g=>{
+    const d = g.reference;
+    const ouvert = g.id === dateOuverte;
     const titre = [d.ville, d.lieu].filter(Boolean).join(' — ') || 'Date';
+    const quand = g.dates.length > 1
+      ? g.dates.filter(x=> x.date).map(x=> jourLong(x.date)).join(' · ')
+      : jourLong(d.date);
     return `
       <section class="salle-date">
-        <button type="button" class="salle-date-head" data-ouvrir="${escapeAttr(d.id)}" aria-expanded="${ouvert}">
+        <button type="button" class="salle-date-head" data-ouvrir="${escapeAttr(g.id)}" aria-expanded="${ouvert}">
           <span class="titre">${escapeHtml(titre)}</span>
-          <span class="quand">${escapeHtml(jourLong(d.date))}</span>
+          <span class="quand">${escapeHtml(quand)}</span>
           <span class="chev" aria-hidden="true">${ouvert ? '▴' : '▾'}</span>
         </button>
         ${ouvert ? corpsDate(d) : ''}
@@ -587,10 +601,13 @@ function exporterPdf(){
   const doc = new jsPDF({ unit:'mm', format:'a4' });
   registerHostFont(doc);
 
-  const dates = datesAEnvoyer().filter(d=> moyensDe(d.id));
-  if(!dates.length){ alert(L.aucuneDate); return; }
+  // Une page par montage, pas par soir : la salle n'a pas besoin de trois
+  // feuilles identiques pour trois soirs de suite chez elle.
+  const groupes = groupesAEnvoyer();
+  if(!groupes.length){ alert(L.aucuneDate); return; }
 
-  dates.forEach((d, index)=>{
+  groupes.forEach((g, index)=>{
+    const d = g.reference;
     if(index > 0) doc.addPage();
     const m = moyensDe(d.id);
     // Cette feuille porte peu de valeurs et se lit souvent de loin, debout : on
@@ -598,7 +615,10 @@ function exporterPdf(){
     // tassée en haut d'une feuille aux trois quarts blanche.
     const page = creerComposeurPdf(doc, { echelleMax: 1.45 }).entete({
       titre: [d.ville, d.lieu].filter(Boolean).join(' — ') || L.titre,
-      sousTitre: [(t && t.nom) || '', jourLong(d.date)].filter(Boolean).join(' · '),
+      sousTitre: [(t && t.nom) || '',
+        g.dates.length > 1
+          ? g.dates.filter(x=> x.date).map(x=> jourLong(x.date)).join(' · ')
+          : jourLong(d.date)].filter(Boolean).join(' · '),
       mention: L.qui,
     });
 

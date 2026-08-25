@@ -80,6 +80,78 @@ function computeBlocMap(datesSorted){
   return map;
 }
 
+// ============================================================================
+// Une salle, une fiche technique.
+//
+// Le suivi technique était indexé par date : quatre soirs au Millenium
+// donnaient quatre fiches à remplir, quatre plans de scène à demander, quatre
+// questionnaires envoyés à la même salle — pour un seul montage. Ce qu'on
+// prépare, ce n'est pas une date, c'est une VENUE : le déchargement, le plan
+// de charge, les roadies et le rigg valent pour toute la série.
+//
+// On regroupe donc les dates qui se suivent dans le calendrier ET partagent le
+// même endroit. « Qui se suivent » veut dire adjacentes dans la liste du
+// projet : deux passages au même endroit à un mois d'intervalle, c'est deux
+// montages, donc deux fiches.
+//
+// Une date sans endroit renseigné ne se regroupe avec rien : on ne peut pas
+// affirmer que c'est le même lieu.
+// ============================================================================
+
+// Clé d'endroit : ville + lieu, insensible à la casse et aux espaces. Vide si
+// l'on ne sait pas où l'on joue.
+function cleEndroitDate(d){
+  const ville = ((d && d.ville) || '').trim().toLowerCase();
+  const lieu = ((d && d.lieu) || '').trim().toLowerCase();
+  return (ville || lieu) ? `${ville}|${lieu}` : '';
+}
+
+// Découpe une liste de dates TRIÉE en séries au même endroit.
+//
+// aUneFiche(dateId) — optionnel — dit si une date porte déjà des données
+// techniques. La série est alors portée par la première date qui en a, et non
+// par la première date tout court : les fiches déjà remplies avant ce
+// regroupement restent celles qu'on ouvre, au lieu d'être remplacées par une
+// fiche vierge.
+function groupesFicheTechnique(datesTriees, aUneFiche){
+  const groupes = [];
+  (datesTriees || []).forEach(d=>{
+    const cle = cleEndroitDate(d);
+    const dernier = groupes[groupes.length - 1];
+    if(dernier && cle && dernier.cle === cle) dernier.dates.push(d);
+    else groupes.push({ cle, dates: [d] });
+  });
+  return groupes.map(g=>{
+    const porteuse = (typeof aUneFiche === 'function' && g.dates.find(d=> aUneFiche(d.id))) || g.dates[0];
+    return {
+      id: porteuse.id,                 // la date qui porte la fiche
+      reference: porteuse,
+      dates: g.dates,
+      // Les autres dates de la série qui ont malgré tout leur propre fiche :
+      // on ne les efface pas en silence, on les signale.
+      autresFiches: typeof aUneFiche === 'function'
+        ? g.dates.filter(d=> d.id !== porteuse.id && aUneFiche(d.id))
+        : [],
+    };
+  });
+}
+
+// Retrouve la série d'une date donnée (pour une page ouverte sur ?d=…).
+function groupeFicheDe(datesTriees, dateId, aUneFiche){
+  return groupesFicheTechnique(datesTriees, aUneFiche).find(g=> g.dates.some(d=> d.id === dateId)) || null;
+}
+
+// « 22 → 24 janv. » quand la série couvre plusieurs jours, la date seule sinon.
+// Formatage autonome : fmtDateFR vit dans chaque page, pas ici.
+function libelleSerieDates(dates, options){
+  const liste = (dates || []).filter(d=> d.date).map(d=> d.date).sort();
+  if(liste.length === 0) return '';
+  const fmt = (iso)=> new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR',
+    Object.assign({ day:'numeric', month:'short' }, options || {}));
+  if(liste.length === 1) return fmt(liste[0]);
+  return `${fmt(liste[0])} → ${fmt(liste[liste.length - 1])}`;
+}
+
 // Menu de nav groupé (Tournées/Annuaires/Disponibilités en dropdowns) — même comportement
 // sur toutes les pages : clic pour ouvrir/fermer, un seul groupe ouvert à la fois, clic
 // en dehors pour fermer.

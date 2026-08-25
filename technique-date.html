@@ -125,11 +125,12 @@
 </head>
 <body>
 <div class="wrap">
-  <a class="co-back" href="technique.html">← Avancement par date</a>
+  <a class="co-back" href="technique.html">← Avancement technique</a>
   <div class="co-card co-pad-lg co-fade" style="margin-bottom:20px; display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
     <div style="flex:1; min-width:220px;">
       <h1 id="titre" class="co-h1" style="font-size:26px; margin-bottom:2px;">Fiche de date</h1>
       <span class="subtitle" id="sousTitre" style="font-size:13px; font-weight:700;"></span>
+      <div id="serieBandeau" hidden style="margin-top:10px; padding:10px 13px; border-radius:10px; background:var(--accent-tint); color:var(--tint-ink, var(--accent-dark)); font-size:12.5px; line-height:1.55;"></div>
     </div>
     <div class="co-actions">
       <select id="salleLangue" class="co-select" style="width:auto;" title="Langue de la page salle et du PDF envoyé à la salle">
@@ -337,6 +338,30 @@
 const params = new URLSearchParams(location.search);
 const tourneeId = params.get('t');
 const dateId = params.get('d');
+// La série de dates au même endroit que couvre cette fiche (null si elle est
+// seule de son espèce).
+let serie = null;
+
+// Bandeau « cette fiche couvre N dates ».
+//
+// Il porte aussi le cas gênant : si une AUTRE date de la série a gardé sa
+// propre fiche — remplie avant qu'on regroupe — on la nomme et on y mène,
+// plutôt que de la laisser devenir inaccessible.
+function afficherSerie(){
+  const boite = document.getElementById('serieBandeau');
+  if(!boite) return;
+  if(!serie || serie.dates.length <= 1){ boite.hidden = true; return; }
+  boite.hidden = false;
+  const jours = serie.dates.filter(d=> d.date)
+    .map(d=> new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'short' }))
+    .join(' · ');
+  const autres = (serie.autresFiches || []).map(d=>
+    `<a href="technique-date.html?t=${encodeURIComponent(tourneeId)}&d=${encodeURIComponent(d.id)}">${escapeHtml(
+      d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'short' }) : 'cette date')}</a>`).join(', ');
+  boite.innerHTML = `<b>Cette fiche couvre ${serie.dates.length} dates au même endroit</b> — ${escapeHtml(jours)}
+    Le montage, le plan de scène et les moyens demandés valent pour toute la série.
+    ${autres ? `<span style="display:block; margin-top:5px;">Fiches séparées restées sur ${autres} — à reporter ici, puis à vider.</span>` : ''}`;
+}
 let tournee = null, dateEntry = null, moyens = null;
 let techniciensCache = [], vehiculesCache = [];
 
@@ -1182,10 +1207,18 @@ async function init(){
     await CurieuxDB.upsertOne('tournees', tournee);
   }
 
+  // Une salle, une fiche : les dates qui se suivent au même endroit partagent
+  // ce montage. La fiche dit lesquelles elle couvre — sans quoi on croirait
+  // que les autres soirs ont été oubliés.
+  const aUneFiche = (id)=> moyensListe.some(m=> m.id === `${tourneeId}::${id}`);
+  const datesTriees = (tournee.dates || []).slice().sort((a, b)=> (a.date||'').localeCompare(b.date||''));
+  serie = groupeFicheDe(datesTriees, dateId, aUneFiche);
+
   document.getElementById('titre').textContent = `${dateEntry.ville || dateEntry.lieu || 'Date'}${dateEntry.lieu && dateEntry.ville ? ' — ' + dateEntry.lieu : ''}`;
   document.getElementById('sousTitre').textContent = dateEntry.date
     ? new Date(dateEntry.date+'T00:00:00').toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
     : '';
+  afficherSerie();
 
   moyens = moyensListe.find(m=>m.id === `${tourneeId}::${dateId}`) || moyensVierge();
   peupler();
