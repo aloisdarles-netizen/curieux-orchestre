@@ -172,8 +172,13 @@ function chiffresDuProjet(tournee){
     dates: dates.length,
     datesValidees: validees.length,
     effectif,
-    cachet: tournee.cachetStatut === 'defini' && tournee.cachetMontant != null
+    // Un recording n'a pas de cachet global : chaque séance porte le sien
+    // (dates[].cachetSeance). On rend null — pas de « cachet standard » à
+    // rappeler ni d'écart à signaler — et le drapeau qui permet à l'éditeur
+    // d'expliquer pourquoi.
+    cachet: tournee.type !== 'recording' && tournee.cachetStatut === 'defini' && tournee.cachetMontant != null
       ? devisNombre(tournee.cachetMontant, 0) : null,
+    cachetParSeance: tournee.type === 'recording',
   };
 }
 

@@ -234,7 +234,9 @@ const SEED = {
     // Un enregistrement en studio : même table, même page, filtrée par
     // ?type=recording. Sans lui, la page Recording se capture vide.
     id:'demo-reco1', nom:'Album — Les Soudaines vol. II', type:'recording',
-    cachetStatut:'defini', cachetMontant:280, nomenclature:[{pupitre:'Cordes',nombre:8}],
+    // Pas de cachet global sur un recording : chaque séance porte le sien
+    // (cachetSeance sur les dates ci-dessous, dont une pas encore fixée).
+    cachetStatut:'non_defini', cachetMontant:null, nomenclature:[{pupitre:'Cordes',nombre:8}],
     recording:{
       label:'Les Soudaines Records', directionArtistique:'Claire Fontenoy',
       livraison:'24 bits / 96 kHz — stems + mix stéréo',
@@ -242,15 +244,15 @@ const SEED = {
     },
     dates:[
       {id:'r0', date:'2027-02-08', ville:'Paris', lieu:'Studio Ferber', cabine:'Grand studio',
-       titres:'Ouverture, Nocturne', seance:'journee', type:'prise', statut:'validee',
+       titres:'Ouverture, Nocturne', seance:'journee', type:'prise', cachetSeance:280, statut:'validee',
        commentaire:'Balance micros dès 8h.', travelMode:'train', linkedToNext:true,
        musiciensAssignes:MUS.slice(0,6).map(m=>m.id), techniciensAssignes:['demo-tech-01']},
       {id:'r1', date:'2027-02-09', ville:'Paris', lieu:'Studio Ferber', cabine:'Grand studio',
-       titres:'Marche, Épilogue', seance:'matin', type:'prise', statut:'validee',
+       titres:'Marche, Épilogue', seance:'matin', type:'prise', cachetSeance:280, statut:'validee',
        commentaire:'', travelMode:'train',
        musiciensAssignes:MUS.slice(0,6).map(m=>m.id), techniciensAssignes:['demo-tech-01']},
       {id:'r2', date:'2027-02-15', ville:'Paris', lieu:'Studio Ferber', cabine:'Cabine B',
-       titres:'Solos violon', seance:'aprem', type:'overdub', statut:'option',
+       titres:'Solos violon', seance:'aprem', type:'overdub', cachetSeance:150, statut:'option',
        commentaire:'', travelMode:'train',
        musiciensAssignes:['demo-mus-01'], techniciensAssignes:[]},
       {id:'r3', date:'2027-03-02', ville:'Bruxelles', lieu:'ICP Studios', cabine:'',
@@ -536,9 +538,14 @@ const CurieuxDB = new Proxy({
   }),
   // Pages à jeton : la tournée est rendue telle qu'elle est en base (colonnes
   // brutes), la personne aussi.
+  // ?projet=recording sur l'URL de la page capturée sert le recording de démo,
+  // pour éprouver le chemin « cachet par séance » du lien de dispo.
   getTourneeByToken: async () => {
-    const t = __seed.tournees[0];
-    return { id:t.id, nom:t.nom, dates:t.dates, cachet_statut:'defini', cachet_montant:320 };
+    const reco = new URLSearchParams(location.search).get('projet') === 'recording';
+    const t = reco ? __seed.tournees.find(x=> x.type === 'recording') : __seed.tournees[0];
+    return reco
+      ? { id:t.id, nom:t.nom, type:'recording', dates:t.dates, cachet_statut:'non_defini', cachet_montant:null }
+      : { id:t.id, nom:t.nom, dates:t.dates, cachet_statut:'defini', cachet_montant:320 };
   },
   // Un jeton personnel permanent désigne une personne sans passer par une
   // demande de dispo : c'est le cas que servaient mal mes-infos et

@@ -15,6 +15,12 @@
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
+  .cachet-seance-tag{
+    display:inline-block; margin-left:8px; padding:1px 8px; border-radius:20px;
+    font-size:11px; font-weight:800; background:var(--accent-tint, #CEE1F4);
+    color:var(--tint-ink, #3d5876); white-space:nowrap; vertical-align:1px;
+  }
+
   body{
     margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:var(--bg); color:var(--text); padding:20px 14px 80px;
@@ -479,13 +485,21 @@ function render(){
   // Une personne peut avoir un cachet différent du cachet standard de la tournée
   // (voir cachet_overrides dans migrations.sql) — elle ne voit jamais le montant des
   // autres, seulement le sien (state.cachetOverride, chargé via token dans init()).
-  const cachetLine = state.tournee.cachet_statut === 'defini'
-    ? (state.cachetOverride != null
-        ? `Cachet brut : <strong>${escapeHtml(String(state.cachetOverride))} € brut</strong>`
-        : (state.tournee.cachet_montant != null
-            ? `Cachet brut : <strong>${escapeHtml(String(state.tournee.cachet_montant))} € brut</strong>`
-            : `Cachet brut : non défini pour l'instant`))
-    : `Cachet brut : non défini pour l'instant`;
+  // Sur un recording, il n'y a pas de cachet global : chaque séance porte le
+  // sien (voir tournees.html). Le bandeau renvoie donc aux dates, et chaque
+  // carte de date affiche son montant quand il est fixé.
+  const estRecordingProjet = state.tournee.type === 'recording';
+  const cachetLine = estRecordingProjet
+    ? ((state.tournee.dates || []).some(x=> x.cachetSeance != null && x.cachetSeance !== '')
+        ? `Cachet brut : <strong>par séance</strong> — indiqué sous chaque date`
+        : `Cachet brut : par séance, pas encore fixé`)
+    : (state.tournee.cachet_statut === 'defini'
+      ? (state.cachetOverride != null
+          ? `Cachet brut : <strong>${escapeHtml(String(state.cachetOverride))} € brut</strong>`
+          : (state.tournee.cachet_montant != null
+              ? `Cachet brut : <strong>${escapeHtml(String(state.tournee.cachet_montant))} € brut</strong>`
+              : `Cachet brut : non défini pour l'instant`))
+      : `Cachet brut : non défini pour l'instant`);
 
   let html = `
     <h1>Tes disponibilités</h1>
@@ -548,7 +562,11 @@ function render(){
 
     const blocInfo = blocMap.get(d.id);
     if(blocInfo && blocInfo.isFirst){
-      html += `<div class="bloc-banner"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><rect x="3.5" y="5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="10.3" x2="20.5" y2="10.3" stroke="currentColor" stroke-width="1.6"></line><circle cx="7.5" cy="19.3" r="1.4" fill="currentColor"></circle><circle cx="16.5" cy="19.3" r="1.4" fill="currentColor"></circle></svg>Départ la veille (${escapeHtml(fmtDateFRShort(blocInfo.veille))}), retour le lendemain (${escapeHtml(fmtDateFRShort(blocInfo.lendemain))}).</div>`;
+      // En studio, personne ne part la veille ni ne rentre le lendemain : le
+      // bloc dit seulement que les séances se suivent.
+      html += state.tournee.type === 'recording'
+        ? `<div class="bloc-banner">Séances consécutives — du ${escapeHtml(fmtDateFRShort(blocInfo.blocDates[0].date))} au ${escapeHtml(fmtDateFRShort(blocInfo.blocDates[blocInfo.blocDates.length - 1].date))}.</div>`
+        : `<div class="bloc-banner"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><rect x="3.5" y="5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="10.3" x2="20.5" y2="10.3" stroke="currentColor" stroke-width="1.6"></line><circle cx="7.5" cy="19.3" r="1.4" fill="currentColor"></circle><circle cx="16.5" cy="19.3" r="1.4" fill="currentColor"></circle></svg>Départ la veille (${escapeHtml(fmtDateFRShort(blocInfo.veille))}), retour le lendemain (${escapeHtml(fmtDateFRShort(blocInfo.lendemain))}).</div>`;
     }
 
     const current = dispo[d.date] || '';
@@ -561,7 +579,7 @@ function render(){
       <div class="date-card${affecte ? ' affectee' : ''}" data-date-id="${escapeAttr(d.id)}">
         <div class="date-card-head">
           <div class="date-label">${escapeHtml(fmtDateFRLong(d.date))}${!blocInfo ? '<span class="isolated-tag">Date isolée</span>' : ''}${affecte ? '<span class="affecte-tag">Tu es sur cette date</span>' : ''}</div>
-          <div class="date-place">${escapeHtml([d.ville, d.lieu].filter(Boolean).join(' · ') || '—')}</div>
+          <div class="date-place">${escapeHtml([d.ville, d.lieu].filter(Boolean).join(' · ') || '—')}${state.tournee.type === 'recording' && d.cachetSeance != null && d.cachetSeance !== '' ? `<span class="cachet-seance-tag">${escapeHtml(String(d.cachetSeance))} € brut</span>` : ''}</div>
         </div>
         <div class="state-toggle">
           <button type="button" class="state-btn dispo ${current==='dispo'?'active':''}" data-date="${escapeAttr(d.date)}" data-state="dispo">Disponible</button>

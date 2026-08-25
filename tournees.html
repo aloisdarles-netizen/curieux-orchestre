@@ -287,9 +287,18 @@
      identique à celle d'une tournée — c'est le même travail de planification.
      ------------------------------------------------------------------------ */
   .recording-rows .date-row{
-    min-width:1080px;
-    grid-template-columns:96px 100px minmax(210px,1fr) 118px 128px 92px minmax(196px,auto) 92px 88px;
+    min-width:1160px;
+    grid-template-columns:96px 100px minmax(210px,1fr) 118px 128px 78px 92px minmax(196px,auto) 92px 88px;
   }
+  .col-cachet{min-width:0;}
+  .col-cachet .saisie-cachet{
+    width:100%; text-align:right; font-weight:700; font-size:13px;
+    border:1px solid transparent; background:transparent; padding:4px 6px;
+    border-radius:6px; font-family:inherit; color:var(--text);
+  }
+  .co-row.date-row:hover .saisie-cachet{ background:var(--bg); border-color:var(--border); }
+  .col-cachet .saisie-cachet:focus{ border-color:var(--accent); background:var(--card); outline:none; }
+  .col-cachet .saisie-cachet::placeholder{ color:var(--muted); font-weight:600; }
   .col-lieu .ligne-studio{flex-basis:100%; display:flex; gap:6px; min-width:0; margin-top:1px;}
   .col-lieu .saisie-cabine{flex:0 1 42%; min-width:0; font-size:12px; color:var(--muted);}
   .col-lieu .saisie-titres{flex:1 1 58%; min-width:0; font-size:12px; color:var(--muted);}
@@ -1471,6 +1480,9 @@ function resteAFaireHtml(t, fdrs, musicianById){
   const feuillesACreer = dates.filter(d=> d.statut === 'validee' && !fdrs.some(f=> f.eventDate === d.date));
   const options = dates.filter(d=> (d.statut || 'option') === 'option');
   const sansLieu = dates.filter(d=> !(d.ville || '').trim() && !(d.lieu || '').trim());
+  // Un cachet de séance pas encore fixé est un vrai reste à faire : le lien de
+  // dispo l'affiche aux musicien·nes, et la paie en dépendra.
+  const sansCachet = !EST_RECORDING ? [] : dates.filter(d=> d.cachetSeance == null || d.cachetSeance === '');
 
   const pastille = (liste, classe, texte, titre)=> liste.length
     ? `<a class="af ${classe}" data-viser="${escapeAttr(liste.map(d=> d.id).join(','))}" title="${escapeAttr(titre)}">${texte}</a>`
@@ -1488,6 +1500,9 @@ function resteAFaireHtml(t, fdrs, musicianById){
     pastille(sansLieu, 'af-lieu',
       `${sansLieu.length} sans ${EST_RECORDING ? 'studio' : 'lieu'}`,
       'Dates sans ville ni lieu — aller à la première'),
+    pastille(sansCachet, 'af-lieu',
+      `${sansCachet.length} séance${sansCachet.length > 1 ? 's' : ''} sans cachet`,
+      'Séances dont le cachet n\'est pas encore fixé — aller à la première'),
   ].filter(Boolean);
 
   if(!morceaux.length) return `<div class="a-faire"><span class="af-ok">✓ Rien en attente sur les dates à venir</span></div>`;
@@ -1566,6 +1581,17 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             ${VOC.typesDate.map(([val, lib]) => `<option value="${val}" ${type===val?'selected':''}>${lib}</option>`).join('')}
           </select>
         `;
+        // Cachet de LA séance : un enregistrement se négocie séance par
+        // séance — une journée de prise et un soir de mixage ne se paient pas
+        // pareil. Le cachet global de tournée n'a donc pas de sens ici, et le
+        // bloc « Cachet » de l'encart d'outils est remplacé par cette colonne.
+        const cachetCell = !EST_RECORDING ? '' : `
+          <span class="col-cachet">
+            <input type="text" inputmode="decimal" class="saisie-cachet" data-field="cachetSeance" data-date-id="${escapeAttr(d.id)}"
+              value="${d.cachetSeance != null && d.cachetSeance !== '' ? escapeAttr(String(d.cachetSeance)) : ''}"
+              placeholder="— €" title="Cachet brut de cette séance, par musicien·ne. Vide : pas encore fixé.">
+          </span>
+        `;
         // Séance de studio : purement indicatif. L'équipe est affectée à la
         // journée (c'est la granularité qui a du sens pour la paie et les
         // dispos) — la séance dit seulement à quelle heure on l'attend.
@@ -1642,6 +1668,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             </span>
             <span class="col-type">${showTypeStatut ? `<span class="col-icone" title="Nature de la date">${iconeTypeDate(PROJET_TYPE, type)}</span>${typeSelect}` : ''}</span>
             ${seanceSelect}
+            ${cachetCell}
             ${travelCell}
             <span class="col-statut">${showTypeStatut ? statutGroup : ''}</span>
             <span class="col-equipe" title="${escapeAttr(summaryText)}">
@@ -1685,8 +1712,11 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <button type="button" class="outils-toggle" data-toggle-outils="${escapeAttr(t.id)}"
               aria-expanded="false" title="Cachet et effectif attendu">
               <span class="outils-resume">${[
-                t.cachetStatut === 'defini' && t.cachetMontant != null ? `${t.cachetMontant} € / ${EST_RECORDING ? 'séance' : 'date'}` : 'cachet à définir',
-                overrideCount ? `${overrideCount} exception${overrideCount>1?'s':''}` : '',
+                EST_RECORDING
+                  ? (()=>{ const avec = dates.filter(d=> d.cachetSeance != null && d.cachetSeance !== '').length;
+                           return avec ? `cachets fixés : ${avec}/${dates.length} séances` : 'cachets à fixer par séance'; })()
+                  : (t.cachetStatut === 'defini' && t.cachetMontant != null ? `${t.cachetMontant} € / date` : 'cachet à définir'),
+                EST_RECORDING ? '' : (overrideCount ? `${overrideCount} exception${overrideCount>1?'s':''}` : ''),
                 (t.nomenclature||[]).length ? `${(t.nomenclature||[]).reduce((n,r)=>n+(Number(r.nombre)||0),0)} attendu·es` : '',
               ].filter(Boolean).join(' · ')}</span>
               <span class="outils-caret">▾</span>
@@ -1699,7 +1729,10 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
                tête de tournée qu'on consulte en même temps que les dates. -->
           <div class="tournee-outils" id="outils-${escapeAttr(t.id)}" hidden>
             <div>
+${EST_RECORDING ? `
               <div class="outils-legend">Cachet</div>
+              <p style="font-size:12.5px; color:var(--muted); margin:0; line-height:1.5;">Le cachet se fixe <b>séance par séance</b>, dans la colonne Cachet du tableau : une journée de prise et un soir de mixage ne se paient pas pareil. Il n'y a donc pas de montant global ici.</p>
+              ` : `              <div class="outils-legend">Cachet</div>
               <div class="cachet-row">
                 <select data-cachet-statut="${escapeAttr(t.id)}">
                   <option value="non_defini" ${t.cachetStatut !== 'defini' ? 'selected' : ''}>Non défini pour l'instant</option>
@@ -1734,7 +1767,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
                 <div class="empty-hint" data-cachet-override-empty="${escapeAttr(t.id)}" style="display:none; font-size:12.5px; padding:4px 0;">Aucune personne trouvée.</div>
               `}
           </div>
-            </div>
+`}            </div>
             <div class="nomenclature-panel" id="nomenclature-${escapeAttr(t.id)}">
               <div class="outils-legend">Effectif attendu (nomenclature)</div>
               <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
@@ -1784,7 +1817,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
                 <span class="col-bloc">${EST_RECORDING ? 'Session' : 'Bloc'}</span>
                 <span class="col-lieu co-row-name">${VOC.colonneLieu}</span>
                 <span class="col-type">Nature</span>
-                ${EST_RECORDING ? '<span class="col-seance">Séance</span>' : '<span class="col-voyage">Voyage</span>'}
+                ${EST_RECORDING ? '<span class="col-seance">Séance</span><span class="col-cachet">Cachet</span>' : '<span class="col-voyage">Voyage</span>'}
                 <span class="col-statut">Statut</span>
                 <span class="col-equipe">Équipe</span>
                 <span class="col-fdr">${EST_RECORDING ? 'Feuille' : 'FDR'}</span>
@@ -2478,6 +2511,15 @@ function bindTourneeEvents(){
       const t = tournees.find(x=>x.id === tourneeId);
       const d = t && (t.dates||[]).find(x=>x.id === el.dataset.dateId);
       if(!d) return;
+      // Le cachet de séance est un montant : on range un nombre (ou rien),
+      // pas la chaîne tapée — c'est lui que lisent le lien de dispo et le
+      // résumé de tête de projet.
+      if(el.dataset.field === 'cachetSeance'){
+        const brut = el.value.trim().replace(',', '.');
+        d.cachetSeance = brut === '' ? null : (isNaN(parseFloat(brut)) ? null : parseFloat(brut));
+        saveTournees(tournees);
+        return;
+      }
       d[el.dataset.field] = el.value;
       if(el.dataset.field === 'type'){
         // La nature de la date est commune à tout le bloc, comme le statut.
