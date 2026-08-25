@@ -18,7 +18,12 @@
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:1380px; margin:0 auto;}
+  /* Le tableau des dates a besoin de ses onze colonnes, et le sommaire lui a
+     pris 250 px : sans élargir la page, « Créer FDR » et « Supprimer » se
+     retrouvaient hors cadre. Même largeur que l'éditeur de devis, l'autre
+     écran de la maison qui travaille en tableau. */
+  .wrap{max-width:min(1720px, 97vw); margin:0 auto;}
+  body.co-has-topbar .co-topbar-in{ max-width:min(1720px, 97vw); }
 
   /* ------------------------------------------------------------------------
      Sommaire latéral + cartes repliables — le motif validé sur la page
@@ -27,11 +32,19 @@
      du travail et permet d'y aller ; les cartes se replient sur leur barre de
      titre, qui garde le résumé (compteurs, chiffrage, reste à faire).
      ------------------------------------------------------------------------ */
-  .tournees-colonnes{ display:grid; grid-template-columns:250px minmax(0, 1fr); gap:20px; align-items:start; }
+  .tournees-colonnes{ display:grid; grid-template-columns:216px minmax(0, 1fr); gap:16px; align-items:start; }
   /* Sommaire masqué (moins de deux projets) : la colonne de gauche disparaît
      avec lui, sinon les cartes iraient s'écraser dans ses 250 pixels. */
   .tournees-colonnes:has(> .projets-menu[hidden]){ grid-template-columns:1fr; }
-  @media (max-width:900px){ .tournees-colonnes{ grid-template-columns:1fr; } }
+  /* Sous 1400 px, la colonne de gauche coûterait au tableau les colonnes FDR
+     et Supprimer : le sommaire repasse alors au-dessus des cartes, en bandeau,
+     et le tableau retrouve toute la largeur. */
+  @media (max-width:1400px){
+    .tournees-colonnes{ grid-template-columns:1fr; }
+    .projets-menu{ position:static; max-height:none; }
+    .projets-liste{ flex-direction:row; flex-wrap:wrap; }
+    .projets-liste a{ flex:0 1 auto; max-width:280px; border:1px solid var(--border); }
+  }
   .colonne-cartes{ min-width:0; }
 
   /* [hidden] pose display:none dans la feuille du navigateur, mais le
@@ -43,7 +56,6 @@
     border-radius:14px; padding:12px 12px 10px; max-height:calc(100vh - 100px);
     display:flex; flex-direction:column; gap:9px;
   }
-  @media (max-width:900px){ .projets-menu{ position:static; max-height:none; } }
   .projets-menu-titre{
     font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
     color:var(--accent); margin:0;
@@ -61,6 +73,7 @@
     background:var(--ok-tint); color:var(--ok);
   }
   .projets-liste .compte.reste{ background:var(--maybe-tint); color:var(--maybe); }
+  .projets-liste .compte.vide{ background:var(--bg); color:var(--muted); border:1px solid var(--border); }
   .projets-menu-pied{ display:flex; gap:5px; border-top:1px solid var(--border); padding-top:8px; }
   .projets-menu-pied button{ font-size:11px; padding:5px 9px; background:var(--bg); color:var(--muted); }
   .projets-menu-pied button:hover{ background:var(--accent-tint); color:var(--tint-ink); }
@@ -261,8 +274,8 @@
      ------------------------------------------------------------------------ */
   .dates-rows{ overflow-x:auto; }
   .date-row{
-    display:grid; align-items:center; gap:10px; min-width:1060px;
-    grid-template-columns:96px 92px minmax(210px,1fr) 118px 118px 92px minmax(196px,auto) 88px 88px;
+    display:grid; align-items:center; gap:9px; min-width:980px;
+    grid-template-columns:92px 88px minmax(190px,1fr) 106px 104px 88px minmax(178px,auto) 84px 40px;
     flex-wrap:nowrap;
   }
   .co-rows-head.date-row{ padding:8px 20px; }
@@ -324,6 +337,9 @@
      être rouge en permanence sur chaque rangée. Gris au repos, rouge à
      l'approche : la couleur revient exactement quand le geste se prépare. */
   .sup-discret{ color:var(--muted) !important; background:transparent !important; }
+  /* En bout de ligne, la suppression tient dans une croix : le mot entier
+     réclamait quatre-vingts pixels sur chaque rangée pour un geste rare. */
+  .sup-croix{ padding:4px 8px !important; font-size:13px; line-height:1; }
   .sup-discret:hover, .sup-discret:focus-visible{
     color:var(--danger) !important; background:var(--danger-tint) !important;
   }
@@ -360,8 +376,8 @@
      identique à celle d'une tournée — c'est le même travail de planification.
      ------------------------------------------------------------------------ */
   .recording-rows .date-row{
-    min-width:1160px;
-    grid-template-columns:96px 100px minmax(210px,1fr) 118px 128px 78px 92px minmax(196px,auto) 92px 88px;
+    min-width:1070px;
+    grid-template-columns:92px 94px minmax(190px,1fr) 106px 118px 74px 88px minmax(178px,auto) 88px 40px;
   }
   .col-cachet{min-width:0;}
   .col-cachet .saisie-cachet{
@@ -1840,7 +1856,9 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             </span>
             <span class="col-fdr">${fdrAction}</span>
             <span class="col-suppr">
-              <button type="button" class="co-btn ghost sm sup-discret" data-del-date="${escapeAttr(d.id)}" title="Retrait complet — n'apparaîtra plus, même dans le récap">Supprimer</button>
+              <button type="button" class="co-btn ghost sm sup-discret sup-croix" data-del-date="${escapeAttr(d.id)}"
+                title="Supprimer cette ${EST_RECORDING ? 'séance' : 'date'} — retrait complet, elle n'apparaîtra plus, même dans le récap"
+                aria-label="Supprimer cette ${EST_RECORDING ? 'séance' : 'date'}">&#10005;</button>
             </span>
           </div>
         `;
@@ -1987,10 +2005,13 @@ function renderSommaire(upcoming, fdrs, musicianById){
 
   liste.innerHTML = upcoming.map(t=>{
     const r = resteAFaire(t, fdrs, musicianById);
-    const n = r ? r.compte : 0;
-    const compte = n
-      ? `<span class="compte reste" title="${n} ${EST_RECORDING ? 'séance' : 'date'}${n>1?'s':''} à traiter">${n}</span>`
-      : `<span class="compte" title="Rien en attente sur les dates à venir">✓</span>`;
+    // Trois états, et non deux : un projet sans aucune date à venir n'est pas
+    // « à jour », il est vide. Le coche vert s'y lisait comme un travail fait.
+    const compte = !r
+      ? `<span class="compte vide" title="Aucune ${EST_RECORDING ? 'séance' : 'date'} à venir — rien à traiter pour l'instant">—</span>`
+      : (r.compte
+        ? `<span class="compte reste" title="${r.compte} ${EST_RECORDING ? 'séance' : 'date'}${r.compte>1?'s':''} à traiter">${r.compte}</span>`
+        : `<span class="compte" title="Rien en attente sur les dates à venir">✓</span>`);
     return `<a href="#tournee-${escapeAttr(t.id)}" data-aller="${escapeAttr(t.id)}">
       <span class="nom">${escapeHtml(t.nom || `${VOC.Projet} sans nom`)}</span>${compte}
     </a>`;
