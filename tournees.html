@@ -2311,11 +2311,13 @@ function closeDispoLinksModal(){
   dispoLinksCurrentTourneeId = null;
 }
 
-async function generateDispoLink(tourneeId, personType, personId, dates){
+async function generateDispoLink(tourneeId, personType, personId, dates, role){
   const demandes = loadDispoDemandes();
   const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === personId);
   if(existing) return existing;
-  const entry = { id: genId('demande'), tourneeId, personType, personId, dates: dates || [] };
+  // Le rôle vaut pour CE projet seulement ; sans précision, roleSurProjet()
+  // s'en remet au statut global de la personne.
+  const entry = { id: genId('demande'), tourneeId, personType, personId, dates: dates || [], role: role || null };
   demandes.push(entry);
   dispoDemandesCache = demandes;
   const { error } = await CurieuxDB.upsertOne('dispo_demandes', entry);
@@ -2346,7 +2348,7 @@ function remplacantDatesPanelHtml(tourneeId){
     ${items}
     <div style="display:flex; gap:8px; margin-top:8px;">
       <button type="button" class="co-btn ghost sm" data-toggle-all-dates>Tout (dé)cocher</button>
-      <button type="button" class="co-btn secondary sm" data-confirm-gen-dates>Générer le lien</button>
+      <button type="button" class="co-btn secondary sm" data-confirm-gen-dates>Ajouter au projet</button>
     </div>
   `;
 }
@@ -2463,18 +2465,27 @@ function renderAddRemplacantResults(tourneeId, query){
     holder.innerHTML = `<div class="empty-hint" style="padding:10px 4px;">Aucun·e remplaçant·e trouvé·e.</div>`;
     return;
   }
-  holder.innerHTML = results.map(r=> `
-    <div data-remplacant-row data-person-type="${r.personType}" data-person-id="${escapeAttr(r.person.id)}" style="padding:7px 4px; border-bottom:1px solid var(--border);">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div style="flex:1; min-width:0;">
+  holder.innerHTML = results.map(r=>{
+    const noyau = estDuNoyau(r.person);
+    return `
+    <div data-remplacant-row data-person-type="${r.personType}" data-person-id="${escapeAttr(r.person.id)}" style="padding:8px 4px; border-bottom:1px solid var(--border);">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div style="flex:1 1 150px; min-width:0;">
           <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(r.person))}</div>
-          <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(r.roleLabel)}</div>
+          <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(r.roleLabel)} · ${noyau ? 'noyau de l\'orchestre' : 'hors noyau'}</div>
         </div>
-        <button type="button" class="co-btn secondary sm" data-toggle-dates>+ Générer</button>
+        ${/* À quel titre la personne vient sur CE projet : on peut tenir le
+             poste sur une tournée sans faire partie du noyau. */''}
+        <select data-role-nouveau title="À quel titre cette personne vient sur ce projet"
+          style="width:auto; flex:0 0 auto; padding:6px 9px; font-size:12px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); font-family:inherit;">
+          <option value="titulaire" ${noyau ? 'selected' : ''}>Titulaire sur ce projet</option>
+          <option value="remplacant" ${noyau ? '' : 'selected'}>Remplaçant·e</option>
+        </select>
+        <button type="button" class="co-btn primary sm" data-toggle-dates>Ajouter</button>
       </div>
       <div data-dates-panel style="display:none; margin-top:8px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   holder.querySelectorAll('[data-toggle-dates]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -2497,7 +2508,8 @@ function renderAddRemplacantResults(tourneeId, query){
         const checked = boxes.filter(b=> b.checked).map(b=> b.value);
         const dates = (checked.length === boxes.length) ? [] : checked;
         confirmBtn.disabled = true; confirmBtn.textContent = '…';
-        await generateDispoLink(tourneeId, row.dataset.personType, row.dataset.personId, dates);
+        await generateDispoLink(tourneeId, row.dataset.personType, row.dataset.personId, dates,
+          row.querySelector('[data-role-nouveau]').value);
         document.getElementById('addRemplacantSearch').value = '';
         renderDispoLinksModal(tourneeId);
       });
