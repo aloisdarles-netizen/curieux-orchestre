@@ -149,6 +149,37 @@
   .role-chip:hover{ border-color:var(--accent); color:var(--accent); }
   .role-chip.remplacant{ background:var(--accent-tint); color:var(--accent-dark); }
 
+  /* ------------------------------------------------------------------------
+     Ajouter quelqu'un à un projet.
+
+     Le champ n'avait qu'un texte d'invite, qui disparaissait dès la première
+     lettre : passé ce point, plus rien ne disait ce qu'on était en train de
+     faire, et les résultats proposaient « + Générer » — générer quoi ? Le bloc
+     s'annonce donc, chaque résultat dit d'où vient la personne, à quel titre
+     elle viendrait, et le bouton nomme le geste.
+     ------------------------------------------------------------------------ */
+  .ajout-bloc{ margin-top:14px; padding-top:14px; border-top:1px solid var(--border); }
+  .ajout-titre{
+    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent); margin-bottom:5px;
+  }
+  .ajout-intro{ font-size:12.5px; color:var(--muted); line-height:1.55; margin:0 0 10px; }
+  .ajout-ligne{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:9px 4px; border-bottom:1px solid var(--border);
+  }
+  .ajout-ligne.deja{ opacity:.55; }
+  .ajout-id{ flex:1 1 160px; min-width:0; }
+  .ajout-nom{ font-weight:700; font-size:13px; }
+  .ajout-sous{ font-size:11.5px; color:var(--muted); }
+  .ajout-ligne select{
+    flex:0 0 auto; width:auto; padding:6px 9px; font-size:12px;
+    border:1px solid var(--border); border-radius:8px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  .ajout-deja{ font-size:11.5px; font-weight:700; color:var(--muted); white-space:nowrap; }
+  .ajout-recap{ font-size:12.5px; color:var(--text); margin-bottom:8px; }
+
   button{
     cursor:pointer; border:none; border-radius:8px; font-size:13px; font-weight:700;
     padding:9px 15px; transition:background .15s, transform .1s; font-family:inherit;
@@ -397,14 +428,18 @@ function datesChecklistHtml(tourneeId, checkedIds){
 // carte en cours) — pas proposé en modification d'un lien existant, où la tournée est
 // fixée par le lien lui-même.
 function remplacantDatesPanelHtml(tourneeId, checkedIds, confirmLabel, allowTourneeSwitch){
+  // Le menu déroulant permet de viser un autre projet que celui de la carte.
+  // Sans étiquette, il ressemblait à un réglage sans objet posé au-dessus des
+  // dates — et rien n'expliquait pourquoi un autre nom de projet s'y trouvait.
   const tourneeSelectHtml = allowTourneeSwitch ? `
-    <select data-tournee-select style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--card); color:var(--text); font-family:inherit; margin-bottom:8px;">
+    <label style="display:block; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:4px;">Projet visé</label>
+    <select data-tournee-select style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--card); color:var(--text); font-family:inherit; margin-bottom:10px;">
       ${loadTournees().map(t=> `<option value="${escapeAttr(t.id)}" ${t.id===tourneeId?'selected':''}>${escapeHtml((t.nom || 'Tournée sans nom') + suffixeProjetTexte(t))}</option>`).join('')}
     </select>
   ` : '';
   return `
     ${tourneeSelectHtml}
-    <div style="font-size:11.5px; color:var(--muted); margin-bottom:6px;">Dates proposées à cette personne :</div>
+    <div style="font-size:11.5px; color:var(--muted); margin-bottom:6px;">Dates proposées à cette personne — tout est coché par défaut :</div>
     <div data-dates-checklist>${datesChecklistHtml(tourneeId, checkedIds)}</div>
     <div style="display:flex; gap:8px; margin-top:8px;">
       <button type="button" class="co-btn ghost sm" data-toggle-all-dates>Tout (dé)cocher</button>
@@ -445,45 +480,67 @@ function renderAddRemplacantResults(tourneeId, query, holder){
   const q = (query || '').toLowerCase().trim();
   if(!q){ holder.innerHTML = ''; return; }
 
+  const projet = loadTournees().find(t=> t.id === tourneeId);
+  const reco = estRecording(projet);
   const demandes = loadDispoDemandes();
-  const alreadyDemanded = new Set(
-    demandes.filter(d=> d.tourneeId === tourneeId).map(d=> `${d.personType}:${d.personId}`)
+  const dejaDemande = new Map(
+    demandes.filter(d=> d.tourneeId === tourneeId).map(d=> [`${d.personType}:${d.personId}`, d])
   );
 
-  // Sur un recording, aucun·e technicien·ne n'a reçu de demande d'office : la
-  // recherche doit donc les proposer tous, titulaires compris — c'est le seul
-  // moyen d'ajouter l'ingé son de la séance. Sur une tournée, les titulaires
-  // sont déjà dans la carte : on ne propose que les remplaçant·es de régie.
-  const reco = estRecording(loadTournees().find(t=> t.id === tourneeId));
-  const remplacantMusiciens = loadMusicians()
-    .filter(m=> (m.statutPoste||'titulaire') === 'remplacant' && !alreadyDemanded.has(`musicien:${m.id}`))
-    .map(m=> ({ person:m, personType:'musicien', roleLabel: m.instrument || 'Musicien·ne' }));
-  const remplacantTechniciens = loadTechnicians()
-    .filter(t=> !alreadyDemanded.has(`technicien:${t.id}`)
-      && (reco || (t.pole === 'Régie générale' && (t.statutPoste||'titulaire') === 'remplacant')))
-    .map(t=> ({ person:t, personType:'technicien', roleLabel: t.poste || 'Technicien·ne' }));
+  // On cherche dans TOUT le répertoire, et non plus dans les seul·es
+  // remplaçant·es : quelqu'un qu'on ne trouve pas parce qu'on l'a filtré à son
+  // insu, c'est le meilleur moyen de croire qu'il n'existe pas. Les personnes
+  // déjà sollicitées apparaissent aussi — grisées, avec la mention — plutôt
+  // que de disparaître sans explication.
+  const candidats = [
+    ...loadMusicians().map(m=> ({ person:m, personType:'musicien', metier: m.instrument || 'Musicien·ne' })),
+    ...loadTechnicians().map(t=> ({ person:t, personType:'technicien', metier: t.poste || 'Technicien·ne' })),
+  ];
 
-  const results = [...remplacantMusiciens, ...remplacantTechniciens].filter(r=>{
-    const haystack = [r.person.prenom, r.person.nom, r.roleLabel].filter(Boolean).join(' ').toLowerCase();
-    return haystack.includes(q);
-  }).slice(0, 8);
+  const results = candidats.filter(r=>{
+    const foin = [r.person.prenom, r.person.nom, r.metier, r.person.pupitre, r.person.pole]
+      .filter(Boolean).join(' ').toLowerCase();
+    return foin.includes(q);
+  }).sort((a, b)=> fullName(a.person).localeCompare(fullName(b.person))).slice(0, 8);
 
   if(results.length === 0){
-    holder.innerHTML = `<div class="empty-hint" style="padding:10px 4px;">Personne à ajouter sous ce nom.</div>`;
+    holder.innerHTML = `<div class="empty-hint" style="padding:10px 4px;">Personne de ce nom dans les annuaires.</div>`;
     return;
   }
-  holder.innerHTML = results.map(r=> `
-    <div data-remplacant-row data-person-type="${r.personType}" data-person-id="${escapeAttr(r.person.id)}" style="padding:7px 4px; border-bottom:1px solid var(--border);">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div style="flex:1; min-width:0;">
-          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(r.person))}</div>
-          <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(r.roleLabel)}</div>
+
+  holder.innerHTML = results.map(r=>{
+    const dem = dejaDemande.get(`${r.personType}:${r.person.id}`);
+    const noyau = estDuNoyau(r.person);
+    const situation = noyau ? 'noyau de l\'orchestre' : 'hors noyau';
+    if(dem){
+      const role = roleSurProjet(dem, r.person);
+      return `
+        <div class="ajout-ligne deja">
+          <div class="ajout-id">
+            <div class="ajout-nom">${escapeHtml(fullName(r.person))}</div>
+            <div class="ajout-sous">${escapeHtml(r.metier)} · ${escapeHtml(situation)}</div>
+          </div>
+          <span class="ajout-deja">Déjà sollicité·e · ${escapeHtml(libelleRoleProjet(role).toLowerCase())}</span>
+        </div>`;
+    }
+    // Le rôle par défaut suit le statut de l'annuaire, et se change ici : on
+    // peut tenir le poste sur ce projet sans faire partie du noyau.
+    return `
+      <div data-remplacant-row data-person-type="${r.personType}" data-person-id="${escapeAttr(r.person.id)}">
+        <div class="ajout-ligne">
+          <div class="ajout-id">
+            <div class="ajout-nom">${escapeHtml(fullName(r.person))}</div>
+            <div class="ajout-sous">${escapeHtml(r.metier)} · ${escapeHtml(situation)}</div>
+          </div>
+          <select data-role-nouveau title="À quel titre cette personne vient sur ce projet">
+            <option value="titulaire" ${noyau ? 'selected' : ''}>Titulaire sur ce projet</option>
+            <option value="remplacant" ${noyau ? '' : 'selected'}>Remplaçant·e</option>
+          </select>
+          <button type="button" class="co-btn primary sm" data-toggle-dates>Ajouter</button>
         </div>
-        <button type="button" class="co-btn secondary sm" data-toggle-dates>+ Générer</button>
-      </div>
-      <div data-dates-panel style="display:none; margin-top:8px; padding:8px 10px; background:var(--bg); border-radius:8px;"></div>
-    </div>
-  `).join('');
+        <div data-dates-panel style="display:none; margin-top:8px; padding:10px 12px; background:var(--bg); border-radius:8px;"></div>
+      </div>`;
+  }).join('');
 
   holder.querySelectorAll('[data-toggle-dates]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -492,10 +549,15 @@ function renderAddRemplacantResults(tourneeId, query, holder){
       const opening = panel.style.display === 'none';
       holder.querySelectorAll('[data-dates-panel]').forEach(p=> p.style.display = 'none');
       if(!opening) return;
-      panel.innerHTML = remplacantDatesPanelHtml(tourneeId, null, 'Générer le lien', true);
+      const role = row.querySelector('[data-role-nouveau]').value;
+      const nom = row.querySelector('.ajout-nom').textContent;
+      panel.innerHTML = `
+        <div class="ajout-recap">${escapeHtml(nom)} — <b>${escapeHtml(libelleRoleProjet(role).toLowerCase())}</b>
+          sur ${escapeHtml((projet && projet.nom) || (reco ? 'ce recording' : 'cette tournée'))}.</div>
+        ${remplacantDatesPanelHtml(tourneeId, null, `Ajouter à ${reco ? 'ce recording' : 'cette tournée'}`, true)}`;
       panel.style.display = 'block';
       bindDatesPanel(panel, async (selectedTourneeId, dates)=>{
-        await generateDispoLink(selectedTourneeId || tourneeId, row.dataset.personType, row.dataset.personId, dates);
+        await generateDispoLink(selectedTourneeId || tourneeId, row.dataset.personType, row.dataset.personId, dates, role);
         const searchInput = document.querySelector(`[data-remplacant-search][data-tournee="${tourneeId}"]`);
         if(searchInput) searchInput.value = '';
         render();
@@ -1237,8 +1299,12 @@ function render(){
             <button type="button" class="co-btn ghost sm" style="margin-left:8px;" data-purger-techs="${escapeAttr(t.id)}">Retirer ${technicienSansReponse.length>1?'ces demandes':'cette demande'}</button>
           </div>` : ''}
           ${(musicienRows || technicienRows) ? rows : `<div class="empty-hint">Personne n'est encore sollicité·e sur ${reco ? 'ce recording' : 'cette tournée'}.</div>`}
-          <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
-            <input type="text" data-remplacant-search data-tournee="${escapeAttr(t.id)}" placeholder="${reco ? 'Ajouter un·e technicien·ne ou remplaçant·e à la demande…' : 'Ajouter un·e remplaçant·e à la demande…'}" style="width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit; box-sizing:border-box;">
+          <div class="ajout-bloc">
+            <div class="ajout-titre">Ajouter quelqu'un à ${reco ? 'ce recording' : 'cette tournée'}</div>
+            <p class="ajout-intro">${reco
+              ? `En studio, personne n'est sollicité·e d'office côté technique, et le noyau de l'orchestre ne vient pas toujours au complet. Cherche la personne, dis à quel titre elle vient, et choisis les séances à lui proposer.`
+              : `Le noyau de l'orchestre est déjà sollicité d'office, ci-dessus. Ajoute ici celles et ceux qu'on veut en plus — un renfort, un remplacement, quelqu'un hors noyau qui tient le poste sur cette tournée.`}</p>
+            <input type="text" data-remplacant-search data-tournee="${escapeAttr(t.id)}" placeholder="Chercher un nom, un instrument, un poste…" style="width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit; box-sizing:border-box;">
             <div data-remplacant-results data-tournee="${escapeAttr(t.id)}" style="margin-top:6px;"></div>
           </div>
         </div>
