@@ -576,6 +576,38 @@ function libelleRoleProjet(role){
 }
 
 // ============================================================================
+// Le minimum d'une fiche sociale exploitable.
+//
+// Coordonnées + identité civile de base : de quoi établir un contrat. Le reste
+// (RIB, n° sécu, contact d'urgence…) est conseillé mais pas bloquant — beaucoup
+// de gens ne l'ont pas sous la main au premier passage.
+//
+// Cette liste est lue à deux endroits : mes-infos.html, qui la badge et signale
+// ce qui manque au fil de la saisie, et mon-espace.html, qui l'annonce en
+// arrivant. La fonction SQL mes_demandes_dispo renvoie un booléen par clé — les
+// trois doivent parler des mêmes champs, d'où cette source unique.
+//
+// source : 'person' = fiche d'annuaire (musiciens/techniciens), 'info' = fiche
+// sociale (infos_sociales).
+// ============================================================================
+const CURIEUX_INFOS_REQUISES = [
+  { key:'telephone',     label:'Téléphone',           source:'person' },
+  { key:'email',         label:'Email',               source:'person' },
+  { key:'genre',         label:'Genre',               source:'info' },
+  { key:'dateNaissance', label:'Date de naissance',   source:'info' },
+  { key:'lieuNaissance', label:'Ville de naissance',  source:'info' },
+  { key:'nationalite',   label:'Nationalité',         source:'info' },
+  { key:'adresse',       label:'Adresse postale',     source:'info' },
+];
+
+// Les libellés de ce qui manque, à partir des booléens rendus par
+// mes_demandes_dispo ({ telephone:true, adresse:false, … }).
+function infosRequisesManquantes(remplies){
+  const r = remplies || {};
+  return CURIEUX_INFOS_REQUISES.filter(f=> !r[f.key]).map(f=> f.label);
+}
+
+// ============================================================================
 // Parse d'une liste collée depuis une messagerie (WhatsApp, mail, notes).
 //
 // Le format qu'on reçoit vraiment n'est pas un tableau : c'est un fil de

@@ -57,6 +57,57 @@
     font-weight:800; margin:24px 0 9px;
   }
 
+  /* ------------------------------------------------------------------------
+     L'état du dossier, en arrivant.
+
+     Deux choses se découvraient bien trop tard : une fiche sociale incomplète
+     au moment de faire un contrat, et une liste de remplaçant·es vide le jour
+     où l'on cherche quelqu'un en urgence. Elles se disent donc dès l'accueil,
+     à chaque visite — et tant qu'aucun·e remplaçant·e n'est nommé·e, c'est par
+     là qu'on passe avant les disponibilités.
+     ------------------------------------------------------------------------ */
+  .dossier{
+    border-radius:14px; padding:15px 17px; margin-bottom:20px;
+    font-size:13.5px; line-height:1.55;
+  }
+  .dossier.ok{ background:var(--ok-tint); color:var(--ok); }
+  .dossier.manque{ background:var(--card); border:1px solid var(--border); }
+  .dossier-titre{ display:block; font-weight:800; font-size:14px; margin-bottom:8px; }
+  .dossier.manque .dossier-titre{ color:var(--maybe); }
+  .dossier-item{
+    display:flex; align-items:flex-start; gap:9px; padding:7px 0;
+    border-top:1px solid var(--border);
+  }
+  .dossier-item:first-of-type{ border-top:none; padding-top:2px; }
+  .dossier-puce{ flex:0 0 auto; font-size:13px; line-height:1.5; }
+  .dossier-puce.ko{ color:var(--maybe); }
+  .dossier-puce.oui{ color:var(--ok); }
+  .dossier-texte{ flex:1; min-width:0; color:var(--text); }
+  .dossier-texte a{ color:var(--accent); font-weight:700; }
+  .dossier-detail{ display:block; color:var(--muted); font-size:12.5px; margin-top:1px; }
+
+  /* L'étape des remplaçant·es, quand la liste est vide : elle prend la place
+     des tuiles de dispo plutôt que de s'ajouter au-dessus. Une porte, pas une
+     alerte de plus. */
+  .porte{
+    background:var(--card); border:1px solid var(--accent); border-radius:14px;
+    padding:19px 18px; margin-bottom:22px;
+  }
+  .porte-titre{ font-family:var(--font-display); font-size:17px; font-weight:500; margin:0 0 8px; }
+  .porte p{ color:var(--muted); font-size:13.5px; line-height:1.6; margin:0 0 14px; }
+  .porte-btn{
+    display:block; width:100%; text-align:center; text-decoration:none;
+    background:var(--accent-solid); color:#fff; border:none; border-radius:999px;
+    font-size:15px; font-weight:700; padding:13px; font-family:inherit; cursor:pointer;
+  }
+  .porte-btn:hover{ background:var(--accent-dark); }
+  .porte-plus-tard{
+    display:block; width:100%; margin-top:10px; background:none; border:none;
+    color:var(--muted); font-size:13px; font-family:inherit; cursor:pointer;
+    text-decoration:underline; padding:6px;
+  }
+  .porte-plus-tard:hover{ color:var(--text); }
+
   /* Mode d'emploi d'installation (injecté par ui-helpers.js) */
   .app-install{
     background:var(--card); border:1px solid var(--border); border-radius:14px;
@@ -112,6 +163,19 @@ function etat(html){
   document.getElementById('contenu').innerHTML = `<div class="co-card co-pad etat-boite">${html}</div>`;
 }
 
+/* Le report de l'étape « remplaçant·es ».
+ *
+ * On peut passer outre — mais pour cette visite seulement. La question revient
+ * à la connexion suivante : c'est le seul moyen qu'elle finisse par être
+ * traitée, sans jamais enfermer qui que ce soit hors de ses dispos. */
+const REPORT_CLE = 'curieuxRemplaReporte';
+function reportRemplacants(personId){
+  try{ return sessionStorage.getItem(REPORT_CLE) === personId; }catch(e){ return false; }
+}
+function reporterRemplacants(personId){
+  try{ sessionStorage.setItem(REPORT_CLE, personId); }catch(e){}
+}
+
 function tuile(href, icone, titre, sous, pastille){
   return `<a class="co-card-btn tuile" href="${href}">
     <span class="tuile-icone">${icone}</span>
@@ -165,19 +229,81 @@ async function init(){
 
   const estTitulaire = (moi.statutPoste || 'titulaire') === 'titulaire';
 
-  document.getElementById('contenu').innerHTML = `
+  // ---- L'état du dossier, dit en arrivant -----------------------------------
+  const manquantes = infosRequisesManquantes(moi.infosRemplies);
+  const nbRemplacants = Number(moi.nbRemplacants) || 0;
+  const remplaAFaire = estTitulaire && nbRemplacants === 0;
+
+  const lienInfos = `mes-infos.html?token=${jeton}`;
+  const lienRempla = `mes-remplacants.html?token=${jeton}`;
+
+  const ligneDossier = (fait, texte, detail)=> `
+    <div class="dossier-item">
+      <span class="dossier-puce ${fait ? 'oui' : 'ko'}" aria-hidden="true">${fait ? '✓' : '•'}</span>
+      <span class="dossier-texte">${texte}${detail ? `<span class="dossier-detail">${detail}</span>` : ''}</span>
+    </div>`;
+
+  let blocDossier;
+  if(!manquantes.length && !remplaAFaire){
+    blocDossier = `<div class="dossier ok">✓ Ton dossier est complet${estTitulaire ? `, et tes remplaçant·es sont noté·es` : ''} — merci.</div>`;
+  } else {
+    blocDossier = `<div class="dossier manque">
+      <span class="dossier-titre">Il reste ${manquantes.length && remplaAFaire ? 'deux choses' : 'quelque chose'} à faire</span>
+      ${manquantes.length
+        ? ligneDossier(false,
+            `<a href="${lienInfos}">Compléter mes informations</a>`,
+            `Il manque : ${manquantes.map(escapeHtml).join(', ')}.`)
+        : ligneDossier(true, 'Tes informations sont complètes')}
+      ${estTitulaire ? (remplaAFaire
+        ? ligneDossier(false,
+            `<a href="${lienRempla}">Choisir mes remplaçant·es</a>`,
+            `Personne n'est encore noté·e.`)
+        : ligneDossier(true, `Tes remplaçant·es sont noté·es`,
+            `${nbRemplacants} personne${nbRemplacants > 1 ? 's' : ''}, par ordre de préférence.`)) : ''}
+    </div>`;
+  }
+
+  // ---- Les dispos, derrière l'étape des remplaçant·es ------------------------
+  //
+  // Tant qu'aucun·e remplaçant·e n'est nommé·e, on passe par là. Ce n'est pas
+  // une coquetterie : le jour où quelqu'un décline une date, c'est SA liste
+  // qu'on appelle, dans SON ordre. Sans elle, la production choisit à sa place.
+  // La sortie « je le ferai juste après » reste ouverte — la question revient
+  // simplement à la prochaine connexion.
+  const barree = remplaAFaire && !reportRemplacants(moi.personId);
+  const blocDisposOuPorte = !barree ? `
     <div class="section-titre">Mes disponibilités${enAttente.length ? ` — ${enAttente.length} à compléter` : ''}</div>
-    <div class="menu">${blocDispos}</div>
+    <div class="menu">${blocDispos}</div>` : `
+    <div class="section-titre">Avant tes disponibilités</div>
+    <div class="porte">
+      <h2 class="porte-titre">Qui te remplace ?</h2>
+      <p>Quand tu n'es pas disponible sur une date, c'est <b>ta</b> liste qu'on appelle, dans <b>ton</b> ordre de préférence. Sans elle, on choisit à ta place.
+        ${enAttente.length ? `Tu as ${enAttente.length} demande${enAttente.length > 1 ? 's' : ''} de dispo qui t'attend${enAttente.length > 1 ? 'ent' : ''} juste derrière.` : ''}</p>
+      <a class="porte-btn" href="${lienRempla}">Choisir mes remplaçant·es</a>
+      <button type="button" class="porte-plus-tard" id="plusTardBtn">Je le ferai juste après</button>
+    </div>`;
+
+  document.getElementById('contenu').innerHTML = `
+    ${blocDossier}
+    ${blocDisposOuPorte}
 
     <div class="section-titre">Mon dossier</div>
     <div class="menu">
-      ${tuile(`mes-infos.html?token=${jeton}`, ICONES.infos, 'Mes informations', 'Identité, RIB, numéro de sécurité sociale…')}
-      ${estTitulaire ? tuile(`mes-remplacants.html?token=${jeton}`, ICONES.remplacants, 'Mes remplaçant·es', 'Par ordre de préférence') : ''}
+      ${tuile(lienInfos, ICONES.infos, 'Mes informations', 'Identité, RIB, numéro de sécurité sociale…',
+        manquantes.length ? '<span class="pastille">À compléter</span>' : '<span class="pastille faite">Complet</span>')}
+      ${estTitulaire ? tuile(lienRempla, ICONES.remplacants, 'Mes remplaçant·es', 'Par ordre de préférence',
+        nbRemplacants ? `<span class="pastille faite">${nbRemplacants}</span>` : '<span class="pastille">À faire</span>') : ''}
     </div>
 
     <div class="section-titre">Sur mon téléphone</div>
     <div id="blocInstallation"></div>
   `;
+
+  const plusTard = document.getElementById('plusTardBtn');
+  if(plusTard) plusTard.addEventListener('click', ()=>{
+    reporterRemplacants(moi.personId);
+    init();
+  });
 
   injecterModeEmploiApp('blocInstallation', { nom: 'Mon espace' });
 }

@@ -3929,3 +3929,100 @@ alter table dispo_demandes
 
 comment on column dispo_demandes.role is
   'Rôle sur CE projet : titulaire (tient le poste) ou remplacant. null = on lit le statut global de la personne.';
+
+
+-- ============================================================================
+-- 2026-08 · Mon espace sait où en est le dossier
+--
+-- La page d'accueil du lien personnel listait les demandes de dispo et rien
+-- d'autre. Elle ne savait pas dire « il te manque ton adresse » ni « tu n'as
+-- pas encore nommé de remplaçant·e » — deux choses qu'on découvrait bien trop
+-- tard, au moment de faire un contrat ou de trouver quelqu'un en urgence.
+--
+-- La fonction rend donc deux informations de plus :
+--   · infosRemplies : un booléen par champ obligatoire de la fiche sociale
+--     (les mêmes que ceux badgés « Obligatoire » dans mes-infos.html) ;
+--   · nbRemplacants : combien de personnes figurent dans sa liste.
+--
+-- Des booléens et un compte, jamais les valeurs : la page d'accueil n'a pas
+-- besoin de connaître l'adresse pour dire qu'elle manque.
+--
+-- Le reste de la fonction est rigoureusement identique à sa version
+-- précédente (personId, personType, prénom, nom, statutPoste, demandes).
+-- ============================================================================
+
+create or replace function mes_demandes_dispo(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cible record;
+  resultat jsonb;
+  tel text;
+  mail text;
+  fiche infos_sociales%rowtype;
+begin
+  select * into cible from resolve_person_token(p_token);
+  if not found or cible.person_id is null then
+    return null;
+  end if;
+
+  -- Coordonnées : elles vivent sur la fiche d'annuaire, pas sur la fiche
+  -- sociale, mais elles font partie du même « obligatoire » côté musicien.
+  if cible.person_type = 'musicien' then
+    select m.telephone, m.email into tel, mail from musiciens m where m.id = cible.person_id;
+  else
+    select t.telephone, t.email into tel, mail from techniciens t where t.id = cible.person_id;
+  end if;
+
+  select * into fiche from infos_sociales i where i.id = cible.person_id;
+
+  select jsonb_build_object(
+    'personId', cible.person_id,
+    'personType', cible.person_type,
+    'prenom', coalesce(
+      (select m.prenom from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.prenom from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'), ''),
+    'nom', coalesce(
+      (select m.nom from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.nom from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'), ''),
+    -- Le statut se lit dans la table de la personne, musicien·ne OU
+    -- technicien·ne : ne consulter que musiciens rendait « titulaire » pour
+    -- tout le monde côté technique, y compris les remplaçant·es.
+    'statutPoste', coalesce(
+      (select m.statut_poste from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.statut_poste from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'),
+      'titulaire'),
+    'infosRemplies', jsonb_build_object(
+      'telephone',     coalesce(btrim(tel), '') <> '',
+      'email',         coalesce(btrim(mail), '') <> '',
+      'genre',         coalesce(btrim(fiche.genre), '') <> '',
+      'dateNaissance', fiche.date_naissance is not null,
+      'lieuNaissance', coalesce(btrim(fiche.lieu_naissance), '') <> '',
+      'nationalite',   coalesce(btrim(fiche.nationalite), '') <> '',
+      'adresse',       coalesce(btrim(fiche.adresse), '') <> ''
+    ),
+    'nbRemplacants', coalesce((
+      select jsonb_array_length(r.items) from remplacant_prefs r
+      where r.id = cible.person_id and r.person_type = cible.person_type
+    ), 0),
+    'demandes', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'token', d.id,
+               'tourneeNom', t.nom,
+               'tourneeType', coalesce(t.type, 'tournee'),
+               'repondu', d.last_responded_at is not null,
+               'creeLe', d.created_at)
+             order by d.created_at desc)
+      from dispo_demandes d
+      join tournees t on t.id = d.tournee_id
+      where d.person_id = cible.person_id and d.person_type = cible.person_type
+    ), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
+grant execute on function mes_demandes_dispo(text) to anon, authenticated;

@@ -526,9 +526,15 @@ const CurieuxDB = new Proxy({
   currentRole: async () => 'admin',
   // Deux demandes en attente, une par nature de projet : c'est le seul moyen de
   // vérifier que l'espace perso ne leur donne pas la même icône.
+  // ?dossier=complet sert une fiche à jour avec des remplaçant·es : sans quoi
+  // l'accueil ne se capture jamais que dans l'état « il te reste à faire ».
   mesDemandesDispo: async () => ({
     personId:'demo-mus-01', personType:'musicien', prenom:'Roxanne', nom:'Rabatti',
     statutPoste:'titulaire',
+    infosRemplies: new URLSearchParams(location.search).get('dossier') === 'complet'
+      ? { telephone:true, email:true, genre:true, dateNaissance:true, lieuNaissance:true, nationalite:true, adresse:true }
+      : { telephone:true, email:true, genre:true, dateNaissance:false, lieuNaissance:true, nationalite:false, adresse:false },
+    nbRemplacants: new URLSearchParams(location.search).get('dossier') === 'complet' ? 3 : 0,
     demandes:[
       { token:'jeton-demo', tourneeNom:"L'Atelier de Joe Hisaishi — Printemps 2027",
         tourneeType:'tournee', repondu:false, creeLe:'2026-08-01T10:00:00Z' },

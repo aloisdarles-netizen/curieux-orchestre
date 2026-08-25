@@ -138,18 +138,10 @@ function tierBadge(tier){
   return `<span class="tier-badge ${tier}">${labels[tier]}</span>`;
 }
 
-// Minimum pour une première fiche exploitable : coordonnées +
-// identité civile de base. Le reste (RIB, n° sécu...) est conseillé mais pas
-// bloquant — beaucoup de gens ne l'ont pas sous la main au premier passage.
-const REQUIRED_FIELDS = [
-  { key:'telephone', label:'Téléphone', source:'person' },
-  { key:'email', label:'Email', source:'person' },
-  { key:'genre', label:'Genre', source:'info' },
-  { key:'dateNaissance', label:'Date de naissance', source:'info' },
-  { key:'lieuNaissance', label:'Ville de naissance', source:'info' },
-  { key:'nationalite', label:'Nationalité', source:'info' },
-  { key:'adresse', label:'Adresse postale', source:'info' },
-];
+// La liste vit dans ui-helpers.js (CURIEUX_INFOS_REQUISES) : mon-espace
+// l'annonce en arrivant et la fonction SQL mes_demandes_dispo rend un booléen
+// par clé. Trois lecteurs, une seule définition.
+const REQUIRED_FIELDS = CURIEUX_INFOS_REQUISES;
 function computeMissingRequired(){
   return REQUIRED_FIELDS
     .filter(f=> !((f.source === 'person' ? state.person[f.key] : state.info[f.key]) || '').toString().trim())
