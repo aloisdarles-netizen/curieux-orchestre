@@ -302,6 +302,12 @@
   }
   .reco-champ input{width:100%;}
   .col-equipe{display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;}
+  .compteur-bouton{
+    display:inline-flex; align-items:center; gap:5px;
+    background:transparent; border:none; padding:0; cursor:pointer;
+  }
+  .compteur-bouton:disabled{ cursor:default; }
+  .compteur-bouton:not(:disabled):hover .co-compteur{ filter:brightness(.93); }
   .col-equipe .chips{flex-basis:100%; margin:4px 0 0;}
   /* Compteur d'effectif : chiffres alignés, et prune sur rose dès qu'il manque
      du monde — la couleur porte l'alerte, pas seulement le badge à côté. */
@@ -434,7 +440,7 @@
   .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
   @media (max-width:600px){
     input, select, textarea{ font-size:16px !important; }
-    [data-toggle-link], [data-toggle-chips]{ padding:7px 10px !important; font-size:12px !important; }
+    [data-toggle-link]{ padding:7px 10px !important; font-size:12px !important; }
   }
 </style>
 </head>
@@ -1639,10 +1645,16 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             ${travelCell}
             <span class="col-statut">${showTypeStatut ? statutGroup : ''}</span>
             <span class="col-equipe" title="${escapeAttr(summaryText)}">
-              ${manqueBadgeHtml(t, d, musicianById)}
-              <span class="co-compteur" title="Technicien·nes affecté·es">⚙ ${techCount}</span>
+              <!-- Le compteur EST le bouton qui déplie l'équipe : « Voir »
+                   doublait l'information et prenait une place que chaque
+                   ligne payait. -->
+              <button type="button" class="compteur-bouton" data-toggle-chips="${escapeAttr(d.id)}"
+                ${(musCount + techCount) === 0 ? 'disabled' : ''}
+                title="${escapeAttr(summaryText)} — cliquer pour ${(musCount + techCount) ? 'voir qui' : 'rien à voir'}">
+                ${manqueBadgeHtml(t, d, musicianById)}
+                <span class="co-compteur" title="Technicien·nes affecté·es">⚙ ${techCount}</span>
+              </button>
               ${contradictionBadge(contradictionsPourDate(d, musicianById, technicianById))}
-              ${(musCount + techCount) > 0 ? `<button type="button" class="co-btn ghost sm" data-toggle-chips="${escapeAttr(d.id)}">Voir</button>` : ''}
               <button type="button" class="co-btn tint sm" data-assign="${escapeAttr(d.id)}">Affecter</button>
               <span class="chips" id="chips-${escapeAttr(d.id)}" style="display:none;">${assignedChips}</span>
             </span>
@@ -2316,11 +2328,7 @@ function bindTourneeEvents(){
     btn.addEventListener('click', ()=>{
       const box = document.getElementById(`chips-${btn.dataset.toggleChips}`);
       if(!box) return;
-      const showing = box.style.display !== 'none';
-      box.style.display = showing ? 'none' : 'flex';
-      const eyeIcon = '<svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"></circle></svg>';
-      const eyeOffIcon = '<svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"></circle><line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line></svg>';
-      btn.innerHTML = showing ? eyeIcon + 'Voir' : eyeOffIcon + 'Masquer';
+      box.style.display = box.style.display !== 'none' ? 'none' : 'flex';
     });
   });
   document.querySelectorAll('[data-export-tournee]').forEach(btn=>{
