@@ -4026,3 +4026,33 @@ begin
 end;
 $$;
 grant execute on function mes_demandes_dispo(text) to anon, authenticated;
+
+
+-- ============================================================================
+-- 2026-08 · Rattacher la logistique à un projet
+--
+-- Les kits, les échanges et les affectations de transport portaient déjà leur
+-- tournée. Trois choses ne la portaient pas, et devenaient illisibles au fil
+-- des saisons :
+--
+--   · les VÉHICULES et les CHAUFFEURS : la page en montrait la totalité, sans
+--     rapport avec le projet consulté. Trois semis par tournée, dix tournées,
+--     et l'on cherche ses semis dans une liste de trente ;
+--   · les CARNETS ATA : la colonne existait, la page ne la lisait pas ;
+--   · les FICHES TECHNIQUES : la colonne existait, mais l'écran de création
+--     écrivait toujours une chaîne vide.
+--
+-- Rattachement MULTIPLE pour les véhicules et les chauffeurs, et non exclusif :
+-- une semi louée à l'année sert plusieurs tournées, et c'est précisément ce
+-- qui permet de détecter qu'on l'a promise deux fois le même jour. Une liste
+-- vide veut dire « pas encore engagé » — rien n'est perdu, tout reste dans la
+-- flotte.
+-- ============================================================================
+
+alter table vehicules  add column if not exists tournees_ids jsonb not null default '[]'::jsonb;
+alter table chauffeurs add column if not exists tournees_ids jsonb not null default '[]'::jsonb;
+
+comment on column vehicules.tournees_ids is
+  'Projets sur lesquels ce véhicule est engagé. Vide = disponible, non engagé.';
+comment on column chauffeurs.tournees_ids is
+  'Projets sur lesquels ce chauffeur est engagé. Vide = disponible, non engagé.';

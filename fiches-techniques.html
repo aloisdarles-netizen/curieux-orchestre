@@ -23,6 +23,24 @@
   .fiche-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:12px;}
   .fiche-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
   .fiche-nom{font-weight:800; font-size:15px;}
+  .fiche-toutes{
+    display:inline-block; margin-left:8px; vertical-align:1px;
+    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    padding:2px 7px; border-radius:999px; background:var(--bg); color:var(--muted); border:1px solid var(--border);
+  }
+  /* Le cadre de lecture de la page : quel projet on regarde. */
+  .cadre-projet{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:12px 15px; margin-bottom:20px;
+  }
+  .cadre-projet label{
+    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--accent);
+  }
+  .cadre-projet select{
+    flex:1 1 240px; min-width:0; padding:8px 12px; border:1px solid var(--border);
+    border-radius:8px; font-size:13.5px; background:var(--bg); color:var(--text); font-family:inherit;
+  }
   .badge{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap;}
   .badge-ok{background:var(--ok-tint); color:var(--ok);}
   .badge-non{background:var(--border); color:var(--muted);}
@@ -56,6 +74,13 @@
     <div class="co-actions"><button type="button" class="co-btn primary md" id="addFicheBtn">+ Nouvelle fiche</button></div>
   </div>
 
+  <!-- Une fiche appartient à un projet : sans ce cadre, cinq saisons de
+       tournées finissaient dans la même liste. -->
+  <div class="cadre-projet">
+    <label for="projetFiltreSelect">Projet</label>
+    <select id="projetFiltreSelect"></select>
+  </div>
+
   <div id="fichesListe"></div>
   <div class="empty-hint" id="fichesEmpty" style="display:none;">Aucune fiche technique — crée-en une avec le bouton ci-dessus.</div>
 </div>
@@ -65,6 +90,10 @@
     <h2 id="ficheModalTitle">Nouvelle fiche technique</h2>
     <input type="hidden" id="fEditId">
     <div class="field"><label for="fNom">Nom</label><input type="text" id="fNom" placeholder="Ex: Fiche technique — Expédition 33"></div>
+    <div class="field"><label for="fTournee">Projet</label>
+      <select id="fTournee"></select>
+      <span style="font-size:12px; color:var(--muted); margin-top:3px;">Une fiche appartient à un projet — sans quoi la liste devient vite illisible. « Toutes » pour un document qui vaut partout.</span>
+    </div>
     <div class="field"><label for="fDriveUrl">Lien Drive partagé (accès "avec le lien" activé)</label><input type="url" id="fDriveUrl" placeholder="https://drive.google.com/…"></div>
     <div class="modal-actions">
       <button type="button" class="co-btn ghost" id="ficheModalCancel">Annuler</button>
@@ -88,6 +117,8 @@
 
 <script>
 let fichesCache = [];
+let tourneesCache = [];
+let projetFiltre = '';
 let ficheVersionOuverte = '';
 
 function ligneLienCopie(url, btnClass){
@@ -119,13 +150,27 @@ async function renderVersions(ficheId){
 function render(){
   const box = document.getElementById('fichesListe');
   const empty = document.getElementById('fichesEmpty');
-  if(fichesCache.length===0){ box.innerHTML=''; empty.style.display='block'; return; }
+  // Les fiches sans projet — celles d'avant ce rattachement, et celles qui
+  // valent pour tout — restent visibles quel que soit le filtre : on ne fait
+  // pas disparaître un document parce qu'il lui manque une étiquette.
+  const liste = projetFiltre
+    ? fichesCache.filter(f=> !f.tourneeId || f.tourneeId === projetFiltre)
+    : fichesCache;
+  if(liste.length===0){
+    box.innerHTML='';
+    empty.style.display='block';
+    empty.textContent = fichesCache.length
+      ? "Aucune fiche sur ce projet."
+      : "Aucune fiche technique pour l'instant.";
+    return;
+  }
   empty.style.display='none';
   const lienCanonique = (token)=> lienPublic('fiche-technique.html', 'jeton=' + token);
-  box.innerHTML = fichesCache.map(f=>`
+  box.innerHTML = liste.map(f=>`
     <div class="fiche-card">
       <div class="fiche-top">
-        <div class="fiche-nom">${escapeHtml(f.nom || 'Sans nom')}</div>
+        <div class="fiche-nom">${escapeHtml(f.nom || 'Sans nom')}${
+          f.tourneeId ? '' : '<span class="fiche-toutes" title="Vaut pour tous les projets">toutes</span>'}</div>
         <span class="badge ${f.versionActuelle ? 'badge-ok' : 'badge-non'}">${f.versionActuelle ? escapeHtml(f.versionActuelle) : 'sans version'}</span>
       </div>
       ${f.driveUrl ? `<div class="fiche-drive"><a href="${escapeHtml(f.driveUrl)}" target="_blank" rel="noopener">Ouvrir dans Drive ↗</a></div>` : `<div class="fiche-drive" style="color:var(--danger);">Aucun lien Drive renseigné</div>`}
@@ -165,10 +210,12 @@ function openFicheModal(id){
     if(!f) return;
     document.getElementById('ficheModalTitle').textContent = 'Modifier ' + (f.nom || 'cette fiche');
     document.getElementById('fNom').value = f.nom || '';
+    remplirTourneeSelect(f.tourneeId || '');
     document.getElementById('fDriveUrl').value = f.driveUrl || '';
   } else {
     document.getElementById('ficheModalTitle').textContent = 'Nouvelle fiche technique';
     document.getElementById('fNom').value = '';
+    remplirTourneeSelect(projetFiltre || '');
     document.getElementById('fDriveUrl').value = '';
   }
   document.getElementById('ficheModalOverlay').classList.add('open');
@@ -180,7 +227,10 @@ document.getElementById('ficheModalSave').addEventListener('click', async ()=>{
   const id = document.getElementById('fEditId').value || genId('fiche');
   const nom = document.getElementById('fNom').value.trim();
   if(!nom){ alert('Donne un nom à la fiche.'); return; }
-  const obj = { id, nom, tourneeId: '', driveUrl: document.getElementById('fDriveUrl').value.trim() };
+  // Le rattachement était écrit en dur à '' : la colonne existait, rien ne la
+  // remplissait, et toutes les fiches de toutes les tournées s'empilaient.
+  const obj = { id, nom, tourneeId: document.getElementById('fTournee').value || '',
+                driveUrl: document.getElementById('fDriveUrl').value.trim() };
   const existante = fichesCache.find(x=>x.id===id);
   if(existante){ obj.versionActuelle = existante.versionActuelle; obj.versionLe = existante.versionLe; obj.token = existante.token; }
   const idx = fichesCache.findIndex(x=>x.id===id);
@@ -209,8 +259,24 @@ document.getElementById('versionModalSave').addEventListener('click', async ()=>
   render();
 });
 
+// Sélecteur de projet : le même en tête de page (pour lire) et dans la modale
+// (pour rattacher).
+function remplirTourneeSelect(valeur){
+  const sel = document.getElementById('fTournee');
+  sel.innerHTML = '<option value="">Toutes les tournées</option>'
+    + tourneesCache.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml((t.nom || 'Sans nom') + suffixeProjetTexte(t))}</option>`).join('');
+  sel.value = valeur || '';
+}
+
 async function initData(){
-  fichesCache = await CurieuxDB.fetchAll('fiches_techniques');
+  [fichesCache, tourneesCache] = await Promise.all([
+    CurieuxDB.fetchAll('fiches_techniques'),
+    CurieuxDB.fetchAll('tournees'),
+  ]);
+  const filtre = document.getElementById('projetFiltreSelect');
+  filtre.innerHTML = '<option value="">Tous les projets</option>'
+    + tourneesCache.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml((t.nom || 'Sans nom') + suffixeProjetTexte(t))}</option>`).join('');
+  filtre.addEventListener('change', ()=>{ projetFiltre = filtre.value; render(); });
   render();
 }
 CurieuxDB.subscribe('fiches_techniques', ()=> CurieuxDB.fetchAll('fiches_techniques').then(l=>{ fichesCache=l; curieuxRafraichir(render); }));

@@ -88,7 +88,9 @@
 // v26 : ui-helpers.js regroupe les dates qui se suivent au même endroit en une
 // seule fiche technique (groupesFicheTechnique), lu par les quatre écrans
 // techniques dont les deux pages publiques.
-const VERSION = 'curieux-v26';
+// v27 : db.js porte l'engagement des véhicules et des chauffeurs sur un projet
+// (tournees_ids).
+const VERSION = 'curieux-v27';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

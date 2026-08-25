@@ -128,6 +128,38 @@
   .affectation-row .quand{font-size:12.5px; font-weight:700; flex:0 0 90px;}
   .affectation-row select{width:auto; flex:1; min-width:140px;}
   .tournee-select{padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; background:var(--card); color:var(--text); font-family:inherit; margin-bottom:14px;}
+  /* Le cadre de lecture de toute la page : quel projet on prépare. */
+  .cadre-projet{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:12px 15px; margin-bottom:20px;
+  }
+  .cadre-projet label{
+    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--accent);
+  }
+  .cadre-projet select{flex:1 1 240px; min-width:0;}
+  .cadre-projet-note{font-size:12px; color:var(--muted); flex:1 1 100%;}
+  /* Le reste de la flotte : accessible, mais pas dans le champ de vision. */
+  .flotte{margin-top:14px;}
+  .flotte > summary{
+    cursor:pointer; font-size:11px; font-weight:800; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--muted); padding:6px 0;
+  }
+  .flotte > summary:hover, .flotte[open] > summary{color:var(--accent);}
+  .flotte .cardgrid{margin-top:10px;}
+  /* Le geste qui décide où la carte se range. Pleine largeur, au-dessus des
+     actions : coincé dans leur rangée, il se coupait en trois mots et
+     repoussait « Supprimer » hors du cadre. Il emprunte la couleur de sa carte
+     — les véhicules ont chacun la leur. */
+  .engager{
+    display:block; width:100%; margin:10px 0 0;
+    background:transparent; border:1px dashed currentColor; color:inherit; opacity:.75;
+    border-radius:8px; padding:7px 10px; font-size:11.5px; font-weight:700;
+    font-family:inherit; cursor:pointer; text-align:center;
+  }
+  .engager:hover{opacity:1; border-style:solid;}
+  .r-card:not(.vehicule) .engager{color:var(--muted);}
+  .r-card:not(.vehicule) .engager:hover{color:var(--accent); border-color:var(--accent);}
   @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
 </style>
 </head>
@@ -136,8 +168,17 @@
   <div class="co-page-head co-fade">
     <div>
       <h1>Véhicules &amp; chauffeurs</h1>
-      <p class="subtitle">Le parc, les chauffeurs, et qui conduit quoi — date par date.</p>
+      <p class="subtitle">Le parc engagé sur un projet, ses chauffeurs, et qui conduit quoi — date par date.</p>
     </div>
+  </div>
+
+  <!-- Tout ce qui suit se lit à travers ce choix. Sans lui, la page montrait
+       trente semis et vingt chauffeurs sans rapport avec le projet consulté :
+       au bout de quelques saisons, on ne retrouvait plus les siens. -->
+  <div class="cadre-projet">
+    <label for="projetSelect">Projet</label>
+    <select class="tournee-select" id="projetSelect" style="margin-bottom:0;"></select>
+    <span class="cadre-projet-note" id="cadreNote"></span>
   </div>
 
   <div class="section-block">
@@ -146,7 +187,11 @@
       <button type="button" class="co-btn secondary" id="addVehiculeBtn">+ Ajouter un véhicule</button>
     </div>
     <div class="cardgrid" id="vehiculesGrid"></div>
-    <div class="empty-hint co-vide" id="vehiculesEmpty" style="display:none;">Aucun véhicule enregistré.</div>
+    <div class="empty-hint co-vide" id="vehiculesEmpty" style="display:none;">Aucun véhicule engagé sur ce projet — prends-en dans la flotte ci-dessous.</div>
+    <details class="flotte" id="vehiculesFlotte">
+      <summary>Reste de la flotte (<span id="vehiculesFlotteCount">0</span>)</summary>
+      <div class="cardgrid" id="vehiculesFlotteGrid"></div>
+    </details>
   </div>
 
   <div class="section-block">
@@ -155,7 +200,11 @@
       <button type="button" class="co-btn secondary" id="addChauffeurBtn">+ Ajouter un chauffeur</button>
     </div>
     <div class="cardgrid" id="chauffeursGrid"></div>
-    <div class="empty-hint co-vide" id="chauffeursEmpty" style="display:none;">Aucun chauffeur enregistré.</div>
+    <div class="empty-hint co-vide" id="chauffeursEmpty" style="display:none;">Aucun chauffeur engagé sur ce projet — prends-en dans la liste ci-dessous.</div>
+    <details class="flotte" id="chauffeursFlotte">
+      <summary>Autres chauffeurs (<span id="chauffeursFlotteCount">0</span>)</summary>
+      <div class="cardgrid" id="chauffeursFlotteGrid"></div>
+    </details>
   </div>
 
   <div class="section-block">
@@ -165,14 +214,13 @@
     </div>
     <p class="section-lead">Attribué à une semi pour toute la tournée, valable dans toute l'Europe.</p>
     <div class="cardgrid" id="carnetsGrid"></div>
-    <div class="empty-hint co-vide" id="carnetsEmpty" style="display:none;">Aucun carnet ATA enregistré.</div>
+    <div class="empty-hint co-vide" id="carnetsEmpty" style="display:none;">Aucun carnet ATA sur ce projet.</div>
   </div>
 
   <div class="section-block">
     <h2 class="section-title">Exceptions par date</h2>
     <p class="section-lead">Par défaut, chaque semi est conduite par son chauffeur habituel (défini sur sa carte, ci-dessus). N'ajoute une ligne ici que pour une date où ça change.</p>
     <div class="field-row">
-      <select class="tournee-select" id="tourneeSelect" style="flex:1;"></select>
       <select class="tournee-select" id="affectationDateSelect" style="flex:1;"></select>
     </div>
     <div id="affectationsListe"></div>
@@ -307,9 +355,29 @@ const VEHICULE_COULEURS = [
 function renderVehicules(){
   const grid = document.getElementById('vehiculesGrid');
   const empty = document.getElementById('vehiculesEmpty');
-  if(vehiculesCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
-  empty.style.display='none';
-  grid.innerHTML = vehiculesCache.map((v, index)=>{
+  // Ce qui est engagé sur le projet en haut, le reste de la flotte dans un
+  // repli : une semi ne disparaît jamais, elle cesse seulement d'encombrer.
+  const engages = vehiculesCache.filter(engageSurProjet);
+  const flotte = vehiculesCache.filter(v=> !engageSurProjet(v));
+  const carte = carteVehicule;
+  empty.style.display = engages.length ? 'none' : 'block';
+  empty.textContent = vehiculesCache.length === 0
+    ? "Aucun véhicule enregistré — ajoute-en un ci-dessus."
+    : "Aucun véhicule engagé sur ce projet — prends-en dans la flotte ci-dessous.";
+  grid.innerHTML = engages.map(carte).join('');
+  const replis = document.getElementById('vehiculesFlotte');
+  const grilleFlotte = document.getElementById('vehiculesFlotteGrid');
+  document.getElementById('vehiculesFlotteCount').textContent = flotte.length;
+  replis.hidden = flotte.length === 0;
+  // Rien d'engagé encore — le premier passage après ce changement, ou un
+  // projet qu'on démarre : on ouvre le repli, puisque c'est là qu'est le geste.
+  if(engages.length === 0) replis.open = true;
+  grilleFlotte.innerHTML = flotte.map(carte).join('');
+  brancherCartesVehicules(grid);
+  brancherCartesVehicules(grilleFlotte);
+}
+
+function carteVehicule(v, index){
     const [fond, encre, chipFond, chipEncre] = VEHICULE_COULEURS[index % VEHICULE_COULEURS.length];
     const prest = prestatairesCache.find(p=>p.id===v.prestataireId);
     const dims = [v.hauteurM,v.largeurM,v.profondeurM].some(x=>x!=null)
@@ -341,6 +409,13 @@ function renderVehicules(){
         </div>
       </div>
       ${exception ? `<div class="exception-note">Exception le ${escapeHtml(libelleDateCourt(exception.d))} : ${escapeHtml(fullName(exception.chauffeur))}</div>` : ''}
+      ${/* Engager ou retirer du projet courant : c'est ce qui décide si la
+           carte se lit ici ou dans le repli de la flotte. Sur sa propre ligne :
+           dans la rangée d'actions, il se coupait en trois et poussait
+           « Supprimer » hors de la carte. */''}
+      <button type="button" class="engager" data-engager-vehicule="${v.id}"
+        title="${engageSurProjet(v) ? 'Retirer ce véhicule du projet en cours — il reste dans la flotte' : 'Engager ce véhicule sur le projet en cours'}"
+        >${engageSurProjet(v) ? '− Retirer de ce projet' : '+ Engager sur ce projet'}</button>
       <div class="r-actions">
         <button type="button" class="co-btn ghost sm" data-edit="${v.id}">Modifier</button>
         <button type="button" class="co-btn ghost sm" data-chauffeur="${v.id}">+ Exception</button>
@@ -348,12 +423,14 @@ function renderVehicules(){
       </div>
       </div>
     </div>
-  `;}).join('');
+  `;}
+
+function brancherCartesVehicules(grid){
   grid.querySelectorAll('[data-defaut]').forEach(sel=> sel.addEventListener('change', async ()=>{
     const v = vehiculesCache.find(x=>x.id===sel.dataset.defaut);
     v.chauffeurDefautId = sel.value;
     await CurieuxDB.upsertOne('vehicules', v);
-    renderVehicules();
+    toutRedessiner();
   }));
   grid.querySelectorAll('[data-chauffeur]').forEach(b=> b.addEventListener('click', ()=> attacherChauffeurRapide(b.dataset.chauffeur)));
   grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openVehiculeModal(b.dataset.edit)));
@@ -362,7 +439,7 @@ function renderVehicules(){
     if(v && confirm(`Supprimer « ${v.nom || 'ce véhicule'} » ?`)){
       vehiculesCache = vehiculesCache.filter(x=>x.id!==b.dataset.del);
       CurieuxDB.removeOne('vehicules', b.dataset.del);
-      renderVehicules(); renderCarnets();
+      toutRedessiner();
     }
   }));
 }
@@ -430,9 +507,26 @@ document.getElementById('vehiculeModalSave').addEventListener('click', async ()=
 function renderChauffeurs(){
   const grid = document.getElementById('chauffeursGrid');
   const empty = document.getElementById('chauffeursEmpty');
-  if(chauffeursCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
-  empty.style.display='none';
-  grid.innerHTML = chauffeursCache.map(c=>{
+  const engages = chauffeursCache.filter(engageSurProjet);
+  const autres = chauffeursCache.filter(c=> !engageSurProjet(c));
+  empty.style.display = engages.length ? 'none' : 'block';
+  empty.textContent = chauffeursCache.length === 0
+    ? "Aucun chauffeur enregistré — ajoute-en un ci-dessus."
+    : "Aucun chauffeur engagé sur ce projet — prends-en dans la liste ci-dessous.";
+  grid.innerHTML = engages.map(carteChauffeur).join('');
+  const replis = document.getElementById('chauffeursFlotte');
+  const grilleAutres = document.getElementById('chauffeursFlotteGrid');
+  document.getElementById('chauffeursFlotteCount').textContent = autres.length;
+  replis.hidden = autres.length === 0;
+  // Rien d'engagé encore — le premier passage après ce changement, ou un
+  // projet qu'on démarre : on ouvre le repli, puisque c'est là qu'est le geste.
+  if(engages.length === 0) replis.open = true;
+  grilleAutres.innerHTML = autres.map(carteChauffeur).join('');
+  brancherCartesChauffeurs(grid);
+  brancherCartesChauffeurs(grilleAutres);
+}
+
+function carteChauffeur(c){
     const prest = prestatairesCache.find(p=>p.id === c.prestataire); // legacy text fallback if not migrated
     const semisHabituelles = vehiculesCache.filter(v=>v.chauffeurDefautId===c.id);
     return `
@@ -441,19 +535,24 @@ function renderChauffeurs(){
       <div class="r-sub">${[c.telephone, c.email].filter(Boolean).map(escapeHtml).join(' · ') || 'Pas de contact enregistré'}</div>
       ${c.prestataire ? `<div class="r-sub">${escapeHtml(c.prestataire)}</div>` : ''}
       ${semisHabituelles.length ? `<div class="lien-chauffeur"><div class="lien-avatar">🚛</div><div class="lien-corps"><div class="lien-label">Chauffeur habituel de</div><div style="font-size:13px; font-weight:700;">${semisHabituelles.map(v=>escapeHtml(v.nom||'Sans nom')).join(', ')}</div></div></div>` : ''}
+      <button type="button" class="engager" data-engager-chauffeur="${c.id}"
+        title="${engageSurProjet(c) ? 'Retirer du projet en cours — il reste dans la liste' : 'Engager sur le projet en cours'}"
+        >${engageSurProjet(c) ? '− Retirer de ce projet' : '+ Engager sur ce projet'}</button>
       <div class="r-actions">
         <button type="button" class="co-btn ghost sm" data-edit="${c.id}">Modifier</button>
         <button type="button" class="co-btn danger sm" data-del="${c.id}">Supprimer</button>
       </div>
     </div>
-  `;}).join('');
+  `;}
+
+function brancherCartesChauffeurs(grid){
   grid.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openChauffeurModal(b.dataset.edit)));
   grid.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', ()=>{
     const c = chauffeursCache.find(x=>x.id===b.dataset.del);
     if(c && confirm(`Supprimer ${fullName(c)} ?`)){
       chauffeursCache = chauffeursCache.filter(x=>x.id!==b.dataset.del);
       CurieuxDB.removeOne('chauffeurs', b.dataset.del);
-      renderChauffeurs(); renderAffectations();
+      toutRedessiner();
     }
   }));
 }
@@ -513,9 +612,14 @@ function renderCarnetLotsChoix(){
 function renderCarnets(){
   const grid = document.getElementById('carnetsGrid');
   const empty = document.getElementById('carnetsEmpty');
-  if(carnetsCache.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
+  // La colonne tournee_id existait depuis toujours ; la page la lit enfin. Les
+  // carnets d'avant ce changement n'en ont pas : ils restent visibles partout
+  // plutôt que de disparaître, jusqu'à ce qu'on les rattache.
+  const projet = activeTourneeId();
+  const liste = carnetsCache.filter(c=> !c.tourneeId || c.tourneeId === projet);
+  if(liste.length===0){ grid.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
-  grid.innerHTML = carnetsCache.map(c=>{
+  grid.innerHTML = liste.map(c=>{
     const veh = vehiculesCache.find(v=>v.id===c.vehiculeId);
     const urgent = c.statut === 'a_demander';
     return `
@@ -591,7 +695,38 @@ document.getElementById('carnetModalSave').addEventListener('click', async ()=>{
 // ============================================================================
 // Qui conduit quoi (affectations_transport)
 // ============================================================================
-function activeTourneeId(){ return document.getElementById('tourneeSelect').value; }
+function activeTourneeId(){ return document.getElementById('projetSelect').value; }
+
+// Engagé sur le projet courant ? Une liste vide veut dire « pas encore
+// engagé » — la personne ou le véhicule reste dans la flotte, disponible.
+function engageSurProjet(x){
+  const id = activeTourneeId();
+  return !!id && (x.tourneesIds || []).includes(id);
+}
+async function basculerEngagement(collection, cache, itemId){
+  const id = activeTourneeId();
+  if(!id) return;
+  const item = cache.find(x=> x.id === itemId);
+  if(!item) return;
+  const liste = (item.tourneesIds || []).slice();
+  const i = liste.indexOf(id);
+  if(i >= 0) liste.splice(i, 1); else liste.push(id);
+  item.tourneesIds = liste;
+  const { error } = await CurieuxDB.upsertOne(collection, item);
+  if(error) alert("L'engagement n'a pas pu être enregistré, réessaie. (" + error.message + ")");
+  toutRedessiner();
+}
+function toutRedessiner(){
+  renderVehicules(); renderChauffeurs(); renderCarnets(); renderAffectations();
+  const note = document.getElementById('cadreNote');
+  if(note){
+    const nbV = vehiculesCache.filter(engageSurProjet).length;
+    const nbC = chauffeursCache.filter(engageSurProjet).length;
+    note.textContent = activeTourneeId()
+      ? `${nbV} véhicule${nbV>1?'s':''} et ${nbC} chauffeur${nbC>1?'s':''} engagé${nbV+nbC>1?'s':''} sur ce projet. Le reste de la flotte est plus bas, dans les replis.`
+      : '';
+  }
+}
 function datesFuturesTournee(){
   const t = tourneesCache.find(x=>x.id === activeTourneeId());
   if(!t) return [];
@@ -683,7 +818,14 @@ document.getElementById('addAffectationBtn').addEventListener('click', async ()=
   await CurieuxDB.upsertOne('affectations_transport', obj);
   renderAffectations();
 });
-document.getElementById('tourneeSelect').addEventListener('change', ()=>{ fillAffectationDateSelect(); renderAffectations(); });
+document.getElementById('projetSelect').addEventListener('change', ()=>{ fillAffectationDateSelect(); toutRedessiner(); });
+// Engager / retirer, depuis n'importe quelle carte.
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('[data-engager-vehicule]');
+  if(btn){ basculerEngagement('vehicules', vehiculesCache, btn.dataset.engagerVehicule); return; }
+  const btn2 = e.target.closest('[data-engager-chauffeur]');
+  if(btn2){ basculerEngagement('chauffeurs', chauffeursCache, btn2.dataset.engagerChauffeur); }
+});
 
 async function initData(){
   [vehiculesCache, chauffeursCache, carnetsCache, prestatairesCache, lotsCache, tourneesCache, affectationsCache] = await Promise.all([
@@ -691,17 +833,17 @@ async function initData(){
     CurieuxDB.fetchAll('prestataires'), CurieuxDB.fetchAll('lots_materiel'), CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('affectations_transport'),
   ]);
-  const sel = document.getElementById('tourneeSelect');
+  const sel = document.getElementById('projetSelect');
   sel.innerHTML = tourneesCache.length
     ? tourneesCache.map(t=>`<option value="${t.id}">${escapeHtml((t.nom || 'Tournée sans nom') + suffixeProjetTexte(t))}</option>`).join('')
-    : '<option value="">Aucune tournée</option>';
+    : '<option value="">Aucun projet</option>';
   fillAffectationDateSelect();
-  renderVehicules(); renderChauffeurs(); renderCarnets(); renderAffectations();
+  toutRedessiner();
 }
-CurieuxDB.subscribe('vehicules', ()=> CurieuxDB.fetchAll('vehicules').then(l=>{ vehiculesCache=l; curieuxRafraichir(()=>{renderVehicules();renderCarnets();renderAffectations();}); }));
-CurieuxDB.subscribe('chauffeurs', ()=> CurieuxDB.fetchAll('chauffeurs').then(l=>{ chauffeursCache=l; curieuxRafraichir(()=>{renderChauffeurs();renderAffectations();}); }));
+CurieuxDB.subscribe('vehicules', ()=> CurieuxDB.fetchAll('vehicules').then(l=>{ vehiculesCache=l; curieuxRafraichir(toutRedessiner); }));
+CurieuxDB.subscribe('chauffeurs', ()=> CurieuxDB.fetchAll('chauffeurs').then(l=>{ chauffeursCache=l; curieuxRafraichir(toutRedessiner); }));
 CurieuxDB.subscribe('carnets_ata', ()=> CurieuxDB.fetchAll('carnets_ata').then(l=>{ carnetsCache=l; curieuxRafraichir(renderCarnets); }));
-CurieuxDB.subscribe('affectations_transport', ()=> CurieuxDB.fetchAll('affectations_transport').then(l=>{ affectationsCache=l; curieuxRafraichir(()=>{renderAffectations();renderVehicules();}); }));
+CurieuxDB.subscribe('affectations_transport', ()=> CurieuxDB.fetchAll('affectations_transport').then(l=>{ affectationsCache=l; curieuxRafraichir(toutRedessiner); }));
 
 injectCurieuxFonts();
 applyAutoTheme();

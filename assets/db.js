@@ -326,6 +326,10 @@ const CurieuxDB = (()=>{
         // Chauffeur habituel de cette semi — reste le même d'une date à l'autre
         // sauf exception gérée par affectations_transport.
         chauffeur_defaut_id: v.chauffeurDefautId || null,
+        // Projets sur lesquels le véhicule est engagé. Plusieurs, et non un :
+        // une semi louée à l'année sert plusieurs tournées — c'est ce qui
+        // permet de voir qu'on l'a promise deux fois le même jour.
+        tournees_ids: v.tourneesIds || [],
         notes: v.notes || ''
       }),
       fromDb: (r)=> ({
@@ -334,6 +338,7 @@ const CurieuxDB = (()=>{
         hauteurM: r.hauteur_m, largeurM: r.largeur_m, profondeurM: r.profondeur_m,
         capacite: r.capacite || '', prestataireId: r.prestataire_id || '',
         chauffeurDefautId: r.chauffeur_defaut_id || '',
+        tourneesIds: r.tournees_ids || [],
         notes: r.notes || ''
       })
     },
@@ -341,12 +346,16 @@ const CurieuxDB = (()=>{
       toDb: (c)=> ({
         id: c.id, prenom: c.prenom || '', nom: c.nom || '',
         telephone: c.telephone || '', email: c.email || '',
-        prestataire: c.prestataire || '', notes: c.notes || ''
+        prestataire: c.prestataire || '',
+        tournees_ids: c.tourneesIds || [],
+        notes: c.notes || ''
       }),
       fromDb: (r)=> ({
         id: r.id, prenom: r.prenom || '', nom: r.nom || '',
         telephone: r.telephone || '', email: r.email || '',
-        prestataire: r.prestataire || '', notes: r.notes || ''
+        prestataire: r.prestataire || '',
+        tourneesIds: r.tournees_ids || [],
+        notes: r.notes || ''
       })
     },
     // Affectation souple d'un chauffeur à une semi, par date — jamais figée :
