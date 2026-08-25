@@ -62,10 +62,17 @@ function computeBlocMap(datesSorted){
     if(blocDates.length > 1){
       const groupIndex = blocGroupIndex;
       blocGroupIndex++;
+      // Un bloc de tournée s'ouvre la veille et se referme le lendemain — mais
+      // seulement s'il y a un trajet. Quand on joue à Paris ou tout près, il
+      // n'y en a pas : chacun vient le jour même et rentre le soir. C'est ce
+      // que dit « Aucun » dans la colonne Voyage, et veille/lendemain valent
+      // alors null plutôt qu'une date de voyage qui n'existe pas.
+      const premier = blocDates[0];
+      const dernier = blocDates[blocDates.length - 1];
       blocDates.forEach((d, idx)=> map.set(d.id, {
         blocDates, idx, isFirst: idx===0, isLast: idx===blocDates.length-1, groupIndex,
-        veille: addDaysIso(blocDates[0].date, -1),
-        lendemain: addDaysIso(blocDates[blocDates.length-1].date, 1)
+        veille: premier.travelMode === 'aucun' ? null : addDaysIso(premier.date, -1),
+        lendemain: dernier.travelMode === 'aucun' ? null : addDaysIso(dernier.date, 1)
       }));
     }
     i = j + 1;

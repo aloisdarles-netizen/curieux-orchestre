@@ -564,9 +564,22 @@ function render(){
     if(blocInfo && blocInfo.isFirst){
       // En studio, personne ne part la veille ni ne rentre le lendemain : le
       // bloc dit seulement que les séances se suivent.
+      // Sans trajet (on joue à Paris ou tout près), il n'y a ni départ la
+      // veille ni retour le lendemain : le bloc dit alors seulement que les
+      // dates se suivent. Annoncer un voyage qui n'aura pas lieu ferait poser
+      // des congés pour rien.
+      const bus = `<svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><rect x="3.5" y="5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="10.3" x2="20.5" y2="10.3" stroke="currentColor" stroke-width="1.6"></line><circle cx="7.5" cy="19.3" r="1.4" fill="currentColor"></circle><circle cx="16.5" cy="19.3" r="1.4" fill="currentColor"></circle></svg>`;
+      const bornes = [
+        blocInfo.veille ? `départ la veille (${escapeHtml(fmtDateFRShort(blocInfo.veille))})` : '',
+        blocInfo.lendemain ? `retour le lendemain (${escapeHtml(fmtDateFRShort(blocInfo.lendemain))})` : '',
+      ].filter(Boolean);
+      const debut = escapeHtml(fmtDateFRShort(blocInfo.blocDates[0].date));
+      const fin = escapeHtml(fmtDateFRShort(blocInfo.blocDates[blocInfo.blocDates.length - 1].date));
       html += state.tournee.type === 'recording'
-        ? `<div class="bloc-banner">Séances consécutives — du ${escapeHtml(fmtDateFRShort(blocInfo.blocDates[0].date))} au ${escapeHtml(fmtDateFRShort(blocInfo.blocDates[blocInfo.blocDates.length - 1].date))}.</div>`
-        : `<div class="bloc-banner"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:4px;"><rect x="3.5" y="5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="10.3" x2="20.5" y2="10.3" stroke="currentColor" stroke-width="1.6"></line><circle cx="7.5" cy="19.3" r="1.4" fill="currentColor"></circle><circle cx="16.5" cy="19.3" r="1.4" fill="currentColor"></circle></svg>Départ la veille (${escapeHtml(fmtDateFRShort(blocInfo.veille))}), retour le lendemain (${escapeHtml(fmtDateFRShort(blocInfo.lendemain))}).</div>`;
+        ? `<div class="bloc-banner">Séances consécutives — du ${debut} au ${fin}.</div>`
+        : (bornes.length
+          ? `<div class="bloc-banner">${bus}Dates qui se suivent, du ${debut} au ${fin} — ${bornes.join(', ')}.</div>`
+          : `<div class="bloc-banner">Dates qui se suivent, du ${debut} au ${fin} — pas de trajet, on vient et on rentre chaque jour.</div>`);
     }
 
     const current = dispo[d.date] || '';

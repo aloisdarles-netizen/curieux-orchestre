@@ -83,7 +83,9 @@
 // v24 : ui-helpers.js porte la liste des champs obligatoires d'une fiche
 // sociale (CURIEUX_INFOS_REQUISES), lue par mes-infos et par l'accueil du lien
 // personnel.
-const VERSION = 'curieux-v24';
+// v25 : computeBlocMap (ui-helpers.js) rend veille/lendemain nuls quand le bloc
+// n'a pas de trajet — le mode de voyage « Aucun ».
+const VERSION = 'curieux-v25';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

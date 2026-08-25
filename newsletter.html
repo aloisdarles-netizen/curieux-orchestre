@@ -140,8 +140,9 @@ function currentEntries(){
       const blocInfo = blocMap.get(d.id);
       let blocNote = '';
       if(blocInfo){
-        if(blocInfo.isFirst) blocNote = `bloc — départ veille ${fmtDateFR(blocInfo.veille)}`;
-        else if(blocInfo.isLast) blocNote = `bloc — retour lendemain ${fmtDateFR(blocInfo.lendemain)}`;
+        // Sans trajet, il n'y a pas de veille ni de lendemain à annoncer.
+        if(blocInfo.isFirst) blocNote = blocInfo.veille ? `bloc — départ veille ${fmtDateFR(blocInfo.veille)}` : 'bloc — sur place';
+        else if(blocInfo.isLast) blocNote = blocInfo.lendemain ? `bloc — retour lendemain ${fmtDateFR(blocInfo.lendemain)}` : 'bloc — sur place';
         else blocNote = 'bloc';
       }
       entries.push({

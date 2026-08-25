@@ -1864,11 +1864,18 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
           // plus qu'à grouper des séances consécutives (nature et statut
           // communs), et il ne doit surtout pas annoncer un voyage.
           if(EST_RECORDING) note = `${blocInfo.blocDates.length} jours`;
-          else if(blocInfo.isFirst) note = `depuis la veille ${fmtDateFR(blocInfo.veille)}`;
-          else if(blocInfo.isLast) note = `jusqu'au lendemain ${fmtDateFR(blocInfo.lendemain)}`;
+          else if(blocInfo.isFirst) note = blocInfo.veille ? `depuis la veille ${fmtDateFR(blocInfo.veille)}` : 'départ le jour même';
+          else if(blocInfo.isLast) note = blocInfo.lendemain ? `jusqu'au lendemain ${fmtDateFR(blocInfo.lendemain)}` : 'retour le soir même';
           const blocTitre = EST_RECORDING
             ? `Session de ${blocInfo.blocDates.length} jours consécutifs — statut commun, nature libre par séance`
-            : `Bloc de ${blocInfo.blocDates.length} dates — un seul voyage (départ la veille ${fmtDateFR(blocInfo.veille)}, retour le lendemain ${fmtDateFR(blocInfo.lendemain)}), statut commun. La nature reste propre à chaque date.`;
+            : `Bloc de ${blocInfo.blocDates.length} dates — ${
+                blocInfo.veille || blocInfo.lendemain
+                  ? `un seul voyage (${[
+                      blocInfo.veille ? `départ la veille ${fmtDateFR(blocInfo.veille)}` : 'départ le jour même',
+                      blocInfo.lendemain ? `retour le lendemain ${fmtDateFR(blocInfo.lendemain)}` : 'retour le soir même',
+                    ].join(', ')})`
+                  : 'aucun trajet, on vient et on rentre chaque jour'
+              }, statut commun. La nature reste propre à chaque date.`;
           blocBadge = `<div class="bloc-badge" title="${escapeAttr(blocTitre)}"><svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></line></svg>${EST_RECORDING ? 'Session' : 'Bloc'}${note ? ' — ' + note : ''}</div>`;
         }
         const scissorsIcon = '<svg width="10" height="10" viewBox="0 0 24 24" style="vertical-align:-1px; margin-right:2px;"><circle cx="6" cy="6" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle><circle cx="6" cy="18" r="2.3" fill="none" stroke="currentColor" stroke-width="2"></circle><line x1="7.8" y1="7.6" x2="20" y2="18.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line><line x1="7.8" y1="16.4" x2="20" y2="5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line></svg>';
@@ -2214,7 +2221,10 @@ function exportTourneePdf(tourneeId){
         const span = blocInfo ? blocInfo.blocDates.length : 1;
         row.push({ content: STATUT_PDF_LABEL[statut], rowSpan: span, styles: { valign: 'middle' } });
         if(!EST_RECORDING){
-          const depRetour = blocInfo ? `Dép. veille ${fmtDateFRShortNoYear(blocInfo.veille)}\nRetour lend. ${fmtDateFRShortNoYear(blocInfo.lendemain)}` : '';
+          const depRetour = !blocInfo ? '' : [
+            blocInfo.veille ? `Dép. veille ${fmtDateFRShortNoYear(blocInfo.veille)}` : '',
+            blocInfo.lendemain ? `Retour lend. ${fmtDateFRShortNoYear(blocInfo.lendemain)}` : '',
+          ].filter(Boolean).join('\n');
           row.push({ content: depRetour, rowSpan: span, styles: { valign: 'middle', fontSize: 6.6, textColor: [120,105,113] } });
         }
       }
