@@ -63,6 +63,7 @@
     background:var(--ok-tint); color:var(--ok);
   }
   .projets-liste .compte.reste{ background:var(--maybe-tint); color:var(--maybe); }
+  .projets-liste .compte.vide{ background:var(--bg); color:var(--muted); border:1px solid var(--border); }
   .projets-liste .marque-reco{
     flex:0 0 auto; width:7px; height:7px; border-radius:50%; background:var(--accent);
     opacity:.55;
@@ -642,8 +643,13 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
             ? `${showDatesOption ? `<button type="button" class="co-btn ghost sm" data-toggle-edit-dates data-tournee="${escapeAttr(tourneeId)}" title="Modifier les dates proposées"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.6"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line></svg>Dates</button>` : ''}
                <button type="button" class="co-btn ghost sm" data-delete-link="${escapeAttr(existing.id)}" title="Supprimer ce lien" style="color:var(--ko, #b23b2e);"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px;"><rect x="3.5" y="6.5" width="17" height="2" rx="1" fill="currentColor" stroke="none"></rect><rect x="9.5" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><rect x="12.9" y="9.5" width="1.6" height="9" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M9 6.5V4.3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.2" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M6.2 6.5l1 13.3a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l1-13.3" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg></button>`
             : (personType === 'technicien'
-                ? `<button type="button" class="co-btn secondary sm" data-toggle-new-dates data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">+ Générer</button>`
-                : `<button type="button" class="co-btn secondary sm" data-gen-link data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}">Générer</button>`
+                // « Générer » ne disait pas quoi. Ce bouton crée la demande —
+                // c'est-à-dire qu'il sollicite la personne sur ce projet. Le
+                // lien, lui, est unique et déjà le sien.
+                ? `<button type="button" class="co-btn secondary sm" data-toggle-new-dates data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}"
+                     title="Lui demander ses dispos sur ce projet, sur les dates de ton choix">Solliciter…</button>`
+                : `<button type="button" class="co-btn secondary sm" data-gen-link data-tournee="${escapeAttr(tourneeId)}" data-person-type="${personType}" data-person-id="${escapeAttr(person.id)}"
+                     title="Lui demander ses dispos sur ce projet — normalement automatique pour le noyau de l'orchestre">Solliciter</button>`
               )
           }
         </div>
@@ -1182,9 +1188,14 @@ function renderSommaire(tous, visibles){
   const idsVisibles = new Set(visibles.map(t=> t.id));
   liste.innerHTML = tous.map(t=>{
     const av = avancementProjet(t);
-    const compte = av.reste
-      ? `<span class="compte reste" title="${av.reste} personne${av.reste>1?'s':''} n'a pas fini de répondre">${av.reste}</span>`
-      : `<span class="compte" title="Tout le monde a répondu">✓</span>`;
+    // Trois états, et non deux : un projet sans personne sollicitée n'est pas
+    // « à jour ». Le coche vert s'y lisait comme un travail fait, alors qu'il
+    // n'a simplement pas commencé — le plus souvent faute de date.
+    const compte = av.total === 0
+      ? `<span class="compte vide" title="Personne n'est encore sollicité·e — ce projet n'a sans doute pas de date">—</span>`
+      : (av.reste
+        ? `<span class="compte reste" title="${av.reste} personne${av.reste>1?'s':''} n'a pas fini de répondre">${av.reste}</span>`
+        : `<span class="compte" title="Tout le monde a répondu">✓</span>`);
     // Un projet écarté par le filtre reste dans le sommaire, en retrait : on
     // veut voir qu'il existe, et retrouver son compteur sans changer de filtre.
     return `<a href="#projet-${escapeAttr(t.id)}" data-aller="${escapeAttr(t.id)}"
@@ -1286,19 +1297,31 @@ function render(){
         <div class="tournee-head" data-replier="${escapeAttr(t.id)}" role="button" tabindex="0"
              aria-expanded="${replie === '1' ? 'false' : 'true'}">
           <div class="tournee-name">${escapeHtml(t.nom || 'Tournée sans nom')}${pastilleProjetHtml(t)}</div>
-          <span class="tournee-resume">${av.total === 0 ? 'personne sollicité·e'
+          <span class="tournee-resume">${av.total === 0 ? (answerableDates.length === 0 ? 'sans date' : 'personne sollicité·e')
             : (av.reste ? `<b>${av.reste} en attente</b> · ${av.repondu}/${av.total} répondu` : `${av.total} réponse${av.total>1?'s':''} complète${av.total>1?'s':''}`)}</span>
           <span class="caret" aria-hidden="true">▾</span>
         </div>
         <div class="carte-corps">
           <div class="tournee-meta">${answerableDates.length} ${reco ? 'séance' : 'date'}${answerableDates.length>1?'s':''}
-            <button type="button" class="co-btn secondary sm" style="margin-left:10px;" data-copy-all="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>
+            ${answerableDates.length === 0 ? '' : `<button type="button" class="co-btn secondary sm" style="margin-left:10px;" data-copy-all="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Copier tous les liens</button>`}
           </div>
           ${reco && technicienSansReponse.length ? `<div class="empty-hint" style="text-align:left; padding:9px 12px; margin-bottom:10px;">
             ${technicienSansReponse.length} technicien·ne${technicienSansReponse.length>1?'s ont':' a'} reçu une demande sur ce recording, avant qu'on cesse de les solliciter d'office. ${technicienSansReponse.length>1?'Aucune n\'a':'Elle n\'a'} encore répondu.
             <button type="button" class="co-btn ghost sm" style="margin-left:8px;" data-purger-techs="${escapeAttr(t.id)}">Retirer ${technicienSansReponse.length>1?'ces demandes':'cette demande'}</button>
           </div>` : ''}
-          ${(musicienRows || technicienRows) ? rows : `<div class="empty-hint">Personne n'est encore sollicité·e sur ${reco ? 'ce recording' : 'cette tournée'}.</div>`}
+          ${answerableDates.length === 0
+            // Sans date, il n'y a rien à demander : la création automatique
+            // des demandes attend, à raison, qu'il y ait quelque chose à
+            // répondre. Afficher malgré tout dix-sept noms suivis d'un bouton
+            // « Générer » donnait un mur d'actions sans objet — un lien vers
+            // un projet vide ne sert personne.
+            ? `<div class="empty-hint" style="text-align:left; padding:12px 14px;">
+                Ce ${reco ? 'recording' : 'projet'} n'a pas encore de date. Ajoute-les dans
+                <a href="${reco ? 'tournees.html?type=recording' : 'tournees.html'}#tournee-${escapeAttr(t.id)}">${reco ? 'Recording' : 'Tournées'}</a> :
+                les demandes partiront d'elles-mêmes au ${reco ? 'noyau de l\'orchestre' : 'noyau et à l\'équipe technique'}.
+              </div>`
+            : ((musicienRows || technicienRows) ? rows : `<div class="empty-hint">Personne n'est encore sollicité·e sur ${reco ? 'ce recording' : 'cette tournée'}.</div>`)}
+          ${answerableDates.length === 0 ? '' : `
           <div class="ajout-bloc">
             <div class="ajout-titre">Ajouter quelqu'un à ${reco ? 'ce recording' : 'cette tournée'}</div>
             <p class="ajout-intro">${reco
@@ -1306,7 +1329,7 @@ function render(){
               : `Le noyau de l'orchestre est déjà sollicité d'office, ci-dessus. Ajoute ici celles et ceux qu'on veut en plus — un renfort, un remplacement, quelqu'un hors noyau qui tient le poste sur cette tournée.`}</p>
             <input type="text" data-remplacant-search data-tournee="${escapeAttr(t.id)}" placeholder="Chercher un nom, un instrument, un poste…" style="width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit; box-sizing:border-box;">
             <div data-remplacant-results data-tournee="${escapeAttr(t.id)}" style="margin-top:6px;"></div>
-          </div>
+          </div>`}
         </div>
       </div>
     `;
