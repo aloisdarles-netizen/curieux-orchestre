@@ -75,7 +75,9 @@
 // plus une légende « qui va dans quel régime » (espace-budget.css).
 // v21 : le cachet d'un recording se fixe séance par séance — chiffresDuProjet
 // (devis-commun.js) ne rend plus de cachet global pour un recording.
-const VERSION = 'curieux-v21';
+// v22 : le parseur de listes de messagerie déménage dans ui-helpers.js pour
+// servir aussi l'annuaire technique.
+const VERSION = 'curieux-v22';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

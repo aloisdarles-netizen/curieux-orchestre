@@ -1207,6 +1207,12 @@ document.addEventListener('keydown', (e)=>{
 // Ouvre ou referme le cartouche de tête. Délégué sur le document : les cartes
 // de tournée sont re-rendues à chaque changement, un binding par bouton ne
 // survivrait pas au premier remplacement d'innerHTML.
+//
+// L'état ouvert est RETENU (outilsOuverts) et relu par renderTourneeCard :
+// sans cela, la moindre sauvegarde — ajouter un pupitre, toucher le cachet —
+// déclenchait la synchro temps réel, qui re-rendait la carte, et le cartouche
+// renaissait fermé sous les doigts de la personne en train de s'en servir.
+const outilsOuverts = new Set();
 document.addEventListener('click', (e)=>{
   const btn = e.target.closest('[data-toggle-outils]');
   if(!btn) return;
@@ -1215,6 +1221,8 @@ document.addEventListener('click', (e)=>{
   const ouvert = panneau.hasAttribute('hidden');
   panneau.toggleAttribute('hidden', !ouvert);
   btn.setAttribute('aria-expanded', String(ouvert));
+  if(ouvert) outilsOuverts.add(btn.dataset.toggleOutils);
+  else outilsOuverts.delete(btn.dataset.toggleOutils);
 });
 
 document.getElementById('assignSearch').addEventListener('input', (e)=> renderAssignList(e.target.value));
@@ -1710,7 +1718,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             dates.filter(d=>(d.statut||'option')==='option').length ? `${dates.filter(d=>(d.statut||'option')==='option').length} option${dates.filter(d=>(d.statut||'option')==='option').length>1?'s':''}` : '',
             ].filter(Boolean).join(' · ')}</span>
             <button type="button" class="outils-toggle" data-toggle-outils="${escapeAttr(t.id)}"
-              aria-expanded="false" title="Cachet et effectif attendu">
+              aria-expanded="${outilsOuverts.has(t.id) ? 'true' : 'false'}" title="Cachet et effectif attendu">
               <span class="outils-resume">${[
                 EST_RECORDING
                   ? (()=>{ const avec = dates.filter(d=> d.cachetSeance != null && d.cachetSeance !== '').length;
@@ -1727,7 +1735,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
           <!-- Cachet et effectif attendu sont désormais toujours affichés côte à
                côte, et non repliés derrière un bouton : ce sont deux réglages de
                tête de tournée qu'on consulte en même temps que les dates. -->
-          <div class="tournee-outils" id="outils-${escapeAttr(t.id)}" hidden>
+          <div class="tournee-outils" id="outils-${escapeAttr(t.id)}" ${outilsOuverts.has(t.id) ? '' : 'hidden'}>
             <div>
 ${EST_RECORDING ? `
               <div class="outils-legend">Cachet</div>

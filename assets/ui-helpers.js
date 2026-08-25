@@ -537,3 +537,138 @@ function pastilleProjetHtml(projet){
 function suffixeProjetTexte(projet){
   return estRecording(projet) ? ' · Recording' : '';
 }
+
+// ============================================================================
+// Parse d'une liste collée depuis une messagerie (WhatsApp, mail, notes).
+//
+// Le format qu'on reçoit vraiment n'est pas un tableau : c'est un fil de
+// discussion recopié. Des titres d'instrument avec « (rempla Untel) », des
+// puces truffées de caractères invisibles, des téléphones dans quatre
+// graphies, des emails seuls sur leur ligne, des remarques entre parenthèses,
+// des noms de famille en capitales. Ce parseur lit tout cela ; la modale
+// d'aperçu reste le filet de sécurité — rien ne s'importe sans relecture.
+//
+// Retourne null si le texte ne ressemble pas à ce format (aucun titre de
+// section reconnu), pour laisser leur chance aux deux autres parseurs.
+// ============================================================================
+function parseListeMessageriePaste(text){
+  if(!text || text.includes('\t')) return null;          // un tableau a son parseur
+
+  // Caractères invisibles des messageries : gluons (U+2060), espaces sans
+  // chasse (U+200B/U+FEFF), espaces insécables — la puce « •⁠  ⁠» en est pleine.
+  const nettoyer = (l)=> l
+    .replace(/[⁠​﻿‎‏]/g, '')
+    .replace(/ /g, ' ')
+    .replace(/^[\s]*(?:[•·▪◦*–—-]|\d{1,2}[.)])\s*/, '')  // puces et numérotation
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const TEL = /(?:\+33[\s.\-]?|0)\s*[1-9](?:[\s.\-]?\d{2}){4}/;
+  const EMAIL = /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/;
+
+  // « Violon solo (rempla Roxanne Rabatti) : » — avec ou sans deux-points.
+  const enteteRempla = /^(.{2,60}?)\s*\(\s*rempla[a-zç]*\.?\s+([^)]+?)\s*\)\s*:?\s*$/i;
+  // « Piano: » — un mot ou deux suivis d'un deux-points, sans téléphone ni email.
+  const enteteSimple = /^([A-Za-zÀ-ÿ'’ \-\/]{2,40}?)\s*:\s*$/;
+
+  const lignes = text.split('\n').map(nettoyer);
+  if(!lignes.some(l=> enteteRempla.test(l) || enteteSimple.test(l))) return null;
+
+  const rows = [];
+  const ignorees = [];
+  let section = '';
+  let remplaDe = '';
+  let auMoinsUnRempla = false;
+  let derniere = null;                                    // pour les lignes de suite
+
+  const normaliserTel = (brut)=>{
+    let d = brut.replace(/[^\d+]/g, '');
+    if(d.startsWith('+33')) d = '0' + d.slice(3);
+    if(d.length !== 10) return brut.trim();               // format inattendu : tel quel
+    return d.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+  };
+  // BESTAUTTE → Bestautte, mais « Le Meur » et les traits d'union survivent.
+  const casserLesCapitales = (mot)=> mot.length > 1 && mot === mot.toUpperCase() && /[A-ZÀ-Ý]/.test(mot)
+    ? mot.split('-').map(p=> p.charAt(0) + p.slice(1).toLowerCase()).join('-')
+    : mot;
+
+  for(const ligne of lignes){
+    if(!ligne) continue;
+
+    const mRempla = ligne.match(enteteRempla);
+    if(mRempla){
+      section = mRempla[1].trim();
+      remplaDe = mRempla[2].trim();
+      auMoinsUnRempla = true;
+      derniere = null;
+      continue;
+    }
+    const mSimple = ligne.match(enteteSimple);
+    if(mSimple && !TEL.test(ligne) && !EMAIL.test(ligne)){
+      section = mSimple[1].trim();
+      remplaDe = '';
+      derniere = null;
+      continue;
+    }
+
+    // Un titre général avant toute section (« CONSTELLATION CURIEUX ») : tout
+    // en capitales, pas de contact — on l'écarte en le disant.
+    if(!section && ligne === ligne.toUpperCase() && !TEL.test(ligne) && !EMAIL.test(ligne)){
+      ignorees.push(ligne);
+      continue;
+    }
+
+    // Démontage de la ligne : notes entre parenthèses, téléphone, email.
+    let reste = ligne;
+    const notes = [];
+    reste = reste.replace(/\(([^)]*)\)/g, (_, dedans)=>{ notes.push(dedans.trim()); return ' '; });
+    let tel = '';
+    const mTelNote = notes.join(' ').match(TEL);          // « (Intercon +33 6…) »
+    reste = reste.replace(TEL, (m)=>{ tel = normaliserTel(m); return ' '; });
+    if(!tel && mTelNote) tel = normaliserTel(mTelNote[0]);
+    const notesSansTel = notes.map(n=> n.replace(TEL, '').replace(/\s+/g,' ').trim()).filter(Boolean);
+    let email = '';
+    reste = reste.replace(EMAIL, (m)=>{ email = m; return ' '; });
+    const nomBrut = reste.replace(/[\s\-–—:]+$/g, '').replace(/^[\s\-–—:]+/g, '').replace(/\s+/g, ' ').trim();
+
+    // Ligne sans nom : elle complète la personne du dessus (email seul,
+    // téléphone seul, remarque seule).
+    if(!nomBrut){
+      if(derniere){
+        if(tel && !derniere.telephone) derniere.telephone = tel;
+        if(email && !derniere.email) derniere.email = email;
+        if(notesSansTel.length) derniere.notes = [derniere.notes, ...notesSansTel].filter(Boolean).join(' · ');
+      } else if(tel || email || notesSansTel.length){
+        ignorees.push(ligne);
+      }
+      continue;
+    }
+
+    // Prénom / nom : les mots tout en capitales font le nom de famille ;
+    // sinon, premier mot prénom, le reste nom.
+    const mots = nomBrut.split(' ');
+    const caps = mots.filter(m=> m.length > 1 && m === m.toUpperCase() && /[A-ZÀ-Ý]/.test(m));
+    let prenom, nom;
+    if(caps.length && caps.length < mots.length){
+      nom = caps.map(casserLesCapitales).join(' ');
+      prenom = mots.filter(m=> !caps.includes(m)).join(' ');
+    } else {
+      prenom = mots[0];
+      nom = mots.slice(1).map(casserLesCapitales).join(' ');
+    }
+
+    derniere = {
+      prenom, nom,
+      field3: section,
+      remplaDe,
+      telephone: tel, email,
+      notes: notesSansTel.join(' · '),
+    };
+    rows.push(derniere);
+  }
+
+  if(!rows.length) return null;
+  const statutDefaut = auMoinsUnRempla ? 'remplacant' : 'titulaire';
+  rows.forEach(r=>{ r.statutPoste = statutDefaut; });
+  return { rows, ignorees };
+}

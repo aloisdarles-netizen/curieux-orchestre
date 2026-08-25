@@ -502,6 +502,22 @@ document.getElementById('remplacantsModalOverlay').addEventListener('click', (e)
 
 // Parse souple d'une liste de contacts collée (tableur ou texte libre) : détecte
 // email/téléphone où qu'ils soient, et prend les tokens restants comme prénom/nom/poste.
+// Devine le pôle d'un poste de section (« Régie », « Ingé son », « Lumière »).
+// Même esprit que pupitreForSection côté musicien·nes : une aide, pas une
+// vérité — l'aperçu laisse corriger.
+function poleForSection(section){
+  const s = stripAccents(section || '').toUpperCase();
+  if(/REGIE|REGISSEUR|STAGE MANAGER/.test(s)) return 'Régie générale';
+  if(/\bSON\b|SONORISAT|FACADE|RETOUR|MIX/.test(s)) return 'Son';
+  if(/LUMIERE|ECLAIRAG|LIGHT/.test(s)) return 'Lumière';
+  if(/PLATEAU|BACKLINE|ROAD/.test(s)) return 'Plateau / Backline';
+  if(/VIDEO/.test(s)) return 'Vidéo';
+  if(/TOUR MANAG/.test(s)) return 'Tour management';
+  return 'Autre';
+}
+
+function stripAccents(str){ return (str||'').normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
 function parseContactsPaste(text){
   const rows = [];
   const rejected = [];
@@ -542,7 +558,14 @@ function parseContactsPaste(text){
 }
 
 function renderContactPreview(){
-  const { rows, rejected } = parseContactsPaste(document.getElementById('importTextarea').value);
+  const text = document.getElementById('importTextarea').value;
+  // La liste de messagerie (sections par poste, « (rempla X) », puces,
+  // téléphones en vrac — voir ui-helpers.js) d'abord ; sinon la lecture
+  // ligne-par-contact habituelle.
+  const messagerie = parseListeMessageriePaste(text);
+  const rows = messagerie ? messagerie.rows : parseContactsPaste(text).rows;
+  const rejected = messagerie ? messagerie.ignorees : parseContactsPaste(text).rejected;
+  if(messagerie) rows.forEach(r=>{ r.pole = poleForSection(r.field3); });
   const preview = document.getElementById('importPreview');
   const confirmBtn = document.getElementById('importConfirmBtn');
   if(rows.length === 0){
@@ -602,10 +625,12 @@ document.getElementById('importConfirmBtn').addEventListener('click', ()=>{
   const list = loadTechnicians();
   rows.forEach(r=>{
     if(!r.prenom && !r.nom) return;
+    const notes = [r.remplaDe ? `Remplace ${r.remplaDe}` : '', r.notes || ''].filter(Boolean).join(' · ');
     list.push({
       id: genId('tech'), prenom: r.prenom, nom: r.nom,
-      poste: r.field3, pole: 'Autre',
-      telephone: r.telephone, email: r.email, notes: '', disponibilites: {}
+      poste: r.field3, pole: r.pole || 'Autre',
+      statutPoste: r.statutPoste || 'titulaire',
+      telephone: r.telephone, email: r.email, notes, disponibilites: {}
     });
   });
   saveTechnicians(list);
