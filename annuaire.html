@@ -218,10 +218,17 @@
   <div class="empty-hint" id="emptyHint" style="display:none;">Aucun·e musicien·ne pour l'instant — ajoute-en un·e avec le bouton ci-dessus.</div>
 </div>
 
+<style>
+  /* La barre d'actions groupées : des commandes en ligne, pas des champs de
+     formulaire pleine largeur. */
+  .import-groupe select{ width:auto !important; }
+</style>
 <div class="modal-overlay" id="importOverlay">
-  <div class="modal" style="max-width:720px;">
+  <!-- Dix colonnes d'aperçu ne tiennent pas dans 720 px : cette modale-ci
+       prend la largeur qu'il faut, plafonnée pour les très grands écrans. -->
+  <div class="modal" style="max-width:min(1150px, 96vw);">
     <h2>Importer des musicien·nes (copier-coller)</h2>
-    <p style="color:var(--muted); font-size:12.5px; margin:-8px 0 12px;">Colle une liste depuis un tableur ou une ligne par personne. Vérifie et corrige chaque ligne avant d'importer.</p>
+    <p style="color:var(--muted); font-size:12.5px; margin:-8px 0 12px;">Colle une liste depuis un tableur, une ligne par personne, ou <b>un message tel quel</b> — sections par instrument, « (rempla Untel) », puces, téléphones et emails en vrac : tout est démêlé. Vérifie et corrige chaque ligne avant d'importer.</p>
     <textarea id="importTextarea" rows="6" style="width:100%; font-size:12.5px; font-family:ui-monospace,monospace; padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text);" placeholder="Alice Martin	Violon solo	06 12 34 56 78	alice.martin@mail.com&#10;Julien Petit	Violoncelle	06 98 76 54 32	julien.petit@mail.com"></textarea>
     <div style="margin-top:10px;">
       <button type="button" class="co-btn secondary sm" id="importAnalyzeBtn">Analyser</button>
@@ -637,6 +644,141 @@ function parseMusicianRosterPaste(text){
 
 // Parse souple d'une liste de contacts collée (tableur ou texte libre) : détecte
 // email/téléphone où qu'ils soient, et prend les tokens restants comme prénom/nom/instrument.
+// ============================================================================
+// Parse d'une liste collée depuis une messagerie (WhatsApp, mail, notes).
+//
+// Le format qu'on reçoit vraiment n'est pas un tableau : c'est un fil de
+// discussion recopié. Des titres d'instrument avec « (rempla Untel) », des
+// puces truffées de caractères invisibles, des téléphones dans quatre
+// graphies, des emails seuls sur leur ligne, des remarques entre parenthèses,
+// des noms de famille en capitales. Ce parseur lit tout cela ; la modale
+// d'aperçu reste le filet de sécurité — rien ne s'importe sans relecture.
+//
+// Retourne null si le texte ne ressemble pas à ce format (aucun titre de
+// section reconnu), pour laisser leur chance aux deux autres parseurs.
+// ============================================================================
+function parseListeMessageriePaste(text){
+  if(!text || text.includes('\t')) return null;          // un tableau a son parseur
+
+  // Caractères invisibles des messageries : gluons (U+2060), espaces sans
+  // chasse (U+200B/U+FEFF), espaces insécables — la puce « •⁠  ⁠» en est pleine.
+  const nettoyer = (l)=> l
+    .replace(/[⁠​﻿‎‏]/g, '')
+    .replace(/ /g, ' ')
+    .replace(/^[\s]*(?:[•·▪◦*–—-]|\d{1,2}[.)])\s*/, '')  // puces et numérotation
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const TEL = /(?:\+33[\s.\-]?|0)\s*[1-9](?:[\s.\-]?\d{2}){4}/;
+  const EMAIL = /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/;
+
+  // « Violon solo (rempla Roxanne Rabatti) : » — avec ou sans deux-points.
+  const enteteRempla = /^(.{2,60}?)\s*\(\s*rempla[a-zç]*\.?\s+([^)]+?)\s*\)\s*:?\s*$/i;
+  // « Piano: » — un mot ou deux suivis d'un deux-points, sans téléphone ni email.
+  const enteteSimple = /^([A-Za-zÀ-ÿ'’ \-\/]{2,40}?)\s*:\s*$/;
+
+  const lignes = text.split('\n').map(nettoyer);
+  if(!lignes.some(l=> enteteRempla.test(l) || enteteSimple.test(l))) return null;
+
+  const rows = [];
+  const ignorees = [];
+  let section = '';
+  let remplaDe = '';
+  let auMoinsUnRempla = false;
+  let derniere = null;                                    // pour les lignes de suite
+
+  const normaliserTel = (brut)=>{
+    let d = brut.replace(/[^\d+]/g, '');
+    if(d.startsWith('+33')) d = '0' + d.slice(3);
+    if(d.length !== 10) return brut.trim();               // format inattendu : tel quel
+    return d.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+  };
+  // BESTAUTTE → Bestautte, mais « Le Meur » et les traits d'union survivent.
+  const casserLesCapitales = (mot)=> mot.length > 1 && mot === mot.toUpperCase() && /[A-ZÀ-Ý]/.test(mot)
+    ? mot.split('-').map(p=> p.charAt(0) + p.slice(1).toLowerCase()).join('-')
+    : mot;
+
+  for(const ligne of lignes){
+    if(!ligne) continue;
+
+    const mRempla = ligne.match(enteteRempla);
+    if(mRempla){
+      section = mRempla[1].trim();
+      remplaDe = mRempla[2].trim();
+      auMoinsUnRempla = true;
+      derniere = null;
+      continue;
+    }
+    const mSimple = ligne.match(enteteSimple);
+    if(mSimple && !TEL.test(ligne) && !EMAIL.test(ligne)){
+      section = mSimple[1].trim();
+      remplaDe = '';
+      derniere = null;
+      continue;
+    }
+
+    // Un titre général avant toute section (« CONSTELLATION CURIEUX ») : tout
+    // en capitales, pas de contact — on l'écarte en le disant.
+    if(!section && ligne === ligne.toUpperCase() && !TEL.test(ligne) && !EMAIL.test(ligne)){
+      ignorees.push(ligne);
+      continue;
+    }
+
+    // Démontage de la ligne : notes entre parenthèses, téléphone, email.
+    let reste = ligne;
+    const notes = [];
+    reste = reste.replace(/\(([^)]*)\)/g, (_, dedans)=>{ notes.push(dedans.trim()); return ' '; });
+    let tel = '';
+    const mTelNote = notes.join(' ').match(TEL);          // « (Intercon +33 6…) »
+    reste = reste.replace(TEL, (m)=>{ tel = normaliserTel(m); return ' '; });
+    if(!tel && mTelNote) tel = normaliserTel(mTelNote[0]);
+    const notesSansTel = notes.map(n=> n.replace(TEL, '').replace(/\s+/g,' ').trim()).filter(Boolean);
+    let email = '';
+    reste = reste.replace(EMAIL, (m)=>{ email = m; return ' '; });
+    const nomBrut = reste.replace(/[\s\-–—:]+$/g, '').replace(/^[\s\-–—:]+/g, '').replace(/\s+/g, ' ').trim();
+
+    // Ligne sans nom : elle complète la personne du dessus (email seul,
+    // téléphone seul, remarque seule).
+    if(!nomBrut){
+      if(derniere){
+        if(tel && !derniere.telephone) derniere.telephone = tel;
+        if(email && !derniere.email) derniere.email = email;
+        if(notesSansTel.length) derniere.notes = [derniere.notes, ...notesSansTel].filter(Boolean).join(' · ');
+      } else if(tel || email || notesSansTel.length){
+        ignorees.push(ligne);
+      }
+      continue;
+    }
+
+    // Prénom / nom : les mots tout en capitales font le nom de famille ;
+    // sinon, premier mot prénom, le reste nom.
+    const mots = nomBrut.split(' ');
+    const caps = mots.filter(m=> m.length > 1 && m === m.toUpperCase() && /[A-ZÀ-Ý]/.test(m));
+    let prenom, nom;
+    if(caps.length && caps.length < mots.length){
+      nom = caps.map(casserLesCapitales).join(' ');
+      prenom = mots.filter(m=> !caps.includes(m)).join(' ');
+    } else {
+      prenom = mots[0];
+      nom = mots.slice(1).map(casserLesCapitales).join(' ');
+    }
+
+    derniere = {
+      prenom, nom,
+      field3: section,
+      remplaDe,
+      telephone: tel, email,
+      notes: notesSansTel.join(' · '),
+    };
+    rows.push(derniere);
+  }
+
+  if(!rows.length) return null;
+  const statutDefaut = auMoinsUnRempla ? 'remplacant' : 'titulaire';
+  rows.forEach(r=>{ r.statutPoste = statutDefaut; });
+  return { rows, ignorees };
+}
+
 function parseContactsPaste(text){
   const rows = [];
   const rejected = [];
@@ -680,13 +822,31 @@ const PUPITRE_OPTIONS = ["Chef d'orchestre",'Cordes','Bois','Cuivres','Percussio
 
 function renderContactPreview(){
   const text = document.getElementById('importTextarea').value;
-  // Le roster structuré (NOM/PRÉNOM en en-tête + sections par instrument + "*" =
-  // titulaire) est essayé en premier ; s'il ne matche pas, on retombe sur le parseur
-  // libre habituel (une ligne = un contact, sans structure imposée).
+  // Trois lectures, de la plus structurée à la plus libre : le roster à
+  // en-têtes NOM/PRÉNOM, puis la liste de messagerie (sections par instrument,
+  // « (rempla X) », puces, téléphones en vrac), puis la ligne-par-contact.
   const rosterRows = parseMusicianRosterPaste(text);
-  const isRoster = !!rosterRows;
-  const rows = rosterRows || parseContactsPaste(text).rows;
-  const rejected = rosterRows ? [] : parseContactsPaste(text).rejected;
+  const messagerie = rosterRows ? null : parseListeMessageriePaste(text);
+  let mode, rows, ignorees;
+  if(rosterRows){ mode = 'roster'; rows = rosterRows; ignorees = []; }
+  else if(messagerie){ mode = 'messagerie'; rows = messagerie.rows; ignorees = messagerie.ignorees; }
+  else { const libre = parseContactsPaste(text); mode = 'libre'; rows = libre.rows; ignorees = libre.rejected; }
+
+  const structure = mode !== 'libre';
+  if(mode === 'messagerie') rows.forEach(r=>{ r.pupitre = pupitreForSection(r.field3); });
+
+  // Qui est déjà là — dans l'annuaire ou plus haut dans le même collage. On le
+  // signale et on pré-coche : « Retirer la sélection » écarte tout d'un clic.
+  const connus = new Set(loadMusicians().map(m=> stripAccents(fullName(m)).toLowerCase().replace(/\s+/g,' ').trim()));
+  const vusIci = new Set();
+  rows.forEach(r=>{
+    const cle = stripAccents(`${r.prenom} ${r.nom}`).toLowerCase().replace(/\s+/g,' ').trim();
+    r.doublon = connus.has(cle) ? 'annuaire' : (vusIci.has(cle) ? 'collage' : '');
+    vusIci.add(cle);
+    r.coche = !!r.doublon;
+  });
+  const nbDoublons = rows.filter(r=> r.doublon).length;
+
   const preview = document.getElementById('importPreview');
   const confirmBtn = document.getElementById('importConfirmBtn');
   if(rows.length === 0){
@@ -694,26 +854,46 @@ function renderContactPreview(){
     confirmBtn.style.display = 'none';
     return;
   }
-  preview.innerHTML = `
-    ${isRoster ? `<div style="font-size:12px; color:var(--muted); margin:8px 0;">Roster détecté : instrument/pupitre et statut (titulaires marqué·es d'un ✻) déduits automatiquement — vérifie avant d'importer.</div>` : ''}
-    <div class="grid-table-wrap" style="overflow-x:auto; margin-top:12px; max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
+
+  const majConfirm = ()=>{
+    confirmBtn.textContent = `Importer ${rows.length} musicien·ne${rows.length>1?'s':''}`;
+    confirmBtn.style.display = rows.length ? 'inline-block' : 'none';
+  };
+
+  const th = (t)=> `<th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase; white-space:nowrap;">${t}</th>`;
+  const cellInput = (i, f, val, w)=> `<td style="padding:3px;"><input type="text" data-i="${i}" data-f="${f}" value="${escapeHtml(val || '')}" style="width:100%; min-width:${w || 70}px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>`;
+
+  const dessinerTable = ()=>{
+    preview.innerHTML = `
+    ${mode === 'roster' ? `<div style="font-size:12px; color:var(--muted); margin:8px 0;">Roster détecté : instrument/pupitre et statut (titulaires marqué·es d'un ✻) déduits automatiquement — vérifie avant d'importer.</div>` : ''}
+    ${mode === 'messagerie' ? `<div style="font-size:12px; color:var(--muted); margin:8px 0;">Liste de messagerie détectée : sections par instrument, téléphones et remarques démêlés ligne à ligne. <b>Relis avant d'importer</b> — c'est le filet de sécurité.</div>` : ''}
+    ${structure ? `
+    <div class="import-groupe" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 10px; background:var(--bg); border:1px solid var(--border); border-radius:8px; margin-top:10px; font-size:12px;">
+      <label style="display:flex; align-items:center; gap:5px; font-weight:700;"><input type="checkbox" id="impToutCocher" style="width:auto;"> Tout</label>
+      <span style="color:var(--muted);">Pour la sélection :</span>
+      <select id="impGroupePupitre" style="padding:4px 6px; font-size:12px;"><option value="">Pupitre…</option>${PUPITRE_OPTIONS.map(p=>`<option value="${p}">${p}</option>`).join('')}</select>
+      <select id="impGroupeStatut" style="padding:4px 6px; font-size:12px;"><option value="">Statut…</option><option value="titulaire">Titulaire</option><option value="remplacant">Remplaçant·e</option></select>
+      <button type="button" class="co-btn secondary sm" id="impGroupeAppliquer">Appliquer</button>
+      <button type="button" class="co-btn ghost sm" id="impGroupeRetirer" title="Enlève les lignes cochées de l'import — rien n'est supprimé de l'annuaire">Retirer de l'import</button>
+      ${nbDoublons ? `<span style="color:var(--maybe); font-weight:700;">${nbDoublons} déjà connu·e${nbDoublons>1?'s':''} — pré-coché·e${nbDoublons>1?'s':''}, « Retirer » pour ne pas ${nbDoublons>1?'les':'le'} réimporter</span>` : ''}
+    </div>` : ''}
+    <div class="grid-table-wrap" style="overflow-x:auto; margin-top:10px; max-height:340px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
       <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
         <thead><tr>
-          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Prénom</th>
-          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Nom</th>
-          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Instrument</th>
-          ${isRoster ? `<th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Pupitre</th>
-          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Statut</th>` : ''}
-          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Téléphone</th>
-          <th style="text-align:left; padding:6px 8px; color:var(--muted); font-size:10.5px; text-transform:uppercase;">Email</th>
+          ${structure ? th('') : ''}
+          ${th('Prénom')}${th('Nom')}${th('Instrument')}
+          ${structure ? th('Pupitre') + th('Statut') : ''}
+          ${th('Téléphone')}${th('Email')}
+          ${mode === 'messagerie' ? th('Notes') : ''}
         </tr></thead>
         <tbody>
           ${rows.map((r,i)=>`
-            <tr style="border-top:1px solid var(--border);">
-              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="prenom" value="${escapeHtml(r.prenom)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
-              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="nom" value="${escapeHtml(r.nom)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
-              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="field3" value="${escapeHtml(r.field3)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
-              ${isRoster ? `
+            <tr style="border-top:1px solid var(--border); ${r.doublon ? 'background:var(--maybe-tint);' : ''}">
+              ${structure ? `<td style="padding:3px 6px; text-align:center;"><input type="checkbox" data-coche="${i}" ${r.coche ? 'checked' : ''} style="width:auto;" title="${r.doublon === 'annuaire' ? 'Déjà dans l\'annuaire' : r.doublon === 'collage' ? 'En double dans le texte collé' : 'Sélectionner pour une action groupée'}"></td>` : ''}
+              ${cellInput(i, 'prenom', r.prenom, 90)}
+              ${cellInput(i, 'nom', r.nom, 90)}
+              ${cellInput(i, 'field3', r.field3, 90)}
+              ${structure ? `
               <td style="padding:3px;">
                 <select data-i="${i}" data-f="pupitre" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;">
                   ${PUPITRE_OPTIONS.map(p=>`<option value="${p}" ${r.pupitre===p?'selected':''}>${p}</option>`).join('')}
@@ -725,25 +905,57 @@ function renderContactPreview(){
                   <option value="remplacant" ${r.statutPoste==='remplacant'?'selected':''}>Remplaçant·e</option>
                 </select>
               </td>` : ''}
-              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="telephone" value="${escapeHtml(r.telephone)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
-              <td style="padding:3px;"><input type="text" data-i="${i}" data-f="email" value="${escapeHtml(r.email)}" style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px;"></td>
+              ${cellInput(i, 'telephone', r.telephone, 110)}
+              ${cellInput(i, 'email', r.email, 130)}
+              ${mode === 'messagerie' ? cellInput(i, 'notes', r.notes, 130) : ''}
             </tr>
           `).join('')}
         </tbody>
       </table>
     </div>
-    ${rejected.length ? `<div style="margin-top:8px; font-size:12px; color:var(--muted);">${rejected.length} ligne(s) non reconnue(s) et ignorée(s).</div>` : ''}
-  `;
-  preview.querySelectorAll('[data-i]').forEach(inp=>{
-    inp.addEventListener('input', ()=>{ rows[inp.dataset.i][inp.dataset.f] = inp.value; });
-    inp.addEventListener('change', ()=>{ rows[inp.dataset.i][inp.dataset.f] = inp.value; });
-  });
-  confirmBtn.textContent = `Importer ${rows.length} musicien·ne${rows.length>1?'s':''}`;
-  confirmBtn.style.display = 'inline-block';
+    ${ignorees.length ? `<details style="margin-top:8px; font-size:12px; color:var(--muted);">
+      <summary style="cursor:pointer;">${ignorees.length} ligne${ignorees.length>1?'s':''} écartée${ignorees.length>1?'s':''} — vérifier qu'il n'y manque personne</summary>
+      <ul style="margin:6px 0 0; padding-left:18px;">${ignorees.map(l=> `<li>${escapeHtml(l)}</li>`).join('')}</ul>
+    </details>` : ''}
+    `;
+
+    preview.querySelectorAll('[data-i]').forEach(inp=>{
+      inp.addEventListener('input', ()=>{ rows[inp.dataset.i][inp.dataset.f] = inp.value; });
+      inp.addEventListener('change', ()=>{ rows[inp.dataset.i][inp.dataset.f] = inp.value; });
+    });
+    preview.querySelectorAll('[data-coche]').forEach(cb=>{
+      cb.addEventListener('change', ()=>{ rows[cb.dataset.coche].coche = cb.checked; });
+    });
+    const toutCocher = document.getElementById('impToutCocher');
+    if(toutCocher) toutCocher.addEventListener('change', ()=>{
+      rows.forEach(r=> r.coche = toutCocher.checked);
+      dessinerTable();
+    });
+    const appliquer = document.getElementById('impGroupeAppliquer');
+    if(appliquer) appliquer.addEventListener('click', ()=>{
+      const pup = document.getElementById('impGroupePupitre').value;
+      const st = document.getElementById('impGroupeStatut').value;
+      if(!pup && !st) return;
+      let n = 0;
+      rows.forEach(r=>{ if(r.coche){ if(pup) r.pupitre = pup; if(st) r.statutPoste = st; n++; } });
+      if(!n){ alert('Coche d\'abord les lignes à modifier.'); return; }
+      dessinerTable();
+    });
+    const retirer = document.getElementById('impGroupeRetirer');
+    if(retirer) retirer.addEventListener('click', ()=>{
+      const n = rows.filter(r=> r.coche).length;
+      if(!n){ alert('Coche d\'abord les lignes à retirer.'); return; }
+      for(let k = rows.length - 1; k >= 0; k--) if(rows[k].coche) rows.splice(k, 1);
+      dessinerTable();
+      majConfirm();
+    });
+    majConfirm();
+  };
+
+  dessinerTable();
   confirmBtn.dataset.pending = 'true';
   window.__importRows = rows;
 }
-
 function openImportModal(){
   document.getElementById('importTextarea').value = '';
   document.getElementById('importPreview').innerHTML = '';
@@ -763,10 +975,14 @@ document.getElementById('importConfirmBtn').addEventListener('click', ()=>{
   const list = loadMusicians();
   rows.forEach(r=>{
     if(!r.prenom && !r.nom) return;
+    // « (rempla Roxanne Rabatti) » dans le titre de section : l'information
+    // dit de qui cette personne est la doublure — elle part dans les notes,
+    // faute d'un champ dédié, plutôt que de se perdre.
+    const notes = [r.remplaDe ? `Remplace ${r.remplaDe}` : '', r.notes || ''].filter(Boolean).join(' · ');
     list.push({
       id: genId('mus'), prenom: r.prenom, nom: r.nom,
       instrument: r.field3, pupitre: r.pupitre || 'Autre', statutPoste: r.statutPoste || 'titulaire',
-      telephone: r.telephone, email: r.email, notes: r.notes || '', disponibilites: {}
+      telephone: r.telephone, email: r.email, notes, disponibilites: {}
     });
   });
   saveMusicians(list);
