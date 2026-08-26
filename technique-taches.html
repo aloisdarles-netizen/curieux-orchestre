@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Tableau de bord technique (maquette)</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:min(1500px, 97vw); margin:0 auto; font-variant-numeric:tabular-nums;}
+  [hidden]{display:none;}
+
+  .stats-plates{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:20px;}
+  .stats-plates > div{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px;}
+  .stats-plates b{display:block; font-size:26px; font-weight:800; line-height:1; color:var(--accent);}
+  .stats-plates b.ko{color:var(--ko);}
+  .stats-plates span{display:block; font-size:11.5px; font-weight:700; color:var(--muted); margin-top:5px;}
+
+  .bloc{margin-bottom:20px;}
+  .bloc-tete{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin:0 0 10px;}
+  .bloc-tete h2{font-size:15.5px; margin:0; color:var(--accent);}
+  .bloc-tete .compte{font-size:12.5px; color:var(--muted); font-weight:700;}
+
+  /* Une alerte : ce que l'outil a vu tout seul. Elle ne se coche pas — elle
+     s'éteint d'elle-même quand l'état change (la fiche arrive, le plan est
+     validé). La gravité à gauche, le manque au milieu, l'action à droite. */
+  .alerte{display:flex; align-items:center; gap:14px; padding:11px 18px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+  .alerte:last-child{border-bottom:none;}
+  .alerte.rouge{border-left:3px solid var(--ko);}
+  .alerte.orange{border-left:3px solid var(--maybe);}
+  .alerte .quand{flex:0 0 128px; min-width:128px;}
+  .alerte .quand b{display:block; font-size:12.5px; font-weight:800;}
+  .alerte .quand small{display:block; font-size:11px; color:var(--muted); font-weight:700;}
+  .alerte .quoi{flex:1; min-width:220px;}
+  .alerte .quoi b{display:block; font-weight:800; font-size:13.5px;}
+  .alerte .quoi small{display:block; font-size:11.5px; color:var(--muted);}
+  .alerte.reglee{opacity:.55;}
+  .alerte.reglee .quoi b{text-decoration:line-through;}
+
+  /* Une tâche : le même composant que l'espace comm — l'échéance à gauche,
+     la coche à droite, la pastille d'auteur. Un seul langage pour tout le site. */
+  .tache{display:flex; align-items:center; gap:14px; padding:11px 18px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+  .tache:last-child{border-bottom:none;}
+  .tache .quand{flex:0 0 128px; min-width:128px;}
+  .tache .quand b{display:block; font-size:12.5px; font-weight:800;}
+  .tache .quand small{display:block; font-size:11px; color:var(--muted); font-weight:700;}
+  .tache .quoi{flex:1; min-width:200px;}
+  .tache .quoi b{display:block; font-weight:800; font-size:13.5px;}
+  .tache .quoi small{display:block; font-size:11.5px; color:var(--muted);}
+  .tache.faite .quoi > b{text-decoration:line-through; color:var(--muted);}
+  .tache .coche{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); font-weight:700; cursor:pointer; white-space:nowrap;}
+  .tache .coche input{width:17px; height:17px; accent-color:var(--ok); cursor:pointer;}
+  .tache .outil{
+    cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted);
+    border-radius:8px; width:28px; height:28px; font-weight:800; font-size:13px; font-family:inherit;
+    display:grid; place-items:center; flex-shrink:0;
+  }
+  .tache .outil:hover{border-color:var(--accent); color:var(--accent);}
+  .tache .outil.danger:hover{border-color:var(--ko); color:var(--ko);}
+  .tache .par{
+    font-size:11px; color:var(--muted); font-weight:700; white-space:nowrap;
+    background:var(--bg); border:1px solid var(--border); border-radius:999px; padding:3px 10px;
+  }
+  .retard{border-left:3px solid var(--ko);}
+  .aujourdhui{border-left:3px solid var(--secondary);}
+
+  .tache-form{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+  .tache-form .champ{display:flex; flex-direction:column; gap:4px;}
+  .tache-form label{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
+  .tache-form input, .tache-form select{
+    padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13.5px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  .tache-form input:focus, .tache-form select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .tache-form .libelle{flex:2 1 240px;}
+  .tache-form .libelle input{width:100%;}
+
+  /* Les salles qui approchent : une carte par salle, l'avancement en 2/6. */
+  .salle-carte .jauges{display:flex; flex-direction:column; gap:5px; margin-top:10px;}
+  .salle-poste{display:flex; align-items:center; gap:8px; font-size:12px;}
+  .salle-poste .pt{width:8px; height:8px; border-radius:50%; flex:none;}
+  .salle-poste .pt.ok{background:var(--ok);}
+  .salle-poste .pt.att{background:var(--maybe);}
+  .salle-poste .pt.non{background:var(--ko);}
+  .salle-poste .lib{font-weight:700; flex:0 0 108px;}
+  .salle-poste .val{color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Tableau de bord technique</h1>
+      <p class="subtitle">Ce que l'outil a vu tout seul, tes tâches et tes rappels, les salles qui approchent.</p>
+    </div>
+    <div class="co-actions"><span class="co-pill att">Maquette</span></div>
+  </div>
+
+  <div class="co-note" style="margin-bottom:18px;">
+    <b>Maquette — rien n'est enregistré.</b> Les données sont inventées et la date du jour
+    est fixée au <b>mercredi 24 février 2027</b>, en pleine préparation de la tournée, pour que
+    les alertes aient de la matière. Coche, ajoute, transforme une alerte en tâche : tout
+    marche, et tout revient à zéro au rechargement.
+  </div>
+
+  <div id="contenu"></div>
+</div>
+
+<script>
+applyBrandLogo();
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+/* ---------------------------------------------------------------------------
+   Tableau de bord technique — maquette
+   ---------------------------------------------------------------------------
+   Le parti pris : la direction technique n'a pas besoin d'une liste de tâches
+   vide à remplir — le module technique SAIT déjà ce qui manque, salle par
+   salle (plan de scène, plan de charge, vacations, remarques des liens
+   partagés, pannes de matériel). Le tableau de bord a donc deux étages :
+
+   — LES ALERTES, engendrées : l'outil confronte l'état de chaque salle au
+     nombre de jours restants et dit ce qui presse. Une alerte ne se coche
+     pas : elle s'éteint d'elle-même quand l'état change. Si elle demande du
+     travail qui s'étale, un clic la transforme en tâche.
+   — LES TÂCHES ET RAPPELS, saisis : tout ce que l'outil ne peut pas deviner
+     (« rappeler le Dôme pour le rigg », « acheter des gaffeurs »). Même
+     composant que l'espace comm : échéance libre ou comptée en jours avant
+     la date, auteur visible, coche qui archive.
+--------------------------------------------------------------------------- */
+
+const AUJOURDHUI = '2027-02-24';
+
+// Une salle = un groupe de dates au même endroit (comme sur l'avancement).
+// L'état reprend les six postes réels de technique.html.
+const SALLES = [
+  { id:'s1', ville:'Épernay', lieu:'Le Millenium', dates:['2027-02-10','2027-02-11','2027-02-12'],
+    statut:'validee',
+    plan:'valide2', charge:'valide', dechargement:2, roadies:[4,4], chariots:[2,2], rigg:[2,2],
+  },
+  { id:'s2', ville:'Lyon', lieu:'Salle 3000', dates:['2027-03-12'],
+    statut:'validee',
+    // Plan reçu mais validé d'un seul côté ; une vacation rigg pas confirmée.
+    plan:'recu', charge:'envoye', dechargement:2, roadies:[4,4], chariots:[2,2], rigg:[1,2],
+  },
+  { id:'s3', ville:'Grenoble', lieu:'Le Summum', dates:['2027-03-13'],
+    statut:'validee',
+    // Rien n'est parti : c'est la salle qui doit faire peur sur ce tableau.
+    plan:'non_demande', charge:'non_envoye', dechargement:null, roadies:[0,0], chariots:[0,0], rigg:[0,0],
+  },
+  { id:'s4', ville:'Marseille', lieu:'Le Dôme', dates:['2027-03-15'],
+    statut:'option',
+    plan:'non_demande', charge:'non_envoye', dechargement:null, roadies:[0,0], chariots:[0,0], rigg:[0,0],
+  },
+];
+
+// Les remarques laissées par les salles et stage managers (liens partagés).
+const REMARQUES = [
+  { id:'r1', quand:'2027-02-15', auteur:'Le Millenium (Épernay)', texte:"Le quai de déchargement sera partagé avec un autre événement le 12 — prévoir 30 min de plus." },
+  { id:'r2', quand:'2027-02-22', auteur:'Stage manager — Lyon', texte:"La salle demande le plan de charge au format A3, pas A4." },
+];
+
+// Les pannes et échanges de matériel en attente (module Matériel).
+const ECHANGES = [
+  { id:'e1', quoi:'Ampli casque HA-8000 en panne', ou:'kit retour Épernay', etat:'a_planifier' },
+];
+
+// Les tâches saisies — le même objet que l'espace comm.
+let TACHES = [
+  { id:'t1', libelle:'Rappeler le Dôme pour le rigg (36 points, à confirmer)', notes:'', auteur:'alois.darles@lessoudaines.fr',
+    salleId:'s4', j:20, echeance:'', fait:false, faitLe:'' },
+  { id:'t2', libelle:'Acheter gaffeurs + gants (stock épuisé à Épernay)', notes:'avant le départ Lyon', auteur:'demo@curieux.fr',
+    salleId:'', j:null, echeance:'2027-03-08', fait:false, faitLe:'' },
+  { id:'t3', libelle:'Renvoyer la feuille de mission chauffeur d\'Épernay signée', notes:'', auteur:'demo@curieux.fr',
+    salleId:'', j:null, echeance:'2027-02-18', fait:true, faitLe:'2027-02-18' },
+];
+const monEmail = 'demo@curieux.fr';
+let tacheEnEdition = null;
+const alertesEnTache = new Set();
+
+const MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const JOURS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+function joli(iso, avecJour){
+  if(!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  return (avecJour ? JOURS[d.getDay()].slice(0, 3) + '. ' : '') + d.getDate() + ' ' + MOIS[d.getMonth()];
+}
+function libelleJ(j){ return j >= 0 ? 'J-' + j : 'J+' + (-j); }
+function premierJour(s){ return s.dates[0]; }
+function jRestant(s){ return daysBetween(AUJOURDHUI, premierJour(s)); }
+function libelleSalle(s){ return s.ville + ' · ' + s.lieu + (s.dates.length > 1 ? ` (${s.dates.length} soirs)` : ''); }
+
+/* --- Les alertes : l'état confronté au calendrier ------------------------- */
+
+// Chaque règle dit : à partir de quand ça se signale (orange), à partir de
+// quand ça crie (rouge). Les seuils viennent de la pratique : un plan de
+// scène se demande six semaines avant, une vacation se confirme à deux.
+function alertesDe(s){
+  const r = jRestant(s);
+  if(r < 0 || s.statut === 'annulee') return [];
+  const out = [];
+  const pousser = (des, rouge, texte, detail)=>{
+    if(r > des) return;
+    out.push({ salle: s, grav: r <= rouge ? 'rouge' : 'orange', texte, detail, r });
+  };
+  if(s.statut === 'option'){
+    // Une option ne réclame rien d'autre que sa signature : UNE alerte, pas six.
+    pousser(21, 10, 'Toujours en option', 'à ' + r + ' jours, il faut signer ou libérer la salle');
+    return out;
+  }
+  if(s.plan === 'non_demande') pousser(45, 21, 'Plan de scène à demander', 'rien n\'est parti vers la salle');
+  if(s.plan === 'demande') pousser(30, 14, 'Plan de scène demandé, sans réponse', 'relancer la salle');
+  if(s.plan === 'recu') pousser(30, 14, 'Plan de scène reçu, à valider', 'il attend votre validation');
+  if(s.plan === 'valide_nous') pousser(21, 10, 'Plan de scène : validation salle manquante', 'relancer pour leur accord');
+  if(s.charge === 'non_envoye') pousser(30, 14, 'Plan de charge à envoyer', 'le bureau de contrôle doit le voir venir');
+  if(s.charge === 'envoye') pousser(21, 10, 'Plan de charge envoyé, en attente', 'relancer le bureau de contrôle');
+  if(s.dechargement == null) pousser(21, 10, 'Déchargement non renseigné', 'combien de semis en simultané ?');
+  [['roadies','Roadies'], ['chariots','Chariots'], ['rigg','Rigg']].forEach(([cle, lib])=>{
+    const [conf, total] = s[cle];
+    if(total === 0) pousser(21, 10, lib + ' : aucune vacation posée', 'la salle n\'a rien prévu');
+    else if(conf < total) pousser(14, 7, `${lib} : ${conf}/${total} confirmée${total > 1 ? 's' : ''}`, 'faire confirmer le reste');
+  });
+  return out;
+}
+
+function toutesLesAlertes(){
+  const liste = SALLES.flatMap(alertesDe);
+  REMARQUES.forEach(x=>{
+    const age = daysBetween(x.quand, AUJOURDHUI);
+    liste.push({ remarque: x, grav: age > 7 ? 'rouge' : 'orange',
+      texte: 'Remarque non traitée — ' + x.auteur,
+      detail: x.texte, r: null, age });
+  });
+  ECHANGES.filter(x=> x.etat === 'a_planifier').forEach(x=>{
+    liste.push({ echange: x, grav: 'rouge', texte: 'Échange matériel à planifier', detail: x.quoi + ' — ' + x.ou, r: null });
+  });
+  // Le rouge d'abord, puis ce qui est le plus près du concert.
+  return liste.sort((a, b)=> (a.grav === b.grav ? (a.r ?? 0) - (b.r ?? 0) : a.grav === 'rouge' ? -1 : 1));
+}
+
+/* --- Les tâches (même langage que l'espace comm) -------------------------- */
+
+function echeanceDe(t){
+  if(t.salleId){
+    const s = SALLES.find(x=> x.id === t.salleId);
+    if(s) return addDaysIso(premierJour(s), -(t.j || 0));
+  }
+  return t.echeance || '';
+}
+function etatDe(t){
+  const ech = echeanceDe(t);
+  const reste = ech ? daysBetween(AUJOURDHUI, ech) : null;
+  if(t.fait) return { etat:'fait', ech, reste };
+  if(reste == null) return { etat:'libre', ech, reste };
+  if(reste < 0) return { etat:'retard', ech, reste };
+  if(reste === 0) return { etat:'aujourdhui', ech, reste };
+  return { etat:'a_venir', ech, reste };
+}
+const LIBELLE_ETAT = { fait:'Fait', retard:'En retard', aujourdhui:"Aujourd'hui", a_venir:'À faire', libre:'Sans échéance' };
+function pilleEtat(e){ return { fait:'ok', retard:'ko', aujourdhui:'att', a_venir:'info', libre:'' }[e] || ''; }
+function libelleEcheance(x){
+  if(x.etat === 'fait' || x.reste == null) return '';
+  if(x.reste === 0) return "aujourd'hui";
+  if(x.reste < 0) return 'en retard de ' + (-x.reste) + ' j';
+  if(x.reste === 1) return 'demain';
+  return 'dans ' + x.reste + ' jours';
+}
+
+function renderTache(t){
+  const x = etatDe(t);
+  const s = t.salleId ? SALLES.find(v=> v.id === t.salleId) : null;
+  const contexte = s ? joli(premierJour(s)) + ' · ' + s.ville + ' — ' + libelleJ(t.j || 0) : '';
+  const sous = [contexte, t.notes].filter(Boolean).join(' — ');
+  const classe = ['tache', t.fait ? 'faite' : '', x.etat === 'retard' ? 'retard' : '', x.etat === 'aujourdhui' ? 'aujourdhui' : ''].filter(Boolean).join(' ');
+  const par = t.auteur
+    ? `<span class="par" title="${escapeAttr(t.auteur)}">par ${escapeHtml(t.auteur.split('@')[0])}</span>`
+    : '<span class="par" title="Créée automatiquement">auto</span>';
+  return `<div class="${classe}">
+    <div class="quand">
+      <b>${x.ech ? escapeHtml(joli(x.ech, true)) : '—'}</b>
+      <small>${escapeHtml(t.fait && t.faitLe ? 'fait le ' + joli(t.faitLe) : libelleEcheance(x))}</small>
+    </div>
+    <div class="quoi">
+      <b>${escapeHtml(t.libelle)}</b>
+      ${sous ? `<small>${escapeHtml(sous)}</small>` : ''}
+    </div>
+    ${par}
+    <span class="co-pill ${pilleEtat(x.etat)}">${escapeHtml(LIBELLE_ETAT[x.etat])}</span>
+    <label class="coche"><input type="checkbox" data-coche="${escapeAttr(t.id)}" ${t.fait ? 'checked' : ''}> fait</label>
+    <button type="button" class="outil" data-modif="${escapeAttr(t.id)}" title="Modifier">✎</button>
+    <button type="button" class="outil danger" data-suppr="${escapeAttr(t.id)}" title="Supprimer">✕</button>
+  </div>`;
+}
+
+/* --- Le rendu ------------------------------------------------------------- */
+
+function statutPill(statut){
+  if(statut === 'validee') return '<span class="co-pill ok">Validée</span>';
+  if(statut === 'option') return '<span class="co-pill att">Option</span>';
+  return '<span class="co-pill ko">Annulée</span>';
+}
+function pointsPostes(s){
+  const p = [];
+  const plan = { non_demande:['non','à demander'], demande:['att','demandé, en attente'], recu:['att','reçu, à valider'],
+    valide_nous:['att','validation salle manquante'], valide2:['ok','validé des deux côtés'] }[s.plan];
+  p.push(['Plan de scène', ...plan]);
+  const charge = { non_envoye:['non','à envoyer'], envoye:['att','envoyé, en attente'], valide:['ok','validé'] }[s.charge];
+  p.push(['Plan de charge', ...charge]);
+  p.push(['Déchargement', s.dechargement == null ? 'non' : 'ok', s.dechargement == null ? 'à renseigner' : s.dechargement + ' semis en simultané']);
+  [['roadies','Roadies'], ['chariots','Chariots'], ['rigg','Rigg']].forEach(([cle, lib])=>{
+    const [c, t] = s[cle];
+    p.push([lib, t === 0 ? 'non' : c >= t ? 'ok' : 'att', t === 0 ? 'aucune vacation' : `${c}/${t} confirmée${t > 1 ? 's' : ''}`]);
+  });
+  return p;
+}
+
+function rendre(){
+  const alertes = toutesLesAlertes().filter(a=> !alertesEnTache.has(cleAlerte(a)));
+  const rouges = alertes.filter(a=> a.grav === 'rouge').length;
+  const avecEtat = TACHES.map(t=> ({ t, x: etatDe(t) }));
+  const enRetard = avecEtat.filter(a=> a.x.etat === 'retard').length;
+  const semaine = avecEtat.filter(a=> !a.t.fait && a.x.reste != null && a.x.reste >= 0 && a.x.reste <= 7).length;
+  const enCours = tacheEnEdition ? TACHES.find(t=> t.id === tacheEnEdition) : null;
+
+  const stats = [
+    [rouges, 'alertes rouges', rouges ? 'ko' : ''],
+    [enRetard, 'tâches en retard', enRetard ? 'ko' : ''],
+    [semaine, 'dans les 7 jours', ''],
+    [REMARQUES.length, 'remarques non traitées', ''],
+  ];
+
+  const sallesAVenir = SALLES.filter(s=> jRestant(s) >= 0);
+
+  document.getElementById('contenu').innerHTML = `
+    <div class="stats-plates">
+      ${stats.map(([n, lib, cl])=> `<div><b class="${cl}">${n}</b><span>${escapeHtml(lib)}</span></div>`).join('')}
+    </div>
+
+    <div class="bloc">
+      <div class="bloc-tete"><h2>Ce que l'outil a vu</h2>
+        <span class="compte">${alertes.length} alerte${alertes.length > 1 ? 's' : ''} — engendrées depuis l'état des salles, jamais saisies. Elles s'éteignent d'elles-mêmes quand l'état change.</span></div>
+      <div class="co-card co-clip">
+        ${alertes.length ? alertes.map(a=> `<div class="alerte ${a.grav}">
+          <div class="quand">
+            ${a.salle ? `<b>${escapeHtml(joli(premierJour(a.salle), true))}</b><small>${a.r === 0 ? "c'est aujourd'hui" : 'dans ' + a.r + ' jours'}</small>`
+              : a.remarque ? `<b>${escapeHtml(joli(a.remarque.quand, true))}</b><small>il y a ${a.age} jour${a.age > 1 ? 's' : ''}</small>`
+              : `<b>—</b><small>en attente</small>`}
+          </div>
+          <div class="quoi">
+            <b>${escapeHtml(a.texte)}</b>
+            <small>${escapeHtml((a.salle ? libelleSalle(a.salle) + ' — ' : '') + a.detail)}</small>
+          </div>
+          <span class="co-pill ${a.grav === 'rouge' ? 'ko' : 'att'}">${a.grav === 'rouge' ? 'Ça presse' : 'À suivre'}</span>
+          <button type="button" class="co-btn secondary sm" data-maquette>${a.salle ? 'Ouvrir la fiche' : a.remarque ? 'Voir la remarque' : 'Ouvrir Matériel'}</button>
+          <button type="button" class="co-btn ghost sm" data-en-tache="${escapeAttr(cleAlerte(a))}" title="Pour la planifier ou la confier — l'alerte se range derrière la tâche">→ tâche</button>
+        </div>`).join('') : '<div class="empty-hint co-vide">Rien à signaler — tout est à jour pour les prochaines salles.</div>'}
+      </div>
+    </div>
+
+    <div class="bloc">
+      <div class="bloc-tete"><h2>Tes tâches et rappels</h2>
+        <span class="compte">ce que l'outil ne peut pas deviner — un rappel est une tâche avec une date, rien de plus</span></div>
+      <div class="co-card co-pad-lg" style="margin-bottom:10px;">
+        <div class="tache-form">
+          <div class="champ libelle">
+            <label for="fLibelle">Quoi</label>
+            <input type="text" id="fLibelle" placeholder="Rappeler la salle, acheter, vérifier…" value="${escapeAttr(enCours ? enCours.libelle : '')}">
+          </div>
+          <div class="champ">
+            <label for="fSalle">Rattachée à</label>
+            <select id="fSalle">
+              <option value="">— Libre (échéance en clair) —</option>
+              ${SALLES.filter(s=> jRestant(s) >= 0).map(s=> `<option value="${escapeAttr(s.id)}" ${enCours && enCours.salleId === s.id ? 'selected' : ''}>${escapeHtml(joli(premierJour(s)) + ' · ' + s.ville)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="champ" id="fEcheanceChamp">
+            <label for="fEcheance">Échéance</label>
+            <input type="date" id="fEcheance" value="${escapeAttr(enCours && !enCours.salleId ? enCours.echeance : '')}">
+          </div>
+          <div class="champ" id="fJChamp" hidden>
+            <label for="fJ">Jours avant la date</label>
+            <input type="number" id="fJ" style="width:110px;" value="${escapeAttr(enCours && enCours.salleId ? String(enCours.j || 0) : '10')}">
+          </div>
+          <button type="button" class="co-btn primary md" id="fEnregistrer">${enCours ? 'Enregistrer' : 'Ajouter'}</button>
+          ${enCours ? '<button type="button" class="co-btn ghost md" id="fAnnuler">Annuler</button>' : ''}
+        </div>
+      </div>
+      <div class="co-card co-clip">
+        ${avecEtat.filter(a=> !a.t.fait).sort((a, b)=> (a.x.ech || '9999').localeCompare(b.x.ech || '9999')).map(a=> renderTache(a.t)).join('')
+          || '<div class="empty-hint co-vide">Aucune tâche — ajoute la première ci-dessus.</div>'}
+        ${avecEtat.filter(a=> a.t.fait).sort((a, b)=> (b.t.faitLe || '').localeCompare(a.t.faitLe || '')).map(a=> renderTache(a.t)).join('')}
+      </div>
+    </div>
+
+    <div class="bloc">
+      <div class="bloc-tete"><h2>Les salles qui approchent</h2><span class="compte">le même avancement que la page Technique, d'un seul regard</span></div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+        ${sallesAVenir.map(s=> `<div class="co-card co-pad salle-carte">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <b style="font-size:14.5px;">${escapeHtml(s.ville)}</b>${statutPill(s.statut)}
+            <span style="margin-left:auto; font-size:12px; font-weight:800; color:${jRestant(s) <= 14 ? 'var(--ko)' : 'var(--muted)'};">${libelleJ(jRestant(s))}</span>
+          </div>
+          <div style="font-size:12.5px; color:var(--muted); margin-top:2px;">${escapeHtml(s.dates.length > 1 ? joli(s.dates[0]) + ' → ' + joli(s.dates[s.dates.length - 1]) : joli(premierJour(s), true))} · ${escapeHtml(s.lieu)}</div>
+          <div class="jauges">
+            ${pointsPostes(s).map(([lib, sev, val])=> `<div class="salle-poste"><span class="pt ${sev}"></span><span class="lib">${escapeHtml(lib)}</span><span class="val">${escapeHtml(val)}</span></div>`).join('')}
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>
+  `;
+
+  const salleSel = document.getElementById('fSalle');
+  const majChamps = ()=>{
+    document.getElementById('fEcheanceChamp').hidden = !!salleSel.value;
+    document.getElementById('fJChamp').hidden = !salleSel.value;
+  };
+  salleSel.addEventListener('change', majChamps);
+  majChamps();
+  document.getElementById('fEnregistrer').addEventListener('click', enregistrer);
+  const annuler = document.getElementById('fAnnuler');
+  if(annuler) annuler.addEventListener('click', ()=>{ tacheEnEdition = null; rendre(); });
+}
+
+function cleAlerte(a){
+  return a.salle ? a.salle.id + '|' + a.texte : a.remarque ? 'r|' + a.remarque.id : 'e|' + a.echange.id;
+}
+
+function enregistrer(){
+  const libelle = document.getElementById('fLibelle').value.trim();
+  if(!libelle){ alert('Il manque le « quoi » de la tâche.'); return; }
+  const salleId = document.getElementById('fSalle').value;
+  const enCours = tacheEnEdition ? TACHES.find(t=> t.id === tacheEnEdition) : null;
+  const t = enCours || { id: genId('tache'), fait: false, faitLe: '', auteur: monEmail, notes: '' };
+  t.libelle = libelle;
+  t.salleId = salleId;
+  t.j = salleId ? (Number(document.getElementById('fJ').value) || 0) : null;
+  t.echeance = salleId ? '' : (document.getElementById('fEcheance').value || '');
+  if(!enCours) TACHES.push(t);
+  tacheEnEdition = null;
+  rendre();
+}
+
+document.addEventListener('click', (e)=>{
+  const coche = e.target.closest('[data-coche]');
+  if(coche){
+    const t = TACHES.find(x=> x.id === coche.dataset.coche);
+    if(t){ t.fait = coche.checked; t.faitLe = coche.checked ? AUJOURDHUI : ''; }
+    rendre();
+    return;
+  }
+  const modif = e.target.closest('[data-modif]');
+  if(modif){ tacheEnEdition = modif.dataset.modif; rendre(); document.getElementById('fLibelle').focus(); return; }
+  const suppr = e.target.closest('[data-suppr]');
+  if(suppr){
+    const t = TACHES.find(x=> x.id === suppr.dataset.suppr);
+    if(t && confirm(`Supprimer « ${t.libelle} » ?`)) TACHES = TACHES.filter(x=> x.id !== t.id);
+    rendre();
+    return;
+  }
+  const enTache = e.target.closest('[data-en-tache]');
+  if(enTache){
+    const a = toutesLesAlertes().find(x=> cleAlerte(x) === enTache.dataset.enTache);
+    if(a){
+      alertesEnTache.add(cleAlerte(a));
+      TACHES.push({ id: genId('tache'), libelle: a.texte, notes: a.salle ? libelleSalle(a.salle) : a.detail,
+        auteur: monEmail, salleId: a.salle ? a.salle.id : '', j: a.salle ? Math.min(a.r, 7) : null,
+        echeance: a.salle ? '' : addDaysIso(AUJOURDHUI, 2), fait: false, faitLe: '' });
+    }
+    rendre();
+    return;
+  }
+  const factice = e.target.closest('[data-maquette]');
+  if(factice) alert("Maquette : dans la vraie page, ce bouton ouvrira la fiche concernée (technique, partage, matériel).");
+});
+
+rendre();
+</script>
+</body>
+</html>
