@@ -4164,3 +4164,9 @@ alter table reglages add column if not exists comm_taches_types jsonb not null d
 drop policy if exists "reglages ecriture" on reglages;
 create policy "reglages ecriture" on reglages for all to authenticated
   using (is_admin() or has_comm_access()) with check (is_admin() or has_comm_access());
+
+-- L'échéance de la newsletter se règle (le jour du mois où elle doit partir),
+-- et une tâche porte son auteur — la chargée de comm voit ainsi ce que
+-- l'équipe lui demande, distinct de ce qu'elle s'est noté elle-même.
+alter table reglages add column if not exists comm_newsletter_jour integer not null default 25;
+alter table comm_taches add column if not exists auteur text not null default '';

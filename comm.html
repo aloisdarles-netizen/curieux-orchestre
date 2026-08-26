@@ -167,6 +167,7 @@ let tourneesCache = [];
 let tachesCache = [];
 let reglagesCache = {};
 let tacheEnEdition = null;    // id de la tâche ouverte dans le formulaire
+let monEmail = '';            // le compte connecté — l'auteur des tâches qu'il crée
 let moisAffiche = null;       // 'YYYY-MM' du calendrier
 
 const TYPES_DEFAUT = [
@@ -280,6 +281,13 @@ function typesTaches(){
 
 /* --- La newsletter : le rendez-vous qui se crée tout seul ----------------- */
 
+// Le jour du mois où la newsletter doit partir — réglable, borné à 28 pour
+// exister dans tous les mois.
+function jourNewsletter(){
+  const j = Number(reglagesCache.commNewsletterJour) || 25;
+  return Math.min(28, Math.max(1, j));
+}
+
 // Une newsletter par mois, sans que personne n'ait à y penser : la tâche du
 // mois courant et celle du mois prochain existent toujours. Identifiant
 // déterministe — deux onglets ouverts n'en créeront jamais deux.
@@ -294,7 +302,7 @@ async function garantirNewsletters(){
     if(tachesCache.some(t=> t.id === id)) continue;
     const tache = {
       id, libelle: `Newsletter ${/^[aeiouy]/.test(MOIS[m]) ? "d'" : 'de '}${MOIS[m]}${an !== d.getFullYear() ? ' ' + an : ''}`,
-      notes: '', echeance: `${an}-${String(m + 1).padStart(2, '0')}-25`,
+      notes: '', auteur: '', echeance: `${an}-${String(m + 1).padStart(2, '0')}-${String(jourNewsletter()).padStart(2, '0')}`,
       tourneeId: '', dateId: '', j: null, genre: 'newsletter', fait: false, faitLe: '',
     };
     const { error } = await CurieuxDB.upsertOne('comm_taches', tache);
@@ -308,7 +316,10 @@ function renderTache(t, avecContexte){
   const x = etatDe(t);
   const classe = ['tache', t.fait ? 'faite' : '', x.etat === 'retard' ? 'retard' : '', x.etat === 'aujourdhui' ? 'aujourdhui' : ''].filter(Boolean).join(' ');
   const contexte = avecContexte ? contexteDe(t) : '';
-  const sous = [contexte, t.notes].filter(Boolean).join(' — ');
+  // La signature ne s'affiche que si la tâche vient de quelqu'un d'autre :
+  // « demandée par moi-même » ne dirait rien.
+  const par = t.auteur && t.auteur !== monEmail ? 'demandée par ' + t.auteur : '';
+  const sous = [contexte, par, t.notes].filter(Boolean).join(' — ');
   return `<div class="${classe}">
     <div class="quand">
       <b>${x.ech ? escapeHtml(joli(x.ech, true)) : '—'}</b>
@@ -479,6 +490,18 @@ function renderTaches(){
     </div>
 
     <div class="co-card co-pad-lg bloc">
+      <div class="co-legend">La newsletter</div>
+      <p class="co-legend-hint" style="margin-bottom:10px;">Sa tâche revient chaque mois, toute seule — impossible à oublier.
+        Régler le jour recale les newsletters pas encore envoyées.</p>
+      <label style="display:flex; align-items:center; gap:9px; font-size:13.5px; font-weight:700;">
+        Échéance : le
+        <input type="number" id="nlJour" min="1" max="28" value="${escapeAttr(String(jourNewsletter()))}"
+          style="width:74px; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; background:var(--card); color:var(--text); font-family:inherit;">
+        du mois
+      </label>
+    </div>
+
+    <div class="co-card co-pad-lg bloc">
       <div class="co-legend">Les tâches types</div>
       <p class="co-legend-hint">Proposées — jamais imposées — quand une date validée n'a encore aucune tâche.
         Un clic les crée toutes, puis chacune se modifie ou se supprime comme les autres.</p>
@@ -503,8 +526,26 @@ function renderTaches(){
   majChamps();
 
   document.getElementById('fEnregistrer').addEventListener('click', enregistrerFormulaire);
+  document.getElementById('nlJour').addEventListener('change', reglerJourNewsletter);
   const annuler = document.getElementById('fAnnuler');
   if(annuler) annuler.addEventListener('click', ()=>{ tacheEnEdition = null; renderTaches(); });
+}
+
+async function reglerJourNewsletter(){
+  const champ = document.getElementById('nlJour');
+  const jour = Math.min(28, Math.max(1, Number(champ.value) || 25));
+  champ.value = jour;
+  const { error } = await CurieuxDB.setCommNewsletterJour(jour);
+  if(error){ alert('Enregistrement impossible :\n\n' + error.message); return; }
+  reglagesCache.commNewsletterJour = jour;
+  // Les newsletters pas encore envoyées se recalent sur le nouveau jour —
+  // celles déjà parties gardent leur histoire telle quelle.
+  for(const t of tachesCache.filter(x=> x.genre === 'newsletter' && !x.fait && x.echeance)){
+    t.echeance = t.echeance.slice(0, 8) + String(jour).padStart(2, '0');
+    await CurieuxDB.upsertOne('comm_taches', t);
+  }
+  rendre();
+  montrerVue('taches');
 }
 
 async function enregistrerFormulaire(){
@@ -512,7 +553,7 @@ async function enregistrerFormulaire(){
   if(!libelle){ alert('Il manque le « quoi » de la tâche.'); return; }
   const rattache = document.getElementById('fRattache').value;
   const enCours = tacheEnEdition ? tachesCache.find(t=> t.id === tacheEnEdition) : null;
-  const tache = enCours || { id: genId('tache'), fait: false, faitLe: '', genre: '' };
+  const tache = enCours || { id: genId('tache'), fait: false, faitLe: '', genre: '', auteur: monEmail };
   tache.libelle = libelle;
   tache.notes = document.getElementById('fNotes').value.trim();
   if(rattache){
@@ -652,7 +693,7 @@ async function creerTachesTypes(tourneeId, dateId){
   const ref = trouverDate(tourneeId, dateId);
   if(!ref) return;
   for(const type of typesTaches()){
-    const tache = { id: genId('tache'), libelle: type.libelle, notes: '',
+    const tache = { id: genId('tache'), libelle: type.libelle, notes: '', auteur: '',
       echeance: '', tourneeId, dateId, j: Number(type.j) || 0, genre: '', fait: false, faitLe: '' };
     const { error } = await CurieuxDB.upsertOne('comm_taches', tache);
     if(error){ alert('Création impossible :\n\n' + error.message); return; }
@@ -739,11 +780,14 @@ document.addEventListener('click', async (e)=>{
 });
 
 (async ()=>{
-  [tourneesCache, tachesCache, reglagesCache] = await Promise.all([
+  let session;
+  [tourneesCache, tachesCache, reglagesCache, session] = await Promise.all([
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('comm_taches'),
     CurieuxDB.fetchReglages(),
+    CurieuxDB.getSession(),
   ]);
+  monEmail = (session && session.user && session.user.email) || '';
   await garantirNewsletters();
   rendre();
 })();

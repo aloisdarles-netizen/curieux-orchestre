@@ -440,6 +440,7 @@ const CurieuxDB = (()=>{
     comm_taches: {
       toDb: (t)=> ({
         id: t.id, libelle: t.libelle || '', notes: t.notes || '',
+        auteur: t.auteur || '',
         echeance: t.echeance || null,
         tournee_id: t.tourneeId || null, date_id: t.dateId || null,
         j: (t.j === 0 || t.j) ? t.j : null,
@@ -448,6 +449,7 @@ const CurieuxDB = (()=>{
       }),
       fromDb: (r)=> ({
         id: r.id, libelle: r.libelle || '', notes: r.notes || '',
+        auteur: r.auteur || '',
         echeance: r.echeance || '',
         tourneeId: r.tournee_id || '', dateId: r.date_id || '',
         j: (r.j === 0 || r.j) ? r.j : null,
@@ -1293,6 +1295,7 @@ const CurieuxDB = (()=>{
       referentNom: (data && data.referent_nom) || '',
       referentTelephone: (data && data.referent_telephone) || '',
       commTachesTypes: (data && data.comm_taches_types) || null,
+      commNewsletterJour: (data && data.comm_newsletter_jour) || 25,
       absent: !data,
     };
   }
@@ -1341,6 +1344,16 @@ const CurieuxDB = (()=>{
     const { error } = await supabaseClient.from('reglages')
       .update({ comm_taches_types: types || [] }).eq('id', 1);
     if(error) console.warn('[CurieuxDB] setCommTachesTypes', error.message);
+    return { error };
+  }
+
+  // Le jour du mois où la newsletter doit partir (1 à 28) — l'échéance des
+  // tâches mensuelles auto-créées s'aligne dessus.
+  async function setCommNewsletterJour(jour){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.from('reglages')
+      .update({ comm_newsletter_jour: jour }).eq('id', 1);
+    if(error) console.warn('[CurieuxDB] setCommNewsletterJour', error.message);
     return { error };
   }
 
@@ -1576,7 +1589,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
-    fetchReglages, setPhaseTest, setVillesBase, setCommTachesTypes, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
+    fetchReglages, setPhaseTest, setVillesBase, setCommTachesTypes, setCommNewsletterJour, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
