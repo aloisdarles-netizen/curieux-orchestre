@@ -23,7 +23,7 @@
 
   body{
     margin:0; font-family:'Host Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    background:var(--bg); color:var(--text); padding:20px 14px 80px;
+    background:var(--bg); color:var(--text); padding:20px 14px calc(88px + env(safe-area-inset-bottom));
   }
   .wrap{max-width:640px; margin:0 auto;}
   .brand-logo-img{height:30px; width:auto; display:block; margin:0 0 22px;}
@@ -154,6 +154,7 @@
     flex-shrink:0; padding:11px 20px; border-radius:9px; border:none; background:var(--accent-solid); color:#fff;
     font-size:13.5px; font-weight:800; cursor:pointer; font-family:inherit; transition:background .15s, opacity .15s;
   }
+  .save-btn[hidden]{display:none;}
   .save-btn:disabled{opacity:.45; cursor:default;}
   .save-btn:not(:disabled):hover{background:var(--accent-dark);}
   
@@ -212,8 +213,8 @@
 </div>
 <div class="save-bar" id="saveBar">
   <div class="save-bar-inner">
-    <span class="save-status saved" id="saveStatus">Tes réponses sont à jour.</span>
-    <button type="button" class="save-btn" id="saveBtn" disabled>Valider mes réponses</button>
+    <span class="save-status saved" id="saveStatus">Tes réponses s'enregistrent toutes seules.</span>
+    <button type="button" class="save-btn" id="saveBtn" hidden>Enregistrer maintenant</button>
   </div>
 </div>
 
@@ -710,27 +711,85 @@ function downloadIcs(){
   URL.revokeObjectURL(url);
 }
 
+/* ---------------------------------------------------------------------------
+   L'enregistrement se fait tout seul
+   ---------------------------------------------------------------------------
+   Un bouton « Valider mes réponses » en bas d'écran a coûté des réponses
+   perdues : sur un téléphone, on coche ses dates, on ferme, et on croit avoir
+   répondu. C'était une erreur de conception, pas d'utilisation — cliquer
+   « Disponible » sur une date EST la réponse, il n'y a rien à confirmer.
+
+   Chaque changement part donc de lui-même, une seconde après le dernier clic
+   (le délai regroupe une rafale de coches en un seul envoi, et laisse le temps
+   de taper un commentaire). La barre du bas ne porte plus qu'un état, et ne
+   fait apparaître un bouton que s'il y a quelque chose à reprendre en main :
+   un envoi en attente, ou un échec à réessayer.
+--------------------------------------------------------------------------- */
 let hasUnsavedChanges = false;
+let minuteurSauvegarde = null;
+let sauvegardeEnCours = false;
+let sauvegardeADemander = false;
+
 window.addEventListener('beforeunload', (e)=>{
   if(!hasUnsavedChanges) return;
   e.preventDefault();
   e.returnValue = '';
 });
 
+// Fermer l'onglet ou passer en arrière-plan n'attend pas le minuteur.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'hidden' && hasUnsavedChanges) doSave();
+});
+
 function markDirty(){
   const status = document.getElementById('saveStatus');
   const btn = document.getElementById('saveBtn');
-  status.textContent = 'Modifications non enregistrées.';
+  status.textContent = 'Enregistrement…';
   status.className = 'save-status dirty';
-  btn.disabled = false;
+  btn.hidden = true;
   hasUnsavedChanges = true;
+  clearTimeout(minuteurSauvegarde);
+  minuteurSauvegarde = setTimeout(doSave, 1000);
 }
 
+// Un envoi à la fois : si une modification arrive pendant qu'on écrit, on
+// repart pour un tour à la fin plutôt que de croiser deux écritures.
 async function doSave(){
+  clearTimeout(minuteurSauvegarde);
+  if(sauvegardeEnCours){ sauvegardeADemander = true; return; }
+  sauvegardeEnCours = true;
+  try{ await envoyerReponses(); }
+  finally{
+    sauvegardeEnCours = false;
+    if(sauvegardeADemander){ sauvegardeADemander = false; doSave(); }
+  }
+}
+
+function heureCourte(){
+  return new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+}
+
+// Une panne n'est pas une fin de course : on laisse la personne réessayer, et
+// on reprogramme un essai automatique — le réseau d'une salle de concert
+// revient souvent tout seul.
+function signalerEchec(message){
+  const status = document.getElementById('saveStatus');
+  const btn = document.getElementById('saveBtn');
+  status.textContent = message;
+  status.className = 'save-status dirty';
+  btn.hidden = false;
+  btn.disabled = false;
+  btn.textContent = 'Réessayer';
+  clearTimeout(minuteurSauvegarde);
+  minuteurSauvegarde = setTimeout(doSave, 15000);
+}
+
+async function envoyerReponses(){
   const btn = document.getElementById('saveBtn');
   const status = document.getElementById('saveStatus');
-  btn.disabled = true;
-  btn.textContent = 'Enregistrement…';
+  btn.hidden = true;
+  status.textContent = 'Enregistrement…';
+  status.className = 'save-status dirty';
   const [personRes, demandeRes] = await Promise.all([
     CurieuxDB.updateOwnDisponibilitesByToken(
       state.token, state.person.disponibilites, state.person.disponibilites_commentaires,
@@ -738,7 +797,6 @@ async function doSave(){
     ),
     supabaseClient.rpc('mark_dispo_responded_by_token', { p_token: state.demande.id })
   ]);
-  btn.textContent = 'Valider mes réponses';
   if(personRes.error || demandeRes.error){
     // La base refuse de basculer en « indisponible » une date déjà affectée
     // (voir update_own_disponibilites_by_token). Ce n'est pas une panne : on le
@@ -752,16 +810,20 @@ async function doSave(){
         ? "Ces dates sont déjà affectées : préviens la production directement."
         : "Cette date est déjà affectée : préviens la production directement.";
       status.className = 'save-status';
+      // L'appel a été refusé en bloc : les dates litigieuses viennent d'être
+      // retirées, le reste doit repartir. On redemande un envoi — la garde de
+      // doSave le mettra en file derrière celui-ci, jamais en parallèle.
       render();
       dates.forEach(ouvrirAlerteAffecte);
+      doSave();
       return;
     }
-    status.textContent = "Erreur, tes réponses n'ont pas pu être enregistrées. Réessaie.";
-    status.className = 'save-status';
+    signalerEchec("Pas d'enregistrement — vérifie ta connexion.");
     return;
   }
-  status.textContent = '✓ Réponses enregistrées.';
+  status.textContent = '✓ Enregistré à ' + heureCourte() + ' — tu peux fermer la page.';
   status.className = 'save-status saved';
+  btn.hidden = true;
   hasUnsavedChanges = false;
 }
 
