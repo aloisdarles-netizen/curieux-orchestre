@@ -235,7 +235,7 @@
   <div class="co-page-head co-fade">
     <div>
       <h1>Demandes titulaires</h1>
-      <p class="subtitle">Qui a répondu, et sur quoi. Le noyau de l'orchestre est sollicité d'office — les technicien·nes sur les tournées seulement, en studio on les ajoute à la main. <b>Chaque personne n'a qu'un lien</b>, valable pour tous ses projets.</p>
+      <p class="subtitle">Qui a répondu, et sur quoi. Le noyau — musicien·nes et technicien·nes marqué·es « titulaires » dans les annuaires — est sollicité d'office sur les tournées ; les autres s'ajoutent au cas par cas, et en studio tout le monde s'ajoute à la main. <b>Chaque personne n'a qu'un lien</b>, valable pour tous ses projets.</p>
     </div>
   </div>
 
@@ -1043,6 +1043,12 @@ function filtrerPersonnes(){
       && (!seulesEnAttente || l.dataset.persoAttente === '1');
     l.style.display = ok ? '' : 'none';
   });
+  // Un bandeau dont toutes les lignes sont cachées n'annonce plus rien.
+  document.querySelectorAll('#holderPersonnes .groupe-personnes').forEach(b=>{
+    const vivant = [...document.querySelectorAll(`#holderPersonnes [data-perso-type="${b.dataset.groupe}"]`)]
+      .some(l=> l.style.display !== 'none');
+    b.style.display = vivant ? '' : 'none';
+  });
 }
 
 const REPLI_CLE = 'suiviDispoReplis';
@@ -1107,7 +1113,11 @@ function donneesParPersonne(projets){
       complet: concernees.length > 0 && manquantes.length === 0,
     });
   });
-  return [...parPersonne.values()].sort((a, b)=> fullName(a.personne).localeCompare(fullName(b.personne)));
+  // Musicien·nes d'abord, technicien·nes ensuite — deux métiers, deux listes,
+  // jamais mélangés. À l'intérieur de chaque groupe, l'ordre alphabétique.
+  return [...parPersonne.values()].sort((a, b)=>
+    a.type !== b.type ? (a.type === 'musicien' ? -1 : 1)
+    : fullName(a.personne).localeCompare(fullName(b.personne)));
 }
 
 function renderParPersonne(projets){
@@ -1120,7 +1130,18 @@ function renderParPersonne(projets){
   }
 
   const enAttente = gens.filter(g=> g.entrees.some(e=> e.manquantes.length > 0));
+  let typeCourant = null;
   const lignes = gens.map(({ personne, type, entrees })=>{
+    // Un bandeau au changement de groupe : la séparation se voit, elle ne se
+    // devine pas au détour d'un poste dans la petite ligne grise.
+    let bandeau = '';
+    if(type !== typeCourant){
+      typeCourant = type;
+      const n = gens.filter(g=> g.type === type).length;
+      bandeau = `<div class="co-group-title groupe-personnes" data-groupe="${type}"
+        style="background:var(--bg); border-bottom:1px solid var(--border); padding:10px 20px 8px;">
+        ${type === 'musicien' ? 'Musicien·nes' : 'Technicien·nes'} (${n})</div>`;
+    }
     const role = type === 'musicien' ? (personne.instrument || 'Musicien·ne') : (personne.poste || 'Technicien·ne');
     const noyau = estDuNoyau(personne);
     // N'importe lequel de ses jetons ouvre son espace : on prend le premier.
@@ -1158,8 +1179,8 @@ function renderParPersonne(projets){
       else relance = `<button type="button" class="co-btn ghost sm" data-copy-relance="${escapeAttr(message)}" data-mark-reminder="${escapeAttr(ids)}" title="Aucun téléphone ni email enregistré — le message est copié">Relancer</button>`;
     }
 
-    return `
-      <div class="perso-row" data-perso-nom="${escapeAttr(fullName(personne).toLowerCase())}" data-perso-attente="${restant > 0 ? '1' : '0'}">
+    return bandeau + `
+      <div class="perso-row" data-perso-nom="${escapeAttr(fullName(personne).toLowerCase())}" data-perso-type="${type}" data-perso-attente="${restant > 0 ? '1' : '0'}">
         <div class="perso-id">
           <span class="perso-nom">${escapeHtml(fullName(personne))}</span>
           <span class="perso-role">${escapeHtml(role)}${noyau ? '' : ' · hors noyau'}</span>

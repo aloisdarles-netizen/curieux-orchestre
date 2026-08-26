@@ -158,9 +158,9 @@
       <option value="Autre">Autre</option>
     </select>
     <select id="statutFilter">
-      <option value="titulaire" selected>Titulaire</option>
-      <option value="">Titulaire + remplaçant·e</option>
-      <option value="remplacant">Remplaçant·e</option>
+      <option value="" selected>Tout le monde</option>
+      <option value="titulaire">Titulaires (noyau)</option>
+      <option value="remplacant">Par projet</option>
     </select>
   </div>
 
@@ -235,12 +235,12 @@
         </select>
       </div>
     </div>
-    <div class="field-row" id="fStatutPosteField" style="display:none;">
+    <div class="field-row" id="fStatutPosteField">
       <div class="field">
-        <label for="fStatutPoste">Statut (régie)</label>
+        <label for="fStatutPoste">Statut</label>
         <select id="fStatutPoste">
-          <option value="titulaire">Titulaire</option>
-          <option value="remplacant">Remplaçant·e</option>
+          <option value="remplacant">Par projet — ajouté·e au cas par cas</option>
+          <option value="titulaire">Titulaire — noyau, sollicité·e d'office sur les tournées</option>
         </select>
       </div>
     </div>
@@ -378,7 +378,7 @@ function render(){
         <input type="checkbox" class="m-select-checkbox" data-select="${m.id}" ${isSelected ? 'checked' : ''} aria-label="Sélectionner ${escapeHtml(fullName(m))}">
         <span class="m-avatar" aria-hidden="true" style="--co-tilt:${index % 2 ? '4deg' : '-5deg'}; background:${poleFond}; color:${poleEncre};">${escapeHtml(initialesDe(m))}</span>
         <span class="m-identite">
-          <span class="m-nom">${escapeHtml(fullName(m))}${m.pole === 'Régie générale' && m.statutPoste === 'remplacant' ? '<span class="remplacant-tag">Rempl.</span>' : ''}</span>
+          <span class="m-nom">${escapeHtml(fullName(m))}${m.statutPoste === 'remplacant' ? '<span class="remplacant-tag">Par projet</span>' : ''}</span>
           <span class="m-role">${escapeHtml(m.poste || '—')}</span>
         </span>
         <span class="m-pupitre"><span class="pupitre-badge" style="background:${poleFond}; color:${poleEncre};">${escapeHtml(m.pole || 'Autre')}</span></span>
@@ -431,7 +431,12 @@ function render(){
 // Le statut titulaire/remplaçant n'a de sens que pour l'équipe régie récurrente —
 // masqué pour les autres pôles (intervenant·es ponctuel·les de prod).
 function updateStatutPosteFieldVisibility(){
-  document.getElementById('fStatutPosteField').style.display = document.getElementById('fPole').value === 'Régie générale' ? 'flex' : 'none';
+  // Le statut vaut désormais pour tous les pôles : un ingé son peut être du
+  // noyau, une régisseuse peut n'être appelée qu'au projet. Avant, tout pôle
+  // hors régie générale était FORCÉ « titulaire » à l'enregistrement — c'est
+  // ce qui faisait apparaître des technicien·nes sollicité·es d'office sans
+  // que personne l'ait choisi.
+  document.getElementById('fStatutPosteField').style.display = 'flex';
 }
 document.getElementById('fPole').addEventListener('change', updateStatutPosteFieldVisibility);
 
@@ -454,7 +459,9 @@ function openModal(id){
     document.getElementById('modalTitle').textContent = "Ajouter un·e technicien·ne";
     ['fPrenom','fNom','fPoste','fTelephone','fEmail','fNotes'].forEach(id=> document.getElementById(id).value = '');
     document.getElementById('fPole').value = 'Régie générale';
-    document.getElementById('fStatutPoste').value = 'titulaire';
+    // Par projet par défaut : un·e technicien·ne s'ajoute au cas par cas,
+    // c'est le noyau qui se coche explicitement.
+    document.getElementById('fStatutPoste').value = 'remplacant';
   }
   updateStatutPosteFieldVisibility();
   overlay.classList.add('open');
@@ -747,7 +754,7 @@ document.getElementById('saveBtn').addEventListener('click', ()=>{
       person.prenom = prenom; person.nom = nom;
       person.poste = document.getElementById('fPoste').value.trim();
       person.pole = document.getElementById('fPole').value;
-      person.statutPoste = person.pole === 'Régie générale' ? document.getElementById('fStatutPoste').value : 'titulaire';
+      person.statutPoste = document.getElementById('fStatutPoste').value;
       person.telephone = document.getElementById('fTelephone').value.trim();
       person.email = document.getElementById('fEmail').value.trim();
       person.notes = document.getElementById('fNotes').value.trim();
@@ -759,7 +766,7 @@ document.getElementById('saveBtn').addEventListener('click', ()=>{
       prenom, nom,
       poste: document.getElementById('fPoste').value.trim(),
       pole,
-      statutPoste: pole === 'Régie générale' ? document.getElementById('fStatutPoste').value : 'titulaire',
+      statutPoste: document.getElementById('fStatutPoste').value,
       telephone: document.getElementById('fTelephone').value.trim(),
       email: document.getElementById('fEmail').value.trim(),
       notes: document.getElementById('fNotes').value.trim(),

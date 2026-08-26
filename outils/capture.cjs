@@ -525,6 +525,8 @@ const CurieuxDB = new Proxy({
   syncCollection: async () => ({ error: null }),
   upsertOne: async () => ({ error: null }),
   upsertOneVersionne: async () => ({ error: null, _updatedAt: 'demo-version' }),
+  // Une Map, comme le vrai : le Proxy rendrait un tableau, et .get() exploserait.
+  jetonsPermanentsPour: async () => new Map(),
   getSession: async () => ({ user:{ id:'demo', email:'demo@curieux.fr' } }),
   hasAppAccess: async () => true,
   // « ?refus=admin » ou « ?refus=technique » dans l'URL fait répondre non au
