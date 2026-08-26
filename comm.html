@@ -15,7 +15,7 @@
 <style>
   .wrap{max-width:min(1500px, 97vw); margin:0 auto; font-variant-numeric:tabular-nums;}
 
-  /* Les trois vues de l'espace : mêmes pilules que les filtres des annuaires,
+  /* Les vues de l'espace : mêmes pilules que les filtres des annuaires,
      pour qu'aucun geste ne soit à réapprendre d'une page à l'autre. */
   .vues{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px;}
   .vues button{
@@ -24,6 +24,15 @@
   }
   .vues button[aria-pressed="true"]{background:var(--prune); color:var(--blanc); border-color:var(--prune);}
   [hidden]{display:none;}
+
+  /* Un outil de travail avant une vitrine : les chiffres en cartes plates,
+     sans rotation ni aplats de charte. La DA du site reste sur les pages
+     publiques ; ici, la densité et la lisibilité passent devant. */
+  .stats-plates{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:20px;}
+  .stats-plates > div{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px;}
+  .stats-plates b{display:block; font-size:26px; font-weight:800; line-height:1; color:var(--accent);}
+  .stats-plates b.ko{color:var(--ko);}
+  .stats-plates span{display:block; font-size:11.5px; font-weight:700; color:var(--muted); margin-top:5px;}
 
   .bloc{margin-bottom:20px;}
   .bloc-tete{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin:0 0 10px;}
@@ -40,7 +49,7 @@
   .tache .quoi{flex:1; min-width:200px;}
   .tache .quoi b{display:block; font-weight:800; font-size:13.5px;}
   .tache .quoi small{display:block; font-size:11.5px; color:var(--muted);}
-  .tache.faite .quoi b{text-decoration:line-through; color:var(--muted);}
+  .tache.faite .quoi > b{text-decoration:line-through; color:var(--muted);}
   .tache .coche{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); font-weight:700; cursor:pointer; white-space:nowrap;}
   .tache .coche input{width:17px; height:17px; accent-color:var(--ok); cursor:pointer;}
   .retard{border-left:3px solid var(--ko);}
@@ -65,6 +74,14 @@
   .fiche-tete{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:4px;}
   .fiche-tete h2{font-family:var(--font-display); font-size:23px; margin:0; color:var(--accent); font-weight:500;}
   .fiche-sous{font-size:13px; color:var(--muted); margin:0 0 14px;}
+
+  /* Le tri d'une nouvelle date : le plan type proposé, à adapter avant de lancer. */
+  .triage-ligne{display:flex; align-items:center; gap:11px; padding:8px 0; border-bottom:1px dashed var(--border); font-size:13px;}
+  .triage-ligne:last-of-type{border-bottom:none;}
+  .triage-ligne input{width:17px; height:17px; accent-color:var(--accent); cursor:pointer; flex:none;}
+  .triage-ligne .j{flex:0 0 52px; font-weight:800; color:var(--accent);}
+  .triage-ligne .lib{flex:1; min-width:150px; font-weight:700;}
+  .triage-ligne .exp{flex:2; min-width:180px; color:var(--muted); font-size:12px;}
 
   /* Le modèle d'étapes : ce qui engendre les listes, montré tel qu'il se règle. */
   .modele-ligne{display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px dashed var(--border); font-size:13px;}
@@ -91,6 +108,7 @@
   .pastille.concert{background:var(--prune); color:var(--blanc);}
   .pastille.option{background:var(--maybe-tint); color:var(--maybe);}
   .pastille.echeance{background:var(--secondary-tint); color:var(--prune);}
+  .pastille.campagne{background:var(--orange); color:var(--blanc);}
   .pastille.perso{background:var(--bleu); color:var(--prune);}
   .pastille.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
   @media (max-width:760px){
@@ -99,6 +117,26 @@
     .cal-case{min-height:0; flex-direction:row; align-items:center; flex-wrap:wrap;}
     .cal-case:not(:has(.pastille)){display:none;}
   }
+
+  /* Le journal : ce qui a été fait, jour par jour, le plus récent d'abord. */
+  .journal-jour{font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); padding:12px 18px 6px;}
+  .journal-ligne{display:flex; align-items:baseline; gap:12px; padding:7px 18px; font-size:13px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+  .journal-ligne:last-child{border-bottom:none;}
+  .journal-ligne b{font-weight:800;}
+  .journal-ligne .ctx{color:var(--muted); font-size:12px;}
+  .journal-ligne .frais{margin-left:auto;}
+
+  /* Le rythme : combien de choses sortent, mois par mois. */
+  .rythme-ligne{display:flex; align-items:center; gap:12px; font-size:12.5px; margin-bottom:8px;}
+  .rythme-ligne .mois{flex:0 0 74px; font-weight:800;}
+  .rythme-ligne .piste{flex:1; height:12px; border-radius:999px; background:var(--border); overflow:hidden;}
+  .rythme-ligne .piste i{display:block; height:100%; border-radius:999px; background:var(--accent);}
+  .rythme-ligne .det{flex:0 0 auto; color:var(--muted); font-weight:700; font-size:11.5px;}
+
+  .couverture-ligne{display:flex; align-items:center; gap:12px; font-size:12.5px; margin-bottom:8px;}
+  .couverture-ligne .qui{flex:0 0 150px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .couverture-ligne .piste{flex:1;}
+  .couverture-ligne .det{flex:0 0 auto; color:var(--muted); font-weight:700; font-size:11.5px;}
 </style>
 </head>
 <body>
@@ -106,7 +144,7 @@
   <div class="co-page-head co-fade">
     <div>
       <h1>Espace comm</h1>
-      <p class="subtitle">Le calendrier de tournée vu par la comm : ce qui tombe cette semaine, le rétroplanning date par date, et les demandes de l'équipe.</p>
+      <p class="subtitle">Le calendrier de tournée vu par la comm : ce qui tombe cette semaine, le rétroplanning date par date, les campagnes hors spectacle, et la trace de ce qui est fait.</p>
     </div>
     <div class="co-actions"><span class="co-pill att">Maquette</span></div>
   </div>
@@ -114,19 +152,23 @@
   <div class="co-note" style="margin-bottom:18px;">
     <b>Maquette — rien n'est enregistré.</b> Les données sont inventées, et la date
     du jour est fixée au <b>mercredi 24 février 2027</b>, au milieu de la tournée, pour qu'on
-    voie ce que donnent les retards et les échéances. Coche, clique, change de vue :
-    tout revient à zéro au rechargement de la page.
+    voie ce que donnent les retards et les échéances. Coche, clique, prépare la nouvelle
+    date, ajoute une étape : tout marche, et tout revient à zéro au rechargement de la page.
   </div>
 
   <div class="vues" role="group" aria-label="Vues de l'espace comm">
     <button type="button" data-vue="semaine" aria-pressed="true">Ma semaine</button>
     <button type="button" data-vue="retro">Rétroplanning</button>
+    <button type="button" data-vue="campagnes">Campagnes</button>
     <button type="button" data-vue="calendrier">Calendrier</button>
+    <button type="button" data-vue="journal">Journal &amp; bilan</button>
   </div>
 
   <section id="vue-semaine"></section>
   <section id="vue-retro" hidden></section>
+  <section id="vue-campagnes" hidden></section>
   <section id="vue-calendrier" hidden></section>
+  <section id="vue-journal" hidden></section>
 </div>
 
 <script>
@@ -138,34 +180,42 @@ setInterval(applyAutoTheme, 5 * 60 * 1000);
 /* ---------------------------------------------------------------------------
    Espace comm — maquette
    ---------------------------------------------------------------------------
-   Rien ici ne touche à la base : les tournées, les dates et les tâches sont
-   écrites en dur juste en dessous. C'est une maquette à regarder et à discuter,
-   pas une page de travail.
+   Rien ici ne touche à la base : tout est écrit en dur juste en dessous, et
+   tout revient à zéro au rechargement. C'est une maquette à discuter.
 
-   Ce qu'elle cherche à montrer : la comm n'a pas besoin d'une liste de tâches
-   de plus, elle en a déjà une. Ce qu'aucun outil du marché ne sait faire pour
-   elle, c'est savoir que Lyon est passé de option à validée hier soir. Alors
-   les tâches ne sont pas saisies : elles sont ENGENDRÉES par les dates, avec
-   des échéances comptées à rebours du concert. Une date qui se déplace déplace
-   ses échéances ; une date annulée met les siennes en alerte au lieu de les
-   effacer en silence.
+   Le circuit qu'elle met en scène, de bout en bout :
+
+   1. UNE DATE ARRIVE. Quand une date passe à « validée » côté tournée, elle
+      apparaît ici avec le plan type appliqué d'office — jamais de trou dans le
+      suivi. Sa fiche propose alors de TRIER : décocher les étapes qui ne
+      s'appliquent pas, ajouter celles qui sont propres à la date, lancer le
+      suivi. (Reims joue ce rôle dans la maquette.)
+   2. LES TÂCHES VIVENT. Échéances à rebours du concert ; une date qui bouge
+      emmène ses échéances, une option attend la signature, une annulation met
+      en alerte au lieu d'effacer.
+   3. CE QUI EST FAIT SE RANGE. Chaque coche part au journal, avec son jour.
+      Le bilan compte le rythme mois par mois et la couverture date par date.
+   4. LE RESTE DE LA COMM A SA PLACE. Les campagnes — album, newsletter, fond
+      de l'image — se créent à la main, avec leurs propres échéances, et
+      nourrissent les mêmes vues (semaine, calendrier, journal).
 --------------------------------------------------------------------------- */
 
 // La maquette se place au milieu de la tournée : avec la vraie date du jour,
 // tout serait « à venir » et on ne verrait ni retard ni urgence.
 const AUJOURDHUI = '2027-02-24';
 
-// Les dates de la tournée — les mêmes que le jeu de démonstration du reste du
-// site, pour qu'on se repère.
-// « publique » : une répétition en studio n'a pas de comm à faire. La vraie
-// page le lira sur la nature de la date, déjà saisie côté tournée.
+// Les dates de la tournée. « publique » : une répétition en studio n'a pas de
+// comm à faire — la vraie page le lira sur la nature de la date, déjà saisie
+// côté tournée. « nouvelle » : validée récemment, plan encore à confirmer.
 const DATES = [
   { id:'d0', date:'2027-01-22', ville:'Paris',     lieu:'Studio Ferber — répétitions', statut:'validee', publique:false },
   { id:'d1', date:'2027-02-10', ville:'Épernay',   lieu:'Le Millenium',                statut:'validee', publique:true },
-  { id:'d4', date:'2027-03-12', ville:'Lyon',      lieu:'Salle 3000',                  statut:'validee', publique:true },
+  { id:'d4', date:'2027-03-12', ville:'Lyon',      lieu:'Salle 3000',                  statut:'validee', publique:true,
+    brief:"Ciné-concert en seconde partie — l'angle : le retour à Lyon trois ans après. Visuels dans le Drive « Expé 33 / Lyon », billetterie par le lien de la salle, contact presse : M. Perrin (Le Progrès)." },
   { id:'d5', date:'2027-03-13', ville:'Grenoble',  lieu:'Le Summum',                   statut:'validee', publique:true },
   { id:'d6', date:'2027-03-15', ville:'Marseille', lieu:'Le Dôme',                     statut:'option',  publique:true },
   { id:'d7', date:'2027-03-18', ville:'Toulouse',  lieu:'Zénith',                      statut:'annulee', publique:true },
+  { id:'d8', date:'2027-03-20', ville:'Reims',     lieu:'La Cartonnerie',              statut:'validee', publique:true, nouvelle:true },
 ];
 
 // Le modèle : ce qui engendre la liste de chaque date. Réglable, comme les
@@ -182,17 +232,50 @@ const MODELE = [
   { cle:'retombees',   libelle:'Retombées et photos',         j:-3, aide:'Récupérer les photos, archiver les articles' },
 ];
 
-// Ce qui est déjà fait, date par date : dans la vraie page ce sera une table,
-// ici c'est ce qu'il faut pour que l'écran raconte une situation crédible.
+// Ce qui est déjà fait, date par date.
 const FAIT = {
   d1: ['annonce','visuel','presse','billetterie','relance','rappel','jourj'],
   d4: ['annonce','visuel','presse','billetterie'],
   d5: ['annonce','visuel'],
   d6: [],
   d7: ['annonce','visuel'],
+  d8: [],
 };
 
-// Les demandes poussées par l'équipe depuis les fiches de date et de tournée.
+// Le tri d'une date : les étapes du modèle retenues pour elle (absent = toutes),
+// et les étapes qui n'existent que pour elle.
+const APPLIQUE = {};
+const EXTRA = {};
+// Ce qui a été coché pendant CETTE session — pour que le journal date bien
+// « aujourd'hui » ce qu'on vient de faire, et non l'échéance d'origine.
+const COCHE_SESSION = {};
+// L'état du panneau de tri de la date ouverte.
+let TRIAGE = null;
+
+// Les campagnes : tout ce sur quoi on communique et qui n'est pas un concert.
+// Elles se créent à la main — c'est leur nature : personne d'autre que la comm
+// ne sait qu'une campagne doit exister. Même moteur d'affichage ensuite.
+const CAMPAGNES = [
+  { id:'c1', nom:'Sortie de l\'album Expédition 33', detail:'Sortie le 16 avril 2027', etapes:[
+    { cle:'c1a', libelle:'Single + clip', echeance:'2027-02-19', fait:true },
+    { cle:'c1b', libelle:'Teaser 30 secondes', echeance:'2027-03-17', fait:false },
+    { cle:'c1c', libelle:'Communiqué presse spécialisée', echeance:'2027-04-02', fait:false },
+    { cle:'c1d', libelle:'Jour de sortie — posts, stories, lien d\'écoute', echeance:'2027-04-16', fait:false },
+  ]},
+  { id:'c2', nom:'Newsletter de mars', detail:'Le rendez-vous mensuel', etapes:[
+    { cle:'c2a', libelle:'Choisir les sujets', echeance:'2027-03-15', fait:false },
+    { cle:'c2b', libelle:'Écrire et maquetter', echeance:'2027-03-22', fait:false },
+    { cle:'c2c', libelle:'Envoi', echeance:'2027-03-25', fait:false },
+  ]},
+  { id:'c3', nom:'Le fond de l\'image', detail:'Ce qui ne dépend d\'aucune date', etapes:[
+    { cle:'c3a', libelle:'Refaire les bios des réseaux', echeance:'2027-02-26', fait:false },
+    { cle:'c3b', libelle:'Mettre à jour la page presse du site', echeance:'2027-03-31', fait:false },
+  ]},
+];
+
+// Les demandes poussées par l'équipe. Dans la vraie page, un bouton « Demander
+// à la comm » sur les fiches de date, de tournée et de recording — la demande
+// arrive ici avec son contexte accroché, sans mail ni WhatsApp perdu.
 const DEMANDES = [
   { id:'q1', auteur:'Julie Manoukian', quand:'2027-02-23', dateId:'d4',
     texte:"La salle demande le visuel en 1080×1350 pour son Instagram, avant vendredi." },
@@ -200,18 +283,15 @@ const DEMANDES = [
     texte:"Marseille est encore en option — ne rien annoncer publiquement tant que ce n'est pas signé." },
 ];
 
-// Ses rendez-vous à elle : ceux qui n'existent que côté comm et que rien
-// d'autre dans le système ne connaît.
+// Ses rendez-vous à elle : ceux qui n'existent que côté comm.
 const PERSO = [
   { date:'2027-03-04', libelle:'Shooting photo orchestre' },
   { date:'2027-03-09', libelle:'Interview France Bleu' },
-  { date:'2027-03-25', libelle:'Newsletter de mars' },
 ];
 
 const MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const JOURS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
 
-function jourDe(iso){ return new Date(iso + 'T00:00:00').getDay(); }
 function joli(iso, avecJour){
   const d = new Date(iso + 'T00:00:00');
   return (avecJour ? JOURS[d.getDay()].slice(0, 3) + '. ' : '') + d.getDate() + ' ' + MOIS[d.getMonth()];
@@ -220,19 +300,27 @@ function joliLong(iso){
   const d = new Date(iso + 'T00:00:00');
   return JOURS[d.getDay()] + ' ' + d.getDate() + ' ' + MOIS[d.getMonth()] + ' ' + d.getFullYear();
 }
+function libelleJ(j){ return j >= 0 ? 'J-' + j : 'J+' + (-j); }
 
-// Une tâche = une étape du modèle appliquée à une date. L'échéance se compte à
-// rebours du concert : c'est tout le principe, et c'est ce qui suit la date
-// quand elle bouge.
+/* --- Les tâches ----------------------------------------------------------- */
+
+function etapesDe(d){
+  const retenues = APPLIQUE[d.id];
+  const duModele = retenues ? MODELE.filter(e=> retenues.includes(e.cle)) : MODELE;
+  return duModele.concat(EXTRA[d.id] || []);
+}
+
+// Une tâche = une étape appliquée à une date. L'échéance se compte à rebours du
+// concert : c'est tout le principe, et c'est ce qui suit la date quand elle bouge.
 function tachesDe(d){
   if(d.publique === false) return [];
   const faits = FAIT[d.id] || [];
-  return MODELE.map(etape=>{
-    const echeance = addDaysIso(d.date, -etape.j);
+  return etapesDe(d).map(etape=>{
+    const echeance = etape.echeance || addDaysIso(d.date, -etape.j);
     const reste = daysBetween(AUJOURDHUI, echeance);
     const fait = faits.includes(etape.cle);
     return {
-      dateId: d.id, cle: etape.cle, libelle: etape.libelle, aide: etape.aide,
+      d, dateId: d.id, cle: etape.cle, libelle: etape.libelle, aide: etape.aide,
       j: etape.j, echeance, reste, fait,
       // Une date annulée ne réclame plus rien, mais ce qui reste ouvert dessus
       // doit se voir : on l'a peut-être déjà annoncée publiquement. Et on ne
@@ -245,9 +333,18 @@ function tachesDe(d){
           : reste === 0 ? 'aujourdhui'
           : 'a_venir',
     };
+  }).sort((a, b)=> a.echeance.localeCompare(b.echeance));
+}
+function toutesLesTaches(){ return DATES.flatMap(tachesDe); }
+
+function tachesCampagne(c){
+  return c.etapes.map(e=>{
+    const reste = daysBetween(AUJOURDHUI, e.echeance);
+    return { c, cle: e.cle, libelle: e.libelle, echeance: e.echeance, reste, fait: e.fait,
+      etat: e.fait ? 'fait' : reste < 0 ? 'retard' : reste === 0 ? 'aujourdhui' : 'a_venir' };
   });
 }
-function toutesLesTaches(){ return DATES.flatMap(d=> tachesDe(d).map(t=> ({ ...t, d }))); }
+function toutesLesCampagnes(){ return CAMPAGNES.flatMap(tachesCampagne); }
 
 function libelleEcheance(t){
   // Une étape faite n'a plus d'échéance : afficher « en retard de 29 j » sous
@@ -265,7 +362,6 @@ const LIBELLE_ETAT = { fait:'Fait', retard:'En retard', aujourdhui:"Aujourd'hui"
 function pilleEtat(etat){
   return { fait:'ok', retard:'ko', aujourdhui:'att', caduque:'', attente:'att', a_venir:'info' }[etat] || '';
 }
-function libelleJ(j){ return j >= 0 ? 'J-' + j : 'J+' + (-j); }
 
 function jaugeDe(d){
   const t = tachesDe(d);
@@ -279,30 +375,62 @@ function statutPill(statut){
   return '<span class="co-pill ko">Annulée</span>';
 }
 
+/* --- Une ligne de tâche, partout la même ---------------------------------- */
+
+// `avecContexte` : sur la fiche d'une date, redire « 12 mars · Lyon » à chaque
+// ligne serait du bruit. Sur « Ma semaine », c'est l'information qui manque.
+function renderTache(t, avecContexte){
+  const classe = ['tache', t.fait ? 'faite' : '', t.etat === 'retard' ? 'retard' : '', t.etat === 'aujourdhui' ? 'aujourdhui' : ''].filter(Boolean).join(' ');
+  let sous;
+  if(t.c) sous = avecContexte ? escapeHtml(t.c.nom + ' — campagne') : '';
+  else if(avecContexte) sous = escapeHtml(joli(t.d.date) + ' · ' + t.d.ville + ' · ' + t.d.lieu + (t.j != null ? ' — ' + libelleJ(t.j) : ''));
+  else sous = (t.j != null ? '<b style="color:var(--accent); font-weight:800;">' + escapeHtml(libelleJ(t.j)) + '</b> — ' : '') + escapeHtml(t.aide || 'Étape propre à cette date');
+  const attr = t.c ? `data-coche-camp="${escapeAttr(t.c.id + ':' + t.cle)}"` : `data-coche="${escapeAttr(t.dateId + ':' + t.cle)}"`;
+  return `<div class="${classe}">
+    <div class="quand">
+      <b>${escapeHtml(joli(t.echeance, true))}</b>
+      <small>${escapeHtml(libelleEcheance(t))}</small>
+    </div>
+    <div class="quoi">
+      <b>${escapeHtml(t.libelle)}</b>
+      ${sous ? `<small>${sous}</small>` : ''}
+    </div>
+    <span class="co-pill ${pilleEtat(t.etat)}">${escapeHtml(LIBELLE_ETAT[t.etat])}</span>
+    <label class="coche"><input type="checkbox" ${attr} ${t.fait ? 'checked' : ''}> fait</label>
+  </div>`;
+}
+
 /* --- Vue « Ma semaine » --------------------------------------------------- */
 
 function renderSemaine(){
-  const taches = toutesLesTaches();
+  const taches = toutesLesTaches().concat(toutesLesCampagnes());
   const enRetard = taches.filter(t=> t.etat === 'retard');
   const cetteSemaine = taches.filter(t=> (t.etat === 'aujourdhui' || t.etat === 'a_venir') && t.reste <= 7);
   const urgentes = enRetard.concat(cetteSemaine).sort((a, b)=> a.echeance.localeCompare(b.echeance));
   const aVenir = DATES.filter(d=> d.date >= AUJOURDHUI && d.statut !== 'annulee' && d.publique !== false).slice(0, 3);
   const bloquees = taches.filter(t=> t.etat === 'attente');
+  const nouvelles = DATES.filter(d=> d.nouvelle);
 
   const stats = [
-    [enRetard.length, 'en retard'],
-    [cetteSemaine.length, 'dans les 7 jours'],
-    [DEMANDES.length, 'demandes de l\'équipe'],
-    [aVenir.length, 'dates à venir'],
+    [enRetard.length, 'en retard', enRetard.length ? 'ko' : ''],
+    [cetteSemaine.length, 'dans les 7 jours', ''],
+    [DEMANDES.length, 'demandes de l\'équipe', ''],
+    [CAMPAGNES.filter(c=> c.etapes.some(e=> !e.fait)).length, 'campagnes en cours', ''],
   ];
 
   document.getElementById('vue-semaine').innerHTML = `
-    <div class="co-stats co-stats-charte" style="margin-bottom:20px;">
-      ${stats.map(([n, lib])=> `<div class="co-stat"><div class="co-stat-num">${n}</div><div class="co-stat-label">${escapeHtml(lib)}</div></div>`).join('')}
+    <div class="stats-plates">
+      ${stats.map(([n, lib, cl])=> `<div><b class="${cl}">${n}</b><span>${escapeHtml(lib)}</span></div>`).join('')}
     </div>
 
+    ${nouvelles.map(d=> `<div class="co-note bloc" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <span style="flex:1; min-width:220px;"><b>Nouvelle date validée : ${escapeHtml(d.ville)} le ${escapeHtml(joli(d.date))}.</b>
+      Le plan type lui est appliqué d'office — rien ne passe au travers — mais sa fiche te propose de l'adapter avant de lancer le suivi.</span>
+      <button type="button" class="co-btn primary sm" data-ouvrir="${escapeAttr(d.id)}">Préparer ${escapeHtml(d.ville)}</button>
+    </div>`).join('')}
+
     <div class="bloc">
-      <div class="bloc-tete"><h2>À faire maintenant</h2><span class="compte">${urgentes.length} tâche${urgentes.length > 1 ? 's' : ''} — en retard, puis les sept prochains jours</span></div>
+      <div class="bloc-tete"><h2>À faire maintenant</h2><span class="compte">${urgentes.length} tâche${urgentes.length > 1 ? 's' : ''} — en retard, puis les sept prochains jours, dates et campagnes mêlées</span></div>
       <div class="co-card co-clip">
         ${urgentes.length ? urgentes.map(t=> renderTache(t, true)).join('')
           : '<div class="empty-hint co-vide">Rien qui presse cette semaine. C\'est rare, profites-en.</div>'}
@@ -317,7 +445,7 @@ function renderSemaine(){
     </div>` : ''}
 
     <div class="bloc">
-      <div class="bloc-tete"><h2>Demandes de l'équipe</h2><span class="compte">poussées depuis les fiches de date</span></div>
+      <div class="bloc-tete"><h2>Demandes de l'équipe</h2><span class="compte">arrivent d'un bouton « Demander à la comm » sur les fiches de date et de tournée</span></div>
       <div class="co-card co-clip">
         ${DEMANDES.map(q=>{
           const d = DATES.find(x=> x.id === q.dateId);
@@ -341,7 +469,7 @@ function renderSemaine(){
           const j = jaugeDe(d);
           return `<button type="button" class="co-card-btn" data-ouvrir="${escapeAttr(d.id)}">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
-              <b style="font-size:14.5px;">${escapeHtml(d.ville)}</b>${statutPill(d.statut)}
+              <b style="font-size:14.5px;">${escapeHtml(d.ville)}</b>${statutPill(d.statut)}${d.nouvelle ? '<span class="co-pill info">Nouvelle</span>' : ''}
             </div>
             <div style="font-size:12.5px; color:var(--muted); margin-bottom:10px;">${escapeHtml(joliLong(d.date))} · ${escapeHtml(d.lieu)}</div>
             <div class="co-progress"><i style="width:${j.pct}%;"></i></div>
@@ -353,28 +481,6 @@ function renderSemaine(){
   `;
 }
 
-// `avecDate` : sur la fiche d'une date, redire « 12 mars · Lyon · Salle 3000 »
-// à chaque ligne serait du bruit — la place sert mieux à dire ce qu'il y a à
-// faire. Sur « Ma semaine », au contraire, c'est l'information qui manque.
-function renderTache(t, avecDate){
-  const classe = ['tache', t.fait ? 'faite' : '', t.etat === 'retard' ? 'retard' : '', t.etat === 'aujourdhui' ? 'aujourdhui' : ''].filter(Boolean).join(' ');
-  const sous = avecDate
-    ? escapeHtml(joli(t.d.date) + ' · ' + t.d.ville + ' · ' + t.d.lieu + ' — ' + libelleJ(t.j))
-    : '<b style="color:var(--accent); font-weight:800;">' + escapeHtml(libelleJ(t.j)) + '</b> — ' + escapeHtml(t.aide);
-  return `<div class="${classe}">
-    <div class="quand">
-      <b>${escapeHtml(joli(t.echeance, true))}</b>
-      <small>${escapeHtml(libelleEcheance(t))}</small>
-    </div>
-    <div class="quoi">
-      <b>${escapeHtml(t.libelle)}</b>
-      <small>${sous}</small>
-    </div>
-    <span class="co-pill ${pilleEtat(t.etat)}">${escapeHtml(LIBELLE_ETAT[t.etat])}</span>
-    <label class="coche"><input type="checkbox" data-coche="${escapeAttr(t.dateId + ':' + t.cle)}" ${t.fait ? 'checked' : ''}> fait</label>
-  </div>`;
-}
-
 /* --- Vue « Rétroplanning » ------------------------------------------------ */
 
 let dateOuverte = 'd4';
@@ -384,6 +490,32 @@ function renderRetro(){
   const taches = tachesDe(d);
   const j = jaugeDe(d);
 
+  // Le panneau de tri d'une nouvelle date : le plan type est proposé coché,
+  // elle enlève ce qui ne s'applique pas, ajoute ce qui manque, et lance.
+  let triageHtml = '';
+  if(d.nouvelle){
+    if(!TRIAGE || TRIAGE.dateId !== d.id){
+      TRIAGE = { dateId: d.id, coches: new Set(MODELE.map(e=> e.cle).concat((EXTRA[d.id] || []).map(e=> e.cle))) };
+    }
+    const lignes = MODELE.concat(EXTRA[d.id] || []);
+    triageHtml = `<div class="co-card co-pad-lg" style="margin-bottom:14px; border-color:var(--accent);">
+      <div class="co-legend">Préparer cette date</div>
+      <p class="co-legend-hint">Validée côté tournée, elle vient d'arriver ici avec le plan type. Décoche ce qui
+        ne s'applique pas, ajoute ce qui est propre à la date, puis lance le suivi. (Tant que tu ne l'as pas fait,
+        le plan complet s'applique d'office : rien ne passe au travers.)</p>
+      ${lignes.map(e=> `<label class="triage-ligne">
+        <input type="checkbox" data-triage="${escapeAttr(e.cle)}" ${TRIAGE.coches.has(e.cle) ? 'checked' : ''}>
+        <span class="j">${escapeHtml(e.j != null ? libelleJ(e.j) : '—')}</span>
+        <span class="lib">${escapeHtml(e.libelle)}</span>
+        <span class="exp">${escapeHtml(e.aide || 'Étape propre à cette date')}</span>
+      </label>`).join('')}
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="co-btn secondary sm" data-ajout-etape="${escapeAttr(d.id)}">+ Étape propre à cette date</button>
+        <button type="button" class="co-btn primary sm" data-triage-valider>Lancer le suivi (${TRIAGE.coches.size} étapes)</button>
+      </div>
+    </div>`;
+  }
+
   document.getElementById('vue-retro').innerHTML = `
     <div class="retro">
       <div class="co-card co-clip">
@@ -391,7 +523,8 @@ function renderRetro(){
         ${DATES.map(x=>{
           const jx = jaugeDe(x);
           const marque = x.statut === 'annulee' ? ' <span class="co-pill ko">Annulée</span>'
-            : x.statut === 'option' ? ' <span class="co-pill att">Option</span>' : '';
+            : x.statut === 'option' ? ' <span class="co-pill att">Option</span>'
+            : x.nouvelle ? ' <span class="co-pill info">Nouvelle</span>' : '';
           return `<button type="button" class="date-btn" data-date="${escapeAttr(x.id)}" ${x.id === d.id ? 'aria-current="true"' : ''}>
             <b>${escapeHtml(joli(x.date) + ' · ' + x.ville)}${marque}</b>
             <small>${escapeHtml(x.lieu)}</small>
@@ -406,6 +539,7 @@ function renderRetro(){
           <div class="fiche-tete">
             <h2>${escapeHtml(d.ville)}</h2>
             ${statutPill(d.statut)}
+            ${d.nouvelle ? '<span class="co-pill info">Nouvelle — plan à confirmer</span>' : ''}
             <span class="co-chip">${j.faits} / ${j.total} étapes</span>
           </div>
           <p class="fiche-sous">${escapeHtml(joliLong(d.date))} · ${escapeHtml(d.lieu)} — ${escapeHtml(d.date >= AUJOURDHUI ? 'dans ' + daysBetween(AUJOURDHUI, d.date) + ' jours' : 'il y a ' + daysBetween(d.date, AUJOURDHUI) + ' jours')}</p>
@@ -414,26 +548,69 @@ function renderRetro(){
             : d.statut === 'option' ? `<div class="co-note"><b>Encore en option.</b> Le rétroplanning existe déjà pour qu'on sache ce qui attend, mais rien ne devrait sortir publiquement avant la signature.</div>` : ''}
         </div>
 
+        ${triageHtml}
+
+        ${d.publique !== false && d.statut !== 'annulee' ? `<div class="co-card co-pad-lg" style="margin-bottom:14px;">
+          <div class="co-legend">Le brief</div>
+          ${d.brief ? `<p style="margin:0 0 10px; font-size:13px; line-height:1.55;">${escapeHtml(d.brief)}</p>`
+            : `<p class="co-legend-hint">Pas encore de brief — l'angle de la date, les liens utiles (visuels, billetterie, contact presse), ce que doit savoir quelqu'un qui reprend le dossier.</p>`}
+          <button type="button" class="co-btn secondary sm" data-maquette>${d.brief ? 'Modifier le brief' : 'Écrire le brief'}</button>
+        </div>` : ''}
+
         ${taches.length ? `<div class="co-card co-clip" style="margin-bottom:14px;">
           <div class="co-rows-head">Rétroplanning</div>
-          ${taches.map(t=> renderTache({ ...t, d }, false)).join('')}
+          ${taches.map(t=> renderTache(t, false)).join('')}
+        </div>` : ''}
+
+        ${!d.nouvelle && d.publique !== false && d.statut !== 'annulee' ? `<div style="margin-bottom:14px;">
+          <button type="button" class="co-btn secondary sm" data-ajout-etape="${escapeAttr(d.id)}">+ Ajouter une étape à cette date seulement</button>
         </div>` : ''}
 
         <div class="co-card co-pad-lg">
           <div class="co-legend">Le modèle qui engendre ces listes</div>
           <p class="co-legend-hint">Il se règle une fois, dans les réglages, et vaut pour toutes les dates.
-            Changer « annoncer à J-45 » en « J-60 » recale toutes les échéances de la tournée d'un coup.</p>
+            Changer « annoncer à J-45 » en « J-60 » recale toutes les échéances de la tournée d'un coup.
+            Chaque date peut ensuite s'en écarter : étapes décochées au tri, étapes ajoutées pour elle seule.</p>
           ${MODELE.map(e=> `<div class="modele-ligne">
-            <span class="j">${escapeHtml(e.j >= 0 ? 'J-' + e.j : 'J+' + (-e.j))}</span>
+            <span class="j">${escapeHtml(libelleJ(e.j))}</span>
             <span class="lib">${escapeHtml(e.libelle)}</span>
             <span class="exp">${escapeHtml(e.aide)}</span>
           </div>`).join('')}
           <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-            <button type="button" class="co-btn secondary sm" data-maquette>+ Ajouter une étape</button>
+            <button type="button" class="co-btn secondary sm" data-maquette>+ Ajouter une étape au modèle</button>
             <button type="button" class="co-btn ghost sm" data-maquette>Modèle « recording »</button>
           </div>
         </div>
       </div>
+    </div>
+  `;
+}
+
+/* --- Vue « Campagnes » ---------------------------------------------------- */
+
+function renderCampagnes(){
+  document.getElementById('vue-campagnes').innerHTML = `
+    <div class="co-note info bloc">
+      <b>Tout ce qui n'est pas un concert.</b> Une sortie d'album, la newsletter, le fond de l'image —
+      ces campagnes se créent à la main, avec leurs propres échéances. Elles nourrissent ensuite les mêmes
+      vues que les dates : « Ma semaine », le calendrier, le journal.
+    </div>
+    ${CAMPAGNES.map(c=>{
+      const ts = tachesCampagne(c);
+      const faits = ts.filter(t=> t.fait).length;
+      return `<div class="bloc">
+        <div class="bloc-tete">
+          <h2>${escapeHtml(c.nom)}</h2>
+          <span class="compte">${escapeHtml(c.detail)} — ${faits} / ${ts.length} étapes</span>
+        </div>
+        <div class="co-card co-clip">
+          ${ts.map(t=> renderTache(t, false)).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button type="button" class="co-btn primary sm" data-maquette>+ Nouvelle campagne</button>
+      <button type="button" class="co-btn secondary sm" data-maquette>+ Étape dans une campagne</button>
     </div>
   `;
 }
@@ -460,6 +637,10 @@ function renderCalendrier(){
       poser(t.echeance, `<span class="pastille ${t.etat === 'attente' ? 'option' : 'echeance'}" title="${escapeAttr(t.libelle + ' — ' + d.ville)}">${escapeHtml(t.libelle)}</span>`);
     });
   });
+  CAMPAGNES.forEach(c=> tachesCampagne(c).forEach(t=>{
+    if(t.fait) return;
+    poser(t.echeance, `<span class="pastille campagne" title="${escapeAttr(t.libelle + ' — ' + c.nom)}">${escapeHtml(t.libelle)}</span>`);
+  }));
   PERSO.forEach(p=> poser(p.date, `<span class="pastille perso">${escapeHtml(p.libelle)}</span>`));
 
   const cases = [];
@@ -474,7 +655,7 @@ function renderCalendrier(){
   document.getElementById('vue-calendrier').innerHTML = `
     <div class="bloc-tete">
       <h2>${escapeHtml(MOIS[mo - 1].charAt(0).toUpperCase() + MOIS[mo - 1].slice(1) + ' ' + an)}</h2>
-      <span class="compte">concerts, échéances comm et rendez-vous</span>
+      <span class="compte">concerts, échéances comm, campagnes et rendez-vous</span>
       <span style="margin-left:auto; display:flex; gap:6px;">
         <button type="button" class="co-btn ghost sm" data-mois="-1">← Mois précédent</button>
         <button type="button" class="co-btn ghost sm" data-mois="1">Mois suivant →</button>
@@ -485,14 +666,117 @@ function renderCalendrier(){
       <span><span class="pastille option">Option — en attente</span></span>
       <span><span class="pastille annulee">Annulée</span></span>
       <span><span class="pastille echeance">Échéance comm</span></span>
+      <span><span class="pastille campagne">Campagne</span></span>
       <span><span class="pastille perso">Rendez-vous comm</span></span>
     </div>
     <div class="cal">
-      ${['lun','mar','mer','jeu','ven','sam','dim'].map(j=> `<div class="cal-jour-nom">${j}</div>`).join('')}
+      ${['lun','mar','mer','jeu','ven','sam','dim'].map(x=> `<div class="cal-jour-nom">${x}</div>`).join('')}
       ${cases.join('')}
     </div>
     <p class="co-legend-hint" style="margin-top:12px;">Les concerts et les échéances sont lus depuis les tournées — ils ne sont
-      jamais ressaisis ici. Seuls les rendez-vous en bleu appartiennent à la comm.</p>
+      jamais ressaisis ici. Les campagnes et les rendez-vous appartiennent à la comm.</p>
+  `;
+}
+
+/* --- Vue « Journal & bilan » ---------------------------------------------- */
+
+// Quand une chose a-t-elle été faite ? Ce qui est coché pendant cette session
+// est daté d'aujourd'hui ; le reste, de son échéance (dans la vraie page, la
+// date de la coche sera enregistrée avec elle).
+function quandFait(id, cle, echeance){
+  if(COCHE_SESSION[id + ':' + cle]) return AUJOURDHUI;
+  return echeance <= AUJOURDHUI ? echeance : AUJOURDHUI;
+}
+
+function renderJournal(){
+  const entrees = [];
+  DATES.forEach(d=> tachesDe(d).forEach(t=>{
+    if(t.fait) entrees.push({ quand: quandFait(d.id, t.cle, t.echeance), libelle: t.libelle,
+      contexte: d.ville + ' — ' + joli(d.date), frais: COCHE_SESSION[d.id + ':' + t.cle] });
+  }));
+  CAMPAGNES.forEach(c=> tachesCampagne(c).forEach(t=>{
+    if(t.fait) entrees.push({ quand: quandFait(c.id, t.cle, t.echeance), libelle: t.libelle,
+      contexte: c.nom, frais: COCHE_SESSION[c.id + ':' + t.cle] });
+  }));
+  entrees.sort((a, b)=> b.quand.localeCompare(a.quand));
+
+  const parJour = [];
+  entrees.forEach(e=>{
+    const dernier = parJour[parJour.length - 1];
+    if(dernier && dernier.quand === e.quand) dernier.liste.push(e);
+    else parJour.push({ quand: e.quand, liste: [e] });
+  });
+
+  // Le rythme : tout ce qui sort, mois par mois — fait à sa date de coche,
+  // à venir à son échéance. Le recul que ni la liste ni le calendrier ne donnent.
+  const MOIS_RYTHME = ['2027-01', '2027-02', '2027-03', '2027-04'];
+  const rythme = MOIS_RYTHME.map(m=> ({ m, faites: 0, prevues: 0 }));
+  const compter = (iso, fait)=>{
+    const r = rythme.find(x=> iso.startsWith(x.m));
+    if(r){ if(fait) r.faites++; else r.prevues++; }
+  };
+  entrees.forEach(e=> compter(e.quand, true));
+  toutesLesTaches().concat(toutesLesCampagnes()).forEach(t=>{
+    if(!t.fait && t.etat !== 'caduque') compter(t.echeance, false);
+  });
+  const maxi = Math.max(1, ...rythme.map(r=> r.faites + r.prevues));
+
+  const couvertes = DATES.filter(d=> d.publique !== false && d.statut !== 'annulee');
+  const aFaire30 = toutesLesTaches().concat(toutesLesCampagnes())
+    .filter(t=> !t.fait && t.etat !== 'caduque' && t.etat !== 'attente' && t.reste >= 0 && t.reste <= 30).length;
+
+  const stats = [
+    [entrees.filter(e=> e.quand.startsWith(AUJOURDHUI.slice(0, 7))).length, 'faites ce mois-ci'],
+    [aFaire30, 'prévues sous 30 jours'],
+    [CAMPAGNES.filter(c=> c.etapes.some(e=> !e.fait)).length, 'campagnes en cours'],
+    [couvertes.length, 'dates suivies'],
+  ];
+
+  document.getElementById('vue-journal').innerHTML = `
+    <div class="stats-plates">
+      ${stats.map(([n, lib])=> `<div><b>${n}</b><span>${escapeHtml(lib)}</span></div>`).join('')}
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px;" class="bloc">
+      <div class="co-card co-pad-lg">
+        <div class="co-legend">Le rythme, mois par mois</div>
+        <p class="co-legend-hint">Tout ce qui sort — dates et campagnes confondues. Le plein est fait, le reste est prévu.</p>
+        ${rythme.map(r=>{
+          const total = r.faites + r.prevues;
+          return `<div class="rythme-ligne">
+            <span class="mois">${escapeHtml(MOIS[Number(r.m.slice(5)) - 1])}</span>
+            <span class="piste"><i style="width:${Math.round(r.faites / maxi * 100)}%;"></i></span>
+            <span class="det">${r.faites} faite${r.faites > 1 ? 's' : ''}${r.prevues ? ' · ' + r.prevues + ' prévue' + (r.prevues > 1 ? 's' : '') : ''}${total === 0 ? '—' : ''}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="co-card co-pad-lg">
+        <div class="co-legend">La couverture, date par date</div>
+        <p class="co-legend-hint">Le même avancement que le rétroplanning, mais d'un seul regard.</p>
+        ${couvertes.map(d=>{
+          const jx = jaugeDe(d);
+          return `<div class="couverture-ligne">
+            <span class="qui">${escapeHtml(d.ville + ' · ' + joli(d.date))}</span>
+            <span class="piste co-progress co-progress-thin"><i style="width:${jx.pct}%;"></i></span>
+            <span class="det">${jx.faits}/${jx.total}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="bloc">
+      <div class="bloc-tete"><h2>Le journal</h2><span class="compte">tout ce qui a été fait, le plus récent d'abord — coche une case n'importe où, elle arrive ici datée du jour</span></div>
+      <div class="co-card co-clip">
+        ${parJour.length ? parJour.map(grp=> `
+          <div class="journal-jour">${escapeHtml(joliLong(grp.quand))}</div>
+          ${grp.liste.map(e=> `<div class="journal-ligne">
+            <b>${escapeHtml(e.libelle)}</b>
+            <span class="ctx">${escapeHtml(e.contexte)}</span>
+            ${e.frais ? '<span class="co-pill ok frais">Coché à l\'instant</span>' : ''}
+          </div>`).join('')}
+        `).join('') : '<div class="empty-hint co-vide">Rien encore — le journal se remplit à mesure que les étapes se cochent.</div>'}
+      </div>
+    </div>
   `;
 }
 
@@ -501,8 +785,12 @@ function renderCalendrier(){
 function rendre(){
   renderSemaine();
   renderRetro();
+  renderCampagnes();
   renderCalendrier();
+  renderJournal();
 }
+
+const VUES = ['semaine', 'retro', 'campagnes', 'calendrier', 'journal'];
 
 document.querySelector('.vues').addEventListener('click', (e)=>{
   const btn = e.target.closest('button[data-vue]');
@@ -510,9 +798,7 @@ document.querySelector('.vues').addEventListener('click', (e)=>{
   document.querySelectorAll('.vues button').forEach(b=>{
     if(b === btn) b.setAttribute('aria-pressed', 'true'); else b.removeAttribute('aria-pressed');
   });
-  ['semaine','retro','calendrier'].forEach(v=>{
-    document.getElementById('vue-' + v).hidden = v !== btn.dataset.vue;
-  });
+  VUES.forEach(v=>{ document.getElementById('vue-' + v).hidden = v !== btn.dataset.vue; });
 });
 
 function montrerVue(nom){
@@ -520,14 +806,50 @@ function montrerVue(nom){
   if(btn) btn.click();
 }
 
+function ajouterEtapePropre(d){
+  const libelle = prompt('L\'étape à ajouter, pour ' + d.ville + ' seulement :', 'Interview France 3 régionale');
+  if(!libelle) return;
+  const rep = prompt('Combien de jours avant le concert ? (0 = le jour même, -3 = trois jours après)', '10');
+  const jNum = Number(rep);
+  if(rep == null || !isFinite(jNum)) return;
+  const cle = genId('etape');
+  (EXTRA[d.id] = EXTRA[d.id] || []).push({ cle, libelle, j: jNum, aide: 'Étape propre à cette date' });
+  if(TRIAGE && TRIAGE.dateId === d.id) TRIAGE.coches.add(cle);
+  rendre();
+}
+
+document.addEventListener('change', (e)=>{
+  const tri = e.target.closest('[data-triage]');
+  if(tri && TRIAGE){
+    if(tri.checked) TRIAGE.coches.add(tri.dataset.triage);
+    else TRIAGE.coches.delete(tri.dataset.triage);
+    const btn = document.querySelector('[data-triage-valider]');
+    if(btn) btn.textContent = `Lancer le suivi (${TRIAGE.coches.size} étapes)`;
+  }
+});
+
 document.addEventListener('click', (e)=>{
-  // Cocher une étape : la maquette bouge pour de vrai, mais en mémoire seulement.
+  // Cocher une étape de date : la maquette bouge pour de vrai, en mémoire.
   const coche = e.target.closest('[data-coche]');
   if(coche){
     const [dateId, cle] = coche.dataset.coche.split(':');
     const liste = FAIT[dateId] = FAIT[dateId] || [];
     const i = liste.indexOf(cle);
-    if(i >= 0) liste.splice(i, 1); else liste.push(cle);
+    if(i >= 0){ liste.splice(i, 1); delete COCHE_SESSION[dateId + ':' + cle]; }
+    else { liste.push(cle); COCHE_SESSION[dateId + ':' + cle] = true; }
+    rendre();
+    return;
+  }
+  const cocheCamp = e.target.closest('[data-coche-camp]');
+  if(cocheCamp){
+    const [cId, cle] = cocheCamp.dataset.cocheCamp.split(':');
+    const c = CAMPAGNES.find(x=> x.id === cId);
+    const etape = c && c.etapes.find(x=> x.cle === cle);
+    if(etape){
+      etape.fait = !etape.fait;
+      if(etape.fait) COCHE_SESSION[cId + ':' + cle] = true;
+      else delete COCHE_SESSION[cId + ':' + cle];
+    }
     rendre();
     return;
   }
@@ -535,16 +857,32 @@ document.addEventListener('click', (e)=>{
   if(ouvrir){ dateOuverte = ouvrir.dataset.ouvrir; renderRetro(); montrerVue('retro'); return; }
   const datebtn = e.target.closest('[data-date]');
   if(datebtn){ dateOuverte = datebtn.dataset.date; renderRetro(); return; }
+  const ajout = e.target.closest('[data-ajout-etape]');
+  if(ajout){
+    const d = DATES.find(x=> x.id === ajout.dataset.ajoutEtape);
+    if(d) ajouterEtapePropre(d);
+    return;
+  }
+  const valider = e.target.closest('[data-triage-valider]');
+  if(valider && TRIAGE){
+    const d = DATES.find(x=> x.id === TRIAGE.dateId);
+    APPLIQUE[TRIAGE.dateId] = MODELE.map(x=> x.cle).filter(c=> TRIAGE.coches.has(c));
+    if(EXTRA[TRIAGE.dateId]) EXTRA[TRIAGE.dateId] = EXTRA[TRIAGE.dateId].filter(x=> TRIAGE.coches.has(x.cle));
+    if(d) delete d.nouvelle;
+    TRIAGE = null;
+    rendre();
+    return;
+  }
   const mois = e.target.closest('[data-mois]');
   if(mois){
     const [a, m] = moisAffiche.split('-').map(Number);
-    const d = new Date(a, m - 1 + Number(mois.dataset.mois), 1);
-    moisAffiche = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const dm = new Date(a, m - 1 + Number(mois.dataset.mois), 1);
+    moisAffiche = dm.getFullYear() + '-' + String(dm.getMonth() + 1).padStart(2, '0');
     renderCalendrier();
     return;
   }
   const factice = e.target.closest('[data-maquette]');
-  if(factice) alert("Maquette : ce bouton ne fait rien pour l'instant.");
+  if(factice) alert("Maquette : ce bouton ne fait rien pour l'instant — c'est le vrai lot qui le câblera.");
 });
 
 rendre();
