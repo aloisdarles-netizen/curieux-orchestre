@@ -25,6 +25,10 @@
   .wrap{max-width:min(1200px, 97vw); margin:0 auto;}
 
   .rempl-nom{width:200px; flex-shrink:0;}
+  /* Un nom est une porte : il mène à la fiche. Souligné discret au repos,
+     accent au survol — le même geste que partout ailleurs sur le site. */
+  .lien-fiche{color:inherit; text-decoration:underline; text-decoration-color:var(--old-champagne); text-underline-offset:3px;}
+  .lien-fiche:hover{color:var(--accent); text-decoration-color:var(--accent);}
   .rempl-nom b{font-weight:800; font-size:13.5px; display:block;}
   .rempl-nom small{font-size:11.5px; color:var(--muted);}
   .rempl-liste{flex:1; min-width:200px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
@@ -83,6 +87,18 @@ function nomDeLItem(item){
   }
   const libre = [item.prenom, item.nom].filter(Boolean).join(' ').trim();
   return libre || 'Sans nom';
+}
+
+// Même nom, mais cliquable quand une fiche existe : un contact saisi à la main
+// (« pas encore au répertoire ») reste en texte — il n'a nulle part où mener.
+function nomLieDeLItem(item){
+  if(item.source === 'roster'){
+    const mus = musiciensCache.find(x=> x.id === item.personId);
+    const tech = mus ? null : techniciensCache.find(x=> x.id === item.personId);
+    const p = mus || tech;
+    if(p) return `<a class="lien-fiche" href="${mus ? 'annuaire' : 'techniciens'}.html?fiche=${encodeURIComponent(p.id)}" title="Ouvrir sa fiche">${escapeHtml(fullName(p))}</a>`;
+  }
+  return escapeHtml(nomDeLItem(item));
 }
 
 // Trois noms : c'est ce qu'il faut pour qu'une liste serve vraiment le jour où
@@ -162,12 +178,12 @@ function render(){
     return `
       <div class="co-row">
         <span class="rempl-nom">
-          <b>${escapeHtml(fullName(p))}</b>
+          <b><a class="lien-fiche" href="${role === 'musiciens' ? 'annuaire' : 'techniciens'}.html?fiche=${encodeURIComponent(p.id)}" title="Ouvrir sa fiche">${escapeHtml(fullName(p))}</a></b>
           <small>${escapeHtml(p[metier] || '')}</small>
         </span>
         <span class="rempl-liste">
           ${items.length
-            ? items.map(it=> `<span class="rempl-item"><span class="rempl-rang">${escapeHtml(String(it.rang || '?'))}</span>${escapeHtml(nomDeLItem(it))}</span>`).join('')
+            ? items.map(it=> `<span class="rempl-item"><span class="rempl-rang">${escapeHtml(String(it.rang || '?'))}</span>${nomLieDeLItem(it)}</span>`).join('')
             : `<span class="rempl-vide">Aucune liste pour l'instant.</span>`}
         </span>
         ${pastille}

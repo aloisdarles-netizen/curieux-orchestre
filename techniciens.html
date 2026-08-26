@@ -840,6 +840,10 @@ async function initData(){
   const q = new URLSearchParams(location.search).get('q');
   if(q) document.getElementById('searchInput').value = q;
   render();
+  // Arrivée depuis une autre page (remplacements…) : ?fiche=<id> ouvre
+  // directement la fiche de la personne, quel que soit le filtre en cours.
+  const fiche = new URLSearchParams(location.search).get('fiche');
+  if(fiche && loadTechnicians().some(p=> p.id === fiche)) openModal(fiche);
 }
 CurieuxDB.subscribe('techniciens', ()=>{
   CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; curieuxRafraichir(render); });
