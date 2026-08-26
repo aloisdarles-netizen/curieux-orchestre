@@ -3,20 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Curieux orchestre — Espace comm (maquette)</title>
+<title>Curieux orchestre — Espace comm</title>
 <script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
-<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireCommAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
   .wrap{max-width:min(1500px, 97vw); margin:0 auto; font-variant-numeric:tabular-nums;}
 
-  /* Les vues de l'espace : mêmes pilules que les filtres des annuaires,
-     pour qu'aucun geste ne soit à réapprendre d'une page à l'autre. */
+  /* Mêmes pilules que les filtres des annuaires : aucun geste à réapprendre. */
   .vues{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px;}
   .vues button{
     cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text);
@@ -25,9 +24,8 @@
   .vues button[aria-pressed="true"]{background:var(--prune); color:var(--blanc); border-color:var(--prune);}
   [hidden]{display:none;}
 
-  /* Un outil de travail avant une vitrine : les chiffres en cartes plates,
-     sans rotation ni aplats de charte. La DA du site reste sur les pages
-     publiques ; ici, la densité et la lisibilité passent devant. */
+  /* Un outil de travail avant une vitrine : cartes plates, couleurs d'état
+     seulement (retard rouge, fait vert). La DA reste sur les pages publiques. */
   .stats-plates{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:20px;}
   .stats-plates > div{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px;}
   .stats-plates b{display:block; font-size:26px; font-weight:800; line-height:1; color:var(--accent);}
@@ -39,8 +37,8 @@
   .bloc-tete h2{font-size:15.5px; margin:0; color:var(--accent);}
   .bloc-tete .compte{font-size:12.5px; color:var(--muted); font-weight:700;}
 
-  /* Une tâche : l'échéance à gauche, ce qu'il y a à faire au milieu, la case à
-     cocher à droite — l'œil descend la colonne des échéances sans lire le reste. */
+  /* Une tâche : l'échéance à gauche, le contenu au milieu, la coche à droite —
+     l'œil descend la colonne des échéances sans lire le reste. */
   .tache{display:flex; align-items:center; gap:14px; padding:11px 18px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
   .tache:last-child{border-bottom:none;}
   .tache .quand{flex:0 0 128px; min-width:128px;}
@@ -52,45 +50,46 @@
   .tache.faite .quoi > b{text-decoration:line-through; color:var(--muted);}
   .tache .coche{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); font-weight:700; cursor:pointer; white-space:nowrap;}
   .tache .coche input{width:17px; height:17px; accent-color:var(--ok); cursor:pointer;}
+  .tache .outil{
+    cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted);
+    border-radius:8px; width:28px; height:28px; font-weight:800; font-size:13px; font-family:inherit;
+    display:grid; place-items:center; flex-shrink:0;
+  }
+  .tache .outil:hover{border-color:var(--accent); color:var(--accent);}
+  .tache .outil.danger:hover{border-color:var(--ko); color:var(--ko);}
   .retard{border-left:3px solid var(--ko);}
   .aujourdhui{border-left:3px solid var(--secondary);}
 
-  /* Le rétroplanning : les dates à gauche, la date ouverte à droite. */
-  .retro{display:grid; grid-template-columns:280px 1fr; gap:14px; align-items:start;}
-  @media (max-width:900px){ .retro{grid-template-columns:1fr;} }
-  .date-btn{
-    display:block; width:100%; text-align:left; cursor:pointer; font-family:inherit;
-    background:transparent; border:none; border-bottom:1px solid var(--border);
-    padding:11px 16px; color:var(--text);
+  /* Le formulaire de tâche : une ligne de champs, rien de plus. */
+  .tache-form{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+  .tache-form .champ{display:flex; flex-direction:column; gap:4px;}
+  .tache-form label{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
+  .tache-form input, .tache-form select{
+    padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13.5px;
+    background:var(--card); color:var(--text); font-family:inherit;
   }
-  .date-btn:last-child{border-bottom:none;}
-  .date-btn:hover{background:var(--bg);}
-  .date-btn[aria-current]{background:var(--accent-tint);}
-  .date-btn b{display:block; font-size:13.5px; font-weight:800;}
-  .date-btn small{display:block; font-size:11.5px; color:var(--muted);}
-  .date-btn[aria-current] small{color:var(--tint-ink);}
-  .date-btn .jauge{margin-top:6px;}
+  .tache-form input:focus, .tache-form select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .tache-form .libelle{flex:2 1 240px;}
+  .tache-form .libelle input{width:100%;}
+  .tache-form .notes-champ{flex:2 1 200px;}
+  .tache-form .notes-champ input{width:100%;}
 
-  .fiche-tete{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:4px;}
-  .fiche-tete h2{font-family:var(--font-display); font-size:23px; margin:0; color:var(--accent); font-weight:500;}
-  .fiche-sous{font-size:13px; color:var(--muted); margin:0 0 14px;}
+  .types-ligne{display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px dashed var(--border); font-size:13px;}
+  .types-ligne:last-of-type{border-bottom:none;}
+  .types-ligne .j{flex:0 0 60px; font-weight:800; color:var(--accent);}
+  .types-ligne .lib{flex:1; min-width:160px; font-weight:700;}
 
-  /* Le tri d'une nouvelle date : le plan type proposé, à adapter avant de lancer. */
-  .triage-ligne{display:flex; align-items:center; gap:11px; padding:8px 0; border-bottom:1px dashed var(--border); font-size:13px;}
-  .triage-ligne:last-of-type{border-bottom:none;}
-  .triage-ligne input{width:17px; height:17px; accent-color:var(--accent); cursor:pointer; flex:none;}
-  .triage-ligne .j{flex:0 0 52px; font-weight:800; color:var(--accent);}
-  .triage-ligne .lib{flex:1; min-width:150px; font-weight:700;}
-  .triage-ligne .exp{flex:2; min-width:180px; color:var(--muted); font-size:12px;}
+  /* Les dates : une ligne par date, la comm en résumé à droite. */
+  .date-ligne{display:flex; align-items:center; gap:14px; padding:12px 18px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+  .date-ligne:last-child{border-bottom:none;}
+  .date-ligne .quand{flex:0 0 128px; min-width:128px; font-weight:800; font-size:13px;}
+  .date-ligne .ou{flex:1; min-width:200px;}
+  .date-ligne .ou b{display:block; font-weight:800; font-size:13.5px;}
+  .date-ligne .ou small{display:block; font-size:11.5px; color:var(--muted);}
+  .date-ligne .resume{font-size:12px; color:var(--muted); font-weight:700; white-space:nowrap;}
+  .date-ligne.passee{opacity:.55;}
 
-  /* Le modèle d'étapes : ce qui engendre les listes, montré tel qu'il se règle. */
-  .modele-ligne{display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px dashed var(--border); font-size:13px;}
-  .modele-ligne:last-child{border-bottom:none;}
-  .modele-ligne .j{flex:0 0 74px; font-weight:800; color:var(--accent);}
-  .modele-ligne .lib{flex:1; min-width:160px; font-weight:700;}
-  .modele-ligne .exp{flex:2; min-width:200px; color:var(--muted); font-size:12px;}
-
-  /* Le calendrier du mois : une grille de sept, des pastilles dans les cases. */
+  /* Le calendrier : une grille de sept, des pastilles dans les cases. */
   .cal{display:grid; grid-template-columns:repeat(7, 1fr); gap:6px;}
   .cal-jour-nom{font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); text-align:center; padding-bottom:4px;}
   .cal-case{
@@ -107,36 +106,15 @@
   }
   .pastille.concert{background:var(--prune); color:var(--blanc);}
   .pastille.option{background:var(--maybe-tint); color:var(--maybe);}
-  .pastille.echeance{background:var(--secondary-tint); color:var(--prune);}
-  .pastille.campagne{background:var(--orange); color:var(--blanc);}
-  .pastille.perso{background:var(--bleu); color:var(--prune);}
   .pastille.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
+  .pastille.echeance{background:var(--secondary-tint); color:var(--prune);}
+  .pastille.newsletter{background:var(--orange); color:var(--blanc);}
   @media (max-width:760px){
     .cal{grid-template-columns:1fr; gap:4px;}
     .cal-jour-nom{display:none;}
     .cal-case{min-height:0; flex-direction:row; align-items:center; flex-wrap:wrap;}
     .cal-case:not(:has(.pastille)){display:none;}
   }
-
-  /* Le journal : ce qui a été fait, jour par jour, le plus récent d'abord. */
-  .journal-jour{font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); padding:12px 18px 6px;}
-  .journal-ligne{display:flex; align-items:baseline; gap:12px; padding:7px 18px; font-size:13px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
-  .journal-ligne:last-child{border-bottom:none;}
-  .journal-ligne b{font-weight:800;}
-  .journal-ligne .ctx{color:var(--muted); font-size:12px;}
-  .journal-ligne .frais{margin-left:auto;}
-
-  /* Le rythme : combien de choses sortent, mois par mois. */
-  .rythme-ligne{display:flex; align-items:center; gap:12px; font-size:12.5px; margin-bottom:8px;}
-  .rythme-ligne .mois{flex:0 0 74px; font-weight:800;}
-  .rythme-ligne .piste{flex:1; height:12px; border-radius:999px; background:var(--border); overflow:hidden;}
-  .rythme-ligne .piste i{display:block; height:100%; border-radius:999px; background:var(--accent);}
-  .rythme-ligne .det{flex:0 0 auto; color:var(--muted); font-weight:700; font-size:11.5px;}
-
-  .couverture-ligne{display:flex; align-items:center; gap:12px; font-size:12.5px; margin-bottom:8px;}
-  .couverture-ligne .qui{flex:0 0 150px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .couverture-ligne .piste{flex:1;}
-  .couverture-ligne .det{flex:0 0 auto; color:var(--muted); font-weight:700; font-size:11.5px;}
 </style>
 </head>
 <body>
@@ -144,31 +122,21 @@
   <div class="co-page-head co-fade">
     <div>
       <h1>Espace comm</h1>
-      <p class="subtitle">Le calendrier de tournée vu par la comm : ce qui tombe cette semaine, le rétroplanning date par date, les campagnes hors spectacle, et la trace de ce qui est fait.</p>
+      <p class="subtitle">Tes tâches, les dates de l'orchestre, la newsletter du mois — la comm sur les canaux de l'orchestre, le tourneur s'occupe du reste.</p>
     </div>
-    <div class="co-actions"><span class="co-pill att">Maquette</span></div>
-  </div>
-
-  <div class="co-note" style="margin-bottom:18px;">
-    <b>Maquette — rien n'est enregistré.</b> Les données sont inventées, et la date
-    du jour est fixée au <b>mercredi 24 février 2027</b>, au milieu de la tournée, pour qu'on
-    voie ce que donnent les retards et les échéances. Coche, clique, prépare la nouvelle
-    date, ajoute une étape : tout marche, et tout revient à zéro au rechargement de la page.
   </div>
 
   <div class="vues" role="group" aria-label="Vues de l'espace comm">
     <button type="button" data-vue="semaine" aria-pressed="true">Ma semaine</button>
-    <button type="button" data-vue="retro">Rétroplanning</button>
-    <button type="button" data-vue="campagnes">Campagnes</button>
+    <button type="button" data-vue="taches">Tâches</button>
+    <button type="button" data-vue="dates">Les dates</button>
     <button type="button" data-vue="calendrier">Calendrier</button>
-    <button type="button" data-vue="journal">Journal &amp; bilan</button>
   </div>
 
-  <section id="vue-semaine"></section>
-  <section id="vue-retro" hidden></section>
-  <section id="vue-campagnes" hidden></section>
+  <section id="vue-semaine"><div class="empty-hint">Chargement…</div></section>
+  <section id="vue-taches" hidden></section>
+  <section id="vue-dates" hidden></section>
   <section id="vue-calendrier" hidden></section>
-  <section id="vue-journal" hidden></section>
 </div>
 
 <script>
@@ -178,121 +146,45 @@ applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 
 /* ---------------------------------------------------------------------------
-   Espace comm — maquette
+   Espace comm — l'espace de travail de la chargée de comm.
    ---------------------------------------------------------------------------
-   Rien ici ne touche à la base : tout est écrit en dur juste en dessous, et
-   tout revient à zéro au rechargement. C'est une maquette à discuter.
+   L'orchestre est produit par un tourneur : presse locale, salles et
+   billetterie ne passent pas par ici. La comm interne parle sur les canaux de
+   l'orchestre — et personne d'autre qu'elle ne sait ce qu'il y a à y faire.
 
-   Le circuit qu'elle met en scène, de bout en bout :
-
-   1. UNE DATE ARRIVE. Quand une date passe à « validée » côté tournée, elle
-      apparaît ici avec le plan type appliqué d'office — jamais de trou dans le
-      suivi. Sa fiche propose alors de TRIER : décocher les étapes qui ne
-      s'appliquent pas, ajouter celles qui sont propres à la date, lancer le
-      suivi. (Reims joue ce rôle dans la maquette.)
-   2. LES TÂCHES VIVENT. Échéances à rebours du concert ; une date qui bouge
-      emmène ses échéances, une option attend la signature, une annulation met
-      en alerte au lieu d'effacer.
-   3. CE QUI EST FAIT SE RANGE. Chaque coche part au journal, avec son jour.
-      Le bilan compte le rythme mois par mois et la couverture date par date.
-   4. LE RESTE DE LA COMM A SA PLACE. Les campagnes — album, newsletter, fond
-      de l'image — se créent à la main, avec leurs propres échéances, et
-      nourrissent les mêmes vues (semaine, calendrier, journal).
+   Les tâches sont donc SAISIES, jamais imposées. Ce que l'outil apporte que
+   ses outils du marché n'ont pas :
+   — une tâche rattachée à une date SUIT la date : elle compte en jours avant
+     le concert, se déplace avec lui, s'alarme s'il est annulé (on l'a
+     peut-être déjà annoncé publiquement) ;
+   — les dates validées sans aucune tâche sont signalées, avec les tâches
+     types en un clic — une proposition, pas un rétroplanning subi ;
+   — la newsletter est un rendez-vous mensuel : sa tâche se crée toute seule
+     chaque mois, parce qu'elle doit exister même si personne n'y pense.
 --------------------------------------------------------------------------- */
 
-// La maquette se place au milieu de la tournée : avec la vraie date du jour,
-// tout serait « à venir » et on ne verrait ni retard ni urgence.
-const AUJOURDHUI = '2027-02-24';
+let tourneesCache = [];
+let tachesCache = [];
+let reglagesCache = {};
+let tacheEnEdition = null;    // id de la tâche ouverte dans le formulaire
+let moisAffiche = null;       // 'YYYY-MM' du calendrier
 
-// Les dates de la tournée. « publique » : une répétition en studio n'a pas de
-// comm à faire — la vraie page le lira sur la nature de la date, déjà saisie
-// côté tournée. « nouvelle » : validée récemment, plan encore à confirmer.
-const DATES = [
-  { id:'d0', date:'2027-01-22', ville:'Paris',     lieu:'Studio Ferber — répétitions', statut:'validee', publique:false },
-  { id:'d1', date:'2027-02-10', ville:'Épernay',   lieu:'Le Millenium',                statut:'validee', publique:true },
-  { id:'d4', date:'2027-03-12', ville:'Lyon',      lieu:'Salle 3000',                  statut:'validee', publique:true,
-    brief:"Ciné-concert en seconde partie — l'angle : le retour à Lyon trois ans après. Visuels dans le Drive « Expé 33 / Lyon », billetterie par le lien de la salle, contact presse : M. Perrin (Le Progrès)." },
-  { id:'d5', date:'2027-03-13', ville:'Grenoble',  lieu:'Le Summum',                   statut:'validee', publique:true },
-  { id:'d6', date:'2027-03-15', ville:'Marseille', lieu:'Le Dôme',                     statut:'option',  publique:true },
-  { id:'d7', date:'2027-03-18', ville:'Toulouse',  lieu:'Zénith',                      statut:'annulee', publique:true },
-  { id:'d8', date:'2027-03-20', ville:'Reims',     lieu:'La Cartonnerie',              statut:'validee', publique:true, nouvelle:true },
-];
-
-// Le modèle : ce qui engendre la liste de chaque date. Réglable, comme les
-// villes de base — un orchestre qui annonce à J-60 change le chiffre ici et
-// toutes les dates suivent.
-const MODELE = [
-  { cle:'annonce',     libelle:'Annoncer la date',            j:45, aide:'Post d\'annonce + mise à jour du site' },
-  { cle:'visuel',      libelle:'Visuel et affiche',           j:30, aide:'Validé avec la salle, aux bons formats' },
-  { cle:'presse',      libelle:'Dossier de presse envoyé',    j:21, aide:'Presse locale et radios de la région' },
-  { cle:'billetterie', libelle:'Relayer la billetterie',      j:21, aide:'Lien de la salle en bio et en story' },
-  { cle:'relance',     libelle:'Relance billetterie',         j:14, aide:'Où en sont les ventes, relance ciblée si besoin' },
-  { cle:'rappel',      libelle:'Post de rappel',              j:7,  aide:'Le programme, les solistes, le lieu' },
-  { cle:'jourj',       libelle:'Story le jour J',             j:0,  aide:'Balances, salle qui se remplit, saluts' },
-  { cle:'retombees',   libelle:'Retombées et photos',         j:-3, aide:'Récupérer les photos, archiver les articles' },
-];
-
-// Ce qui est déjà fait, date par date.
-const FAIT = {
-  d1: ['annonce','visuel','presse','billetterie','relance','rappel','jourj'],
-  d4: ['annonce','visuel','presse','billetterie'],
-  d5: ['annonce','visuel'],
-  d6: [],
-  d7: ['annonce','visuel'],
-  d8: [],
-};
-
-// Le tri d'une date : les étapes du modèle retenues pour elle (absent = toutes),
-// et les étapes qui n'existent que pour elle.
-const APPLIQUE = {};
-const EXTRA = {};
-// Ce qui a été coché pendant CETTE session — pour que le journal date bien
-// « aujourd'hui » ce qu'on vient de faire, et non l'échéance d'origine.
-const COCHE_SESSION = {};
-// L'état du panneau de tri de la date ouverte.
-let TRIAGE = null;
-
-// Les campagnes : tout ce sur quoi on communique et qui n'est pas un concert.
-// Elles se créent à la main — c'est leur nature : personne d'autre que la comm
-// ne sait qu'une campagne doit exister. Même moteur d'affichage ensuite.
-const CAMPAGNES = [
-  { id:'c1', nom:'Sortie de l\'album Expédition 33', detail:'Sortie le 16 avril 2027', etapes:[
-    { cle:'c1a', libelle:'Single + clip', echeance:'2027-02-19', fait:true },
-    { cle:'c1b', libelle:'Teaser 30 secondes', echeance:'2027-03-17', fait:false },
-    { cle:'c1c', libelle:'Communiqué presse spécialisée', echeance:'2027-04-02', fait:false },
-    { cle:'c1d', libelle:'Jour de sortie — posts, stories, lien d\'écoute', echeance:'2027-04-16', fait:false },
-  ]},
-  { id:'c2', nom:'Newsletter de mars', detail:'Le rendez-vous mensuel', etapes:[
-    { cle:'c2a', libelle:'Choisir les sujets', echeance:'2027-03-15', fait:false },
-    { cle:'c2b', libelle:'Écrire et maquetter', echeance:'2027-03-22', fait:false },
-    { cle:'c2c', libelle:'Envoi', echeance:'2027-03-25', fait:false },
-  ]},
-  { id:'c3', nom:'Le fond de l\'image', detail:'Ce qui ne dépend d\'aucune date', etapes:[
-    { cle:'c3a', libelle:'Refaire les bios des réseaux', echeance:'2027-02-26', fait:false },
-    { cle:'c3b', libelle:'Mettre à jour la page presse du site', echeance:'2027-03-31', fait:false },
-  ]},
-];
-
-// Les demandes poussées par l'équipe. Dans la vraie page, un bouton « Demander
-// à la comm » sur les fiches de date, de tournée et de recording — la demande
-// arrive ici avec son contexte accroché, sans mail ni WhatsApp perdu.
-const DEMANDES = [
-  { id:'q1', auteur:'Julie Manoukian', quand:'2027-02-23', dateId:'d4',
-    texte:"La salle demande le visuel en 1080×1350 pour son Instagram, avant vendredi." },
-  { id:'q2', auteur:'Daniel Sicard', quand:'2027-02-21', dateId:'d6',
-    texte:"Marseille est encore en option — ne rien annoncer publiquement tant que ce n'est pas signé." },
-];
-
-// Ses rendez-vous à elle : ceux qui n'existent que côté comm.
-const PERSO = [
-  { date:'2027-03-04', libelle:'Shooting photo orchestre' },
-  { date:'2027-03-09', libelle:'Interview France Bleu' },
+const TYPES_DEFAUT = [
+  { libelle:'Annoncer la date', j:30 },
+  { libelle:'Post le jour J', j:0 },
+  { libelle:'Retombées et photos', j:-3 },
 ];
 
 const MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const JOURS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
 
+function isoLocal(d){
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function aujourdhui(){ return isoLocal(new Date()); }
+
 function joli(iso, avecJour){
+  if(!iso) return '';
   const d = new Date(iso + 'T00:00:00');
   return (avecJour ? JOURS[d.getDay()].slice(0, 3) + '. ' : '') + d.getDate() + ' ' + MOIS[d.getMonth()];
 }
@@ -302,71 +194,215 @@ function joliLong(iso){
 }
 function libelleJ(j){ return j >= 0 ? 'J-' + j : 'J+' + (-j); }
 
+/* --- Les dates de concert ------------------------------------------------- */
+
+// Les dates sur lesquelles la comm peut avoir à parler : celles des tournées
+// (pas des recordings — un album se traite en tâches libres), de nature
+// concert, avec une vraie date. Une répétition ou une résidence n'a pas de
+// public, donc pas de comm.
+function datesConcert(){
+  const out = [];
+  tourneesCache.filter(t=> !estRecording(t)).forEach(t=>{
+    (t.dates || []).forEach(d=>{
+      if(!d.date) return;
+      if(typeDateValide(t, d.type) !== 'concert') return;
+      out.push({ tournee: t, d });
+    });
+  });
+  return out.sort((a, b)=> a.d.date.localeCompare(b.d.date));
+}
+function trouverDate(tourneeId, dateId){
+  const t = tourneesCache.find(x=> x.id === tourneeId);
+  const d = t && (t.dates || []).find(x=> x.id === dateId);
+  return d ? { tournee: t, d } : null;
+}
+
 /* --- Les tâches ----------------------------------------------------------- */
 
-function etapesDe(d){
-  const retenues = APPLIQUE[d.id];
-  const duModele = retenues ? MODELE.filter(e=> retenues.includes(e.cle)) : MODELE;
-  return duModele.concat(EXTRA[d.id] || []);
+// L'échéance d'une tâche rattachée se recalcule depuis la date du concert :
+// c'est ainsi qu'elle suit la date quand elle bouge.
+function echeanceDe(t){
+  if(t.dateId){
+    const ref = trouverDate(t.tourneeId, t.dateId);
+    if(ref) return addDaysIso(ref.d.date, -(t.j || 0));
+  }
+  return t.echeance || '';
 }
 
-// Une tâche = une étape appliquée à une date. L'échéance se compte à rebours du
-// concert : c'est tout le principe, et c'est ce qui suit la date quand elle bouge.
-function tachesDe(d){
-  if(d.publique === false) return [];
-  const faits = FAIT[d.id] || [];
-  return etapesDe(d).map(etape=>{
-    const echeance = etape.echeance || addDaysIso(d.date, -etape.j);
-    const reste = daysBetween(AUJOURDHUI, echeance);
-    const fait = faits.includes(etape.cle);
-    return {
-      d, dateId: d.id, cle: etape.cle, libelle: etape.libelle, aide: etape.aide,
-      j: etape.j, echeance, reste, fait,
-      // Une date annulée ne réclame plus rien, mais ce qui reste ouvert dessus
-      // doit se voir : on l'a peut-être déjà annoncée publiquement. Et on ne
-      // peut pas être en retard sur ce qu'on n'a pas le droit de faire : une
-      // date en option attend la signature, elle ne réclame rien.
-      etat: d.statut === 'annulee' ? (fait ? 'fait' : 'caduque')
-          : fait ? 'fait'
-          : d.statut === 'option' && reste <= 0 ? 'attente'
-          : reste < 0 ? 'retard'
-          : reste === 0 ? 'aujourdhui'
-          : 'a_venir',
-    };
-  }).sort((a, b)=> a.echeance.localeCompare(b.echeance));
+function etatDe(t){
+  const ref = t.dateId ? trouverDate(t.tourneeId, t.dateId) : null;
+  const ech = echeanceDe(t);
+  const reste = ech ? daysBetween(aujourdhui(), ech) : null;
+  if(t.fait) return { etat:'fait', ech, reste };
+  // La date a disparu (tournée supprimée) ou est annulée : la tâche reste
+  // visible en alerte — on a peut-être déjà annoncé ce concert.
+  if(t.dateId && (!ref || ref.d.statut === 'annulee')) return { etat:'date_annulee', ech, reste };
+  if(ref && ref.d.statut === 'option' && reste != null && reste <= 0) return { etat:'attente', ech, reste };
+  if(reste == null) return { etat:'libre', ech, reste };
+  if(reste < 0) return { etat:'retard', ech, reste };
+  if(reste === 0) return { etat:'aujourdhui', ech, reste };
+  return { etat:'a_venir', ech, reste };
 }
-function toutesLesTaches(){ return DATES.flatMap(tachesDe); }
 
-function tachesCampagne(c){
-  return c.etapes.map(e=>{
-    const reste = daysBetween(AUJOURDHUI, e.echeance);
-    return { c, cle: e.cle, libelle: e.libelle, echeance: e.echeance, reste, fait: e.fait,
-      etat: e.fait ? 'fait' : reste < 0 ? 'retard' : reste === 0 ? 'aujourdhui' : 'a_venir' };
-  });
-}
-function toutesLesCampagnes(){ return CAMPAGNES.flatMap(tachesCampagne); }
-
-function libelleEcheance(t){
-  // Une étape faite n'a plus d'échéance : afficher « en retard de 29 j » sous
-  // une ligne barrée serait un reproche adressé au passé.
-  if(t.fait) return '';
-  if(t.etat === 'caduque') return 'sans objet';
-  if(t.etat === 'attente') return 'attend la signature';
-  if(t.reste === 0) return "aujourd'hui";
-  if(t.reste < 0) return 'en retard de ' + (-t.reste) + ' j';
-  if(t.reste === 1) return 'demain';
-  return 'dans ' + t.reste + ' jours';
-}
-const LIBELLE_ETAT = { fait:'Fait', retard:'En retard', aujourdhui:"Aujourd'hui",
-  caduque:'Date annulée', attente:'Attend la signature', a_venir:'À faire' };
+const LIBELLE_ETAT = { fait:'Fait', retard:'En retard', aujourdhui:"Aujourd'hui", date_annulee:'Date annulée',
+  attente:'Attend la signature', a_venir:'À faire', libre:'Sans échéance' };
 function pilleEtat(etat){
-  return { fait:'ok', retard:'ko', aujourdhui:'att', caduque:'', attente:'att', a_venir:'info' }[etat] || '';
+  return { fait:'ok', retard:'ko', aujourdhui:'att', date_annulee:'ko', attente:'att', a_venir:'info', libre:'' }[etat] || '';
+}
+function libelleEcheance(x){
+  if(x.etat === 'fait') return '';
+  if(x.etat === 'attente') return 'attend la signature';
+  if(x.reste == null) return '';
+  if(x.reste === 0) return "aujourd'hui";
+  if(x.reste < 0) return 'en retard de ' + (-x.reste) + ' j';
+  if(x.reste === 1) return 'demain';
+  return 'dans ' + x.reste + ' jours';
 }
 
-function jaugeDe(d){
-  const t = tachesDe(d);
-  const faits = t.filter(x=> x.fait).length;
-  return { faits, total: t.length, pct: t.length ? Math.round(faits / t.length * 100) : 0 };
+function contexteDe(t){
+  if(t.dateId){
+    const ref = trouverDate(t.tourneeId, t.dateId);
+    if(ref) return joli(ref.d.date) + ' · ' + (ref.d.ville || '?') + (ref.d.lieu ? ' · ' + ref.d.lieu : '') + ' — ' + libelleJ(t.j || 0);
+    return 'date supprimée';
+  }
+  if(t.genre === 'newsletter') return 'le rendez-vous mensuel';
+  return '';
+}
+
+function tachesDeDate(tourneeId, dateId){
+  return tachesCache.filter(t=> t.tourneeId === tourneeId && t.dateId === dateId);
+}
+
+function typesTaches(){
+  const types = reglagesCache.commTachesTypes;
+  return Array.isArray(types) && types.length ? types : TYPES_DEFAUT;
+}
+
+/* --- La newsletter : le rendez-vous qui se crée tout seul ----------------- */
+
+// Une newsletter par mois, sans que personne n'ait à y penser : la tâche du
+// mois courant et celle du mois prochain existent toujours. Identifiant
+// déterministe — deux onglets ouverts n'en créeront jamais deux.
+async function garantirNewsletters(){
+  const d = new Date();
+  const mois = [
+    [d.getFullYear(), d.getMonth()],
+    d.getMonth() === 11 ? [d.getFullYear() + 1, 0] : [d.getFullYear(), d.getMonth() + 1],
+  ];
+  for(const [an, m] of mois){
+    const id = `tache-nl-${an}-${String(m + 1).padStart(2, '0')}`;
+    if(tachesCache.some(t=> t.id === id)) continue;
+    const tache = {
+      id, libelle: `Newsletter ${/^[aeiouy]/.test(MOIS[m]) ? "d'" : 'de '}${MOIS[m]}${an !== d.getFullYear() ? ' ' + an : ''}`,
+      notes: '', echeance: `${an}-${String(m + 1).padStart(2, '0')}-25`,
+      tourneeId: '', dateId: '', j: null, genre: 'newsletter', fait: false, faitLe: '',
+    };
+    const { error } = await CurieuxDB.upsertOne('comm_taches', tache);
+    if(!error) tachesCache.push(tache);
+  }
+}
+
+/* --- Une ligne de tâche, partout la même ---------------------------------- */
+
+function renderTache(t, avecContexte){
+  const x = etatDe(t);
+  const classe = ['tache', t.fait ? 'faite' : '', x.etat === 'retard' ? 'retard' : '', x.etat === 'aujourdhui' ? 'aujourdhui' : ''].filter(Boolean).join(' ');
+  const contexte = avecContexte ? contexteDe(t) : '';
+  const sous = [contexte, t.notes].filter(Boolean).join(' — ');
+  return `<div class="${classe}">
+    <div class="quand">
+      <b>${x.ech ? escapeHtml(joli(x.ech, true)) : '—'}</b>
+      <small>${escapeHtml(t.fait && t.faitLe ? 'fait le ' + joli(t.faitLe) : libelleEcheance(x))}</small>
+    </div>
+    <div class="quoi">
+      <b>${escapeHtml(t.libelle || 'Sans titre')}</b>
+      ${sous ? `<small>${escapeHtml(sous)}</small>` : ''}
+    </div>
+    <span class="co-pill ${pilleEtat(x.etat)}">${escapeHtml(LIBELLE_ETAT[x.etat])}</span>
+    <label class="coche"><input type="checkbox" data-coche="${escapeAttr(t.id)}" ${t.fait ? 'checked' : ''}> fait</label>
+    <button type="button" class="outil" data-modif="${escapeAttr(t.id)}" title="Modifier">✎</button>
+    <button type="button" class="outil danger" data-suppr="${escapeAttr(t.id)}" title="Supprimer">✕</button>
+  </div>`;
+}
+
+/* --- Vue « Ma semaine » --------------------------------------------------- */
+
+function renderSemaine(){
+  const avecEtat = tachesCache.map(t=> ({ t, x: etatDe(t) }));
+  const enRetard = avecEtat.filter(a=> a.x.etat === 'retard' || a.x.etat === 'date_annulee');
+  const semaine = avecEtat.filter(a=> (a.x.etat === 'aujourdhui' || a.x.etat === 'a_venir') && a.x.reste <= 7);
+  const urgentes = enRetard.concat(semaine).sort((a, b)=> (a.x.ech || '').localeCompare(b.x.ech || ''));
+  const bloquees = avecEtat.filter(a=> a.x.etat === 'attente');
+
+  const jour = aujourdhui();
+  const aVenir = datesConcert().filter(x=> x.d.date >= jour && x.d.statut !== 'annulee');
+  const sansTache = aVenir.filter(x=> x.d.statut === 'validee' && tachesDeDate(x.tournee.id, x.d.id).length === 0);
+  const faitesCeMois = tachesCache.filter(t=> t.fait && (t.faitLe || '').startsWith(jour.slice(0, 7))).length;
+
+  const nl = tachesCache.find(t=> t.id === `tache-nl-${jour.slice(0, 7)}`);
+  const nlSuivante = tachesCache.filter(t=> t.genre === 'newsletter' && !t.fait && t.id !== (nl && nl.id))
+    .sort((a, b)=> (a.echeance || '').localeCompare(b.echeance || ''))[0];
+
+  const stats = [
+    [enRetard.length, 'en retard', enRetard.length ? 'ko' : ''],
+    [semaine.length, 'dans les 7 jours', ''],
+    [aVenir.length, 'dates à venir', ''],
+    [faitesCeMois, 'faites ce mois-ci', ''],
+  ];
+
+  document.getElementById('vue-semaine').innerHTML = `
+    <div class="stats-plates">
+      ${stats.map(([n, lib, cl])=> `<div><b class="${cl}">${n}</b><span>${escapeHtml(lib)}</span></div>`).join('')}
+    </div>
+
+    ${nl ? `<div class="co-note ${nl.fait ? 'info' : ''} bloc" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <span style="flex:1; min-width:220px;">
+        <b>${escapeHtml(nl.libelle)} : ${nl.fait ? 'envoyée le ' + joli(nl.faitLe || nl.echeance) + ' ✓' : 'à écrire — échéance le ' + joli(nl.echeance)}.</b>
+        ${!nl.fait ? ' Le rendez-vous mensuel : sa tâche revient chaque mois, toute seule.' : (nlSuivante ? ' La prochaine : ' + escapeHtml(nlSuivante.libelle.toLowerCase()) + ', le ' + joli(nlSuivante.echeance) + '.' : '')}
+      </span>
+      ${!nl.fait ? `<label class="coche" style="display:flex; align-items:center; gap:7px; font-size:12px; font-weight:700; cursor:pointer;"><input type="checkbox" data-coche="${escapeAttr(nl.id)}" style="width:17px; height:17px; accent-color:var(--ok);"> envoyée</label>` : ''}
+    </div>` : ''}
+
+    ${sansTache.length ? `<div class="co-note bloc">
+      <b>${sansTache.length} date${sansTache.length > 1 ? 's' : ''} validée${sansTache.length > 1 ? 's' : ''} sans aucune tâche :</b>
+      ${sansTache.slice(0, 4).map(x=> `${escapeHtml(x.d.ville || '?')} le ${escapeHtml(joli(x.d.date))}
+        <button type="button" class="co-btn secondary sm" data-types="${escapeAttr(x.tournee.id + ':' + x.d.id)}" style="margin:0 8px 0 4px;">Créer les tâches types</button>`).join(' ')}
+      ${sansTache.length > 4 ? `… et ${sansTache.length - 4} autres dans « Les dates ».` : ''}
+      <span style="display:block; font-weight:400; margin-top:4px;">Une proposition, pas une obligation — les tâches créées se modifient et se suppriment comme les autres.</span>
+    </div>` : ''}
+
+    <div class="bloc">
+      <div class="bloc-tete"><h2>À faire maintenant</h2><span class="compte">${urgentes.length} tâche${urgentes.length > 1 ? 's' : ''} — en retard, puis les sept prochains jours</span>
+        <button type="button" class="co-btn primary sm" data-nouvelle-tache style="margin-left:auto;">+ Nouvelle tâche</button></div>
+      <div class="co-card co-clip">
+        ${urgentes.length ? urgentes.map(a=> renderTache(a.t, true)).join('')
+          : '<div class="empty-hint co-vide">Rien qui presse cette semaine.</div>'}
+      </div>
+    </div>
+
+    ${bloquees.length ? `<div class="co-note info bloc">
+      <b>${bloquees.length} tâche${bloquees.length > 1 ? 's' : ''} attend${bloquees.length > 1 ? 'ent' : ''} une signature.</b>
+      Leur date est encore en option : l'échéance est passée, mais rien ne doit sortir avant que ce soit signé.
+      ${bloquees.length > 1 ? 'Elles ne comptent' : 'Elle ne compte'} donc pas comme des retards.
+    </div>` : ''}
+
+    <div class="bloc">
+      <div class="bloc-tete"><h2>Les prochaines dates</h2><span class="compte">ce qui arrive, et où en est la comm</span></div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:12px;">
+        ${aVenir.slice(0, 3).map(x=>{
+          const liees = tachesDeDate(x.tournee.id, x.d.id);
+          const faites = liees.filter(t=> t.fait).length;
+          return `<div class="co-card co-pad">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
+              <b style="font-size:14.5px;">${escapeHtml(x.d.ville || '?')}</b>${statutPill(x.d.statut)}
+            </div>
+            <div style="font-size:12.5px; color:var(--muted); margin-bottom:8px;">${escapeHtml(joliLong(x.d.date))}${x.d.lieu ? ' · ' + escapeHtml(x.d.lieu) : ''}<br>${escapeHtml(x.tournee.nom || '')}</div>
+            <div style="font-size:12px; font-weight:700; color:var(--muted);">${liees.length ? `${faites} / ${liees.length} tâche${liees.length > 1 ? 's' : ''} faites` : 'aucune tâche'} — dans ${daysBetween(jour, x.d.date)} jours</div>
+          </div>`;
+        }).join('') || '<div class="empty-hint co-vide">Aucune date de concert à venir.</div>'}
+      </div>
+    </div>
+  `;
 }
 
 function statutPill(statut){
@@ -375,279 +411,191 @@ function statutPill(statut){
   return '<span class="co-pill ko">Annulée</span>';
 }
 
-/* --- Une ligne de tâche, partout la même ---------------------------------- */
+/* --- Vue « Tâches » : le formulaire et toute la liste --------------------- */
 
-// `avecContexte` : sur la fiche d'une date, redire « 12 mars · Lyon » à chaque
-// ligne serait du bruit. Sur « Ma semaine », c'est l'information qui manque.
-function renderTache(t, avecContexte){
-  const classe = ['tache', t.fait ? 'faite' : '', t.etat === 'retard' ? 'retard' : '', t.etat === 'aujourdhui' ? 'aujourdhui' : ''].filter(Boolean).join(' ');
-  let sous;
-  if(t.c) sous = avecContexte ? escapeHtml(t.c.nom + ' — campagne') : '';
-  else if(avecContexte) sous = escapeHtml(joli(t.d.date) + ' · ' + t.d.ville + ' · ' + t.d.lieu + (t.j != null ? ' — ' + libelleJ(t.j) : ''));
-  else sous = (t.j != null ? '<b style="color:var(--accent); font-weight:800;">' + escapeHtml(libelleJ(t.j)) + '</b> — ' : '') + escapeHtml(t.aide || 'Étape propre à cette date');
-  const attr = t.c ? `data-coche-camp="${escapeAttr(t.c.id + ':' + t.cle)}"` : `data-coche="${escapeAttr(t.dateId + ':' + t.cle)}"`;
-  return `<div class="${classe}">
-    <div class="quand">
-      <b>${escapeHtml(joli(t.echeance, true))}</b>
-      <small>${escapeHtml(libelleEcheance(t))}</small>
-    </div>
-    <div class="quoi">
-      <b>${escapeHtml(t.libelle)}</b>
-      ${sous ? `<small>${sous}</small>` : ''}
-    </div>
-    <span class="co-pill ${pilleEtat(t.etat)}">${escapeHtml(LIBELLE_ETAT[t.etat])}</span>
-    <label class="coche"><input type="checkbox" ${attr} ${t.fait ? 'checked' : ''}> fait</label>
-  </div>`;
+function optionsRattachement(choisi){
+  const jour = aujourdhui();
+  const futures = datesConcert().filter(x=> x.d.date >= jour && x.d.statut !== 'annulee');
+  return ['<option value="">— Tâche libre (échéance en clair) —</option>']
+    .concat(futures.map(x=>{
+      const val = x.tournee.id + ':' + x.d.id;
+      return `<option value="${escapeAttr(val)}" ${val === choisi ? 'selected' : ''}>${escapeHtml(joli(x.d.date) + ' · ' + (x.d.ville || '?') + ' — ' + (x.tournee.nom || ''))}</option>`;
+    })).join('');
 }
 
-/* --- Vue « Ma semaine » --------------------------------------------------- */
+function renderTaches(){
+  const enCours = tacheEnEdition ? tachesCache.find(t=> t.id === tacheEnEdition) : null;
+  const rattachement = enCours && enCours.dateId ? enCours.tourneeId + ':' + enCours.dateId : '';
+  const avecEtat = tachesCache.map(t=> ({ t, x: etatDe(t) }));
+  const aFaire = avecEtat.filter(a=> !a.t.fait).sort((a, b)=> (a.x.ech || '9999').localeCompare(b.x.ech || '9999'));
+  const faites = avecEtat.filter(a=> a.t.fait).sort((a, b)=> (b.t.faitLe || '').localeCompare(a.t.faitLe || '')).slice(0, 30);
+  const types = typesTaches();
 
-function renderSemaine(){
-  const taches = toutesLesTaches().concat(toutesLesCampagnes());
-  const enRetard = taches.filter(t=> t.etat === 'retard');
-  const cetteSemaine = taches.filter(t=> (t.etat === 'aujourdhui' || t.etat === 'a_venir') && t.reste <= 7);
-  const urgentes = enRetard.concat(cetteSemaine).sort((a, b)=> a.echeance.localeCompare(b.echeance));
-  const aVenir = DATES.filter(d=> d.date >= AUJOURDHUI && d.statut !== 'annulee' && d.publique !== false).slice(0, 3);
-  const bloquees = taches.filter(t=> t.etat === 'attente');
-  const nouvelles = DATES.filter(d=> d.nouvelle);
-
-  const stats = [
-    [enRetard.length, 'en retard', enRetard.length ? 'ko' : ''],
-    [cetteSemaine.length, 'dans les 7 jours', ''],
-    [DEMANDES.length, 'demandes de l\'équipe', ''],
-    [CAMPAGNES.filter(c=> c.etapes.some(e=> !e.fait)).length, 'campagnes en cours', ''],
-  ];
-
-  document.getElementById('vue-semaine').innerHTML = `
-    <div class="stats-plates">
-      ${stats.map(([n, lib, cl])=> `<div><b class="${cl}">${n}</b><span>${escapeHtml(lib)}</span></div>`).join('')}
+  document.getElementById('vue-taches').innerHTML = `
+    <div class="co-card co-pad-lg bloc">
+      <div class="co-legend">${enCours ? 'Modifier la tâche' : 'Nouvelle tâche'}</div>
+      <div class="tache-form">
+        <div class="champ libelle">
+          <label for="fLibelle">Quoi</label>
+          <input type="text" id="fLibelle" placeholder="Post d'annonce, story, interview…" value="${escapeAttr(enCours ? enCours.libelle : '')}">
+        </div>
+        <div class="champ">
+          <label for="fRattache">Rattachée à</label>
+          <select id="fRattache">${optionsRattachement(rattachement)}</select>
+        </div>
+        <div class="champ" id="fEcheanceLibreChamp">
+          <label for="fEcheance">Échéance</label>
+          <input type="date" id="fEcheance" value="${escapeAttr(enCours && !enCours.dateId ? enCours.echeance : '')}">
+        </div>
+        <div class="champ" id="fJChamp" hidden>
+          <label for="fJ">Jours avant la date</label>
+          <input type="number" id="fJ" style="width:110px;" value="${escapeAttr(enCours && enCours.dateId ? String(enCours.j || 0) : '7')}">
+        </div>
+        <div class="champ notes-champ">
+          <label for="fNotes">Notes (libre)</label>
+          <input type="text" id="fNotes" placeholder="lien Drive, angle, qui relancer…" value="${escapeAttr(enCours ? enCours.notes : '')}">
+        </div>
+        <button type="button" class="co-btn primary md" id="fEnregistrer">${enCours ? 'Enregistrer' : 'Ajouter'}</button>
+        ${enCours ? '<button type="button" class="co-btn ghost md" id="fAnnuler">Annuler</button>' : ''}
+      </div>
+      <p class="co-legend-hint" style="margin:10px 0 0;">Une tâche rattachée à une date compte en jours avant le concert :
+        si la date bouge, l'échéance suit ; si la date est annulée, la tâche passe en alerte au lieu de disparaître.</p>
     </div>
 
-    ${nouvelles.map(d=> `<div class="co-note bloc" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-      <span style="flex:1; min-width:220px;"><b>Nouvelle date validée : ${escapeHtml(d.ville)} le ${escapeHtml(joli(d.date))}.</b>
-      Le plan type lui est appliqué d'office — rien ne passe au travers — mais sa fiche te propose de l'adapter avant de lancer le suivi.</span>
-      <button type="button" class="co-btn primary sm" data-ouvrir="${escapeAttr(d.id)}">Préparer ${escapeHtml(d.ville)}</button>
-    </div>`).join('')}
-
     <div class="bloc">
-      <div class="bloc-tete"><h2>À faire maintenant</h2><span class="compte">${urgentes.length} tâche${urgentes.length > 1 ? 's' : ''} — en retard, puis les sept prochains jours, dates et campagnes mêlées</span></div>
+      <div class="bloc-tete"><h2>À faire</h2><span class="compte">${aFaire.length} tâche${aFaire.length > 1 ? 's' : ''}, la plus pressée d'abord</span></div>
       <div class="co-card co-clip">
-        ${urgentes.length ? urgentes.map(t=> renderTache(t, true)).join('')
-          : '<div class="empty-hint co-vide">Rien qui presse cette semaine. C\'est rare, profites-en.</div>'}
+        ${aFaire.length ? aFaire.map(a=> renderTache(a.t, true)).join('')
+          : '<div class="empty-hint co-vide">Aucune tâche à faire — ajoute la première avec le formulaire ci-dessus.</div>'}
       </div>
     </div>
 
-    ${bloquees.length ? `<div class="co-note info bloc">
-      <b>${bloquees.length} étapes attendent une signature.</b>
-      ${escapeHtml([...new Set(bloquees.map(t=> t.d.ville + ' le ' + joli(t.d.date)))].join(', '))} —
-      ces dates sont encore en option : leurs échéances sont passées, mais rien ne doit sortir avant la signature.
-      Elles ne comptent donc pas comme des retards.
-    </div>` : ''}
-
     <div class="bloc">
-      <div class="bloc-tete"><h2>Demandes de l'équipe</h2><span class="compte">arrivent d'un bouton « Demander à la comm » sur les fiches de date et de tournée</span></div>
+      <div class="bloc-tete"><h2>Faites</h2><span class="compte">les 30 dernières, la plus récente d'abord</span></div>
       <div class="co-card co-clip">
-        ${DEMANDES.map(q=>{
-          const d = DATES.find(x=> x.id === q.dateId);
-          return `<div class="tache">
-            <div class="quand"><b>${escapeHtml(joli(q.quand, true))}</b><small>${escapeHtml(q.auteur)}</small></div>
-            <div class="quoi">
-              <b>${escapeHtml(q.texte)}</b>
-              <small>${d ? escapeHtml(joli(d.date) + ' · ' + d.ville + ' · ' + d.lieu) : ''}</small>
-            </div>
-            <button type="button" class="co-btn secondary sm" data-maquette>Répondre</button>
-            <button type="button" class="co-btn primary sm" data-maquette>Traiter</button>
-          </div>`;
-        }).join('')}
+        ${faites.length ? faites.map(a=> renderTache(a.t, true)).join('')
+          : '<div class="empty-hint co-vide">Rien encore — les tâches cochées se rangent ici, datées du jour.</div>'}
       </div>
     </div>
 
-    <div class="bloc">
-      <div class="bloc-tete"><h2>Les prochaines dates</h2><span class="compte">avancement comm</span></div>
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
-        ${aVenir.map(d=>{
-          const j = jaugeDe(d);
-          return `<button type="button" class="co-card-btn" data-ouvrir="${escapeAttr(d.id)}">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
-              <b style="font-size:14.5px;">${escapeHtml(d.ville)}</b>${statutPill(d.statut)}${d.nouvelle ? '<span class="co-pill info">Nouvelle</span>' : ''}
-            </div>
-            <div style="font-size:12.5px; color:var(--muted); margin-bottom:10px;">${escapeHtml(joliLong(d.date))} · ${escapeHtml(d.lieu)}</div>
-            <div class="co-progress"><i style="width:${j.pct}%;"></i></div>
-            <div style="font-size:11.5px; color:var(--muted); font-weight:700; margin-top:5px;">${j.faits} / ${j.total} étapes faites — dans ${daysBetween(AUJOURDHUI, d.date)} jours</div>
-          </button>`;
-        }).join('')}
-      </div>
-    </div>
-  `;
-}
-
-/* --- Vue « Rétroplanning » ------------------------------------------------ */
-
-let dateOuverte = 'd4';
-
-function renderRetro(){
-  const d = DATES.find(x=> x.id === dateOuverte) || DATES[0];
-  const taches = tachesDe(d);
-  const j = jaugeDe(d);
-
-  // Le panneau de tri d'une nouvelle date : le plan type est proposé coché,
-  // elle enlève ce qui ne s'applique pas, ajoute ce qui manque, et lance.
-  let triageHtml = '';
-  if(d.nouvelle){
-    if(!TRIAGE || TRIAGE.dateId !== d.id){
-      TRIAGE = { dateId: d.id, coches: new Set(MODELE.map(e=> e.cle).concat((EXTRA[d.id] || []).map(e=> e.cle))) };
-    }
-    const lignes = MODELE.concat(EXTRA[d.id] || []);
-    triageHtml = `<div class="co-card co-pad-lg" style="margin-bottom:14px; border-color:var(--accent);">
-      <div class="co-legend">Préparer cette date</div>
-      <p class="co-legend-hint">Validée côté tournée, elle vient d'arriver ici avec le plan type. Décoche ce qui
-        ne s'applique pas, ajoute ce qui est propre à la date, puis lance le suivi. (Tant que tu ne l'as pas fait,
-        le plan complet s'applique d'office : rien ne passe au travers.)</p>
-      ${lignes.map(e=> `<label class="triage-ligne">
-        <input type="checkbox" data-triage="${escapeAttr(e.cle)}" ${TRIAGE.coches.has(e.cle) ? 'checked' : ''}>
-        <span class="j">${escapeHtml(e.j != null ? libelleJ(e.j) : '—')}</span>
+    <div class="co-card co-pad-lg bloc">
+      <div class="co-legend">Les tâches types</div>
+      <p class="co-legend-hint">Proposées — jamais imposées — quand une date validée n'a encore aucune tâche.
+        Un clic les crée toutes, puis chacune se modifie ou se supprime comme les autres.</p>
+      ${types.map((e, i)=> `<div class="types-ligne">
+        <span class="j">${escapeHtml(libelleJ(e.j))}</span>
         <span class="lib">${escapeHtml(e.libelle)}</span>
-        <span class="exp">${escapeHtml(e.aide || 'Étape propre à cette date')}</span>
-      </label>`).join('')}
-      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-        <button type="button" class="co-btn secondary sm" data-ajout-etape="${escapeAttr(d.id)}">+ Étape propre à cette date</button>
-        <button type="button" class="co-btn primary sm" data-triage-valider>Lancer le suivi (${TRIAGE.coches.size} étapes)</button>
-      </div>
-    </div>`;
-  }
-
-  document.getElementById('vue-retro').innerHTML = `
-    <div class="retro">
-      <div class="co-card co-clip">
-        <div class="co-rows-head">Les dates</div>
-        ${DATES.map(x=>{
-          const jx = jaugeDe(x);
-          const marque = x.statut === 'annulee' ? ' <span class="co-pill ko">Annulée</span>'
-            : x.statut === 'option' ? ' <span class="co-pill att">Option</span>'
-            : x.nouvelle ? ' <span class="co-pill info">Nouvelle</span>' : '';
-          return `<button type="button" class="date-btn" data-date="${escapeAttr(x.id)}" ${x.id === d.id ? 'aria-current="true"' : ''}>
-            <b>${escapeHtml(joli(x.date) + ' · ' + x.ville)}${marque}</b>
-            <small>${escapeHtml(x.lieu)}</small>
-            ${x.publique === false ? '<small style="font-style:italic;">pas de comm — répétition</small>'
-              : `<div class="jauge co-progress co-progress-thin"><i style="width:${jx.pct}%;"></i></div>`}
-          </button>`;
-        }).join('')}
-      </div>
-
-      <div>
-        <div class="co-card co-pad-lg" style="margin-bottom:14px;">
-          <div class="fiche-tete">
-            <h2>${escapeHtml(d.ville)}</h2>
-            ${statutPill(d.statut)}
-            ${d.nouvelle ? '<span class="co-pill info">Nouvelle — plan à confirmer</span>' : ''}
-            <span class="co-chip">${j.faits} / ${j.total} étapes</span>
-          </div>
-          <p class="fiche-sous">${escapeHtml(joliLong(d.date))} · ${escapeHtml(d.lieu)} — ${escapeHtml(d.date >= AUJOURDHUI ? 'dans ' + daysBetween(AUJOURDHUI, d.date) + ' jours' : 'il y a ' + daysBetween(d.date, AUJOURDHUI) + ' jours')}</p>
-          ${d.publique === false ? `<div class="co-note info"><b>Pas de comm sur cette date.</b> C'est une journée de répétition en studio, elle n'est pas ouverte au public : aucune étape n'est engendrée. La nature de la date est déjà saisie côté tournée, rien à cocher ici.</div>`
-            : d.statut === 'annulee' ? `<div class="co-note"><b>Date annulée.</b> Ses tâches ne sont pas effacées : deux ont déjà été publiées, et il faut décider quoi en faire plutôt que de les voir disparaître.</div>`
-            : d.statut === 'option' ? `<div class="co-note"><b>Encore en option.</b> Le rétroplanning existe déjà pour qu'on sache ce qui attend, mais rien ne devrait sortir publiquement avant la signature.</div>` : ''}
-        </div>
-
-        ${triageHtml}
-
-        ${d.publique !== false && d.statut !== 'annulee' ? `<div class="co-card co-pad-lg" style="margin-bottom:14px;">
-          <div class="co-legend">Le brief</div>
-          ${d.brief ? `<p style="margin:0 0 10px; font-size:13px; line-height:1.55;">${escapeHtml(d.brief)}</p>`
-            : `<p class="co-legend-hint">Pas encore de brief — l'angle de la date, les liens utiles (visuels, billetterie, contact presse), ce que doit savoir quelqu'un qui reprend le dossier.</p>`}
-          <button type="button" class="co-btn secondary sm" data-maquette>${d.brief ? 'Modifier le brief' : 'Écrire le brief'}</button>
-        </div>` : ''}
-
-        ${taches.length ? `<div class="co-card co-clip" style="margin-bottom:14px;">
-          <div class="co-rows-head">Rétroplanning</div>
-          ${taches.map(t=> renderTache(t, false)).join('')}
-        </div>` : ''}
-
-        ${!d.nouvelle && d.publique !== false && d.statut !== 'annulee' ? `<div style="margin-bottom:14px;">
-          <button type="button" class="co-btn secondary sm" data-ajout-etape="${escapeAttr(d.id)}">+ Ajouter une étape à cette date seulement</button>
-        </div>` : ''}
-
-        <div class="co-card co-pad-lg">
-          <div class="co-legend">Le modèle qui engendre ces listes</div>
-          <p class="co-legend-hint">Il se règle une fois, dans les réglages, et vaut pour toutes les dates.
-            Changer « annoncer à J-45 » en « J-60 » recale toutes les échéances de la tournée d'un coup.
-            Chaque date peut ensuite s'en écarter : étapes décochées au tri, étapes ajoutées pour elle seule.</p>
-          ${MODELE.map(e=> `<div class="modele-ligne">
-            <span class="j">${escapeHtml(libelleJ(e.j))}</span>
-            <span class="lib">${escapeHtml(e.libelle)}</span>
-            <span class="exp">${escapeHtml(e.aide)}</span>
-          </div>`).join('')}
-          <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-            <button type="button" class="co-btn secondary sm" data-maquette>+ Ajouter une étape au modèle</button>
-            <button type="button" class="co-btn ghost sm" data-maquette>Modèle « recording »</button>
-          </div>
-        </div>
+        <button type="button" class="outil danger" data-type-suppr="${i}" title="Retirer" style="cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted); border-radius:8px; width:28px; height:28px; font-weight:800; font-family:inherit;">✕</button>
+      </div>`).join('')}
+      <div style="margin-top:12px;">
+        <button type="button" class="co-btn secondary sm" data-type-ajout>+ Ajouter une tâche type</button>
       </div>
     </div>
   `;
+
+  const rattache = document.getElementById('fRattache');
+  const majChamps = ()=>{
+    const liee = !!rattache.value;
+    document.getElementById('fEcheanceLibreChamp').hidden = liee;
+    document.getElementById('fJChamp').hidden = !liee;
+  };
+  rattache.addEventListener('change', majChamps);
+  majChamps();
+
+  document.getElementById('fEnregistrer').addEventListener('click', enregistrerFormulaire);
+  const annuler = document.getElementById('fAnnuler');
+  if(annuler) annuler.addEventListener('click', ()=>{ tacheEnEdition = null; renderTaches(); });
 }
 
-/* --- Vue « Campagnes » ---------------------------------------------------- */
+async function enregistrerFormulaire(){
+  const libelle = document.getElementById('fLibelle').value.trim();
+  if(!libelle){ alert('Il manque le « quoi » de la tâche.'); return; }
+  const rattache = document.getElementById('fRattache').value;
+  const enCours = tacheEnEdition ? tachesCache.find(t=> t.id === tacheEnEdition) : null;
+  const tache = enCours || { id: genId('tache'), fait: false, faitLe: '', genre: '' };
+  tache.libelle = libelle;
+  tache.notes = document.getElementById('fNotes').value.trim();
+  if(rattache){
+    const [tourneeId, dateId] = rattache.split(':');
+    tache.tourneeId = tourneeId; tache.dateId = dateId;
+    tache.j = Number(document.getElementById('fJ').value) || 0;
+    tache.echeance = '';
+  } else {
+    tache.tourneeId = ''; tache.dateId = ''; tache.j = null;
+    tache.echeance = document.getElementById('fEcheance').value || '';
+  }
+  const { error } = await CurieuxDB.upsertOne('comm_taches', tache);
+  if(error){ alert('Enregistrement impossible :\n\n' + error.message); return; }
+  if(!enCours) tachesCache.push(tache);
+  tacheEnEdition = null;
+  rendre();
+  montrerVue('taches');
+}
 
-function renderCampagnes(){
-  document.getElementById('vue-campagnes').innerHTML = `
+/* --- Vue « Les dates » ---------------------------------------------------- */
+
+function renderDates(){
+  const jour = aujourdhui();
+  const plancher = addDaysIso(jour, -45);
+  const liste = datesConcert().filter(x=> x.d.date >= plancher);
+
+  document.getElementById('vue-dates').innerHTML = `
     <div class="co-note info bloc">
-      <b>Tout ce qui n'est pas un concert.</b> Une sortie d'album, la newsletter, le fond de l'image —
-      ces campagnes se créent à la main, avec leurs propres échéances. Elles nourrissent ensuite les mêmes
-      vues que les dates : « Ma semaine », le calendrier, le journal.
+      <b>Ce qui se passe côté tournées, sans rien ressaisir.</b> Les dates viennent des tournées ; le détail
+      de ce qui a bougé depuis ta dernière visite est dans le
+      <a href="newsletter.html" style="color:inherit; font-weight:800;">journal des changements</a>.
     </div>
-    ${CAMPAGNES.map(c=>{
-      const ts = tachesCampagne(c);
-      const faits = ts.filter(t=> t.fait).length;
-      return `<div class="bloc">
-        <div class="bloc-tete">
-          <h2>${escapeHtml(c.nom)}</h2>
-          <span class="compte">${escapeHtml(c.detail)} — ${faits} / ${ts.length} étapes</span>
-        </div>
-        <div class="co-card co-clip">
-          ${ts.map(t=> renderTache(t, false)).join('')}
-        </div>
-      </div>`;
-    }).join('')}
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <button type="button" class="co-btn primary sm" data-maquette>+ Nouvelle campagne</button>
-      <button type="button" class="co-btn secondary sm" data-maquette>+ Étape dans une campagne</button>
+    <div class="co-card co-clip bloc">
+      ${liste.length ? liste.map(x=>{
+        const liees = tachesDeDate(x.tournee.id, x.d.id);
+        const faites = liees.filter(t=> t.fait).length;
+        const passee = x.d.date < jour;
+        const cle = x.tournee.id + ':' + x.d.id;
+        return `<div class="date-ligne${passee ? ' passee' : ''}">
+          <span class="quand">${escapeHtml(joli(x.d.date, true))}</span>
+          <span class="ou">
+            <b>${escapeHtml(x.d.ville || '?')}${x.d.lieu ? ' · ' + escapeHtml(x.d.lieu) : ''}</b>
+            <small>${escapeHtml(x.tournee.nom || '')}</small>
+          </span>
+          ${statutPill(x.d.statut)}
+          <span class="resume">${liees.length ? `${faites} / ${liees.length} tâche${liees.length > 1 ? 's' : ''}` : 'aucune tâche'}</span>
+          ${!passee && x.d.statut !== 'annulee' ? `<button type="button" class="co-btn secondary sm" data-tache-sur="${escapeAttr(cle)}">+ Tâche</button>` : ''}
+          ${!passee && x.d.statut === 'validee' && liees.length === 0 ? `<button type="button" class="co-btn primary sm" data-types="${escapeAttr(cle)}">Tâches types</button>` : ''}
+        </div>`;
+      }).join('') : '<div class="empty-hint co-vide">Aucune date de concert sur la période (45 derniers jours et à venir).</div>'}
     </div>
+    <p class="co-legend-hint">Une date en option se prépare mais rien n'en sort avant la signature ; une date annulée
+      garde ses tâches, en alerte — on l'a peut-être déjà annoncée.</p>
   `;
 }
 
 /* --- Vue « Calendrier » --------------------------------------------------- */
 
-let moisAffiche = '2027-03';
-
 function renderCalendrier(){
+  if(!moisAffiche) moisAffiche = aujourdhui().slice(0, 7);
   const [an, mo] = moisAffiche.split('-').map(Number);
   const premier = new Date(an, mo - 1, 1);
   const nbJours = new Date(an, mo, 0).getDate();
-  // La semaine commence lundi : getDay() rend 0 pour dimanche, on le renvoie en fin.
-  const decalage = (premier.getDay() + 6) % 7;
+  const decalage = (premier.getDay() + 6) % 7;   // semaine qui commence lundi
 
   const parJour = {};
   const poser = (iso, html)=> { (parJour[iso] = parJour[iso] || []).push(html); };
-  DATES.forEach(d=>{
-    const style = d.statut === 'annulee' ? 'annulee' : d.statut === 'option' ? 'option' : 'concert';
-    const nom = d.publique === false ? d.ville + ' (répétition)' : d.ville;
-    poser(d.date, `<span class="pastille ${style}" title="${escapeAttr(d.lieu)}">${escapeHtml(nom)}</span>`);
-    tachesDe(d).forEach(t=>{
-      if(t.fait || t.etat === 'caduque') return;
-      poser(t.echeance, `<span class="pastille ${t.etat === 'attente' ? 'option' : 'echeance'}" title="${escapeAttr(t.libelle + ' — ' + d.ville)}">${escapeHtml(t.libelle)}</span>`);
-    });
+  datesConcert().forEach(x=>{
+    const style = x.d.statut === 'annulee' ? 'annulee' : x.d.statut === 'option' ? 'option' : 'concert';
+    poser(x.d.date, `<span class="pastille ${style}" title="${escapeAttr((x.d.lieu || '') + ' — ' + (x.tournee.nom || ''))}">${escapeHtml(x.d.ville || '?')}</span>`);
   });
-  CAMPAGNES.forEach(c=> tachesCampagne(c).forEach(t=>{
+  tachesCache.forEach(t=>{
     if(t.fait) return;
-    poser(t.echeance, `<span class="pastille campagne" title="${escapeAttr(t.libelle + ' — ' + c.nom)}">${escapeHtml(t.libelle)}</span>`);
-  }));
-  PERSO.forEach(p=> poser(p.date, `<span class="pastille perso">${escapeHtml(p.libelle)}</span>`));
+    const ech = echeanceDe(t);
+    if(!ech) return;
+    poser(ech, `<span class="pastille ${t.genre === 'newsletter' ? 'newsletter' : 'echeance'}" title="${escapeAttr([t.libelle, contexteDe(t)].filter(Boolean).join(' — '))}">${escapeHtml(t.libelle)}</span>`);
+  });
 
   const cases = [];
   for(let i = 0; i < decalage; i++) cases.push('<div class="cal-case hors"></div>');
   for(let n = 1; n <= nbJours; n++){
     const iso = `${an}-${String(mo).padStart(2, '0')}-${String(n).padStart(2, '0')}`;
-    cases.push(`<div class="cal-case${iso === AUJOURDHUI ? ' jour-j' : ''}">
+    cases.push(`<div class="cal-case${iso === aujourdhui() ? ' jour-j' : ''}">
       <span class="cal-num">${n}</span>${(parJour[iso] || []).join('')}
     </div>`);
   }
@@ -655,7 +603,7 @@ function renderCalendrier(){
   document.getElementById('vue-calendrier').innerHTML = `
     <div class="bloc-tete">
       <h2>${escapeHtml(MOIS[mo - 1].charAt(0).toUpperCase() + MOIS[mo - 1].slice(1) + ' ' + an)}</h2>
-      <span class="compte">concerts, échéances comm, campagnes et rendez-vous</span>
+      <span class="compte">concerts, échéances et newsletter</span>
       <span style="margin-left:auto; display:flex; gap:6px;">
         <button type="button" class="co-btn ghost sm" data-mois="-1">← Mois précédent</button>
         <button type="button" class="co-btn ghost sm" data-mois="1">Mois suivant →</button>
@@ -663,119 +611,14 @@ function renderCalendrier(){
     </div>
     <div class="co-legend-row" style="margin-bottom:12px;">
       <span><span class="pastille concert">Concert</span></span>
-      <span><span class="pastille option">Option — en attente</span></span>
+      <span><span class="pastille option">Option</span></span>
       <span><span class="pastille annulee">Annulée</span></span>
-      <span><span class="pastille echeance">Échéance comm</span></span>
-      <span><span class="pastille campagne">Campagne</span></span>
-      <span><span class="pastille perso">Rendez-vous comm</span></span>
+      <span><span class="pastille echeance">Tâche</span></span>
+      <span><span class="pastille newsletter">Newsletter</span></span>
     </div>
     <div class="cal">
       ${['lun','mar','mer','jeu','ven','sam','dim'].map(x=> `<div class="cal-jour-nom">${x}</div>`).join('')}
       ${cases.join('')}
-    </div>
-    <p class="co-legend-hint" style="margin-top:12px;">Les concerts et les échéances sont lus depuis les tournées — ils ne sont
-      jamais ressaisis ici. Les campagnes et les rendez-vous appartiennent à la comm.</p>
-  `;
-}
-
-/* --- Vue « Journal & bilan » ---------------------------------------------- */
-
-// Quand une chose a-t-elle été faite ? Ce qui est coché pendant cette session
-// est daté d'aujourd'hui ; le reste, de son échéance (dans la vraie page, la
-// date de la coche sera enregistrée avec elle).
-function quandFait(id, cle, echeance){
-  if(COCHE_SESSION[id + ':' + cle]) return AUJOURDHUI;
-  return echeance <= AUJOURDHUI ? echeance : AUJOURDHUI;
-}
-
-function renderJournal(){
-  const entrees = [];
-  DATES.forEach(d=> tachesDe(d).forEach(t=>{
-    if(t.fait) entrees.push({ quand: quandFait(d.id, t.cle, t.echeance), libelle: t.libelle,
-      contexte: d.ville + ' — ' + joli(d.date), frais: COCHE_SESSION[d.id + ':' + t.cle] });
-  }));
-  CAMPAGNES.forEach(c=> tachesCampagne(c).forEach(t=>{
-    if(t.fait) entrees.push({ quand: quandFait(c.id, t.cle, t.echeance), libelle: t.libelle,
-      contexte: c.nom, frais: COCHE_SESSION[c.id + ':' + t.cle] });
-  }));
-  entrees.sort((a, b)=> b.quand.localeCompare(a.quand));
-
-  const parJour = [];
-  entrees.forEach(e=>{
-    const dernier = parJour[parJour.length - 1];
-    if(dernier && dernier.quand === e.quand) dernier.liste.push(e);
-    else parJour.push({ quand: e.quand, liste: [e] });
-  });
-
-  // Le rythme : tout ce qui sort, mois par mois — fait à sa date de coche,
-  // à venir à son échéance. Le recul que ni la liste ni le calendrier ne donnent.
-  const MOIS_RYTHME = ['2027-01', '2027-02', '2027-03', '2027-04'];
-  const rythme = MOIS_RYTHME.map(m=> ({ m, faites: 0, prevues: 0 }));
-  const compter = (iso, fait)=>{
-    const r = rythme.find(x=> iso.startsWith(x.m));
-    if(r){ if(fait) r.faites++; else r.prevues++; }
-  };
-  entrees.forEach(e=> compter(e.quand, true));
-  toutesLesTaches().concat(toutesLesCampagnes()).forEach(t=>{
-    if(!t.fait && t.etat !== 'caduque') compter(t.echeance, false);
-  });
-  const maxi = Math.max(1, ...rythme.map(r=> r.faites + r.prevues));
-
-  const couvertes = DATES.filter(d=> d.publique !== false && d.statut !== 'annulee');
-  const aFaire30 = toutesLesTaches().concat(toutesLesCampagnes())
-    .filter(t=> !t.fait && t.etat !== 'caduque' && t.etat !== 'attente' && t.reste >= 0 && t.reste <= 30).length;
-
-  const stats = [
-    [entrees.filter(e=> e.quand.startsWith(AUJOURDHUI.slice(0, 7))).length, 'faites ce mois-ci'],
-    [aFaire30, 'prévues sous 30 jours'],
-    [CAMPAGNES.filter(c=> c.etapes.some(e=> !e.fait)).length, 'campagnes en cours'],
-    [couvertes.length, 'dates suivies'],
-  ];
-
-  document.getElementById('vue-journal').innerHTML = `
-    <div class="stats-plates">
-      ${stats.map(([n, lib])=> `<div><b>${n}</b><span>${escapeHtml(lib)}</span></div>`).join('')}
-    </div>
-
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px;" class="bloc">
-      <div class="co-card co-pad-lg">
-        <div class="co-legend">Le rythme, mois par mois</div>
-        <p class="co-legend-hint">Tout ce qui sort — dates et campagnes confondues. Le plein est fait, le reste est prévu.</p>
-        ${rythme.map(r=>{
-          const total = r.faites + r.prevues;
-          return `<div class="rythme-ligne">
-            <span class="mois">${escapeHtml(MOIS[Number(r.m.slice(5)) - 1])}</span>
-            <span class="piste"><i style="width:${Math.round(r.faites / maxi * 100)}%;"></i></span>
-            <span class="det">${r.faites} faite${r.faites > 1 ? 's' : ''}${r.prevues ? ' · ' + r.prevues + ' prévue' + (r.prevues > 1 ? 's' : '') : ''}${total === 0 ? '—' : ''}</span>
-          </div>`;
-        }).join('')}
-      </div>
-      <div class="co-card co-pad-lg">
-        <div class="co-legend">La couverture, date par date</div>
-        <p class="co-legend-hint">Le même avancement que le rétroplanning, mais d'un seul regard.</p>
-        ${couvertes.map(d=>{
-          const jx = jaugeDe(d);
-          return `<div class="couverture-ligne">
-            <span class="qui">${escapeHtml(d.ville + ' · ' + joli(d.date))}</span>
-            <span class="piste co-progress co-progress-thin"><i style="width:${jx.pct}%;"></i></span>
-            <span class="det">${jx.faits}/${jx.total}</span>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>
-
-    <div class="bloc">
-      <div class="bloc-tete"><h2>Le journal</h2><span class="compte">tout ce qui a été fait, le plus récent d'abord — coche une case n'importe où, elle arrive ici datée du jour</span></div>
-      <div class="co-card co-clip">
-        ${parJour.length ? parJour.map(grp=> `
-          <div class="journal-jour">${escapeHtml(joliLong(grp.quand))}</div>
-          ${grp.liste.map(e=> `<div class="journal-ligne">
-            <b>${escapeHtml(e.libelle)}</b>
-            <span class="ctx">${escapeHtml(e.contexte)}</span>
-            ${e.frais ? '<span class="co-pill ok frais">Coché à l\'instant</span>' : ''}
-          </div>`).join('')}
-        `).join('') : '<div class="empty-hint co-vide">Rien encore — le journal se remplit à mesure que les étapes se cochent.</div>'}
-      </div>
     </div>
   `;
 }
@@ -784,13 +627,12 @@ function renderJournal(){
 
 function rendre(){
   renderSemaine();
-  renderRetro();
-  renderCampagnes();
+  renderTaches();
+  renderDates();
   renderCalendrier();
-  renderJournal();
 }
 
-const VUES = ['semaine', 'retro', 'campagnes', 'calendrier', 'journal'];
+const VUES = ['semaine', 'taches', 'dates', 'calendrier'];
 
 document.querySelector('.vues').addEventListener('click', (e)=>{
   const btn = e.target.closest('button[data-vue]');
@@ -806,71 +648,84 @@ function montrerVue(nom){
   if(btn) btn.click();
 }
 
-function ajouterEtapePropre(d){
-  const libelle = prompt('L\'étape à ajouter, pour ' + d.ville + ' seulement :', 'Interview France 3 régionale');
-  if(!libelle) return;
-  const rep = prompt('Combien de jours avant le concert ? (0 = le jour même, -3 = trois jours après)', '10');
-  const jNum = Number(rep);
-  if(rep == null || !isFinite(jNum)) return;
-  const cle = genId('etape');
-  (EXTRA[d.id] = EXTRA[d.id] || []).push({ cle, libelle, j: jNum, aide: 'Étape propre à cette date' });
-  if(TRIAGE && TRIAGE.dateId === d.id) TRIAGE.coches.add(cle);
+async function creerTachesTypes(tourneeId, dateId){
+  const ref = trouverDate(tourneeId, dateId);
+  if(!ref) return;
+  for(const type of typesTaches()){
+    const tache = { id: genId('tache'), libelle: type.libelle, notes: '',
+      echeance: '', tourneeId, dateId, j: Number(type.j) || 0, genre: '', fait: false, faitLe: '' };
+    const { error } = await CurieuxDB.upsertOne('comm_taches', tache);
+    if(error){ alert('Création impossible :\n\n' + error.message); return; }
+    tachesCache.push(tache);
+  }
   rendre();
 }
 
-document.addEventListener('change', (e)=>{
-  const tri = e.target.closest('[data-triage]');
-  if(tri && TRIAGE){
-    if(tri.checked) TRIAGE.coches.add(tri.dataset.triage);
-    else TRIAGE.coches.delete(tri.dataset.triage);
-    const btn = document.querySelector('[data-triage-valider]');
-    if(btn) btn.textContent = `Lancer le suivi (${TRIAGE.coches.size} étapes)`;
-  }
-});
-
-document.addEventListener('click', (e)=>{
-  // Cocher une étape de date : la maquette bouge pour de vrai, en mémoire.
+document.addEventListener('click', async (e)=>{
   const coche = e.target.closest('[data-coche]');
   if(coche){
-    const [dateId, cle] = coche.dataset.coche.split(':');
-    const liste = FAIT[dateId] = FAIT[dateId] || [];
-    const i = liste.indexOf(cle);
-    if(i >= 0){ liste.splice(i, 1); delete COCHE_SESSION[dateId + ':' + cle]; }
-    else { liste.push(cle); COCHE_SESSION[dateId + ':' + cle] = true; }
+    const t = tachesCache.find(x=> x.id === coche.dataset.coche);
+    if(!t) return;
+    t.fait = coche.checked;
+    t.faitLe = coche.checked ? aujourdhui() : '';
+    const { error } = await CurieuxDB.upsertOne('comm_taches', t);
+    if(error){ alert('Enregistrement impossible :\n\n' + error.message); t.fait = !t.fait; }
     rendre();
     return;
   }
-  const cocheCamp = e.target.closest('[data-coche-camp]');
-  if(cocheCamp){
-    const [cId, cle] = cocheCamp.dataset.cocheCamp.split(':');
-    const c = CAMPAGNES.find(x=> x.id === cId);
-    const etape = c && c.etapes.find(x=> x.cle === cle);
-    if(etape){
-      etape.fait = !etape.fait;
-      if(etape.fait) COCHE_SESSION[cId + ':' + cle] = true;
-      else delete COCHE_SESSION[cId + ':' + cle];
-    }
+  const modif = e.target.closest('[data-modif]');
+  if(modif){ tacheEnEdition = modif.dataset.modif; renderTaches(); montrerVue('taches'); return; }
+  const suppr = e.target.closest('[data-suppr]');
+  if(suppr){
+    const t = tachesCache.find(x=> x.id === suppr.dataset.suppr);
+    if(!t) return;
+    if(!confirm(`Supprimer « ${t.libelle} » ?`)) return;
+    const { error } = await CurieuxDB.removeOne('comm_taches', t.id);
+    if(error){ alert('Suppression impossible :\n\n' + error.message); return; }
+    tachesCache = tachesCache.filter(x=> x.id !== t.id);
+    if(tacheEnEdition === t.id) tacheEnEdition = null;
     rendre();
     return;
   }
-  const ouvrir = e.target.closest('[data-ouvrir]');
-  if(ouvrir){ dateOuverte = ouvrir.dataset.ouvrir; renderRetro(); montrerVue('retro'); return; }
-  const datebtn = e.target.closest('[data-date]');
-  if(datebtn){ dateOuverte = datebtn.dataset.date; renderRetro(); return; }
-  const ajout = e.target.closest('[data-ajout-etape]');
-  if(ajout){
-    const d = DATES.find(x=> x.id === ajout.dataset.ajoutEtape);
-    if(d) ajouterEtapePropre(d);
+  const types = e.target.closest('[data-types]');
+  if(types){
+    const [tourneeId, dateId] = types.dataset.types.split(':');
+    types.disabled = true;
+    await creerTachesTypes(tourneeId, dateId);
     return;
   }
-  const valider = e.target.closest('[data-triage-valider]');
-  if(valider && TRIAGE){
-    const d = DATES.find(x=> x.id === TRIAGE.dateId);
-    APPLIQUE[TRIAGE.dateId] = MODELE.map(x=> x.cle).filter(c=> TRIAGE.coches.has(c));
-    if(EXTRA[TRIAGE.dateId]) EXTRA[TRIAGE.dateId] = EXTRA[TRIAGE.dateId].filter(x=> TRIAGE.coches.has(x.cle));
-    if(d) delete d.nouvelle;
-    TRIAGE = null;
-    rendre();
+  const surDate = e.target.closest('[data-tache-sur]');
+  if(surDate){
+    tacheEnEdition = null;
+    renderTaches();
+    montrerVue('taches');
+    document.getElementById('fRattache').value = surDate.dataset.tacheSur;
+    document.getElementById('fRattache').dispatchEvent(new Event('change'));
+    document.getElementById('fLibelle').focus();
+    return;
+  }
+  const nouvelle = e.target.closest('[data-nouvelle-tache]');
+  if(nouvelle){ tacheEnEdition = null; renderTaches(); montrerVue('taches'); document.getElementById('fLibelle').focus(); return; }
+  const typeAjout = e.target.closest('[data-type-ajout]');
+  if(typeAjout){
+    const libelle = prompt('La tâche type à proposer sur chaque nouvelle date :', 'Story de rappel');
+    if(!libelle) return;
+    const j = Number(prompt('Combien de jours avant le concert ? (0 = le jour même, -3 = trois jours après)', '7'));
+    if(!isFinite(j)) return;
+    const nouveaux = typesTaches().concat([{ libelle: libelle.trim(), j }]);
+    const { error } = await CurieuxDB.setCommTachesTypes(nouveaux);
+    if(error){ alert('Enregistrement impossible :\n\n' + error.message); return; }
+    reglagesCache.commTachesTypes = nouveaux;
+    renderTaches();
+    return;
+  }
+  const typeSuppr = e.target.closest('[data-type-suppr]');
+  if(typeSuppr){
+    const nouveaux = typesTaches().filter((_, i)=> i !== Number(typeSuppr.dataset.typeSuppr));
+    const { error } = await CurieuxDB.setCommTachesTypes(nouveaux);
+    if(error){ alert('Enregistrement impossible :\n\n' + error.message); return; }
+    reglagesCache.commTachesTypes = nouveaux;
+    renderTaches();
     return;
   }
   const mois = e.target.closest('[data-mois]');
@@ -881,11 +736,17 @@ document.addEventListener('click', (e)=>{
     renderCalendrier();
     return;
   }
-  const factice = e.target.closest('[data-maquette]');
-  if(factice) alert("Maquette : ce bouton ne fait rien pour l'instant — c'est le vrai lot qui le câblera.");
 });
 
-rendre();
+(async ()=>{
+  [tourneesCache, tachesCache, reglagesCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('comm_taches'),
+    CurieuxDB.fetchReglages(),
+  ]);
+  await garantirNewsletters();
+  rendre();
+})();
 </script>
 </body>
 </html>

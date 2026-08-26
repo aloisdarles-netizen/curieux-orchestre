@@ -4096,3 +4096,71 @@ alter table reglages add column if not exists villes_base jsonb not null default
 
 comment on column reglages.villes_base is
   'Villes où l''orchestre est chez lui : une date qui s''y déroule ne demande pas de trajet.';
+
+-- ============================================================================
+-- Espace comm (septembre 2026) — l'espace de travail de la chargée de comm.
+--
+-- L'orchestre est produit par un tourneur : la promo locale (presse, salles,
+-- billetterie) n'est pas du ressort de la comm interne, qui ne parle que sur
+-- les canaux de l'orchestre. Les tâches sont donc SAISIES, pas engendrées —
+-- l'outil se contente de proposer des tâches types sur une date validée, et
+-- de faire suivre la date à ce qui lui est rattaché.
+-- ============================================================================
+
+-- L'accès : un drapeau sur le compte, comme la direction technique. Un compte
+-- 'user' coché voit l'espace comm sans rien voir des zones admin.
+alter table infos_sociales_admins add column if not exists comm boolean not null default false;
+
+create or replace function has_comm_access()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists(
+    select 1 from infos_sociales_admins
+    where email = auth.jwt()->>'email'
+      and (role = 'admin' or comm = true)
+  );
+$$;
+grant execute on function has_comm_access() to anon, authenticated;
+
+-- Les tâches de comm. Deux natures d'échéance : une tâche libre porte une date
+-- en clair (echeance) ; une tâche rattachée à une date de tournée compte en
+-- jours avant le concert (j) et suit la date si elle bouge. genre marque les
+-- tâches à traitement particulier ('newsletter' : recréée chaque mois).
+create table if not exists comm_taches (
+  id text primary key,
+  libelle text not null default '',
+  notes text not null default '',
+  echeance date,
+  tournee_id text,
+  date_id text,
+  j integer,
+  genre text not null default '',
+  fait boolean not null default false,
+  fait_le date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_comm_taches_date on comm_taches(tournee_id, date_id);
+drop trigger if exists trg_comm_taches_updated_at on comm_taches;
+create trigger trg_comm_taches_updated_at before update on comm_taches
+  for each row execute function set_updated_at();
+
+alter table comm_taches enable row level security;
+drop policy if exists "comm taches acces" on comm_taches;
+create policy "comm taches acces" on comm_taches for all to authenticated
+  using (has_comm_access()) with check (has_comm_access());
+
+-- Les tâches types proposées (jamais imposées) quand une date validée n'a
+-- encore aucune tâche. Modifiables depuis l'espace comm.
+alter table reglages add column if not exists comm_taches_types jsonb not null default
+  '[{"libelle":"Annoncer la date","j":30},{"libelle":"Post le jour J","j":0},{"libelle":"Retombées et photos","j":-3}]'::jsonb;
+
+-- La comm doit pouvoir régler ses tâches types sans être admin : la politique
+-- d'écriture de reglages s'élargit à has_comm_access() — qui inclut les admins.
+drop policy if exists "reglages ecriture" on reglages;
+create policy "reglages ecriture" on reglages for all to authenticated
+  using (is_admin() or has_comm_access()) with check (is_admin() or has_comm_access());

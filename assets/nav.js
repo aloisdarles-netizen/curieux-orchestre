@@ -55,6 +55,7 @@ const CURIEUX_SECTIONS = [
     { libelle:'Partage', href:'partage.html', pages:['partage.html','technique-partage.html'] },
     { libelle:'Page salle', href:'page-salle.html', pages:['page-salle.html'] },
   ]},
+  { libelle:'Comm', href:'comm.html', pages:['comm.html'] },
   { libelle:"Vue d'ensemble", href:'recap.html', pages:['recap.html'] },
   // Réservée aux comptes 'admin' : elle n'entre dans le bandeau qu'après
   // vérification (voir ajouterEntreeAdmin), pour éviter d'afficher à toute

@@ -433,6 +433,28 @@ const CurieuxDB = (()=>{
       toDb: (r)=> ({ id: r.id, person_type: r.personType, items: r.items || [] }),
       fromDb: (r)=> ({ id: r.id, personType: r.person_type, items: r.items || [] })
     },
+    // Tâches de l'espace comm (comm.html). Deux natures d'échéance : une tâche
+    // libre porte une date en clair (echeance) ; une tâche rattachée à une date
+    // de tournée compte en jours avant le concert (j) et suit la date si elle
+    // bouge. genre = 'newsletter' pour la tâche mensuelle recréée d'office.
+    comm_taches: {
+      toDb: (t)=> ({
+        id: t.id, libelle: t.libelle || '', notes: t.notes || '',
+        echeance: t.echeance || null,
+        tournee_id: t.tourneeId || null, date_id: t.dateId || null,
+        j: (t.j === 0 || t.j) ? t.j : null,
+        genre: t.genre || '',
+        fait: !!t.fait, fait_le: t.faitLe || null,
+      }),
+      fromDb: (r)=> ({
+        id: r.id, libelle: r.libelle || '', notes: r.notes || '',
+        echeance: r.echeance || '',
+        tourneeId: r.tournee_id || '', dateId: r.date_id || '',
+        j: (r.j === 0 || r.j) ? r.j : null,
+        genre: r.genre || '',
+        fait: !!r.fait, faitLe: r.fait_le || '',
+      })
+    },
     // Signalements du widget "Signaler un bug" (voir injectBugReportWidget dans
     // brand-assets.js) — écriture publique, lecture réservée aux comptes 'admin'.
     // "type" distingue bug / amélioration / incohérence.
@@ -830,6 +852,16 @@ const CurieuxDB = (()=>{
   // Direction technique (août 2026) : espace réservé à des comptes désignés
   // explicitement, en plus des comptes 'admin' qui y ont accès de toute façon
   // (voir has_direction_technique_access() dans migrations.sql).
+  // L'espace comm suit le même patron que la direction technique : les admins
+  // y entrent d'office, les autres via le drapeau « comm » de leur compte
+  // (voir has_comm_access() dans migrations.sql).
+  async function hasCommAccess(){
+    if(!supabaseClient) return false;
+    const { data, error } = await supabaseClient.rpc('has_comm_access');
+    if(error){ console.warn('[CurieuxDB] hasCommAccess', error.message); return false; }
+    return data === true;
+  }
+
   async function hasDirectionTechniqueAccess(){
     if(!supabaseClient) return false;
     const { data, error } = await supabaseClient.rpc('has_direction_technique_access');
@@ -845,7 +877,7 @@ const CurieuxDB = (()=>{
   async function listAccounts(){
     if(!supabaseClient) return [];
     const { data, error } = await supabaseClient
-      .from('infos_sociales_admins').select('email, role, direction_technique').order('email');
+      .from('infos_sociales_admins').select('email, role, direction_technique, comm').order('email');
     if(error){ console.warn('[CurieuxDB] listAccounts', error.message); return []; }
     return data || [];
   }
@@ -861,6 +893,13 @@ const CurieuxDB = (()=>{
     const { error } = await supabaseClient
       .from('infos_sociales_admins').update({ direction_technique: !!actif }).eq('email', email);
     if(error) console.warn('[CurieuxDB] setDirectionTechniqueAccess', error.message);
+    return { error };
+  }
+  async function setCommAccess(email, actif){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient
+      .from('infos_sociales_admins').update({ comm: !!actif }).eq('email', email);
+    if(error) console.warn('[CurieuxDB] setCommAccess', error.message);
     return { error };
   }
   async function removeAccount(email){
@@ -1253,6 +1292,7 @@ const CurieuxDB = (()=>{
       villesBase: (data && data.villes_base) || [],
       referentNom: (data && data.referent_nom) || '',
       referentTelephone: (data && data.referent_telephone) || '',
+      commTachesTypes: (data && data.comm_taches_types) || null,
       absent: !data,
     };
   }
@@ -1291,6 +1331,16 @@ const CurieuxDB = (()=>{
     const { error } = await supabaseClient.from('reglages')
       .update({ villes_base: villes || [] }).eq('id', 1);
     if(error) console.warn('[CurieuxDB] setVillesBase', error.message);
+    return { error };
+  }
+
+  // Les tâches types que l'espace comm PROPOSE sur une date validée sans
+  // tâche : [{libelle, j}] — jamais imposées, un clic les crée, modifiables.
+  async function setCommTachesTypes(types){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.from('reglages')
+      .update({ comm_taches_types: types || [] }).eq('id', 1);
+    if(error) console.warn('[CurieuxDB] setCommTachesTypes', error.message);
     return { error };
   }
 
@@ -1526,7 +1576,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
-    fetchReglages, setPhaseTest, setVillesBase, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
+    fetchReglages, setPhaseTest, setVillesBase, setCommTachesTypes, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
@@ -1535,8 +1585,8 @@ const CurieuxDB = (()=>{
     deposerPlanSalle, urlPubliquePlanSalle,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,
-    getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,
-    listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess,
+    getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess, hasCommAccess,
+    listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess, setCommAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
     mesDemandesDispo, resolvePersonToken, creerCompteEquipeSansEmail,
     fetchCorbeille, restaurerDepuisCorbeille,

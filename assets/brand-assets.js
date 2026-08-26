@@ -320,6 +320,35 @@ async function requireDirectionTechniqueAuth(){
   location.replace('admin-login.html?redirect=' + encodeURIComponent(here));
 }
 
+// Espace comm (septembre 2026) : même patron que la direction technique —
+// réservé aux comptes 'admin' + aux comptes cochés « Comm » sur le tableau
+// de bord (infos_sociales_admins.comm).
+async function requireCommAuth(){
+  try{
+    const session = await CurieuxDB.getSession();
+    if(session){
+      if(!(await CurieuxDB.hasAppAccess())){
+        const here = location.pathname.split('/').pop() + location.search;
+        location.replace('admin-login.html?redirect=' + encodeURIComponent(here));
+        return;
+      }
+      if(await CurieuxDB.hasCommAccess()){
+        const hideStyle = document.getElementById('curieux-lock-hide');
+        if(hideStyle) hideStyle.remove();
+        try{ injectAdminLogoutButton(session.user.email); }catch(e){}
+        return;
+      }
+      afficherAccesReserve(
+        'Espace comm',
+        "Cette section est réservée aux personnes qui s'occupent de la communication. Un·e administrateur·rice peut t'y donner accès depuis le tableau de bord, en cochant « Comm » sur ton compte.",
+        session.user && session.user.email);
+      return;
+    }
+  }catch(e){ console.warn('[requireCommAuth]', e); }
+  const here = location.pathname.split('/').pop() + location.search;
+  location.replace('admin-login.html?redirect=' + encodeURIComponent(here));
+}
+
 // Bouton de déconnexion — inséré comme dernière pastille de .page-nav (même
 // style que les autres liens de nav) plutôt qu'en coin de page fixe : un
 // élément position:fixed superposait le texte du nav sur les pages où celui-ci
