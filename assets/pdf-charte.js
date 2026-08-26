@@ -660,15 +660,23 @@ function creerComposeurPdf(doc, options){
    * lecteur PDF qui gère mal la transparence rende le texte illisible sous un
    * aplat gris. Un gris très clair suffit : il se voit, il ne gêne pas.
    */
+  const FILIGRANE_ANGLE = 38;
   function poserFiligrane(){
-    const texte = o.filigrane;
-    if(!texte) return;
+    if(!o.filigrane) return;
+    const texte = String(o.filigrane).toUpperCase();
     doc.saveGraphicsState && doc.saveGraphicsState();
     doc.setFont('Host', 'bold');
     doc.setFontSize(74);
     doc.setTextColor(233, 233, 235);
-    doc.text(String(texte).toUpperCase(), LARGEUR / 2, HAUTEUR / 2, {
-      align: 'center', baseline: 'middle', angle: 38,
+    /* jsPDF pose le texte par son extrémité gauche, puis le fait tourner autour
+     * de ce point-là. « align: center » centre donc le mot AVANT la rotation :
+     * une fois tourné, il part en haut à gauche. On calcule l'ancrage nous-mêmes
+     * — reculer d'une demi-longueur le long de la diagonale — pour que le milieu
+     * du mot tombe au milieu de la page. */
+    const rad = FILIGRANE_ANGLE * Math.PI / 180;
+    const demi = doc.getTextWidth(texte) / 2;
+    doc.text(texte, LARGEUR / 2 - demi * Math.cos(rad), HAUTEUR / 2 + demi * Math.sin(rad), {
+      baseline: 'middle', angle: FILIGRANE_ANGLE,
     });
     doc.restoreGraphicsState && doc.restoreGraphicsState();
     // Le composeur reprend la main sur les réglages qu'il croit connaître.
