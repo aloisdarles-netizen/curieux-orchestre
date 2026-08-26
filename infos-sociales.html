@@ -44,6 +44,20 @@
   /* --- Liste des personnes --- */
   .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:20px;}
   .toolbar input[type=text]{flex:1 1 220px;}
+  /* Pilules de statut, reprises de l'annuaire : même geste, même vocabulaire,
+     pour que passer d'une page à l'autre ne demande pas de réapprendre. */
+  .ann-filtres{display:flex; gap:6px; flex-wrap:wrap;}
+  .ann-filtres button{
+    cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text);
+    border-radius:999px; padding:6px 13px; font-size:12px; font-weight:700; font-family:inherit;
+  }
+  .ann-filtres button[aria-pressed="true"]{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
+  .ann-filtres .compte{opacity:.65; margin-left:3px;}
+  .remplacant-tag{
+    font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 7px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark);
+    vertical-align:middle; margin-left:7px;
+  }
   .select-all-label{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); font-weight:600; cursor:pointer; white-space:nowrap;}
   .select-all-label input{width:15px; height:15px; cursor:pointer; accent-color:var(--accent);}
   .person-card{
@@ -144,6 +158,11 @@
     <div id="listWrap">
       <div class="toolbar">
         <input type="text" id="searchInput" placeholder="Chercher un nom…">
+        <div class="ann-filtres" id="statutFiltres" role="group" aria-label="Filtrer par statut">
+          <button type="button" data-statut="" aria-pressed="true">Tou·tes <span class="compte" data-compte=""></span></button>
+          <button type="button" data-statut="titulaire" title="Le noyau de l'orchestre : ces personnes reçoivent une demande de dispo d'office, sur tous les projets.">Titulaires <span class="compte" data-compte="titulaire"></span></button>
+          <button type="button" data-statut="remplacant" title="Hors noyau : sollicité·es projet par projet.">Remplaçant·es <span class="compte" data-compte="remplacant"></span></button>
+        </div>
         <label class="select-all-label">
           <input type="checkbox" id="selectAllCheckbox"> Tout sélectionner
         </label>
@@ -165,6 +184,13 @@ let techniciansCache = [];
 let infosCache = [];
 let currentUser = null;
 let selectedIds = new Set();
+let statutFiltre = '';
+
+// Les technicien·nes hors régie générale sont forcé·es à « titulaire » côté
+// annuaire : la fonction vaut donc pour les deux répertoires sans distinction.
+function statutDe(p){
+  return (p.statutPoste || 'titulaire') === 'remplacant' ? 'remplacant' : 'titulaire';
+}
 
 
 function showLogin(){
@@ -308,7 +334,7 @@ function renderPersonCard(p, personType){
             <input type="checkbox" class="person-select" data-person="${escapeAttr(p.id)}" ${selectedIds.has(p.id) ? 'checked' : ''} title="Inclure dans l'export">
           </span>
           <span class="ps-nom">
-            <span class="name">${escapeHtml(fullName(p))}</span>
+            <span class="name">${escapeHtml(fullName(p))}</span>${statutDe(p) === 'remplacant' ? '<span class="remplacant-tag">Rempl.</span>' : ''}
             <span class="role">${roleLabel}</span>
           </span>
           <span class="co-pill ${etat.pill}" title="${escapeAttr(etat.titre)}">${escapeHtml(etat.libelle)}</span>
@@ -417,11 +443,27 @@ function render(){
     ...techniciansCache.map(t=> ({ p: t, type: 'technicien' })),
   ].sort((a, b)=> fullName(a.p).localeCompare(fullName(b.p)));
 
-  const filtered = query ? all.filter(({p})=> fullName(p).toLowerCase().includes(query)) : all;
+  const parNom = query ? all.filter(({p})=> fullName(p).toLowerCase().includes(query)) : all;
+  const filtered = statutFiltre ? parNom.filter(({p})=> statutDe(p) === statutFiltre) : parNom;
+
+  // Les compteurs portent sur la recherche en cours : on voit du premier coup
+  // d'œil qu'un nom cherché existe, même s'il dort sous l'autre pilule.
+  document.querySelectorAll('#statutFiltres [data-compte]').forEach(el=>{
+    const s = el.dataset.compte;
+    el.textContent = s ? parNom.filter(({p})=> statutDe(p) === s).length : parNom.length;
+  });
+
   const holder = document.getElementById('peopleHolder');
 
   if(filtered.length === 0){
-    holder.innerHTML = `<div class="empty-hint">${all.length === 0 ? "Ajoute d'abord des musicien·nes ou technicien·nes dans les annuaires." : 'Aucun résultat.'}</div>`;
+    // Un « aucun résultat » qui cache des fiches derrière la pilule d'à côté
+    // ferait croire que la personne n'est pas dans la base. On le dit.
+    let message;
+    if(all.length === 0) message = "Ajoute d'abord des musicien·nes ou technicien·nes dans les annuaires.";
+    else if(parNom.length) message = `Aucun résultat sous cette pilule — ${parNom.length} fiche${parNom.length > 1 ? 's correspondent' : ' correspond'} sous un autre statut.`;
+    else message = 'Aucun résultat.';
+    holder.innerHTML = `<div class="empty-hint">${message}</div>`;
+    updateExportToolbar();
     return;
   }
 
@@ -447,6 +489,7 @@ function genreLabel(g){
 const EXPORT_COLUMNS = [
   ['Nom complet', (p)=> fullName(p)],
   ['Rôle', (p, info, type)=> type === 'musicien' ? (p.instrument || 'Musicien·ne') : (p.poste || 'Technicien·ne')],
+  ['Statut', (p)=> statutDe(p) === 'remplacant' ? 'Remplaçant·e' : 'Titulaire'],
   ['Téléphone', (p)=> p.telephone || ''],
   ['Email', (p)=> p.email || ''],
   ['Genre', (p, info)=> genreLabel(info.genre)],
@@ -564,6 +607,17 @@ function bindPersonEvents(){
 }
 
 document.getElementById('searchInput').addEventListener('input', render);
+
+document.getElementById('statutFiltres').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-statut]');
+  if(!btn) return;
+  statutFiltre = btn.dataset.statut;
+  document.querySelectorAll('#statutFiltres button').forEach(b=>{
+    if(b === btn) b.setAttribute('aria-pressed', 'true');
+    else b.removeAttribute('aria-pressed');
+  });
+  render();
+});
 
 document.getElementById('selectAllCheckbox').addEventListener('change', (e)=>{
   const visibleIds = [...document.querySelectorAll('.person-select')].map(cb=> cb.dataset.person);

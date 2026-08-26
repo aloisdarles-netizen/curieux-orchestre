@@ -102,6 +102,7 @@
   .lu-ligne .cle{display:block; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
   .lu-ligne .val{display:block; font-weight:700; word-break:break-word; white-space:pre-wrap;}
   .lu-ligne .ecrase{display:block; font-size:11.5px; color:var(--orange); font-weight:700; margin-top:2px;}
+  .lu-ligne .deduit{display:block; font-size:11.5px; color:var(--muted); font-weight:700; margin-top:2px;}
   .lu-rien{font-size:13px; color:var(--muted); padding:12px 2px 0; line-height:1.5;}
   @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
 </style>
@@ -302,16 +303,28 @@ document.getElementById('nouveauBtn').addEventListener('click', async ()=>{
 /* ---------------------------------------------------------------------------
    Importer par collage
    ---------------------------------------------------------------------------
-   Les coordonnées d'un client arrivent presque toujours en bloc : pied de mail,
-   en-tête de convention, extrait d'annuaire. Les recopier champ par champ est
-   long et c'est là qu'on se trompe de chiffre sur un SIRET.
+   Les coordonnées d'un client arrivent en bloc : pied de mail, en-tête de
+   convention, et de plus en plus souvent un document officiel copié depuis un
+   PDF — attestation d'immatriculation au RNE, extrait Kbis, avis de situation.
+   Les recopier champ par champ est long et c'est là qu'on se trompe de chiffre
+   sur un SIRET.
 
    Deux passes de lecture. D'abord les lignes étiquetées (« SIRET : 123… »),
    qui ne laissent aucun doute. Ensuite les repères de forme sur ce qui reste :
    un SIRET fait quatorze chiffres, un code postal cinq suivis d'une ville, une
-   adresse commence par un numéro ou un mot de voie. Ce qui n'est pas reconnu
-   n'est pas deviné — l'aperçu ne propose que ce dont on est sûr, et rien ne
-   s'applique sans être coché.
+   adresse commence par un numéro ou un mot de voie.
+
+   Un document officiel demande deux précautions de plus. Il est bavard : ses
+   en-têtes de page, ses dates et ses codes d'activité sont écartés d'emblée,
+   sans quoi le titre du document deviendrait la raison sociale. Et il parle de
+   plusieurs personnes morales à la fois — le siège et ses établissements
+   fermés, la société et son commissaire aux comptes : à chaque champ, la
+   première réponse gagne, et c'est celle du siège.
+
+   Ce qui n'est pas lu n'est pas inventé. Une seule valeur est calculée — le
+   numéro de TVA, que sa clé rattache au SIREN — et elle arrive décochée, dite
+   comme déduite. Le reste vient du texte, et rien ne s'applique sans être
+   coché.
 --------------------------------------------------------------------------- */
 
 const CHAMPS_COLLAGE = [
@@ -334,9 +347,9 @@ const CHAMPS_COLLAGE = [
 ];
 
 const ETIQUETTES_COLLAGE = [
-  [/^(raison sociale|soci[ée]t[ée]|structure|nom de la structure|client|organisme|[ée]tablissement)\b/i, 'nom'],
-  [/^(forme juridique|statut juridique)\b/i, 'formeJuridique'],
-  [/^(siret|n[°o]? ?siret)\b/i, 'siret'],
+  [/^(raison sociale|d[ée]nomination(?: sociale| commerciale)?|nom commercial|enseigne|soci[ée]t[ée]|structure|nom de la structure|client|organisme|[ée]tablissement)\b/i, 'nom'],
+  [/^(forme juridique|statut juridique|nature juridique)\b/i, 'formeJuridique'],
+  [/^(siret|n[°o]? ?siret|identifiant siret|num[ée]ro siret)\b/i, 'siret'],
   [/^(tva|n[°o]? ?tva|num[ée]ro de tva|tva intracom\w*)\b/i, 'tvaIntracom'],
   [/^(adresse|si[èe]ge social|si[èe]ge)\b/i, 'adresse'],
   [/^(code postal|cp)\b/i, 'codePostal'],
@@ -345,6 +358,7 @@ const ETIQUETTES_COLLAGE = [
   [/^(email compta\w*|mail compta\w*|e-?mail de facturation|email de facturation)\b/i, 'comptaEmail'],
   [/^(compta\w*|service comptab\w*|facturation)\b/i, 'comptaNom'],
   [/^(contact|nom du contact|interlocut\w*|responsable)\b/i, 'contactNom'],
+  [/^nom,?\s*pr[ée]noms?/i, 'contactNom'],
   [/^(fonction|qualit[ée]|poste)\b/i, 'contactFonction'],
   [/^(e-?mail|mail|courriel)\b/i, 'email'],
   [/^(t[ée]l\w*|portable|mobile|fixe)\b/i, 'tel'],
@@ -352,46 +366,286 @@ const ETIQUETTES_COLLAGE = [
   [/^(r[ée]f[ée]rence\w*|n[°o]? ?de commande|bon de commande|commande)\b/i, 'referenceInterne'],
 ];
 
+// Un document officiel est bavard : il date tout, classe tout, et la plupart de
+// ce qu'il annonce n'a rien à faire sur une fiche client. « Commune de
+// résidence » est celle d'un dirigeant, pas la ville qu'on facture.
+const ETIQUETTES_IGNOREES = [
+  /^commune de r[ée]sidence/i,
+  /^date\b/i,
+  /^d[ée]but d/i,
+  /^dur[ée]e /i,
+  /^nature de l/i,
+  /^activit[ée]s? principales?/i,
+  /^objet social/i,
+  /^code (ape|naf)/i,
+  /^capital( social)?\b/i,
+  /^type d'[ée]tablissement/i,
+  /^observation/i,
+  /^greffe/i,
+  /^page$/i,
+];
+
+// Le décor du document : en-têtes répétés à chaque page, mentions de source,
+// titres de section. Rien de tout cela n'est une donnée.
+const DECOR_COLLAGE = [
+  /^page\s*\d+\s*(\/\s*\d+)?$/i,
+  /^attestation d'immatriculation/i,
+  /^extrait (kbis|d'immatriculation)/i,
+  /^avis de situation au r[ée]pertoire/i,
+  /^ce document r[ée]capitule/i,
+  /^une mise [àa] jour quotidienne/i,
+  /^donn[ée]es (valid[ée]es issues|issues de la reprise)/i,
+  /^identit[ée] (de l'entreprise|du demandeur)/i,
+  /^gestion et direction$/i,
+  /^observations?$/i,
+  /^[ée]tablissements?\s*\(\d+\)$/i,
+  /^date de mise [àa] jour de l'entreprise/i,
+  /^observation n[°o]/i,
+  /^radiation d'office/i,
+  /^cet [ée]tablissement a [ée]t[ée] ferm[ée]/i,
+  /^https?:\/\//i,
+  // Un pied de mail commence par une politesse : ce n'est pas la raison sociale.
+  /^(bien )?(cordialement|sinc[èe]rement|amicalement|respectueusement|salutations)\b/i,
+  /^bien [àa] (vous|toi)\b/i,
+  /^(merci|bonjour|bonsoir|bonne (journ[ée]e|r[ée]ception|soir[ée]e))\b/i,
+  /^envoy[ée] de mon /i,
+  /^--+\s*$/,
+];
+
+// Sur un Kbis, le dirigeant se présente par sa fonction : « Président : DUPONT
+// Jean ». L'étiquette dit la fonction, la valeur dit la personne.
+const DIRIGEANT_RE = /^(pr[ée]sident(?:e|s)?(?: du directoire| du conseil d'administration)?|directeur g[ée]n[ée]ral|directrice g[ée]n[ée]rale|g[ée]rant(?:e)?|administrateur|administratrice|directeur|directrice)\b/i;
+
 // SASU avant SAS, SAS avant SA : la première trouvée gagne, l'ordre fait la règle.
 const FORMES_JURIDIQUES = ['SASU', 'SAS', 'SARL', 'EURL', 'SCOP', 'SCIC', 'SCI', 'EIRL', 'SEM', 'SPL',
   'GIE', 'EPCC', 'EPIC', 'Association loi 1901', 'Association', 'Fondation', 'Coop[ée]rative',
   'R[ée]gie', '[ÉE]tablissement public', 'Collectivit[ée]', 'Commune', 'Mairie', 'SA'];
 
+// Les documents officiels écrivent la forme en toutes lettres. On la rend en
+// sigle : c'est ainsi qu'elle s'imprime sur un devis.
+const FORMES_LONGUES = [
+  [/soci[ée]t[ée] par actions simplifi[ée]e (?:unipersonnelle|[àa] associ[ée] unique)/i, 'SASU'],
+  [/soci[ée]t[ée] par actions simplifi[ée]e/i, 'SAS'],
+  [/entreprise unipersonnelle [àa] responsabilit[ée] limit[ée]e/i, 'EURL'],
+  [/soci[ée]t[ée] [àa] responsabilit[ée] limit[ée]e/i, 'SARL'],
+  [/soci[ée]t[ée] coop[ée]rative d'int[ée]r[êe]t collectif/i, 'SCIC'],
+  [/soci[ée]t[ée] coop[ée]rative (?:et participative|ouvri[èe]re)/i, 'SCOP'],
+  [/soci[ée]t[ée] civile immobili[èe]re/i, 'SCI'],
+  [/soci[ée]t[ée] anonyme/i, 'SA'],
+  [/groupement d'int[ée]r[êe]t [ée]conomique/i, 'GIE'],
+  [/[ée]tablissement public de coop[ée]ration culturelle/i, 'EPCC'],
+  [/[ée]tablissement public [àa] caract[èe]re industriel/i, 'EPIC'],
+  [/entrepreneur individuel [àa] responsabilit[ée] limit[ée]e/i, 'EIRL'],
+  [/association (?:d[ée]clar[ée]e|loi (?:de )?1901)/i, 'Association loi 1901'],
+];
+
 const MAIL_RE = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
 const VOIE = 'rue|avenue|av\\.|boulevard|bd|chemin|place|impasse|route|all[ée]e|quai|cours|square|passage|esplanade|parvis|villa|sentier|faubourg|promenade|rond-?point|zone|z\\.?a\\.?|z\\.?i\\.?|bp|cs|lieu-?dit';
 const LIGNE_ADRESSE = new RegExp('^(?:\\d+\\s*(?:bis|ter|quater)?\\s*,?\\s*\\S|(?:' + VOIE + ')\\b)', 'i');
 const FONCTION_RE = /(directeur|directrice|administrat|charg[ée]|programmat|r[ée]gisseur|r[ée]gisseuse|secr[ée]taire|pr[ée]sident|tr[ée]sori|responsable|coordinat|attach[ée]|assistant|gestionnaire|comptab|producteur|productrice|diffusion|d[ée]l[ée]gu[ée])/i;
-const PAYS_CONNUS = /^(france|belgique|suisse|luxembourg|allemagne|espagne|italie|pays-bas|royaume-uni|canada|portugal|autriche)$/i;
+const PAYS_LISTE = 'france|belgique|suisse|luxembourg|allemagne|espagne|italie|pays-bas|royaume-uni|canada|portugal|autriche';
+const PAYS_CONNUS = new RegExp('^(' + PAYS_LISTE + ')$', 'i');
+const PAYS_EN_FIN = new RegExp('[\\s,;-]+(' + PAYS_LISTE + ')\\s*$', 'i');
+const DATE_SEULE = /^\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}$/;
+
+// Apostrophes typographiques, espaces insécables, tirets longs : un copier-coller
+// de PDF en est truffé, et chaque variante ferait rater une expression.
+function normaliserCollage(texte){
+  return String(texte || '')
+    .replace(/[   ]/g, ' ')
+    .replace(/[‘’‛]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—]/g, '-');
+}
+
+function capitaliserMots(s){
+  return String(s).replace(/([A-Za-zÀ-ÿ])([A-Za-zÀ-ÿ'-]*)/g, (m, a, b)=> a.toUpperCase() + b.toLowerCase());
+}
+// Les documents officiels crient en capitales. On rend « MONTPELLIER » lisible,
+// mais on ne touche pas à ce qui est déjà écrit normalement.
+function adoucirCapitales(s){
+  const v = String(s || '').trim();
+  return v && v === v.toUpperCase() && /[A-ZÀ-Þ]/.test(v) ? capitaliserMots(v) : v;
+}
+
+// Un SIRET porte une clé de Luhn : de quoi écarter quatorze chiffres qui n'en
+// sont pas un, quand rien ne les annonce.
+function siretPlausible(chiffres){
+  if(!/^\d{14}$/.test(chiffres)) return false;
+  let somme = 0;
+  for(let i = 0; i < 14; i++){
+    let c = +chiffres[13 - i];
+    if(i % 2 === 1){ c *= 2; if(c > 9) c -= 9; }
+    somme += c;
+  }
+  return somme % 10 === 0;
+}
+
+// La clé de TVA se calcule à partir du SIREN : (12 + 3 × (SIREN mod 97)) mod 97.
+// C'est une déduction et non une lecture — l'aperçu le dit, et la case se décoche.
+function tvaDepuisSiren(siren){
+  const n = String(siren || '').replace(/\D/g, '');
+  if(!/^\d{9}$/.test(n)) return '';
+  return 'FR' + String((12 + 3 * (Number(n) % 97)) % 97).padStart(2, '0') + n;
+}
+
+// « 28 AVENUE DE LODEVE 34000 MONTPELLIER FRANCE » tient sur une ligne mais fait
+// quatre champs. Le code postal sert de charnière ; on prend le dernier, un
+// numéro de voie à cinq chiffres ne doit pas passer pour lui.
+function decouperAdresse(valeur){
+  let v = String(valeur || '').replace(/\s+/g, ' ').trim();
+  const out = {};
+  const pays = v.match(PAYS_EN_FIN);
+  if(pays){
+    out.pays = capitaliserMots(pays[1]);
+    v = v.slice(0, v.length - pays[0].length).trim();
+  }
+  let dernier = null;
+  const cp = new RegExp('(^|[\\s,;])(\\d{5})(?=[\\s,;]|$)', 'g');
+  let m;
+  while((m = cp.exec(v))) dernier = m;
+  if(dernier){
+    out.codePostal = dernier[2];
+    const avant = v.slice(0, dernier.index).replace(/[\s,;-]+$/, '').trim();
+    const apres = v.slice(dernier.index + dernier[0].length).replace(/^[\s,;.-]+/, '').trim();
+    if(avant) out.adresse = avant;
+    if(apres) out.ville = adoucirCapitales(apres);
+  } else if(v){
+    out.adresse = v;
+  }
+  return out;
+}
+
+// Rend la forme juridique en sigle. « SAS, société par actions simplifiée »
+// tient sur trois lettres.
+function formeDepuis(texte){
+  const t = String(texte || '');
+  if(!t.trim()) return '';
+  const court = FORMES_JURIDIQUES.find(f=> new RegExp('(^|[^A-Za-zÀ-ÿ])(' + f + ')([^A-Za-zÀ-ÿ]|$)', 'i').test(t));
+  if(court) return t.match(new RegExp('(^|[^A-Za-zÀ-ÿ])(' + court + ')([^A-Za-zÀ-ÿ]|$)', 'i'))[2];
+  const longue = FORMES_LONGUES.find(([re])=> re.test(t));
+  return longue ? longue[1] : '';
+}
+
+// « BROCHE GUILLAUME » : le nom d'abord, les prénoms ensuite, tout en capitales.
+// On rend « Guillaume Broche », qui est la façon dont on s'adresse aux gens.
+// Si le texte n'est pas en capitales, il n'est pas au format officiel : on n'y
+// touche pas, l'ordre y est déjà le bon.
+function nomPrenomOfficiel(valeur){
+  const premier = String(valeur || '').split(/\s*,\s*/)[0].replace(/\s+/g, ' ').trim();
+  if(!premier) return '';
+  if(premier !== premier.toUpperCase()) return premier;
+  const mots = premier.split(' ');
+  return mots.length === 2 ? capitaliserMots(mots[1] + ' ' + mots[0]) : capitaliserMots(premier);
+}
+
+// « Président de SAS » est une qualité de greffe ; sur une fiche client on écrit
+// « Président ».
+function nettoyerFonction(valeur){
+  return String(valeur || '')
+    .replace(/\s+(?:de|d')\s*(?:SASU|SAS|SARL|EURL|SCOP|SCIC|SCI|SA)\b.*$/i, '')
+    .replace(/\s+titulaire\s*$/i, '')
+    .trim();
+}
+
+// Une ligne peut en cacher deux : « SIRET : 784 359 106 00027 — TVA : FR42… ».
+// Sur les champs qui ont une forme connue, on ne garde que cette forme.
+const NETTOYAGE_VALEUR = {
+  siret: (v)=>{ const m = v.match(/(?:\d[\s.]*){14}/); return m ? m[0].replace(/\D/g, '') : v; },
+  tvaIntracom: (v)=>{ const m = v.match(/\b[A-Z]{2}\s?[0-9A-Z]{2}(?:\s?\d{3}){3}\b/i); return m ? m[0].replace(/\s+/g, '').toUpperCase() : v; },
+  email: (v)=>{ const m = v.match(MAIL_RE); return m ? m[0] : v; },
+  comptaEmail: (v)=>{ const m = v.match(MAIL_RE); return m ? m[0] : v; },
+  codePostal: (v)=>{ const m = v.match(/\b\d{5}\b/); return m ? m[0] : v; },
+};
+
+// Seules les formes commerciales sont assujetties d'office. Déduire un numéro de
+// TVA pour une association ou une commune, ce serait en inventer un.
+const FORMES_ASSUJETTIES = /^(SASU|SAS|SARL|EURL|SA|SCI|SCOP|SCIC|GIE|EIRL|SEM|SPL)$/i;
+
+// Un document d'entreprise liste tous les établissements, fermés compris. C'est
+// le SIRET du siège qu'on facture.
+function siretDuSiege(lignes){
+  for(let i = 0; i < lignes.length; i++){
+    if(!/type d'[ée]tablissement\s*:.*si[èe]ge/i.test(lignes[i])) continue;
+    for(let j = i; j < Math.min(i + 12, lignes.length); j++){
+      const m = lignes[j].match(/siret[^0-9]{0,12}((?:\d[\s.]*){14})/i);
+      if(m) return m[1].replace(/\D/g, '');
+    }
+  }
+  return '';
+}
 
 function lireCoordonnees(texte){
   const lu = {};
-  const brut = String(texte || '');
+  const deduits = {};
+  const brut = normaliserCollage(texte);
   const prendre = (cle, valeur)=>{
     const v = valeur == null ? '' : String(valeur).trim();
     if(v && !lu[cle]) lu[cle] = v;
   };
 
+  const lignes = brut.split(/\r?\n/).map(l=> l.replace(/\s+/g, ' ').trim())
+    .filter(l=> l && !DECOR_COLLAGE.some(re=> re.test(l)));
+
+  // Le siège avant tout le reste : posé en premier, il ne peut plus être écrasé
+  // par le SIRET d'un établissement fermé cité plus bas.
+  const siege = siretDuSiege(lignes);
+  if(siege) prendre('siret', siege);
+
   // Passe 1 — les lignes étiquetées.
   const restantes = [];
-  brut.split(/\r?\n/).map(l=> l.replace(/\s+/g, ' ').trim()).forEach(ligne=>{
-    if(!ligne) return;
+  const venuesDEtiquette = new Set();
+  let siren = '';
+  for(let i = 0; i < lignes.length; i++){
+    const ligne = lignes[i];
     const coupe = ligne.match(/^([^:]{2,40}?)\s*:\s*(.+)$/);
-    if(coupe){
-      const trouve = ETIQUETTES_COLLAGE.find(([re])=> re.test(coupe[1].trim()));
-      if(trouve){ prendre(trouve[1], coupe[2]); return; }
+    if(!coupe){ restantes.push(ligne); continue; }
+    const etiquette = coupe[1].trim();
+    let valeur = coupe[2].trim();
+    if(ETIQUETTES_IGNOREES.some(re=> re.test(etiquette))) continue;
+    if(/^(siren|n[°o]? ?siren|num[ée]ro siren|num[ée]ro d'identification|rcs)\b/i.test(etiquette)){
+      const n = valeur.replace(/\D/g, '');
+      if(/^\d{9}/.test(n) && !siren) siren = n.slice(0, 9);
+      continue;
     }
-    restantes.push(ligne);
-  });
+    const trouve = ETIQUETTES_COLLAGE.find(([re])=> re.test(etiquette));
+    // Une adresse coupée par la mise en page : « Adresse : 28 AVENUE DE LODEVE »
+    // puis « 34000 , MONTPELLIER - FRANCE » à la ligne suivante.
+    if(trouve && trouve[1] === 'adresse' && !/\d{5}/.test(valeur)){
+      const suite = lignes[i + 1] || '';
+      if(/^\d{5}\b/.test(suite)){ valeur += ' ' + suite; i++; }
+    }
+    if(trouve){
+      if(trouve[1] === 'contactNom' && /^nom,?\s*pr[ée]nom/i.test(etiquette)) valeur = nomPrenomOfficiel(valeur);
+      if(trouve[1] === 'contactFonction') valeur = nettoyerFonction(valeur);
+      if(trouve[1] === 'ville') valeur = adoucirCapitales(valeur);
+      if(NETTOYAGE_VALEUR[trouve[1]]) valeur = NETTOYAGE_VALEUR[trouve[1]](valeur);
+      prendre(trouve[1], valeur);
+      continue;
+    }
+    if(DIRIGEANT_RE.test(etiquette)){
+      prendre('contactNom', nomPrenomOfficiel(valeur));
+      prendre('contactFonction', capitaliserMots(etiquette.match(DIRIGEANT_RE)[1]));
+      continue;
+    }
+    // Étiquette inconnue : la valeur peut encore servir (une fonction, un
+    // téléphone), le nom de la structure non — sinon « Objet : … » deviendrait
+    // la raison sociale.
+    restantes.push(valeur);
+    venuesDEtiquette.add(valeur);
+  }
 
   // Passe 2 — les repères de forme.
   const siretDit = brut.match(/siret[^0-9]{0,12}((?:\d[\s.]*){14})/i);
   const siretVu = brut.match(/\b\d{3}[\s.]?\d{3}[\s.]?\d{3}[\s.]?\d{5}\b/);
-  const siret = (siretDit && siretDit[1]) || (siretVu && siretVu[0]);
+  const candidat = (siretDit && siretDit[1].replace(/\D/g, ''))
+    || (siretVu && siretPlausible(siretVu[0].replace(/\D/g, '')) ? siretVu[0].replace(/\D/g, '') : '');
+  if(candidat) prendre('siret', candidat);
   // Un SIRET s'écrit en quatre groupes : c'est ainsi qu'il se relit et qu'il
   // s'imprime sur un devis.
   const grouper = (chiffres)=> chiffres.replace(/^(\d{3})(\d{3})(\d{3})(\d{5})$/, '$1 $2 $3 $4');
-  if(siret) prendre('siret', grouper(siret.replace(/\D/g, '')));
   if(lu.siret) lu.siret = grouper(lu.siret.replace(/\D/g, ''));
+  if(!siren && lu.siret) siren = lu.siret.replace(/\D/g, '').slice(0, 9);
 
   const tva = brut.match(/\bFR\s?[0-9A-Z]{2}\s?\d{3}\s?\d{3}\s?\d{3}\b/i);
   if(tva) prendre('tvaIntracom', tva[0].replace(/\s+/g, '').toUpperCase());
@@ -408,16 +662,25 @@ function lireCoordonnees(texte){
   const tel = sansIdents.match(/(?:\+33|0033|0)\s?[1-9](?:[\s.\-]?\d{2}){4}\b/);
   if(tel) prendre('tel', tel[0].trim());
 
+  // Une adresse déjà lue en une seule ligne se répartit sur ses quatre champs.
+  if(lu.adresse && /\d{5}/.test(lu.adresse)){
+    const parts = decouperAdresse(lu.adresse);
+    if(parts.adresse) lu.adresse = parts.adresse;
+    prendre('codePostal', parts.codePostal);
+    prendre('ville', parts.ville);
+    prendre('pays', parts.pays);
+  }
+
   const CP_RE = /(?:^|[,;]\s*)(\d{5})\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’\- ]{1,40}(?:\s+CEDEX(?:\s+\d{1,2})?)?)$/i;
   const idxCp = restantes.findIndex(l=> CP_RE.test(l));
   if(idxCp >= 0){
     const m = restantes[idxCp].match(CP_RE);
     prendre('codePostal', m[1]);
-    prendre('ville', m[2]);
+    prendre('ville', adoucirCapitales(m[2]));
   }
 
-  const estIdent = (l)=> MAIL_RE.test(l) || /siret|tva|rcs|\bape\b|\bnaf\b|capital|t[ée]l|paiement|r[èe]glement/i.test(l);
-  let adresse = restantes.find(l=> !/^\d{5}(\s|$)/.test(l) && !estIdent(l) && LIGNE_ADRESSE.test(l));
+  const estIdent = (l)=> MAIL_RE.test(l) || /siret|siren|tva|rcs|\brne\b|\bape\b|\bnaf\b|capital|t[ée]l|paiement|r[èe]glement/i.test(l);
+  let adresse = restantes.find(l=> !/^\d{5}(\s|$)/.test(l) && !estIdent(l) && !DATE_SEULE.test(l) && LIGNE_ADRESSE.test(l));
   if(!adresse && idxCp > 0){
     const avant = restantes[idxCp - 1];
     if(avant && !estIdent(avant)) adresse = avant;
@@ -426,38 +689,78 @@ function lireCoordonnees(texte){
   if(adresse) prendre('adresse', adresse.replace(/[,;]?\s*\d{5}\s+[A-Za-zÀ-ÿ].*$/, '').replace(/[,;\s]+$/, ''));
 
   const paysVu = restantes.find(l=> PAYS_CONNUS.test(l));
-  prendre('pays', paysVu ? paysVu.charAt(0).toUpperCase() + paysVu.slice(1).toLowerCase() : (lu.codePostal ? 'France' : ''));
+  prendre('pays', paysVu ? capitaliserMots(paysVu) : (lu.codePostal ? 'France' : ''));
 
-  // La raison sociale : la première ligne qui n'est ni une adresse, ni un
-  // identifiant, ni un contact. Le haut d'un bloc de coordonnées, en somme.
   const estAdresse = (l)=> /^\d{5}(\s|$)/.test(l) || CP_RE.test(l) || LIGNE_ADRESSE.test(l);
-  prendre('nom', restantes.find(l=> l.length >= 2 && !estIdent(l) && !estAdresse(l)
-    && !/^\+?[\d\s.\-()]{6,}$/.test(l) && !PAYS_CONNUS.test(l)));
+  const NOM_PROPRE = /^[A-ZÀ-Þ][\wÀ-ÿ'’-]+(?:\s+[A-ZÀ-Þ][\wÀ-ÿ'’-]+){1,2}$/;
 
-  const forme = FORMES_JURIDIQUES.find(f=> new RegExp('(^|[^A-Za-zÀ-ÿ])(' + f + ')([^A-Za-zÀ-ÿ]|$)', 'i').test(brut));
-  if(forme){
-    const m = brut.match(new RegExp('(^|[^A-Za-zÀ-ÿ])(' + forme + ')([^A-Za-zÀ-ÿ]|$)', 'i'));
-    // « Mairie de Saint-Denis » est déjà une raison sociale : ne pas la
-    // recopier en forme juridique, ce serait deux fois la même information.
-    const dansLeNom = lu.nom && lu.nom.toLowerCase().includes(m[2].toLowerCase());
-    if(!dansLeNom) prendre('formeJuridique', m[2]);
+  // Dans un pied de mail, la personne passe avant sa structure : « Claire
+  // Fontaine / Chargée de production / Théâtre du Rond-Point ». La reconnaître
+  // d'abord évite de prendre son nom pour la raison sociale. On ne la retient
+  // ici que si une fonction la suit — sans quoi ce n'est qu'une ligne de plus.
+  let idxContact = -1, idxFonction = -1;
+  if(!lu.contactNom){
+    for(let i = 0; i < restantes.length; i++){
+      const ligne = restantes[i];
+      if(estIdent(ligne) || estAdresse(ligne) || PAYS_CONNUS.test(ligne)) continue;
+      const morceaux = ligne.split(/\s*[,;]\s*|\s+[–—-]\s+/);
+      if(!NOM_PROPRE.test(morceaux[0])) continue;
+      const suite = morceaux.slice(1).find(x=> FONCTION_RE.test(x));
+      const apres = restantes[i + 1];
+      const fonctionEnDessous = !suite && apres && FONCTION_RE.test(apres)
+        && apres.length <= 60 && !MAIL_RE.test(apres) && !/:/.test(apres);
+      if(!suite && !fonctionEnDessous) continue;
+      idxContact = i;
+      prendre('contactNom', morceaux[0]);
+      if(suite) prendre('contactFonction', nettoyerFonction(suite));
+      else { idxFonction = i + 1; prendre('contactFonction', nettoyerFonction(apres)); }
+      break;
+    }
   }
 
-  // Un contact : deux ou trois mots capitalisés, la fonction souvent à la suite.
-  const NOM_PROPRE = /^[A-ZÀ-Þ][\wÀ-ÿ'’-]+(?:\s+[A-ZÀ-Þ][\wÀ-ÿ'’-]+){1,2}$/;
-  for(const ligne of restantes){
-    if(lu.contactNom) break;
-    if(ligne === lu.nom || estIdent(ligne) || estAdresse(ligne) || PAYS_CONNUS.test(ligne)) continue;
-    const morceaux = ligne.split(/\s*[,;]\s*|\s+[–—-]\s+/);
-    if(NOM_PROPRE.test(morceaux[0])){
-      prendre('contactNom', morceaux[0]);
-      const suite = morceaux.slice(1).find(x=> FONCTION_RE.test(x));
-      if(suite) prendre('contactFonction', suite);
+  // La raison sociale : la première ligne qui n'est ni une adresse, ni un
+  // identifiant, ni un contact, ni une phrase. Le haut d'un bloc de
+  // coordonnées, en somme.
+  prendre('nom', restantes.find((l, i)=> i !== idxContact && i !== idxFonction
+    && l.length >= 2 && l.length <= 90 && l.split(' ').length <= 8
+    && !venuesDEtiquette.has(l) && !estIdent(l) && !estAdresse(l)
+    && !/^\+?[\d\s.\-()]{6,}$/.test(l) && !PAYS_CONNUS.test(l)));
+
+  // La forme juridique annoncée d'abord, si elle en est bien une : la mise en
+  // page d'un PDF sur deux colonnes met parfois l'étiquette d'à côté en face de
+  // « Forme juridique : ». Sinon on la cherche dans tout le texte.
+  const forme = formeDepuis(lu.formeJuridique) || formeDepuis(lignes.join('\n'));
+  // « Mairie de Saint-Denis » est déjà une raison sociale : ne pas la recopier
+  // en forme juridique, ce serait deux fois la même information.
+  const dansLeNom = forme && lu.nom && lu.nom.toLowerCase().includes(forme.toLowerCase());
+  if(forme && !dansLeNom) lu.formeJuridique = forme;
+  else delete lu.formeJuridique;
+
+  // Le numéro de TVA se déduit du SIREN, mais une déduction n'est pas une
+  // lecture : on ne la propose que pour les formes assujetties d'office, et
+  // l'aperçu la laisse décochée.
+  if(!lu.tvaIntracom && siren && FORMES_ASSUJETTIES.test(lu.formeJuridique || '')){
+    const calcule = tvaDepuisSiren(siren);
+    if(calcule){ lu.tvaIntracom = calcule; deduits.tvaIntracom = 'déduit du SIREN'; }
+  }
+
+  // Faute de fonction repérée, un nom propre isolé fait quand même un contact.
+  if(!lu.contactNom){
+    for(const ligne of restantes){
+      if(lu.contactNom) break;
+      if(ligne === lu.nom || estIdent(ligne) || estAdresse(ligne) || PAYS_CONNUS.test(ligne)) continue;
+      const morceaux = ligne.split(/\s*[,;]\s*|\s+[–—-]\s+/);
+      if(NOM_PROPRE.test(morceaux[0])){
+        prendre('contactNom', morceaux[0]);
+        const suite = morceaux.slice(1).find(x=> FONCTION_RE.test(x));
+        if(suite) prendre('contactFonction', nettoyerFonction(suite));
+      }
     }
   }
   if(!lu.contactFonction){
-    const seule = restantes.find(l=> l !== lu.contactNom && l !== lu.nom && FONCTION_RE.test(l) && l.length <= 60 && !MAIL_RE.test(l));
-    if(seule) prendre('contactFonction', seule);
+    const seule = restantes.find(l=> l !== lu.contactNom && l !== lu.nom && FONCTION_RE.test(l)
+      && l.length <= 60 && !MAIL_RE.test(l) && !/:/.test(l));
+    if(seule) prendre('contactFonction', nettoyerFonction(seule));
   }
 
   if(/(paiement|r[èe]glement|[ée]ch[ée]ance)/i.test(brut)){
@@ -467,6 +770,7 @@ function lireCoordonnees(texte){
   const ref = brut.match(/(?:bon de commande|n[°o]\s*de commande|commande|r[ée]f[ée]rence)\s*(?:n[°o])?\s*:?\s*([A-Z0-9][A-Z0-9\/\-_.]{2,24})/i);
   if(ref) prendre('referenceInterne', ref[1]);
 
+  Object.defineProperty(lu, '_deduits', { value: deduits, enumerable: false });
   return lu;
 }
 
@@ -486,14 +790,21 @@ function renderCollageApercu(){
       : '<p class="lu-rien">Ce qui aura été reconnu s\'affichera ici, champ par champ.</p>';
     return;
   }
-  holder.innerHTML = `<div class="lu-tete">${trouves.length} champ${trouves.length > 1 ? 's reconnus' : ' reconnu'} — décoche ce que tu ne veux pas</div>
+  const deduits = luCourant._deduits || {};
+  const nbDeduits = trouves.filter(([cle])=> deduits[cle]).length;
+  const lus = trouves.length - nbDeduits;
+  const tete = nbDeduits
+    ? `${lus} champ${lus > 1 ? 's lus' : ' lu'} et ${nbDeduits} déduit${nbDeduits > 1 ? 's' : ''} — les déductions arrivent décochées`
+    : `${lus} champ${lus > 1 ? 's reconnus' : ' reconnu'} — décoche ce que tu ne veux pas`;
+  holder.innerHTML = `<div class="lu-tete">${tete}</div>
     <div class="lu-liste">${trouves.map(([cle, libelle])=>{
       const ancien = ouvert ? (ouvert[cle] || '').trim() : '';
       return `<div class="lu-ligne">
-        <input type="checkbox" id="lu-${escapeAttr(cle)}" data-lu="${escapeAttr(cle)}" checked>
+        <input type="checkbox" id="lu-${escapeAttr(cle)}" data-lu="${escapeAttr(cle)}" ${deduits[cle] ? '' : 'checked'}>
         <label for="lu-${escapeAttr(cle)}">
           <span class="cle">${escapeHtml(libelle)}</span>
           <span class="val">${escapeHtml(luCourant[cle])}</span>
+          ${deduits[cle] ? `<span class="deduit">${escapeHtml(deduits[cle])}, pas lu sur le document — à vérifier</span>` : ''}
           ${ancien && ancien !== luCourant[cle] ? `<span class="ecrase">remplacerait « ${escapeHtml(ancien)} » sur la fiche ouverte</span>` : ''}
         </label>
       </div>`;
