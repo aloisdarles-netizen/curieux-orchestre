@@ -720,6 +720,39 @@ const CurieuxDB = (()=>{
     return (data || []).map(adapter.fromDb);
   }
 
+  // Une seule ligne, par son id — pour vérifier la fraîcheur d'un document
+  // ouvert sans recharger toute la table.
+  async function fetchOne(table, id){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.from(table).select('*').eq('id', id).maybeSingle();
+    if(error){ console.warn(`[CurieuxDB] fetchOne(${table})`, error.message); return null; }
+    return data ? adapterFor(table).fromDb(data) : null;
+  }
+
+  // Écriture « si personne n'a écrit entre-temps » : ne remplace la ligne que
+  // si elle porte encore la version qu'on a lue (_updatedAt). Si quelqu'un
+  // d'autre a enregistré depuis, rien n'est écrit et SA version est renvoyée
+  // (conflit: true) — au lieu qu'une page restée ouverte écrase en silence le
+  // travail des autres. Volontairement hors de la file de rejeu (_ecrire) :
+  // rejouer plus tard une écriture versionnée n'aurait aucun sens, sa version
+  // serait forcément périmée. Réservé aux tables {id, data} dont l'adaptateur
+  // expose _updatedAt (devis).
+  async function upsertOneVersionne(table, item){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const adapter = adapterFor(table);
+    const { id, ...reste } = adapter.toDb(item);
+    const { data: maj, error } = await supabaseClient.from(table)
+      .update(reste).eq('id', id)
+      .eq('updated_at', item._updatedAt || '1970-01-01T00:00:00Z')
+      .select('updated_at');
+    if(error){ console.warn(`[CurieuxDB] upsertOneVersionne(${table})`, error.message); return { error }; }
+    if(maj && maj.length) return { error: null, _updatedAt: maj[0].updated_at };
+    const { data: frais, error: e2 } = await supabaseClient.from(table).select('*').eq('id', id).maybeSingle();
+    if(e2) return { error: e2 };
+    if(!frais) return { error: null, absent: true };
+    return { error: null, conflit: true, distant: adapter.fromDb(frais) };
+  }
+
   // Upsert de toute une collection (équivalent de l'ancien saveXxx(list)) —
   // sans plus jamais supprimer ce qui manquerait de la liste. Avant, syncCollection
   // supprimait tout ce qui n'était pas dans "list", ce qui était dangereux dès que
@@ -1588,7 +1621,7 @@ const CurieuxDB = (()=>{
   }
 
   return {
-    fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
+    fetchAll, fetchOne, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
     fetchReglages, setPhaseTest, setVillesBase, setCommTachesTypes, setCommNewsletterJour, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,

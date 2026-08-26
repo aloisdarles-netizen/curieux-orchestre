@@ -524,6 +524,7 @@ const CurieuxDB = new Proxy({
   subscribe: () => {},
   syncCollection: async () => ({ error: null }),
   upsertOne: async () => ({ error: null }),
+  upsertOneVersionne: async () => ({ error: null, _updatedAt: 'demo-version' }),
   getSession: async () => ({ user:{ id:'demo', email:'demo@curieux.fr' } }),
   hasAppAccess: async () => true,
   // « ?refus=admin » ou « ?refus=technique » dans l'URL fait répondre non au

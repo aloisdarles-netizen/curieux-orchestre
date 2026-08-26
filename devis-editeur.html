@@ -354,11 +354,93 @@ function marquerModifie(){
 }
 async function sauvegarder(){
   if(sauvegardeEnCours){ marquerModifie(); return; }
+  // Le minuteur a fait son office : le remettre à zéro, sinon il resterait
+  // truthy à jamais et ferait croire à des frappes en attente — ce qui
+  // bloquerait les mises à jour venues des autres (voir surVersionDistante).
+  clearTimeout(timerSauvegarde); timerSauvegarde = null;
   sauvegardeEnCours = true;
   afficherEtatSauvegarde('Enregistrement…');
-  const { error } = await CurieuxDB.upsertOne('devis', devis);
+  // Écriture versionnée : on ne remplace que la version qu'on a lue. Si
+  // quelqu'un d'autre a enregistré entre-temps, rien n'est écrasé — sa
+  // version revient et on la reprend, en le disant.
+  const res = await CurieuxDB.upsertOneVersionne('devis', devis);
   sauvegardeEnCours = false;
-  afficherEtatSauvegarde(error ? '⚠ Non enregistré — réessaie' : 'Enregistré ✓');
+  if(res.error){ afficherEtatSauvegarde('⚠ Non enregistré — réessaie'); return; }
+  if(res.absent){
+    afficherEtatSauvegarde('⚠ Supprimé ailleurs');
+    signalerConcurrence("Ce document vient d'être supprimé par quelqu'un d'autre : plus rien ne s'enregistre ici.", false);
+    return;
+  }
+  if(res.conflit){ adopterVersionDistante(res.distant, true); return; }
+  devis._updatedAt = res._updatedAt;
+  afficherEtatSauvegarde('Enregistré ✓');
+}
+
+// La version de quelqu'un d'autre remplace la nôtre. Après un conflit
+// d'écriture, nos toutes dernières frappes (700 ms de débounce au plus) n'ont
+// pas été écrites : on le dit clairement, plutôt que d'écraser son travail en
+// silence — c'est le seul cas où quelque chose se perd, et il se voit.
+function adopterVersionDistante(distant, apresConflit){
+  devis = distant;
+  const i = tousDevis.findIndex(d=> d.id === devis.id);
+  if(i >= 0) tousDevis[i] = devis;
+  clearTimeout(timerSauvegarde); timerSauvegarde = null;
+  if(apresConflit){
+    renderTout();
+    afficherEtatSauvegarde('Repris sur sa version');
+    signalerConcurrence("Quelqu'un d'autre a enregistré ce document au même moment. Sa version vient d'être reprise — vérifie ta toute dernière modification, elle est peut-être à refaire.", false);
+  } else {
+    // Mise à jour de courtoisie : différée si une saisie est en cours
+    // (curieuxRafraichir attend la fin de frappe pour ne pas voler le focus).
+    curieuxRafraichir(()=>{ renderTout(); });
+    afficherEtatSauvegarde('Mis à jour ✓');
+    signalerConcurrence("Ce document vient d'être modifié par quelqu'un d'autre : la page s'est mise à jour avec sa version.", true);
+  }
+}
+
+// Le bandeau de concurrence : sous la barre de tête, éphémère quand tout va
+// bien, persistant quand une action est attendue.
+function signalerConcurrence(texte, ephemere){
+  let el = document.getElementById('noteConcurrence');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'noteConcurrence';
+    el.className = 'co-note';
+    el.style.margin = '0 0 14px';
+    const page = document.getElementById('page');
+    page.insertBefore(el, page.firstChild);
+  }
+  el.textContent = texte;
+  el.style.display = 'block';
+  clearTimeout(el._minuteur);
+  if(ephemere) el._minuteur = setTimeout(()=>{ el.style.display = 'none'; }, 9000);
+}
+
+// Deux personnes sur le même document : chacune voit arriver les
+// enregistrements de l'autre. Le canal temps réel quand le projet Supabase le
+// publie, un sondage discret sinon — la fraîcheur ne doit pas dépendre d'un
+// réglage serveur. Tant que NOS frappes attendent leur sauvegarde, on ne
+// touche à rien : l'écriture versionnée tranchera.
+function surVersionDistante(frais){
+  if(!devis || !frais || frais.id !== devis.id) return;
+  if(sauvegardeEnCours || timerSauvegarde) return;
+  if(!frais._updatedAt || frais._updatedAt === devis._updatedAt) return;
+  adopterVersionDistante(frais, false);
+}
+function armerFraicheur(){
+  try{
+    CurieuxDB.subscribe('devis', (p)=>{
+      if(p && p.new && p.new.id && devis && p.new.id === devis.id){
+        surVersionDistante({ ...(p.new.data || {}), id: p.new.id, _updatedAt: p.new.updated_at });
+      }
+    });
+  }catch(e){}
+  const verifier = async ()=>{
+    if(document.hidden || !devis || sauvegardeEnCours || timerSauvegarde) return;
+    surVersionDistante(await CurieuxDB.fetchOne('devis', devis.id));
+  };
+  setInterval(verifier, 15000);
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) verifier(); });
 }
 function afficherEtatSauvegarde(texte){
   const el = document.getElementById('etatSauvegarde');
@@ -387,6 +469,7 @@ async function charger(){
     return;
   }
   renderTout();
+  armerFraicheur();
 }
 
 // --- Rendu ------------------------------------------------------------------
@@ -487,18 +570,18 @@ function renderTete(){
     devis.numero = devis.numero || prochainNumeroDevis(tousDevis);
     devis.statut = 'envoye'; devis.fige = true;
     devis.dateEnvoi = new Date().toISOString().slice(0, 10);
-    await CurieuxDB.upsertOne('devis', devis);
+    await sauvegarder();
     renderTout();
   });
   const accepteBtn = document.getElementById('accepteBtn');
   if(accepteBtn) accepteBtn.addEventListener('click', async ()=>{
     devis.statut = 'accepte';
-    await CurieuxDB.upsertOne('devis', devis); renderTete();
+    await sauvegarder(); renderTete();
   });
   const refuseBtn = document.getElementById('refuseBtn');
   if(refuseBtn) refuseBtn.addEventListener('click', async ()=>{
     devis.statut = 'refuse';
-    await CurieuxDB.upsertOne('devis', devis); renderTete();
+    await sauvegarder(); renderTete();
   });
   document.getElementById('supprimerBtn').addEventListener('click', async ()=>{
     if(!confirm(`Supprimer définitivement « ${devis.titre || 'ce devis'} »${devis.variante ? ' (' + devis.variante + ')' : ''} ?`)) return;
