@@ -107,7 +107,14 @@
   .sec-carte:hover .sec-outils, .sec-carte:focus-within .sec-outils{opacity:1;}
 
   .lignes-scroll{overflow-x:auto;}
-  table.feuille{width:100%; border-collapse:collapse; min-width:1020px; font-variant-numeric:tabular-nums;}
+  /* table-layout:fixed — sans lui, les largeurs du colgroup ne sont qu'une
+     suggestion : le navigateur les redistribue selon le contenu, et deux
+     sections voisines n'ont plus les mêmes colonnes. Un devis est une grille,
+     elle doit se lire d'aplomb du haut en bas de la page. */
+  table.feuille{width:100%; table-layout:fixed; border-collapse:collapse; min-width:1020px; font-variant-numeric:tabular-nums;}
+  /* La colonne Régime existe partout pour que tout s'aligne ; là où elle n'a
+     pas de sens (VHR, matériel), elle le dit au lieu de laisser un trou. */
+  table.feuille td.c-regime-vide{color:var(--muted); text-align:center; font-weight:700;}
 
   /* En-tête de colonnes : une seule fois par section (et non par groupe,
      qui répétait la même rangée jusqu'à cinq fois dans une seule section).
@@ -621,7 +628,7 @@ function renderEditeur(){
 function renderSection(sec, si){
   const fige = devis.fige ? 'disabled' : '';
   const tvaDefaut = devisNombre(devis.tvaDefaut, 20);
-  const nbCols = sec.remuneration ? 9 : 8;
+  const nbCols = 9;   // la colonne Régime est réservée même quand elle ne sert pas
 
   // Une seule table par section : un en-tête de colonnes, puis un <tbody> par
   // groupe. Avant, chaque groupe portait sa propre table et donc sa propre
@@ -675,13 +682,13 @@ function renderSection(sec, si){
       <colgroup>
         <col style="width:25%"><col style="width:20%">
         <col style="width:64px"><col style="width:60px"><col style="width:124px"><col style="width:110px">
-        ${sec.remuneration ? '<col style="width:118px">' : ''}
+        <col style="width:118px">
         <col style="width:128px"><col style="width:120px">
       </colgroup>
       <thead><tr>
         <th>Intitulé</th><th>Nom / infos</th>
         <th class="n">Jours</th><th class="n">Qté</th><th>Unité</th><th class="n">P.U. €</th>
-        ${sec.remuneration ? '<th>Régime</th>' : ''}
+        <th>Régime</th>
         <th class="n">Total</th><th></th>
       </tr></thead>
       ${corps}
@@ -712,7 +719,7 @@ function renderLigne(sec, si, gi, l, li){
     <td><input type="text" inputmode="decimal" class="n" value="${escapeAttr(l.prix === '' || l.prix == null ? '' : l.prix)}" data-l="${cle}:prix" ${fige}></td>
     ${sec.remuneration ? `<td><select class="chip r-${escapeAttr(l.regime || 'aucun')}" data-l="${cle}:regime" ${fige}>
       ${DEVIS_REGIMES.map(([v, lib, court])=> `<option value="${v}" ${l.regime === v ? 'selected' : ''} title="${escapeAttr(lib)}">${escapeHtml(court || lib)}</option>`).join('')}
-    </select></td>` : ''}
+    </select></td>` : '<td class="c-regime-vide" title="Sans objet hors rémunération">—</td>'}
     <td class="c-total" data-total="${cle}">${l.etat === 'optionnelle' ? '<span class="opt">OPTION</span>' : ''}${fmtEurosDevis(totalLigneDevis(l))}</td>
     <td class="c-outils"><span class="outils"><select class="chip e-${escapeAttr(etat)}" data-l="${cle}:etat" title="État de la ligne" ${fige}>
         <option value="incluse" ${etat === 'incluse' ? 'selected' : ''}>Incluse</option>
