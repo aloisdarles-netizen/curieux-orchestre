@@ -78,6 +78,31 @@
   .totaux-cli b{display:block; font-family:var(--font-display); font-size:20px; font-weight:500; color:var(--text); font-variant-numeric:tabular-nums;}
 
   .etat-enr{font-size:11.5px; color:var(--muted); margin-left:auto;}
+
+  /* Import par collage : on colle un bloc de coordonnées, on relit, on applique. */
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(20,15,10,.5); align-items:center; justify-content:center; padding:20px; z-index:50; overflow-y:auto;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--card); border-radius:14px; padding:24px; max-width:660px; width:100%; max-height:88vh; overflow-y:auto; margin:auto;}
+  .modal h2{font-size:17px; margin:0 0 6px;}
+  .modal .intro{font-size:12.5px; color:var(--muted); line-height:1.5; margin:0 0 14px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px; flex-wrap:wrap;}
+  #collageTexte{min-height:150px; font-size:13px; line-height:1.5;}
+  .lu-tete{
+    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--muted); margin:16px 0 6px;
+  }
+  .lu-liste{border:1px solid var(--border); border-radius:10px; overflow:hidden;}
+  .lu-ligne{
+    display:flex; align-items:flex-start; gap:10px; padding:9px 12px;
+    border-bottom:1px solid var(--border); font-size:13px;
+  }
+  .lu-ligne:last-child{border-bottom:none;}
+  .lu-ligne input[type="checkbox"]{width:auto; margin-top:3px; flex:none;}
+  .lu-ligne label{flex:1 1 auto; min-width:0; cursor:pointer;}
+  .lu-ligne .cle{display:block; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
+  .lu-ligne .val{display:block; font-weight:700; word-break:break-word; white-space:pre-wrap;}
+  .lu-ligne .ecrase{display:block; font-size:11.5px; color:var(--orange); font-weight:700; margin-top:2px;}
+  .lu-rien{font-size:13px; color:var(--muted); padding:12px 2px 0; line-height:1.5;}
   @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
 </style>
 <!-- L'habillage propre à l'espace Devis : une feuille de calcul se lit à
@@ -94,6 +119,7 @@
       <p class="subtitle">Coordonnées de facturation, contacts et conditions — reprises automatiquement sur les devis.</p>
     </div>
     <div class="co-actions">
+      <button type="button" class="co-btn secondary md" id="collerBtn">Coller des coordonnées</button>
       <button type="button" class="co-btn primary md" id="nouveauBtn">+ Nouveau client</button>
     </div>
   </div>
@@ -104,6 +130,23 @@
       <p class="empty-hint co-vide" id="listeVide" style="display:none;">Aucun client pour l'instant.</p>
     </div>
     <div id="ficheHolder"></div>
+  </div>
+</div>
+
+<!-- Importer par collage : la plupart des coordonnées arrivent en bloc, dans un
+     mail ou une convention. Plutôt que de recopier douze champs à la main, on
+     colle, on relit ce qui a été reconnu, on applique. -->
+<div class="modal-overlay" id="collageOverlay">
+  <div class="modal">
+    <h2>Importer par collage</h2>
+    <p class="intro">Colle le bloc de coordonnées tel qu'il t'est arrivé — signature de mail, en-tête de convention, extrait d'annuaire, ou une liste « Champ&nbsp;: valeur ». On en tire ce qu'on reconnaît, tu vérifies avant d'appliquer.</p>
+    <textarea id="collageTexte" rows="8" placeholder="Théâtre du Rond-Point&#10;SAS au capital de 40 000 €&#10;2 bis avenue Franklin D. Roosevelt&#10;75008 Paris&#10;SIRET 402 358 175 00019 — TVA FR52402358175&#10;Camille Doré, chargée de production&#10;c.dore@exemple.fr — 01 44 95 98 00&#10;Paiement à 30 jours"></textarea>
+    <div id="collageApercu"></div>
+    <div class="modal-actions">
+      <button type="button" class="co-btn ghost md" id="collageAnnuler">Annuler</button>
+      <button type="button" class="co-btn secondary md" id="collageCompleter">Compléter la fiche ouverte</button>
+      <button type="button" class="co-btn primary md" id="collageCreer">Créer un client</button>
+    </div>
   </div>
 </div>
 
@@ -253,6 +296,261 @@ document.getElementById('nouveauBtn').addEventListener('click', async ()=>{
   clients.push(client); choisi = client.id; render();
   const champ = document.querySelector('[data-c="nom"]');
   if(champ){ champ.focus(); champ.select(); }
+});
+
+
+/* ---------------------------------------------------------------------------
+   Importer par collage
+   ---------------------------------------------------------------------------
+   Les coordonnées d'un client arrivent presque toujours en bloc : pied de mail,
+   en-tête de convention, extrait d'annuaire. Les recopier champ par champ est
+   long et c'est là qu'on se trompe de chiffre sur un SIRET.
+
+   Deux passes de lecture. D'abord les lignes étiquetées (« SIRET : 123… »),
+   qui ne laissent aucun doute. Ensuite les repères de forme sur ce qui reste :
+   un SIRET fait quatorze chiffres, un code postal cinq suivis d'une ville, une
+   adresse commence par un numéro ou un mot de voie. Ce qui n'est pas reconnu
+   n'est pas deviné — l'aperçu ne propose que ce dont on est sûr, et rien ne
+   s'applique sans être coché.
+--------------------------------------------------------------------------- */
+
+const CHAMPS_COLLAGE = [
+  ['nom', 'Raison sociale'],
+  ['formeJuridique', 'Forme juridique'],
+  ['siret', 'SIRET'],
+  ['tvaIntracom', 'TVA intracommunautaire'],
+  ['adresse', 'Adresse'],
+  ['codePostal', 'Code postal'],
+  ['ville', 'Ville'],
+  ['pays', 'Pays'],
+  ['contactNom', 'Contact'],
+  ['contactFonction', 'Fonction'],
+  ['email', 'Email'],
+  ['tel', 'Téléphone'],
+  ['comptaNom', 'Contact compta'],
+  ['comptaEmail', 'Email compta'],
+  ['delaiPaiement', 'Délai de paiement'],
+  ['referenceInterne', 'Référence à rappeler'],
+];
+
+const ETIQUETTES_COLLAGE = [
+  [/^(raison sociale|soci[ée]t[ée]|structure|nom de la structure|client|organisme|[ée]tablissement)\b/i, 'nom'],
+  [/^(forme juridique|statut juridique)\b/i, 'formeJuridique'],
+  [/^(siret|n[°o]? ?siret)\b/i, 'siret'],
+  [/^(tva|n[°o]? ?tva|num[ée]ro de tva|tva intracom\w*)\b/i, 'tvaIntracom'],
+  [/^(adresse|si[èe]ge social|si[èe]ge)\b/i, 'adresse'],
+  [/^(code postal|cp)\b/i, 'codePostal'],
+  [/^(ville|commune)\b/i, 'ville'],
+  [/^pays\b/i, 'pays'],
+  [/^(email compta\w*|mail compta\w*|e-?mail de facturation|email de facturation)\b/i, 'comptaEmail'],
+  [/^(compta\w*|service comptab\w*|facturation)\b/i, 'comptaNom'],
+  [/^(contact|nom du contact|interlocut\w*|responsable)\b/i, 'contactNom'],
+  [/^(fonction|qualit[ée]|poste)\b/i, 'contactFonction'],
+  [/^(e-?mail|mail|courriel)\b/i, 'email'],
+  [/^(t[ée]l\w*|portable|mobile|fixe)\b/i, 'tel'],
+  [/^(d[ée]lai de paiement|paiement|r[èe]glement|[ée]ch[ée]ance)\b/i, 'delaiPaiement'],
+  [/^(r[ée]f[ée]rence\w*|n[°o]? ?de commande|bon de commande|commande)\b/i, 'referenceInterne'],
+];
+
+// SASU avant SAS, SAS avant SA : la première trouvée gagne, l'ordre fait la règle.
+const FORMES_JURIDIQUES = ['SASU', 'SAS', 'SARL', 'EURL', 'SCOP', 'SCIC', 'SCI', 'EIRL', 'SEM', 'SPL',
+  'GIE', 'EPCC', 'EPIC', 'Association loi 1901', 'Association', 'Fondation', 'Coop[ée]rative',
+  'R[ée]gie', '[ÉE]tablissement public', 'Collectivit[ée]', 'Commune', 'Mairie', 'SA'];
+
+const MAIL_RE = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
+const VOIE = 'rue|avenue|av\\.|boulevard|bd|chemin|place|impasse|route|all[ée]e|quai|cours|square|passage|esplanade|parvis|villa|sentier|faubourg|promenade|rond-?point|zone|z\\.?a\\.?|z\\.?i\\.?|bp|cs|lieu-?dit';
+const LIGNE_ADRESSE = new RegExp('^(?:\\d+\\s*(?:bis|ter|quater)?\\s*,?\\s*\\S|(?:' + VOIE + ')\\b)', 'i');
+const FONCTION_RE = /(directeur|directrice|administrat|charg[ée]|programmat|r[ée]gisseur|r[ée]gisseuse|secr[ée]taire|pr[ée]sident|tr[ée]sori|responsable|coordinat|attach[ée]|assistant|gestionnaire|comptab|producteur|productrice|diffusion|d[ée]l[ée]gu[ée])/i;
+const PAYS_CONNUS = /^(france|belgique|suisse|luxembourg|allemagne|espagne|italie|pays-bas|royaume-uni|canada|portugal|autriche)$/i;
+
+function lireCoordonnees(texte){
+  const lu = {};
+  const brut = String(texte || '');
+  const prendre = (cle, valeur)=>{
+    const v = valeur == null ? '' : String(valeur).trim();
+    if(v && !lu[cle]) lu[cle] = v;
+  };
+
+  // Passe 1 — les lignes étiquetées.
+  const restantes = [];
+  brut.split(/\r?\n/).map(l=> l.replace(/\s+/g, ' ').trim()).forEach(ligne=>{
+    if(!ligne) return;
+    const coupe = ligne.match(/^([^:]{2,40}?)\s*:\s*(.+)$/);
+    if(coupe){
+      const trouve = ETIQUETTES_COLLAGE.find(([re])=> re.test(coupe[1].trim()));
+      if(trouve){ prendre(trouve[1], coupe[2]); return; }
+    }
+    restantes.push(ligne);
+  });
+
+  // Passe 2 — les repères de forme.
+  const siretDit = brut.match(/siret[^0-9]{0,12}((?:\d[\s.]*){14})/i);
+  const siretVu = brut.match(/\b\d{3}[\s.]?\d{3}[\s.]?\d{3}[\s.]?\d{5}\b/);
+  const siret = (siretDit && siretDit[1]) || (siretVu && siretVu[0]);
+  // Un SIRET s'écrit en quatre groupes : c'est ainsi qu'il se relit et qu'il
+  // s'imprime sur un devis.
+  const grouper = (chiffres)=> chiffres.replace(/^(\d{3})(\d{3})(\d{3})(\d{5})$/, '$1 $2 $3 $4');
+  if(siret) prendre('siret', grouper(siret.replace(/\D/g, '')));
+  if(lu.siret) lu.siret = grouper(lu.siret.replace(/\D/g, ''));
+
+  const tva = brut.match(/\bFR\s?[0-9A-Z]{2}\s?\d{3}\s?\d{3}\s?\d{3}\b/i);
+  if(tva) prendre('tvaIntracom', tva[0].replace(/\s+/g, '').toUpperCase());
+
+  const mails = brut.match(new RegExp(MAIL_RE.source, 'g')) || [];
+  const mailCompta = mails.find(m=> /(compta|factur)/i.test(m))
+    || (restantes.filter(l=> /(compta|factur)/i.test(l)).map(l=> (l.match(MAIL_RE) || [])[0]).filter(Boolean))[0];
+  prendre('email', mails.find(m=> m !== mailCompta) || mails[0]);
+  if(mailCompta && mailCompta !== lu.email) prendre('comptaEmail', mailCompta);
+
+  // Les identifiants d'abord retirés du texte : quatorze chiffres d'affilée
+  // ressemblent trop à un numéro de téléphone.
+  const sansIdents = brut.replace(/(?:\d[\s.]*){14}/g, ' ').replace(/\bFR\s?[0-9A-Z]{2}\s?\d{3}\s?\d{3}\s?\d{3}\b/ig, ' ');
+  const tel = sansIdents.match(/(?:\+33|0033|0)\s?[1-9](?:[\s.\-]?\d{2}){4}\b/);
+  if(tel) prendre('tel', tel[0].trim());
+
+  const CP_RE = /(?:^|[,;]\s*)(\d{5})\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’\- ]{1,40}(?:\s+CEDEX(?:\s+\d{1,2})?)?)$/i;
+  const idxCp = restantes.findIndex(l=> CP_RE.test(l));
+  if(idxCp >= 0){
+    const m = restantes[idxCp].match(CP_RE);
+    prendre('codePostal', m[1]);
+    prendre('ville', m[2]);
+  }
+
+  const estIdent = (l)=> MAIL_RE.test(l) || /siret|tva|rcs|\bape\b|\bnaf\b|capital|t[ée]l|paiement|r[èe]glement/i.test(l);
+  let adresse = restantes.find(l=> !/^\d{5}(\s|$)/.test(l) && !estIdent(l) && LIGNE_ADRESSE.test(l));
+  if(!adresse && idxCp > 0){
+    const avant = restantes[idxCp - 1];
+    if(avant && !estIdent(avant)) adresse = avant;
+  }
+  // « 12 rue X, 75008 Paris » sur une seule ligne : on ne garde que la voie.
+  if(adresse) prendre('adresse', adresse.replace(/[,;]?\s*\d{5}\s+[A-Za-zÀ-ÿ].*$/, '').replace(/[,;\s]+$/, ''));
+
+  const paysVu = restantes.find(l=> PAYS_CONNUS.test(l));
+  prendre('pays', paysVu ? paysVu.charAt(0).toUpperCase() + paysVu.slice(1).toLowerCase() : (lu.codePostal ? 'France' : ''));
+
+  // La raison sociale : la première ligne qui n'est ni une adresse, ni un
+  // identifiant, ni un contact. Le haut d'un bloc de coordonnées, en somme.
+  const estAdresse = (l)=> /^\d{5}(\s|$)/.test(l) || CP_RE.test(l) || LIGNE_ADRESSE.test(l);
+  prendre('nom', restantes.find(l=> l.length >= 2 && !estIdent(l) && !estAdresse(l)
+    && !/^\+?[\d\s.\-()]{6,}$/.test(l) && !PAYS_CONNUS.test(l)));
+
+  const forme = FORMES_JURIDIQUES.find(f=> new RegExp('(^|[^A-Za-zÀ-ÿ])(' + f + ')([^A-Za-zÀ-ÿ]|$)', 'i').test(brut));
+  if(forme){
+    const m = brut.match(new RegExp('(^|[^A-Za-zÀ-ÿ])(' + forme + ')([^A-Za-zÀ-ÿ]|$)', 'i'));
+    // « Mairie de Saint-Denis » est déjà une raison sociale : ne pas la
+    // recopier en forme juridique, ce serait deux fois la même information.
+    const dansLeNom = lu.nom && lu.nom.toLowerCase().includes(m[2].toLowerCase());
+    if(!dansLeNom) prendre('formeJuridique', m[2]);
+  }
+
+  // Un contact : deux ou trois mots capitalisés, la fonction souvent à la suite.
+  const NOM_PROPRE = /^[A-ZÀ-Þ][\wÀ-ÿ'’-]+(?:\s+[A-ZÀ-Þ][\wÀ-ÿ'’-]+){1,2}$/;
+  for(const ligne of restantes){
+    if(lu.contactNom) break;
+    if(ligne === lu.nom || estIdent(ligne) || estAdresse(ligne) || PAYS_CONNUS.test(ligne)) continue;
+    const morceaux = ligne.split(/\s*[,;]\s*|\s+[–—-]\s+/);
+    if(NOM_PROPRE.test(morceaux[0])){
+      prendre('contactNom', morceaux[0]);
+      const suite = morceaux.slice(1).find(x=> FONCTION_RE.test(x));
+      if(suite) prendre('contactFonction', suite);
+    }
+  }
+  if(!lu.contactFonction){
+    const seule = restantes.find(l=> l !== lu.contactNom && l !== lu.nom && FONCTION_RE.test(l) && l.length <= 60 && !MAIL_RE.test(l));
+    if(seule) prendre('contactFonction', seule);
+  }
+
+  if(/(paiement|r[èe]glement|[ée]ch[ée]ance)/i.test(brut)){
+    const delai = brut.match(/(\d{1,3})\s*jours?/i);
+    if(delai) prendre('delaiPaiement', delai[1] + ' jours');
+  }
+  const ref = brut.match(/(?:bon de commande|n[°o]\s*de commande|commande|r[ée]f[ée]rence)\s*(?:n[°o])?\s*:?\s*([A-Z0-9][A-Z0-9\/\-_.]{2,24})/i);
+  if(ref) prendre('referenceInterne', ref[1]);
+
+  return lu;
+}
+
+// --- La modale --------------------------------------------------------------
+let luCourant = {};
+
+function renderCollageApercu(){
+  const texte = document.getElementById('collageTexte').value;
+  luCourant = lireCoordonnees(texte);
+  const holder = document.getElementById('collageApercu');
+  const trouves = CHAMPS_COLLAGE.filter(([cle])=> luCourant[cle]);
+  const ouvert = clients.find(x=> x.id === choisi) || null;
+
+  if(!trouves.length){
+    holder.innerHTML = texte.trim()
+      ? '<p class="lu-rien">Rien de reconnu pour l\'instant. Une ligne « Champ : valeur » marche toujours — par exemple <code>SIRET : 402 358 175 00019</code>.</p>'
+      : '<p class="lu-rien">Ce qui aura été reconnu s\'affichera ici, champ par champ.</p>';
+    return;
+  }
+  holder.innerHTML = `<div class="lu-tete">${trouves.length} champ${trouves.length > 1 ? 's reconnus' : ' reconnu'} — décoche ce que tu ne veux pas</div>
+    <div class="lu-liste">${trouves.map(([cle, libelle])=>{
+      const ancien = ouvert ? (ouvert[cle] || '').trim() : '';
+      return `<div class="lu-ligne">
+        <input type="checkbox" id="lu-${escapeAttr(cle)}" data-lu="${escapeAttr(cle)}" checked>
+        <label for="lu-${escapeAttr(cle)}">
+          <span class="cle">${escapeHtml(libelle)}</span>
+          <span class="val">${escapeHtml(luCourant[cle])}</span>
+          ${ancien && ancien !== luCourant[cle] ? `<span class="ecrase">remplacerait « ${escapeHtml(ancien)} » sur la fiche ouverte</span>` : ''}
+        </label>
+      </div>`;
+    }).join('')}</div>`;
+}
+
+function champsCoches(){
+  const retenus = {};
+  document.querySelectorAll('#collageApercu [data-lu]:checked').forEach(cb=>{
+    if(luCourant[cb.dataset.lu]) retenus[cb.dataset.lu] = luCourant[cb.dataset.lu];
+  });
+  return retenus;
+}
+
+function fermerCollage(){ document.getElementById('collageOverlay').classList.remove('open'); }
+
+document.getElementById('collerBtn').addEventListener('click', ()=>{
+  const zone = document.getElementById('collageTexte');
+  zone.value = '';
+  renderCollageApercu();
+  const ouvert = clients.find(x=> x.id === choisi) || null;
+  const completer = document.getElementById('collageCompleter');
+  completer.disabled = !ouvert;
+  completer.textContent = ouvert ? `Compléter « ${ouvert.nom || 'sans nom'} »` : 'Compléter la fiche ouverte';
+  document.getElementById('collageOverlay').classList.add('open');
+  zone.focus();
+});
+document.getElementById('collageAnnuler').addEventListener('click', fermerCollage);
+document.getElementById('collageOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'collageOverlay') fermerCollage(); });
+document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') fermerCollage(); });
+document.getElementById('collageTexte').addEventListener('input', renderCollageApercu);
+// Le collage lui-même arrive avant que la valeur ne soit posée : on relit après.
+document.getElementById('collageTexte').addEventListener('paste', ()=> setTimeout(renderCollageApercu, 0));
+
+document.getElementById('collageCompleter').addEventListener('click', async ()=>{
+  const c = clients.find(x=> x.id === choisi);
+  if(!c){ alert('Ouvre d\'abord une fiche, ou crée un client depuis ce collage.'); return; }
+  const retenus = champsCoches();
+  if(!Object.keys(retenus).length){ alert('Aucun champ coché : rien à appliquer.'); return; }
+  Object.assign(c, retenus);
+  const { error } = await CurieuxDB.upsertOne('devis_clients', c);
+  if(error){ alert('Enregistrement impossible :\n\n' + error.message); return; }
+  fermerCollage();
+  render();
+});
+
+document.getElementById('collageCreer').addEventListener('click', async ()=>{
+  const retenus = champsCoches();
+  if(!Object.keys(retenus).length){ alert('Aucun champ coché : rien à importer.'); return; }
+  const client = Object.assign({ id: genId('cli'), nom: 'Nouveau client', pays: 'France' }, retenus);
+  const { error } = await CurieuxDB.upsertOne('devis_clients', client);
+  if(error){ alert('Création impossible :\n\n' + error.message); return; }
+  clients.push(client);
+  choisi = client.id;
+  fermerCollage();
+  render();
+  history.replaceState(null, '', 'devis-clients.html?id=' + encodeURIComponent(client.id));
 });
 
 charger();
