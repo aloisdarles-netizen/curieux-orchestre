@@ -573,7 +573,9 @@ function closeModal(){
   document.getElementById('modalOverlay').classList.remove('open');
 }
 
+let remplacantsModalPersonId = null;
 function openRemplacantsModal(personId){
+  remplacantsModalPersonId = personId;
   const person = loadMusicians().find(x=> x.id === personId);
   if(!person) return;
   document.getElementById('remplacantsModalTitle').textContent = `Remplaçant·es de ${fullName(person)}`;
@@ -590,6 +592,13 @@ function openRemplacantsModal(personId){
         ? escapeHtml(roster.instrument || roster.poste || '')
         : [it.telephone, it.email].filter(Boolean).map(escapeHtml).join(' · ');
       const tag = it.source === 'new' ? `<span class="remplacant-tag" style="margin-left:6px;">Pas encore au répertoire</span>` : '';
+      // Une fiche en un clic, créée dans LE BON répertoire — celui du/de la
+      // titulaire : le remplaçant d'un·e technicien·ne naît technicien·ne,
+      // jamais musicien·ne. La liste suit : l'entrée libre devient une vraie
+      // référence, et l'affectation peut enfin la proposer.
+      const creer = it.source === 'new'
+        ? `<button type="button" class="co-btn secondary sm" data-creer-fiche="${it.rang}" style="flex-shrink:0;">Créer sa fiche</button>`
+        : '';
       return `
         <div style="display:flex; align-items:center; gap:12px; padding:9px 4px; border-bottom:1px solid var(--border);">
           <div style="flex-shrink:0; width:26px; height:26px; border-radius:50%; background:var(--accent-tint); color:var(--accent-dark); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px;">${it.rang}</div>
@@ -597,12 +606,39 @@ function openRemplacantsModal(personId){
             <div style="font-weight:700; font-size:14px;">${escapeHtml(name || 'Sans nom')}${tag}</div>
             ${sub ? `<div style="font-size:12px; color:var(--muted); margin-top:1px;">${sub}</div>` : ''}
           </div>
+          ${creer}
         </div>
       `;
     }).join('');
+    body.querySelectorAll('[data-creer-fiche]').forEach(btn=>
+      btn.addEventListener('click', ()=> creerFicheRemplacant(Number(btn.dataset.creerFiche), btn)));
   }
   document.getElementById('remplacantsModalOverlay').classList.add('open');
 }
+async function creerFicheRemplacant(rang, btn){
+  const prefs = remplacantPrefsFor(remplacantsModalPersonId);
+  const item = prefs && prefs.items.find(x=> x.rang === rang && x.source === 'new');
+  if(!item) return;
+  btn.disabled = true;
+  const personne = {
+    id: genId('mus'), prenom: item.prenom || '', nom: item.nom || '',
+    telephone: item.telephone || '', email: item.email || '',
+    // L'instrument reste à préciser sur la fiche — la liste ne le demande pas.
+    instrument: '', pupitre: 'Autre', statutPoste: 'remplacant', rang: null,
+    disponibilites: {},
+  };
+  const r1 = await CurieuxDB.upsertOne('musiciens', personne);
+  if(r1.error){ alert('Création impossible :\n\n' + r1.error.message); btn.disabled = false; return; }
+  musiciansCache.push(personne);
+  // L'entrée libre devient une référence : même rang, vraie fiche.
+  prefs.items = prefs.items.map(x=> x === item
+    ? { rang: item.rang, source: 'roster', personId: personne.id, personType: 'musicien' } : x);
+  const r2 = await CurieuxDB.upsertOne('remplacant_prefs', prefs);
+  if(r2.error){ alert('La fiche est créée, mais la liste n\'a pas pu être mise à jour :\n\n' + r2.error.message); }
+  render();
+  openRemplacantsModal(remplacantsModalPersonId);
+}
+
 function closeRemplacantsModal(){
   document.getElementById('remplacantsModalOverlay').classList.remove('open');
 }
