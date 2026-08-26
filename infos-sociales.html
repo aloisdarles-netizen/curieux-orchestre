@@ -13,7 +13,7 @@
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:900px; margin:0 auto;}
+  .wrap{max-width:min(1500px, 97vw); margin:0 auto;}
 
   .lock-banner{
     display:flex; align-items:center; gap:10px; background:var(--champagne); border:1px solid var(--old-champagne);
@@ -216,7 +216,7 @@ const EXTRA_FIELD_DEFS = [
   ['bic', 'BIC', 'text'],
   ['titulaireCompte', 'Titulaire du compte', 'text'],
   ['numCongesSpectacles', 'N° Congés Spectacles', 'text'],
-  ['numAudiens', 'N° Audiens', 'text'],
+  ['derniereVisiteMedicale', 'Dernière visite médicale', 'date'],
   ['contactUrgenceNom', "Contact d'urgence — nom", 'text'],
   ['contactUrgenceTel', "Contact d'urgence — téléphone", 'text'],
   ['permisConduire', 'Permis de conduire', 'text'],
@@ -247,7 +247,6 @@ const CHAMPS_EMBAUCHE = [
   ['iban',                'IBAN'],
   ['titulaireCompte',     'titulaire du compte'],
   ['numCongesSpectacles', 'n° Congés Spectacles'],
-  ['numAudiens',          'n° Audiens'],
 ];
 
 function etatDossier(info){
@@ -295,8 +294,8 @@ function renderPersonCard(p, personType){
     ['N° sécurité sociale', apercuMasque(info.numSecu, 5)],
     ['IBAN', apercuMasque(info.iban, 9)],
     ['Congés spectacles', apercuMasque(info.numCongesSpectacles, 4)],
+    ['Dernière visite médicale', info.derniereVisiteMedicale || ''],
     ['Adresse', apercuMasque(info.adresse, 14)],
-    ['Audiens (retraite)', apercuMasque(info.numAudiens, 4)],
     ["Contact d'urgence", info.contactUrgenceNom || info.contactUrgenceTel ? apercuMasque(info.contactUrgenceTel || info.contactUrgenceNom, 3) : '(vide)'],
     ['Infos pratiques', info.tailleVetement ? 'taille ' + info.tailleVetement : '(vide)'],
   ];
@@ -372,7 +371,7 @@ function renderPersonCard(p, personType){
         <div class="section-label">Statut intermittent</div>
         <div class="field-row">
           <div class="field"><label>N° Congés Spectacles</label><input type="text" data-info-field="numCongesSpectacles" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.numCongesSpectacles || '')}" inputmode="numeric"></div>
-          <div class="field"><label>N° Audiens</label><input type="text" data-info-field="numAudiens" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.numAudiens || '')}" inputmode="numeric"></div>
+          <div class="field"><label>Dernière visite médicale</label><input type="date" data-info-field="derniereVisiteMedicale" data-person="${escapeAttr(p.id)}" value="${escapeAttr(info.numAudiens || '')}" inputmode="numeric"></div>
         </div>
 
         <div class="section-label">Contact d'urgence</div>
@@ -462,7 +461,7 @@ const EXPORT_COLUMNS = [
   ['BIC', (p, info)=> info.bic || ''],
   ['Titulaire du compte', (p, info)=> info.titulaireCompte || ''],
   ['N° Congés Spectacles', (p, info)=> info.numCongesSpectacles || ''],
-  ['N° Audiens', (p, info)=> info.numAudiens || ''],
+  ['Dernière visite médicale', (p, info)=> info.derniereVisiteMedicale || ''],
   ["Contact d'urgence — nom", (p, info)=> info.contactUrgenceNom || ''],
   ["Contact d'urgence — téléphone", (p, info)=> info.contactUrgenceTel || ''],
   ['Permis de conduire', (p, info)=> info.permisConduire === 'oui' ? 'Oui' : (info.permisConduire === 'non' ? 'Non' : '')],

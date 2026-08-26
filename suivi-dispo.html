@@ -17,7 +17,7 @@
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:1280px; margin:0 auto;}
+  .wrap{max-width:min(1720px, 97vw); margin:0 auto;}
 
   /* ------------------------------------------------------------------------
      Avec deux productions la page se lisait encore ; avec douze tournées et dix
@@ -322,8 +322,15 @@ function fmtDateFR(iso){
 // Lien unique de l'espace personnel : il regroupe les disponibilités, les
 // infos et les remplaçant·es. Le jeton de demande y est accepté au même titre
 // que le jeton permanent, donc les liens déjà envoyés restent valables.
-function dispoLinkUrl(demandeId){
-  return lienPublic('mon-espace.html', 'token=' + encodeURIComponent(demandeId));
+// Le lien qu'on ENVOIE doit être le jeton permanent de la personne : le jeton
+// d'une demande meurt avec elle (tournée supprimée, demande retirée), et le
+// message parti la semaine d'avant cesse alors de fonctionner. On garde le
+// jeton de demande en secours tant que la table des jetons permanents n'a rien
+// pour cette personne — mieux vaut un lien fragile qu'aucun lien.
+let jetonsPermanents = new Map();
+function lienPersonne(personType, personId, demandeId){
+  const permanent = jetonsPermanents.get(`${personType}:${personId}`);
+  return lienPublic('mon-espace.html', 'token=' + encodeURIComponent(permanent || demandeId));
 }
 
 function normalizeWhatsappPhone(phone){
@@ -387,6 +394,12 @@ async function assurerLiensTitulaires(tourneesAVenir){
 }
 
 async function generateDispoLink(tourneeId, personType, personId, dates, role){
+  // Nouvelle personne sollicitée : on s'assure tout de suite qu'elle a son
+  // jeton permanent, sinon le premier lien qu'on lui enverrait serait fragile.
+  if(!jetonsPermanents.has(`${personType}:${personId}`)){
+    const res = await CurieuxDB.ensureAccesPersonnel(personId, personType);
+    if(res && res.token) jetonsPermanents.set(`${personType}:${personId}`, res.token);
+  }
   const demandes = loadDispoDemandes();
   const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === personId);
   if(existing) return existing;
@@ -570,7 +583,7 @@ function renderAddRemplacantResults(tourneeId, query, holder){
 function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
   const demandes = loadDispoDemandes();
   const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === person.id);
-  const url = existing ? dispoLinkUrl(existing.id) : null;
+  const url = existing ? lienPersonne(personType, person.id, existing.id) : null;
   const dispo = person.disponibilites || {};
   // Si le lien est restreint à des dates précises, on ne compte que celles-là — sinon on
   // compare aux dates envoyées à tout le monde. Avant ce correctif, le statut se basait
@@ -790,7 +803,7 @@ async function relancerRetardataires(){
       const manquantes = pertinentes.filter(d=> !dispo[d.date]);
       if(manquantes.length === 0) return;
       const cle = `${dem.personType}:${dem.personId}`;
-      if(!parPersonne.has(cle)) parPersonne.set(cle, { personne, lien: dispoLinkUrl(dem.id), manques: [] });
+      if(!parPersonne.has(cle)) parPersonne.set(cle, { personne, lien: lienPersonne(dem.personType, dem.personId, dem.id), manques: [] });
       parPersonne.get(cle).manques.push(`${t.nom || 'Tournée'} (${manquantes.map(d=> fmtDateFR(d.date)).join(', ')})`);
     });
   });
@@ -983,6 +996,14 @@ function avancementProjet(t){
  * de pixels où l'on ne trouve plus rien : on replie d'office et le sommaire
  * devient le point d'entrée. Le choix de chacun est retenu d'une visite à
  * l'autre, pour ne pas rouvrir vingt fois la même carte. */
+// Recharge la carte des jetons permanents pour toutes les personnes
+// sollicitées : appelée au démarrage, et après avoir ajouté quelqu'un.
+async function rafraichirJetonsPermanents(){
+  const gens = new Map();
+  loadDispoDemandes().forEach(d=> gens.set(`${d.personType}:${d.personId}`, { id: d.personId, type: d.personType }));
+  jetonsPermanents = await CurieuxDB.jetonsPermanentsPour([...gens.values()]);
+}
+
 /* Deux vues, un choix retenu.
  *
  * « Par personne » d'abord : c'est la question qu'on se pose le plus souvent en
@@ -1103,7 +1124,7 @@ function renderParPersonne(projets){
     const role = type === 'musicien' ? (personne.instrument || 'Musicien·ne') : (personne.poste || 'Technicien·ne');
     const noyau = estDuNoyau(personne);
     // N'importe lequel de ses jetons ouvre son espace : on prend le premier.
-    const url = dispoLinkUrl(entrees[0].demande.id);
+    const url = lienPersonne(type, personne.id, entrees[0].demande.id);
     const restant = entrees.reduce((n, e)=> n + e.manquantes.length, 0);
 
     const pastilles = entrees
@@ -1588,7 +1609,7 @@ function render(){
       const lines = [];
       for(const { person, personType } of people){
         const entry = await generateDispoLink(tourneeId, personType, person.id);
-        if(entry) lines.push(`${fullName(person)} : ${dispoLinkUrl(entry.id)}`);
+        if(entry) lines.push(`${fullName(person)} : ${lienPersonne(personType, person.id, entry.id)}`);
       }
       render();
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{
@@ -1610,6 +1631,13 @@ async function initData(){
     CurieuxDB.fetchAll('techniciens'),
     CurieuxDB.fetchAll('dispo_demandes'),
   ]);
+  render();
+
+  // Les jetons permanents, en une passe : c'est eux qu'on envoie. Chargés après
+  // le premier rendu pour ne pas retarder l'affichage — les liens construits
+  // entre-temps retombent sur le jeton de demande, et le rendu suivant les
+  // corrige.
+  await rafraichirJetonsPermanents();
   render();
 
   // Après un premier rendu — la page s'affiche tout de suite, les liens

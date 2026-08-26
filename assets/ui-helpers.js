@@ -136,6 +136,30 @@ function groupesFicheTechnique(datesTriees, aUneFiche){
   });
 }
 
+// ============================================================================
+// Où l'orchestre est chez lui.
+//
+// Un bloc de dates annonçait un départ la veille et un retour le lendemain,
+// quelle que soit la ville. Pour des répétitions en région parisienne, c'est
+// faux : on vient le matin et on rentre le soir. La liste des villes de base
+// (réglages) dit où c'est le cas ; une date qui s'y déroule naît sans transport.
+//
+// Comparaison sans casse ni accents : « Saint-Denis » et « saint denis » sont
+// le même endroit, et personne ne saisit deux fois pareil.
+// ============================================================================
+let CURIEUX_VILLES_BASE = [];
+function poserVillesBase(liste){
+  CURIEUX_VILLES_BASE = (liste || []).map(normaliserVille).filter(Boolean);
+}
+function normaliserVille(v){
+  return (v || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function estVilleDeBase(ville){
+  const v = normaliserVille(ville);
+  return !!v && CURIEUX_VILLES_BASE.includes(v);
+}
+
 // Retrouve la série d'une date donnée (pour une page ouverte sur ?d=…).
 function groupeFicheDe(datesTriees, dateId, aUneFiche){
   return groupesFicheTechnique(datesTriees, aUneFiche).find(g=> g.dates.some(d=> d.id === dateId)) || null;

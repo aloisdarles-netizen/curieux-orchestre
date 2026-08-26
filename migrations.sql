@@ -4056,3 +4056,43 @@ comment on column vehicules.tournees_ids is
   'Projets sur lesquels ce véhicule est engagé. Vide = disponible, non engagé.';
 comment on column chauffeurs.tournees_ids is
   'Projets sur lesquels ce chauffeur est engagé. Vide = disponible, non engagé.';
+
+
+-- ============================================================================
+-- 2026-08 · Statut intermittent : ce qui sert vraiment
+--
+-- Le numéro Audiens (retraite complémentaire) ne servait à rien : il ne figure
+-- sur aucun document qu'on produit, et personne ne le connaît par cœur. Il
+-- disparaît des écrans — la colonne reste, pour ne rien effacer de ce qui a
+-- déjà été saisi.
+--
+-- Ce qui manquait, en revanche : la DATE DE LA DERNIÈRE VISITE MÉDICALE. Elle
+-- conditionne l'aptitude, elle a une durée de validité, et on la cherchait
+-- jusqu'ici dans les mails.
+-- ============================================================================
+
+alter table infos_sociales add column if not exists derniere_visite_medicale date;
+
+comment on column infos_sociales.derniere_visite_medicale is
+  'Dernière visite médicale du travail — sert à voir venir les renouvellements.';
+comment on column infos_sociales.num_audiens is
+  'Plus demandé ni affiché depuis 2026-08 : conservé pour ne pas perdre les saisies existantes.';
+
+
+-- ============================================================================
+-- 2026-08 · Où l'orchestre est chez lui
+--
+-- Un bloc de dates annonçait un départ la veille et un retour le lendemain,
+-- quelle que soit la ville. Pour des répétitions en région parisienne, c'est
+-- faux : on vient le matin et on rentre le soir.
+--
+-- Cette liste dit les villes où l'orchestre est chez lui. Une date qui s'y
+-- déroule naît sans transport (« Aucun »), et le bloc qu'elle forme n'annonce
+-- donc aucun voyage. Rien n'est verrouillé : le mode de voyage reste modifiable
+-- date par date.
+-- ============================================================================
+
+alter table reglages add column if not exists villes_base jsonb not null default '["Paris"]'::jsonb;
+
+comment on column reglages.villes_base is
+  'Villes où l''orchestre est chez lui : une date qui s''y déroule ne demande pas de trajet.';

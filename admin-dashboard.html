@@ -13,7 +13,7 @@
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:1000px; margin:0 auto;}
+  .wrap{max-width:min(1400px, 97vw); margin:0 auto;}
   .nav-icon{width:18px; height:18px; flex-shrink:0; display:block;}
   .subtitle{color:var(--muted); font-size:14px; margin:0 0 28px;}
   h2{
@@ -261,6 +261,24 @@
       </div>
       <button type="button" class="co-btn secondary sm" id="referentSaveBtn">Enregistrer</button>
       <span id="referentStatut" style="font-size:12px; color:var(--muted); margin-left:10px;"></span>
+    </div>
+
+    <div class="co-card co-pad-lg" style="margin-top:16px;">
+      <h3 style="margin:0 0 6px; font-size:15px;">Où l'orchestre est chez lui</h3>
+      <p style="font-size:13px; color:var(--muted); line-height:1.6; margin:0 0 12px;">
+        Une date qui se déroule dans l'une de ces villes ne demande pas de trajet :
+        on vient le matin, on rentre le soir. Un bloc de répétitions en région
+        parisienne n'annoncera donc plus un départ la veille et un retour le
+        lendemain. Une ville par ligne — la casse et les accents n'ont pas
+        d'importance. Le mode de voyage reste modifiable date par date.
+      </p>
+      <div class="field">
+        <label for="villesBase">Villes de base</label>
+        <textarea id="villesBase" rows="4" placeholder="Paris&#10;Saint-Denis&#10;Pantin"
+          style="width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; background:var(--bg); color:var(--text); font-family:inherit; resize:vertical;"></textarea>
+      </div>
+      <button type="button" class="co-btn secondary sm" id="villesBaseSaveBtn">Enregistrer</button>
+      <span id="villesBaseStatut" style="font-size:12px; color:var(--muted); margin-left:10px;"></span>
     </div>
   </section>
 
@@ -995,7 +1013,20 @@ async function chargerReferent(){
   if(reglages.absent) return;
   document.getElementById('referentNom').value = reglages.referentNom || '';
   document.getElementById('referentTel').value = reglages.referentTelephone || '';
+  document.getElementById('villesBase').value = (reglages.villesBase || []).join('\n');
 }
+document.getElementById('villesBaseSaveBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('villesBaseSaveBtn');
+  const statut = document.getElementById('villesBaseStatut');
+  const villes = document.getElementById('villesBase').value
+    .split('\n').map(v=> v.trim()).filter(Boolean);
+  btn.disabled = true; statut.textContent = 'Enregistrement…';
+  const { error } = await CurieuxDB.setVillesBase(villes);
+  btn.disabled = false;
+  statut.textContent = error ? 'Échec : ' + error.message
+    : `✓ ${villes.length} ville${villes.length > 1 ? 's' : ''} enregistrée${villes.length > 1 ? 's' : ''}.`;
+  if(!error) setTimeout(()=>{ statut.textContent = ''; }, 2500);
+});
 document.getElementById('referentSaveBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('referentSaveBtn');
   const statut = document.getElementById('referentStatut');

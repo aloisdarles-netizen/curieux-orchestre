@@ -519,7 +519,10 @@ const CurieuxDB = (()=>{
         bic: r.bic || '',
         titulaire_compte: r.titulaireCompte || '',
         num_conges_spectacles: r.numCongesSpectacles || '',
+        // Plus demandé ni affiché — on continue d'écrire ce qui existe déjà
+        // plutôt que d'effacer une saisie au premier enregistrement.
         num_audiens: r.numAudiens || '',
+        derniere_visite_medicale: r.derniereVisiteMedicale || null,
         contact_urgence_nom: r.contactUrgenceNom || '',
         contact_urgence_tel: r.contactUrgenceTel || '',
         permis_conduire: r.permisConduire || '',
@@ -543,6 +546,7 @@ const CurieuxDB = (()=>{
         titulaireCompte: row.titulaire_compte || '',
         numCongesSpectacles: row.num_conges_spectacles || '',
         numAudiens: row.num_audiens || '',
+        derniereVisiteMedicale: row.derniere_visite_medicale || '',
         contactUrgenceNom: row.contact_urgence_nom || '',
         contactUrgenceTel: row.contact_urgence_tel || '',
         permisConduire: row.permis_conduire || '',
@@ -1246,11 +1250,50 @@ const CurieuxDB = (()=>{
     }
     return {
       phaseTest: !!(data && data.phase_test),
+      villesBase: (data && data.villes_base) || [],
       referentNom: (data && data.referent_nom) || '',
       referentTelephone: (data && data.referent_telephone) || '',
       absent: !data,
     };
   }
+  // Les jetons permanents de tout un groupe, en une passe.
+  //
+  // Les liens envoyés portaient jusqu'ici le jeton d'une DEMANDE de dispo. Ce
+  // jeton meurt avec la demande — tournée supprimée (cascade), demande retirée,
+  // purge des sollicitations techniciennes — et le lien envoyé la semaine
+  // d'avant cesse alors de fonctionner sans que personne ne l'ait décidé. Le
+  // jeton permanent, lui, appartient à la personne et survit à tout.
+  //
+  // On lit la table d'un coup, on ne crée que ce qui manque : trente appels
+  // réseau par rendu n'auraient pas été tenables.
+  async function jetonsPermanentsPour(personnes){
+    const carte = new Map();
+    if(!supabaseClient) return carte;
+    const { data, error } = await supabaseClient.from('acces_personnels').select('*');
+    if(!error){
+      (data || []).forEach(r=> carte.set(`${r.person_type}:${r.person_id}`, r.token));
+    } else {
+      console.warn('[CurieuxDB] jetonsPermanentsPour', error.message);
+    }
+    const manquants = (personnes || []).filter(p=> p && p.id && !carte.has(`${p.type}:${p.id}`));
+    for(const p of manquants){
+      const res = await ensureAccesPersonnel(p.id, p.type);
+      if(res && res.token) carte.set(`${p.type}:${p.id}`, res.token);
+    }
+    return carte;
+  }
+
+  // Les villes où l'orchestre est chez lui : une date qui s'y déroule ne
+  // demande pas de trajet, et le bloc qu'elle forme n'annonce pas de départ la
+  // veille. Réglé depuis le tableau de bord admin.
+  async function setVillesBase(villes){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.from('reglages')
+      .update({ villes_base: villes || [] }).eq('id', 1);
+    if(error) console.warn('[CurieuxDB] setVillesBase', error.message);
+    return { error };
+  }
+
   // Le référent de production : qui appeler quand quelque chose cloche. Réglé
   // depuis le tableau de bord admin, lu par les pages internes.
   async function setContactProduction(nom, telephone){
@@ -1483,7 +1526,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, syncCollection, upsertOne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
-    fetchReglages, setPhaseTest, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
+    fetchReglages, setPhaseTest, setVillesBase, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
@@ -1501,7 +1544,7 @@ const CurieuxDB = (()=>{
     getDispoDemandeByToken, markDispoRespondedByToken,
     updateOwnContactByToken, updateOwnDisponibilitesByToken, updateOwnPrenomUsageByToken,
     getRemplacantPrefsByToken, upsertRemplacantPrefsByToken,
-    getOwnPersonByToken, getRosterForPicker, getTourneeByToken, ensureAccesPersonnel,
+    getOwnPersonByToken, getRosterForPicker, getTourneeByToken, ensureAccesPersonnel, jetonsPermanentsPour,
     getCachetOverrideByToken, removeCachetOverridesForTournee,
     reportBug
   };

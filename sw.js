@@ -90,7 +90,11 @@
 // techniques dont les deux pages publiques.
 // v27 : db.js porte l'engagement des véhicules et des chauffeurs sur un projet
 // (tournees_ids).
-const VERSION = 'curieux-v27';
+// v28 : les liens envoyés portent le jeton permanent de la personne
+// (db.js : jetonsPermanentsPour), ui-helpers.js connaît les villes où
+// l'orchestre est chez lui, et base.css élargit bandeau et sous-menu au format
+// des pages de travail.
+const VERSION = 'curieux-v28';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

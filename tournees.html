@@ -23,7 +23,6 @@
      retrouvaient hors cadre. Même largeur que l'éditeur de devis, l'autre
      écran de la maison qui travaille en tableau. */
   .wrap{max-width:min(1720px, 97vw); margin:0 auto;}
-  body.co-has-topbar .co-topbar-in{ max-width:min(1720px, 97vw); }
 
   /* ------------------------------------------------------------------------
      Sommaire latéral + cartes repliables — le motif validé sur la page
@@ -954,7 +953,11 @@ document.getElementById('importConfirm').addEventListener('click', (e)=>{
   parsed.forEach(p=>{
     if(existingDates.has(p.date)) return;
     tournee.dates.push({ id: genId('date'), date: p.date, ville: p.ville, lieu: p.lieu, commentaire:'', statut:'option', type: typeDateValide(PROJET_TYPE, ''), musiciensAssignes:[], techniciensAssignes:[],
-      ...(EST_RECORDING ? { seance:'journee', cabine:'', titres:'' } : { travelMode:'tourbus' }) });
+      // Chez soi, il n'y a pas de trajet à organiser : une date en ville de base
+      // naît sans transport, et le bloc qu'elle forme n'annonce donc ni départ
+      // la veille ni retour le lendemain.
+      ...(EST_RECORDING ? { seance:'journee', cabine:'', titres:'' }
+        : { travelMode: estVilleDeBase(p.ville) ? 'aucun' : 'tourbus' }) });
     existingDates.add(p.date);
     added++;
   });
@@ -1305,7 +1308,8 @@ async function demanderDispo(personId, role){
     dispoDemandesCache = [...dispoDemandesCache, demande];
   }
 
-  const lien = lienPublic('mon-espace.html', 'token=' + encodeURIComponent(demande.id));
+  await assurerJetonPermanent(personType, personId);
+  const lien = lienPersonne(personType, personId, demande.id);
   const message = [
     `Bonjour ${personne.prenom || ''},`.trim(),
     '',
@@ -2312,8 +2316,24 @@ let dispoLinksCurrentTourneeId = null;
 // Lien unique de l'espace personnel : il regroupe les disponibilités, les
 // infos et les remplaçant·es. Le jeton de demande y est accepté au même titre
 // que le jeton permanent, donc les liens déjà envoyés restent valables.
-function dispoLinkUrl(demandeId){
-  return lienPublic('mon-espace.html', 'token=' + encodeURIComponent(demandeId));
+// Le lien qu'on ENVOIE porte le jeton permanent de la personne. Le jeton d'une
+// demande meurt avec elle — tournée supprimée, demande retirée — et le message
+// parti la semaine d'avant cesse alors de marcher. Le jeton de demande ne sert
+// plus que de secours, tant qu'aucun jeton permanent n'existe.
+let jetonsPermanents = new Map();
+function lienPersonne(personType, personId, demandeId){
+  const permanent = jetonsPermanents.get(`${personType}:${personId}`);
+  return lienPublic('mon-espace.html', 'token=' + encodeURIComponent(permanent || demandeId));
+}
+async function assurerJetonPermanent(personType, personId){
+  if(jetonsPermanents.has(`${personType}:${personId}`)) return;
+  const res = await CurieuxDB.ensureAccesPersonnel(personId, personType);
+  if(res && res.token) jetonsPermanents.set(`${personType}:${personId}`, res.token);
+}
+async function chargerJetonsPermanents(){
+  const gens = new Map();
+  loadDispoDemandes().forEach(d=> gens.set(`${d.personType}:${d.personId}`, { id: d.personId, type: d.personType }));
+  jetonsPermanents = await CurieuxDB.jetonsPermanentsPour([...gens.values()]);
 }
 
 function openDispoLinksModal(tourneeId){
@@ -2391,7 +2411,7 @@ function renderDispoLinksModal(tourneeId){
 
   function rowFor(person, personType, roleLabel){
     const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === person.id);
-    const url = existing ? dispoLinkUrl(existing.id) : null;
+    const url = existing ? lienPersonne(personType, person.id, existing.id) : null;
     const dispo = person.disponibilites || {};
     const allAnswered = answerableDates.length > 0 && answerableDates.every(d=> dispo[d.date]);
     let statusHtml;
@@ -2548,7 +2568,10 @@ document.getElementById('dispoLinksCopyAllBtn').addEventListener('click', async 
   const lines = [];
   for(const { person, personType } of people){
     const entry = await generateDispoLink(tourneeId, personType, person.id);
-    if(entry) lines.push(`${fullName(person)} : ${dispoLinkUrl(entry.id)}`);
+    if(entry){
+      await assurerJetonPermanent(personType, person.id);
+      lines.push(`${fullName(person)} : ${lienPersonne(personType, person.id, entry.id)}`);
+    }
   }
   renderDispoLinksModal(tourneeId);
   navigator.clipboard.writeText(lines.join('\n')).then(()=>{
@@ -2701,7 +2724,13 @@ function bindTourneeEvents(){
       if(!t.dates) t.dates = [];
       const seanceInput = document.querySelector(`[data-new-seance="${tourneeId}"]`);
       const nouvelle = { id: genId('date'), date: dateInput.value, ville: villeInput.value.trim(), lieu: lieuInput.value.trim(), commentaire:'', statut:'option', type: typeDateValide(PROJET_TYPE, typeInput.value), musiciensAssignes:[], techniciensAssignes:[] };
-      if(!EST_RECORDING) nouvelle.travelMode = (travelInput && travelInput.value) || 'tourbus';
+      // Même règle à la saisie manuelle : une date chez soi ne demande pas de
+      // trajet, et le menu de voyage n'a pas à être corrigé après coup.
+      if(!EST_RECORDING){
+        nouvelle.travelMode = estVilleDeBase(nouvelle.ville)
+          ? 'aucun'
+          : ((travelInput && travelInput.value) || 'tourbus');
+      }
       if(EST_RECORDING){
         nouvelle.seance = (seanceInput && seanceInput.value) || 'journee';
         nouvelle.cabine = '';
@@ -2778,11 +2807,17 @@ function bindTourneeEvents(){
           // Le voyage ne suit que tant qu'on reste dans la même ville — un bloc
           // peut en traverser plusieurs. La nature, elle, reste celle de chaque
           // journée.
+          //
+          // Et une date chez soi ne prend jamais de trajet, même si la date
+          // d'à côté en avait un : c'est le cas des répétitions en région
+          // parisienne, où le bloc annonçait un départ la veille qui n'existe
+          // pas.
           const ref = blocInfo.blocDates[0];
           const ville = (x)=> (x.ville || '').trim().toLowerCase();
           blocInfo.blocDates.forEach(gd=>{
             gd.statut = ref.statut;
-            if(ville(gd) === ville(ref)) gd.travelMode = ref.travelMode;
+            if(estVilleDeBase(gd.ville)) gd.travelMode = 'aucun';
+            else if(ville(gd) === ville(ref)) gd.travelMode = ref.travelMode;
           });
         }
       }
@@ -2908,6 +2943,14 @@ function scrollToHash(){
 }
 
 async function initData(){
+  // Les villes où l'orchestre est chez lui : elles décident si une date naît
+  // avec ou sans trajet. Lues avant le premier rendu, sinon une date créée dans
+  // la seconde qui suit prendrait « Tourbus » par défaut.
+  try{
+    const reglages = await CurieuxDB.fetchReglages();
+    poserVillesBase(reglages && reglages.villesBase);
+  }catch(e){ /* réglages indisponibles : on garde le comportement d'avant */ }
+
   [tourneesCache, fdrsCache, musiciansCache, techniciansCache, dispoDemandesCache, cachetOverridesCache, remplacantPrefsCache, devisCache] = await Promise.all([
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('feuilles_route'),
@@ -2923,6 +2966,9 @@ async function initData(){
   ]);
   render();
   scrollToHash();
+  // Les jetons permanents arrivent après le premier rendu : ils ne servent
+  // qu'aux liens qu'on copie ou qu'on envoie, jamais à l'affichage.
+  await chargerJetonsPermanents();
 }
 CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; curieuxRafraichir(render); }); });
 CurieuxDB.subscribe('feuilles_route', ()=>{ CurieuxDB.fetchAll('feuilles_route').then(list=>{ fdrsCache = list; curieuxRafraichir(render); }); });
