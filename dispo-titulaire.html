@@ -332,8 +332,24 @@ async function init(){
   // renvoyer que LE montant de cette personne (voir migrations.sql).
   state.cachetOverride = await CurieuxDB.getCachetOverrideByToken(token);
 
+  // Le journal d'une visite interrompue : des clics jamais confirmés (panne,
+  // page fermée trop vite). On les rejoue par-dessus la fiche serveur et on
+  // renvoie aussitôt — la personne n'a rien à refaire.
+  const enAttente = lireJournal();
+  if(enAttente){
+    Object.assign(state.person.disponibilites, enAttente.disponibilites || {});
+    Object.assign(state.person.disponibilites_commentaires, enAttente.commentaires || {});
+    hasUnsavedChanges = true;
+  }
+
   render();
   maybeShowInfosModal();
+
+  if(enAttente){
+    const statusEl = document.getElementById('saveStatus');
+    if(statusEl){ statusEl.textContent = 'Des réponses restées sur cet appareil ont été retrouvées — renvoi en cours…'; statusEl.className = 'save-status dirty'; }
+    doSave();
+  }
 }
 
 function maybeShowInfosModal(){
@@ -736,9 +752,58 @@ window.addEventListener('beforeunload', (e)=>{
   e.returnValue = '';
 });
 
+/* ---------------------------------------------------------------------------
+   Le filet : une réponse de musicien·ne ne doit JAMAIS se perdre.
+   Trois couches, de l'ordinaire au paranoïaque :
+   1. l'envoi automatique — 1 s après chaque clic, réessai toutes les 15 s ;
+   2. le journal local — chaque clic est d'abord écrit sur l'appareil, et n'en
+      est effacé qu'une fois l'enregistrement CONFIRMÉ PAR RELECTURE. Fermer
+      la page en pleine panne ne perd rien : la prochaine ouverture retrouve
+      le journal et renvoie ce qui restait ;
+   3. l'envoi de secours à la fermeture — un fetch keepalive part même quand
+      l'onglet meurt, sans attendre de réponse. Le journal, lui, reste : si ce
+      tir de la dernière chance n'est pas arrivé, la prochaine visite corrige.
+--------------------------------------------------------------------------- */
+function cleJournal(){ return 'curieuxDispoJournal:' + state.token; }
+function ecrireJournal(){
+  try{
+    localStorage.setItem(cleJournal(), JSON.stringify({
+      quand: Date.now(),
+      disponibilites: state.person.disponibilites,
+      commentaires: state.person.disponibilites_commentaires,
+    }));
+  }catch(e){}
+}
+function effacerJournal(){ try{ localStorage.removeItem(cleJournal()); }catch(e){} }
+function lireJournal(){
+  try{
+    const j = JSON.parse(localStorage.getItem(cleJournal()) || 'null');
+    // Au-delà de 14 jours, le journal ne doit pas écraser des réponses
+    // peut-être refaites depuis un autre appareil.
+    if(!j || !j.quand || Date.now() - j.quand > 14 * 86400000) return null;
+    return j;
+  }catch(e){ return null; }
+}
+function envoyerSecours(){
+  try{
+    fetch(SUPABASE_URL + '/rest/v1/rpc/update_own_disponibilites_by_token', {
+      method: 'POST', keepalive: true,
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({
+        p_token: state.token,
+        p_disponibilites: state.person.disponibilites,
+        p_disponibilites_commentaires: state.person.disponibilites_commentaires,
+        p_telephone: state.person.telephone || '',
+        p_email: state.person.email || '',
+      }),
+    });
+  }catch(e){}
+}
+window.addEventListener('pagehide', ()=>{ if(hasUnsavedChanges && state.person) envoyerSecours(); });
+
 // Fermer l'onglet ou passer en arrière-plan n'attend pas le minuteur.
 document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'hidden' && hasUnsavedChanges) doSave();
+  if(document.visibilityState === 'hidden' && hasUnsavedChanges && state.person){ envoyerSecours(); doSave(); }
 });
 
 function markDirty(){
@@ -748,6 +813,7 @@ function markDirty(){
   status.className = 'save-status dirty';
   btn.hidden = true;
   hasUnsavedChanges = true;
+  ecrireJournal();
   clearTimeout(minuteurSauvegarde);
   minuteurSauvegarde = setTimeout(doSave, 1000);
 }
@@ -787,6 +853,7 @@ function signalerEchec(message){
 async function envoyerReponses(){
   const btn = document.getElementById('saveBtn');
   const status = document.getElementById('saveStatus');
+  ecrireJournal();
   btn.hidden = true;
   status.textContent = 'Enregistrement…';
   status.className = 'save-status dirty';
@@ -821,7 +888,30 @@ async function envoyerReponses(){
     signalerEchec("Pas d'enregistrement — vérifie ta connexion.");
     return;
   }
-  status.textContent = '✓ Enregistré à ' + heureCourte() + ' — tu peux fermer la page.';
+  // Relecture indépendante : le ✓ ne ment jamais. On redemande la fiche au
+  // serveur et on compare clic par clic — un accusé de réception ne prouve
+  // pas une écriture. Si la relecture elle-même échoue (réseau), l'écriture
+  // est acquittée mais le journal reste : la prochaine visite revérifiera.
+  let verifie = false;
+  try{
+    const relu = await CurieuxDB.getOwnPersonByToken(state.token, state.personType, state.demande.person_id);
+    if(relu){
+      const dServeur = relu.disponibilites || {};
+      verifie = Object.keys(state.person.disponibilites)
+        .every(iso=> dServeur[iso] === state.person.disponibilites[iso]);
+      if(!verifie){
+        signalerEchec('La vérification ne correspond pas — nouvel essai…');
+        return;
+      }
+    }
+  }catch(e){}
+  // Le journal ne survit qu'aux échecs RÉELS (envoi refusé, relecture qui
+  // contredit). Une relecture simplement indisponible ne le garde pas :
+  // l'écriture est acquittée, et un journal immortel ferait rejouer la page
+  // à chaque visite — un faux signal permanent, pire que l'assurance qu'il
+  // prétend donner.
+  effacerJournal();
+  status.textContent = (verifie ? '✓ Enregistré et vérifié à ' : '✓ Enregistré à ') + heureCourte() + ' — tu peux fermer la page.';
   status.className = 'save-status saved';
   btn.hidden = true;
   hasUnsavedChanges = false;

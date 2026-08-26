@@ -580,6 +580,14 @@ const CurieuxDB = new Proxy({
     contactUrgenceNom:'Jean Rabatti', contactUrgenceTel:'06 99 88 77 66',
     tailleVetement:'M', extra:{},
   }),
+  // Écrit pour de vrai dans le jeu de démo : la relecture de vérification de
+  // dispo-titulaire compare ce que rend getOwnPersonByToken — un faux muet la
+  // ferait échouer à chaque clic.
+  updateOwnDisponibilitesByToken: async (t, dispos, comms) => {
+    __seed.musiciens[0].disponibilites = dispos || {};
+    __seed.musiciens[0].disponibilites_commentaires = comms || {};
+    return { error: null };
+  },
   getCachetOverrideByToken: async () => null,
   // Jeton personnel permanent : la fiche de prise en main en dépend, et un
   // jeton vide ferait rendre une fiche sans lien — donc sans QR à relire.
