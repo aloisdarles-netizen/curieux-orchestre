@@ -529,6 +529,26 @@ function bindDatesPanel(panel, onConfirm){
 // Recherche ponctuelle d'un·e remplaçant·e (musicien·ne, ou technicien·ne du pôle Régie)
 // à qui générer un lien de dispo à la demande, en dehors des titulaires — même logique
 // que la modale de tournees.html, adaptée à une carte par tournée sur cette page.
+/* Ouvrir et fermer les panneaux dépliants (dates à cocher).
+ *
+ * data-panneau-ouvert n'est pas décoratif : tant qu'il est là, le
+ * rafraîchissement temps réel se retient (voir _curieuxOccupe dans
+ * ui-helpers). Sans cela, un rendu mis en attente pendant qu'on tapait un nom
+ * repartait au premier clic — celui-là même qui ouvrait le panneau — et le
+ * refermait dans la foulée. Le panneau semblait « s'ouvrir et se refermer tout
+ * seul ».
+ */
+function ouvrirPanneau(panel){
+  panel.style.display = 'block';
+  panel.setAttribute('data-panneau-ouvert', '');
+}
+function fermerPanneaux(racine, selecteur){
+  (racine || document).querySelectorAll(selecteur).forEach(p=>{
+    p.style.display = 'none';
+    p.removeAttribute('data-panneau-ouvert');
+  });
+}
+
 function renderAddRemplacantResults(tourneeId, query, holder){
   const q = (query || '').toLowerCase().trim();
   if(!q){ holder.innerHTML = ''; return; }
@@ -600,7 +620,7 @@ function renderAddRemplacantResults(tourneeId, query, holder){
       const row = btn.closest('[data-remplacant-row]');
       const panel = row.querySelector('[data-dates-panel]');
       const opening = panel.style.display === 'none';
-      holder.querySelectorAll('[data-dates-panel]').forEach(p=> p.style.display = 'none');
+      fermerPanneaux(holder, '[data-dates-panel]');
       if(!opening) return;
       const role = row.querySelector('[data-role-nouveau]').value;
       const nom = row.querySelector('.ajout-nom').textContent;
@@ -608,7 +628,7 @@ function renderAddRemplacantResults(tourneeId, query, holder){
         <div class="ajout-recap">${escapeHtml(nom)} — <b>${escapeHtml(libelleRoleProjet(role).toLowerCase())}</b>
           sur ${escapeHtml((projet && projet.nom) || (reco ? 'ce recording' : 'cette tournée'))}.</div>
         ${remplacantDatesPanelHtml(tourneeId, null, `Ajouter à ${reco ? 'ce recording' : 'cette tournée'}`, true)}`;
-      panel.style.display = 'block';
+      ouvrirPanneau(panel);
       bindDatesPanel(panel, async (selectedTourneeId, dates)=>{
         await generateDispoLink(selectedTourneeId || tourneeId, row.dataset.personType, row.dataset.personId, dates, role);
         const searchInput = document.querySelector(`[data-remplacant-search][data-tournee="${tourneeId}"]`);
@@ -1550,10 +1570,10 @@ function render(){
       const wrap = btn.closest('[data-demande-wrap]');
       const panel = wrap.querySelector('[data-new-dates-panel]');
       const opening = panel.style.display === 'none';
-      holder.querySelectorAll('[data-new-dates-panel], [data-edit-dates-panel]').forEach(p=> p.style.display = 'none');
+      fermerPanneaux(holder, '[data-new-dates-panel], [data-edit-dates-panel]');
       if(!opening) return;
       panel.innerHTML = remplacantDatesPanelHtml(btn.dataset.tournee, null, 'Solliciter sur ces dates', true);
-      panel.style.display = 'block';
+      ouvrirPanneau(panel);
       bindDatesPanel(panel, async (selectedTourneeId, dates)=>{
         await generateDispoLink(selectedTourneeId || btn.dataset.tournee, btn.dataset.personType, btn.dataset.personId, dates);
         render();
@@ -1619,12 +1639,12 @@ function render(){
       const demandeId = wrap.dataset.demandeWrap;
       const panel = wrap.querySelector('[data-edit-dates-panel]');
       const opening = panel.style.display === 'none';
-      holder.querySelectorAll('[data-edit-dates-panel]').forEach(p=> p.style.display = 'none');
+      fermerPanneaux(holder, '[data-edit-dates-panel]');
       if(!opening) return;
       const entry = loadDispoDemandes().find(d=> d.id === demandeId);
       const currentDates = (entry && entry.dates && entry.dates.length > 0) ? entry.dates : null;
       panel.innerHTML = remplacantDatesPanelHtml(btn.dataset.tournee, currentDates, 'Enregistrer les dates', false);
-      panel.style.display = 'block';
+      ouvrirPanneau(panel);
       bindDatesPanel(panel, async (_selectedTourneeId, dates)=>{
         await updateDispoLinkDates(demandeId, dates);
         render();

@@ -672,21 +672,30 @@ function renderEditeur(){
       <div><button type="button" class="co-btn ghost sm" id="ajouterRendu" ${fige}>+ Ajouter une colonne de rendus</button></div>
     </div>
     <div class="entete-grid" style="margin-top:10px;">
-      <div class="field"><label>Hors devis (mention d'en-tête)</label><input type="text" id="dHorsDevis" value="${escapeAttr(devis.horsDevisTexte || '')}" placeholder="Ce que le devis ne couvre pas" ${fige}></div>
+      ${/* Un <input> obligeait à tout mettre bout à bout, séparé de barres
+             obliques. Ce qui s'imprime en tête du devis mérite une ligne par
+             point : le PDF respecte les retours à la ligne. */''}
+      <div class="field"><label>Hors devis (mention d'en-tête)</label><textarea id="dHorsDevis" rows="3" placeholder="Ce que le devis ne couvre pas — une ligne par point" ${fige}>${escapeHtml(devis.horsDevisTexte || '')}</textarea></div>
       <div class="field" style="grid-column:span 2;"><label>Mémo interne (jamais imprimé)</label><input type="text" id="dMemo" value="${escapeAttr(devis.memo || '')}" placeholder="Feuille SACEM, nb jours REC…" ${fige}></div>
     </div>
   </div>`);
 
   // ---- Sections ----
+  // La carte des charges se glisse juste après la section choisie : à l'écran
+  // comme au PDF, on les lit sous les salaires qui les engendrent plutôt qu'en
+  // bas de page, après le matériel.
+  const carteCharges = `<div class="carte peut-figer" id="chargesCarte"></div>`;
+  const posCharges = (devis.sections || []).findIndex(sec=> sec.id && sec.id === devis.chargesApres);
   (devis.sections || []).forEach((sec, si)=>{
     html.push(renderSection(sec, si));
+    if(si === posCharges) html.push(carteCharges);
   });
   html.push(`<div class="peut-figer" style="margin-bottom:14px;">
     <button type="button" class="co-btn secondary md" id="ajouterSection" ${fige}>+ Ajouter une section</button>
   </div>`);
 
   // ---- Charges ----
-  html.push(`<div class="carte peut-figer" id="chargesCarte"></div>`);
+  if(posCharges < 0) html.push(carteCharges);
 
   // ---- Divers / coûts comptables ----
   html.push(`<div class="carte peut-figer" id="diversCarte"></div>`);
@@ -914,6 +923,14 @@ function renderCharges(){
   const calc = calculerDevis(devis);
   document.getElementById('chargesCarte').innerHTML = `
     <h2>Charges patronales — calculées</h2>
+    <div class="calc-ligne" style="border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:6px;">
+      <span class="lib">Emplacement dans le document</span>
+      <select id="dChargesApres" style="flex:1 1 240px; max-width:340px;" ${fige}>
+        <option value="">À la fin, juste avant les frais généraux</option>
+        ${(devis.sections || []).map(sec=>
+          `<option value="${escapeAttr(sec.id || '')}" ${sec.id && sec.id === devis.chargesApres ? 'selected' : ''}>Après « ${escapeHtml(sec.titre || 'section sans titre')} »</option>`).join('')}
+      </select>
+    </div>
     ${calc.chargesLignes.map(c=> `
       <div class="calc-ligne">
         <span class="lib">${escapeHtml(c.libelle)}</span>
@@ -930,6 +947,13 @@ function renderCharges(){
     devis.taux[el.dataset.taux] = devisNombre(el.value, 0);
     marquerModifie(); majTotaux();
   }));
+  const emplacement = document.getElementById('dChargesApres');
+  if(emplacement) emplacement.addEventListener('change', ()=>{
+    devis.chargesApres = emplacement.value;
+    marquerModifie(); renderEditeur(); majTotaux();
+    const carte = document.getElementById('chargesCarte');
+    if(carte) carte.scrollIntoView({ block:'center', behavior:'smooth' });
+  });
 }
 
 function renderDivers(){
@@ -1076,6 +1100,45 @@ function rafraichirRappelProjet(){
 // reste comme point d'accroche si un contrôle y revient un jour.
 function brancherRappelProjet(){}
 
+// Le curseur va au bout du texte, jamais dessus : passer sur une ligne remplie
+// ne doit pas l'effacer à la première frappe.
+function focusChampLigne(cle){
+  const el = document.querySelector(`[data-l="${cle}"]`);
+  if(!el) return false;
+  el.focus();
+  try{ el.setSelectionRange(el.value.length, el.value.length); }catch(err){}
+  return true;
+}
+
+function allerLigneVoisine(el, sens){
+  const [si, gi, li, champ] = el.dataset.l.split(':');
+  const s = +si, g = +gi, i = +li;
+  const sec = (devis.sections || [])[s];
+  if(!sec) return;
+  const lignes = sec.groupes[g].lignes || [];
+  if(i + sens >= 0 && i + sens < lignes.length){
+    focusChampLigne(`${s}:${g}:${i + sens}:${champ}`);
+    return;
+  }
+  // Sorti du groupe : le groupe voisin de la même section prend le relais. On
+  // ne franchit pas la frontière de section — changer de section change de
+  // colonnes (le régime n'existe pas partout) et de logique.
+  if(sens > 0){
+    for(let gg = g + 1; gg < sec.groupes.length; gg++){
+      if((sec.groupes[gg].lignes || []).length) return void focusChampLigne(`${s}:${gg}:0:${champ}`);
+    }
+    if(devis.fige) return;
+    lignes.push(nouvelleLigneDevis(sec.remuneration));
+    marquerModifie(); renderEditeur(); majTotaux();
+    focusChampLigne(`${s}:${g}:${lignes.length - 1}:${champ}`);
+    return;
+  }
+  for(let gg = g - 1; gg >= 0; gg--){
+    const n = (sec.groupes[gg].lignes || []).length;
+    if(n) return void focusChampLigne(`${s}:${gg}:${n - 1}:${champ}`);
+  }
+}
+
 function brancherSections(){
   const ed = document.getElementById('editeur');
 
@@ -1105,6 +1168,22 @@ function brancherSections(){
       marquerModifie(); majTotaux();
     });
   });
+
+  /* Entrée descend d'une ligne, dans la même colonne.
+   *
+   * Une feuille de devis se remplit comme un tableur : on descend une colonne,
+   * on ne saute pas de champ en champ. Il fallait jusqu'ici reprendre la souris
+   * à chaque ligne. Maj+Entrée remonte. Arrivé en bas de la section, une ligne
+   * de plus est créée — la suite naturelle de la frappe, plutôt qu'un cul-de-sac.
+   *
+   * Seulement sur les <input> : dans un <select>, Entrée appartient au
+   * navigateur (valider la liste ouverte), on ne le lui prend pas.
+   */
+  ed.querySelectorAll('input[data-l]').forEach(el=> el.addEventListener('keydown', (e)=>{
+    if(e.key !== 'Enter') return;
+    e.preventDefault();
+    allerLigneVoisine(el, e.shiftKey ? -1 : +1);
+  }));
 
   ed.querySelectorAll('[data-sec-titre]').forEach(el=> el.addEventListener('input', ()=>{
     devis.sections[+el.dataset.secTitre].titre = el.value; marquerModifie();

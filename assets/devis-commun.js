@@ -17,6 +17,8 @@
  *   { id, projetId, tourneeId, variante, retenue, numero, statut, fige,
  *     titre, clientId, date, validiteJours, conditionsReglement, acomptePct,
  *     intervention, rendus:[{titre, texte}], horsDevisTexte, memo,
+ *     chargesApres (id de section : le bloc des charges patronales s'imprime
+ *       juste après elle ; vide = tout en bas, comme avant),
  *     taux:{auteur, musicien, production}, fraisGenerauxPct, imprevusPct,
  *     fichesPaie:{nb, prix}, tvaDefaut, remise:{libelle, montant},
  *     sections:[{ id, titre, remuneration, tva|null, groupes:[
@@ -122,6 +124,10 @@ function nouveauDevis(reglages, projetId, tourneeId, typeProjet){
     conditionsReglement: r.conditionsReglement || '',
     acomptePct: 30,
     intervention: '', rendus: [], horsDevisTexte: '', memo: '',
+    // Les charges patronales se lisent mieux juste sous les salaires qui les
+    // engendrent que reléguées après le matériel. Vide = à la fin, la place
+    // qu'elles occupaient jusqu'ici.
+    chargesApres: '',
     taux: {
       auteur: r.tauxAuteur != null ? r.tauxAuteur : 4,
       musicien: r.tauxMusicien != null ? r.tauxMusicien : 60,

@@ -199,20 +199,24 @@ function genererDevisPdf(devis, client, reglages){
     return h;
   });
 
-  calc.sections.forEach((s, si)=>{
-    // Titre de section, dans l'idiome des rubriques (filet prune + capitales).
-    composeur.libre((k, dessiner, y, o)=>{
-      const pt = 8.4;
-      const h = o.hLigne(pt) + 3.4;
-      if(!dessiner) return h;
-      o.fond(o.charte.prune);
-      doc.rect(o.marge, y + 1.4, 1.2, o.hLigne(pt) * 0.8, 'F');
-      doc.setFont('Host', 'bold'); doc.setFontSize(pt); o.encre(o.charte.prune);
-      doc.setCharSpace(0.08);
-      doc.text(`${si + 1} —  ${(s.section.titre || 'Section').toUpperCase()}`, o.marge + 3.4, y + 1, { baseline: 'top' });
-      doc.setCharSpace(0);
-      return h;
-    });
+  // Un titre de section, dans l'idiome des rubriques (filet prune + capitales).
+  // Le numéro est passé de l'extérieur : le bloc des charges s'intercale entre
+  // deux sections et prend un numéro dans la même suite.
+  const titreDeBloc = (numero, texte)=> composeur.libre((k, dessiner, y, o)=>{
+    const pt = 8.4;
+    const h = o.hLigne(pt) + 3.4;
+    if(!dessiner) return h;
+    o.fond(o.charte.prune);
+    doc.rect(o.marge, y + 1.4, 1.2, o.hLigne(pt) * 0.8, 'F');
+    doc.setFont('Host', 'bold'); doc.setFontSize(pt); o.encre(o.charte.prune);
+    doc.setCharSpace(0.08);
+    doc.text(`${numero} —  ${texte.toUpperCase()}`, o.marge + 3.4, y + 1, { baseline: 'top' });
+    doc.setCharSpace(0);
+    return h;
+  });
+
+  const dessinerSection = (s, numero)=>{
+    titreDeBloc(numero, s.section.titre || 'Section');
     enteteColonnes();
 
     s.groupes.forEach(g=>{
@@ -288,23 +292,12 @@ function genererDevisPdf(devis, client, reglages){
       doc.text(fmtEurosDevis(s.sousTotal), X(o, 'total') + L(o, 'total'), y + 1, { baseline: 'top', align: 'right' });
       return h;
     });
-  });
+  };
 
   // --- Charges patronales ---------------------------------------------------
   const chargesVisibles = calc.chargesLignes.filter(c=> c.assiette > 0);
-  if(chargesVisibles.length){
-    composeur.libre((k, dessiner, y, o)=>{
-      const pt = 8.4;
-      const h = o.hLigne(pt) + 3.4;
-      if(!dessiner) return h;
-      o.fond(o.charte.prune);
-      doc.rect(o.marge, y + 1.4, 1.2, o.hLigne(pt) * 0.8, 'F');
-      doc.setFont('Host', 'bold'); doc.setFontSize(pt); o.encre(o.charte.prune);
-      doc.setCharSpace(0.08);
-      doc.text(`${calc.sections.length + 1} —  CHARGES PATRONALES`, o.marge + 3.4, y + 1, { baseline: 'top' });
-      doc.setCharSpace(0);
-      return h;
-    });
+  const dessinerCharges = (numero)=>{
+    titreDeBloc(numero, 'Charges patronales');
     chargesVisibles.forEach(c=>{
       composeur.libre((k, dessiner, y, o)=>{
         const h = o.hLigne(7.4) + 1.8;
@@ -331,7 +324,20 @@ function genererDevisPdf(devis, client, reglages){
       doc.text(fmtEurosDevis(calc.chargesTotal), X(o, 'total') + L(o, 'total'), y + 1, { baseline: 'top', align: 'right' });
       return h;
     });
-  }
+  };
+
+  /* L'ordre des blocs. Les charges patronales tombaient toujours après la
+   * dernière section — donc après le matériel et le studio, loin des salaires
+   * qui les engendrent. « Placer après » (en-tête de la carte Charges dans
+   * l'éditeur) les remonte où on les lit. Vide, ou section disparue : à la fin,
+   * comme avant. */
+  const posCharges = calc.sections.findIndex(s=> s.section.id && s.section.id === devis.chargesApres);
+  let numeroBloc = 1;
+  calc.sections.forEach((s, si)=>{
+    dessinerSection(s, numeroBloc++);
+    if(chargesVisibles.length && si === posCharges) dessinerCharges(numeroBloc++);
+  });
+  if(chargesVisibles.length && posCharges < 0) dessinerCharges(numeroBloc++);
 
   // --- Divers (frais généraux, imprévus, fiches de paie, remise) ------------
   const diversLignes = [
@@ -342,18 +348,7 @@ function genererDevisPdf(devis, client, reglages){
     calc.remise ? [(devis.remise || {}).libelle || 'Remise commerciale', '', -calc.remise] : null,
   ].filter(Boolean);
   if(diversLignes.length){
-    composeur.libre((k, dessiner, y, o)=>{
-      const pt = 8.4;
-      const h = o.hLigne(pt) + 3.4;
-      if(!dessiner) return h;
-      o.fond(o.charte.prune);
-      doc.rect(o.marge, y + 1.4, 1.2, o.hLigne(pt) * 0.8, 'F');
-      doc.setFont('Host', 'bold'); doc.setFontSize(pt); o.encre(o.charte.prune);
-      doc.setCharSpace(0.08);
-      doc.text(`${calc.sections.length + (chargesVisibles.length ? 2 : 1)} —  DIVERS`, o.marge + 3.4, y + 1, { baseline: 'top' });
-      doc.setCharSpace(0);
-      return h;
-    });
+    titreDeBloc(numeroBloc++, 'Divers');
     diversLignes.forEach(([libelle, detail, montant])=>{
       composeur.libre((k, dessiner, y, o)=>{
         const h = o.hLigne(7.4) + 1.8;

@@ -556,6 +556,13 @@ function _curieuxOccupe(){
   if(el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && el.type !== 'checkbox') return true;
   if(el && el.isContentEditable) return true;
   try{ if(curieuxModaleOuverte()) return true; }catch(e){}
+  // Un panneau déplié au clic — les dates à cocher de Demandes titulaires, par
+  // exemple — est aussi fragile qu'une fenêtre modale. Sans cette ligne, un
+  // rendu mis en attente pendant la frappe se déclenchait au premier clic qui
+  // suit (voir l'écouteur plus bas) et refermait le panneau à l'instant même
+  // où il s'ouvrait. La page qui l'ouvre pose l'attribut, et le retire en le
+  // refermant.
+  try{ if(document.querySelector('[data-panneau-ouvert]')) return true; }catch(e){}
   return false;
 }
 
