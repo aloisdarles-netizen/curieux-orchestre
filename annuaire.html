@@ -500,6 +500,10 @@ function render(){
                 bouton mort — le numéro et l'adresse se lisent déjà en colonne. */''}
           ${waHref ? `<a class="co-btn ghost sm" href="${waHref}" target="_blank" rel="noopener" title="Ouvrir la conversation WhatsApp">WhatsApp</a>` : ''}
           ${mailHref ? `<a class="co-btn ghost sm" href="${mailHref}" title="Écrire par email">Mail</a>` : ''}
+          ${/* Demander ses dispos hors du circuit d'office : un·e remplaçant·e
+                que l'on veut sur un projet précis, un·e titulaire sur une
+                session où l'on ne sollicite pas tout le monde. */''}
+          <button type="button" class="co-btn ghost sm" data-dispos="${m.id}" title="Lui demander ses dispos sur un projet">Dispos</button>
           ${/* La fiche de prise en main porte le lien personnel de la personne :
                 un document à lui envoyer tel quel, plutôt qu'un lien nu collé
                 dans un message sans rien pour l'expliquer. */''}
@@ -512,6 +516,9 @@ function render(){
 
   grid.querySelectorAll('[data-edit]').forEach(btn=>{
     btn.addEventListener('click', ()=> openModal(btn.dataset.edit));
+  });
+  grid.querySelectorAll('[data-dispos]').forEach(btn=>{
+    btn.addEventListener('click', ()=> ouvrirDemandeDispos(btn.dataset.dispos));
   });
   grid.querySelectorAll('[data-view-remplacants]').forEach(btn=>{
     btn.addEventListener('click', ()=> openRemplacantsModal(btn.dataset.viewRemplacants));
@@ -1123,6 +1130,25 @@ injectCurieuxFonts();
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+// Projets et demandes ne sont chargés qu'au premier clic sur « Dispos » :
+// l'annuaire s'ouvre plusieurs fois par jour, la fenêtre de demande beaucoup
+// moins — inutile de faire payer deux requêtes à chaque ouverture.
+let projetsCache = null, demandesCache = null;
+async function ouvrirDemandeDispos(id){
+  const personne = loadMusicians().find(p=> p.id === id);
+  if(!personne) return;
+  // Les demandes sont relues à chaque ouverture : deux personnes peuvent
+  // solliciter la même personne au même moment, et une liste périmée créerait
+  // une seconde demande là où il fallait en compléter une.
+  [projetsCache, demandesCache] = await Promise.all([
+    projetsCache || CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('dispo_demandes'),
+  ]);
+  curieuxDemanderDispos({
+    personne, personType: 'musicien', projets: projetsCache, demandes: demandesCache,
+  });
+}
 
 async function initData(){
   [musiciansCache, allTechniciansCache, remplacantPrefsCache] = await Promise.all([

@@ -179,6 +179,177 @@ function libelleSerieDates(dates, options){
 // Menu de nav groupé (Tournées/Annuaires/Disponibilités en dropdowns) — même comportement
 // sur toutes les pages : clic pour ouvrir/fermer, un seul groupe ouvert à la fois, clic
 // en dehors pour fermer.
+/* ============================================================================
+   Demander ses dispos à quelqu'un, hors du circuit d'office
+   ============================================================================
+   Le moteur est celui du bloc « Ajouter quelqu'un à ce projet » de
+   suivi-dispo : une demande limitée aux dates cochées. Ce qui manquait, c'est
+   de pouvoir le faire d'où l'on part — d'une fiche d'annuaire — sans traverser
+   trois pages. Écrit ici, et non dans chaque annuaire, pour n'avoir qu'une
+   implémentation à corriger.
+
+   La personne n'est pas prévenue par cette action : c'est le bouton
+   « Relancer » de Demandes titulaires qui porte le message, et lui seul.
+============================================================================ */
+async function curieuxDemanderDispos({ personne, personType, projets, demandes, apres, projetId, datesCochees }){
+  const aVenir = new Date().toISOString().slice(0, 10);
+  // Seuls les projets qui ont encore une date à répondre : proposer une
+  // tournée finie n'aurait aucun sens.
+  const candidats = (projets || []).filter(t=>
+    (t.dates || []).some(d=> d.date && d.date >= aVenir && d.statut !== 'annulee'));
+  if(!candidats.length){
+    alert("Aucun projet à venir n'a de date à proposer.");
+    return;
+  }
+
+  const nom = fullName(personne);
+  const ancien = document.getElementById('curieuxDemandeOverlay');
+  if(ancien) ancien.remove();
+
+  const ov = document.createElement('div');
+  ov.id = 'curieuxDemandeOverlay';
+  ov.style.cssText = 'position:fixed; inset:0; background:rgba(20,22,23,.55); display:grid; place-items:center; z-index:200; padding:20px;';
+  ov.innerHTML = `
+    <div style="background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg, 22px); padding:24px 26px; max-width:520px; width:100%; max-height:85vh; overflow:auto;">
+      <h2 style="font-family:var(--font-display); font-size:21px; font-weight:500; color:var(--accent); margin:0 0 4px;">Demander ses dispos</h2>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 16px;">À ${escapeHtml(nom)}, sur les dates de ton choix. Son lien personnel lui montrera ce projet.</p>
+      <label style="display:block; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:4px;">Projet</label>
+      <select id="cdProjet" style="width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; background:var(--card); color:var(--text); font-family:inherit; margin-bottom:14px;">
+        ${candidats.map(t=> `<option value="${escapeAttr(t.id)}"${t.id === projetId ? ' selected' : ''}>${escapeHtml((t.nom || 'Sans nom') + suffixeProjetTexte(t))}</option>`).join('')}
+      </select>
+      <div id="cdEtat" style="font-size:12.5px; margin-bottom:8px;"></div>
+      <label style="display:block; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:4px;">Dates proposées</label>
+      <div id="cdDates" style="border:1px solid var(--border); border-radius:8px; padding:8px 10px; max-height:220px; overflow:auto;"></div>
+      <div style="display:flex; gap:8px; margin-top:16px; flex-wrap:wrap;">
+        <button type="button" class="co-btn ghost sm" id="cdTout">Tout (dé)cocher</button>
+        ${/* margin-left:auto plutôt qu'une cale élastique : sur téléphone la
+             rangée passe à la ligne, et les deux boutons de décision restent
+             ensemble à droite au lieu de se retrouver séparés. */''}
+        <button type="button" class="co-btn ghost md" id="cdAnnuler" style="margin-left:auto;">Annuler</button>
+        <button type="button" class="co-btn primary md" id="cdOk">Demander</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+
+  // Cases pré-cochées : ce qui vient de l'appelant — la case grisée sur
+  // laquelle on a cliqué. Une seule fois, sinon changer de projet et revenir
+  // recocherait ce que l'on vient de décocher.
+  let precoche = new Set(datesCochees || []);
+
+  const selProjet = ov.querySelector('#cdProjet');
+  const boiteDates = ov.querySelector('#cdDates');
+  const etat = ov.querySelector('#cdEtat');
+
+  function demandeExistante(){
+    return (demandes || []).find(d=> d.tourneeId === selProjet.value
+      && d.personType === personType && d.personId === personne.id);
+  }
+  function peindre(){
+    const t = candidats.find(x=> x.id === selProjet.value);
+    const dates = (t.dates || []).filter(d=> d.date && d.date >= aVenir && d.statut !== 'annulee')
+      .sort((a, b)=> a.date.localeCompare(b.date));
+    const dem = demandeExistante();
+    const dejaToutes = dem && !(dem.dates && dem.dates.length);
+    const deja = new Set((dem && dem.dates) || []);
+    etat.innerHTML = !dem ? ''
+      : (dejaToutes
+        ? `<span class="co-pill ok">Déjà sollicité·e sur tout ce projet</span>`
+        : `<span class="co-pill att">Déjà sollicité·e sur ${deja.size} date${deja.size > 1 ? 's' : ''}</span> <span style="color:var(--muted);">— cocher en ajoute.</span>`);
+    boiteDates.innerHTML = dates.map(d=> `
+      <label style="display:flex; align-items:flex-start; gap:9px; padding:5px 2px; font-size:13px; line-height:1.45; ${deja.has(d.id) || dejaToutes ? 'opacity:.55;' : ''}">
+        <input type="checkbox" value="${escapeAttr(d.id)}" ${deja.has(d.id) || dejaToutes ? 'checked disabled' : (precoche.has(d.id) ? 'checked' : '')}
+          style="width:16px; height:16px; margin-top:2px; flex-shrink:0; accent-color:var(--accent);">
+        <span><b>${escapeHtml(new Date(d.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'short' }))}</b>
+        ${d.ville ? ' · ' + escapeHtml(d.ville) : ''}${d.lieu ? ' <span style="color:var(--muted);">' + escapeHtml(d.lieu) + '</span>' : ''}
+        ${deja.has(d.id) || dejaToutes ? ' <span style="color:var(--muted); font-size:11.5px;">(déjà demandée)</span>' : ''}</span>
+      </label>`).join('') || '<div style="color:var(--muted); font-size:13px; padding:6px 2px;">Aucune date à venir sur ce projet.</div>';
+  }
+  selProjet.addEventListener('change', peindre);
+  peindre();
+  precoche = new Set();
+
+  ov.querySelector('#cdTout').addEventListener('click', ()=>{
+    const libres = [...boiteDates.querySelectorAll('input:not(:disabled)')];
+    const cible = !libres.every(c=> c.checked);
+    libres.forEach(c=> c.checked = cible);
+  });
+  const fermer = ()=> ov.remove();
+  ov.querySelector('#cdAnnuler').addEventListener('click', fermer);
+  ov.addEventListener('click', (e)=>{ if(e.target === ov) fermer(); });
+
+  ov.querySelector('#cdOk').addEventListener('click', async ()=>{
+    const btn = ov.querySelector('#cdOk');
+    const choisies = [...boiteDates.querySelectorAll('input:not(:disabled):checked')].map(c=> c.value);
+    if(!choisies.length){
+      alert('Aucune date cochée — rien à demander.');
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Envoi…';
+    const res = await curieuxPoserDemandeDispo({
+      tourneeId: selProjet.value, personType, personId: personne.id,
+      dateIds: choisies, demandes,
+    });
+    if(res.error){
+      alert("La demande n'a pas pu être enregistrée :\n\n" + res.error.message);
+      btn.disabled = false; btn.textContent = 'Demander';
+      return;
+    }
+    fermer();
+    curieuxFlash(`Dispos demandées à ${nom} — ${choisies.length} date${choisies.length > 1 ? 's' : ''}.`);
+    if(typeof apres === 'function') apres(res.demande);
+  });
+}
+
+/* Un mot qui passe. Le codebase n'avait qu'alert() pour dire « c'est fait »,
+ * ce qui oblige à cliquer pour accuser réception d'une bonne nouvelle. Les
+ * ennuis gardent alert(), les réussites passent par ici.
+ */
+function curieuxFlash(message){
+  let hote = document.getElementById('curieuxFlash');
+  if(!hote){
+    hote = document.createElement('div');
+    hote.id = 'curieuxFlash';
+    hote.style.cssText = 'position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:300; display:grid; gap:8px; justify-items:center; pointer-events:none;';
+    document.body.appendChild(hote);
+  }
+  const mot = document.createElement('div');
+  mot.textContent = message;
+  mot.style.cssText = 'background:var(--text, #16181a); color:var(--card, #fff); padding:10px 16px; border-radius:999px; font-size:13.5px; font-weight:600; box-shadow:0 6px 20px rgba(0,0,0,.22); opacity:0; transition:opacity .18s ease, transform .18s ease; transform:translateY(6px);';
+  hote.appendChild(mot);
+  requestAnimationFrame(()=>{ mot.style.opacity = '1'; mot.style.transform = 'translateY(0)'; });
+  setTimeout(()=>{
+    mot.style.opacity = '0'; mot.style.transform = 'translateY(6px)';
+    setTimeout(()=> mot.remove(), 250);
+  }, 3200);
+}
+
+/* Créer ou étendre la demande — le cœur, sans interface, pour que la Vue
+ * d'ensemble puisse l'appeler d'un simple clic sur une case grisée.
+ *
+ * Une demande dont les dates sont vides vaut pour TOUT le projet : on ne la
+ * restreint jamais en y ajoutant une date, ce serait retirer un droit en
+ * croyant en donner un.
+ */
+async function curieuxPoserDemandeDispo({ tourneeId, personType, personId, dateIds, demandes }){
+  // Le jeton permanent d'abord : sans lui, la personne n'a aucun moyen de
+  // répondre à ce qu'on vient de lui demander.
+  try{ await CurieuxDB.ensureAccesPersonnel(personId, personType); }catch(e){}
+  const liste = demandes || [];
+  const existante = liste.find(d=> d.tourneeId === tourneeId
+    && d.personType === personType && d.personId === personId);
+  if(existante){
+    if(!(existante.dates && existante.dates.length)) return { error: null, demande: existante };
+    const fusion = [...new Set(existante.dates.concat(dateIds))];
+    existante.dates = fusion;
+    const { error } = await CurieuxDB.upsertOne('dispo_demandes', existante);
+    return { error, demande: existante };
+  }
+  const entree = { id: genId('demande'), tourneeId, personType, personId, dates: dateIds, role: null };
+  const { error } = await CurieuxDB.upsertOne('dispo_demandes', entree);
+  if(!error) liste.push(entree);
+  return { error, demande: entree };
+}
+
 function initNavDropdowns(){
   // Rend le menu partagé au passage : toutes les pages appelaient déjà cette
   // fonction, inutile de leur ajouter un appel de plus.

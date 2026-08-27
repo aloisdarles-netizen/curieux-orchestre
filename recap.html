@@ -281,6 +281,11 @@ function estSollicite(personne, ptype, e){
   const dem = dispoDemandesCache.find(d=> d.tourneeId === e.tourneeId
     && d.personType === ptype && d.personId === personne.id);
   if(dem) return !(dem.dates && dem.dates.length) || dem.dates.includes(e.dateId);
+  // Retiré·e à la main du projet (Demandes titulaires) : le raisonnement
+  // d'office ne s'applique plus, sinon la case redeviendrait blanche et l'on
+  // croirait la personne sollicitée.
+  const projet = loadTournees().find(x=> x.id === e.tourneeId);
+  if(projet && (projet.sollicitationExclus || []).includes(`${ptype}:${personne.id}`)) return false;
   const titulaire = (personne.statutPoste || 'titulaire') !== 'remplacant';
   return titulaire && (!e.estRecording || ptype === 'musicien');
 }
@@ -364,7 +369,7 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${hors ? ' hors-demande' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
             data-cellule data-tid="${escapeAttr(e.tourneeId)}" data-did="${escapeAttr(e.dateId)}" data-pid="${escapeAttr(m.id)}"
             data-ptype="${assignField === 'musiciensAssignes' ? 'musicien' : 'technicien'}" data-date="${escapeAttr(e.date)}" data-reco="${e.estRecording ? '1' : ''}"
-            style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? ' avec-note' : ''}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date' : title}${note ? ' — « ' + escapeHtml(note) + ' »' : ''}">${symbol}</span></div>`;
+            style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? ' avec-note' : ''}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}${note ? ' — « ' + escapeHtml(note) + ' »' : ''}">${symbol}</span></div>`;
         }).join('')}
       </div>
     `;
@@ -627,6 +632,19 @@ async function surClicCellule(cel){
   const champ = ptype === 'musicien' ? 'musiciensAssignes' : 'techniciensAssignes';
   const nom = fullName(personne);
   const jour = `${fmtDateFRShort(date)}${d.ville ? ' · ' + d.ville : ''}`;
+
+  // Case grisée : la personne n'a rien à répondre sur cette date, alors la
+  // marquer ou l'affecter serait décider à sa place. Le premier geste, c'est
+  // de la solliciter — la fenêtre s'ouvre sur ce projet, cette date cochée,
+  // et laisse en ajouter d'autres tant qu'on y est.
+  if(cel.classList.contains('hors-demande')){
+    curieuxDemanderDispos({
+      personne, personType: ptype, projets: loadTournees(), demandes: dispoDemandesCache,
+      projetId: tid, datesCochees: [did],
+      apres: ()=> rendreEnGardantLeScroll(),
+    });
+    return;
+  }
 
   if(mode === 'marquer'){
     const avant = (personne.disponibilites || {})[date] || '';
