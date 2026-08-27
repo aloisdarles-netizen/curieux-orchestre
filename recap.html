@@ -68,11 +68,36 @@
      à cet écran : affecté·e, disponible, indisponible, à confirmer. */
   /* La barre de modes : le clic sur une case fait UNE chose à la fois, et le
      mode armé se voit — pilule pleine, liseré de couleur sur les matrices. */
+  /* La barre flotte en bas, et non plus collée sous le menu.
+     Là-haut, elle se disputait la même bande de pixels que l'en-tête du
+     tableau — lui aussi collant, et dessiné après elle : il la recouvrait à
+     moitié dès qu'on faisait défiler la page. En bas, plus de conflit, et
+     elle reste sous la main où qu'on en soit dans la saison. */
   .mode-bar{
-    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    display:flex; align-items:center; gap:14px;
     background:var(--card); border:2px solid var(--border); border-radius:14px;
-    padding:12px 16px; margin:18px 0 4px; position:sticky; top:60px; z-index:5;
-    box-shadow:0 6px 18px rgba(20,22,23,.10);
+    padding:10px 16px; z-index:40;
+    position:fixed; bottom:16px; left:0; right:0; margin-inline:auto;
+    width:max-content; max-width:calc(100vw - 32px);
+    box-shadow:0 10px 30px rgba(20,22,23,.20);
+  }
+  /* De la place sous le pied de page : sinon la barre flottante recouvre les
+     mentions légales. Sur body et non sur .wrap — le pied de page est posé
+     après lui (voir nav.js) — et en nommant aussi .co-has-topbar, qui fixe
+     déjà ce rembourrage dans base.css et l'emporterait sinon. */
+  body, body.co-has-topbar{padding-bottom:120px;}
+  @media (max-width:1180px){ .mode-hint{display:none;} }
+  @media (max-width:900px){
+    /* Sur téléphone, l'essentiel tient sur une rangée : les deux modes et
+       Oups. Le rappel « un clic sur une case » disparaît — il prend deux
+       lignes pour dire ce que les pilules montrent déjà. */
+    .mode-bar{
+      left:10px; right:10px; width:auto; max-width:none;
+      justify-content:center; gap:8px; bottom:10px; padding:8px 10px;
+    }
+    .mode-libelle, .mode-mot{display:none;}
+    .mode-pilules button{padding:9px 13px; font-size:12.5px; white-space:nowrap;}
+    #oupsBtn{padding:9px 14px; font-size:12.5px;}
   }
   .mode-libelle{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);}
   .mode-pilules{display:flex; gap:0; border:2px solid var(--border); border-radius:999px; overflow:hidden;}
@@ -170,6 +195,10 @@
   /* Bandeau de projets, au-dessus des dates : la couleur seule ne dit pas de
      quelle tournée il s'agit, le nom écrit en toutes lettres si. Les deux
      rangées collent ensemble en haut du tableau, d'où l'enveloppe. */
+  /* Le tableau s'arrête au-dessus de la barre flottante. En contrepartie il
+     démarre plus haut : la bande de 72 px qu'occupait la barre de modes sous
+     le menu est rendue au tableau. */
+  .co-matrix{max-height:max(340px, calc(100dvh - 210px));}
   .co-matrix-tete{position:sticky; top:0; z-index:5; background:var(--card);}
   .co-matrix-tete .co-matrix-head{position:static;}
   .co-matrix-tete .co-matrix-head{border-bottom:1px solid var(--border);}
@@ -225,10 +254,10 @@
     </span>
   </div>
 
-  <div class="mode-bar co-fade">
+  <div class="mode-bar">
     <span class="mode-libelle">Un clic sur<br>une case :</span>
     <div class="mode-pilules" role="group" aria-label="Ce que fait un clic sur une case">
-      <button type="button" data-mode="marquer">✎ Marquer les dispos</button>
+      <button type="button" data-mode="marquer">✎ Marquer<span class="mode-mot"> les dispos</span></button>
       <button type="button" data-mode="affecter">★ Affecter</button>
     </div>
     <span class="mode-hint" id="modeHint"></span>
