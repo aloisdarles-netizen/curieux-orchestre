@@ -73,6 +73,19 @@
   .bug-message{white-space:pre-wrap; word-break:break-word; line-height:1.45;}
   .bug-meta{display:flex; gap:10px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:12px; margin-top:6px;}
   .bug-page{font-weight:700; text-transform:uppercase; font-size:10.5px; padding:1px 7px; border-radius:12px; background:var(--accent-tint); color:var(--accent-dark);}
+  /* L'espace d'où vient le message, avant la page exacte : on trie d'abord
+     par « qui parle d'où », le nom de fichier ne sert qu'ensuite. */
+  .bug-espace{
+    font-weight:800; text-transform:uppercase; font-size:10.5px; padding:1px 8px;
+    border-radius:12px; background:var(--row-alt); color:var(--text);
+  }
+  .bug-espace.perso{background:var(--bleu, #CEE1F4); color:#14324f;}
+  .bug-espace.salle{background:var(--rose, #FEC9E0); color:#6d1140;}
+  .bug-espace.technique{background:var(--maybe, #b8860b); color:#fff;}
+  .bug-espace.comm{background:var(--secondary, #EC4B15); color:#fff;}
+  .bug-espace.devis{background:var(--accent-tint); color:var(--accent-dark);}
+  .bug-espace.prod{background:var(--accent-solid, #791649); color:#fff;}
+  .bug-espace.connexion{background:var(--border); color:var(--muted);}
   .bug-auteur{font-weight:700; color:var(--text);}
   .bug-auteur i{font-weight:600; color:var(--muted);}
   .bug-type{font-weight:700; text-transform:uppercase; font-size:10.5px; padding:1px 7px; border-radius:12px;}
@@ -166,6 +179,19 @@
             <option value="bug">Bug</option>
             <option value="amelioration">Amélioration</option>
             <option value="incoherence">Incohérence</option>
+          </select>
+        </div>
+        <div class="field" style="flex:0 0 220px;">
+          <label for="bugEspaceFilter">Espace</label>
+          <select id="bugEspaceFilter">
+            <option value="">Tous</option>
+            <option value="perso">Espace perso</option>
+            <option value="prod">Production</option>
+            <option value="technique">Direction technique</option>
+            <option value="comm">Espace comm</option>
+            <option value="devis">Devis</option>
+            <option value="salle">Espace salle</option>
+            <option value="connexion">Connexion</option>
           </select>
         </div>
       </div>
@@ -458,15 +484,49 @@ async function loadBugReports(){
   renderBugReports();
 }
 
+/* De quel espace vient un signalement ?
+ *
+ * La page seule (« technique-date.html ») ne dit pas à qui l'on a affaire :
+ * un musicien qui râle sur ses dispos et un régisseur bloqué sur une fiche
+ * technique ne se traitent pas pareil, et ne se répondent pas pareil. On
+ * range donc chaque page dans son espace — c'est déduit du nom de fichier,
+ * pas enregistré : les signalements déjà reçus en profitent aussi.
+ */
+const ESPACES_PAGES = {
+  'mon-espace':'perso', 'mes-infos':'perso', 'mes-remplacants':'perso', 'dispo-titulaire':'perso',
+  'page-salle':'salle', 'technique-partage':'salle', 'fiche-technique':'salle',
+  'technique':'technique', 'technique-date':'technique', 'technique-taches':'technique',
+  'fiches-techniques':'technique', 'materiel':'technique', 'vehicules':'technique',
+  // partage.html demande un accès direction technique : c'est une page de
+  // l'équipe, pas un lien envoyé à une salle.
+  'partage':'technique',
+  'comm':'comm', 'newsletter':'comm',
+  'devis':'devis', 'devis-editeur':'devis', 'devis-clients':'devis',
+  'admin-login':'connexion', 'creer-compte':'connexion', 'definir-mot-de-passe':'connexion',
+};
+const ESPACE_LABELS = {
+  perso:'Espace perso', salle:'Espace salle', technique:'Direction technique',
+  comm:'Espace comm', devis:'Devis', connexion:'Connexion', prod:'Production',
+};
+function espaceDeLaPage(page){
+  const nom = String(page || '').split('/').pop().replace(/\.html$/, '').replace(/\?.*$/, '');
+  if(!nom) return '';
+  // Tout le reste, ce sont les pages de production — celles qui demandent un
+  // compte admin : tournées, annuaires, dispos, feuilles de route, console.
+  return ESPACES_PAGES[nom] || 'prod';
+}
+
 function renderBugReports(){
   const typeFilter = document.getElementById('bugTypeFilter').value;
-  const filtered = typeFilter ? bugReportsCache.filter(b=> b.type === typeFilter) : bugReportsCache;
+  const espaceFilter = document.getElementById('bugEspaceFilter').value;
+  const filtered = bugReportsCache.filter(b=>
+    (!typeFilter || b.type === typeFilter) && (!espaceFilter || espaceDeLaPage(b.page) === espaceFilter));
 
   const list = document.getElementById('bugList');
   const empty = document.getElementById('bugEmpty');
   if(filtered.length === 0){
     list.innerHTML = '';
-    empty.textContent = bugReportsCache.length === 0 ? 'Aucun signalement pour le moment.' : 'Aucun signalement pour ce filtre.';
+    empty.textContent = bugReportsCache.length === 0 ? 'Aucun signalement pour le moment.' : 'Aucun signalement pour ces filtres.';
     empty.style.display = 'block';
     return;
   }
@@ -477,6 +537,7 @@ function renderBugReports(){
         <div class="bug-message">${escapeHtml(b.message)}</div>
         <div class="bug-meta">
           <span class="bug-type ${escapeHtml(b.type || 'bug')}">${escapeHtml(BUG_TYPE_LABELS[b.type] || 'Bug')}</span>
+          ${espaceDeLaPage(b.page) ? `<span class="bug-espace ${escapeHtml(espaceDeLaPage(b.page))}">${escapeHtml(ESPACE_LABELS[espaceDeLaPage(b.page)])}</span>` : ''}
           <span class="bug-page">${escapeHtml(b.page || '—')}</span>
           ${/* Qui l'a posé — l'adresse du compte, le nom du lien personnel, ou
                 le nom donné à la main. « Anonyme » quand la page ne savait pas
@@ -823,6 +884,7 @@ async function loadLog(){
 }
 
 document.getElementById('bugTypeFilter').addEventListener('change', renderBugReports);
+document.getElementById('bugEspaceFilter').addEventListener('change', renderBugReports);
 document.getElementById('logTableFilter').addEventListener('change', loadLog);
 document.getElementById('logSearch').addEventListener('input', renderLog);
 

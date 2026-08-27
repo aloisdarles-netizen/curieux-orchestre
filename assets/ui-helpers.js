@@ -350,6 +350,58 @@ async function curieuxPoserDemandeDispo({ tourneeId, personType, personId, dateI
   return { error, demande: entree };
 }
 
+/* ============================================================================
+   Revenir à son espace, depuis n'importe quelle page personnelle
+   ============================================================================
+   Les pages qu'un·e musicien·ne ouvre par son lien — ses dispos, ses infos,
+   ses remplaçant·es — n'ont pas de menu : ce sont des pages publiques, sans
+   compte. Deux d'entre elles portaient un petit lien gris sous le logo, la
+   troisième rien du tout, et il fallait dans tous les cas remonter tout en
+   haut d'un formulaire de trente dates pour le trouver.
+
+   Un seul bouton, posé ici pour les quatre pages à la fois, et qui suit le
+   défilement. Il ne s'affiche que sur un lien personnel (?token=) et jamais
+   sur l'espace lui-même — on n'y revient pas quand on y est.
+
+   Le jeton est repris tel quel de l'URL courante : c'est lui, et lui seul,
+   qui identifie la personne d'une page à l'autre.
+============================================================================ */
+function injecterRetourEspace(){
+  if(typeof document === 'undefined') return;
+  if(!document.body){
+    document.addEventListener('DOMContentLoaded', injecterRetourEspace);
+    return;
+  }
+  if(document.getElementById('curieuxRetourEspace')) return;
+  const page = (location.pathname.split('/').pop() || '').replace(/\.html$/, '');
+  if(page === 'mon-espace') return;
+  const jeton = new URLSearchParams(location.search).get('token');
+  if(!jeton) return;
+
+  const hote = document.querySelector('.wrap') || document.body;
+  const lien = document.createElement('a');
+  lien.id = 'curieuxRetourEspace';
+  lien.href = 'mon-espace.html?token=' + encodeURIComponent(jeton);
+  lien.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="flex-shrink:0;">'
+    + '<path d="M11 5.5 4.5 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>'
+    + '<line x1="5.5" y1="12" x2="19.5" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>'
+    + '</svg><span>Mon espace</span>';
+  lien.style.cssText = 'position:sticky; top:8px; z-index:15; display:flex; width:max-content;'
+    + ' align-items:center; gap:7px; margin:-6px 0 18px; padding:9px 15px; border-radius:999px;'
+    + ' background:var(--card,#fff); color:var(--accent-dark,#5a1037); border:1.5px solid var(--border,#f0dbe6);'
+    + ' font-size:13px; font-weight:800; text-decoration:none; font-family:inherit;'
+    + ' box-shadow:0 4px 14px rgba(20,15,10,.10);';
+  lien.addEventListener('mouseenter', ()=>{ lien.style.borderColor = 'var(--accent,#791649)'; });
+  lien.addEventListener('mouseleave', ()=>{ lien.style.borderColor = 'var(--border,#f0dbe6)'; });
+
+  // Sous le logo quand il y en a un : « ← Mon espace » se lit là où l'œil
+  // cherche déjà de quel site il s'agit.
+  const logo = hote.querySelector('.brand-logo-img');
+  if(logo && logo.parentElement === hote) hote.insertBefore(lien, logo.nextSibling);
+  else hote.insertBefore(lien, hote.firstChild);
+}
+injecterRetourEspace();
+
 function initNavDropdowns(){
   // Rend le menu partagé au passage : toutes les pages appelaient déjà cette
   // fonction, inutile de leur ajouter un appel de plus.
