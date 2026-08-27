@@ -151,6 +151,43 @@
     font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
     padding:1px 6px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); margin-left:6px; vertical-align:middle;
   }
+  /* Choisir les projets à l'affiche. Un recording dont on a demandé les dispos
+     largement pose douze colonnes pour un seul événement : sans ce filtre, il
+     écrase à lui seul le reste de la saison. */
+  .projets-filtre{display:flex; gap:7px; align-items:center; flex-wrap:wrap; margin:10px 0 16px;}
+  .projets-filtre-label{font-size:12px; color:var(--muted); font-weight:600;}
+  .chip-projet{
+    display:inline-flex; align-items:center; gap:7px; cursor:pointer; font-family:inherit;
+    padding:5px 11px; border-radius:999px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); font-size:12.5px; font-weight:700;
+  }
+  .chip-projet .pastille{width:11px; height:11px; border-radius:50%; border:1px solid rgba(0,0,0,.14); flex-shrink:0;}
+  .chip-projet small{font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .chip-projet em{font-style:normal; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
+  .chip-projet:hover{border-color:var(--accent); color:var(--accent);}
+  .chip-projet.off{opacity:.45; border-style:dashed; text-decoration:line-through; text-decoration-thickness:1px;}
+
+  /* Bandeau de projets, au-dessus des dates : la couleur seule ne dit pas de
+     quelle tournée il s'agit, le nom écrit en toutes lettres si. Les deux
+     rangées collent ensemble en haut du tableau, d'où l'enveloppe. */
+  .co-matrix-tete{position:sticky; top:0; z-index:5; background:var(--card);}
+  .co-matrix-tete .co-matrix-head{position:static;}
+  .co-matrix-tete .co-matrix-head{border-bottom:1px solid var(--border);}
+  .co-matrix-groupes .co-matrix-name{
+    z-index:5; padding:6px 14px; font-size:10.5px; font-weight:800;
+    text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
+  }
+  /* min-width:0 : sans lui, un flex-item refuse de descendre sous la largeur
+     de son texte, et une bande de deux colonnes au nom long décalerait tout
+     l'alignement avec les dates du dessous. */
+  .groupe-projet{
+    min-width:0; padding:6px; text-align:center; font-size:11px; font-weight:800;
+    color:var(--text); border-right:1px solid var(--border); cursor:pointer;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .groupe-projet:hover{filter:brightness(.95); text-decoration:line-through;}
+  @media (max-width:760px){ .co-matrix-tete{display:none;} }
+
   .dispo-filter-row{display:flex; gap:8px; align-items:center; margin:-2px 0 10px; flex-wrap:wrap;}
   .dispo-filter-row label{font-size:12px; color:var(--muted); font-weight:600;}
   .dispo-filter-row select{
@@ -208,6 +245,8 @@
     </select>
   </div>
 
+  <div class="projets-filtre co-fade" id="projetsFiltre"></div>
+
   <h2 class="section-title">Musicien·nes</h2>
   <div id="matrixHolderMusiciens"><div class="empty-hint">Chargement…</div></div>
 
@@ -242,6 +281,22 @@ function fmtDateFRShort(iso){
 }
 
 let showPastDates = false;
+
+// Projets masqués (par id). Rangé dans le navigateur : on ne change pas d'avis
+// à chaque rechargement, et ce n'est pas une donnée d'équipe — chacun regarde
+// la saison sous l'angle qui l'occupe.
+const CLE_PROJETS_MASQUES = 'curieuxRecapProjetsMasques';
+let projetsMasques = new Set();
+try{ projetsMasques = new Set(JSON.parse(localStorage.getItem(CLE_PROJETS_MASQUES) || '[]')); }catch(e){}
+function memoriserMasques(){
+  try{ localStorage.setItem(CLE_PROJETS_MASQUES, JSON.stringify([...projetsMasques])); }catch(e){}
+}
+// Une couleur par projet, tirée du rang dans la liste complète : elle ne doit
+// pas bouger quand on en masque un, sinon le tableau change de sens à chaque
+// clic sur une puce.
+function couleursProjets(){
+  return new Map(loadTournees().map((t, i)=> [t.id, `var(--tour-${i % 8})`]));
+}
 
 function allDateEntries(assignField, tourneeId){
   const tournees = tourneeId ? loadTournees().filter(t=>t.id === tourneeId) : loadTournees();
@@ -312,13 +367,51 @@ function compareByStatutThenName(a, b){
   return fullName(a).localeCompare(fullName(b));
 }
 
+// Les puces de projets. Comptent les dates de la fenêtre en cours (à venir, ou
+// tout l'historique si la case est cochée) : c'est le nombre de colonnes que le
+// projet coûte, donc la seule information qui aide à décider de le masquer.
+function renderProjetsFiltre(){
+  const holder = document.getElementById('projetsFiltre');
+  const today = new Date().toISOString().slice(0, 10);
+  const couleurs = couleursProjets();
+  const avecDates = loadTournees().map(t=> ({
+    t, n: (t.dates || []).filter(d=> d.date && (showPastDates || d.date >= today)).length,
+  })).filter(x=> x.n > 0);
+  if(avecDates.length < 2){ holder.innerHTML = ''; return; }
+  const nbMasques = avecDates.filter(x=> projetsMasques.has(x.t.id)).length;
+  holder.innerHTML = `
+    <span class="projets-filtre-label">Colonnes affichées :</span>
+    ${avecDates.map(({ t, n })=>{
+      const off = projetsMasques.has(t.id);
+      return `<button type="button" class="chip-projet${off ? ' off' : ''}" data-projet="${escapeAttr(t.id)}"
+        aria-pressed="${!off}" title="${off ? 'Afficher' : 'Masquer'} les ${n} date${n > 1 ? 's' : ''} de « ${escapeHtml(t.nom || 'Sans nom')} »">
+        <span class="pastille" style="background:${couleurs.get(t.id)};"></span>
+        ${escapeHtml(t.nom || 'Sans nom')}${estRecording(t) ? ' <em>Rec</em>' : ''}
+        <small>${n}</small>
+      </button>`;
+    }).join('')}
+    ${nbMasques ? `<button type="button" class="co-btn ghost sm" id="projetsTout">Tout afficher</button>` : ''}`;
+  holder.querySelectorAll('[data-projet]').forEach(b=> b.addEventListener('click', ()=>{
+    const id = b.dataset.projet;
+    if(projetsMasques.has(id)) projetsMasques.delete(id); else projetsMasques.add(id);
+    memoriserMasques();
+    renderAll();
+  }));
+  const tout = holder.querySelector('#projetsTout');
+  if(tout) tout.addEventListener('click', ()=>{ projetsMasques.clear(); memoriserMasques(); renderAll(); });
+}
+
 function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyLinkLabel, nameLabel){
-  const entries = allDateEntries(assignField);
+  const entries = allDateEntries(assignField).filter(e=> !projetsMasques.has(e.tourneeId));
   const sorted = people.slice().sort(compareByStatutThenName);
   const holder = document.getElementById(holderId);
 
   if(sorted.length === 0){
     holder.innerHTML = `<div class="empty-hint">Ajoute d'abord dans l'<a href="${emptyLinkHref}">${emptyLinkLabel}</a>.</div>`;
+    return;
+  }
+  if(entries.length === 0 && projetsMasques.size){
+    holder.innerHTML = `<div class="empty-hint">Tous les projets sont masqués — rouvre-en un ci-dessus.</div>`;
     return;
   }
   if(entries.length === 0){
@@ -328,14 +421,38 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     return;
   }
 
-  const tourneeIds = loadTournees().map(t=>t.id);
-  const colorByTournee = new Map(tourneeIds.map((id, i)=> [id, `var(--tour-${i % 8})`]));
+  const colorByTournee = couleursProjets();
   const colorFor = e => colorByTournee.get(e.tourneeId) || 'transparent';
+
+  // Une bande par suite de colonnes consécutives du même projet. Deux projets
+  // qui s'entrelacent dans le calendrier donnent donc plusieurs bandes — c'est
+  // précisément ce qu'il faut voir : la couleur seule ne disait pas laquelle
+  // des trois tournées on regardait.
+  const bandes = [];
+  entries.forEach(e=>{
+    const derniere = bandes[bandes.length - 1];
+    if(derniere && derniere.tourneeId === e.tourneeId) derniere.n++;
+    else bandes.push({ tourneeId: e.tourneeId, nom: e.tourneeNom, reco: e.estRecording, n: 1 });
+  });
 
   // La matrice quitte le <table> pour la grille .co-matrix de base.css, livrée
   // avec la charte et jusqu'ici inutilisée. Le gain n'est pas que cosmétique :
   // .co-matrix-name est collante à gauche, donc le nom reste visible quand on
   // fait défiler vingt dates — ce qu'un <th> de tableau ne faisait pas.
+  // flex:n 0 (n × 76px) — la largeur exacte de n colonnes, et la même part de
+  // l'espace restant qu'elles : les deux rangées restent alignées, que le
+  // tableau tienne dans la page ou qu'il déborde.
+  const bandeau = `
+    <div class="co-matrix-row co-matrix-groupes">
+      <div class="co-matrix-name">Projet</div>
+      ${bandes.map(b=> `
+        <div class="groupe-projet" data-bande="${escapeAttr(b.tourneeId)}" style="flex:${b.n} 0 ${b.n * 76}px; background:${colorByTournee.get(b.tourneeId) || 'transparent'};"
+          title="${escapeHtml(b.nom || 'Sans nom')}${b.reco ? ' — recording' : ''} · ${b.n} date${b.n > 1 ? 's' : ''} — cliquer pour masquer ce projet">
+          ${escapeHtml(b.nom || 'Sans nom')}${b.reco ? ' · Rec' : ''}
+        </div>`).join('')}
+    </div>
+  `;
+
   const head = `
     <div class="co-matrix-row co-matrix-head">
       <div class="co-matrix-name">${nameLabel}</div>
@@ -375,14 +492,12 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     `;
   }).join('');
 
-  const tourneeLegend = loadTournees().map(t=>`
-    <span><span class="swatch" style="background:${colorByTournee.get(t.id)}; border-color:transparent;"></span> ${escapeHtml(t.nom || 'Tournée')}${pastilleProjetHtml(t)}</span>
-  `).join('');
-
+  // La bande de couleurs qui listait ici les projets a disparu : le bandeau
+  // écrit leur nom à même les colonnes, à quarante pixels de là. Deux fois la
+  // même chose, dont une en devinettes.
   holder.innerHTML = `
-    <div class="legend" style="margin-bottom:10px;">${tourneeLegend}</div>
     <div class="co-matrix">
-      <div class="co-matrix-in">${head}${rows}</div>
+      <div class="co-matrix-in"><div class="co-matrix-tete">${bandeau}${head}</div>${rows}</div>
     </div>
   `;
 }
@@ -411,6 +526,7 @@ function renderAll(){
   };
   renderPeopleMatrix(garder(loadMusicians(), 'musicien'), 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musicien·nes', "Musicien·ne");
   renderPeopleMatrix(garder(loadTechnicians(), 'technicien'), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire technicien·nes', "Technicien·ne");
+  renderProjetsFiltre();
   populateTourneeSelect();
   renderDashboard();
   document.querySelectorAll('#matrixHolderMusiciens .co-matrix, #matrixHolderTechniciens .co-matrix').forEach(m=>{
@@ -708,6 +824,14 @@ document.getElementById('oupsBtn').addEventListener('click', annulerDerniereActi
 document.addEventListener('click', (e)=>{
   const cel = e.target.closest('[data-cellule]');
   if(cel) surClicCellule(cel);
+  // Un clic sur la bande d'un projet le retire du tableau : c'est là qu'on
+  // s'aperçoit qu'il prend douze colonnes, autant pouvoir le dire sur place.
+  const bande = e.target.closest('[data-bande]');
+  if(bande){
+    projetsMasques.add(bande.dataset.bande);
+    memoriserMasques();
+    renderAll();
+  }
 });
 poserMode(mode);
 majOups();
