@@ -101,6 +101,22 @@
   [data-cellule]{cursor:pointer;}
   [data-cellule]:hover .m-cell{outline:2px solid currentColor; outline-offset:1px;}
 
+  /* Hors demande : on n'a rien demandé à cette personne sur cette date. La
+     case garde la couleur de son projet mais se raye en diagonale, et son
+     symbole s'efface — elle reste cliquable, c'est une information, pas un
+     verrou. */
+  .co-matrix-cell.hors-demande{
+    background-image:repeating-linear-gradient(135deg,
+      transparent 0 5px, rgba(122,102,118,.14) 5px 7px);
+  }
+  .m-cell.hors-demande{opacity:.22; border-style:dashed;}
+  .co-matrix-cell.hors-demande:hover .m-cell{opacity:.6;}
+  .swatch.hors{
+    background-image:repeating-linear-gradient(135deg,
+      transparent 0 3px, var(--muted) 3px 4px);
+    border-color:var(--border);
+  }
+
   /* Une précision laissée par la personne (« ok mais je pars à 22h ») : point
      orange au coin de la case, texte complet au survol. */
   .m-cell{position:relative;}
@@ -160,6 +176,7 @@
     <span><span class="swatch dispo"></span> Dispo (non affecté·e)</span>
     <span><span class="swatch indispo"></span> Indispo</span>
     <span><span class="swatch incertain"></span> À confirmer</span>
+    <span><span class="swatch hors"></span> Pas sollicité·e sur cette date</span>
     <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:var(--muted);">
       <input type="checkbox" id="showPastDates"> Afficher aussi les dates passées
     </label>
@@ -245,6 +262,29 @@ function allDateEntries(assignField, tourneeId){
 
 // Titulaires en priorité (avant les remplaçant·es), alphabétique au sein de chaque
 // groupe. Sans effet sur les technicien·nes (pas de statutPoste).
+/* Cette personne est-elle sollicitée SUR CETTE DATE-LÀ ?
+ *
+ * Deux sources, dans cet ordre :
+ *  — la demande enregistrée pour ce projet. Ses « dates » vides signifient
+ *    « tout le projet » ; sinon elle ne porte que sur les dates nommées ;
+ *  — à défaut, la règle d'office (voir titulairesPourProjet dans
+ *    suivi-dispo.html) : sur une tournée, tout le noyau ; sur un recording,
+ *    les musicien·nes seulement — une séance de studio ne mobilise pas la
+ *    régie. Sans ce repli, une tournée dont les liens n'ont pas encore été
+ *    posés griserait tout le noyau, ce qui serait faux et alarmant.
+ *
+ * D'où les deux cas qui grisent vraiment : un·e remplaçant·e appelé·e sur un
+ * projet n'a rien à dire sur les autres, et un·e titulaire n'est pas de
+ * toutes les sessions.
+ */
+function estSollicite(personne, ptype, e){
+  const dem = dispoDemandesCache.find(d=> d.tourneeId === e.tourneeId
+    && d.personType === ptype && d.personId === personne.id);
+  if(dem) return !(dem.dates && dem.dates.length) || dem.dates.includes(e.dateId);
+  const titulaire = (personne.statutPoste || 'titulaire') !== 'remplacant';
+  return titulaire && (!e.estRecording || ptype === 'musicien');
+}
+
 // Qui a reçu une demande de dispo, tous projets confondus. La vue par défaut
 // s'appuie dessus : le noyau d'abord, puis les gens qu'on a effectivement
 // sollicités — inutile de faire défiler tout le répertoire pour les trouver.
@@ -312,6 +352,8 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           const assigned = (e.assignes||[]).includes(m.id);
           const state = dispo[e.date] || '';
           const note = ((m.disponibilitesCommentaires || {})[e.date] || '').trim();
+          // Une affectation prime : on ne grise jamais quelqu'un qui joue.
+          const hors = !assigned && !estSollicite(m, assignField === 'musiciensAssignes' ? 'musicien' : 'technicien', e);
           let cls = '', symbol = '—', title = 'Non renseigné';
           if(assigned){ cls = 'assigned'; symbol = '✓'; title = `Affecté·e — ${escapeHtml(e.tourneeNom || '')}`; }
           else if(state === 'dispo'){ cls = 'dispo'; symbol = '✓'; title = 'Disponible'; }
@@ -319,10 +361,10 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           else if(state === 'incertain'){ cls = 'incertain'; symbol = '?'; title = 'À confirmer'; }
           // data-jour : voir disponibilites.html — sert uniquement à la mise en
           // liste sur petit écran, sans rien changer au tableau sur ordinateur.
-          return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
+          return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${hors ? ' hors-demande' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
             data-cellule data-tid="${escapeAttr(e.tourneeId)}" data-did="${escapeAttr(e.dateId)}" data-pid="${escapeAttr(m.id)}"
             data-ptype="${assignField === 'musiciensAssignes' ? 'musicien' : 'technicien'}" data-date="${escapeAttr(e.date)}" data-reco="${e.estRecording ? '1' : ''}"
-            style="background:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? ' avec-note' : ''}" title="${title}${note ? ' — « ' + escapeHtml(note) + ' »' : ''}">${symbol}</span></div>`;
+            style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? ' avec-note' : ''}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date' : title}${note ? ' — « ' + escapeHtml(note) + ' »' : ''}">${symbol}</span></div>`;
         }).join('')}
       </div>
     `;
