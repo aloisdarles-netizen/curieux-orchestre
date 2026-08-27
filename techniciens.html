@@ -140,7 +140,7 @@
     </div>
     <div class="co-actions">
     <button type="button" class="co-btn secondary md" id="importBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:2px;"><rect x="5" y="4" width="14" height="17" rx="2"></rect><rect x="9" y="2" width="6" height="3" rx="1"></rect><line x1="8" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="16" y2="14"></line></svg> Importer (coller)</button>
-    <button type="button" class="co-btn secondary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:2px;"><path d="M7 3h7l3 3v15a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"></path><path d="M14 3v3h3"></path><line x1="9" y1="12" x2="15" y2="12"></line><line x1="9" y1="16" x2="13" y2="16"></line></svg> Exporter en PDF</button>
+    <button type="button" class="co-btn secondary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:2px;"><path d="M7 3h7l3 3v15a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"></path><path d="M14 3v3h3"></path><line x1="9" y1="12" x2="15" y2="12"></line><line x1="9" y1="16" x2="13" y2="16"></line></svg> <span id="exportPdfLabel">Exporter en PDF</span></button>
     <button type="button" class="co-btn primary md" id="addBtn">+ Ajouter un·e technicien·ne</button>
     </div>
   </div>
@@ -308,6 +308,8 @@ function updateBulkBar(){
   const count = selectedIds.size;
   bar.classList.toggle('open', count > 0);
   document.getElementById('bulkCount').textContent = `${count} sélectionné·e${count>1?'s':''}`;
+  const etiquette = document.getElementById('exportPdfLabel');
+  if(etiquette) etiquette.textContent = count ? `Exporter la sélection (${count})` : 'Exporter en PDF';
   document.getElementById('selectAllCheckbox').checked = lastFilteredIds.length > 0 && lastFilteredIds.every(id=>selectedIds.has(id));
 }
 
@@ -714,7 +716,7 @@ function exportTechniciansPdf(onlySelection){
   const doc = new jsPDF({ unit:'mm', format:'a4' });
   registerHostFont(doc);
   const pageWidth = doc.internal.pageSize.getWidth();
-  drawCurieuxPdfHeader(doc, pageWidth, 'ANNUAIRE TECHNICIENS');
+  drawCurieuxPdfHeader(doc, pageWidth, onlySelection ? 'SÉLECTION TECHNICIENS' : 'ANNUAIRE TECHNICIENS');
 
   doc.autoTable({
     startY: 26,
@@ -726,9 +728,11 @@ function exportTechniciansPdf(onlySelection){
     alternateRowStyles: { fillColor:[253,242,240] },
   });
 
-  doc.save(`Annuaire_techniciens_Curieux_orchestre.pdf`);
+  doc.save(onlySelection ? `Selection_techniciens_Curieux_orchestre.pdf` : `Annuaire_techniciens_Curieux_orchestre.pdf`);
 }
-document.getElementById('exportPdfBtn').addEventListener('click', ()=> exportTechniciansPdf(false));
+// Voir annuaire.html : une sélection en cours l'emporte sur les filtres, et le
+// bouton l'annonce.
+document.getElementById('exportPdfBtn').addEventListener('click', ()=> exportTechniciansPdf(selectedIds.size > 0));
 
 document.getElementById('selectAllCheckbox').addEventListener('change', (e)=>{
   if(e.target.checked) lastFilteredIds.forEach(id=>selectedIds.add(id));

@@ -174,7 +174,7 @@
     </div>
     <div class="co-actions">
     <button type="button" class="co-btn secondary md" id="importBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="5.5" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="7.5" y="2" width="12" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="10.5" y1="6.5" x2="16.5" y2="6.5" stroke="currentColor" stroke-width="1.4"></line><line x1="10.5" y1="10" x2="16.5" y2="10" stroke="currentColor" stroke-width="1.4"></line></svg> Importer (coller)</button>
-    <button type="button" class="co-btn secondary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
+    <button type="button" class="co-btn secondary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> <span id="exportPdfLabel">Exporter en PDF</span></button>
     <button type="button" class="co-btn primary md" id="addBtn">+ Ajouter un·e musicien·ne</button>
     </div>
   </div>
@@ -394,6 +394,8 @@ function updateBulkBar(){
   const count = selectedIds.size;
   bar.classList.toggle('open', count > 0);
   document.getElementById('bulkCount').textContent = `${count} sélectionné·e${count>1?'s':''}`;
+  const etiquette = document.getElementById('exportPdfLabel');
+  if(etiquette) etiquette.textContent = count ? `Exporter la sélection (${count})` : 'Exporter en PDF';
   document.getElementById('selectAllCheckbox').checked = lastFilteredIds.length > 0 && lastFilteredIds.every(id=>selectedIds.has(id));
 }
 
@@ -1007,7 +1009,10 @@ function exportMusiciansPdf(onlySelection){
 
   doc.save(onlySelection ? `Selection_musiciens_Curieux_orchestre.pdf` : `Annuaire_musiciens_Curieux_orchestre.pdf`);
 }
-document.getElementById('exportPdfBtn').addEventListener('click', ()=> exportMusiciansPdf(false));
+// Une sélection en cours l'emporte : cocher des fiches puis cliquer « Exporter
+// en PDF » et recevoir l'annuaire entier, c'est le contraire de ce qu'on vient
+// de demander. Le bouton dit ce qu'il fera.
+document.getElementById('exportPdfBtn').addEventListener('click', ()=> exportMusiciansPdf(selectedIds.size > 0));
 
 document.getElementById('addBtn').addEventListener('click', ()=> openModal(null));
 document.getElementById('cancelBtn').addEventListener('click', closeModal);
