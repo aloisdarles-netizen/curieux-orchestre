@@ -69,24 +69,45 @@
   /* La barre de modes : le clic sur une case fait UNE chose à la fois, et le
      mode armé se voit — pilule pleine, liseré de couleur sur les matrices. */
   .mode-bar{
-    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-    background:var(--card); border:1px solid var(--border); border-radius:12px;
-    padding:10px 14px; margin:18px 0 4px; position:sticky; top:60px; z-index:5;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--card); border:2px solid var(--border); border-radius:14px;
+    padding:12px 16px; margin:18px 0 4px; position:sticky; top:60px; z-index:5;
+    box-shadow:0 6px 18px rgba(20,22,23,.10);
   }
-  .mode-pilules{display:flex; gap:6px;}
+  .mode-libelle{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);}
+  .mode-pilules{display:flex; gap:0; border:2px solid var(--border); border-radius:999px; overflow:hidden;}
   .mode-pilules button{
-    cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text);
-    border-radius:999px; padding:7px 15px; font-size:13px; font-weight:700; font-family:inherit;
+    cursor:pointer; border:none; background:transparent; color:var(--muted);
+    padding:11px 22px; font-size:14px; font-weight:800; font-family:inherit;
   }
-  body.mode-marquer .mode-pilules [data-mode="marquer"]{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
-  body.mode-affecter .mode-pilules [data-mode="affecter"]{background:var(--secondary); color:#fff; border-color:var(--secondary);}
+  .mode-pilules button + button{border-left:2px solid var(--border);}
+  body.mode-marquer .mode-pilules [data-mode="marquer"]{background:var(--accent-solid); color:#fff;}
+  body.mode-affecter .mode-pilules [data-mode="affecter"]{background:var(--secondary); color:#fff;}
   .mode-hint{flex:1; min-width:220px; font-size:12.5px; color:var(--muted); font-weight:600;}
-  #oupsBtn:not(:disabled){border-color:var(--maybe); color:var(--maybe); font-weight:800;}
+  /* Oups : gros, jaune quand il a quelque chose à défaire, avec un sursaut à
+     chaque action pour qu'on sache qu'il vient de s'armer. */
+  #oupsBtn{
+    border:2px solid var(--border); border-radius:999px; padding:11px 20px;
+    font-size:13.5px; font-weight:800; font-family:inherit; cursor:pointer;
+    background:transparent; color:var(--muted); max-width:420px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  #oupsBtn:not(:disabled){background:var(--maybe); border-color:var(--maybe); color:#fff;}
+  #oupsBtn:disabled{cursor:default; opacity:.6;}
+  @keyframes oupsPop{ 0%{transform:scale(1);} 45%{transform:scale(1.12);} 100%{transform:scale(1);} }
+  #oupsBtn.frais{animation:oupsPop .35s ease;}
   body.mode-marquer .co-matrix{border-color:var(--accent);}
   body.mode-affecter .co-matrix{border-color:var(--secondary); border-width:2px;}
   [data-cellule]{cursor:pointer;}
   [data-cellule]:hover .m-cell{outline:2px solid currentColor; outline-offset:1px;}
 
+  /* Une précision laissée par la personne (« ok mais je pars à 22h ») : point
+     orange au coin de la case, texte complet au survol. */
+  .m-cell{position:relative;}
+  .m-cell.avec-note::after{
+    content:''; position:absolute; top:-4px; right:-4px; width:10px; height:10px;
+    border-radius:50%; background:var(--secondary); border:2px solid var(--card);
+  }
   .m-cell.assigned{background:var(--ok); border-color:var(--ok); color:#fff;}
   .m-cell.dispo{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark); font-weight:900;}
   .m-cell.indispo{background:var(--ko); border-color:var(--ko); color:#fff;}
@@ -151,12 +172,13 @@
   </div>
 
   <div class="mode-bar co-fade">
+    <span class="mode-libelle">Un clic sur<br>une case :</span>
     <div class="mode-pilules" role="group" aria-label="Ce que fait un clic sur une case">
-      <button type="button" data-mode="marquer">Marquer les dispos</button>
-      <button type="button" data-mode="affecter">Affecter</button>
+      <button type="button" data-mode="marquer">✎ Marquer les dispos</button>
+      <button type="button" data-mode="affecter">★ Affecter</button>
     </div>
     <span class="mode-hint" id="modeHint"></span>
-    <button type="button" class="co-btn secondary sm" id="oupsBtn" disabled title="Annuler la dernière action — clics répétés : on remonte l'historique (10 au plus)">↶ Oups</button>
+    <button type="button" id="oupsBtn" disabled title="Annuler la dernière action — clics répétés : on remonte l'historique (10 au plus)">↶ Oups</button>
   </div>
 
   <h2 class="section-title">Musicien·nes</h2>
@@ -272,6 +294,7 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
         ${entries.map(e=>{
           const assigned = (e.assignes||[]).includes(m.id);
           const state = dispo[e.date] || '';
+          const note = ((m.disponibilitesCommentaires || {})[e.date] || '').trim();
           let cls = '', symbol = '—', title = 'Non renseigné';
           if(assigned){ cls = 'assigned'; symbol = '✓'; title = `Affecté·e — ${escapeHtml(e.tourneeNom || '')}`; }
           else if(state === 'dispo'){ cls = 'dispo'; symbol = '✓'; title = 'Disponible'; }
@@ -282,7 +305,7 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
             data-cellule data-tid="${escapeAttr(e.tourneeId)}" data-did="${escapeAttr(e.dateId)}" data-pid="${escapeAttr(m.id)}"
             data-ptype="${assignField === 'musiciensAssignes' ? 'musicien' : 'technicien'}" data-date="${escapeAttr(e.date)}" data-reco="${e.estRecording ? '1' : ''}"
-            style="background:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}" title="${title}">${symbol}</span></div>`;
+            style="background:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? ' avec-note' : ''}" title="${title}${note ? ' — « ' + escapeHtml(note) + ' »' : ''}">${symbol}</span></div>`;
         }).join('')}
       </div>
     `;
@@ -301,12 +324,26 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
 }
 
 function renderAll(){
+  // La mémoire du défilement vit ICI, dans le rendu lui-même : un clic, un
+  // Oups, mais aussi le rafraîchissement temps réel qui suit chaque écriture
+  // (subscribe → re-fetch → renderAll) remplacent les matrices entières —
+  // tout chemin qui oublierait la position ramènerait le tableau en haut à
+  // gauche. Indexée par conteneur : une matrice remplacée par un état vide
+  // n'hérite pas de la position de l'autre.
+  const positions = {};
+  document.querySelectorAll('#matrixHolderMusiciens .co-matrix, #matrixHolderTechniciens .co-matrix').forEach(m=>{
+    positions[m.closest('[id]').id] = [m.scrollTop, m.scrollLeft];
+  });
   const statutFilter = document.getElementById('musicienStatutFilter').value;
   const filteredMusicians = loadMusicians().filter(m=> !statutFilter || (m.statutPoste || 'titulaire') === statutFilter);
   renderPeopleMatrix(filteredMusicians, 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musicien·nes', "Musicien·ne");
   renderPeopleMatrix(loadTechnicians(), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire technicien·nes', "Technicien·ne");
   populateTourneeSelect();
   renderDashboard();
+  document.querySelectorAll('#matrixHolderMusiciens .co-matrix, #matrixHolderTechniciens .co-matrix').forEach(m=>{
+    const pos = positions[m.closest('[id]').id];
+    if(pos){ m.scrollTop = pos[0]; m.scrollLeft = pos[1]; }
+  });
 }
 
 // --- Bande d'indicateurs : lecture rapide de ce qui mérite attention, sans avoir à
@@ -471,17 +508,15 @@ function pousserOups(action){
   pileOups.push(action);
   if(pileOups.length > 10) pileOups.shift();
   majOups();
+  const btn = document.getElementById('oupsBtn');
+  btn.classList.remove('frais');
+  void btn.offsetWidth;                     // relance l'animation à chaque coup
+  btn.classList.add('frais');
 }
 
-// Le rendu remplace les matrices entières : sans cela, chaque clic ramènerait
-// le tableau en haut à gauche.
-function rendreEnGardantLeScroll(){
-  const pos = [...document.querySelectorAll('.co-matrix')].map(m=> [m.scrollTop, m.scrollLeft]);
-  renderAll();
-  [...document.querySelectorAll('.co-matrix')].forEach((m, i)=>{
-    if(pos[i]){ m.scrollTop = pos[i][0]; m.scrollLeft = pos[i][1]; }
-  });
-}
+// La préservation du défilement vit dans renderAll : ce nom reste pour les
+// appels existants, il dit l'intention.
+function rendreEnGardantLeScroll(){ renderAll(); }
 
 function personneDe(ptype, pid){
   return (ptype === 'musicien' ? loadMusicians() : loadTechnicians()).find(p=> p.id === pid);
