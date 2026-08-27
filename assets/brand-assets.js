@@ -455,6 +455,11 @@ function injectBugReportWidget(){
         ${TYPES.map(t=> `<button type="button" data-bug-type="${t.value}" style="${t.value === 'bug' ? typeBtnActiveStyle : typeBtnStyle}">${t.label}</button>`).join('')}
       </div>
       <textarea id="curieuxBugMessage" rows="5" maxlength="2000" style="width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid var(--border,#f0dbe6); border-radius:8px; font-size:14px; font-family:inherit; background:var(--bg,#FCF2F0); color:var(--text,#141617); resize:vertical;" placeholder="Ex : le bouton Exporter en PDF ne répond plus sur la page Tournées…"></textarea>
+      ${/* Qui envoie. Rempli tout seul quand la page le sait — compte connecté,
+             ou lien personnel — sinon on le demande, sans l'exiger : un retour
+             anonyme vaut mieux qu'un silence. */''}
+      <div id="curieuxBugQui" style="font-size:12px; color:var(--muted,#8a7686); margin-top:8px; min-height:1.2em;"></div>
+      <input id="curieuxBugNom" type="text" maxlength="80" style="display:none; width:100%; box-sizing:border-box; margin-top:8px; padding:8px 11px; border:1px solid var(--border,#f0dbe6); border-radius:8px; font-size:13px; font-family:inherit; background:var(--bg,#FCF2F0); color:var(--text,#141617);" placeholder="Ton nom (facultatif — pour qu'on sache à qui répondre)">
       <div id="curieuxBugStatus" style="font-size:12px; min-height:1.2em; margin-top:6px;"></div>
       <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
         <button type="button" id="curieuxBugCancel" style="background:transparent; border:none; color:var(--muted,#8a7686); font-weight:700; font-size:13px; padding:9px 14px; border-radius:8px; cursor:pointer; font-family:inherit;">Annuler</button>
@@ -467,6 +472,8 @@ function injectBugReportWidget(){
   document.body.appendChild(overlay);
 
   const textarea = overlay.querySelector('#curieuxBugMessage');
+  const quiLigne = overlay.querySelector('#curieuxBugQui');
+  const nomChamp = overlay.querySelector('#curieuxBugNom');
   const status = overlay.querySelector('#curieuxBugStatus');
   const sendBtn = overlay.querySelector('#curieuxBugSend');
   const cancelBtn = overlay.querySelector('#curieuxBugCancel');
@@ -480,6 +487,56 @@ function injectBugReportWidget(){
     });
   });
 
+  /* Qui envoie ce retour ?
+   *
+   * Trois sources, de la plus sûre à la plus modeste : le compte connecté
+   * (espaces admin), la personne derrière un lien personnel (mon-espace, lien
+   * de dispo), et sinon ce qu'elle veut bien écrire. Aucune n'est une preuve —
+   * la clé anonyme peut écrire n'importe quoi ici comme dans le message. C'est
+   * une signature de courtoisie, pour savoir à qui poser une question.
+   */
+  // Le nom donné à la main est retenu d'une fois sur l'autre : on ne le
+  // redemande pas à quelqu'un qui signale trois choses de suite. Il reste
+  // effaçable — vider le champ suffit à repasser anonyme.
+  const CLE_NOM = 'curieuxRetourNom';
+  function nomRetenu(){
+    try{ return localStorage.getItem(CLE_NOM) || ''; }catch(e){ return ''; }
+  }
+  function retenirNom(nom){
+    try{ nom ? localStorage.setItem(CLE_NOM, nom) : localStorage.removeItem(CLE_NOM); }catch(e){}
+  }
+
+  let auteurConnu = '';
+  async function detecterAuteur(){
+    try{
+      const session = await CurieuxDB.getSession();
+      const email = session && session.user && session.user.email;
+      if(email) return email;
+    }catch(e){}
+    try{
+      const jeton = new URLSearchParams(location.search).get('token');
+      if(jeton){
+        const personne = await CurieuxDB.getOwnPersonByToken(jeton);
+        const nom = personne ? [personne.prenom, personne.nom].filter(Boolean).join(' ').trim() : '';
+        if(nom) return nom;
+      }
+    }catch(e){}
+    return '';
+  }
+
+  async function annoncerAuteur(){
+    quiLigne.textContent = '';
+    nomChamp.style.display = 'none';
+    auteurConnu = await detecterAuteur();
+    if(overlay.style.display === 'none') return;   // refermée entre-temps
+    if(auteurConnu){
+      quiLigne.textContent = 'Envoyé en tant que ' + auteurConnu + '.';
+    } else {
+      quiLigne.textContent = '';
+      nomChamp.style.display = 'block';
+    }
+  }
+
   function openOverlay(){
     overlay.style.display = 'flex';
     status.textContent = '';
@@ -488,6 +545,8 @@ function injectBugReportWidget(){
     typeBtns.forEach(b=> b.style.cssText = b.dataset.bugType === selectedType ? typeBtnActiveStyle : typeBtnStyle);
     sendBtn.disabled = false;
     sendBtn.textContent = 'Envoyer';
+    nomChamp.value = nomChamp.value || nomRetenu();
+    annoncerAuteur();
     setTimeout(()=> textarea.focus(), 0);
   }
   function closeOverlay(){ overlay.style.display = 'none'; }
@@ -507,7 +566,9 @@ function injectBugReportWidget(){
     sendBtn.disabled = true;
     sendBtn.textContent = 'Envoi…';
     const page = location.pathname.split('/').pop() || 'accueil.html';
-    const { error } = await CurieuxDB.reportBug(message, page, selectedType);
+    const auteur = auteurConnu || nomChamp.value.trim();
+    if(!auteurConnu) retenirNom(auteur);
+    const { error } = await CurieuxDB.reportBug(message, page, selectedType, auteur);
     if(error){
       status.textContent = "Erreur d'envoi — réessaie.";
       status.style.color = 'var(--danger,#a5313f)';

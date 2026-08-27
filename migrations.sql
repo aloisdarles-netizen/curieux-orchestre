@@ -4296,3 +4296,25 @@ begin
 end;
 $$;
 grant execute on function mes_demandes_dispo(text) to anon, authenticated;
+
+-- ============================================================================
+-- Qui a signalé quoi
+--
+-- Les retours du widget « Un retour ? » arrivaient anonymes : impossible de
+-- savoir à qui poser une question quand le message manque de contexte (« ça
+-- marche pas sur la page des dates »), ni de dire merci.
+--
+-- La colonne est renseignée par la page elle-même : l'adresse du compte
+-- connecté sur les espaces admin, le nom de la personne quand elle arrive par
+-- son lien personnel, et à défaut le nom qu'elle veut bien donner. Rien n'est
+-- obligatoire — un retour anonyme reste un retour, et vaut mieux qu'un
+-- silence.
+--
+-- Aucune garantie d'authenticité : la clé anonyme peut écrire ce qu'elle veut
+-- dans cette colonne, comme dans le message lui-même. C'est une signature de
+-- courtoisie, pas une preuve.
+-- ============================================================================
+alter table bug_reports add column if not exists auteur text not null default '';
+
+comment on column bug_reports.auteur is
+  'Qui a envoyé le retour, tel que la page l''a su : email du compte, nom du lien personnel, ou nom saisi. Informatif, non vérifié.';

@@ -474,8 +474,8 @@ const CurieuxDB = (()=>{
         message: r.message || '', traitee: !!r.traitee, createdAt: r.created_at })
     },
     bug_reports: {
-      toDb: (b)=> ({ id: b.id, message: b.message || '', page: b.page || '', type: b.type || 'bug' }),
-      fromDb: (r)=> ({ id: r.id, message: r.message, page: r.page, type: r.type || 'bug', createdAt: r.created_at })
+      toDb: (b)=> ({ id: b.id, message: b.message || '', page: b.page || '', type: b.type || 'bug', auteur: b.auteur || '' }),
+      fromDb: (r)=> ({ id: r.id, message: r.message, page: r.page, type: r.type || 'bug', auteur: r.auteur || '', createdAt: r.created_at })
     },
     // Liens personnels de demande de dispo envoyés aux titulaires — "id" est le token
     // utilisé dans l'URL du lien (voir dispo-titulaire.html).
@@ -1302,15 +1302,31 @@ const CurieuxDB = (()=>{
 
   // Widget "Signaler un bug" (voir injectBugReportWidget dans brand-assets.js) —
   // écriture seule, table fermée en lecture à la clé anonyme (voir migrations.sql).
-  async function reportBug(message, page, type){
+  async function reportBug(message, page, type, auteur){
     if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
     const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
       ? crypto.randomUUID()
       : 'bug-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
-    const payload = adapterFor('bug_reports').toDb({ id, message, page, type });
-    const { error } = await supabaseClient.from('bug_reports').insert(payload);
+    const payload = adapterFor('bug_reports').toDb({ id, message, page, type, auteur });
+    let { error } = await supabaseClient.from('bug_reports').insert(payload);
+    // La colonne « auteur » est arrivée après coup. Si la migration n'est pas
+    // encore passée sur cette base, on renvoie le signalement sans elle plutôt
+    // que de perdre le message : savoir qui parle vaut moins que l'entendre.
+    if(error && _colonneAbsente(error, 'auteur')){
+      const { auteur: _, ...sansAuteur } = payload;
+      ({ error } = await supabaseClient.from('bug_reports').insert(sansAuteur));
+    }
     if(error) console.warn('[CurieuxDB] reportBug', error.message);
     return { error };
+  }
+
+  // PostgREST refuse l'écriture d'une colonne qu'il ne connaît pas (PGRST204),
+  // PostgreSQL d'une colonne inexistante (42703). Les deux disent la même chose.
+  function _colonneAbsente(error, nom){
+    if(!error) return false;
+    const code = error.code || '';
+    const texte = (error.message || '') + ' ' + (error.details || '');
+    return (code === 'PGRST204' || code === '42703') && texte.includes(nom);
   }
 
   // ==========================================================================
