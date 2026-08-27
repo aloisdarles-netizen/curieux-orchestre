@@ -630,6 +630,26 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
   `;
 }
 
+/* Le filtre de personnes, à un seul endroit.
+ *
+ * « Titulaires + sollicité·es » : le noyau, plus toute personne à qui une
+ * demande a été envoyée sur un projet quelconque. Les autres restent hors de
+ * vue tant qu'on ne les a pas appelées.
+ *
+ * L'export PDF refaisait ce tri de son côté, avec les seules valeurs qu'il
+ * connaissait — et depuis l'arrivée de « sollicites », aucune personne ne
+ * répondait plus à son test : le document sortait sans un seul musicien.
+ * Une seule fonction, deux appelants.
+ */
+function garderSelonFiltre(liste, ptype){
+  const statutFilter = document.getElementById('musicienStatutFilter').value;
+  if(statutFilter === 'sollicites'){
+    const vus = idsSollicites(ptype);
+    return liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant' || vus.has(p.id));
+  }
+  return liste.filter(p=> !statutFilter || (p.statutPoste || 'titulaire') === statutFilter);
+}
+
 function renderAll(){
   // La mémoire du défilement vit ICI, dans le rendu lui-même : un clic, un
   // Oups, mais aussi le rafraîchissement temps réel qui suit chaque écriture
@@ -641,19 +661,8 @@ function renderAll(){
   document.querySelectorAll('#matrixHolderMusiciens .co-matrix, #matrixHolderTechniciens .co-matrix').forEach(m=>{
     positions[m.closest('[id]').id] = [m.scrollTop, m.scrollLeft];
   });
-  const statutFilter = document.getElementById('musicienStatutFilter').value;
-  // « Titulaires + sollicité·es » : le noyau, plus toute personne à qui une
-  // demande a été envoyée sur un projet quelconque. Les autres restent hors
-  // de vue tant qu'on ne les a pas appelées.
-  const garder = (liste, ptype)=>{
-    if(statutFilter === 'sollicites'){
-      const vus = idsSollicites(ptype);
-      return liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant' || vus.has(p.id));
-    }
-    return liste.filter(p=> !statutFilter || (p.statutPoste || 'titulaire') === statutFilter);
-  };
-  renderPeopleMatrix(garder(loadMusicians(), 'musicien'), 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musicien·nes', "Musicien·ne");
-  renderPeopleMatrix(garder(loadTechnicians(), 'technicien'), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire technicien·nes', "Technicien·ne");
+  renderPeopleMatrix(garderSelonFiltre(loadMusicians(), 'musicien'), 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musicien·nes', "Musicien·ne");
+  renderPeopleMatrix(garderSelonFiltre(loadTechnicians(), 'technicien'), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire technicien·nes', "Technicien·ne");
   renderProjetsFiltre();
   populateTourneeSelect();
   renderDashboard();
@@ -985,68 +994,245 @@ CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(
 CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; curieuxRafraichir(renderAll); }); });
 initData();
 
-function buildMatrixTable(doc, startY, people, assignField, title, pageWidth, tourneeId){
-  const entries = allDateEntries(assignField, tourneeId);
+/* ============================================================================
+   L'export PDF de la Vue d'ensemble
+   ============================================================================
+   Il tenait tout le calendrier sur une seule page en largeur. À quatre-vingts
+   dates, chaque colonne faisait quatre millimètres : « 28 sept. » s'y écrivait
+   une lettre par ligne, à la verticale, et personne ne pouvait lire une date.
+   Le document se découpe donc en tranches de dates, une page par tranche, avec
+   la colonne des noms répétée — comme on plie un tableur pour l'imprimer.
+
+   Trois autres choses s'y jouaient :
+     · les musicien·nes disparaissaient du document dès que le filtre d'écran
+       valait « Titulaires + sollicité·es » — l'export ne connaissait que les
+       anciennes valeurs et ne gardait alors personne ;
+     · la police embarquée n'a ni ✓ ni ✕ : les cases affectées et indisponibles
+       sortaient vides, et la légende annonçait un symbole invisible. Les
+       marques sont maintenant tracées au trait, pas écrites ;
+     · rien ne disait de quel projet venait une date. Un bandeau les coiffe,
+       comme à l'écran.
+============================================================================ */
+
+const PDF_MARGE = 10;
+const PDF_LARGEUR_NOM = 42;
+const PDF_DATES_PAR_PAGE = 24;
+
+// Les quatre états, tracés au trait : deux segments pour la coche, deux pour
+// la croix. Rien qui dépende des caractères présents dans la police.
+function pdfMarque(doc, etat, x, y, taille){
+  const c = taille * 0.30;
+  if(etat === 'affecte' || etat === 'dispo'){
+    doc.setDrawColor(...(etat === 'affecte' ? [255, 255, 255] : [90, 16, 55]));
+    doc.setLineWidth(taille * 0.11);
+    doc.setLineCap('round'); doc.setLineJoin('round');
+    doc.lines([[c * 0.75, c * 0.85], [c * 1.5, -c * 1.7]], x - c * 0.8, y);
+  } else if(etat === 'indispo'){
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(taille * 0.11);
+    doc.setLineCap('round');
+    doc.line(x - c, y - c, x + c, y + c);
+    doc.line(x + c, y - c, x - c, y + c);
+  } else if(etat === 'incertain'){
+    // La ligne de base est sous la lettre : sans ce décalage, le point
+    // d'interrogation se posait au bas de la case au lieu d'y être centré.
+    doc.setFont('Host', 'bold'); doc.setFontSize(taille * 2.1);
+    doc.setTextColor(255, 255, 255);
+    doc.text('?', x, y + taille * 0.26, { align: 'center' });
+  } else {
+    doc.setDrawColor(196, 186, 191);
+    doc.setLineWidth(taille * 0.09);
+    doc.line(x - c * 0.9, y, x + c * 0.9, y);
+  }
+  doc.setLineCap('butt');
+}
+
+const PDF_FONDS = {
+  affecte: [47, 143, 91],
+  dispo: [206, 225, 244],
+  indispo: [178, 59, 46],
+  incertain: [184, 121, 42],
+};
+
+// La légende, dessinée avec les mêmes marques que les cases — sinon elle
+// promet des symboles que le document ne contient pas.
+function pdfLegende(doc, x, y){
+  const items = [['affecte', 'affecté·e'], ['dispo', 'disponible'], ['indispo', 'indisponible'],
+                 ['incertain', 'à confirmer'], ['', 'sans réponse']];
+  const h = 4.2;
+  items.forEach(([etat, libelle])=>{
+    if(etat){ doc.setFillColor(...PDF_FONDS[etat]); doc.roundedRect(x, y - h + 1, 5.4, h, 0.8, 0.8, 'F'); }
+    pdfMarque(doc, etat, x + 2.7, y - h / 2 + 1, 2.4);
+    doc.setFont('Host', 'normal'); doc.setFontSize(7); doc.setTextColor(90, 80, 86);
+    doc.text(libelle, x + 6.6, y - 0.4);
+    x += 7.4 + doc.getTextWidth(libelle) + 4;
+  });
+}
+
+// Une bande par suite de dates consécutives du même projet — le même
+// raisonnement qu'à l'écran, pour la rangée de tête du tableau.
+function pdfBandesProjets(entries){
+  const bandes = [];
+  entries.forEach(e=>{
+    const derniere = bandes[bandes.length - 1];
+    if(derniere && derniere.tourneeId === e.tourneeId) derniere.n++;
+    else bandes.push({ tourneeId: e.tourneeId, nom: e.tourneeNom || 'Projet', reco: e.estRecording, n: 1 });
+  });
+  return bandes;
+}
+
+// Couper au bon endroit plutôt que de laisser la mise en page couper au
+// milieu d'un mot : « L'Atelie r de Joe His aishi » ne se lit pas.
+function pdfTronquer(doc, texte, largeurMax, taille){
+  doc.setFont('Host', 'bold'); doc.setFontSize(taille);
+  if(doc.getTextWidth(texte) <= largeurMax) return texte;
+  let court = texte;
+  while(court.length > 1 && doc.getTextWidth(court + '…') > largeurMax) court = court.slice(0, -1);
+  return court.trimEnd() + '…';
+}
+
+// Les projets de la page, en toutes lettres. Les bandes étroites ne peuvent
+// porter qu'un nom coupé ; celle-ci rend l'entier, une fois, sous le titre.
+function pdfLegendeProjets(doc, x, y, bandes, couleurs){
+  const vus = [];
+  bandes.forEach(b=>{ if(!vus.some(v=> v.tourneeId === b.tourneeId)) vus.push(b); });
+  let ligne = y;
+  vus.forEach(b=>{
+    const nom = (b.nom || 'Projet') + (b.reco ? ' · Rec' : '');
+    doc.setFont('Host', 'normal'); doc.setFontSize(6.8);
+    const largeur = 4.4 + doc.getTextWidth(nom) + 5;
+    if(x + largeur > 297 - PDF_MARGE){ x = PDF_MARGE; ligne += 4; }
+    doc.setFillColor(...pdfCouleurRgb(couleurs.get(b.tourneeId)));
+    doc.roundedRect(x, ligne - 2.6, 3.2, 3.2, 0.6, 0.6, 'F');
+    doc.setTextColor(90, 80, 86);
+    doc.text(nom, x + 4.4, ligne);
+    x += largeur;
+  });
+  return ligne;
+}
+
+function colonnesLargeurs(nbDates){
+  const utile = 297 - 2 * PDF_MARGE;
+  const largeur = (utile - PDF_LARGEUR_NOM) / PDF_DATES_PAR_PAGE;
+  const styles = { 0: { halign:'left', fontStyle:'bold', fontSize:7, cellWidth: PDF_LARGEUR_NOM } };
+  for(let i = 1; i <= nbDates; i++) styles[i] = { cellWidth: largeur };
+  return styles;
+}
+
+function buildMatrixTable(doc, startY, people, assignField, titre, entries, dessinerEntete){
   const sorted = people.slice().sort(compareByStatutThenName);
   if(sorted.length === 0 || entries.length === 0) return startY;
 
+  const couleurs = couleursProjets();
   doc.setFont('Host', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(121, 22, 73);
-  doc.text(title, 10, startY);
+  doc.text(titre, PDF_MARGE, startY);
+  pdfLegende(doc, PDF_MARGE + doc.getTextWidth(titre) + 6, startY);
+
+  const bandes = pdfBandesProjets(entries);
+  const largeurCol = (297 - 2 * PDF_MARGE - PDF_LARGEUR_NOM) / PDF_DATES_PAR_PAGE;
+  const teteProjets = [{ content: '', colSpan: 1 }].concat(bandes.map(b=> ({
+    content: pdfTronquer(doc, (b.nom || 'Projet') + (b.reco ? ' · Rec' : ''), b.n * largeurCol - 3, 6.5),
+    colSpan: b.n,
+    styles: { fillColor: pdfCouleurRgb(couleurs.get(b.tourneeId)), textColor: [20, 22, 23], fontSize: 6.5 },
+  })));
+  const basLegende = pdfLegendeProjets(doc, PDF_MARGE, startY + 5.4, bandes, couleurs);
+  const teteDates = [''].concat(entries.map(e=>{
+    const [j, mois] = fmtDateFRShort(e.date).split(' ');
+    return j + '\n' + (mois || '');
+  }));
 
   doc.autoTable({
-    startY: startY + 3,
-    margin: { left: 10, right: 10 },
-    head: [[ '', ...entries.map(e=> fmtDateFRShort(e.date)) ]],
+    startY: basLegende + 2.6,
+    margin: { left: PDF_MARGE, right: PDF_MARGE, top: 26 },
+    head: [teteProjets, teteDates],
     body: sorted.map(m=>{
       const dispo = m.disponibilites || {};
-      return [ fullName(m), ...entries.map(e=>{
-        const assigned = (e.assignes||[]).includes(m.id);
-        const state = dispo[e.date] || '';
-        if(assigned) return 'X';
-        if(state === 'dispo') return 'd';
-        if(state === 'indispo') return 'x';
-        if(state === 'incertain') return '?';
-        return '';
-      })];
+      return [fullName(m)].concat(entries.map(e=>{
+        if((e.assignes || []).includes(m.id)) return 'affecte';
+        return dispo[e.date] || '';
+      }));
     }),
-    styles: { font:'Host', fontSize:8, cellPadding:2, textColor:[20,22,23], halign:'center' },
-    columnStyles: { 0: { halign:'left', fontStyle:'bold', fontSize:7, cellWidth:38 } },
-    headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold', fontSize:6.5 },
+    styles: { font:'Host', fontSize:7, cellPadding:1.4, textColor:[20,22,23], halign:'center', valign:'middle', lineWidth:0.1, lineColor:[240,219,230] },
+    // Largeur de colonne fixe, la même d'une page à l'autre : sinon la
+    // dernière tranche, qui n'a parfois que deux dates, les étirait sur toute
+    // la feuille et ne ressemblait plus aux précédentes.
+    columnStyles: colonnesLargeurs(entries.length),
+    headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold', fontSize:6.5, halign:'center', valign:'middle', cellPadding:1.2 },
     alternateRowStyles: { fillColor:[253,242,240] },
     didParseCell: (data)=>{
-      if(data.section === 'body' && data.column.index > 0){
-        const v = data.cell.raw;
-        // Fond + symbole plutôt qu'une lettre brute — même code couleur que la grille à l'écran.
-        if(v === 'X'){ data.cell.styles.fillColor = [47,143,91]; data.cell.styles.textColor = 255; data.cell.text = ['✓']; }
-        else if(v === 'd'){ data.cell.styles.fillColor = [206,225,244]; data.cell.styles.textColor = [90,16,55]; data.cell.text = ['✓']; }
-        else if(v === 'x'){ data.cell.styles.fillColor = [178,59,46]; data.cell.styles.textColor = 255; data.cell.text = ['✕']; }
-        else if(v === '?'){ data.cell.styles.fillColor = [184,121,42]; data.cell.styles.textColor = 255; data.cell.text = ['?']; }
-        else { data.cell.styles.textColor = [180,170,175]; data.cell.text = ['—']; }
-      }
-    }
+      if(data.section !== 'body' || data.column.index === 0) return;
+      const etat = data.cell.raw;
+      // La case ne porte pas de texte : sa marque est tracée au trait dans
+      // didDrawCell, faute de ✓ et de ✕ dans la police embarquée.
+      data.cell.text = [''];
+      if(PDF_FONDS[etat]) data.cell.styles.fillColor = PDF_FONDS[etat];
+    },
+    didDrawCell: (data)=>{
+      if(data.section !== 'body' || data.column.index === 0) return;
+      pdfMarque(doc, data.cell.raw, data.cell.x + data.cell.width / 2,
+        data.cell.y + data.cell.height / 2, Math.min(data.cell.width, data.cell.height) * 0.55);
+    },
+    didDrawPage: dessinerEntete,
   });
-  return doc.lastAutoTable.finalY + 14;
+  return doc.lastAutoTable.finalY + 12;
+}
+
+// « var(--tour-3) » → le triplet RGB correspondant, lu sur la page elle-même :
+// les couleurs de projet du PDF sont exactement celles de l'écran.
+function pdfCouleurRgb(variable){
+  if(!variable) return [245, 238, 241];
+  const nom = String(variable).replace(/^var\(|\)$/g, '').trim();
+  const val = getComputedStyle(document.documentElement).getPropertyValue(nom).trim();
+  const m = /^#?([0-9a-f]{6})$/i.exec(val);
+  if(!m) return [245, 238, 241];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
 function exportRecapPdf(){
   if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
   const tourneeId = document.getElementById('pdfTourneeSelect').value || null;
   const tournee = tourneeId ? loadTournees().find(t=>t.id === tourneeId) : null;
-  const headerTitle = tournee ? `VUE D'ENSEMBLE — ${(tournee.nom || 'TOURNÉE').toUpperCase()}` : 'VUE D\'ENSEMBLE';
+  const titreEntete = tournee ? `VUE D'ENSEMBLE — ${(tournee.nom || 'TOURNÉE').toUpperCase()}` : "VUE D'ENSEMBLE";
+
+  // Ce qui s'imprime est ce qui s'affiche : mêmes personnes, mêmes projets.
+  // Le sélecteur du PDF ne fait que restreindre davantage, à un seul projet.
+  const musiciens = garderSelonFiltre(loadMusicians(), 'musicien');
+  const techniciens = garderSelonFiltre(loadTechnicians(), 'technicien');
+  const datesMus = allDateEntries('musiciensAssignes', tourneeId).filter(e=> !projetsMasques.has(e.tourneeId));
+  const datesTech = allDateEntries('techniciensAssignes', tourneeId).filter(e=> !projetsMasques.has(e.tourneeId));
+
+  if(!datesMus.length && !datesTech.length){
+    alert("Aucune date à exporter — vérifie les projets affichés et « Afficher aussi les dates passées ».");
+    return;
+  }
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
   registerHostFont(doc);
   const pageWidth = doc.internal.pageSize.getWidth();
-  drawCurieuxPdfHeader(doc, pageWidth, headerTitle);
+  const dessinerEntete = ()=> drawCurieuxPdfHeader(doc, pageWidth, titreEntete);
 
-  const statutFilter = document.getElementById('musicienStatutFilter').value;
-  const filteredMusicians = loadMusicians().filter(m=> !statutFilter || (m.statutPoste || 'titulaire') === statutFilter);
-  let y = buildMatrixTable(doc, 30, filteredMusicians, 'musiciensAssignes', 'MUSICIEN·NES (✓ vert = affecté·e, ✓ bleu = dispo, ✕ = indispo, ? = à confirmer)', pageWidth, tourneeId);
-  if(y > 180){ doc.addPage(); drawCurieuxPdfHeader(doc, pageWidth, headerTitle); y = 30; }
-  buildMatrixTable(doc, y, loadTechnicians(), 'techniciensAssignes', 'TECHNICIEN·NES (✓ vert = affecté·e, ✓ bleu = dispo, ✕ = indispo, ? = à confirmer)', pageWidth, tourneeId);
+  const nbPages = Math.max(1, Math.ceil(Math.max(datesMus.length, datesTech.length) / PDF_DATES_PAR_PAGE));
+  for(let i = 0; i < nbPages; i++){
+    if(i > 0) doc.addPage();
+    dessinerEntete();
+    const debut = i * PDF_DATES_PAR_PAGE, fin = debut + PDF_DATES_PAR_PAGE;
+    const trancheMus = datesMus.slice(debut, fin);
+    const trancheTech = datesTech.slice(debut, fin);
+    // Le repère de tranche : sans lui, deux pages se ressemblent trop.
+    if(nbPages > 1){
+      doc.setFont('Host', 'normal'); doc.setFontSize(7.5); doc.setTextColor(140, 125, 133);
+      const bornes = (trancheMus.length ? trancheMus : trancheTech);
+      doc.text(`Dates ${debut + 1} à ${debut + bornes.length} sur ${Math.max(datesMus.length, datesTech.length)}`
+        + `  ·  du ${fmtDateFR(bornes[0].date)} au ${fmtDateFR(bornes[bornes.length - 1].date)}`,
+        pageWidth - 12, 26, { align: 'right' });
+    }
+    let y = buildMatrixTable(doc, 30, musiciens, 'musiciensAssignes', 'MUSICIEN·NES', trancheMus, dessinerEntete);
+    buildMatrixTable(doc, y, techniciens, 'techniciensAssignes', 'TECHNICIEN·NES', trancheTech, dessinerEntete);
+  }
 
   const fileSuffix = tournee ? (tournee.nom||'tournee').trim().replace(/[^a-z0-9]+/gi,'_') : 'toutes_tournees';
   doc.save(`Vue_ensemble_Curieux_orchestre_${fileSuffix}.pdf`);
