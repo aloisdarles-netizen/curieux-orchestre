@@ -175,6 +175,15 @@
      4. noms et unités (gris, italique pour les noms) — le contexte. */
   td.c-intitule input{font-weight:800; font-size:13.5px; color:var(--text);}
   td.c-noms input{font-size:12px; font-style:italic; color:var(--muted);}
+  /* La précision, sous le nom : plus discrète encore, mais présente — c'est ce
+     qui s'imprime après le tiret cadratin sur le document. */
+  td.c-noms input + input{margin-top:1px; font-style:normal; font-size:11px;}
+  /* Les deux champs restent muets tant qu'ils sont vides : sur trente lignes,
+     trente fois « Nom » et « Précision imprimée » feraient plus de bruit que
+     d'information. Ils se nomment au survol de la ligne et dès qu'on y écrit. */
+  td.c-noms input::placeholder{color:transparent;}
+  tr.lg:hover td.c-noms input::placeholder,
+  td.c-noms input:focus::placeholder{color:var(--muted);}
   td.c-unite input{font-size:12px; color:var(--muted);}
 
   /* Le total : la colonne qu'on cherche des yeux. */
@@ -804,7 +813,15 @@ function renderLigne(sec, si, gi, l, li){
   const etat = l.etat || 'incluse';
   return `<tr class="${classes}" data-ligne="${cle}">
     <td class="c-intitule"><input type="text" value="${escapeAttr(l.intitule || '')}" data-l="${cle}:intitule" placeholder="Intitulé" ${fige}></td>
-    <td class="c-noms"><input type="text" value="${escapeAttr(l.noms || '')}" data-l="${cle}:noms" list="annuaireNoms" ${fige}></td>
+    ${/* Deux champs, comme la colonne « NOM / INFOS » du PDF qui les imprime
+           l'un après l'autre. « infos » existait dans les données depuis la
+           reprise du tableur et s'imprimait bel et bien — mais aucun champ ne
+           l'affichait : du texte apparaissait sur le document sans exister
+           nulle part à l'écran. */''}
+    <td class="c-noms">
+      <input type="text" value="${escapeAttr(l.noms || '')}" data-l="${cle}:noms" list="annuaireNoms" placeholder="Nom" ${fige}>
+      <input type="text" value="${escapeAttr(l.infos || '')}" data-l="${cle}:infos" placeholder="Précision imprimée" ${fige}>
+    </td>
     <td><input type="text" inputmode="decimal" class="n" value="${escapeAttr(l.journees === '' || l.journees == null ? '' : l.journees)}" data-l="${cle}:journees" ${fige}></td>
     <td><input type="text" inputmode="decimal" class="n" value="${escapeAttr(l.qte === '' || l.qte == null ? '' : l.qte)}" data-l="${cle}:qte" ${fige}></td>
     <td class="c-unite"><input type="text" value="${escapeAttr(l.unite || '')}" data-l="${cle}:unite" list="unitesUsuelles" ${fige}></td>
