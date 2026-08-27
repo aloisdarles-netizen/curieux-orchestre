@@ -4170,3 +4170,15 @@ create policy "reglages ecriture" on reglages for all to authenticated
 -- l'équipe lui demande, distinct de ce qu'elle s'est noté elle-même.
 alter table reglages add column if not exists comm_newsletter_jour integer not null default 25;
 alter table comm_taches add column if not exists auteur text not null default '';
+
+-- Retirer quelqu'un d'un projet, et que ça tienne (septembre 2026).
+--
+-- Les liens des titulaires sont reposés à chaque chargement de suivi-dispo
+-- (voir assurerLiensTitulaires) : supprimer la demande ne servait à rien, la
+-- personne réapparaissait dans la seconde. Le projet garde donc la liste de
+-- celles et ceux qu'on a délibérément retirés — « type:id » — et la pose
+-- d'office les saute. Solliciter à nouveau la personne lève l'exclusion.
+alter table tournees add column if not exists sollicitation_exclus jsonb not null default '[]'::jsonb;
+
+comment on column tournees.sollicitation_exclus is
+  'Personnes retirées à la main de ce projet : la sollicitation d''office ne les repose pas.';

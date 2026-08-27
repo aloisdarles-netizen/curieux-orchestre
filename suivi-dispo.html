@@ -372,12 +372,49 @@ function titulairesPourProjet(tournee){
   ];
 }
 
+/* Retirer quelqu'un d'un projet, et que ça tienne.
+ *
+ * Les liens des titulaires sont reposés à chaque chargement : sans mémoire de
+ * la décision, supprimer une demande ne servait à rien — la personne
+ * réapparaissait dans la seconde, et on croyait à une panne. Le projet garde
+ * donc la liste de celles et ceux qu'on a délibérément retirés ; solliciter à
+ * nouveau la personne la lève. L'exclusion vit sur le PROJET et non sur la
+ * demande : la suppression reste une vraie suppression, et aucune autre page
+ * n'a de ligne fantôme à filtrer.
+ */
+function cleExclusion(personType, personId){ return `${personType}:${personId}`; }
+
+async function poserExclusion(tourneeId, personType, personId){
+  const t = loadTournees().find(x=> x.id === tourneeId);
+  if(!t) return;
+  const cle = cleExclusion(personType, personId);
+  if((t.sollicitationExclus || []).includes(cle)) return;
+  t.sollicitationExclus = (t.sollicitationExclus || []).concat([cle]);
+  const { error } = await CurieuxDB.upsertOne('tournees', t);
+  if(error){
+    t.sollicitationExclus = t.sollicitationExclus.filter(x=> x !== cle);
+    console.warn('[suivi-dispo] poserExclusion', error.message);
+  }
+}
+
+async function leverExclusion(tourneeId, personType, personId){
+  const t = loadTournees().find(x=> x.id === tourneeId);
+  const cle = cleExclusion(personType, personId);
+  if(!t || !(t.sollicitationExclus || []).includes(cle)) return;
+  const avant = t.sollicitationExclus;
+  t.sollicitationExclus = avant.filter(x=> x !== cle);
+  const { error } = await CurieuxDB.upsertOne('tournees', t);
+  if(error){ t.sollicitationExclus = avant; console.warn('[suivi-dispo] leverExclusion', error.message); }
+}
+
 async function assurerLiensTitulaires(tourneesAVenir){
   const existantes = new Set(loadDispoDemandes().map(d=> `${d.tourneeId}:${d.personType}:${d.personId}`));
   const aCreer = [];
   tourneesAVenir.forEach(t=>{
     if(!(t.dates || []).some(d=> d.date && d.statut !== 'annulee')) return;
+    const exclus = new Set(t.sollicitationExclus || []);
     titulairesPourProjet(t).forEach(({ p, type })=>{
+      if(exclus.has(cleExclusion(type, p.id))) return;   // retiré·e à la main : on n'insiste pas
       if(existantes.has(`${t.id}:${type}:${p.id}`)) return;
       aCreer.push({ id: genId('demande'), tourneeId: t.id, personType: type, personId: p.id, dates: [] });
     });
@@ -400,6 +437,8 @@ async function generateDispoLink(tourneeId, personType, personId, dates, role){
     const res = await CurieuxDB.ensureAccesPersonnel(personId, personType);
     if(res && res.token) jetonsPermanents.set(`${personType}:${personId}`, res.token);
   }
+  // On la sollicite de nouveau : la décision de l'avoir retirée ne vaut plus.
+  await leverExclusion(tourneeId, personType, personId);
   const demandes = loadDispoDemandes();
   const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === personId);
   if(existing) return existing;
@@ -674,9 +713,13 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
 }
 
 async function removeDispoLink(demandeId){
+  const dem = dispoDemandesCache.find(d=> d.id === demandeId);
   const { error } = await CurieuxDB.removeOne('dispo_demandes', demandeId);
   if(error) return { error };
   dispoDemandesCache = dispoDemandesCache.filter(d=> d.id !== demandeId);
+  // La décision est mémorisée sur le projet, sans quoi la pose d'office
+  // ramènerait la personne au prochain chargement.
+  if(dem) await poserExclusion(dem.tourneeId, dem.personType, dem.personId);
   return { error: null };
 }
 
@@ -1559,7 +1602,7 @@ function render(){
 
   holder.querySelectorAll('[data-delete-link]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      if(!confirm('Supprimer ce lien ? La personne ne pourra plus y accéder pour donner ou mettre à jour ses dispo.')) return;
+      if(!confirm("Retirer cette personne du projet ?\n\nSon lien cessera de lui montrer ce projet, et elle ne sera plus sollicitée d'office dessus — même si elle est titulaire. Tu peux la remettre à tout moment par le champ de recherche en bas de la carte.")) return;
       btn.disabled = true;
       const { error } = await removeDispoLink(btn.dataset.deleteLink);
       if(error){

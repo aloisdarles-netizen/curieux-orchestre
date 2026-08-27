@@ -100,8 +100,11 @@ const CurieuxDB = (()=>{
         // Exigences techniques constantes de la tournée — elles ne changent pas
         // d'une date à l'autre, on ne les recopie donc pas sur chaque fiche.
         technique_tournee: t.techniqueTournee || {},
+        // Qui a été retiré·e à la main de ce projet (« musicien:id ») : la
+        // sollicitation d'office ne les repose pas (voir migrations.sql).
+        sollicitation_exclus: t.sollicitationExclus || [],
       }),
-      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], type: r.type === 'recording' ? 'recording' : 'tournee', recording: r.recording || {}, cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [], equipesRoad: r.equipes_road || [], techniqueTournee: r.technique_tournee || {} })
+      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], type: r.type === 'recording' ? 'recording' : 'tournee', recording: r.recording || {}, cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [], equipesRoad: r.equipes_road || [], techniqueTournee: r.technique_tournee || {}, sollicitationExclus: r.sollicitation_exclus || [] })
     },
     // ——— Outils de direction technique (août 2026) ———
     // Ce que la salle fournit, date par date (B2). "id" = `${tourneeId}::${dateId}`,
