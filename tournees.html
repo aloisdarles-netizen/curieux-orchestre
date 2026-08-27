@@ -2024,6 +2024,9 @@ ${EST_RECORDING ? `
           </div>
           <div class="add-date-row">
             <input type="date" data-new-date="${escapeAttr(t.id)}">
+            ${EST_RECORDING ? `
+            <span style="font-size:12px; color:var(--muted); font-weight:700; align-self:center;">→</span>
+            <input type="date" data-new-fin="${escapeAttr(t.id)}" title="Jusqu'au (optionnel) — crée une date par jour, toutes au même endroit, liées en une session">` : ''}
             <select class="type-select" data-new-type="${escapeAttr(t.id)}" style="flex:0 0 130px;">
               ${VOC.typesDate.map(([val, lib]) => `<option value="${val}">${lib}</option>`).join('')}
             </select>
@@ -2723,20 +2726,41 @@ function bindTourneeEvents(){
       if(!t) return;
       if(!t.dates) t.dates = [];
       const seanceInput = document.querySelector(`[data-new-seance="${tourneeId}"]`);
-      const nouvelle = { id: genId('date'), date: dateInput.value, ville: villeInput.value.trim(), lieu: lieuInput.value.trim(), commentaire:'', statut:'option', type: typeDateValide(PROJET_TYPE, typeInput.value), musiciensAssignes:[], techniciensAssignes:[] };
-      // Même règle à la saisie manuelle : une date chez soi ne demande pas de
-      // trajet, et le menu de voyage n'a pas à être corrigé après coup.
-      if(!EST_RECORDING){
-        nouvelle.travelMode = estVilleDeBase(nouvelle.ville)
-          ? 'aucun'
-          : ((travelInput && travelInput.value) || 'tourbus');
+      // En studio, une session se pose d'un bloc : « du 10 au 14 » crée une
+      // date par jour, toutes au même endroit, liées entre elles — le statut
+      // se gère ensuite d'un seul geste, comme pour toute session.
+      const finInput = document.querySelector(`[data-new-fin="${tourneeId}"]`);
+      let nbJours = 1;
+      if(EST_RECORDING && finInput && finInput.value){
+        if(finInput.value < dateInput.value){
+          alert('La date de fin est avant la date de début.');
+          return;
+        }
+        nbJours = daysBetween(dateInput.value, finInput.value) + 1;
+        if(nbJours > 21){
+          alert(`${nbJours} jours d'un coup — c'est sans doute une faute de frappe (21 au maximum).`);
+          return;
+        }
       }
-      if(EST_RECORDING){
-        nouvelle.seance = (seanceInput && seanceInput.value) || 'journee';
-        nouvelle.cabine = '';
-        nouvelle.titres = '';
+      for(let j = 0; j < nbJours; j++){
+        const nouvelle = { id: genId('date'), date: addDaysIso(dateInput.value, j), ville: villeInput.value.trim(), lieu: lieuInput.value.trim(), commentaire:'', statut:'option', type: typeDateValide(PROJET_TYPE, typeInput.value), musiciensAssignes:[], techniciensAssignes:[] };
+        // Même règle à la saisie manuelle : une date chez soi ne demande pas de
+        // trajet, et le menu de voyage n'a pas à être corrigé après coup.
+        if(!EST_RECORDING){
+          nouvelle.travelMode = estVilleDeBase(nouvelle.ville)
+            ? 'aucun'
+            : ((travelInput && travelInput.value) || 'tourbus');
+        }
+        if(EST_RECORDING){
+          nouvelle.seance = (seanceInput && seanceInput.value) || 'journee';
+          nouvelle.cabine = '';
+          nouvelle.titres = '';
+          // Les jours d'une même période forment une session : liés jusqu'à
+          // l'avant-dernier, le dernier ferme le bloc.
+          if(j < nbJours - 1) nouvelle.linkedToNext = true;
+        }
+        t.dates.push(nouvelle);
       }
-      t.dates.push(nouvelle);
       saveTournees(tournees);
       render();
     });
@@ -2966,6 +2990,17 @@ async function initData(){
   ]);
   render();
   scrollToHash();
+  // Arrivée depuis la Vue d'ensemble : ?affecter=tourneeId:dateId ouvre le
+  // panneau d'affectation directement sur la bonne date.
+  const affecter = new URLSearchParams(location.search).get('affecter');
+  if(affecter){
+    const [tid, did] = affecter.split(':');
+    try{
+      openAssignModal(tid, did);
+      const carte = document.getElementById('projet-' + tid) || document.querySelector(`[data-tournee-id="${CSS.escape(tid)}"]`);
+      if(carte) carte.scrollIntoView({ block:'start' });
+    }catch(e){ console.warn('[affecter]', e); }
+  }
   // Les jetons permanents arrivent après le premier rendu : ils ne servent
   // qu'aux liens qu'on copie ou qu'on envoie, jamais à l'affichage.
   await chargerJetonsPermanents();

@@ -66,6 +66,27 @@
   /* Le gabarit de la matrice vient maintenant de base.css (.co-matrix et
      compagnie). Ne restent ici que les quatre états de case, qui sont propres
      à cet écran : affecté·e, disponible, indisponible, à confirmer. */
+  /* La barre de modes : le clic sur une case fait UNE chose à la fois, et le
+     mode armé se voit — pilule pleine, liseré de couleur sur les matrices. */
+  .mode-bar{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:10px 14px; margin:18px 0 4px; position:sticky; top:60px; z-index:5;
+  }
+  .mode-pilules{display:flex; gap:6px;}
+  .mode-pilules button{
+    cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text);
+    border-radius:999px; padding:7px 15px; font-size:13px; font-weight:700; font-family:inherit;
+  }
+  body.mode-marquer .mode-pilules [data-mode="marquer"]{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
+  body.mode-affecter .mode-pilules [data-mode="affecter"]{background:var(--secondary); color:#fff; border-color:var(--secondary);}
+  .mode-hint{flex:1; min-width:220px; font-size:12.5px; color:var(--muted); font-weight:600;}
+  #oupsBtn:not(:disabled){border-color:var(--maybe); color:var(--maybe); font-weight:800;}
+  body.mode-marquer .co-matrix{border-color:var(--accent);}
+  body.mode-affecter .co-matrix{border-color:var(--secondary); border-width:2px;}
+  [data-cellule]{cursor:pointer;}
+  [data-cellule]:hover .m-cell{outline:2px solid currentColor; outline-offset:1px;}
+
   .m-cell.assigned{background:var(--ok); border-color:var(--ok); color:#fff;}
   .m-cell.dispo{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark); font-weight:900;}
   .m-cell.indispo{background:var(--ko); border-color:var(--ko); color:#fff;}
@@ -129,6 +150,15 @@
     </span>
   </div>
 
+  <div class="mode-bar co-fade">
+    <div class="mode-pilules" role="group" aria-label="Ce que fait un clic sur une case">
+      <button type="button" data-mode="marquer">Marquer les dispos</button>
+      <button type="button" data-mode="affecter">Affecter</button>
+    </div>
+    <span class="mode-hint" id="modeHint"></span>
+    <button type="button" class="co-btn secondary sm" id="oupsBtn" disabled title="Annuler la dernière action — clics répétés : on remonte l'historique (10 au plus)">↶ Oups</button>
+  </div>
+
   <h2 class="section-title">Musicien·nes</h2>
   <div class="dispo-filter-row">
     <label for="musicienStatutFilter">Afficher :</label>
@@ -146,7 +176,9 @@
 
 <script>
 // Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
-// Cette page est en lecture seule (recap), les 3 caches ne sont jamais écrits ici.
+// Longtemps en lecture seule, cette page est devenue LA page d'affectation :
+// elle écrit les dispos (fiche par fiche) et les affectations (tournée par
+// tournée), toujours par les mêmes chemins que les pages d'origine.
 let tourneesCache = [];
 let musiciansCache = [];
 let techniciansCache = [];
@@ -176,7 +208,7 @@ function allDateEntries(assignField, tourneeId){
   tournees.forEach(t=>{
     (t.dates||[]).forEach(d=>{
       if(!d.date) return;
-      entries.push({ tourneeId: t.id, tourneeNom: t.nom, estRecording: t.type === 'recording', date: d.date, ville: d.ville, lieu: d.lieu, commentaire: d.commentaire, statut: d.statut, assignes: d[assignField] || [] });
+      entries.push({ tourneeId: t.id, dateId: d.id, tourneeNom: t.nom, estRecording: t.type === 'recording', date: d.date, ville: d.ville, lieu: d.lieu, commentaire: d.commentaire, statut: d.statut, assignes: d[assignField] || [] });
     });
   });
   entries.sort((a,b)=> a.date.localeCompare(b.date));
@@ -247,7 +279,10 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           else if(state === 'incertain'){ cls = 'incertain'; symbol = '?'; title = 'À confirmer'; }
           // data-jour : voir disponibilites.html — sert uniquement à la mise en
           // liste sur petit écran, sans rien changer au tableau sur ordinateur.
-          return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}" style="background:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}" title="${title}">${symbol}</span></div>`;
+          return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
+            data-cellule data-tid="${escapeAttr(e.tourneeId)}" data-did="${escapeAttr(e.dateId)}" data-pid="${escapeAttr(m.id)}"
+            data-ptype="${assignField === 'musiciensAssignes' ? 'musicien' : 'technicien'}" data-date="${escapeAttr(e.date)}" data-reco="${e.estRecording ? '1' : ''}"
+            style="background:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}" title="${title}">${symbol}</span></div>`;
         }).join('')}
       </div>
     `;
@@ -396,6 +431,165 @@ injectCurieuxFonts();
 
 applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+/* ---------------------------------------------------------------------------
+   Les deux gestes de la page, et le filet.
+   ---------------------------------------------------------------------------
+   MARQUER : le clic fait tourner la dispo comme sur la Grille interne
+   (— → dispo → indispo → à confirmer → —), écrite fiche par fiche.
+   AFFECTER : un clic affecte une personne DISPONIBLE, un re-clic la retire
+   (confirmé) ; indispo, à confirmer ou sans réponse → pas d'affectation en un
+   clic, direction le panneau de la page tournées, avec toutes ses règles.
+   OUPS : chaque action s'empile (10 au plus) et s'annule dans l'ordre inverse,
+   par le même chemin d'écriture qu'à l'aller.
+--------------------------------------------------------------------------- */
+
+const CYCLE_DISPO = ['', 'dispo', 'indispo', 'incertain'];
+const LIBELLE_DISPO = { '': 'non renseigné', dispo: 'disponible', indispo: 'indisponible', incertain: 'à confirmer' };
+let mode = (()=>{ try{ return localStorage.getItem('curieuxRecapMode') || 'marquer'; }catch(e){ return 'marquer'; } })();
+let pileOups = [];
+
+function poserMode(nouveau){
+  mode = nouveau;
+  try{ localStorage.setItem('curieuxRecapMode', mode); }catch(e){}
+  document.body.classList.toggle('mode-marquer', mode === 'marquer');
+  document.body.classList.toggle('mode-affecter', mode === 'affecter');
+  document.querySelectorAll('.mode-pilules button').forEach(b=>
+    b.setAttribute('aria-pressed', b.dataset.mode === mode ? 'true' : 'false'));
+  document.getElementById('modeHint').textContent = mode === 'marquer'
+    ? 'Un clic sur une case fait tourner : — → dispo → indispo → à confirmer.'
+    : 'Un clic affecte une personne disponible ; re-clic pour retirer ; sinon, direction le panneau de la tournée.';
+}
+
+function majOups(){
+  const btn = document.getElementById('oupsBtn');
+  const dernier = pileOups[pileOups.length - 1];
+  btn.disabled = !dernier;
+  btn.textContent = dernier ? `↶ Oups — annuler : ${dernier.texte}` : '↶ Oups';
+}
+function pousserOups(action){
+  pileOups.push(action);
+  if(pileOups.length > 10) pileOups.shift();
+  majOups();
+}
+
+// Le rendu remplace les matrices entières : sans cela, chaque clic ramènerait
+// le tableau en haut à gauche.
+function rendreEnGardantLeScroll(){
+  const pos = [...document.querySelectorAll('.co-matrix')].map(m=> [m.scrollTop, m.scrollLeft]);
+  renderAll();
+  [...document.querySelectorAll('.co-matrix')].forEach((m, i)=>{
+    if(pos[i]){ m.scrollTop = pos[i][0]; m.scrollLeft = pos[i][1]; }
+  });
+}
+
+function personneDe(ptype, pid){
+  return (ptype === 'musicien' ? loadMusicians() : loadTechnicians()).find(p=> p.id === pid);
+}
+
+async function ecrireDispo(ptype, personne, date, valeur, texteOups){
+  const avant = (personne.disponibilites || {})[date] || '';
+  if(!personne.disponibilites) personne.disponibilites = {};
+  if(valeur) personne.disponibilites[date] = valeur; else delete personne.disponibilites[date];
+  const { error } = await CurieuxDB.upsertOne(ptype === 'musicien' ? 'musiciens' : 'techniciens', personne);
+  if(error){
+    if(avant) personne.disponibilites[date] = avant; else delete personne.disponibilites[date];
+    alert('Écriture impossible — rien n\'a été changé :\n\n' + error.message);
+    return false;
+  }
+  if(texteOups) pousserOups({ genre:'dispo', ptype, pid: personne.id, date, avant, texte: texteOups });
+  return true;
+}
+
+async function ecrireAffectation(t, d, champ, pid, ajouter){
+  const avant = (d[champ] || []).slice();
+  d[champ] = ajouter ? avant.concat([pid]) : avant.filter(x=> x !== pid);
+  const { error } = await CurieuxDB.upsertOne('tournees', t);
+  if(error){
+    d[champ] = avant;
+    alert('Écriture impossible — rien n\'a été changé :\n\n' + error.message);
+    return false;
+  }
+  return true;
+}
+
+async function surClicCellule(cel){
+  const { tid, did, pid, ptype, date } = cel.dataset;
+  const today = new Date().toISOString().slice(0, 10);
+  if(date < today) return;                      // le passé se regarde, ne se corrige pas ici
+  const personne = personneDe(ptype, pid);
+  const t = loadTournees().find(x=> x.id === tid);
+  const d = t && (t.dates || []).find(x=> x.id === did);
+  if(!personne || !d) return;
+  const champ = ptype === 'musicien' ? 'musiciensAssignes' : 'techniciensAssignes';
+  const nom = fullName(personne);
+  const jour = `${fmtDateFRShort(date)}${d.ville ? ' · ' + d.ville : ''}`;
+
+  if(mode === 'marquer'){
+    const avant = (personne.disponibilites || {})[date] || '';
+    const apres = CYCLE_DISPO[(CYCLE_DISPO.indexOf(avant) + 1) % CYCLE_DISPO.length];
+    if(await ecrireDispo(ptype, personne, date, apres,
+      `dispo de ${nom} le ${fmtDateFRShort(date)} (retour à « ${LIBELLE_DISPO[avant]} »)`)){
+      rendreEnGardantLeScroll();
+    }
+    return;
+  }
+
+  // --- mode affecter ---
+  const dejaAffecte = (d[champ] || []).includes(pid);
+  if(dejaAffecte){
+    if(!confirm(`Retirer ${nom} du ${jour} ?`)) return;
+    if(await ecrireAffectation(t, d, champ, pid, false)){
+      pousserOups({ genre:'retrait', tid, did, pid, ptype, champ, texte:`retrait de ${nom} le ${fmtDateFRShort(date)}` });
+      rendreEnGardantLeScroll();
+    }
+    return;
+  }
+  const etat = (personne.disponibilites || {})[date] || '';
+  if(etat !== 'dispo'){
+    // Pas d'affectation en un clic sans un « oui » : le panneau de la tournée
+    // garde la main, avec ses remplaçants proposés et ses règles.
+    if(!confirm(`${nom} est ${LIBELLE_DISPO[etat]} ce jour-là — pas d'affectation en un clic.\n\nOuvrir le panneau d'affectation de « ${t.nom || 'la tournée'} » ?`)) return;
+    location.href = 'tournees.html?' + (cel.dataset.reco ? 'type=recording&' : '') + 'affecter=' + encodeURIComponent(tid + ':' + did);
+    return;
+  }
+  const doublon = loadTournees().find(x=> x.id !== tid
+    && (x.dates || []).some(dd=> dd.date === date && ((dd[champ] || []).includes(pid))));
+  if(doublon && !confirm(`${nom} est déjà affecté·e le ${fmtDateFRShort(date)} sur « ${doublon.nom || 'un autre projet'} ». Affecter quand même ?`)) return;
+  if(await ecrireAffectation(t, d, champ, pid, true)){
+    pousserOups({ genre:'ajout', tid, did, pid, ptype, champ, texte:`affectation de ${nom} le ${fmtDateFRShort(date)}` });
+    rendreEnGardantLeScroll();
+  }
+}
+
+async function annulerDerniereAction(){
+  const a = pileOups[pileOups.length - 1];
+  if(!a) return;
+  let ok = false;
+  if(a.genre === 'dispo'){
+    const personne = personneDe(a.ptype, a.pid);
+    if(personne) ok = await ecrireDispo(a.ptype, personne, a.date, a.avant, null);
+  } else {
+    const t = loadTournees().find(x=> x.id === a.tid);
+    const d = t && (t.dates || []).find(x=> x.id === a.did);
+    if(t && d) ok = await ecrireAffectation(t, d, a.champ, a.pid, a.genre === 'retrait');
+  }
+  if(ok){
+    pileOups.pop();
+    majOups();
+    rendreEnGardantLeScroll();
+  }
+}
+
+document.querySelectorAll('.mode-pilules button').forEach(b=>
+  b.addEventListener('click', ()=> poserMode(b.dataset.mode)));
+document.getElementById('oupsBtn').addEventListener('click', annulerDerniereAction);
+document.addEventListener('click', (e)=>{
+  const cel = e.target.closest('[data-cellule]');
+  if(cel) surClicCellule(cel);
+});
+poserMode(mode);
+majOups();
 
 async function initData(){
   [tourneesCache, musiciansCache, techniciansCache, dispoDemandesCache] = await Promise.all([
