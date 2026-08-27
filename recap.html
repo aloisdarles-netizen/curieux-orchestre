@@ -181,15 +181,17 @@
     <button type="button" id="oupsBtn" disabled title="Annuler la dernière action — clics répétés : on remonte l'historique (10 au plus)">↶ Oups</button>
   </div>
 
-  <h2 class="section-title">Musicien·nes</h2>
-  <div class="dispo-filter-row">
-    <label for="musicienStatutFilter">Afficher :</label>
+  <div class="dispo-filter-row" style="margin-top:16px;">
+    <label for="musicienStatutFilter">Afficher, musicien·nes et technicien·nes :</label>
     <select id="musicienStatutFilter">
-      <option value="titulaire" selected>Titulaires uniquement</option>
+      <option value="sollicites" selected>Titulaires + sollicité·es</option>
+      <option value="titulaire">Titulaires uniquement</option>
       <option value="">Tou·tes (titulaires en premier)</option>
       <option value="remplacant">Remplaçant·es uniquement</option>
     </select>
   </div>
+
+  <h2 class="section-title">Musicien·nes</h2>
   <div id="matrixHolderMusiciens"><div class="empty-hint">Chargement…</div></div>
 
   <h2 class="section-title">Technicien·nes</h2>
@@ -243,6 +245,21 @@ function allDateEntries(assignField, tourneeId){
 
 // Titulaires en priorité (avant les remplaçant·es), alphabétique au sein de chaque
 // groupe. Sans effet sur les technicien·nes (pas de statutPoste).
+// Qui a reçu une demande de dispo, tous projets confondus. La vue par défaut
+// s'appuie dessus : le noyau d'abord, puis les gens qu'on a effectivement
+// sollicités — inutile de faire défiler tout le répertoire pour les trouver.
+function idsSollicites(ptype){
+  return new Set(dispoDemandesCache.filter(d=> d.personType === ptype).map(d=> d.personId));
+}
+
+// Le noyau d'abord, les sollicité·es ensuite, alphabétique dans chaque groupe.
+function compareNoyauPuisSollicites(a, b){
+  const rang = m => (m.statutPoste === 'remplacant' ? 1 : 0);
+  const ra = rang(a), rb = rang(b);
+  if(ra !== rb) return ra - rb;
+  return fullName(a).localeCompare(fullName(b));
+}
+
 function compareByStatutThenName(a, b){
   const rank = m => (m.statutPoste === 'remplacant' ? 1 : 0);
   const ra = rank(a), rb = rank(b);
@@ -335,9 +352,18 @@ function renderAll(){
     positions[m.closest('[id]').id] = [m.scrollTop, m.scrollLeft];
   });
   const statutFilter = document.getElementById('musicienStatutFilter').value;
-  const filteredMusicians = loadMusicians().filter(m=> !statutFilter || (m.statutPoste || 'titulaire') === statutFilter);
-  renderPeopleMatrix(filteredMusicians, 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musicien·nes', "Musicien·ne");
-  renderPeopleMatrix(loadTechnicians(), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire technicien·nes', "Technicien·ne");
+  // « Titulaires + sollicité·es » : le noyau, plus toute personne à qui une
+  // demande a été envoyée sur un projet quelconque. Les autres restent hors
+  // de vue tant qu'on ne les a pas appelées.
+  const garder = (liste, ptype)=>{
+    if(statutFilter === 'sollicites'){
+      const vus = idsSollicites(ptype);
+      return liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant' || vus.has(p.id));
+    }
+    return liste.filter(p=> !statutFilter || (p.statutPoste || 'titulaire') === statutFilter);
+  };
+  renderPeopleMatrix(garder(loadMusicians(), 'musicien'), 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musicien·nes', "Musicien·ne");
+  renderPeopleMatrix(garder(loadTechnicians(), 'technicien'), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire technicien·nes', "Technicien·ne");
   populateTourneeSelect();
   renderDashboard();
   document.querySelectorAll('#matrixHolderMusiciens .co-matrix, #matrixHolderTechniciens .co-matrix').forEach(m=>{
