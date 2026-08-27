@@ -4182,3 +4182,117 @@ alter table tournees add column if not exists sollicitation_exclus jsonb not nul
 
 comment on column tournees.sollicitation_exclus is
   'Personnes retirées à la main de ce projet : la sollicitation d''office ne les repose pas.';
+
+-- ============================================================================
+-- « Répondu » ne voulait pas dire « tout répondu »
+--
+-- mes_demandes_dispo rendait repondu = last_responded_at is not null : un
+-- drapeau posé une fois pour toutes, au premier envoi. Une date ajoutée à la
+-- tournée après coup ne le faisait pas retomber. Sur son espace, la personne
+-- lisait « Tu as déjà répondu » alors qu'il lui restait une date à remplir —
+-- et rien ne l'appelait à y revenir.
+--
+-- La fonction compte donc, pour chaque demande :
+--   · nbDates      — les dates à venir, non annulées, qui la concernent
+--                    (toutes celles du projet, ou seulement celles nommées
+--                    dans la demande quand elle est restreinte) ;
+--   · nbManquantes — celles dont la personne n'a rien dit ;
+--   · prochaineManquante — la première d'entre elles, pour la nommer.
+--
+-- repondu reste rendu tel quel : il distingue « pas encore ouvert » de
+-- « répondu puis de nouvelles dates », deux situations qui ne se disent pas
+-- de la même façon.
+-- ============================================================================
+
+create or replace function mes_demandes_dispo(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cible record;
+  resultat jsonb;
+  tel text;
+  mail text;
+  dispo jsonb;
+  fiche infos_sociales%rowtype;
+begin
+  select * into cible from resolve_person_token(p_token);
+  if not found or cible.person_id is null then
+    return null;
+  end if;
+
+  if cible.person_type = 'musicien' then
+    select m.telephone, m.email, coalesce(m.disponibilites, '{}'::jsonb)
+      into tel, mail, dispo
+      from musiciens m where m.id = cible.person_id;
+  else
+    select t.telephone, t.email, coalesce(t.disponibilites, '{}'::jsonb)
+      into tel, mail, dispo
+      from techniciens t where t.id = cible.person_id;
+  end if;
+  dispo := coalesce(dispo, '{}'::jsonb);
+
+  select * into fiche from infos_sociales i where i.id = cible.person_id;
+
+  select jsonb_build_object(
+    'personId', cible.person_id,
+    'personType', cible.person_type,
+    'prenom', coalesce(
+      (select m.prenom from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.prenom from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'), ''),
+    'nom', coalesce(
+      (select m.nom from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.nom from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'), ''),
+    'statutPoste', coalesce(
+      (select m.statut_poste from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.statut_poste from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'),
+      'titulaire'),
+    'infosRemplies', jsonb_build_object(
+      'telephone',     coalesce(btrim(tel), '') <> '',
+      'email',         coalesce(btrim(mail), '') <> '',
+      'genre',         coalesce(btrim(fiche.genre), '') <> '',
+      'dateNaissance', fiche.date_naissance is not null,
+      'lieuNaissance', coalesce(btrim(fiche.lieu_naissance), '') <> '',
+      'nationalite',   coalesce(btrim(fiche.nationalite), '') <> '',
+      'adresse',       coalesce(btrim(fiche.adresse), '') <> ''
+    ),
+    'nbRemplacants', coalesce((
+      select jsonb_array_length(r.items) from remplacant_prefs r
+      where r.id = cible.person_id and r.person_type = cible.person_type
+    ), 0),
+    'demandes', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'token', d.id,
+               'tourneeNom', t.nom,
+               'tourneeType', coalesce(t.type, 'tournee'),
+               'repondu', d.last_responded_at is not null,
+               'nbDates', compte.total,
+               'nbManquantes', compte.manquantes,
+               'prochaineManquante', compte.prochaine,
+               'creeLe', d.created_at)
+             order by d.created_at desc)
+      from dispo_demandes d
+      join tournees t on t.id = d.tournee_id
+      cross join lateral (
+        select count(*)::int as total,
+               count(*) filter (where coalesce(dispo->>(e->>'date'), '') = '')::int as manquantes,
+               min(e->>'date') filter (where coalesce(dispo->>(e->>'date'), '') = '') as prochaine
+        from jsonb_array_elements(coalesce(t.dates, '[]'::jsonb)) e
+        where coalesce(e->>'date', '') <> ''
+          and (e->>'date') >= to_char(current_date, 'YYYY-MM-DD')
+          and coalesce(e->>'statut', '') <> 'annulee'
+          -- Demande restreinte : seules les dates qu'on lui a nommées comptent.
+          -- Liste vide = tout le projet, y compris ce qu'on y ajoutera après.
+          and (jsonb_array_length(coalesce(d.dates, '[]'::jsonb)) = 0
+               or coalesce(d.dates, '[]'::jsonb) ? (e->>'id'))
+      ) compte
+      where d.person_id = cible.person_id and d.person_type = cible.person_type
+    ), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
+grant execute on function mes_demandes_dispo(text) to anon, authenticated;

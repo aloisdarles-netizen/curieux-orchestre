@@ -51,6 +51,9 @@
     background:var(--maybe-tint); color:var(--maybe); vertical-align:1px;
   }
   .pastille.faite{background:var(--ok-tint); color:var(--ok);}
+  /* Des dates ajoutées depuis sa réponse : ni « à faire » (elle a déjà joué le
+     jeu), ni « répondu » (il manque quelque chose). Sa propre couleur. */
+  .pastille.neuf{background:var(--secondary); color:#fff;}
 
   .section-titre{
     font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
@@ -187,6 +190,39 @@ function tuile(href, icone, titre, sous, pastille){
   </a>`;
 }
 
+// Ce qu'il reste à dire sur une demande.
+//
+// « Répondu » a longtemps voulu dire « a validé une fois », si bien qu'une date
+// ajoutée à la tournée après coup ne se voyait nulle part : l'espace annonçait
+// « Tu as déjà répondu » et la date restait vide. La fonction SQL rend
+// maintenant le compte réel des dates sans réponse ; tant que la migration
+// n'est pas passée, on retombe sur l'ancien drapeau — la page ne dit alors
+// rien de plus faux qu'avant.
+function etatDemande(d){
+  if(!Number.isFinite(d.nbManquantes)){
+    return { connu: false, manquantes: d.repondu ? 0 : null, total: null, neuf: false };
+  }
+  return {
+    connu: true,
+    manquantes: d.nbManquantes,
+    total: d.nbDates,
+    // Répondu une fois, et il reste des dates : ce sont des dates arrivées
+    // depuis. C'est le cas qu'il fallait rendre visible.
+    neuf: !!d.repondu && d.nbManquantes > 0,
+    prochaine: d.prochaineManquante || '',
+  };
+}
+function resteAFaire(d){
+  const e = etatDemande(d);
+  return e.manquantes === null ? !d.repondu : e.manquantes > 0;
+}
+function jourCourt(iso){
+  if(!iso) return '';
+  const dt = new Date(iso + 'T00:00:00');
+  if(isNaN(dt)) return '';
+  return dt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+}
+
 async function init(){
   if(!window.supabase){ etat("La page n'a pas pu se charger. Réessaie dans un instant."); return; }
   if(!TOKEN){
@@ -208,7 +244,7 @@ async function init(){
 
   const jeton = encodeURIComponent(TOKEN);
   const demandes = moi.demandes || [];
-  const enAttente = demandes.filter(d => !d.repondu);
+  const enAttente = demandes.filter(resteAFaire);
 
   // Disponibilités : une entrée par demande en cours, pour que le lien unique
   // couvre plusieurs tournées sans que la personne ait à jongler entre liens.
@@ -218,13 +254,34 @@ async function init(){
       Aucune demande de disponibilité en cours. Tu recevras un message quand un projet se prépare.
     </div>`;
   } else {
-    blocDispos = demandes.map(d => tuile(
-      `dispo-titulaire.html?token=${encodeURIComponent(d.token)}`,
-      d.tourneeType === 'recording' ? ICONES.recording : ICONES.dispos,
-      d.tourneeNom || (d.tourneeType === 'recording' ? 'Recording' : 'Tournée'),
-      d.repondu ? 'Tu as déjà répondu — modifiable' : 'À compléter',
-      d.repondu ? '<span class="pastille faite">Répondu</span>' : '<span class="pastille">À faire</span>'
-    )).join('');
+    blocDispos = demandes.map(d => {
+      const e = etatDemande(d);
+      const pluriel = e.manquantes > 1 ? 's' : '';
+      let sous, pastille;
+      if(e.manquantes === 0){
+        sous = e.total === 0
+          ? "Aucune date à venir sur ce projet"
+          : 'Tu as répondu à tout — modifiable';
+        pastille = '<span class="pastille faite">Répondu</span>';
+      } else if(e.neuf){
+        // On nomme la date : « 1 nouvelle date » sans dire laquelle oblige à
+        // ouvrir pour savoir de quoi on parle.
+        const quand = jourCourt(e.prochaine);
+        sous = `${e.manquantes} date${pluriel} ajoutée${pluriel} depuis ta réponse`
+          + (quand ? ` — à partir du ${quand}` : '');
+        pastille = '<span class="pastille neuf">Nouvelles dates</span>';
+      } else {
+        sous = e.manquantes == null ? 'À compléter'
+          : `${e.manquantes} date${pluriel} à remplir`;
+        pastille = '<span class="pastille">À faire</span>';
+      }
+      return tuile(
+        `dispo-titulaire.html?token=${encodeURIComponent(d.token)}`,
+        d.tourneeType === 'recording' ? ICONES.recording : ICONES.dispos,
+        d.tourneeNom || (d.tourneeType === 'recording' ? 'Recording' : 'Tournée'),
+        sous, pastille
+      );
+    }).join('');
   }
 
   const estTitulaire = (moi.statutPoste || 'titulaire') === 'titulaire';

@@ -546,11 +546,20 @@ const CurieuxDB = new Proxy({
       ? { telephone:true, email:true, genre:true, dateNaissance:true, lieuNaissance:true, nationalite:true, adresse:true }
       : { telephone:true, email:true, genre:true, dateNaissance:false, lieuNaissance:true, nationalite:false, adresse:false },
     nbRemplacants: new URLSearchParams(location.search).get('dossier') === 'complet' ? 3 : 0,
+    // Les trois états qu'une demande peut prendre sur l'espace perso : tout
+    // répondu, répondu puis des dates ajoutées depuis, et pas encore ouvert.
+    // Le deuxième est celui qui passait inaperçu — il doit se voir sur toute
+    // capture de cette page.
     demandes:[
       { token:'jeton-demo', tourneeNom:"L'Atelier de Joe Hisaishi — Printemps 2027",
-        tourneeType:'tournee', repondu:false, creeLe:'2026-08-01T10:00:00Z' },
+        tourneeType:'tournee', repondu:true, nbDates:8, nbManquantes:0,
+        prochaineManquante:null, creeLe:'2026-08-01T10:00:00Z' },
+      { token:'jeton-demo-neuf', tourneeNom:'Expédition 33 — 2027',
+        tourneeType:'tournee', repondu:true, nbDates:6, nbManquantes:2,
+        prochaineManquante:'2027-05-03', creeLe:'2026-08-02T10:00:00Z' },
       { token:'jeton-demo-reco', tourneeNom:'Album — Les Soudaines vol. II',
-        tourneeType:'recording', repondu:false, creeLe:'2026-08-02T10:00:00Z' },
+        tourneeType:'recording', repondu:false, nbDates:4, nbManquantes:4,
+        prochaineManquante:'2027-02-08', creeLe:'2026-08-03T10:00:00Z' },
     ],
   }),
   // Pages à jeton : la tournée est rendue telle qu'elle est en base (colonnes
