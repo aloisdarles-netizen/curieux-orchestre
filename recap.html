@@ -172,6 +172,16 @@
   .swatch.dispo{background:var(--accent-tint); border-color:var(--accent-dark);}
   .swatch.indispo{background:var(--ko); border-color:var(--ko);}
   .swatch.incertain{background:var(--maybe); border-color:var(--maybe);}
+  /* Quand on lui a demandé ses dispos pour la dernière fois. Sur la même ligne
+     que l'instrument : une ligne de plus par personne, sur quarante personnes,
+     coûterait un écran entier. */
+  .demande-le{
+    cursor:pointer; border:none; background:transparent; font:inherit; font-size:11px;
+    padding:0 2px; border-radius:5px; color:var(--muted); white-space:nowrap;
+  }
+  .demande-le:hover{background:var(--accent-tint); color:var(--accent-dark);}
+  .demande-le.jamais{color:var(--secondary); font-weight:800;}
+
   .remplacant-tag{
     font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
     padding:1px 6px; border-radius:20px; background:var(--accent-tint); color:var(--accent-dark); margin-left:6px; vertical-align:middle;
@@ -374,6 +384,90 @@ function estSollicite(personne, ptype, e){
   return titulaire && (!e.estRecording || ptype === 'musicien');
 }
 
+/* Quand lui a-t-on demandé ses dispos pour la dernière fois ?
+ *
+ * L'information existait déjà, éparpillée : chaque demande porte la date de sa
+ * création (le lien a été posé) et celle du dernier message parti (le bouton
+ * « Relancer » de Demandes titulaires l'inscrit, quel que soit le canal). Ce
+ * qui manquait, c'était de la lire d'un coup d'œil en face du nom.
+ *
+ * On ne retient que le message RÉELLEMENT envoyé : un lien posé d'office par
+ * la page ne veut pas dire qu'on a écrit à qui que ce soit, et afficher cette
+ * date-là ferait croire à une relance qui n'a jamais eu lieu.
+ *
+ * Les projets terminés ne comptent pas : une relance de l'an dernier ne dit
+ * rien de la saison en cours.
+ */
+function demandesVivantes(personne, ptype){
+  const aVenir = new Date().toISOString().slice(0, 10);
+  return dispoDemandesCache.filter(d=>{
+    if(d.personType !== ptype || d.personId !== personne.id) return false;
+    const t = loadTournees().find(x=> x.id === d.tourneeId);
+    return !!t && (t.dates || []).some(dt=> dt.date && dt.date >= aVenir && dt.statut !== 'annulee');
+  });
+}
+
+function derniereDemande(personne, ptype){
+  const liste = demandesVivantes(personne, ptype);
+  const envoyees = liste.filter(d=> d.lastReminderAt);
+  const detail = envoyees
+    .map(d=>{
+      const t = loadTournees().find(x=> x.id === d.tourneeId);
+      return { nom: (t && t.nom) || 'projet', quand: d.lastReminderAt };
+    })
+    .sort((a, b)=> b.quand.localeCompare(a.quand));
+  return {
+    aDesDemandes: liste.length > 0,
+    quand: detail.length ? detail[0].quand : '',
+    detail,
+  };
+}
+
+// Une date ISO complète (avec l'heure) → « 12 mars ».
+function jourDe(horodatage){
+  return horodatage ? fmtDateFRShort(horodatage.slice(0, 10)) : '';
+}
+
+function demandeLeHtml(personne, ptype){
+  const info = derniereDemande(personne, ptype);
+  if(!info.aDesDemandes) return '';
+  if(!info.quand){
+    return `<button type="button" class="demande-le jamais" data-demande-le="${escapeAttr(ptype + ':' + personne.id)}"
+      title="Aucun message de demande de dispo ne lui a encore été envoyé depuis l'outil.&#10;Cliquer pour noter qu'on vient de le faire.">✉ jamais</button>`;
+  }
+  const titre = info.detail.map(x=> `${x.nom} — ${jourDe(x.quand)}`).join('&#10;');
+  return `<button type="button" class="demande-le" data-demande-le="${escapeAttr(ptype + ':' + personne.id)}"
+    title="Dernière demande de dispo envoyée :&#10;${escapeAttr(titre)}&#10;&#10;Cliquer pour noter qu'on vient de lui redemander.">✉ ${escapeHtml(jourDe(info.quand))}</button>`;
+}
+
+// Noter à la main qu'on vient de lui demander ses dispos — pour les messages
+// partis d'ailleurs (téléphone, conversation de groupe), que l'outil n'a aucun
+// moyen de voir passer.
+async function noterDemandeEnvoyee(ptype, pid){
+  const personne = personneDe(ptype, pid);
+  if(!personne) return;
+  const liste = demandesVivantes(personne, ptype);
+  if(!liste.length) return;
+  const projets = [...new Set(liste.map(d=>{
+    const t = loadTournees().find(x=> x.id === d.tourneeId);
+    return (t && t.nom) || 'projet';
+  }))];
+  if(!confirm(`Noter qu'on vient de demander ses dispos à ${fullName(personne)} ?\n\n${projets.join('\n')}`)) return;
+  const quand = new Date().toISOString();
+  const avant = liste.map(d=> d.lastReminderAt);
+  liste.forEach(d=> d.lastReminderAt = quand);
+  for(const d of liste){
+    const { error } = await CurieuxDB.upsertOne('dispo_demandes', d);
+    if(error){
+      liste.forEach((x, i)=> x.lastReminderAt = avant[i]);
+      alert("Écriture impossible — rien n'a été changé :\n\n" + error.message);
+      rendreEnGardantLeScroll();
+      return;
+    }
+  }
+  rendreEnGardantLeScroll();
+}
+
 // Qui a reçu une demande de dispo, tous projets confondus. La vue par défaut
 // s'appuie dessus : le noyau d'abord, puis les gens qu'on a effectivement
 // sollicités — inutile de faire défiler tout le répertoire pour les trouver.
@@ -494,17 +588,22 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     </div>
   `;
 
+  const ptypeMatrice = assignField === 'musiciensAssignes' ? 'musicien' : 'technicien';
+
   const rows = sorted.map(m=>{
     const dispo = m.disponibilites || {};
+    const metier = m.statutPoste === 'remplacant' ? 'Remplaçant·e' : (m.instrument || m.poste || '');
+    const demandeLe = demandeLeHtml(m, ptypeMatrice);
     return `
       <div class="co-matrix-row">
-        <div class="co-matrix-name"><b>${escapeHtml(fullName(m))}</b>${m.statutPoste === 'remplacant' ? '<small>Remplaçant·e</small>' : `<small>${escapeHtml(m.instrument || m.poste || '')}</small>`}</div>
+        <div class="co-matrix-name"><b>${escapeHtml(fullName(m))}</b><small>${escapeHtml(metier)}${
+          demandeLe ? (metier ? ' · ' : '') + demandeLe : ''}</small></div>
         ${entries.map(e=>{
           const assigned = (e.assignes||[]).includes(m.id);
           const state = dispo[e.date] || '';
           const note = ((m.disponibilitesCommentaires || {})[e.date] || '').trim();
           // Une affectation prime : on ne grise jamais quelqu'un qui joue.
-          const hors = !assigned && !estSollicite(m, assignField === 'musiciensAssignes' ? 'musicien' : 'technicien', e);
+          const hors = !assigned && !estSollicite(m, ptypeMatrice, e);
           let cls = '', symbol = '—', title = 'Non renseigné';
           if(assigned){ cls = 'assigned'; symbol = '✓'; title = `Affecté·e — ${escapeHtml(e.tourneeNom || '')}`; }
           else if(state === 'dispo'){ cls = 'dispo'; symbol = '✓'; title = 'Disponible'; }
@@ -514,7 +613,7 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           // liste sur petit écran, sans rien changer au tableau sur ordinateur.
           return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${hors ? ' hors-demande' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
             data-cellule data-tid="${escapeAttr(e.tourneeId)}" data-did="${escapeAttr(e.dateId)}" data-pid="${escapeAttr(m.id)}"
-            data-ptype="${assignField === 'musiciensAssignes' ? 'musicien' : 'technicien'}" data-date="${escapeAttr(e.date)}" data-reco="${e.estRecording ? '1' : ''}"
+            data-ptype="${ptypeMatrice}" data-date="${escapeAttr(e.date)}" data-reco="${e.estRecording ? '1' : ''}"
             style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? ' avec-note' : ''}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}${note ? ' — « ' + escapeHtml(note) + ' »' : ''}">${symbol}</span></div>`;
         }).join('')}
       </div>
@@ -855,6 +954,12 @@ document.addEventListener('click', (e)=>{
   if(cel) surClicCellule(cel);
   // Un clic sur la bande d'un projet le retire du tableau : c'est là qu'on
   // s'aperçoit qu'il prend douze colonnes, autant pouvoir le dire sur place.
+  const marque = e.target.closest('[data-demande-le]');
+  if(marque){
+    const [ptype, pid] = marque.dataset.demandeLe.split(':');
+    noterDemandeEnvoyee(ptype, pid);
+    return;
+  }
   const bande = e.target.closest('[data-bande]');
   if(bande){
     projetsMasques.add(bande.dataset.bande);
