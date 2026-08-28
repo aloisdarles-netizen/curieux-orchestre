@@ -319,6 +319,10 @@
       <select class="co-select" id="pdfTourneeSelect">
         <option value="">Tous les projets</option>
       </select>
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; color:var(--muted); font-weight:600; white-space:nowrap;"
+             title="Les précisions laissées sur les dispos, numérotées dans les cases et reprises en clair sous chaque tableau.">
+        <input type="checkbox" id="pdfAvecNotes" checked> Avec les précisions
+      </label>
       <button type="button" class="co-btn primary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
     </span>
   </div>
@@ -1385,7 +1389,7 @@ function pdfLegendeProjets(doc, x, y, bandes, couleurs){
  * laissée par la personne, et les dates où elle n'est pas sollicitée sont
  * hachurées en diagonale.
  */
-function pdfCase(doc, cell, personne, entry, ptype, etat){
+function pdfCase(doc, cell, personne, entry, ptype, etat, numero){
   const affecte = etat === 'affecte';
   const hors = !affecte && !estSollicite(personne, ptype, entry);
   if(hors){
@@ -1427,11 +1431,50 @@ function pdfCase(doc, cell, personne, entry, ptype, etat){
     doc.roundedRect(x, y, w, h, 1, 1, 'FD');
   }
   pdfMarque(doc, etat, cell.x + cell.width / 2, cell.y + cell.height / 2, Math.min(w, h) * 0.62);
-  const note = ((personne.disponibilitesCommentaires || {})[entry.date] || '').trim();
-  if(note){
+  if(numero){
+    // Un numéro plutôt qu'un point : le texte de la précision ne tient pas
+    // dans neuf millimètres, il se lit sous le tableau, à ce numéro-là.
     doc.setFillColor(236, 75, 21);
-    doc.circle(x + w - 0.2, y + 0.2, 0.7, 'F');
+    doc.circle(x + w - 0.1, y + 0.1, 1.35, 'F');
+    doc.setFont('Host', 'bold'); doc.setFontSize(4.6); doc.setTextColor(255, 255, 255);
+    doc.text(String(numero), x + w - 0.1, y + 0.68, { align: 'center' });
   }
+}
+
+/* Les précisions, sous le tableau.
+ *
+ * « ok mais je pars à 22h » n'entre pas dans une case de neuf millimètres, et
+ * la reléguer dans une infobulle ne sert à rien sur du papier. Chaque case
+ * annotée porte donc un numéro, et le numéro se lit ici, en toutes lettres,
+ * avec le nom et la date — comme les notes de bas de page d'un programme.
+ */
+function pdfPrecisions(doc, y, notes, dessinerEntete){
+  if(!notes.length) return y;
+  const hauteurPage = doc.internal.pageSize.getHeight();
+  const largeur = PDF_LARGEUR_PAGE - 2 * PDF_MARGE - 6;
+  const placer = (besoin)=>{
+    if(y + besoin <= hauteurPage - 12) return;
+    doc.addPage(); dessinerEntete(); y = 30;
+  };
+  placer(10);
+  doc.setFont('Host', 'bold'); doc.setFontSize(8); doc.setTextColor(236, 75, 21);
+  doc.setCharSpace(0.08);
+  doc.text('PRÉCISIONS LAISSÉES SUR LES DATES', PDF_MARGE, y);
+  doc.setCharSpace(0);
+  y += 4.8;
+  notes.forEach(n=>{
+    doc.setFont('Host', 'normal'); doc.setFontSize(7.4);
+    const lignes = doc.splitTextToSize(`${n.qui} · ${n.quand} — « ${n.texte} »`, largeur);
+    placer(lignes.length * 3.2 + 2);
+    doc.setFillColor(236, 75, 21);
+    doc.circle(PDF_MARGE + 1.9, y - 1.05, 1.9, 'F');
+    doc.setFont('Host', 'bold'); doc.setFontSize(5.4); doc.setTextColor(255, 255, 255);
+    doc.text(String(n.num), PDF_MARGE + 1.9, y - 0.25, { align: 'center' });
+    doc.setFont('Host', 'normal'); doc.setFontSize(7.4); doc.setTextColor(58, 50, 55);
+    doc.text(lignes, PDF_MARGE + 5.6, y);
+    y += lignes.length * 3.2 + 1.4;
+  });
+  return y + 3;
 }
 
 // Le nom en gras, l'instrument ou le poste dessous — la colonne de gauche de
@@ -1474,6 +1517,20 @@ function buildMatrixTable(doc, startY, people, assignField, titre, entries, dess
   const bandes = pdfBandesProjets(entries);
   const largeurCol = (PDF_LARGEUR_PAGE - 2 * PDF_MARGE - PDF_LARGEUR_NOM) / PDF_DATES_PAR_PAGE;
   const ptypeMatrice = assignField === 'musiciensAssignes' ? 'musicien' : 'technicien';
+
+  // Les précisions de cette tranche, numérotées dans l'ordre de lecture —
+  // personne par personne, date par date. Le numéro va dans la case, le texte
+  // sous le tableau. La case à cocher de l'écran peut les mettre de côté.
+  const avecNotes = (document.getElementById('pdfAvecNotes') || {}).checked !== false;
+  const notes = [];
+  const numeroNote = new Map();
+  if(avecNotes) sorted.forEach(m=> entries.forEach(e=>{
+    const texte = ((m.disponibilitesCommentaires || {})[e.date] || '').trim();
+    if(!texte) return;
+    numeroNote.set(m.id + '|' + e.date, notes.length + 1);
+    notes.push({ num: notes.length + 1, qui: fullName(m),
+      quand: fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''), texte });
+  }));
   const fondsProjets = new Map();
   entries.forEach(e=>{
     if(!fondsProjets.has(e.tourneeId)) fondsProjets.set(e.tourneeId, pdfCouleurRgb(couleurs.get(e.tourneeId)));
@@ -1529,11 +1586,12 @@ function buildMatrixTable(doc, startY, people, assignField, titre, entries, dess
       const m = sorted[data.row.index];
       if(!m) return;
       if(data.column.index === 0){ pdfNomPersonne(doc, data.cell, m, sousRemplacants[ptypeMatrice].has(m.id)); return; }
-      pdfCase(doc, data.cell, m, entries[data.column.index - 1], ptypeMatrice, data.cell.raw);
+      const e = entries[data.column.index - 1];
+      pdfCase(doc, data.cell, m, e, ptypeMatrice, data.cell.raw, numeroNote.get(m.id + '|' + e.date));
     },
     didDrawPage: dessinerEntete,
   });
-  return doc.lastAutoTable.finalY + 12;
+  return pdfPrecisions(doc, doc.lastAutoTable.finalY + 6, notes, dessinerEntete) + 8;
 }
 
 // « var(--tour-3) » → le triplet RGB correspondant, lu sur la page elle-même :
