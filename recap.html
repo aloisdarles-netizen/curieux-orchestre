@@ -1155,6 +1155,19 @@ function pdfMarque(doc, etat, x, y, taille){
   doc.setLineCap('butt');
 }
 
+// Les hachures des cases « pas sollicité·e » — les mêmes diagonales qu'à
+// l'écran. Tracées segment par segment : c'est le seul motif qu'un PDF
+// comprenne sans image.
+function pdfHachures(doc, x, y, w, h){
+  doc.setDrawColor(150, 132, 142);
+  doc.setLineWidth(0.13);
+  for(let d = -h; d < w; d += 1.3){
+    const x1 = x + Math.max(d, 0), y1 = y + Math.max(-d, 0);
+    const t = Math.min(h - Math.max(-d, 0), w - Math.max(d, 0));
+    if(t > 0) doc.line(x1, y1, x1 + t, y1 + t);
+  }
+}
+
 const PDF_FONDS = {
   affecte: [47, 143, 91],
   dispo: [206, 225, 244],
@@ -1166,11 +1179,15 @@ const PDF_FONDS = {
 // promet des symboles que le document ne contient pas.
 function pdfLegende(doc, x, y){
   const items = [['affecte', 'affecté·e'], ['dispo', 'disponible'], ['indispo', 'indisponible'],
-                 ['incertain', 'à confirmer'], ['', 'sans réponse']];
+                 ['incertain', 'à confirmer'], ['', 'sans réponse'], ['hors', 'pas sollicité·e']];
   const h = 4.2;
   items.forEach(([etat, libelle])=>{
-    if(etat){ doc.setFillColor(...PDF_FONDS[etat]); doc.roundedRect(x, y - h + 1, 5.4, h, 0.8, 0.8, 'F'); }
-    pdfMarque(doc, etat, x + 2.7, y - h / 2 + 1, 2.4);
+    if(etat === 'hors'){
+      pdfHachures(doc, x, y - h + 1, 5.4, h);
+    } else {
+      if(etat){ doc.setFillColor(...PDF_FONDS[etat]); doc.roundedRect(x, y - h + 1, 5.4, h, 0.8, 0.8, 'F'); }
+      pdfMarque(doc, etat, x + 2.7, y - h / 2 + 1, 2.4);
+    }
     doc.setFont('Host', 'normal'); doc.setFontSize(7); doc.setTextColor(90, 80, 86);
     doc.text(libelle, x + 6.6, y - 0.4);
     x += 7.4 + doc.getTextWidth(libelle) + 4;
@@ -1219,10 +1236,59 @@ function pdfLegendeProjets(doc, x, y, bandes, couleurs){
   return ligne;
 }
 
+/* Une case, telle qu'elle est à l'écran : le fond porte la couleur du projet,
+ * une pastille arrondie porte l'état, un point orange signale une précision
+ * laissée par la personne, et les dates où elle n'est pas sollicitée sont
+ * hachurées en diagonale.
+ */
+function pdfCase(doc, cell, personne, entry, ptype, etat){
+  const affecte = etat === 'affecte';
+  const hors = !affecte && !estSollicite(personne, ptype, entry);
+  if(hors){
+    pdfHachures(doc, cell.x + 0.15, cell.y + 0.15, cell.width - 0.3, cell.height - 0.3);
+    return;
+  }
+  const w = Math.min(cell.width * 0.66, 6.6);
+  const h = Math.min(cell.height * 0.62, 4.6);
+  const x = cell.x + (cell.width - w) / 2;
+  const y = cell.y + (cell.height - h) / 2;
+  if(PDF_FONDS[etat]){
+    doc.setFillColor(...PDF_FONDS[etat]);
+    doc.roundedRect(x, y, w, h, 1, 1, 'F');
+  } else {
+    // « Sans réponse » : la pastille blanche de l'écran, cerclée, pour qu'on
+    // voie qu'il y a bien une case et non un trou dans le tableau.
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(224, 208, 216);
+    doc.setLineWidth(0.12);
+    doc.roundedRect(x, y, w, h, 1, 1, 'FD');
+  }
+  pdfMarque(doc, etat, cell.x + cell.width / 2, cell.y + cell.height / 2, Math.min(w, h) * 0.62);
+  const note = ((personne.disponibilitesCommentaires || {})[entry.date] || '').trim();
+  if(note){
+    doc.setFillColor(236, 75, 21);
+    doc.circle(x + w - 0.2, y + 0.2, 0.7, 'F');
+  }
+}
+
+// Le nom en gras, l'instrument ou le poste dessous — la colonne de gauche de
+// l'écran, à l'identique.
+function pdfNomPersonne(doc, cell, personne){
+  const metier = personne.statutPoste === 'remplacant'
+    ? 'Remplaçant·e' : (personne.instrument || personne.poste || '');
+  const x = cell.x + 2;
+  doc.setFont('Host', 'bold'); doc.setFontSize(7.2); doc.setTextColor(20, 22, 23);
+  doc.text(pdfTronquer(doc, fullName(personne), cell.width - 4, 7.2),
+    x, cell.y + cell.height / 2 - (metier ? 0.6 : -0.9), { baseline: 'middle' });
+  if(!metier) return;
+  doc.setFont('Host', 'normal'); doc.setFontSize(6); doc.setTextColor(140, 125, 133);
+  doc.text(pdfTronquer(doc, metier, cell.width - 4, 6), x, cell.y + cell.height / 2 + 2.2, { baseline: 'middle' });
+}
+
 function colonnesLargeurs(nbDates){
   const utile = PDF_LARGEUR_PAGE - 2 * PDF_MARGE;
   const largeur = (utile - PDF_LARGEUR_NOM) / PDF_DATES_PAR_PAGE;
-  const styles = { 0: { halign:'left', fontStyle:'bold', fontSize:7, cellWidth: PDF_LARGEUR_NOM } };
+  const styles = { 0: { halign:'left', cellWidth: PDF_LARGEUR_NOM, minCellHeight: 7.6 } };
   for(let i = 1; i <= nbDates; i++) styles[i] = { cellWidth: largeur };
   return styles;
 }
@@ -1240,15 +1306,28 @@ function buildMatrixTable(doc, startY, people, assignField, titre, entries, dess
 
   const bandes = pdfBandesProjets(entries);
   const largeurCol = (PDF_LARGEUR_PAGE - 2 * PDF_MARGE - PDF_LARGEUR_NOM) / PDF_DATES_PAR_PAGE;
+  const ptypeMatrice = assignField === 'musiciensAssignes' ? 'musicien' : 'technicien';
+  const fondsProjets = new Map();
+  entries.forEach(e=>{
+    if(!fondsProjets.has(e.tourneeId)) fondsProjets.set(e.tourneeId, pdfCouleurRgb(couleurs.get(e.tourneeId)));
+  });
   const teteProjets = [{ content: '', colSpan: 1 }].concat(bandes.map(b=> ({
     content: pdfTronquer(doc, (b.nom || 'Projet') + (b.reco ? ' · Rec' : ''), b.n * largeurCol - 3, 6.5),
     colSpan: b.n,
     styles: { fillColor: pdfCouleurRgb(couleurs.get(b.tourneeId)), textColor: [20, 22, 23], fontSize: 6.5 },
   })));
   const basLegende = pdfLegendeProjets(doc, PDF_MARGE, startY + 5.4, bandes, couleurs);
+  // Date puis ville, sur deux lignes : exactement ce que porte l'en-tête à
+  // l'écran. La ville est tronquée à la largeur de la colonne plutôt que
+  // renvoyée à la ligne — « Épernay » ne se coupe pas en « Éper / nay ».
+  // Jour, mois, ville : trois lignes courtes plutôt qu'un « 10 févr. » que la
+  // colonne renverrait de toute façon à la ligne. La ville est tronquée à la
+  // largeur utile, mesurée dans la police de l'en-tête.
+  const utileTete = largeurCol - 1.8;
   const teteDates = [''].concat(entries.map(e=>{
     const [j, mois] = fmtDateFRShort(e.date).split(' ');
-    return j + '\n' + (mois || '');
+    const ville = (e.ville || '').split(' (')[0];
+    return j + '\n' + (mois || '') + (ville ? '\n' + pdfTronquer(doc, ville, utileTete, 6.5) : '');
   }));
 
   doc.autoTable({
@@ -1262,25 +1341,28 @@ function buildMatrixTable(doc, startY, people, assignField, titre, entries, dess
         return dispo[e.date] || '';
       }));
     }),
-    styles: { font:'Host', fontSize:7, cellPadding:1.4, textColor:[20,22,23], halign:'center', valign:'middle', lineWidth:0.1, lineColor:[240,219,230] },
+    styles: { font:'Host', fontSize:7, cellPadding:1.4, textColor:[20,22,23], halign:'center', valign:'middle', lineWidth:0.1, lineColor:[214,180,196] },
     // Largeur de colonne fixe, la même d'une page à l'autre : sinon la
     // dernière tranche, qui n'a parfois que deux dates, les étirait sur toute
     // la feuille et ne ressemblait plus aux précédentes.
     columnStyles: colonnesLargeurs(entries.length),
-    headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold', fontSize:6.5, halign:'center', valign:'middle', cellPadding:1.2 },
-    alternateRowStyles: { fillColor:[253,242,240] },
+    headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold', fontSize:6.5, halign:'center', valign:'middle', cellPadding:0.9 },
     didParseCell: (data)=>{
-      if(data.section !== 'body' || data.column.index === 0) return;
-      const etat = data.cell.raw;
-      // La case ne porte pas de texte : sa marque est tracée au trait dans
-      // didDrawCell, faute de ✓ et de ✕ dans la police embarquée.
+      if(data.section !== 'body') return;
+      // Rien n'est écrit par le tableau : le fond porte la couleur du projet,
+      // et tout le reste — pastille, marque, hachures, nom et instrument — est
+      // tracé dans didDrawCell, à l'image de l'écran.
       data.cell.text = [''];
-      if(PDF_FONDS[etat]) data.cell.styles.fillColor = PDF_FONDS[etat];
+      if(data.column.index === 0) return;
+      const e = entries[data.column.index - 1];
+      data.cell.styles.fillColor = fondsProjets.get(e.tourneeId) || [255, 255, 255];
     },
     didDrawCell: (data)=>{
-      if(data.section !== 'body' || data.column.index === 0) return;
-      pdfMarque(doc, data.cell.raw, data.cell.x + data.cell.width / 2,
-        data.cell.y + data.cell.height / 2, Math.min(data.cell.width, data.cell.height) * 0.55);
+      if(data.section !== 'body') return;
+      const m = sorted[data.row.index];
+      if(!m) return;
+      if(data.column.index === 0){ pdfNomPersonne(doc, data.cell, m); return; }
+      pdfCase(doc, data.cell, m, entries[data.column.index - 1], ptypeMatrice, data.cell.raw);
     },
     didDrawPage: dessinerEntete,
   });
