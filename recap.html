@@ -209,6 +209,14 @@
      démarre plus haut : la bande de 72 px qu'occupait la barre de modes sous
      le menu est rendue au tableau. */
   .co-matrix{max-height:max(340px, calc(100dvh - 210px));}
+  /* Une ligne = une personne, et on la suit sur quarante colonnes. Le filet
+     du socle, prévu pour des tableaux courts, se perdait entre deux colonnes
+     colorées : on l'assombrit ici, et ici seulement. */
+  #matrixHolderMusiciens .co-matrix-row,
+  #matrixHolderTechniciens .co-matrix-row{border-bottom:1px solid var(--old-champagne);}
+  #matrixHolderMusiciens .co-matrix-row:last-child,
+  #matrixHolderTechniciens .co-matrix-row:last-child{border-bottom:none;}
+
   .co-matrix-tete{position:sticky; top:0; z-index:5; background:var(--card);}
   .co-matrix-tete .co-matrix-head{position:static;}
   .co-matrix-tete .co-matrix-head{border-bottom:1px solid var(--border);}
@@ -1014,9 +1022,15 @@ initData();
        comme à l'écran.
 ============================================================================ */
 
+// A3 paysage plutôt qu'A4 : 420 mm de large au lieu de 297, soit une
+// cinquantaine de colonnes de plus par document pour la même lisibilité. Une
+// feuille A3 s'imprime chez tous les imprimeurs, et se lit très bien réduite
+// à l'écran ou sur un A4 en « ajuster à la page ».
+const PDF_FORMAT = 'a3';
+const PDF_LARGEUR_PAGE = 420;
 const PDF_MARGE = 10;
-const PDF_LARGEUR_NOM = 42;
-const PDF_DATES_PAR_PAGE = 24;
+const PDF_LARGEUR_NOM = 44;
+const PDF_DATES_PAR_PAGE = 38;
 
 // Les quatre états, tracés au trait : deux segments pour la coche, deux pour
 // la croix. Rien qui dépende des caractères présents dans la police.
@@ -1101,7 +1115,7 @@ function pdfLegendeProjets(doc, x, y, bandes, couleurs){
     const nom = (b.nom || 'Projet') + (b.reco ? ' · Rec' : '');
     doc.setFont('Host', 'normal'); doc.setFontSize(6.8);
     const largeur = 4.4 + doc.getTextWidth(nom) + 5;
-    if(x + largeur > 297 - PDF_MARGE){ x = PDF_MARGE; ligne += 4; }
+    if(x + largeur > PDF_LARGEUR_PAGE - PDF_MARGE){ x = PDF_MARGE; ligne += 4; }
     doc.setFillColor(...pdfCouleurRgb(couleurs.get(b.tourneeId)));
     doc.roundedRect(x, ligne - 2.6, 3.2, 3.2, 0.6, 0.6, 'F');
     doc.setTextColor(90, 80, 86);
@@ -1112,7 +1126,7 @@ function pdfLegendeProjets(doc, x, y, bandes, couleurs){
 }
 
 function colonnesLargeurs(nbDates){
-  const utile = 297 - 2 * PDF_MARGE;
+  const utile = PDF_LARGEUR_PAGE - 2 * PDF_MARGE;
   const largeur = (utile - PDF_LARGEUR_NOM) / PDF_DATES_PAR_PAGE;
   const styles = { 0: { halign:'left', fontStyle:'bold', fontSize:7, cellWidth: PDF_LARGEUR_NOM } };
   for(let i = 1; i <= nbDates; i++) styles[i] = { cellWidth: largeur };
@@ -1131,7 +1145,7 @@ function buildMatrixTable(doc, startY, people, assignField, titre, entries, dess
   pdfLegende(doc, PDF_MARGE + doc.getTextWidth(titre) + 6, startY);
 
   const bandes = pdfBandesProjets(entries);
-  const largeurCol = (297 - 2 * PDF_MARGE - PDF_LARGEUR_NOM) / PDF_DATES_PAR_PAGE;
+  const largeurCol = (PDF_LARGEUR_PAGE - 2 * PDF_MARGE - PDF_LARGEUR_NOM) / PDF_DATES_PAR_PAGE;
   const teteProjets = [{ content: '', colSpan: 1 }].concat(bandes.map(b=> ({
     content: pdfTronquer(doc, (b.nom || 'Projet') + (b.reco ? ' · Rec' : ''), b.n * largeurCol - 3, 6.5),
     colSpan: b.n,
@@ -1210,7 +1224,7 @@ function exportRecapPdf(){
   }
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
+  const doc = new jsPDF({ unit:'mm', format: PDF_FORMAT, orientation:'landscape' });
   registerHostFont(doc);
   const pageWidth = doc.internal.pageSize.getWidth();
   const dessinerEntete = ()=> drawCurieuxPdfHeader(doc, pageWidth, titreEntete);
