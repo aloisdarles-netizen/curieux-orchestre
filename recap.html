@@ -305,7 +305,7 @@
       <option value="sollicites" selected>Titulaires + sollicité·es</option>
       <option value="titulaire">Titulaires uniquement</option>
       <option value="">Tou·tes (titulaires en premier)</option>
-      <option value="remplacant">Remplaçant·es uniquement</option>
+      <option value="remplacant">Remplaçant·es sollicité·es</option>
     </select>
     <label for="rechercheP" style="margin-left:8px;">Chercher :</label>
     <span class="champ-recherche">
@@ -500,11 +500,24 @@ async function noterDemandeEnvoyee(ptype, pid){
   rendreEnGardantLeScroll();
 }
 
-// Qui a reçu une demande de dispo, tous projets confondus. La vue par défaut
+// Les projets réellement à l'écran : dates à venir — ou tout l'historique si
+// la case est cochée — et projets non masqués. C'est ce périmètre qui décide
+// qui compte comme « sollicité·e » : être attendu sur une tournée qu'on ne
+// regarde pas ne justifie pas une ligne vide de plus.
+function projetsAffiches(){
+  return new Set(allDateEntries('musiciensAssignes')
+    .filter(e=> !projetsMasques.has(e.tourneeId))
+    .map(e=> e.tourneeId));
+}
+
+// Qui a reçu une demande de dispo sur ce qu'on regarde. La vue par défaut
 // s'appuie dessus : le noyau d'abord, puis les gens qu'on a effectivement
 // sollicités — inutile de faire défiler tout le répertoire pour les trouver.
 function idsSollicites(ptype){
-  return new Set(dispoDemandesCache.filter(d=> d.personType === ptype).map(d=> d.personId));
+  const projets = projetsAffiches();
+  return new Set(dispoDemandesCache
+    .filter(d=> d.personType === ptype && projets.has(d.tourneeId))
+    .map(d=> d.personId));
 }
 
 // Le noyau d'abord, les sollicité·es ensuite, alphabétique dans chaque groupe.
@@ -563,9 +576,12 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
 
   if(sorted.length === 0){
     const terme = termeRecherche();
+    const filtre = document.getElementById('musicienStatutFilter').value;
     holder.innerHTML = terme
       ? `<div class="empty-hint">Personne de ce nom dans l'<a href="${emptyLinkHref}">${emptyLinkLabel}</a>.</div>`
-      : `<div class="empty-hint">Ajoute d'abord dans l'<a href="${emptyLinkHref}">${emptyLinkLabel}</a>.</div>`;
+      : (filtre === 'remplacant'
+        ? `<div class="empty-hint">Aucun·e remplaçant·e n'est sollicité·e sur les projets affichés. Ajoute-les depuis <a href="suivi-dispo.html">Demandes titulaires</a> ou en cliquant une case hachurée.</div>`
+        : `<div class="empty-hint">Ajoute d'abord dans l'<a href="${emptyLinkHref}">${emptyLinkLabel}</a>.</div>`);
     return;
   }
   if(entries.length === 0 && projetsMasques.size){
@@ -698,6 +714,14 @@ function garderSelonFiltre(liste, ptype){
   if(statutFilter === 'sollicites'){
     const vus = idsSollicites(ptype);
     return liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant' || vus.has(p.id));
+  }
+  // Les remplaçant·es du répertoire se comptent par dizaines et ne sont
+  // appelé·es qu'au cas par cas : les afficher toutes et tous donnait un mur
+  // de lignes vides. On ne garde que celles et ceux à qui l'on a demandé
+  // quelque chose sur les projets affichés.
+  if(statutFilter === 'remplacant'){
+    const vus = idsSollicites(ptype);
+    return liste.filter(p=> (p.statutPoste || 'titulaire') === 'remplacant' && vus.has(p.id));
   }
   return liste.filter(p=> !statutFilter || (p.statutPoste || 'titulaire') === statutFilter);
 }
