@@ -149,6 +149,31 @@
     content:''; position:absolute; top:-4px; right:-4px; width:10px; height:10px;
     border-radius:50%; background:var(--secondary); border:2px solid var(--card);
   }
+  /* Sur ordinateur, la précision s'affiche dans une bulle au survol : le
+     title du navigateur arrive après une seconde, se coupe, et ne sait rien
+     dire de qui parle ni de quand. Sur téléphone, où le survol n'existe pas,
+     elle se lit à même la carte de la date. */
+  .note-repliee{display:none;}
+  #noteBulle{
+    position:fixed; z-index:60; max-width:270px; pointer-events:none; opacity:0;
+    transform:translateY(3px); transition:opacity .12s ease, transform .12s ease;
+    background:var(--card); color:var(--text); border:1.5px solid var(--secondary);
+    border-radius:12px; padding:9px 12px; box-shadow:0 10px 26px rgba(20,15,10,.20);
+    font-size:12.5px; line-height:1.45;
+  }
+  #noteBulle.visible{opacity:1; transform:translateY(0);}
+  #noteBulle b{display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--secondary); font-weight:800; margin-bottom:3px;}
+  #noteBulle i{font-style:italic; color:var(--text);}
+  @media (max-width:760px){
+    .note-repliee{
+      display:block; flex:1 1 100%; order:3; margin-top:4px;
+      font-size:12px; font-style:italic; color:var(--secondary); line-height:1.4;
+      white-space:normal;
+    }
+    .co-matrix-cell.porte-note{flex-wrap:wrap;}
+  }
+
   .m-cell.assigned{background:var(--ok); border-color:var(--ok); color:#fff;}
   .m-cell.dispo{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark); font-weight:900;}
   .m-cell.indispo{background:var(--ko); border-color:var(--ko); color:#fff;}
@@ -181,6 +206,15 @@
   }
   .demande-le:hover{background:var(--accent-tint); color:var(--accent-dark);}
   .demande-le.jamais{color:var(--secondary); font-weight:800;}
+
+  /* Un·e remplaçant·e rangé·e sous son ou sa titulaire : la ligne se décale et
+     porte une flèche, pour qu'on voie d'un coup à qui elle se rattache. */
+  .co-matrix-row.sous-remplacant .co-matrix-name{padding-left:26px; background:var(--row-alt);}
+  .co-matrix-row.sous-remplacant .co-matrix-name b{font-weight:600;}
+  .fleche-sous{
+    position:absolute; left:11px; top:calc(var(--row-pad) + 1px);
+    color:var(--secondary); font-size:13px; font-weight:800;
+  }
 
   .remplacant-tag{
     font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
@@ -305,6 +339,7 @@
       <option value="sollicites" selected>Titulaires + sollicité·es</option>
       <option value="titulaire">Titulaires uniquement</option>
       <option value="">Tou·tes (titulaires en premier)</option>
+      <option value="noyau_rempl">Titulaires + leurs remplaçant·es</option>
       <option value="remplacant">Remplaçant·es sollicité·es</option>
     </select>
     <label for="rechercheP" style="margin-left:8px;">Chercher :</label>
@@ -334,6 +369,9 @@ let tourneesCache = [];
 let musiciansCache = [];
 let techniciansCache = [];
 let dispoDemandesCache = [];
+// Les listes de remplaçant·es que chacun·e tient (mes-remplacants.html) :
+// lecture seule ici, pour ranger chaque remplaçant·e sous son ou sa titulaire.
+let remplacantPrefsCache = [];
 
 function loadTournees(){ return tourneesCache; }
 function loadMusicians(){ return musiciansCache; }
@@ -571,7 +609,9 @@ function renderProjetsFiltre(){
 
 function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyLinkLabel, nameLabel){
   const entries = allDateEntries(assignField).filter(e=> !projetsMasques.has(e.tourneeId));
-  const sorted = people.slice().sort(compareByStatutThenName);
+  // L'ordre vient de garderSelonFiltre : lui seul sait si l'on empile des
+  // remplaçant·es sous leur titulaire ou si l'on trie alphabétiquement.
+  const sorted = people;
   const holder = document.getElementById(holderId);
 
   if(sorted.length === 0){
@@ -645,9 +685,10 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     const dispo = m.disponibilites || {};
     const metier = m.statutPoste === 'remplacant' ? 'Remplaçant·e' : (m.instrument || m.poste || '');
     const demandeLe = demandeLeHtml(m, ptypeMatrice);
+    const sous = sousRemplacants[ptypeMatrice].has(m.id);
     return `
-      <div class="co-matrix-row">
-        <div class="co-matrix-name"><b>${escapeHtml(fullName(m))}</b><small>${escapeHtml(metier)}${
+      <div class="co-matrix-row${sous ? ' sous-remplacant' : ''}">
+        <div class="co-matrix-name">${sous ? '<span class="fleche-sous" aria-hidden="true">↳</span>' : ''}<b>${escapeHtml(fullName(m))}</b><small>${escapeHtml(metier)}${
           demandeLe ? (metier ? ' · ' : '') + demandeLe : ''}</small></div>
         ${entries.map(e=>{
           const assigned = (e.assignes||[]).includes(m.id);
@@ -662,10 +703,12 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           else if(state === 'incertain'){ cls = 'incertain'; symbol = '?'; title = 'À confirmer'; }
           // data-jour : voir disponibilites.html — sert uniquement à la mise en
           // liste sur petit écran, sans rien changer au tableau sur ordinateur.
-          return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${hors ? ' hors-demande' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
+          return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${hors ? ' hors-demande' : ''}${note ? ' porte-note' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
+            ${note ? `data-note="${escapeAttr(note)}" data-note-qui="${escapeAttr(fullName(m))}" data-note-quand="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"` : ''}
             data-cellule data-tid="${escapeAttr(e.tourneeId)}" data-did="${escapeAttr(e.dateId)}" data-pid="${escapeAttr(m.id)}"
             data-ptype="${ptypeMatrice}" data-date="${escapeAttr(e.date)}" data-reco="${e.estRecording ? '1' : ''}"
-            style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? ' avec-note' : ''}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}${note ? ' — « ' + escapeHtml(note) + ' »' : ''}">${symbol}</span></div>`;
+            style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? ' avec-note' : ''}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}">${symbol}</span>${
+            note ? `<span class="note-repliee">${escapeHtml(note)}</span>` : ''}</div>`;
         }).join('')}
       </div>
     `;
@@ -705,15 +748,66 @@ function correspondRecherche(p, terme){
     .filter(Boolean).join(' ').toLowerCase().includes(terme);
 }
 
+/* Qui s'affiche sous quel·le titulaire.
+ *
+ * Rempli par garderSelonFiltre dans le mode « Titulaires + leurs
+ * remplaçant·es », et lu par le rendu pour décaler la ligne. Une clé par
+ * répertoire : la fonction est appelée deux fois de suite, une par matrice.
+ */
+const sousRemplacants = { musicien: new Set(), technicien: new Set() };
+
+function prefsDe(personId, ptype){
+  const r = remplacantPrefsCache.find(x=> x.id === personId && (x.personType || 'musicien') === ptype);
+  return (r && r.items) || [];
+}
+
+/* Chaque titulaire, puis les remplaçant·es de SA liste que l'on a sollicité·es.
+ *
+ * L'ordre de la liste personnelle est respecté — c'est celui dans lequel on
+ * appelle. Une même personne peut figurer sur deux listes : elle s'affiche
+ * sous la première, une ligne par personne et non par lien. Celles qu'on a
+ * sollicitées sans qu'elles soient sur aucune liste ferment la marche : on ne
+ * les fait pas disparaître sous prétexte que personne ne les a nommées.
+ */
+function ordreNoyauEtRemplacants(liste, ptype){
+  const vus = idsSollicites(ptype);
+  const parId = new Map(liste.map(p=> [p.id, p]));
+  const sous = sousRemplacants[ptype];
+  sous.clear();
+  const ordre = [];
+  const place = new Set();
+  liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant')
+    .sort((a, b)=> fullName(a).localeCompare(fullName(b)))
+    .forEach(t=>{
+      ordre.push(t); place.add(t.id);
+      prefsDe(t.id, ptype)
+        .slice()
+        .sort((a, b)=> (a.rang || 99) - (b.rang || 99))
+        .forEach(item=>{
+          if(item.source !== 'roster' || !item.personId) return;   // un nom libre n'a pas de fiche
+          const r = parId.get(item.personId);
+          if(!r || place.has(r.id) || !vus.has(r.id)) return;
+          ordre.push(r); place.add(r.id); sous.add(r.id);
+        });
+    });
+  liste.filter(p=> (p.statutPoste || 'titulaire') === 'remplacant' && vus.has(p.id) && !place.has(p.id))
+    .sort((a, b)=> fullName(a).localeCompare(fullName(b)))
+    .forEach(p=>{ ordre.push(p); place.add(p.id); });
+  return ordre;
+}
+
 function garderSelonFiltre(liste, ptype){
+  sousRemplacants[ptype].clear();
   const terme = termeRecherche();
   // La recherche l'emporte sur le filtre de statut : sinon on chercherait un
   // remplaçant, il existerait, et la page dirait qu'il n'existe pas.
-  if(terme) return liste.filter(p=> correspondRecherche(p, terme));
+  if(terme) return liste.filter(p=> correspondRecherche(p, terme)).sort(compareByStatutThenName);
   const statutFilter = document.getElementById('musicienStatutFilter').value;
+  if(statutFilter === 'noyau_rempl') return ordreNoyauEtRemplacants(liste, ptype);
   if(statutFilter === 'sollicites'){
     const vus = idsSollicites(ptype);
-    return liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant' || vus.has(p.id));
+    return liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant' || vus.has(p.id))
+      .sort(compareByStatutThenName);
   }
   // Les remplaçant·es du répertoire se comptent par dizaines et ne sont
   // appelé·es qu'au cas par cas : les afficher toutes et tous donnait un mur
@@ -721,9 +815,11 @@ function garderSelonFiltre(liste, ptype){
   // quelque chose sur les projets affichés.
   if(statutFilter === 'remplacant'){
     const vus = idsSollicites(ptype);
-    return liste.filter(p=> (p.statutPoste || 'titulaire') === 'remplacant' && vus.has(p.id));
+    return liste.filter(p=> (p.statutPoste || 'titulaire') === 'remplacant' && vus.has(p.id))
+      .sort(compareByStatutThenName);
   }
-  return liste.filter(p=> !statutFilter || (p.statutPoste || 'titulaire') === statutFilter);
+  return liste.filter(p=> !statutFilter || (p.statutPoste || 'titulaire') === statutFilter)
+    .sort(compareByStatutThenName);
 }
 
 function renderAll(){
@@ -865,6 +961,48 @@ function renderDashboard(){
   `).join('');
 }
 document.getElementById('musicienStatutFilter').addEventListener('change', renderAll);
+/* La bulle des précisions.
+ *
+ * Le title du navigateur arrivait après une seconde, se coupait, et ne disait
+ * ni de qui ni de quand il parlait. Une bulle unique, réutilisée d'une case à
+ * l'autre : trente précisions ne font pas trente éléments qui traînent.
+ */
+let bulleNote = null;
+function bulleDeNote(){
+  if(bulleNote) return bulleNote;
+  bulleNote = document.createElement('div');
+  bulleNote.id = 'noteBulle';
+  bulleNote.setAttribute('role', 'tooltip');
+  document.body.appendChild(bulleNote);
+  return bulleNote;
+}
+function montrerNote(cel){
+  const b = bulleDeNote();
+  b.innerHTML = `<b>${escapeHtml(cel.dataset.noteQui || '')} · ${escapeHtml(cel.dataset.noteQuand || '')}</b>`
+    + `<i>« ${escapeHtml(cel.dataset.note || '')} »</i>`;
+  b.classList.add('visible');
+  const r = cel.getBoundingClientRect();
+  const bb = b.getBoundingClientRect();
+  const x = Math.max(8, Math.min(r.left + r.width / 2 - bb.width / 2, window.innerWidth - bb.width - 8));
+  // Au-dessus de la case, sauf s'il n'y a pas la place — auquel cas dessous.
+  const y = (r.top - bb.height - 8) < 8 ? r.bottom + 8 : r.top - bb.height - 8;
+  b.style.left = Math.round(x) + 'px';
+  b.style.top = Math.round(y) + 'px';
+}
+function cacherNote(){ celluleNote = null; if(bulleNote) bulleNote.classList.remove('visible'); }
+let celluleNote = null;
+document.addEventListener('mouseover', (e)=>{
+  const cel = e.target.closest('[data-note]');
+  if(cel){ celluleNote = cel; montrerNote(cel); } else cacherNote();
+});
+// En défilant, la bulle suit sa case tant que le curseur y reste — la faire
+// disparaître au premier mouvement de molette obligerait à repointer.
+document.addEventListener('scroll', ()=>{
+  if(celluleNote && celluleNote.isConnected && celluleNote.matches(':hover')) montrerNote(celluleNote);
+  else cacherNote();
+}, true);
+window.addEventListener('blur', cacherNote);
+
 document.getElementById('showPastDates').addEventListener('change', e=>{ showPastDates = e.target.checked; renderAll(); });
 
 // La recherche : rendu immédiat, la liste est en mémoire. Le champ vit hors
@@ -1082,11 +1220,12 @@ poserMode(mode);
 majOups();
 
 async function initData(){
-  [tourneesCache, musiciansCache, techniciansCache, dispoDemandesCache] = await Promise.all([
+  [tourneesCache, musiciansCache, techniciansCache, dispoDemandesCache, remplacantPrefsCache] = await Promise.all([
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('musiciens'),
     CurieuxDB.fetchAll('techniciens'),
     CurieuxDB.fetchAll('dispo_demandes'),
+    CurieuxDB.fetchAll('remplacant_prefs'),
   ]);
   renderAll();
 }
@@ -1094,6 +1233,7 @@ CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>
 CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(list=>{ musiciansCache = list; curieuxRafraichir(renderAll); }); });
 CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(list=>{ techniciansCache = list; curieuxRafraichir(renderAll); }); });
 CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; curieuxRafraichir(renderAll); }); });
+CurieuxDB.subscribe('remplacant_prefs', ()=>{ CurieuxDB.fetchAll('remplacant_prefs').then(list=>{ remplacantPrefsCache = list; curieuxRafraichir(renderAll); }); });
 initData();
 
 /* ============================================================================
@@ -1296,10 +1436,14 @@ function pdfCase(doc, cell, personne, entry, ptype, etat){
 
 // Le nom en gras, l'instrument ou le poste dessous — la colonne de gauche de
 // l'écran, à l'identique.
-function pdfNomPersonne(doc, cell, personne){
+function pdfNomPersonne(doc, cell, personne, sous){
   const metier = personne.statutPoste === 'remplacant'
     ? 'Remplaçant·e' : (personne.instrument || personne.poste || '');
-  const x = cell.x + 2;
+  const x = cell.x + (sous ? 6.5 : 2);
+  if(sous){
+    doc.setFont('Host', 'bold'); doc.setFontSize(7); doc.setTextColor(236, 75, 21);
+    doc.text('>', cell.x + 2.4, cell.y + cell.height / 2, { baseline: 'middle' });
+  }
   doc.setFont('Host', 'bold'); doc.setFontSize(7.2); doc.setTextColor(20, 22, 23);
   doc.text(pdfTronquer(doc, fullName(personne), cell.width - 4, 7.2),
     x, cell.y + cell.height / 2 - (metier ? 0.6 : -0.9), { baseline: 'middle' });
@@ -1317,7 +1461,7 @@ function colonnesLargeurs(nbDates){
 }
 
 function buildMatrixTable(doc, startY, people, assignField, titre, entries, dessinerEntete){
-  const sorted = people.slice().sort(compareByStatutThenName);
+  const sorted = people;   // déjà dans l'ordre voulu, voir garderSelonFiltre
   if(sorted.length === 0 || entries.length === 0) return startY;
 
   const couleurs = couleursProjets();
@@ -1384,7 +1528,7 @@ function buildMatrixTable(doc, startY, people, assignField, titre, entries, dess
       if(data.section !== 'body') return;
       const m = sorted[data.row.index];
       if(!m) return;
-      if(data.column.index === 0){ pdfNomPersonne(doc, data.cell, m); return; }
+      if(data.column.index === 0){ pdfNomPersonne(doc, data.cell, m, sousRemplacants[ptypeMatrice].has(m.id)); return; }
       pdfCase(doc, data.cell, m, entries[data.column.index - 1], ptypeMatrice, data.cell.raw);
     },
     didDrawPage: dessinerEntete,
