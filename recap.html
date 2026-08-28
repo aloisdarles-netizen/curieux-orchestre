@@ -1159,9 +1159,9 @@ function pdfMarque(doc, etat, x, y, taille){
 // l'écran. Tracées segment par segment : c'est le seul motif qu'un PDF
 // comprenne sans image.
 function pdfHachures(doc, x, y, w, h){
-  doc.setDrawColor(150, 132, 142);
-  doc.setLineWidth(0.13);
-  for(let d = -h; d < w; d += 1.3){
+  doc.setDrawColor(128, 110, 120);
+  doc.setLineWidth(0.16);
+  for(let d = -h; d < w; d += 1.1){
     const x1 = x + Math.max(d, 0), y1 = y + Math.max(-d, 0);
     const t = Math.min(h - Math.max(-d, 0), w - Math.max(d, 0));
     if(t > 0) doc.line(x1, y1, x1 + t, y1 + t);
@@ -1183,7 +1183,11 @@ function pdfLegende(doc, x, y){
   const h = 4.2;
   items.forEach(([etat, libelle])=>{
     if(etat === 'hors'){
+      doc.setFillColor(233, 229, 231);
+      doc.rect(x, y - h + 1, 5.4, h, 'F');
       pdfHachures(doc, x, y - h + 1, 5.4, h);
+      doc.setDrawColor(148, 132, 142); doc.setLineWidth(0.12);
+      doc.roundedRect(x, y - h + 1, 5.4, h, 0.8, 0.8, 'S');
     } else {
       if(etat){ doc.setFillColor(...PDF_FONDS[etat]); doc.roundedRect(x, y - h + 1, 5.4, h, 0.8, 0.8, 'F'); }
       pdfMarque(doc, etat, x + 2.7, y - h / 2 + 1, 2.4);
@@ -1245,7 +1249,26 @@ function pdfCase(doc, cell, personne, entry, ptype, etat){
   const affecte = etat === 'affecte';
   const hors = !affecte && !estSollicite(personne, ptype, entry);
   if(hors){
-    pdfHachures(doc, cell.x + 0.15, cell.y + 0.15, cell.width - 0.3, cell.height - 0.3);
+    // « Grisé », comme à l'écran : un voile qui éteint la couleur du projet,
+    // les hachures par-dessus, et la pastille en creux — la case existe, elle
+    // n'attend simplement rien de cette personne.
+    const x0 = cell.x + 0.12, y0 = cell.y + 0.12;
+    const w0 = cell.width - 0.24, h0 = cell.height - 0.24;
+    try{
+      doc.saveGraphicsState();
+      doc.setGState(new doc.GState({ opacity: 0.62 }));
+      doc.setFillColor(228, 224, 226);
+      doc.rect(x0, y0, w0, h0, 'F');
+      doc.restoreGraphicsState();
+    }catch(err){
+      doc.setFillColor(233, 229, 231);
+      doc.rect(x0, y0, w0, h0, 'F');
+    }
+    pdfHachures(doc, x0, y0, w0, h0);
+    const wc = Math.min(cell.width * 0.66, 6.6), hc = Math.min(cell.height * 0.62, 4.6);
+    doc.setDrawColor(148, 132, 142);
+    doc.setLineWidth(0.12);
+    doc.roundedRect(cell.x + (cell.width - wc) / 2, cell.y + (cell.height - hc) / 2, wc, hc, 1, 1, 'S');
     return;
   }
   const w = Math.min(cell.width * 0.66, 6.6);
