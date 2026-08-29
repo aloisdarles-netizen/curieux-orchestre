@@ -204,8 +204,19 @@
   .dispo-row:nth-of-type(even){background:var(--row-alt);}
   .role-subheader{
     font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
-    padding:10px 20px 4px;
+    padding:14px 20px 4px;
   }
+  .role-subheader small{font-weight:700; letter-spacing:0; opacity:.75;}
+  /* La bande d'un pupitre (ou d'un pôle, côté technique). Discrète : elle
+     range, elle ne s'annonce pas — le sous-en-tête au-dessus porte déjà le
+     poids visuel, et deux niveaux qui crient l'un autant que l'autre ne
+     hiérarchisent plus rien. */
+  .pupitre-bande{
+    display:flex; align-items:center; gap:7px;
+    padding:7px 20px 3px; font-size:11.5px; font-weight:800; color:var(--accent-dark);
+  }
+  .pupitre-bande small{font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .pupitre-bande::after{content:''; flex:1; height:1px; background:var(--border);}
   /* Le statut de réponse est l'information qu'on vient chercher : il passe de
      11 px à 14 px, sur une largeur fixe pour que la colonne s'aligne. */
   .dispo-statut{width:130px; font-size:14px; font-weight:800; white-space:nowrap;}
@@ -1597,10 +1608,14 @@ function render(){
     return;
   }
 
+  // L'ordre de l'orchestre plutôt que l'alphabet — le même comparateur que
+  // l'annuaire et la Vue d'ensemble (ui-helpers.js). Sur une carte de projet
+  // qui aligne quarante personnes, chercher « les cordes » revenait sinon à
+  // parcourir toute la liste en repérant les instruments un par un.
   const titulaireMusiciens = loadMusicians().filter(m=> (m.statutPoste||'titulaire') === 'titulaire')
-    .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+    .sort(curieuxComparePupitrePuisNom);
   const titulaireTechniciens = loadTechnicians().filter(t=> (t.statutPoste||'titulaire') === 'titulaire')
-    .slice().sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+    .slice().sort(curieuxComparePupitrePuisNom);
 
   // Une tournée "passée" (toutes ses dates derrière nous) est repliée dans une
   // section à part, pour ne pas rendre la page illisible au fil des saisons
@@ -1619,7 +1634,7 @@ function render(){
     );
     const remplacantMusiciens = loadMusicians()
       .filter(m=> (m.statutPoste||'titulaire') === 'remplacant' && dejaSollicites.has(`musicien:${m.id}`))
-      .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+      .sort(curieuxComparePupitrePuisNom);
     // Sur un recording, aucun·e technicien·ne n'est sollicité·e d'office : on ne
     // liste donc que celles et ceux à qui on a déjà demandé quelque chose,
     // titulaires compris. Sur une tournée, les titulaires sont là par défaut.
@@ -1628,7 +1643,7 @@ function render(){
       : titulaireTechniciens;
     const remplacantTechniciens = loadTechnicians()
       .filter(p=> (p.statutPoste||'titulaire') === 'remplacant' && dejaSollicites.has(`technicien:${p.id}`))
-      .sort((a,b)=> fullName(a).localeCompare(fullName(b)));
+      .sort(curieuxComparePupitrePuisNom);
     // Les recordings créés avant ce changement ont reçu des demandes pour tous
     // les technicien·nes titulaires : elles sont là sans que personne l'ait
     // décidé. On propose de les retirer en bloc — mais seulement celles restées
@@ -1641,17 +1656,44 @@ function render(){
       const pertinentes = CurieuxDispos.datesDeLaDemande(dem, answerableDates);
       return pertinentes.every(d=> !dispo[d.date]);
     });
-    const musicienRows = [
-      ...titulaireMusiciens.map(m=> rowFor(t.id, m, 'musicien', m.instrument || 'Musicien·ne', answerableDates)),
-      ...remplacantMusiciens.map(m=> rowFor(t.id, m, 'musicien', m.instrument || 'Musicien·ne', answerableDates)),
-    ].join('');
-    const technicienRows = [
-      ...technicienTitulairesAffiches.map(p=> rowFor(t.id, p, 'technicien', p.poste || 'Technicien·ne', answerableDates)),
-      ...remplacantTechniciens.map(p=> rowFor(t.id, p, 'technicien', p.poste || 'Technicien·ne', answerableDates)),
-    ].join('');
+    /* Un bloc de personnes, rangé par pupitre.
+     *
+     * La carte d'un projet aligne facilement quarante noms d'affilée. Les
+     * trier dans l'ordre de l'orchestre ne suffit pas : sans repère, on ne
+     * voit pas où finissent les cordes et où commencent les bois — le tri est
+     * juste, mais invisible. Les bandes rendent le rangement lisible, et
+     * donnent au passage l'effectif de chaque pupitre.
+     *
+     * Les remplaçant·es sollicité·es forment leur propre bloc plutôt que de
+     * s'ajouter à la suite des titulaires : ce ne sont pas les mêmes gens à
+     * relancer, ni la même urgence — et on veut pouvoir dire « il me manque
+     * deux cordes titulaires » sans compter à la main.
+     */
+    const bloc = (gens, ptype, titre) => {
+      if(!gens.length) return '';
+      const groupeDe = p => (ptype === 'musicien' ? (p.pupitre || 'Autre') : (p.pole || 'Autre'));
+      let courant = null;
+      const lignes = gens.map(p=>{
+        const g = groupeDe(p);
+        let bande = '';
+        if(g !== courant){
+          courant = g;
+          const n = gens.filter(x=> groupeDe(x) === g).length;
+          bande = `<div class="pupitre-bande">${escapeHtml(g)} <small>${n}</small></div>`;
+        }
+        return bande + rowFor(t.id, p, ptype,
+          (ptype === 'musicien' ? (p.instrument || 'Musicien·ne') : (p.poste || 'Technicien·ne')),
+          answerableDates);
+      }).join('');
+      return `<div class="role-subheader">${titre} <small>${gens.length}</small></div>${lignes}`;
+    };
+
+    const musicienRows = bloc(titulaireMusiciens, 'musicien', 'Musicien·nes · titulaires')
+      + bloc(remplacantMusiciens, 'musicien', 'Musicien·nes · remplaçant·es sollicité·es');
+    const technicienRows = bloc(technicienTitulairesAffiches, 'technicien', 'Technicien·nes · titulaires')
+      + bloc(remplacantTechniciens, 'technicien', 'Technicien·nes · remplaçant·es sollicité·es');
     const rows = `
-      ${musicienRows ? `<div class="role-subheader">Musicien·nes</div>${musicienRows}` : ''}
-      ${technicienRows ? `<div class="role-subheader">Technicien·nes</div>${technicienRows}` : ''}
+      ${musicienRows}${technicienRows}
     `;
     const av = avancementProjet(t);
     const replie = estReplie(t.id) ? '1' : '0';

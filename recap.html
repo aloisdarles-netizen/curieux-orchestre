@@ -74,19 +74,38 @@
      tableau — lui aussi collant, et dessiné après elle : il la recouvrait à
      moitié dès qu'on faisait défiler la page. En bas, plus de conflit, et
      elle reste sous la main où qu'on en soit dans la saison. */
+  /* La barre de modes rejoint le sous-menu, en haut à droite.
+   *
+   * Elle a d'abord vécu sous le menu, où elle se disputait la même bande de
+   * pixels que l'en-tête du tableau — lui aussi collant, et dessiné après
+   * elle : il la recouvrait à moitié au défilement. Elle est donc partie
+   * flotter en bas. Mais là, elle masquait deux lignes du tableau en
+   * permanence, juste au-dessus du bord — et sur un tableau qu'on lit
+   * jusqu'en bas, ce sont deux personnes qu'on ne voit plus.
+   *
+   * Le sous-menu règle les deux : il est collant lui aussi, mais AU-DESSUS du
+   * tableau et non par-dessus, il a de la place à droite, et la barre y est
+   * toujours sous la main sans rien recouvrir. Elle y perd son ombre portée et
+   * son cadre — dans une barre, ils ne servaient qu'à la détacher du fond.
+   */
   .mode-bar{
-    display:flex; align-items:center; gap:14px;
+    display:flex; align-items:center; gap:12px;
+    background:transparent; border:none; border-radius:0;
+    padding:0; margin-left:auto;
+  }
+  /* Repli : si le sous-menu n'existait pas (page servie sans nav.js), la barre
+     reprend sa place flottante plutôt que de se perdre dans le flux. */
+  body:not(.mode-bar-en-haut) .mode-bar{
     background:var(--card); border:2px solid var(--border); border-radius:14px;
     padding:10px 16px; z-index:40;
     position:fixed; bottom:16px; left:0; right:0; margin-inline:auto;
     width:max-content; max-width:calc(100vw - 32px);
     box-shadow:0 10px 30px rgba(20,22,23,.20);
   }
-  /* De la place sous le pied de page : sinon la barre flottante recouvre les
-     mentions légales. Sur body et non sur .wrap — le pied de page est posé
-     après lui (voir nav.js) — et en nommant aussi .co-has-topbar, qui fixe
-     déjà ce rembourrage dans base.css et l'emporterait sinon. */
-  body, body.co-has-topbar{padding-bottom:120px;}
+  /* Le rembourrage de 120 px qui dégageait la barre flottante n'a plus lieu
+     d'être une fois qu'elle est montée dans le sous-menu — il laissait une
+     bande vide sous le pied de page. Il ne subsiste que pour le repli. */
+  body:not(.mode-bar-en-haut), body.co-has-topbar:not(.mode-bar-en-haut){padding-bottom:120px;}
   @media (max-width:1180px){ .mode-hint{display:none;} }
   @media (max-width:900px){
     /* Sur téléphone, l'essentiel tient sur une rangée : les deux modes et
@@ -152,6 +171,12 @@
      justement à savoir si une date est couverte. Sous l'en-tête dans l'ordre
      des plans (z-index 4 contre 5), qui reste prioritaire. */
   .co-matrix-total{position:sticky; bottom:0; z-index:4; border-top:2px solid var(--border);}
+  /* La rangée collante flotte au-dessus du tableau : sans cette réserve, la
+     DERNIÈRE personne de la liste passait dessous et devenait illisible — on
+     croyait la liste finie une ligne trop tôt. La réserve vaut la hauteur de
+     la rangée, plus la barre de défilement horizontale qui court sous elle. */
+  #matrixHolderMusiciens .co-matrix-in,
+  #matrixHolderTechniciens .co-matrix-in{padding-bottom:52px;}
   .co-matrix-total .co-matrix-name{z-index:5;}
   .co-matrix-total .co-matrix-name small{display:block; font-size:9.5px; font-weight:600; color:var(--muted);}
   .total-case{display:flex; align-items:baseline; gap:4px; font-variant-numeric:tabular-nums;}
@@ -310,10 +335,12 @@
   /* Les quatre états de case sont ceux du socle (.co-matrix-btn dans base.css) :
      on ne les redéclare plus ici, sous peine de les voir recommencer à diverger,
      et leur encre y suit le thème (--sur-statut). */
-  .dashboard-strip{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; margin-bottom:22px;}
-  /* Les sept règles .kpi-* qui vivaient ici sont parties : les chiffres clés
-     sont désormais des étiquettes .co-stat de la charte, elles ne
-     s'appliquaient plus à rien. */
+  /* La bande de sept tuiles qui coiffait la page est partie. Elle répétait ce
+     que le tableau montre déjà — et depuis que celui-ci compte par date et
+     signale ce qui attend une réponse, elle ne disait plus rien qu'on ne
+     puisse lire deux centimètres plus bas. Elle coûtait en revanche le premier
+     écran : on arrivait sur des chiffres, pas sur la matrice qu'on vient
+     consulter. */
   .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin:10px 0 4px;}
   /* Le sélecteur de tournée et l'export tenaient dans un span en display:flex
      sans flex-wrap : à eux deux ils réclamaient 470 px et faisaient déborder la
@@ -393,7 +420,8 @@
   /* Le tableau s'arrête au-dessus de la barre flottante. En contrepartie il
      démarre plus haut : la bande de 72 px qu'occupait la barre de modes sous
      le menu est rendue au tableau. */
-  .co-matrix{max-height:max(340px, calc(100dvh - 210px));}
+  /* Le tableau reprend la bande que la barre flottante lui mangeait en bas. */
+  .co-matrix{max-height:max(340px, calc(100dvh - 175px));}
   /* Une ligne = une personne, et on la suit sur quarante colonnes. Le filet
      du socle, prévu pour des tableaux courts, se perdait entre deux colonnes
      colorées : on l'assombrit ici, et ici seulement. */
@@ -521,7 +549,6 @@
      « Exporter en PDF » de cette page : il découpe le calendrier en pages A3 et
      répète la colonne des noms.</p>
 
-  <div class="dashboard-strip co-stats-charte" id="dashboardStrip"></div>
 
   <div class="legend">
     <span><span class="swatch assigned"></span> Affecté·e</span>
@@ -1442,7 +1469,6 @@ function renderAll(){
   majChipPrecisions();
   try{ majEtatRecherche(); }catch(e){}
   populateTourneeSelect();
-  renderDashboard();
   document.querySelectorAll('#matrixHolderMusiciens .co-matrix, #matrixHolderTechniciens .co-matrix').forEach(m=>{
     const pos = positions[m.closest('[id]').id];
     if(pos){ m.scrollTop = pos[0]; m.scrollLeft = pos[1]; }
@@ -1452,127 +1478,6 @@ function renderAll(){
 // --- Bande d'indicateurs : lecture rapide de ce qui mérite attention, sans avoir à
 // dépouiller le tableau croisé date par date. Calculée à partir des mêmes caches que
 // le reste de la page (+ dispo_demandes pour le suivi des réponses titulaires).
-function renderDashboard(){
-  const holder = document.getElementById('dashboardStrip');
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = allDateEntries('musiciensAssignes').filter(e=> e.date >= today && e.statut !== 'annulee');
-
-  // Prochaine date à venir, toutes tournées confondues.
-  const next = upcoming[0];
-
-  // Dates à venir sans un·e seul·e musicien·ne affecté·e.
-  const sansAffectation = upcoming.filter(e=> (e.assignes||[]).length === 0);
-
-  // Dates à venir sans ville ni salle renseignées.
-  const infosManquantes = upcoming.filter(e=> !e.ville && !e.lieu);
-
-  // Dates à venir encore en option (pas encore validées) — à relancer/confirmer.
-  const enOption = upcoming.filter(e=> e.statut === 'option');
-
-  // Tournées ayant au moins une date à venir.
-  const tourneesActives = new Set(upcoming.map(e=> e.tourneeId)).size;
-
-  // Effectif de l'annuaire musicien·nes (titulaires vs remplaçant·es).
-  const musiciensTitulaires = loadMusicians().filter(m=> (m.statutPoste||'titulaire') === 'titulaire').length;
-  const musiciensRemplacants = loadMusicians().length - musiciensTitulaires;
-
-  // Titulaires ayant un lien de dispo généré mais n'ayant pas répondu à toutes les
-  // dates à venir de leur tournée (même logique que le badge "En attente" / "Nouvelles
-  // dates" de la modale Demandes titulaires dans Tournées).
-  const tourneesById = new Map(loadTournees().map(t=> [t.id, t]));
-  const peopleById = new Map([...loadMusicians(), ...loadTechnicians()].map(p=> [p.id, p]));
-  // Le compte passe par CurieuxDispos, comme la page des demandes.
-  // Cette tuile comptait auparavant TOUTES les dates à venir du projet, sans
-  // tenir compte des dates que le lien couvrait réellement : quelqu'un
-  // sollicité sur trois dates d'une tournée qui en compte douze, et ayant
-  // répondu à ses trois, restait « en attente » ici et « ✓ Répondu » là-bas.
-  // Et l'on comptait des demandes, pas des personnes : deux projets pour la
-  // même personne faisaient deux fois le compte, sous un libellé au singulier.
-  const enAttenteParPersonne = new Set();
-  dispoDemandesCache.forEach(d=>{
-    const tournee = tourneesById.get(d.tourneeId);
-    const person = peopleById.get(d.personId);
-    if(!tournee || !person) return;
-    if(CurieuxDispos.avancement(person, d, tournee, today).enAttente){
-      enAttenteParPersonne.add(d.personType + ':' + d.personId);
-    }
-  });
-  const reponsesEnAttente = enAttenteParPersonne.size;
-
-  const ICONS = {
-    calendar: '<rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.4"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><circle cx="8" cy="13.6" r="1.1" fill="currentColor"></circle><circle cx="12" cy="13.6" r="1.1" fill="currentColor"></circle><circle cx="16" cy="13.6" r="1.1" fill="currentColor"></circle>',
-    warning: '<path d="M12 3.5 22 20.5H2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><line x1="12" y1="9.5" x2="12" y2="14.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><circle cx="12" cy="17.2" r="1" fill="currentColor"></circle>',
-    pin: '<path d="M12 21.5S5 14.8 5 9.8a7 7 0 1 1 14 0c0 5-7 11.7-7 11.7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="12" cy="9.5" r="2.3" fill="none" stroke="currentColor" stroke-width="1.5"></circle>',
-    ticket: '<path d="M3.5 9.5a2 2 0 0 0 0 4v3.5a1 1 0 0 0 1 1h15a1 1 0 0 0 1-1V13.5a2 2 0 0 1 0-4V6a1 1 0 0 0-1-1h-15a1 1 0 0 0-1 1v3.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><line x1="14.5" y1="5.5" x2="14.5" y2="18" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2 2"></line>',
-    clock: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"></circle><polyline points="12,7 12,12 15.5,14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></polyline>',
-    bus: '<rect x="3.5" y="5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="3.5" y1="10.3" x2="20.5" y2="10.3" stroke="currentColor" stroke-width="1.4"></line><circle cx="7.5" cy="19.3" r="1.4" fill="currentColor"></circle><circle cx="16.5" cy="19.3" r="1.4" fill="currentColor"></circle>',
-    music: '<circle cx="7" cy="18" r="2.6" fill="currentColor"></circle><circle cx="16" cy="16" r="2.6" fill="currentColor"></circle><path d="M9.6 18V5.5L18.6 4v12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>',
-  };
-  const kpiIcon = name => `<svg width="19" height="19" viewBox="0 0 24 24">${ICONS[name]}</svg>`;
-
-  const cards = [
-    {
-      icon: kpiIcon('calendar'), href:'tournees.html',
-      value: next ? `${fmtDateFRShort(next.date)}` : '—',
-      label: next ? `Prochaine date — ${escapeHtml(next.tourneeNom || '')}${next.ville ? ' · ' + escapeHtml(next.ville) : ''}` : 'Aucune date à venir'
-    },
-    {
-      icon: kpiIcon('warning'), href:'tournees.html',
-      value: String(sansAffectation.length), valueClass: sansAffectation.length > 0 ? 'warn' : 'ok',
-      label:'Date' + (sansAffectation.length>1?'s':'') + ' à venir sans musicien·ne affecté·e'
-    },
-    {
-      icon: kpiIcon('pin'), href:'tournees.html',
-      value: String(infosManquantes.length), valueClass: infosManquantes.length > 0 ? 'warn' : 'ok',
-      label:'Date' + (infosManquantes.length>1?'s':'') + ' à venir sans ville ni salle'
-    },
-    {
-      icon: kpiIcon('ticket'), href:'tournees.html',
-      value: String(enOption.length), valueClass: enOption.length > 0 ? 'warn' : 'ok',
-      label:'Date' + (enOption.length>1?'s':'') + ' à venir encore en option'
-    },
-    {
-      icon: kpiIcon('clock'), href:'suivi-dispo.html',
-      value: String(reponsesEnAttente), valueClass: reponsesEnAttente > 0 ? 'warn' : 'ok',
-      // « Personnes » et non « réponses » : on compte désormais des gens, une
-      // fois chacun·e, et le libellé ne promet plus « titulaires » alors qu'il
-      // inclut les remplaçant·es qu'on a sollicité·es.
-      label:'Personne' + (reponsesEnAttente>1?'s':'') + ' qui n\'ont pas fini de répondre'
-    },
-    {
-      icon: kpiIcon('bus'), href:'tournees.html',
-      value: String(tourneesActives),
-      label:'Projet' + (tourneesActives>1?'s':'') + ' avec des dates à venir'
-    },
-    {
-      icon: kpiIcon('music'), href:'annuaire.html',
-      value: `${musiciensTitulaires} + ${musiciensRemplacants}`,
-      label:`Musicien·nes titulaires + remplaçant·es`
-    }
-  ];
-
-  // Les chiffres clés en étiquettes de charte, comme la maquette : un aplat
-  // plein par tuile, le nombre en police d'affichage, le libellé dessous, et
-  // une légère inclinaison alternée qui donne l'effet « collé à la main ».
-  // Pas d'icône : dans la maquette c'est le chiffre qui porte la tuile.
-  //
-  // Les six couleurs tournent dans l'ordre de la charte. L'encre est portée par
-  // la tuile et non par le chiffre — sur un aplat prune ou orange, un chiffre
-  // en vert d'alerte devenait illisible, c'est pourquoi valueClass ne sert plus
-  // à colorer mais seulement à choisir entre aplat calme et aplat d'alerte.
-  //
-  // Les aplats sont posés par .co-stats-charte (voir base.css) — via nth-child,
-  // comme sur l'accueil — et NON en inline : les couleurs charte figées posées
-  // en dur ne s'assombrissaient pas en mode sombre, laissant une bande criarde
-  // sur fond noir. On ne garde en inline que l'inclinaison.
-  const TILTS = ['-1.4deg', '.9deg', '-.5deg', '1.2deg', '-1deg', '.6deg'];
-  holder.innerHTML = cards.map((c, i)=> `
-    <a class="co-stat" href="${c.href}" style="--co-tilt:${TILTS[i % TILTS.length]};">
-      <div class="co-stat-num">${c.value}</div>
-      <div class="co-stat-label">${c.label}</div>
-    </a>
-  `).join('');
-}
 document.getElementById('musicienStatutFilter').addEventListener('change', renderAll);
 /* La bulle des précisions.
  *
@@ -1919,6 +1824,26 @@ document.addEventListener('keydown', (e)=>{
   const [tid, did] = cible.dataset.ouvrirDate.split('|');
   ouvrirDate(tid, did);
 });
+
+/* Monter la barre de modes dans le sous-menu.
+ *
+ * nav.js dessine ce sous-menu au chargement, donc après le HTML de la page :
+ * on ne peut pas y poser la barre à la main dans le gabarit, il faut l'y
+ * déplacer une fois qu'il existe. S'il n'existe pas — page ouverte sans la
+ * navigation — la barre garde sa place flottante, d'où la classe posée sur
+ * <body> plutôt qu'un style appliqué directement.
+ */
+function monterLaBarreDeModes(){
+  const barre = document.querySelector('.mode-bar');
+  const sousMenu = document.querySelector('.co-subnav-in');
+  if(!barre || !sousMenu || barre.closest('.co-subnav-in')) return;
+  sousMenu.appendChild(barre);
+  document.body.classList.add('mode-bar-en-haut');
+}
+// Le sous-menu est posé par nav.js au DOMContentLoaded ; ce script s'exécute
+// peut-être avant lui. On essaie tout de suite, puis au chargement.
+monterLaBarreDeModes();
+document.addEventListener('DOMContentLoaded', monterLaBarreDeModes);
 
 poserMode(mode);
 majOups();
