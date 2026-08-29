@@ -214,6 +214,32 @@
      balayant la page plutôt qu'en lisant trente dates une par une. */
   .relance-quand{font-size:11px; font-weight:700; color:var(--muted);}
   .relance-quand.vieille{color:var(--secondary);}
+
+  /* Ce que la personne a écrit. Une seule ligne, coupée : la carte d'un projet
+     compte déjà des dizaines de personnes, et une précision de trois lignes
+     par nom rendrait la page impraticable. Le texte entier est dans
+     l'infobulle, et le clic ouvre de quoi répondre. */
+  .dispo-precision{
+    display:block; margin-top:3px; max-width:100%; text-align:left;
+    background:none; border:none; padding:0; font-family:inherit; cursor:pointer;
+    font-size:11.5px; font-style:italic; color:var(--secondary); line-height:1.35;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .dispo-precision:hover{text-decoration:underline;}
+  .dispo-precision.repondue{color:var(--prune-ink);}
+  .dispo-precision em{font-style:normal; font-weight:800; font-size:10px;}
+  .dispo-precision em.ok{color:var(--prune-ink);}
+
+  /* La fenêtre où l'on répond. */
+  .precision-bloc{border-left:3px solid var(--secondary); padding:2px 0 2px 12px; margin-bottom:16px;}
+  .precision-bloc .precision-quand{font-size:11.5px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.03em;}
+  .precision-bloc .precision-dit{margin:4px 0 8px; font-style:italic; line-height:1.45;}
+  .precision-champ{
+    width:100%; font-family:inherit; font-size:13.5px; padding:9px 11px; resize:vertical;
+    border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text);
+  }
+  .precision-actions{display:flex; align-items:center; gap:10px; margin-top:7px;}
+  .precision-actions small{font-size:11px; color:var(--muted);}
   /* La fenêtre de la fiche de prise en main, venue de l'annuaire avec elle :
      sans ces règles, la modale se déposait en bas de page comme du contenu
      ordinaire. */
@@ -303,6 +329,21 @@
       <button type="button" class="co-btn ghost" id="pemAnnulerBtn">Annuler</button>
       <button type="button" class="co-btn secondary" id="pemPdfBtn">Télécharger le PDF</button>
       <button type="button" class="co-btn primary" id="pemWhatsappBtn">Envoyer par WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+<!-- Répondre à ce que quelqu'un a écrit, depuis la page où l'on décide de lui
+     réécrire. La réponse s'affiche ensuite sur SA page de dispos : c'est la
+     même conversation que celle de la Vue d'ensemble, tenue d'ici. -->
+<div class="modal-overlay" id="precisionsOverlay">
+  <div class="modal" style="max-width:600px;">
+    <h2 id="precisionsTitre">Ce qu'elle a écrit</h2>
+    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 14px;">
+      Ta réponse s'affiche sur sa page de disponibilités, sous la date concernée.</p>
+    <div id="precisionsCorps"></div>
+    <div class="modal-actions">
+      <button type="button" class="co-btn ghost" id="precisionsFermerBtn">Fermer</button>
     </div>
   </div>
 </div>
@@ -690,6 +731,34 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
   } else {
     statusHtml = `<span class="dispo-statut" style="color:var(--muted);">En attente</span>`;
   }
+  /* Ce que la personne a écrit à côté de ses réponses.
+   *
+   * C'est ici qu'on décide de lui réécrire, et c'est la seule page qui ne
+   * savait rien de ses mots : elles ne se lisaient que sur la Vue d'ensemble,
+   * au survol d'une case. Pour comprendre POURQUOI quelqu'un est incertain
+   * avant de le relancer — le cas exact où la relance doit être nuancée — il
+   * fallait changer de page, retrouver la personne dans la matrice, survoler,
+   * puis revenir.
+   *
+   * Aucune donnée nouvelle : la page charge déjà les fiches entières, ces
+   * champs étaient dans le cache, inutilisés. On se limite aux dates de ce
+   * projet, et à une ligne — les cartes dépliées comptent déjà des centaines
+   * de lignes.
+   */
+  const precisions = relevantDates
+    .map(d=> ({ date: d.date, texte: ((person.disponibilitesCommentaires || {})[d.date] || '').trim() }))
+    .filter(x=> x.texte)
+    .map(x=> ({ ...x, reponse: (((person.reponsesProd || {})[x.date] || {}).texte || '').trim() }));
+  const sansReponse = precisions.filter(x=> !x.reponse).length;
+  const precisionsHtml = precisions.length ? `
+    <button type="button" class="dispo-precision${sansReponse ? '' : ' repondue'}"
+      data-precisions="${escapeAttr(personType + ':' + person.id)}"
+      title="${escapeAttr(precisions.map(x=> `${fmtDateFR(x.date)} : « ${x.texte} »` + (x.reponse ? ` → ${x.reponse}` : '')).join('\n'))}">
+      <span aria-hidden="true">💬</span> ${escapeHtml(fmtDateFR(precisions[0].date))} : « ${escapeHtml(precisions[0].texte)} »${
+        precisions.length > 1 ? ` <em>+${precisions.length - 1}</em>` : ''}${
+        sansReponse ? '' : ' <em class="ok">répondu</em>'}
+    </button>` : '';
+
   const tourneeObj = loadTournees().find(t=> t.id === tourneeId);
   // Depuis quand attend-on ? La base le savait (lastReminderAt) et la Vue
   // d'ensemble l'affichait déjà en face de chaque nom, mais la page depuis
@@ -749,6 +818,7 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
           <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${roleChip} ${datesTag}</div>
           <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}${
             relanceQuand ? ' · ' + relanceQuand : ''}</div>
+          ${precisionsHtml}
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           ${statusHtml}
@@ -948,6 +1018,102 @@ async function relancerRetardataires(){
   btn.textContent = `✓ ${gens.length} personne${gens.length>1?'s':''} notée${gens.length>1?'s':''} relancée${gens.length>1?'s':''}`;
 }
 document.getElementById('relancerTousBtn').addEventListener('click', relancerRetardataires);
+
+/* ---------------------------------------------------------------------------
+   Répondre aux précisions, depuis la page où l'on relance
+   ---------------------------------------------------------------------------
+   Quelqu'un écrit « ok mais je dois être à Nantes le lendemain ». Jusqu'ici on
+   pouvait le lire sur la Vue d'ensemble et y répondre là-bas ; ici, on décidait
+   de relancer sans rien savoir de ce qui avait été dit. Or c'est le cas où la
+   relance doit justement être nuancée — voire ne pas partir du tout.
+
+   Même écriture que sur la Vue d'ensemble : une réponse par personne et par
+   date, qui se réécrit et s'efface si l'on vide le champ. Pas un fil de
+   discussion.
+--------------------------------------------------------------------------- */
+let precisionsOuvertes = null;   // { ptype, pid }
+
+function personneDe(ptype, pid){
+  return (ptype === 'musicien' ? loadMusicians() : loadTechnicians()).find(p=> p.id === pid);
+}
+
+function ouvrirPrecisions(ptype, pid){
+  const personne = personneDe(ptype, pid);
+  if(!personne) return;
+  precisionsOuvertes = { ptype, pid };
+  document.getElementById('precisionsTitre').textContent = `Ce qu'a écrit ${fullName(personne)}`;
+  rendrePrecisionsModale();
+  document.getElementById('precisionsOverlay').classList.add('open');
+}
+
+function rendrePrecisionsModale(){
+  if(!precisionsOuvertes) return;
+  const { ptype, pid } = precisionsOuvertes;
+  const personne = personneDe(ptype, pid);
+  const corps = document.getElementById('precisionsCorps');
+  if(!personne){ corps.innerHTML = ''; return; }
+  const notes = Object.entries(personne.disponibilitesCommentaires || {})
+    .map(([date, texte])=> ({ date, texte: (texte || '').trim() }))
+    .filter(x=> x.texte)
+    .sort((a, b)=> a.date.localeCompare(b.date));
+  if(!notes.length){ corps.innerHTML = `<div class="empty-hint">Plus rien à lire.</div>`; return; }
+  corps.innerHTML = notes.map(n=>{
+    const rep = ((personne.reponsesProd || {})[n.date] || {});
+    const texteRep = (rep.texte || '').trim();
+    return `
+      <div class="precision-bloc" data-date="${escapeAttr(n.date)}">
+        <div class="precision-quand">${escapeHtml(fmtDateFR(n.date))}</div>
+        <p class="precision-dit">« ${escapeHtml(n.texte)} »</p>
+        <textarea class="precision-champ" rows="2" data-reponse="${escapeAttr(n.date)}"
+          placeholder="Ta réponse, en une phrase…">${escapeHtml(texteRep)}</textarea>
+        <div class="precision-actions">
+          <button type="button" class="co-btn primary sm" data-rep-enregistrer="${escapeAttr(n.date)}">Enregistrer</button>
+          ${texteRep ? `<small>${escapeHtml(rep.auteur || '')}</small>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function ecrireReponseProd(ptype, pid, date, texte){
+  const personne = personneDe(ptype, pid);
+  if(!personne) return;
+  const avant = JSON.parse(JSON.stringify(personne.reponsesProd || {}));
+  if(!personne.reponsesProd) personne.reponsesProd = {};
+  const propre = (texte || '').trim();
+  if(propre){
+    let auteur = '';
+    try{ const s = await CurieuxDB.getSession(); auteur = (s && s.user && s.user.email) || ''; }catch(e){}
+    personne.reponsesProd[date] = { texte: propre, auteur, le: new Date().toISOString() };
+  } else {
+    delete personne.reponsesProd[date];
+  }
+  const { error } = await CurieuxDB.upsertOne(ptype === 'musicien' ? 'musiciens' : 'techniciens', personne);
+  if(error){
+    personne.reponsesProd = avant;
+    alert("Écriture impossible — rien n'a été changé :\n\n" + error.message);
+    return;
+  }
+  rendrePrecisionsModale();
+  render();
+}
+
+document.getElementById('precisionsFermerBtn').addEventListener('click', ()=>{
+  document.getElementById('precisionsOverlay').classList.remove('open');
+  precisionsOuvertes = null;
+});
+document.getElementById('precisionsOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'precisionsOverlay'){
+    e.currentTarget.classList.remove('open');
+    precisionsOuvertes = null;
+  }
+});
+document.getElementById('precisionsCorps').addEventListener('click', (e)=>{
+  const btn = e.target.closest('[data-rep-enregistrer]');
+  if(!btn || !precisionsOuvertes) return;
+  const date = btn.dataset.repEnregistrer;
+  const champ = document.querySelector(`[data-reponse="${CSS.escape(date)}"]`);
+  ecrireReponseProd(precisionsOuvertes.ptype, precisionsOuvertes.pid, date, champ ? champ.value : '');
+});
 
 // ============================================================================
 // Fiche de prise en main
@@ -1590,6 +1756,15 @@ function render(){
 
   const filtreAttente = document.getElementById('filtrePersonneAttente');
   if(filtreAttente) filtreAttente.addEventListener('change', ()=> filtrerPersonnes());
+
+  // Un clic sur ce que la personne a écrit ouvre de quoi lui répondre — sans
+  // quitter la page depuis laquelle on décide de lui réécrire.
+  partout.querySelectorAll('[data-precisions]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const [ptype, pid] = btn.dataset.precisions.split(':');
+      ouvrirPrecisions(ptype, pid);
+    });
+  });
 
   // La fiche de prise en main : elle porte le lien personnel, c'est donc ici
   // qu'elle a sa place — auprès des liens, et non dans l'annuaire, qui décrit
