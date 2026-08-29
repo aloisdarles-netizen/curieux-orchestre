@@ -10,7 +10,7 @@
 //   - le bandeau prune est collant : les six sections restent visibles partout ;
 //   - la section courante déplie un sous-menu, lui aussi collant, qui donne
 //     accès en un clic à tous ses écrans — plus d'aller-retour par l'accueil ;
-//   - « Vue d'ensemble » est un élément primaire du menu, pas une sous-entrée.
+//   - « Le grand tableau » est un élément primaire du menu, pas une sous-entrée.
 //
 // Un seul modèle (CURIEUX_SECTIONS) décrit la structure : ajouter un écran se
 // fait ici, pour les dix-neuf pages d'un coup.
@@ -47,16 +47,15 @@ const CURIEUX_SECTIONS = [
   // La « Grille interne » a disparu : elle montrait la même matrice que la Vue
   // d'ensemble, en sachant moins de choses (ni les projets, ni qui a été
   // sollicité, ni les précisions), et n'avait plus en propre que l'import de
-  // réponses collées — qui est passé sur la Vue d'ensemble. Deux écrans
+  // réponses collées — qui est passé sur le grand tableau. Deux écrans
   // suffisent : un pour demander et relancer, un pour voir et décider.
   //
-  // La Vue d'ensemble entre donc dans cette section, tout en gardant son entrée
-  // primaire dans le bandeau : c'est la page la plus ouverte de l'application,
-  // la reléguer à deux clics aurait été un recul. Elle est bien une page de
-  // disponibilités, elle se range ici aussi.
+  // Le grand tableau a sa propre section, plus bas, avec sa page voisine : le
+  // faire figurer ici AUSSI le rendait injoignable depuis son propre sous-menu
+  // — la première section trouvée l'emporte, et « Plateau par date » ne
+  // s'affichait donc jamais.
   { libelle:'Disponibilités', href:'suivi-dispo.html', entrees:[
     { libelle:'Demandes titulaires', href:'suivi-dispo.html', pages:['suivi-dispo.html'] },
-    { libelle:"Vue d'ensemble", href:'recap.html', pages:['recap.html'] },
   ]},
   { libelle:'Technique', href:'technique.html', entrees:[
     { libelle:'Avancement', href:'technique.html', pages:['technique.html','technique-date.html'] },
@@ -69,7 +68,7 @@ const CURIEUX_SECTIONS = [
   { libelle:'Comm', href:'comm.html', pages:['comm.html'] },
   // Deux façons de lire la même donnée : le tableau croisé pour décider qui
   // joue quoi, et la feuille par date pour le dire à quelqu'un d'extérieur.
-  { libelle:"Vue d'ensemble", href:'recap.html', entrees:[
+  { libelle:'Le grand tableau', href:'recap.html', entrees:[
     { libelle:'Le tableau', href:'recap.html', pages:['recap.html'] },
     { libelle:'Plateau par date', href:'plateau.html', pages:['plateau.html'] },
   ]},

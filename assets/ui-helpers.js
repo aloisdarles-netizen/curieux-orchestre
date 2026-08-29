@@ -456,7 +456,6 @@ const CURIEUX_NAV = [
   ]},
   { type:'groupe', libelle:'Disponibilités', entrees:[
     { href:'suivi-dispo.html',    icone:'icone-demandes-titulaires.svg',   libelle:'Demandes titulaires' },
-    { href:'recap.html',          icone:'icone-disponibilites.svg',        libelle:"Vue d'ensemble" },
   ]},
   { type:'groupe', libelle:'Direction technique', entrees:[
     { href:'technique.html',          icone:'icone-technique-avancement.svg', libelle:'Avancement par date' },
@@ -465,7 +464,7 @@ const CURIEUX_NAV = [
     { href:'fiches-techniques.html',  icone:'icone-technique-fiches.svg',     libelle:'Fiches techniques' },
     { href:'partage.html',            icone:'icone-technique-partage.svg',    libelle:'Partage' },
   ]},
-  { type:'lien', href:'recap.html', icone:'icone-vue-ensemble.svg', libelle:"Vue d'ensemble" },
+  { type:'lien', href:'recap.html', icone:'icone-vue-ensemble.svg', libelle:'Le grand tableau' },
 ];
 
 const CURIEUX_ICONE_CADENAS =
