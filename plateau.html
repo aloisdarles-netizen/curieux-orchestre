@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Plateau par date</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/pdf-charte.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  /* ==========================================================================
+     Plateau par date — la feuille qu'on envoie à la prod.
+
+     Vue d'ensemble répond à « qui est libre quand » : un tableau croisé, large,
+     fait pour décider. Il ne répond pas à « qui joue le 12 mars », qui est la
+     seule question que pose quelqu'un d'extérieur — une prod, un producteur,
+     une salle. Lui envoyer la matrice, c'est lui demander de lire à la
+     verticale une colonne parmi quatre-vingts.
+
+     Cette page-ci retourne la même donnée : une date, l'équipe dessous, et sous
+     chaque nom la précision qu'il faut savoir — « arrive à 15h, direct de
+     Lyon », « remplace Roxanne ». Ces précisions sont écrites par nous, pour
+     eux ; elles n'ont rien à voir avec les remarques que les musicien·nes
+     laissent sur leurs dispos, qui restent internes et ne sortent pas d'ici.
+     ========================================================================== */
+  .wrap{max-width:min(1180px, 96vw); margin:0 auto;}
+
+  .barre{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    margin:-2px 0 16px;
+  }
+  .barre label{font-size:12px; color:var(--muted); font-weight:600;}
+  .barre select, .barre input[type="date"]{
+    padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  .barre .co-btn{margin-left:auto;}
+  @media (max-width:700px){ .barre .co-btn{margin-left:0; width:100%; justify-content:center;} }
+
+  .compte{font-size:12.5px; color:var(--muted); margin:0 0 14px;}
+
+  /* Une carte par date. Le filet de gauche porte la couleur du projet : à
+     dix dates de trois projets différents, c'est ce qui permet de les
+     distinguer sans lire le nom à chaque fois. */
+  .jour{
+    background:var(--card); border:1px solid var(--border); border-left:5px solid var(--border);
+    border-radius:14px; padding:14px 16px; margin-bottom:12px;
+  }
+  .jour-tete{display:flex; flex-wrap:wrap; align-items:baseline; gap:5px 12px; margin-bottom:2px;}
+  /* --prune n'est pas remappé en mode sombre (voir base.css) : sur le fond
+     #141617 il vire au brun sale. La charte y remplace le prune par le bleu,
+     comme le fait --accent. applyAutoTheme pose toujours data-theme, il n'y a
+     donc pas de media query à doubler. */
+  .jour-date{font-size:17px; font-weight:800; color:var(--prune);}
+  :root[data-theme="dark"] .jour-date{color:var(--accent);}
+  .jour-lieu{font-size:13.5px; color:var(--text);}
+  .jour-projet{
+    font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px;
+    border:1px solid var(--border); color:#141617; margin-left:auto;
+  }
+  .jour-statut{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    padding:2px 8px; border-radius:999px; background:var(--maybe); color:#fff;
+  }
+  .jour-vide{font-size:13px; color:var(--muted); font-style:italic; margin:8px 0 0;}
+
+  .groupes{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px;}
+  @media (max-width:820px){ .groupes{grid-template-columns:1fr;} }
+  .groupe h3{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; font-weight:800;
+    color:var(--muted); margin:0 0 6px;
+  }
+
+  .gens{display:grid; gap:5px;}
+  /* Nom à gauche, rôle dessous, champ de précision à droite : la précision est
+     facultative, elle ne doit donc pas prendre le pas sur le nom — d'où le
+     champ sans bordure au repos, qui ne se dessine qu'au survol ou en saisie. */
+  .qui{display:flex; align-items:flex-start; gap:10px;}
+  .qui-nom{flex:0 0 40%; min-width:0; font-size:13px; line-height:1.3;}
+  .qui-nom b{font-weight:700;}
+  .qui-nom small{display:block; color:var(--muted); font-size:11.5px;}
+  .qui-note{
+    flex:1 1 auto; min-width:0; align-self:center;
+    padding:5px 8px; border:1px solid transparent; border-radius:7px;
+    background:transparent; color:var(--text); font-family:inherit; font-size:12.5px;
+  }
+  /* Quatre-vingt-huit fois « Une précision pour la prod ? » en italique gris,
+     c'était plus de texte que de noms : l'invite ne se montre que sur la ligne
+     survolée, et le champ rempli, lui, se voit toujours. */
+  .qui-note::placeholder{color:var(--muted); font-style:italic; opacity:0;}
+  .qui:hover .qui-note::placeholder, .qui-note:focus::placeholder{opacity:1;}
+  .qui-note:hover{border-color:var(--border);}
+  .qui-note:focus{outline:none; border-color:var(--prune); background:var(--bg);
+    box-shadow:inset 0 0 0 1px var(--prune);}
+  .qui-note.remplie{border-color:var(--border); background:var(--bg); font-weight:600;}
+
+  .empty-hint{
+    background:var(--card); border:1px dashed var(--border); border-radius:14px;
+    padding:22px; text-align:center; color:var(--muted); font-size:13.5px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Plateau par date</h1>
+      <p class="subtitle">Qui joue quand, et ce qu'il faut savoir sous chaque nom — la feuille qu'on envoie à la prod.</p>
+    </div>
+  </div>
+
+  <div class="barre">
+    <label for="fProjet">Projet :</label>
+    <select id="fProjet"><option value="">Tous les projets</option></select>
+    <label for="fDu">Du :</label>
+    <input type="date" id="fDu">
+    <label for="fAu">au :</label>
+    <input type="date" id="fAu">
+    <label><input type="checkbox" id="fMus" checked> Musicien·nes</label>
+    <label><input type="checkbox" id="fTech" checked> Technicien·nes</label>
+    <button type="button" class="co-btn" id="exportBtn">Exporter en PDF</button>
+  </div>
+
+  <p class="compte" id="compte"></p>
+  <div id="holder"><div class="empty-hint">Chargement…</div></div>
+</div>
+
+<script>
+// Caches mémoire synchronisés avec Supabase — le pattern de toutes les pages
+// de travail (voir annuaire.html). Cette page écrit une seule chose : la
+// précision posée sous un nom, rangée dans la date de la tournée.
+let tourneesCache = [];
+let musiciensCache = [];
+let techniciensCache = [];
+
+function loadTournees(){ return tourneesCache; }
+function loadMusicians(){ return musiciensCache; }
+function loadTechnicians(){ return techniciensCache; }
+
+const MOIS = ['janvier','février','mars','avril','mai','juin',
+              'juillet','août','septembre','octobre','novembre','décembre'];
+const JOURS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+function jourLong(iso){
+  if(!iso) return '';
+  const [y, m, d] = iso.split('-');
+  const nom = JOURS[new Date(iso + 'T12:00:00').getDay()] || '';
+  return `${nom} ${parseInt(d, 10)} ${MOIS[parseInt(m, 10) - 1]} ${y}`;
+}
+function jourCourt(iso){
+  if(!iso) return '';
+  const [y, m, d] = iso.split('-');
+  const abbr = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d, 10)} ${abbr[parseInt(m, 10) - 1]} ${y}`;
+}
+const aujourdhui = ()=> new Date().toISOString().slice(0, 10);
+
+/* Les couleurs de projet, reprises de Vue d'ensemble : les mêmes huit teintes,
+   attribuées dans le même ordre, pour qu'un projet garde sa couleur d'une page
+   à l'autre. Un projet bleu ici et rose là-bas ne serait plus un repère. */
+function couleursProjets(){
+  const map = new Map();
+  const style = getComputedStyle(document.documentElement);
+  loadTournees().forEach((t, i)=>{
+    map.set(t.id, (style.getPropertyValue('--tour-' + (i % 8)) || '').trim() || 'transparent');
+  });
+  return map;
+}
+
+/* Toutes les dates qui passent les filtres, à plat et dans l'ordre.
+ *
+ * Une date annulée n'a pas d'équipe à annoncer : elle sort. Une date en option
+ * reste, avec sa mention — la prod doit savoir que rien n'est ferme, c'est
+ * précisément le genre de chose qu'un tableau croisé ne dit pas. */
+function datesFiltrees(){
+  const projet = document.getElementById('fProjet').value;
+  const du = document.getElementById('fDu').value;
+  const au = document.getElementById('fAu').value;
+  const out = [];
+  loadTournees().forEach(t=>{
+    if(projet && t.id !== projet) return;
+    (t.dates || []).forEach(d=>{
+      if(!d.date || d.statut === 'annulee') return;
+      if(du && d.date < du) return;
+      if(au && d.date > au) return;
+      out.push({ tournee: t, d });
+    });
+  });
+  out.sort((a, b)=> a.d.date.localeCompare(b.d.date));
+  return out;
+}
+
+// L'ordre du plateau : les pupitres de la partition, pas l'alphabet. Un
+// violoncelle avant un hautbois, c'est une liste qui ne ressemble à aucune
+// feuille de distribution ; l'ordre ci-dessous est celui d'une nomenclature.
+const ORDRE_PUPITRE = ['Cordes', 'Bois', 'Cuivres', 'Percussions', 'Claviers', 'Harpe'];
+const ORDRE_POLE = ['Son', 'Lumière', 'Plateau', 'Backline', 'Vidéo', 'Rigg', 'Régie'];
+// Et à l'intérieur d'un pupitre, l'ordre de la partition — pas l'alphabet, qui
+// mettait l'alto avant le violon solo. Ce qui n'y figure pas se range à la fin,
+// alphabétiquement : la liste ne prétend pas connaître tous les instruments.
+const ORDRE_INSTRUMENT = [
+  'Violon solo', 'Violon', 'Alto', 'Violoncelle', 'Contrebasse',
+  'Flûte', 'Piccolo', 'Hautbois', 'Cor anglais', 'Clarinette', 'Clarinette basse', 'Basson',
+  'Cor', 'Trompette', 'Trombone', 'Tuba',
+  'Timbales', 'Percussions', 'Batterie',
+  'Piano', 'Célesta', 'Claviers', 'Orgue', 'Harpe',
+];
+function rang(liste, valeur){
+  const i = liste.indexOf((valeur || '').trim());
+  return i === -1 ? liste.length : i;
+}
+
+function equipeDe(entree, ptype){
+  const champ = ptype === 'musicien' ? 'musiciensAssignes' : 'techniciensAssignes';
+  const gens = ptype === 'musicien' ? loadMusicians() : loadTechnicians();
+  const ids = entree.d[champ] || [];
+  const liste = gens.filter(p=> ids.includes(p.id));
+  if(ptype === 'musicien'){
+    liste.sort((a, b)=> rang(ORDRE_PUPITRE, a.pupitre) - rang(ORDRE_PUPITRE, b.pupitre)
+      || rang(ORDRE_INSTRUMENT, a.instrument) - rang(ORDRE_INSTRUMENT, b.instrument)
+      || (a.instrument || '').localeCompare(b.instrument || '', 'fr')
+      || fullName(a).localeCompare(fullName(b), 'fr'));
+  } else {
+    liste.sort((a, b)=> rang(ORDRE_POLE, a.pole) - rang(ORDRE_POLE, b.pole)
+      || (a.poste || '').localeCompare(b.poste || '', 'fr')
+      || fullName(a).localeCompare(fullName(b), 'fr'));
+  }
+  return liste;
+}
+
+const cle = (ptype, id)=> ptype + ':' + id;
+function noteDe(dateObj, ptype, id){
+  return ((dateObj.notesPlateau || {})[cle(ptype, id)] || '').trim();
+}
+
+/* Écrire une précision.
+ *
+ * Elle vit dans la date de la tournée (tournees.dates[i].notesPlateau), pas
+ * dans une table à elle : une précision n'a de sens que pour CETTE date et
+ * CETTE personne, elle n'est jamais lue autrement que par la date, et le champ
+ * « dates » est un jsonb qui passe tel quel par l'adaptateur — donc aucune
+ * migration, et rien à tenir synchronisé.
+ */
+async function ecrireNote(tournee, dateObj, ptype, id, texte){
+  const avant = JSON.parse(JSON.stringify(dateObj.notesPlateau || {}));
+  if(!dateObj.notesPlateau) dateObj.notesPlateau = {};
+  const propre = (texte || '').trim();
+  if(propre) dateObj.notesPlateau[cle(ptype, id)] = propre;
+  else delete dateObj.notesPlateau[cle(ptype, id)];
+  const { error } = await CurieuxDB.upsertOne('tournees', tournee);
+  if(error){
+    dateObj.notesPlateau = avant;
+    alert("La précision n'a pas pu être enregistrée :\n\n" + error.message);
+    return false;
+  }
+  return true;
+}
+
+function render(){
+  const holder = document.getElementById('holder');
+  const compte = document.getElementById('compte');
+  const liste = datesFiltrees();
+  const avecMus = document.getElementById('fMus').checked;
+  const avecTech = document.getElementById('fTech').checked;
+  const couleurs = couleursProjets();
+
+  if(!liste.length){
+    compte.textContent = '';
+    holder.innerHTML = loadTournees().some(t=> (t.dates || []).some(d=> d.date))
+      ? `<div class="empty-hint">Aucune date sur cette période — élargis l'intervalle ou change de projet.</div>`
+      : `<div class="empty-hint">Aucune date pour l'instant : elles se créent dans <a href="tournees.html">Tournées</a>.</div>`;
+    return;
+  }
+
+  const nbPersonnes = liste.reduce((n, e)=>
+    n + (avecMus ? equipeDe(e, 'musicien').length : 0)
+      + (avecTech ? equipeDe(e, 'technicien').length : 0), 0);
+  // Le champ de précision ne se dessine qu'au survol : sans un mot, personne ne
+  // devinerait qu'on peut écrire sous un nom.
+  compte.innerHTML = `<b>${liste.length}</b> date${liste.length > 1 ? 's' : ''} · <b>${nbPersonnes}</b>
+    affectation${nbPersonnes > 1 ? 's' : ''} — du ${jourCourt(liste[0].d.date)} au ${jourCourt(liste[liste.length - 1].d.date)}.
+    Passe sur un nom pour lui ajouter une précision : elle part sur le PDF, à côté du sien.`;
+
+  const bloc = (titre, gens, ptype, e)=> !gens.length ? '' : `
+    <div class="groupe">
+      <h3>${escapeHtml(titre)} · ${gens.length}</h3>
+      <div class="gens">
+        ${gens.map(p=>{
+          const note = noteDe(e.d, ptype, p.id);
+          const role = ptype === 'musicien' ? (p.instrument || p.pupitre || '') : (p.poste || p.pole || '');
+          const rempl = (p.statutPoste || 'titulaire') === 'remplacant';
+          return `
+          <div class="qui">
+            <span class="qui-nom"><b>${escapeHtml(fullName(p))}</b><small>${escapeHtml(role)}${
+              rempl ? (role ? ' · ' : '') + 'remplaçant·e' : ''}</small></span>
+            <input type="text" class="qui-note${note ? ' remplie' : ''}"
+              value="${escapeAttr(note)}" placeholder="Une précision pour la prod ?"
+              data-note data-tid="${escapeAttr(e.tournee.id)}" data-did="${escapeAttr(e.d.id)}"
+              data-ptype="${ptype}" data-pid="${escapeAttr(p.id)}">
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+  holder.innerHTML = liste.map(e=>{
+    const mus = avecMus ? equipeDe(e, 'musicien') : [];
+    const tech = avecTech ? equipeDe(e, 'technicien') : [];
+    const lieu = [e.d.ville, e.d.lieu].filter(Boolean).join(' · ');
+    return `
+      <section class="jour" style="border-left-color:${escapeAttr(couleurs.get(e.tournee.id) || 'var(--border)')};">
+        <div class="jour-tete">
+          <span class="jour-date">${escapeHtml(jourLong(e.d.date))}</span>
+          ${e.d.statut === 'option' ? '<span class="jour-statut">Option</span>' : ''}
+          <span class="jour-lieu">${escapeHtml(lieu || '—')}</span>
+          <span class="jour-projet" style="background:${escapeAttr(couleurs.get(e.tournee.id) || 'transparent')};">${
+            escapeHtml(e.tournee.nom || 'Projet')}${e.tournee.type === 'recording' ? ' · Rec' : ''}</span>
+        </div>
+        ${(mus.length + tech.length) === 0
+          ? `<p class="jour-vide">Personne d'affecté·e sur cette date pour l'instant — l'équipe se compose dans <a href="tournees.html">Tournées</a> ou dans <a href="recap.html">Vue d'ensemble</a>.</p>`
+          : `<div class="groupes">${bloc('Musicien·nes', mus, 'musicien', e)}${bloc('Technicien·nes', tech, 'technicien', e)}</div>`}
+      </section>`;
+  }).join('');
+}
+
+// Une précision s'enregistre en quittant le champ — pas à chaque frappe : une
+// écriture par lettre sur une ligne de tournée entière serait absurde.
+document.addEventListener('change', (ev)=>{
+  const champ = ev.target.closest('[data-note]');
+  if(!champ) return;
+  const { tid, did, ptype, pid } = champ.dataset;
+  const tournee = loadTournees().find(t=> t.id === tid);
+  const dateObj = tournee && (tournee.dates || []).find(d=> d.id === did);
+  if(!tournee || !dateObj) return;
+  const texte = champ.value;
+  ecrireNote(tournee, dateObj, ptype, pid, texte).then(ok=>{
+    if(!ok){ champ.value = noteDe(dateObj, ptype, pid); return; }
+    champ.classList.toggle('remplie', !!texte.trim());
+    curieuxFlash(texte.trim() ? 'Précision enregistrée' : 'Précision retirée');
+  });
+});
+// Entrée valide et sort du champ : le change se déclenche, la précision part.
+document.addEventListener('keydown', (ev)=>{
+  if(ev.key === 'Enter' && ev.target.closest('[data-note]')) ev.target.blur();
+});
+
+['fProjet', 'fDu', 'fAu', 'fMus', 'fTech'].forEach(id=>
+  document.getElementById(id).addEventListener('change', render));
+
+function remplirProjets(){
+  const sel = document.getElementById('fProjet');
+  const garde = sel.value;
+  sel.innerHTML = '<option value="">Tous les projets</option>' + loadTournees()
+    .filter(t=> (t.dates || []).some(d=> d.date))
+    .map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Sans nom')}${
+      t.type === 'recording' ? ' · Rec' : ''}</option>`).join('');
+  sel.value = garde;
+}
+
+/* ============================================================================
+   Le PDF — la feuille elle-même
+   ============================================================================
+   Une date par bloc, l'équipe en tableau dessous, la précision dans sa propre
+   colonne. On ne sort PAS les remarques que les musicien·nes laissent sur
+   leurs dispos : elles nous sont adressées, elles disent parfois des choses
+   personnelles, et elles n'ont pas à partir chez un tiers. Seule y figure la
+   précision qu'on a écrite pour ce document-là.
+============================================================================ */
+function exporterPdf(){
+  const liste = datesFiltrees();
+  if(!liste.length){ alert("Rien à exporter sur cette période."); return; }
+  const avecMus = document.getElementById('fMus').checked;
+  const avecTech = document.getElementById('fTech').checked;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  registerHostFont(doc);
+
+  const projet = document.getElementById('fProjet').value;
+  const tournee = projet ? loadTournees().find(t=> t.id === projet) : null;
+  const page = creerComposeurPdf(doc, { echelleMax: 1.15 }).entete({
+    titre: 'Plateau par date',
+    sousTitre: tournee ? (tournee.nom || 'Projet')
+      : `${liste.length} date${liste.length > 1 ? 's' : ''}, tous projets`,
+    mention: `Du ${jourCourt(liste[0].d.date)} au ${jourCourt(liste[liste.length - 1].d.date)}`,
+  });
+
+  liste.forEach(e=>{
+    const lignes = [];
+    const ajouter = (gens, ptype, libelle)=> gens.forEach((p, i)=> lignes.push([
+      i === 0 ? libelle : '',
+      fullName(p),
+      ptype === 'musicien' ? (p.instrument || p.pupitre || '') : (p.poste || p.pole || ''),
+      noteDe(e.d, ptype, p.id),
+    ]));
+    if(avecMus) ajouter(equipeDe(e, 'musicien'), 'musicien', 'Musique');
+    if(avecTech) ajouter(equipeDe(e, 'technicien'), 'technicien', 'Technique');
+
+    const lieu = [e.d.ville, e.d.lieu].filter(Boolean).join(' · ');
+    const titre = [jourLong(e.d.date), lieu, e.d.statut === 'option' ? 'option' : '']
+      .filter(Boolean).join('  —  ');
+    // Le nom du projet sous le titre seulement quand le document en mêle
+    // plusieurs : sur une feuille d'un seul projet, il est déjà en tête.
+    const note = tournee ? '' : (e.tournee.nom || '');
+
+    if(!lignes.length){
+      page.tableau(titre, [{ titre: '' }], [['Aucune affectation sur cette date.']], note);
+      return;
+    }
+    page.tableau(titre, [
+      { titre: '', largeur: 0.7 },
+      { titre: 'Nom', largeur: 1.5 },
+      { titre: 'Rôle', largeur: 1.2 },
+      { titre: 'Précision', largeur: 2.2 },
+    ], lignes, note);
+  });
+
+  const nom = 'Plateau_' + (tournee ? (tournee.nom || 'projet').replace(/[^\w\-]+/g, '_') : 'toutes_dates')
+    + '_' + liste[0].d.date + '.pdf';
+  page.rendre(nom);
+}
+document.getElementById('exportBtn').addEventListener('click', exporterPdf);
+
+async function initData(){
+  [tourneesCache, musiciensCache, techniciensCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+  ]);
+  remplirProjets();
+  render();
+}
+CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(l=>{ tourneesCache = l; curieuxRafraichir(()=>{ remplirProjets(); render(); }); }); });
+CurieuxDB.subscribe('musiciens', ()=>{ CurieuxDB.fetchAll('musiciens').then(l=>{ musiciensCache = l; curieuxRafraichir(render); }); });
+CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(l=>{ techniciensCache = l; curieuxRafraichir(render); }); });
+
+// Par défaut, ce qui vient : une feuille qu'on envoie parle de l'avenir. La
+// borne haute reste ouverte — on n'a pas à deviner jusqu'où va la tournée.
+document.getElementById('fDu').value = aujourdhui();
+initData();
+</script>
+</body>
+</html>
