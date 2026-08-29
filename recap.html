@@ -866,7 +866,10 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
             ${rep ? `data-note-reponse="${escapeAttr(rep.texte)}" data-note-reponse-qui="${escapeAttr(rep.auteur || '')}"` : ''}
             data-cellule data-tid="${escapeAttr(e.tourneeId)}" data-did="${escapeAttr(e.dateId)}" data-pid="${escapeAttr(m.id)}"
             data-ptype="${ptypeMatrice}" data-date="${escapeAttr(e.date)}" data-reco="${e.estRecording ? '1' : ''}"
-            style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? (rep ? ' avec-note repondue' : ' avec-note') : ''}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}">${symbol}</span>${
+            style="background-color:${colorFor(e)};"><button type="button" class="co-matrix-btn m-cell ${cls}${note ? (rep ? ' avec-note repondue' : ' avec-note') : ''}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}" aria-label="${escapeAttr(
+              (hors ? `${fullName(m)}, ${fmtDateFRShort(e.date)}${e.ville ? ' ' + e.ville : ''} : pas sollicité·e`
+                    : CurieuxDispos.annonce({ qui: fullName(m), quand: fmtDateFRShort(e.date) + (e.ville ? ' ' + e.ville : ''), cle }))
+              + (note ? ' — a laissé une précision' : ''))}">${symbol}</button>${
             note ? `<span class="note-repliee">${escapeHtml(note)}${
               rep ? `<em class="reponse-repliee">↳ ${escapeHtml(rep.texte)}</em>` : ''}</span>` : ''}</div>`;
         }).join('')}
