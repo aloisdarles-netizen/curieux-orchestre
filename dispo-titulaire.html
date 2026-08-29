@@ -8,6 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/dispo-statuts.js"></script>
 <!-- Page volontairement PUBLIQUE : pas de hideCurieuxPageUntilAuth()/requireAdminAuth()
      ici, contrairement à toutes les autres pages — ce lien est envoyé à des titulaires qui n'ont
      pas de compte admin de l'app interne. L'identification se fait par le token imprévisible
@@ -87,15 +88,23 @@
     padding:2px 7px; border-radius:999px; background:var(--border); color:var(--muted); margin-left:8px; vertical-align:middle;
   }
 
-  .state-toggle{display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;}
+  /* Trois colonnes depuis que « À confirmer » existe. Sur les écrans étroits
+   elles restent côte à côte : trois libellés courts y tiennent, et les
+   empiler ferait perdre la lecture d'un coup d'œil des trois réponses
+   possibles. */
+  .state-toggle{display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:8px;}
   .state-btn{
     padding:9px 4px; border-radius:8px; border:1px solid var(--border); background:var(--bg);
     color:var(--muted); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit;
     transition:background .15s, color .15s, border-color .15s;
   }
-  .state-btn.active.dispo{background:var(--ok); border-color:var(--ok); color:#fff;}
-  .state-btn.active.indispo{background:var(--ko); border-color:var(--ko); color:#fff;}
-  .state-btn.active.incertain{background:var(--maybe); border-color:var(--maybe); color:#fff;}
+  /* Mêmes couleurs que dans l'orchestre : « disponible » est l'aplat bleu, le
+     vert restant réservé à « affecté·e » côté production. Une personne qui
+     voit sa réponse ici puis son nom sur un tableau imprimé y retrouve la
+     même couleur pour la même chose. L'encre suit le thème (--sur-statut). */
+  .state-btn.active.dispo{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark); font-weight:900;}
+  .state-btn.active.indispo{background:var(--ko); border-color:var(--ko); color:var(--sur-statut);}
+  .state-btn.active.incertain{background:var(--maybe); border-color:var(--maybe); color:var(--sur-statut);}
 
   /* ==========================================================================
      Dates déjà affectées.
@@ -136,17 +145,28 @@
     background:var(--bg); color:var(--text); font-family:inherit;
   }
   .date-comment:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  /* « À confirmer » sans un mot d'explication ne sert à personne : la
+     production lit « peut-être » et ne sait pas quoi en faire — ni si elle
+     peut compter sur toi, ni quand elle saura. Le champ devient donc
+     obligatoire, et le dit avant qu'on parte en croyant avoir répondu. */
+  .date-comment.exige{border-color:var(--maybe); background:var(--maybe-tint);}
+  .date-comment.exige:focus{outline-color:var(--maybe);}
+  .exige-note{
+    display:flex; gap:6px; align-items:flex-start; margin-top:6px;
+    font-size:12px; line-height:1.4; color:var(--maybe); font-weight:700;
+  }
+  .exige-note[hidden]{display:none;}
   /* La réponse de la production à la précision laissée sur cette date. Elle
      arrive au fil de l'eau, longtemps après qu'on a répondu : elle se met
      donc sous le champ, à sa place dans la lecture de la date. */
   .reponse-prod{
-    margin-top:8px; padding:8px 10px 8px 11px; border-left:3px solid var(--prune);
-    background:color-mix(in srgb, var(--prune) 7%, transparent);
+    margin-top:8px; padding:8px 10px 8px 11px; border-left:3px solid var(--prune-ink);
+    background:color-mix(in srgb, var(--prune-ink) 9%, transparent);
     border-radius:0 8px 8px 0; font-size:12.5px; line-height:1.45; color:var(--text);
   }
   .reponse-prod b{
     display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
-    color:var(--prune); margin-bottom:2px;
+    color:var(--prune-ink); margin-bottom:2px;
   }
 
   .save-bar{
@@ -630,13 +650,22 @@ function render(){
           <div class="date-place">${escapeHtml([d.ville, d.lieu].filter(Boolean).join(' · ') || '—')}${state.tournee.type === 'recording' && d.cachetSeance != null && d.cachetSeance !== '' ? `<span class="cachet-seance-tag">${escapeHtml(String(d.cachetSeance))} € brut</span>` : ''}</div>
         </div>
         <div class="state-toggle">
-          <button type="button" class="state-btn dispo ${current==='dispo'?'active':''}" data-date="${escapeAttr(d.date)}" data-state="dispo">Disponible</button>
+          <button type="button" class="state-btn dispo ${current==='dispo'?'active':''}" data-date="${escapeAttr(d.date)}" data-state="dispo">${CurieuxDispos.libelle('dispo')}</button>
           <button type="button" class="state-btn indispo ${current==='indispo'?'active':''}${affecte ? ' verrouille' : ''}"
             data-date="${escapeAttr(d.date)}" data-state="indispo"
-            ${affecte ? `data-verrouille="1" aria-expanded="false" aria-controls="alerte-${escapeAttr(d.date)}" title="Tu es affecté·e sur cette date — préviens la production"` : ''}>Indisponible</button>
+            ${affecte ? `data-verrouille="1" aria-expanded="false" aria-controls="alerte-${escapeAttr(d.date)}" title="Tu es affecté·e sur cette date — préviens la production"` : ''}>${CurieuxDispos.libelle('indispo')}</button>
+          <button type="button" class="state-btn incertain ${current==='incertain'?'active':''}${affecte ? ' verrouille' : ''}"
+            data-date="${escapeAttr(d.date)}" data-state="incertain"
+            ${affecte ? `data-verrouille="1" aria-expanded="false" aria-controls="alerte-${escapeAttr(d.date)}" title="Tu es affecté·e sur cette date — préviens la production"` : ''}>${CurieuxDispos.libelle('incertain')}</button>
         </div>
         <div class="alerte-affecte" id="alerte-${escapeAttr(d.date)}" data-alerte="${escapeAttr(d.date)}" role="status" style="display:none;"></div>
-        <input type="text" class="date-comment" data-date="${escapeAttr(d.date)}" placeholder="Une précision ? (facultatif)" value="${escapeAttr(comment)}">
+        <input type="text" class="date-comment${current === 'incertain' && !comment ? ' exige' : ''}" data-date="${escapeAttr(d.date)}"
+          placeholder="${current === 'incertain' ? 'Dis-nous en un mot ce qui bloque…' : 'Une précision ? (facultatif)'}" value="${escapeAttr(comment)}">
+        <p class="exige-note" data-exige="${escapeAttr(d.date)}"${current === 'incertain' && !comment ? '' : ' hidden'}>
+          <span aria-hidden="true">⚠</span>
+          <span>« ${escapeHtml(CurieuxDispos.libelle('incertain'))} » demande un mot d'explication —
+            sans lui, cette date reste <b>sans réponse</b> et la production continuera de te relancer.</span>
+        </p>
         ${reponseProd ? `<div class="reponse-prod"><b>Réponse de la production</b>${escapeHtml(reponseProd.texte)}</div>` : ''}
       </div>
     `;
@@ -657,16 +686,53 @@ function render(){
 
   document.getElementById('content').innerHTML = html;
 
+  /* Ce qui part vraiment en base, une fois croisés le bouton cliqué et le mot
+   * qui l'accompagne.
+   *
+   * « À confirmer » est la seule réponse qui n'en est pas une : la production
+   * lit « peut-être » sans savoir si elle peut compter sur toi, ni quand elle
+   * le saura. Elle ne s'enregistre donc qu'accompagnée d'une explication —
+   * sinon la date reste sans réponse, et la page le dit franchement plutôt que
+   * de laisser partir quelqu'un en croyant avoir répondu.
+   *
+   * On ne bloque jamais la saisie : le bouton s'allume, le champ s'ouvre,
+   * l'avertissement s'affiche. C'est l'enregistrement qui attend, pas la
+   * personne.
+   */
+  function appliquerChoix(date, choix){
+    const carte = document.querySelector(`.date-comment[data-date="${CSS.escape(date)}"]`);
+    const champ = carte;
+    const note = document.querySelector(`[data-exige="${CSS.escape(date)}"]`);
+    const remarque = champ ? champ.value.trim() : '';
+    const manque = (choix === 'incertain' && !remarque);
+
+    if(champ){
+      champ.classList.toggle('exige', manque);
+      champ.placeholder = choix === 'incertain'
+        ? "Dis-nous en un mot ce qui bloque…"
+        : 'Une précision ? (facultatif)';
+    }
+    if(note) note.hidden = !manque;
+
+    if(!choix || manque) delete state.person.disponibilites[date];
+    else state.person.disponibilites[date] = choix;
+  }
+
   document.querySelectorAll('.state-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const date = btn.dataset.date;
       if(btn.dataset.verrouille){ ouvrirAlerteAffecte(date); return; }
       const wasActive = btn.classList.contains('active');
-      if(wasActive) delete state.person.disponibilites[date];
-      else state.person.disponibilites[date] = btn.dataset.state;
       btn.closest('.state-toggle').querySelectorAll('.state-btn').forEach(b=>{
         b.classList.toggle('active', !wasActive && b === btn);
       });
+      appliquerChoix(date, wasActive ? '' : btn.dataset.state);
+      // Le champ prend la main tout de suite : sans cela, il faudrait deviner
+      // qu'on attend quelque chose de plus.
+      if(!wasActive && btn.dataset.state === 'incertain'){
+        const champ = document.querySelector(`.date-comment[data-date="${CSS.escape(date)}"]`);
+        if(champ && !champ.value.trim()) champ.focus();
+      }
       markDirty();
     });
   });
@@ -676,6 +742,10 @@ function render(){
       const val = input.value.trim();
       if(val) state.person.disponibilites_commentaires[date] = val;
       else delete state.person.disponibilites_commentaires[date];
+      // L'explication vient peut-être d'arriver — ou de disparaître : dans les
+      // deux cas, le « à confirmer » de cette date change de sort.
+      const actif = input.closest('.date-card').querySelector('.state-btn.active');
+      appliquerChoix(date, actif ? actif.dataset.state : '');
       markDirty();
     });
   });

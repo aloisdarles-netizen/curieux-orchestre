@@ -30,6 +30,17 @@
   --ok: #2f8f5b;
   --ok-tint: #e2f4ea;
   --old-champagne: #c98aa0;
+  /* L'encre posée SUR un aplat de statut (--ok, --ko, --maybe). En thème
+     clair, les aplats sont soutenus : le blanc est le bon choix. En sombre ils
+     s'éclaircissent, et le blanc y tombait à 1,7:1 — le ✓ ou le ✕ devenaient
+     invisibles, ne laissant que la couleur pour dire l'état. Deux jetons donc,
+     pas une encre unique : réparer le sombre ne doit pas abîmer le clair. */
+  --sur-statut: #ffffff;
+  /* Le prune de la charte sert d'aplat (--prune) ET d'encre. En sombre, cette
+     encre reste figée sur un fond foncé : la réponse de la production y passait
+     sous le seuil de lisibilité. --prune-ink est la version qui suit le thème,
+     et ne sert qu'au TEXTE. Le patron existait déjà pour .co-btn.secondary. */
+  --prune-ink: #791649;
   /* Échelle de rayons de la maquette. --radius reste l'alias historique du
      rayon d'encart (--radius-md) : les pages qui l'utilisent encore suivent. */
   --radius-sm: 8px;
@@ -113,6 +124,10 @@
   --ok: #7fd9a6;
   --ok-tint: #1c3327;
   --old-champagne: #7a5064;
+  /* Encre sombre sur les aplats clairs du thème nuit : le symbole redevient
+     lisible, et redevient donc un canal d'information à part entière. */
+  --sur-statut: #101314;
+  --prune-ink: #f0b6d2;
   --secondary: #ff7a4a;
   --secondary-dark: #ffab84;
   --secondary-tint: #3d2430;
@@ -719,6 +734,13 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
    un petit écran en paysage. */
 .co-matrix{
   overflow:auto; border:1px solid var(--border); border-radius:12px; background:var(--card);
+  /* Une barre de défilement qu'on voit. Par défaut, macOS ne la montre que
+     pendant le geste : sur un tableau qui déborde de trois écrans en largeur,
+     rien n'indiquait qu'il y avait quelque chose à droite. On la garde donc
+     affichée, discrète mais présente — c'est le seul repère qui dise que la
+     saison continue au-delà du bord. */
+  scrollbar-width:thin;
+  scrollbar-color:var(--old-champagne) transparent;
   max-height:max(380px, calc(100vh - 170px));
   max-height:max(380px, calc(100dvh - 170px));
 }
@@ -730,7 +752,13 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
 .co-matrix-row{ display:flex; border-bottom:1px solid var(--border); align-items:stretch; }
 .co-matrix-row:last-child{ border-bottom:none; }
 .co-matrix-name{
-  position:sticky; left:0; z-index:2; background:var(--card);
+  /* z-index:4 et non 2 : les pastilles de précision (.point-note) sont posées
+     à 3 pour se détacher de leur case, et passaient donc PAR-DESSUS cette
+     colonne quand on faisait défiler le tableau vers la droite — on voyait des
+     points orange flotter sur les noms, sans savoir à quelle date ils se
+     rapportaient. La colonne collante doit couvrir tout ce qui glisse dessous,
+     et rester elle-même sous la rangée de dates (.co-matrix-tete, z-index 5). */
+  position:sticky; left:0; z-index:4; background:var(--card);
   width:210px; flex-shrink:0; padding:var(--row-pad) 14px; border-right:1px solid var(--border);
 }
 .co-matrix-name b{ font-weight:800; font-size:13px; display:block; }
@@ -738,9 +766,11 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
 /* Le bandeau des dates suit le défilement vertical. Fond opaque obligatoire :
    certaines cellules de tête sont transparentes (dates hors tournée colorée)
    et laisseraient les lignes transparaître. */
-.co-matrix-head{ position:sticky; top:0; z-index:4; background:var(--card); }
+/* Au-dessus de la colonne des noms (4), qui est elle-même au-dessus des
+   pastilles (3) : chaque plan couvre ce qui glisse dessous. */
+.co-matrix-head{ position:sticky; top:0; z-index:6; background:var(--card); }
 .co-matrix-head .co-matrix-name{
-  z-index:5; padding:9px 14px; font-size:10.5px; font-weight:800;
+  z-index:7; padding:9px 14px; font-size:10.5px; font-weight:800;
   text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
 }
 .co-matrix-date{
@@ -757,11 +787,36 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
   font-family:var(--font-body); display:grid; place-items:center;
   border:1px solid var(--border); background:var(--card); color:var(--muted);
 }
-.co-matrix-btn.dispo{ background:var(--ok); border-color:var(--ok); color:#fff; }
-.co-matrix-btn.indispo{ background:var(--ko); border-color:var(--ko); color:#fff; }
-.co-matrix-btn.incertain{ background:var(--maybe); border-color:var(--maybe); color:#fff; }
+/* Les quatre états d'une case, à un seul endroit — voir dispo-statuts.js pour
+   le vocabulaire correspondant.
+
+   Le vert (--ok) est réservé à « affecté·e », l'état le plus fort, le seul qui
+   engage l'orchestre. « Disponible » prend l'aplat bleu : c'est une réponse de
+   la personne, pas une décision de la production. Avant cette règle, le même
+   vert disait « disponible » sur un écran et « affecté·e » sur un autre.
+
+   L'encre passe par --sur-statut, qui bascule avec le thème : en sombre, du
+   blanc pur sur ces aplats tombait sous le seuil de lisibilité et le symbole
+   disparaissait — l'information redevenait portée par la seule couleur, ce
+   que le ✓ est justement là pour éviter. */
+.co-matrix-btn.assigned{ background:var(--ok); border-color:var(--ok); color:var(--sur-statut); }
+.co-matrix-btn.dispo{ background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark); font-weight:900; }
+.co-matrix-btn.indispo{ background:var(--ko); border-color:var(--ko); color:var(--sur-statut); }
+.co-matrix-btn.incertain{ background:var(--maybe); border-color:var(--maybe); color:var(--sur-statut); }
 .co-matrix-total{ background:var(--row-alt); }
 .co-matrix-total .co-matrix-name{ background:var(--row-alt); }
+/* Les cases sont de vrais boutons : la Vue d'ensemble écrit en base à chaque
+   clic, et cette écriture était jusque-là réservée à la souris. Le focus doit
+   donc se voir — la règle de survol ne se déclenche pas au clavier. */
+.co-matrix-btn:focus-visible{ outline:2px solid var(--text); outline-offset:2px; z-index:2; }
+/* Entre 761 et 820 px, la matrice est encore une grille mais la doctrine des
+   44 px s'applique déjà à tout bouton : les cases y gonfleraient d'un tiers,
+   et le tableau perdrait la moitié de ses lignes visibles. En dessous de
+   761 px la matrice se replie en liste, où les 44 px sont au contraire ce
+   qu'il faut — l'exception s'arrête donc là. */
+@media (min-width:761px) and (max-width:820px){
+  .co-matrix-btn{ min-height:30px; }
+}
 .co-legend-row{ display:flex; gap:16px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:var(--muted); }
 .co-swatch{ width:13px; height:13px; border-radius:4px; display:inline-block; flex-shrink:0; }
 
@@ -909,3 +964,49 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
   /* Le filet de bloc passe du bord gauche de la ligne à celui de la carte. */
   .co-row.date-row.bloc-row{ padding-left:0; border-left-width:4px; }
 }
+
+/* --- 20. Impression -------------------------------------------------------
+   Il n'y avait aucune règle d'impression dans tout le projet : Ctrl+P sortait
+   la barre de navigation, la barre de modes flottante par-dessus le tableau,
+   et seules les lignes visibles de la matrice — le reste étant dans une
+   fenêtre de défilement, l'imprimante n'en voyait rien.
+
+   Ce bloc ne rend pas l'impression belle, il la rend honnête : la page part
+   entière, sans les commandes qui n'ont pas de sens sur papier. Pour un
+   tirage propre et paginé d'un grand tableau, l'export PDF reste le bon
+   chemin, et un mot visible seulement à l'impression le dit — plutôt que de
+   laisser quelqu'un découvrir le problème une fois la feuille sortie.
+   -------------------------------------------------------------------------- */
+@media print{
+  /* Les commandes ne s'impriment pas : on ne clique pas sur du papier. */
+  .co-topbar, .co-subnav, .co-footer, .mode-bar, .co-actions, .legend-actions,
+  .dispo-filter-row, .projets-filtre, .co-fab, .modal-overlay,
+  [data-bug-report], #noteBulle{ display:none !important; }
+
+  /* Les fenêtres de défilement s'ouvrent : sans cela, l'imprimante ne reçoit
+     que ce qui tenait à l'écran, et le tableau paraît complet alors qu'il est
+     tronqué — le pire des résultats, parce qu'il ne se voit pas. */
+  .co-matrix, .table-wrap, .grid-table-wrap{
+    max-height:none !important; overflow:visible !important; border:none !important;
+  }
+  .co-matrix-tete, .co-matrix-total{ position:static !important; }
+
+  body, body.co-has-topbar{ padding:0 !important; background:#fff !important; }
+  a[href]:after{ content:''; }          /* pas d'URL entre parenthèses partout */
+
+  /* Le renvoi vers l'export, invisible à l'écran. */
+  .co-print-note{ display:block !important; margin:0 0 12px; font-size:12px; }
+}
+.co-print-note{ display:none; }
+
+/* La barre de défilement des grands tableaux, pour les moteurs WebKit (Safari,
+   Chrome) qui ignorent scrollbar-width/-color. Même intention : la rendre
+   visible en permanence plutôt que de la laisser apparaître au geste. */
+.co-matrix::-webkit-scrollbar{ width:11px; height:11px; }
+.co-matrix::-webkit-scrollbar-track{ background:transparent; }
+.co-matrix::-webkit-scrollbar-thumb{
+  background:var(--old-champagne); border-radius:99px;
+  border:3px solid var(--card);        /* le liseré affine le pouce sans le rétrécir */
+}
+.co-matrix::-webkit-scrollbar-thumb:hover{ background:var(--accent); }
+.co-matrix::-webkit-scrollbar-corner{ background:transparent; }

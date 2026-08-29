@@ -1055,6 +1055,16 @@ grant execute on function ensure_acces_personnel(text, text) to authenticated;
 -- ----------------------------------------------------------------------------
 
 -- 1. Sa propre fiche (dispo-titulaire.html, mes-infos.html, mes-remplacants.html).
+--
+-- Le drop précède le create parce qu'une strate plus bas dans ce fichier
+-- redéfinit cette fonction avec une colonne de plus (reponses_prod). Or
+-- « create or replace » refuse de changer le type de retour d'une fonction
+-- existante : au premier passage tout allait bien, mais le SECOND échouait ici
+-- même — le fichier cessait donc d'être rejouable, contrairement à ce qu'il
+-- promet. Le défaut ne se voyait qu'en relançant les migrations sur une base
+-- déjà à jour, ce qui est précisément le geste que la documentation invite à
+-- faire sans crainte.
+drop function if exists get_own_person_by_token(text);
 create or replace function get_own_person_by_token(p_token text)
 returns table(
   id text, prenom text, nom text, instrument text, pupitre text, poste text, pole text,
@@ -4373,3 +4383,487 @@ as $$
     from techniciens t join p on p.person_id = t.id and p.person_type = 'technicien';
 $$;
 grant execute on function get_own_person_by_token(text) to anon, authenticated;
+
+-- ============================================================================
+-- Les dates de projet, enfin interrogeables
+-- ============================================================================
+-- Le calendrier vit dans un seul document jsonb par projet : tournees.dates.
+-- C'était le bon choix tant que l'application le lisait toujours en bloc, et
+-- ça l'est resté — mais cela rendait impossible la moindre question simple.
+-- « Quelles dates n'ont personne d'affecté ? », « lesquelles sont annulées ? »,
+-- « combien de dates le trimestre qui vient ? » : autant de balayages en
+-- JavaScript, refaits par chaque page, chacune à sa façon.
+--
+-- Une vue déplie ce tableau en lignes. Rien ne bouge : pas une donnée déplacée,
+-- pas une écriture changée, et `create or replace` la rend rejouable. C'est
+-- volontairement le petit geste avant le grand : il rend déjà la moitié du
+-- service qu'on attendrait d'une normalisation, et permet d'éprouver ce
+-- qu'elle apporterait avant de s'y engager.
+--
+-- Ce qu'elle ne fait PAS, et qu'il faut dire : une vue sur du jsonb ne
+-- s'indexe pas. Chaque lecture déroule le tableau de chaque projet. C'est un
+-- gain de justesse et de non-duplication, pas de vitesse. Sur une centaine de
+-- projets, personne ne le verra ; sur dix mille, il faudra la table.
+
+create or replace view dates_projet as
+select t.id                                        as tournee_id,
+       t.nom                                       as tournee_nom,
+       coalesce(t.type, 'tournee')                 as type,
+       e ->> 'id'                                  as date_id,
+       (e ->> 'date')::date                        as jour,
+       coalesce(e ->> 'ville', '')                 as ville,
+       coalesce(e ->> 'lieu', '')                  as lieu,
+       coalesce(e ->> 'statut', '')                as statut,
+       coalesce(e -> 'musiciensAssignes', '[]'::jsonb)   as musiciens_assignes,
+       coalesce(e -> 'techniciensAssignes', '[]'::jsonb) as techniciens_assignes,
+       coalesce(jsonb_array_length(e -> 'musiciensAssignes'), 0)
+         + coalesce(jsonb_array_length(e -> 'techniciensAssignes'), 0) as nb_affectes
+  from tournees t,
+       jsonb_array_elements(coalesce(t.dates, '[]'::jsonb)) e
+ where coalesce(e ->> 'date', '') <> ''
+   -- Une chaîne qui n'est pas une date ferait échouer la vue entière, donc
+   -- toute page qui la lit. Le format est écrit par l'app et toujours ISO,
+   -- mais une vue ne doit pas dépendre de la bonne conduite de son producteur.
+   and (e ->> 'date') ~ '^\d{4}-\d{2}-\d{2}$';
+
+comment on view dates_projet is
+  'Le tableau jsonb tournees.dates, déplié en lignes. Lecture seule, aucune donnée dupliquée.';
+
+-- Les dates auxquelles on peut encore répondre : à venir, et pas annulées.
+-- C'est la définition qu'applique déjà l'application (CurieuxDispos.
+-- datesRepondables dans assets/dispo-statuts.js) ; elle existe ici pour que le
+-- SQL et le JavaScript ne puissent pas en avoir deux versions.
+create or replace view dates_actives as
+select * from dates_projet
+ where jour >= current_date
+   and statut <> 'annulee';
+
+comment on view dates_actives is
+  'Les dates de dates_projet encore ouvertes : à venir et non annulées.';
+
+grant select on dates_projet, dates_actives to anon, authenticated;
+
+-- ============================================================================
+-- La disponibilité devient une ligne, et non plus une clé dans une map
+-- ============================================================================
+-- Jusqu'ici, les disponibilités d'une personne tiennent dans trois documents
+-- jsonb portés par sa fiche : `disponibilites` (date → statut),
+-- `disponibilites_commentaires` (date → ce qu'elle a écrit) et `reponses_prod`
+-- (date → ce qu'on lui a répondu). Toute modification réécrit le document
+-- entier. Deux conséquences, l'une gênante, l'autre grave :
+--
+--   · on ne peut rien demander à la base — « qui est libre le 15 mars ? » est
+--     un balayage de toutes les fiches, refait en JavaScript à chaque rendu ;
+--   · deux personnes qui écrivent en même temps s'écrasent en silence. Un·e
+--     titulaire répond depuis son téléphone pendant qu'on corrige sa ligne :
+--     chacun renvoie la map lue plus tôt, et les cases de l'autre disparaissent
+--     sans la moindre erreur. Le temps réel resynchronise l'écran, pas la
+--     donnée perdue.
+--
+-- La bascule se fait en trois temps, dont seuls les deux premiers sont ici :
+--   1. la table existe et se remplit de ce qui est déjà là (cette strate) ;
+--   2. elle suit automatiquement les écritures des maps, par trigger — donc
+--      sans toucher une ligne de l'application, qui continue comme avant ;
+--   3. plus tard, les lectures passent à la table, puis les écritures, et les
+--      maps ne sont plus qu'un miroir qu'on finit par retirer.
+--
+-- Tant que l'étape 3 n'est pas faite, la vérité reste dans les maps : la table
+-- est une projection. C'est ce qui rend cette strate sûre — si elle se révélait
+-- fausse, on la vide et on la reconstruit, sans avoir rien perdu.
+
+create table if not exists disponibilites (
+  personne_type text not null check (personne_type in ('musicien', 'technicien')),
+  personne_id   text not null,
+  jour          date not null,
+  -- Les quatre états de l'application, moins « non renseigné » : ici, l'absence
+  -- de ligne EST le non-renseigné. C'est tout l'intérêt d'une table — une
+  -- réponse qui n'existe pas n'occupe rien, là où la map devait porter la clé.
+  statut        text not null check (statut in ('dispo', 'indispo', 'incertain')),
+  precision     text not null default '',
+  reponse_prod  jsonb,
+  maj_le        timestamptz not null default now(),
+  primary key (personne_type, personne_id, jour)
+);
+
+comment on table disponibilites is
+  'Projection des maps jsonb portées par les fiches (voir le trigger plus bas). '
+  'La vérité reste dans musiciens.disponibilites / techniciens.disponibilites '
+  'tant que la bascule des écritures n''est pas faite.';
+
+-- « Qui est libre le 15 mars ? » — la question qui n'avait pas de réponse.
+create index if not exists idx_dispos_jour on disponibilites(jour);
+-- « Où en est cette personne ? », en une lecture au lieu d'un document entier.
+create index if not exists idx_dispos_personne on disponibilites(personne_type, personne_id);
+
+alter table disponibilites enable row level security;
+drop policy if exists dispos_lecture on disponibilites;
+create policy dispos_lecture on disponibilites for select to anon, authenticated using (true);
+-- Pas de policy d'écriture : rien ni personne n'écrit ici directement. Le
+-- trigger, lui, s'exécute avec les droits du propriétaire et n'est pas soumis
+-- à RLS. Une table dont personne ne peut fausser le contenu à la main est
+-- exactement ce qu'il faut pour une projection.
+
+/* Reprojeter les trois maps d'une personne vers des lignes.
+ *
+ * On supprime puis on réinsère : c'est la seule façon de refléter une clé
+ * RETIRÉE de la map — un statut remis à « non renseigné » disparaît du
+ * document, et un simple upsert laisserait la ligne derrière lui, à raconter
+ * une réponse que la personne a effacée.
+ *
+ * Les clés qui ne sont pas des dates ou dont le statut est inconnu sont
+ * ignorées plutôt que de faire échouer l'écriture de la fiche : cette
+ * projection ne doit jamais empêcher quelqu'un d'enregistrer sa réponse.
+ */
+create or replace function projeter_disponibilites(
+  p_type text, p_id text, p_dispos jsonb, p_commentaires jsonb, p_reponses jsonb
+) returns void
+language plpgsql
+as $$
+begin
+  delete from disponibilites where personne_type = p_type and personne_id = p_id;
+
+  insert into disponibilites (personne_type, personne_id, jour, statut, precision, reponse_prod)
+  select p_type, p_id, e.key::date, e.value,
+         coalesce(p_commentaires ->> e.key, ''),
+         p_reponses -> e.key
+    from jsonb_each_text(coalesce(p_dispos, '{}'::jsonb)) as e(key, value)
+   where e.key ~ '^\d{4}-\d{2}-\d{2}$'
+     and e.value in ('dispo', 'indispo', 'incertain');
+end;
+$$;
+
+create or replace function trg_projeter_dispos_musicien() returns trigger
+language plpgsql
+as $$
+begin
+  perform projeter_disponibilites('musicien', new.id,
+    new.disponibilites, new.disponibilites_commentaires, new.reponses_prod);
+  return new;
+end;
+$$;
+
+create or replace function trg_projeter_dispos_technicien() returns trigger
+language plpgsql
+as $$
+begin
+  perform projeter_disponibilites('technicien', new.id,
+    new.disponibilites, new.disponibilites_commentaires, new.reponses_prod);
+  return new;
+end;
+$$;
+
+-- On ne reprojette que si l'un des trois documents a bougé : changer un numéro
+-- de téléphone ne doit pas réécrire quatre-vingts lignes.
+drop trigger if exists trg_dispos_musiciens on musiciens;
+create trigger trg_dispos_musiciens
+  after insert or update of disponibilites, disponibilites_commentaires, reponses_prod
+  on musiciens for each row execute function trg_projeter_dispos_musicien();
+
+drop trigger if exists trg_dispos_techniciens on techniciens;
+create trigger trg_dispos_techniciens
+  after insert or update of disponibilites, disponibilites_commentaires, reponses_prod
+  on techniciens for each row execute function trg_projeter_dispos_technicien();
+
+-- Une personne supprimée n'a plus de disponibilités. Sans cela, la table
+-- garderait des lignes orphelines — le genre de reste qui fausse un compte des
+-- mois plus tard, sans que personne comprenne pourquoi.
+create or replace function trg_purger_dispos_personne() returns trigger
+language plpgsql
+as $$
+begin
+  delete from disponibilites
+   where personne_type = tg_argv[0] and personne_id = old.id;
+  return old;
+end;
+$$;
+
+drop trigger if exists trg_dispos_purge_musiciens on musiciens;
+create trigger trg_dispos_purge_musiciens
+  after delete on musiciens for each row
+  execute function trg_purger_dispos_personne('musicien');
+
+drop trigger if exists trg_dispos_purge_techniciens on techniciens;
+create trigger trg_dispos_purge_techniciens
+  after delete on techniciens for each row
+  execute function trg_purger_dispos_personne('technicien');
+
+-- Remplissage initial, rejouable : on reprojette tout le monde. Sur un
+-- répertoire d'une centaine de personnes, c'est instantané, et cela remet la
+-- table d'aplomb si elle avait dérivé.
+do $$
+declare r record;
+begin
+  for r in select id, disponibilites, disponibilites_commentaires, reponses_prod from musiciens loop
+    perform projeter_disponibilites('musicien', r.id, r.disponibilites, r.disponibilites_commentaires, r.reponses_prod);
+  end loop;
+  for r in select id, disponibilites, disponibilites_commentaires, reponses_prod from techniciens loop
+    perform projeter_disponibilites('technicien', r.id, r.disponibilites, r.disponibilites_commentaires, r.reponses_prod);
+  end loop;
+end $$;
+
+-- ============================================================================
+-- Les comptes, calculés là où sont les données
+-- ============================================================================
+-- « Combien de personnes n'ont pas fini de répondre ? » est la question la plus
+-- posée de l'application, et elle a longtemps eu deux réponses contradictoires
+-- selon la page qui la posait. Le module partagé côté client
+-- (assets/dispo-statuts.js) les a mises d'accord ; ces fonctions font la même
+-- chose côté base, pour les usages où charger cinq tables entières afin
+-- d'afficher sept chiffres n'a pas de sens.
+--
+-- Prudence assumée : poser la même règle deux fois, en JavaScript et en SQL,
+-- c'est risquer de recréer la divergence qu'on vient de résorber. Ces
+-- fonctions ne sont donc PAS branchées dans les pages aujourd'hui. Elles
+-- existent pour l'étape suivante — quand les lectures basculeront sur la
+-- table — et pour répondre depuis le SQL Editor à une question qu'on se pose
+-- une fois. Le jour où une page les appellera, ce sera pour retirer le calcul
+-- correspondant du JavaScript, pas pour le doubler.
+
+/* Les dates qu'une sollicitation couvre réellement.
+ *
+ * « Liste de dates vide = tout le projet » : la sentinelle la plus recopiée de
+ * l'application. Elle était écrite à huit endroits, sept en JavaScript et un
+ * ici ; elle hérite maintenant du filtre « à venir et non annulée » de
+ * dates_actives, au lieu de le redire à sa façon. */
+create or replace function dates_demandees(p_demande_id text)
+returns table(date_id text, jour date)
+language sql
+stable
+as $$
+  select d.date_id, d.jour
+    from dispo_demandes dd
+    join dates_actives d on d.tournee_id = dd.tournee_id
+   where dd.id = p_demande_id
+     and (jsonb_array_length(coalesce(dd.dates, '[]'::jsonb)) = 0
+          or coalesce(dd.dates, '[]'::jsonb) ? d.date_id);
+$$;
+
+/* Où en est une personne sur une sollicitation donnée.
+ *
+ * Renvoie ce que la page affiche : combien de dates lui ont été soumises,
+ * combien elle a renseignées, et s'il reste quelque chose à attendre — un
+ * projet sans date ouverte ne met personne en attente, sinon une tournée
+ * passée gonflerait le compteur jusqu'à la fin des temps. */
+create or replace function avancement_demande(p_demande_id text)
+returns table(total int, repondues int, en_attente boolean)
+language sql
+stable
+as $$
+  with d as (select * from dispo_demandes where id = p_demande_id),
+       attendues as (select * from dates_demandees(p_demande_id)),
+       faites as (
+         select a.jour
+           from attendues a
+           join d on true
+           join disponibilites x
+             on x.personne_type = d.person_type
+            and x.personne_id = d.person_id
+            and x.jour = a.jour
+       )
+  select (select count(*) from attendues)::int,
+         (select count(*) from faites)::int,
+         (select count(*) from attendues) > 0
+           and (select count(*) from attendues) > (select count(*) from faites);
+$$;
+
+/* Qui est libre tel jour — la question qui n'avait pas de réponse.
+ *
+ * On rend aussi les personnes affectées ce jour-là : « libre » ne veut rien
+ * dire si l'on ignore qui joue déjà. */
+create or replace function personnes_du_jour(p_jour date)
+returns table(personne_type text, personne_id text, statut text, affectee boolean)
+language sql
+stable
+as $$
+  select x.personne_type, x.personne_id, x.statut,
+         exists (
+           select 1 from dates_projet dp
+            where dp.jour = p_jour
+              and dp.statut <> 'annulee'
+              and (case when x.personne_type = 'musicien'
+                        then dp.musiciens_assignes else dp.techniciens_assignes end)
+                  ? x.personne_id
+         )
+    from disponibilites x
+   where x.jour = p_jour;
+$$;
+
+grant execute on function dates_demandees(text), avancement_demande(text),
+                          personnes_du_jour(date) to anon, authenticated;
+
+-- ============================================================================
+-- Les saisons : archiver en choisissant sa fenêtre, pas en déménageant
+-- ============================================================================
+-- La case « afficher les dates passées » est la bonne intention, mais elle ne
+-- borne rien : au fil des années, le tableau s'allonge et il n'existe aucun
+-- mot pour dire « la saison dernière ». Maintenant que les disponibilités sont
+-- des lignes, archiver n'est plus un déménagement de données mais un choix de
+-- fenêtre — rien à déplacer, donc rien à casser.
+--
+-- Deux lignes par an : la table restera minuscule, ce qui est le bon
+-- dimensionnement. Ce qu'il faut accepter en revanche, c'est qu'aucun découpage
+-- ne satisfera tout le monde — un projet à cheval sur l'été appartiendra à la
+-- saison où il commence, et c'est un choix, pas une vérité.
+
+create table if not exists saisons (
+  id      text primary key,
+  libelle text not null,
+  debut   date not null,
+  fin     date not null,
+  check (fin > debut)
+);
+
+alter table saisons enable row level security;
+drop policy if exists saisons_lecture on saisons;
+create policy saisons_lecture on saisons for select to anon, authenticated using (true);
+drop policy if exists saisons_ecriture on saisons;
+create policy saisons_ecriture on saisons for all to authenticated using (true) with check (true);
+
+comment on table saisons is
+  'Bornes nommées du calendrier. Sert à filtrer, jamais à déplacer des données.';
+
+-- La saison d'un jour donné. Sans borne connue, on ne devine pas : mieux vaut
+-- rendre null et laisser la page dire « hors saison » que d'inventer un
+-- découpage que personne n'a décidé.
+create or replace function saison_de(p_jour date)
+returns text
+language sql
+stable
+as $$
+  select id from saisons where p_jour between debut and fin order by debut limit 1;
+$$;
+
+grant execute on function saison_de(date) to anon, authenticated;
+
+-- ============================================================================
+-- Ce qu'une personne laisse derrière elle, et l'histoire des relances
+-- ============================================================================
+-- Deux gestes du même chapitre. Le troisième — séparer l'identité (le lien
+-- d'une personne) du droit (la sollicitation sur tel projet, telles dates) —
+-- n'est PAS ici, et volontairement : réécrire le routage des jetons
+-- invaliderait des liens déjà envoyés, qui vivent dans des conversations
+-- WhatsApp et des courriels. Cela se décide, s'annonce, et demande d'accepter
+-- les deux formes pendant au moins une saison. Ce n'est pas un geste qu'on
+-- glisse dans une strate de migration.
+
+-- ----------------------------------------------------------------------------
+-- 1. Fermer la cascade de suppression
+-- ----------------------------------------------------------------------------
+-- Retirer quelqu'un supprimait sa fiche, ses infos sociales et ses
+-- sollicitations. Restaient : son JETON PERMANENT, toujours valide — donc un
+-- lien qui ouvre encore une page de dispos au nom de quelqu'un qui n'est plus
+-- là — sa liste de remplaçant·es, les mentions d'elle dans les listes des
+-- autres, et ses affectations dans le calendrier, qui continuaient de la
+-- compter parmi les personnes prévues.
+--
+-- La cascade vit ici plutôt que dans l'application : côté client, elle
+-- s'exécutait en plusieurs requêtes parallèles dont certaines pouvaient
+-- échouer sans que les autres soient annulées. En base, c'est une seule
+-- transaction — tout part, ou rien ne part.
+
+create or replace function trg_effacer_traces_personne() returns trigger
+language plpgsql
+as $$
+declare
+  v_type text := tg_argv[0];
+begin
+  -- Le lien personnel : c'est le plus important. Un jeton qui survit à sa
+  -- personne est une porte ouverte sur des données qui ne la concernent plus.
+  delete from acces_personnels where person_id = old.id and person_type = v_type;
+  delete from dispo_demandes    where person_id = old.id and person_type = v_type;
+  delete from infos_sociales    where id = old.id;
+  delete from remplacant_prefs  where id = old.id and coalesce(person_type, 'musicien') = v_type;
+
+  -- Les mentions d'elle dans les listes des AUTRES : sans quoi son nom reste
+  -- proposé au moment de chercher un·e remplaçant·e.
+  update remplacant_prefs p
+     set items = (
+       select coalesce(jsonb_agg(x), '[]'::jsonb)
+         from jsonb_array_elements(coalesce(p.items, '[]'::jsonb)) x
+        where coalesce(x ->> 'personId', '') <> old.id
+     )
+   where coalesce(p.person_type, 'musicien') = v_type
+     and coalesce(p.items, '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('personId', old.id));
+
+  -- Les affectations dans le calendrier. Une personne supprimée qui reste
+  -- « affectée » fausse les comptes de couverture des dates : on croit la
+  -- soirée pourvue.
+  update tournees t
+     set dates = (
+       select coalesce(jsonb_agg(
+         case when v_type = 'musicien'
+           then jsonb_set(d, '{musiciensAssignes}',
+                  coalesce((select jsonb_agg(a) from jsonb_array_elements_text(coalesce(d -> 'musiciensAssignes', '[]'::jsonb)) a
+                             where a <> old.id), '[]'::jsonb))
+           else jsonb_set(d, '{techniciensAssignes}',
+                  coalesce((select jsonb_agg(a) from jsonb_array_elements_text(coalesce(d -> 'techniciensAssignes', '[]'::jsonb)) a
+                             where a <> old.id), '[]'::jsonb))
+         end order by ord), '[]'::jsonb)
+         from jsonb_array_elements(coalesce(t.dates, '[]'::jsonb)) with ordinality as e(d, ord)
+     )
+   where coalesce(t.dates, '[]'::jsonb)::text like '%' || old.id || '%';
+
+  return old;
+end;
+$$;
+
+drop trigger if exists trg_traces_musiciens on musiciens;
+create trigger trg_traces_musiciens
+  before delete on musiciens for each row
+  execute function trg_effacer_traces_personne('musicien');
+
+drop trigger if exists trg_traces_techniciens on techniciens;
+create trigger trg_traces_techniciens
+  before delete on techniciens for each row
+  execute function trg_effacer_traces_personne('technicien');
+
+-- ----------------------------------------------------------------------------
+-- 2. L'histoire des relances, au lieu d'une seule date écrasée
+-- ----------------------------------------------------------------------------
+-- dispo_demandes.last_reminder_at ne retient que la DERNIÈRE relance : on ne
+-- peut donc pas savoir si l'on a écrit une fois ou cinq, ni à quel rythme.
+-- « Je lui ai déjà écrit trois fois » est pourtant l'information qui décide
+-- s'il faut relancer encore ou décrocher son téléphone.
+--
+-- La colonne existante reste : les pages la lisent, et cette table ne la
+-- remplace pas — elle l'accompagne. C'est ce qui permet de la poser sans rien
+-- changer à ce qui fonctionne.
+
+create table if not exists relances (
+  id          bigserial primary key,
+  demande_id  text not null,
+  envoyee_le  timestamptz not null default now(),
+  canal       text not null default 'inconnu'
+                check (canal in ('whatsapp', 'email', 'presse-papiers', 'a-la-main', 'inconnu')),
+  par         text not null default ''
+);
+
+create index if not exists idx_relances_demande on relances(demande_id, envoyee_le desc);
+
+alter table relances enable row level security;
+drop policy if exists relances_admin on relances;
+create policy relances_admin on relances for all to authenticated using (true) with check (true);
+
+comment on table relances is
+  'Une ligne par message de relance envoyé. dispo_demandes.last_reminder_at '
+  'reste la dernière en date ; cette table garde le reste.';
+
+-- Noter une relance en écrivant les deux : la ligne d'histoire, et la colonne
+-- que les pages lisent déjà. Un seul appel, pas deux écritures à tenir
+-- d'accord côté client.
+create or replace function noter_relance(p_demande_id text, p_canal text default 'inconnu', p_par text default '')
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into relances(demande_id, canal, par)
+  values (p_demande_id,
+          case when p_canal in ('whatsapp','email','presse-papiers','a-la-main') then p_canal else 'inconnu' end,
+          coalesce(p_par, ''));
+  update dispo_demandes set last_reminder_at = now() where id = p_demande_id;
+end;
+$$;
+
+grant execute on function noter_relance(text, text, text) to authenticated;

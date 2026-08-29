@@ -10,6 +10,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/dispo-statuts.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
@@ -142,6 +143,32 @@
     border-color:var(--border);
   }
 
+  /* La rangée de totaux, sous le tableau. Le gros chiffre est le nombre
+     d'affecté·es, le petit celui des personnes encore disponibles. Chiffres
+     tabulaires : sans cela, « 11 » et « 44 » n'ont pas la même largeur et la
+     colonne se met à danser d'une date à l'autre. */
+  /* Collante en bas : posée en fin de tableau, elle n'aurait servi qu'à qui
+     défile jusqu'au dernier nom — c'est-à-dire jamais, quand on cherche
+     justement à savoir si une date est couverte. Sous l'en-tête dans l'ordre
+     des plans (z-index 4 contre 5), qui reste prioritaire. */
+  .co-matrix-total{position:sticky; bottom:0; z-index:4; border-top:2px solid var(--border);}
+  .co-matrix-total .co-matrix-name{z-index:5;}
+  .co-matrix-total .co-matrix-name small{display:block; font-size:9.5px; font-weight:600; color:var(--muted);}
+  .total-case{display:flex; align-items:baseline; gap:4px; font-variant-numeric:tabular-nums;}
+  .total-case b{font-size:13px; font-weight:800; color:var(--text);}
+  .total-case small{font-size:10.5px; font-weight:700; color:var(--accent-dark);}
+  /* Sur téléphone, la matrice se replie en liste par personne : une rangée de
+     totaux y deviendrait une « personne » nommée « Par date », ce qui n'a pas
+     de sens. On la retire, comme l'en-tête l'est déjà. */
+  @media (max-width:760px){ .co-matrix-total{display:none;} }
+
+  /* Une date annulée qu'on a choisi de revoir : barrée et estompée, comme sur
+     la page des tournées. Elle reste cliquable — on peut vouloir corriger une
+     dispo sur un concert annulé la veille — mais elle ne se confond plus avec
+     une date qui attend encore une réponse. */
+  .co-matrix-date.date-annulee{text-decoration:line-through; opacity:.55;}
+  .co-matrix-cell.date-annulee{opacity:.5;}
+
   /* Une précision laissée par la personne (« ok mais je pars à 22h ») : point
      orange au coin de la case, texte complet au survol. */
   .m-cell{position:relative;}
@@ -208,7 +235,7 @@
   #noteBulle i{font-style:italic; color:var(--text);}
   /* La réponse de la production, sous la précision, dans la même bulle. */
   #noteBulle u{display:block; text-decoration:none; margin-top:6px; padding-top:5px;
-    border-top:1px dashed var(--border); color:var(--prune); font-weight:600;}
+    border-top:1px dashed var(--border); color:var(--prune-ink); font-weight:600;}
   #noteBulle u small{display:block; font-weight:400; font-size:10.5px; color:var(--muted); margin-top:2px;}
   @media (max-width:760px){
     /* Sur téléphone il n'y a pas de survol et le point de 24 px est une cible
@@ -224,7 +251,7 @@
     /* En liste, la case devient une ligne pleine largeur et la pastille se cale
        à droite : le centre ne dit plus rien, on repart du bord droit. */
     .point-note{left:auto; right:6px; top:4px; transform:none;}
-    .reponse-repliee{display:block; margin-top:2px; color:var(--prune); font-weight:600;}
+    .reponse-repliee{display:block; margin-top:2px; color:var(--prune-ink); font-weight:600;}
     .co-matrix-cell.porte-note{flex-wrap:wrap;}
   }
 
@@ -243,7 +270,7 @@
     background:var(--card); border:1px solid var(--border); border-left:3px solid var(--secondary);
     border-radius:12px; box-shadow:0 14px 34px rgba(20,15,10,.24); padding:11px 13px;
   }
-  .reponse-panneau.est-repondue{border-left-color:var(--prune);}
+  .reponse-panneau.est-repondue{border-left-color:var(--prune-ink);}
   .reponse-panneau b{display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
     color:var(--secondary); font-weight:800; margin-bottom:3px;}
   .reponse-panneau i{display:block; font-style:italic; line-height:1.45; font-size:12.5px;}
@@ -252,7 +279,7 @@
     border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text);
     font:inherit; font-size:12.5px; line-height:1.4;
   }
-  .reponse-panneau textarea:focus{outline:none; border-color:var(--prune); box-shadow:inset 0 0 0 1px var(--prune);}
+  .reponse-panneau textarea:focus{outline:none; border-color:var(--prune-ink); box-shadow:inset 0 0 0 1px var(--prune-ink);}
   .reponse-actions{display:flex; align-items:center; gap:7px; margin-top:8px; flex-wrap:wrap;}
   .reponse-actions .co-btn{padding:5px 11px; font-size:12px;}
   .reponse-signature{font-size:11px; color:var(--muted); margin-left:auto;}
@@ -280,10 +307,9 @@
   }
   .co-matrix-cell.visee .m-cell{animation:viseBat .7s ease 2;}
 
-  .m-cell.assigned{background:var(--ok); border-color:var(--ok); color:#fff;}
-  .m-cell.dispo{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark); font-weight:900;}
-  .m-cell.indispo{background:var(--ko); border-color:var(--ko); color:#fff;}
-  .m-cell.incertain{background:var(--maybe); border-color:var(--maybe); color:#fff;}
+  /* Les quatre états de case sont ceux du socle (.co-matrix-btn dans base.css) :
+     on ne les redéclare plus ici, sous peine de les voir recommencer à diverger,
+     et leur encre y suit le thème (--sur-statut). */
   .dashboard-strip{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; margin-bottom:22px;}
   /* Les sept règles .kpi-* qui vivaient ici sont parties : les chiffres clés
      sont désormais des étiquettes .co-stat de la charte, elles ne
@@ -341,6 +367,25 @@
   .chip-projet em{font-style:normal; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
   .chip-projet:hover{border-color:var(--accent); color:var(--accent);}
   .chip-projet.off{opacity:.45; border-style:dashed; text-decoration:line-through; text-decoration-thickness:1px;}
+  /* Ce que la fenêtre de période laisse dehors. Une coupe silencieuse ferait
+     croire que la tournée n'a que quatre dates. */
+  .hors-fenetre{font-size:12px; color:var(--secondary); font-weight:700;}
+
+  /* Les bandes de pupitre. Elles n'ont pas de cases : la rangée s'arrête à la
+     colonne des noms, et la bande de couleur court sur toute la largeur pour
+     séparer nettement deux familles d'instruments. */
+  .co-matrix-row.bande-groupe{background:var(--row-alt); border-bottom:1px solid var(--border);}
+  .co-matrix-row.bande-groupe .co-matrix-name{background:var(--row-alt); padding:4px 10px;}
+  .bande-bouton{
+    display:flex; align-items:center; gap:6px; width:100%; text-align:left;
+    background:none; border:none; padding:2px 0; cursor:pointer; font-family:inherit;
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent-dark);
+  }
+  .bande-bouton:hover{color:var(--accent);}
+  .bande-bouton .chevron{font-size:9px;}
+  .bande-bouton small{font-weight:700; color:var(--muted); letter-spacing:0;}
+  @media (max-width:760px){ .co-matrix-row.bande-groupe{display:none;} }
 
   /* Bandeau de projets, au-dessus des dates : la couleur seule ne dit pas de
      quelle tournée il s'agit, le nom écrit en toutes lettres si. Les deux
@@ -392,6 +437,65 @@
   .champ-recherche button:hover{color:var(--accent); background:var(--accent-tint);}
   .recherche-etat{font-size:12px; color:var(--secondary); font-weight:700;}
 
+  /* La fenêtre d'import de réponses (venue de la Grille interne). */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(20,15,10,.5);
+    align-items:flex-start; justify-content:center; padding:32px 16px; z-index:60; overflow-y:auto;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--card); border-radius:14px; padding:24px; max-width:820px; width:100%;
+    box-shadow:0 20px 60px rgba(0,0,0,.25);
+  }
+  .modal h2{font-size:17px; margin:0 0 4px;}
+  .modal .modal-sub{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+  .role-toggle{display:inline-flex; border-radius:20px; overflow:hidden; border:1px solid var(--border); margin-bottom:12px;}
+  .role-opt{
+    padding:7px 14px; font-size:12.5px; font-weight:700; border:none; cursor:pointer; font-family:inherit;
+    background:var(--card); color:var(--muted); border-right:1px solid var(--border);
+  }
+  .role-opt:last-child{border-right:none;}
+  .role-opt.active{background:var(--accent-tint); color:var(--accent-dark);}
+  textarea#importAvailTextarea{
+    width:100%; min-height:130px; font-size:12px; font-family:ui-monospace,monospace;
+    padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text);
+  }
+  .import-summary{font-size:12.5px; color:var(--muted); margin:10px 0;}
+  .import-summary strong{color:var(--text);}
+  .import-preview-wrap{overflow-x:auto; max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; margin-top:8px;}
+  table.import-preview-table{border-collapse:collapse; font-size:11.5px; min-width:100%;}
+  table.import-preview-table th, table.import-preview-table td{padding:5px 8px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  table.import-preview-table th{position:sticky; top:0; background:var(--card); color:var(--muted); text-transform:uppercase; font-size:9.5px; text-align:left;}
+  .import-name.unmatched{color:var(--ko); font-style:italic;}
+  .import-dot{display:inline-block; width:16px; height:16px; border-radius:4px; text-align:center; line-height:16px; font-size:10px; font-weight:800; color:#fff;}
+  .import-dot.dispo{background:var(--accent-tint); color:var(--accent-dark);}
+  .import-dot.indispo{background:var(--ko);}
+  .import-dot.incertain{background:var(--maybe);}
+  .import-dot.none{background:var(--border); color:var(--muted);}
+
+  /* Le panneau d'une date dépliée. */
+  .co-matrix-date[data-ouvrir-date]{cursor:pointer;}
+  .co-matrix-date[data-ouvrir-date]:hover{filter:brightness(.95); text-decoration:underline;}
+  .co-matrix-date[data-ouvrir-date]:focus-visible{outline:2px solid var(--text); outline-offset:-2px;}
+  .date-lot{margin-bottom:18px;}
+  .date-lot h3{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 8px;}
+  .date-groupe{margin-bottom:12px;}
+  .date-groupe h4{display:flex; align-items:center; gap:7px; font-size:12.5px; margin:0 0 5px;}
+  .date-groupe h4 small{color:var(--muted); font-weight:700;}
+  .date-groupe ul{list-style:none; margin:0; padding:0; display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:2px 12px;}
+  .date-groupe li{font-size:13px; display:flex; gap:6px; align-items:baseline;}
+  .date-groupe li span{font-size:11px; color:var(--muted);}
+  /* La pastille reprend l'aplat de l'état, pour que le panneau et le tableau
+     se lisent avec le même code — c'est tout l'intérêt d'avoir un vocabulaire
+     partagé plutôt que quatre déclarations parallèles. */
+  .pastille-etat{width:11px; height:11px; border-radius:3px; flex-shrink:0; border:1px solid var(--border);}
+  .pastille-etat.assigned{background:var(--ok); border-color:var(--ok);}
+  .pastille-etat.dispo{background:var(--accent-tint); border-color:var(--accent-dark);}
+  .pastille-etat.indispo{background:var(--ko); border-color:var(--ko);}
+  .pastille-etat.incertain{background:var(--maybe); border-color:var(--maybe);}
+
   .dispo-filter-row{display:flex; gap:8px; align-items:center; margin:-2px 0 10px; flex-wrap:wrap;}
   .dispo-filter-row label{font-size:12px; color:var(--muted); font-weight:600;}
   .dispo-filter-row select{
@@ -410,6 +514,13 @@
     </div>
   </div>
 
+  <!-- Ne se voit qu'à l'impression : quelqu'un qui fait Ctrl+P sur un tableau
+       de quatre-vingts colonnes doit l'apprendre avant de sortir la feuille,
+       pas après. -->
+  <p class="co-print-note">Pour un tirage complet et paginé, utilisez le bouton
+     « Exporter en PDF » de cette page : il découpe le calendrier en pages A3 et
+     répète la colonne des noms.</p>
+
   <div class="dashboard-strip co-stats-charte" id="dashboardStrip"></div>
 
   <div class="legend">
@@ -421,6 +532,20 @@
     <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:var(--muted);">
       <input type="checkbox" id="showPastDates"> Afficher aussi les dates passées
     </label>
+    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:var(--muted);"
+           title="Une date annulée n'attend plus de réponse. Elle reste consultable, barrée.">
+      <input type="checkbox" id="showDatesAnnulees"> Afficher les dates annulées
+    </label>
+    <label style="display:flex; align-items:center; gap:6px; font-weight:600; color:var(--muted);"
+           title="Resserrer la vue sur les semaines qui viennent, quand la saison entière fait trop de colonnes. Par défaut, tout est affiché.">
+      Période :
+      <select class="co-select" id="fenetrePeriode" style="width:auto; padding:5px 8px; font-size:12px;">
+        <option value="0">Toute la saison</option>
+        <option value="3">3 mois à venir</option>
+        <option value="6">6 mois</option>
+        <option value="12">12 mois</option>
+      </select>
+    </label>
     <span class="legend-actions">
       <select class="co-select" id="pdfTourneeSelect">
         <option value="">Tous les projets</option>
@@ -429,6 +554,7 @@
              title="Les précisions laissées sur les dispos, numérotées dans les cases et reprises en clair sous chaque tableau.">
         <input type="checkbox" id="pdfAvecNotes" checked> Avec les précisions
       </label>
+      <button type="button" class="co-btn secondary md" id="importAvailBtn" title="Coller les réponses d'un tableur (Numbers, Excel, Sheets) ou d'un formulaire"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="10.5" width="17" height="9" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="6.5" y1="14.5" x2="9.5" y2="14.5" stroke="currentColor" stroke-width="1.3"></line><line x1="14.5" y1="14.5" x2="17.5" y2="14.5" stroke="currentColor" stroke-width="1.3"></line><line x1="12" y1="2.5" x2="12" y2="12.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="7.8,9 12,13.2 16.2,9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Importer des réponses</button>
       <button type="button" class="co-btn primary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
     </span>
   </div>
@@ -472,6 +598,47 @@
   <div id="matrixHolderTechniciens"></div>
 </div>
 
+<!-- Lire le tableau dans l'autre sens. Le tableau croisé répond très bien à
+     « où en est cette personne » et très mal à « où en est cette date » : il
+     faut suivre une colonne de 76 px sur des dizaines de lignes. Ce panneau
+     déplie une colonne — qui joue, qui est libre, qui manque à l'appel — en
+     rangeant tout le monde dans l'ordre de l'orchestre. -->
+<div class="modal-overlay" id="dateOverlay">
+  <div class="modal" style="max-width:680px;">
+    <h2 id="dateTitre">Date</h2>
+    <p class="modal-sub" id="dateSousTitre"></p>
+    <div id="dateCorps"></div>
+    <div class="modal-actions">
+      <button type="button" class="co-btn ghost" id="dateFermerBtn">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- L'import de réponses collées depuis un tableur ou un formulaire. Il vivait
+     sur la Grille interne, qui n'avait plus que lui en propre : il rejoint la
+     page où l'on regarde les dispos, plutôt que de justifier un écran à lui
+     seul. Le reste de cette page écrit fiche par fiche ; l'import fait de même,
+     une personne à la fois. -->
+<div class="modal-overlay" id="importAvailOverlay">
+  <div class="modal">
+    <h2>Importer des réponses de disponibilité</h2>
+    <p class="modal-sub">Colle la plage de cellules copiée depuis Numbers/Excel/Sheets (ligne d'en-têtes incluse, avec les colonnes NOM, PRÉNOM et une colonne par date).</p>
+    <div class="role-toggle">
+      <button type="button" class="role-opt active" data-import-role="musiciens">Musicien·nes</button>
+      <button type="button" class="role-opt" data-import-role="techniciens">Technicien·nes</button>
+    </div>
+    <textarea id="importAvailTextarea" placeholder="Horodateur	Adresse e-mail	NOM	PRÉNOM	INSTRUMENT(S)	22 JANVIER - REPETITIONS	25 JANVIER - REPETITIONS	...&#10;...	...	Rabatti	Roxanne	Violon 1	OUI	OUI	..."></textarea>
+    <div style="margin-top:10px;">
+      <button type="button" class="co-btn secondary sm" id="importAvailAnalyzeBtn">Analyser</button>
+    </div>
+    <div id="importAvailPreview"></div>
+    <div class="modal-actions">
+      <button type="button" class="co-btn ghost" id="importAvailCancelBtn">Annuler</button>
+      <button type="button" class="co-btn primary" id="importAvailConfirmBtn" style="display:none;">Importer</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // Caches mémoire synchronisés avec Supabase (voir annuaire.html pour le pattern).
 // Longtemps en lecture seule, cette page est devenue LA page d'affectation :
@@ -502,6 +669,48 @@ function fmtDateFRShort(iso){
 }
 
 let showPastDates = false;
+// Les dates annulées sont écartées par défaut : elles n'appellent plus de
+// réponse, et occupaient une colonne entière sur un tableau qui en manque.
+let showDatesAnnulees = false;
+
+/* Jusqu'où regarde-t-on ?
+ *
+ * Le tableau tenait parce que la saison était jeune. À quatre-vingts dates, il
+ * fait quatre écrans de large : on ne le lit plus, on le fait défiler. Or on
+ * travaille presque toujours sur les semaines qui viennent — la saison entière
+ * sert à vérifier, pas à décider.
+ *
+ * La fenêtre borne donc le futur, et se retient d'un rechargement à l'autre :
+ * c'est une façon de regarder, pas une donnée d'équipe. Elle n'a rien à voir
+ * avec « afficher les dates passées », qui ouvre l'autre côté du calendrier.
+ */
+// Les pupitres qu'on a repliés. Retenu par le navigateur, comme le reste de ce
+// qui relève de la façon de regarder plutôt que des données de l'équipe.
+const CLE_GROUPES = 'curieuxRecapGroupesReplies';
+let groupesReplies = new Set();
+try{ groupesReplies = new Set(JSON.parse(localStorage.getItem(CLE_GROUPES) || '[]')); }catch(e){}
+function memoriserGroupes(){
+  try{ localStorage.setItem(CLE_GROUPES, JSON.stringify([...groupesReplies])); }catch(e){}
+}
+
+const CLE_FENETRE = 'curieuxRecapFenetre';
+// Toute la saison par défaut : c'est ainsi que l'équipe travaille. Trois mois
+// avaient été choisis pour tenir l'écran, mais borner d'office une vue qu'on
+// ouvre justement pour embrasser l'année, c'est répondre à un problème
+// d'affichage par une amputation du travail. La fenêtre reste offerte à qui
+// veut resserrer un moment ; elle ne s'impose plus.
+let fenetreMois = (()=>{
+  try{ const v = parseInt(localStorage.getItem(CLE_FENETRE), 10); return isFinite(v) ? v : 0; }
+  catch(e){ return 0; }
+})();
+
+// La borne haute de la fenêtre, en date ISO. 0 = pas de borne.
+function finDeFenetre(){
+  if(!fenetreMois) return '';
+  const d = new Date();
+  d.setMonth(d.getMonth() + fenetreMois);
+  return d.toISOString().slice(0, 10);
+}
 
 // Projets masqués (par id). Rangé dans le navigateur : on ne change pas d'avis
 // à chaque rechargement, et ce n'est pas une donnée d'équipe — chacun regarde
@@ -529,11 +738,23 @@ function allDateEntries(assignField, tourneeId){
     });
   });
   entries.sort((a,b)=> a.date.localeCompare(b.date));
+  let sortie = entries;
   if(!showPastDates){
     const today = new Date().toISOString().slice(0, 10);
-    return entries.filter(e=> e.date >= today);
+    sortie = sortie.filter(e=> e.date >= today);
   }
-  return entries;
+  // Une date annulée n'attend plus de réponse de personne. Elle gardait
+  // pourtant une colonne pleine et cliquable : on pouvait y marquer une dispo,
+  // et même y affecter quelqu'un. Le tableau de bord de cette même page
+  // l'écartait déjà de ses trois comptes — la colonne disait donc autre chose
+  // que les chiffres au-dessus d'elle. On peut la rouvrir d'une case à cocher,
+  // parce qu'un concert annulé la semaine dernière se relit encore.
+  if(!showDatesAnnulees) sortie = sortie.filter(e=> e.statut !== 'annulee');
+  // La fenêtre de période ne borne que le futur : le passé, lui, s'ouvre ou se
+  // ferme par sa propre case.
+  const fin = finDeFenetre();
+  if(fin) sortie = sortie.filter(e=> e.date <= fin);
+  return sortie;
 }
 
 // Titulaires en priorité (avant les remplaçant·es), alphabétique au sein de chaque
@@ -670,32 +891,62 @@ function idsSollicites(ptype){
     .map(d=> d.personId));
 }
 
-// Le noyau d'abord, les sollicité·es ensuite, alphabétique dans chaque groupe.
-function compareNoyauPuisSollicites(a, b){
-  const rang = m => (m.statutPoste === 'remplacant' ? 1 : 0);
-  const ra = rang(a), rb = rang(b);
-  if(ra !== rb) return ra - rb;
-  return fullName(a).localeCompare(fullName(b));
-}
 
+/* Le noyau d'abord, puis l'ordre de l'orchestre — pas l'alphabet.
+ *
+ * L'annuaire classait déjà par pupitre en l'écrivant noir sur blanc, et cette
+ * page triait par nom : on y cherchait « les cordes » en parcourant quarante
+ * lignes où les altos croisaient les trombones. Le comparateur est maintenant
+ * celui de ui-helpers.js, partagé avec l'annuaire. */
 function compareByStatutThenName(a, b){
   const rank = m => (m.statutPoste === 'remplacant' ? 1 : 0);
   const ra = rank(a), rb = rank(b);
   if(ra !== rb) return ra - rb;
-  return fullName(a).localeCompare(fullName(b));
+  return curieuxComparePupitrePuisNom(a, b);
 }
 
 // Les puces de projets. Comptent les dates de la fenêtre en cours (à venir, ou
 // tout l'historique si la case est cochée) : c'est le nombre de colonnes que le
 // projet coûte, donc la seule information qui aide à décider de le masquer.
+// Le raccourci « tout afficher » de la note de fenêtre : il ouvre la période
+// en grand, et remet le sélecteur d'accord avec ce qu'on voit.
+function brancherOuvrirFenetre(holder){
+  const b = holder.querySelector('#ouvrirFenetre');
+  if(!b) return;
+  b.addEventListener('click', ()=>{
+    fenetreMois = 0;
+    try{ localStorage.setItem(CLE_FENETRE, '0'); }catch(e){}
+    const sel = document.getElementById('fenetrePeriode');
+    if(sel) sel.value = '0';
+    renderAll();
+  });
+}
+
 function renderProjetsFiltre(){
   const holder = document.getElementById('projetsFiltre');
   const today = new Date().toISOString().slice(0, 10);
   const couleurs = couleursProjets();
+  // Le compte doit être celui des colonnes réellement posées, annulées
+  // écartées : une puce qui annonce douze dates devant un tableau qui en
+  // montre dix ne sert plus à décider ce qu'on masque.
   const avecDates = loadTournees().map(t=> ({
-    t, n: (t.dates || []).filter(d=> d.date && (showPastDates || d.date >= today)).length,
+    t, n: (t.dates || []).filter(d=> d.date && (showPastDates || d.date >= today)
+      && (showDatesAnnulees || d.statut !== 'annulee')).length,
   })).filter(x=> x.n > 0);
-  if(avecDates.length < 2){ holder.innerHTML = ''; return; }
+  /* Combien de dates la fenêtre laisse-t-elle dehors ?
+   *
+   * Une fenêtre qui coupe en silence est pire que pas de fenêtre : on croit que
+   * la tournée n'a que quatre dates, et on décide là-dessus. Elle se dit donc,
+   * avec le moyen de l'ouvrir d'un clic. */
+  const fin = finDeFenetre();
+  const horsFenetre = !fin ? 0 : loadTournees().reduce((n, t)=> n + (t.dates || []).filter(d=>
+    d.date && d.date > fin && (showDatesAnnulees || d.statut !== 'annulee')).length, 0);
+  const noteFenetre = horsFenetre
+    ? `<span class="hors-fenetre">${horsFenetre} date${horsFenetre>1?'s':''} plus loin —
+        <button type="button" class="lien-nu" id="ouvrirFenetre">tout afficher</button></span>`
+    : '';
+
+  if(avecDates.length < 2){ holder.innerHTML = noteFenetre; brancherOuvrirFenetre(holder); return; }
   const nbMasques = avecDates.filter(x=> projetsMasques.has(x.t.id)).length;
   holder.innerHTML = `
     <span class="projets-filtre-label">Colonnes affichées :</span>
@@ -708,7 +959,9 @@ function renderProjetsFiltre(){
         <small>${n}</small>
       </button>`;
     }).join('')}
-    ${nbMasques ? `<button type="button" class="co-btn ghost sm" id="projetsTout">Tout afficher</button>` : ''}`;
+    ${nbMasques ? `<button type="button" class="co-btn ghost sm" id="projetsTout">Tout afficher</button>` : ''}
+    ${noteFenetre}`;
+  brancherOuvrirFenetre(holder);
   holder.querySelectorAll('[data-projet]').forEach(b=> b.addEventListener('click', ()=>{
     const id = b.dataset.projet;
     if(projetsMasques.has(id)) projetsMasques.delete(id); else projetsMasques.add(id);
@@ -783,7 +1036,9 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     <div class="co-matrix-row co-matrix-head">
       <div class="co-matrix-name">${nameLabel}</div>
       ${entries.map(e=>`
-        <div class="co-matrix-date${e.estRecording ? ' colonne-reco' : ''}" style="background:${colorFor(e)};" title="${escapeHtml(e.tourneeNom || '')}${e.estRecording ? ' (recording)' : ''} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}">
+        <div class="co-matrix-date${e.estRecording ? ' colonne-reco' : ''}${e.statut === 'annulee' ? ' date-annulee' : ''}" style="background:${colorFor(e)};"
+          data-ouvrir-date="${escapeAttr(e.tourneeId + '|' + e.dateId)}" role="button" tabindex="0"
+          title="${e.statut === 'annulee' ? 'Date annulée — ' : ''}${escapeHtml(e.tourneeNom || '')}${e.estRecording ? ' (recording)' : ''} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}&#10;&#10;Cliquer pour voir cette date en entier : qui joue, qui est libre, qui manque.">
           ${escapeHtml(fmtDateFRShort(e.date))}
           <small>${escapeHtml((e.ville || '').split(' (')[0] || '—')}</small>
         </div>
@@ -793,12 +1048,52 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
 
   const ptypeMatrice = assignField === 'musiciensAssignes' ? 'musicien' : 'technicien';
 
+  /* Des bandes de pupitre, repliables.
+   *
+   * Quarante lignes d'affilée se parcourent mal. Maintenant qu'elles sont
+   * rangées dans l'ordre de l'orchestre, elles forment des groupes naturels :
+   * on les annonce, et on peut replier ceux qu'on ne travaille pas. Replier
+   * les cordes quand on cherche un vent divise par trois la hauteur à balayer.
+   *
+   * Le repli est retenu par le navigateur, comme le reste de ce qui relève de
+   * la façon de regarder. Il ne s'applique qu'aux vues triées par pupitre : en
+   * mode « titulaires + leurs remplaçant·es », chacun·e suit son ou sa
+   * titulaire et découper là-dedans casserait justement ce qu'on a voulu
+   * montrer.
+   */
+  const groupePar = p => (ptypeMatrice === 'musicien' ? (p.pupitre || 'Autre') : (p.pole || 'Autre'));
+  const avecGroupes = document.getElementById('musicienStatutFilter').value !== 'noyau_rempl'
+    && !termeRecherche();
+
+  let groupePrecedent = null;
   const rows = sorted.map(m=>{
     const dispo = m.disponibilites || {};
     const metier = m.statutPoste === 'remplacant' ? 'Remplaçant·e' : (m.instrument || m.poste || '');
     const demandeLe = demandeLeHtml(m, ptypeMatrice);
     const sous = sousRemplacants[ptypeMatrice].has(m.id);
-    return `
+
+    // La bande de groupe, posée avant la première personne de chaque pupitre.
+    let bande = '';
+    const g = groupePar(m);
+    if(avecGroupes && g !== groupePrecedent){
+      groupePrecedent = g;
+      const cleG = ptypeMatrice + ':' + g;
+      const replie = groupesReplies.has(cleG);
+      const combien = sorted.filter(p=> groupePar(p) === g).length;
+      bande = `
+        <div class="co-matrix-row bande-groupe${replie ? ' replie' : ''}">
+          <div class="co-matrix-name">
+            <button type="button" class="bande-bouton" data-groupe="${escapeAttr(cleG)}"
+              aria-expanded="${!replie}" title="${replie ? 'Déplier' : 'Replier'} ${escapeHtml(g)}">
+              <span class="chevron" aria-hidden="true">${replie ? '▸' : '▾'}</span>
+              ${escapeHtml(g)} <small>${combien}</small>
+            </button>
+          </div>
+        </div>`;
+    }
+    if(avecGroupes && groupesReplies.has(ptypeMatrice + ':' + g)) return bande;
+
+    return bande + `
       <div class="co-matrix-row${sous ? ' sous-remplacant' : ''}">
         <div class="co-matrix-name">${sous ? '<span class="fleche-sous" aria-hidden="true">↳</span>' : ''}<b>${escapeHtml(fullName(m))}</b><small>${escapeHtml(metier)}${
           demandeLe ? (metier ? ' · ' : '') + demandeLe : ''}</small></div>
@@ -808,20 +1103,26 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           const note = ((m.disponibilitesCommentaires || {})[e.date] || '').trim();
           const rep = note ? reponseDe(m, e.date) : null;
           // Une affectation prime : on ne grise jamais quelqu'un qui joue.
+          // Classe, symbole et libellé viennent tous de CurieuxDispos : c'est
+          // ce qui garantit que l'écran et le PDF disent la même chose.
           const hors = !assigned && !estSollicite(m, ptypeMatrice, e);
-          let cls = '', symbol = '—', title = 'Non renseigné';
-          if(assigned){ cls = 'assigned'; symbol = '✓'; title = `Affecté·e — ${escapeHtml(e.tourneeNom || '')}`; }
-          else if(state === 'dispo'){ cls = 'dispo'; symbol = '✓'; title = 'Disponible'; }
-          else if(state === 'indispo'){ cls = 'indispo'; symbol = '✕'; title = 'Indisponible'; }
-          else if(state === 'incertain'){ cls = 'incertain'; symbol = '?'; title = 'À confirmer'; }
+          const cle = CurieuxDispos.etatCellule({ affecte: assigned, statut: state });
+          const cls = CurieuxDispos.classe(cle);
+          const symbol = CurieuxDispos.symbole(cle);
+          const title = assigned
+            ? `Affecté·e — ${escapeHtml(e.tourneeNom || '')}`
+            : CurieuxDispos.libelle(cle);
           // data-jour : voir disponibilites.html — sert uniquement à la mise en
           // liste sur petit écran, sans rien changer au tableau sur ordinateur.
-          return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${hors ? ' hors-demande' : ''}${note ? ' porte-note' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
+          return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${e.statut === 'annulee' ? ' date-annulee' : ''}${hors ? ' hors-demande' : ''}${note ? ' porte-note' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
             ${note ? `data-note="${escapeAttr(note)}" data-note-qui="${escapeAttr(fullName(m))}" data-note-quand="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"` : ''}
             ${rep ? `data-note-reponse="${escapeAttr(rep.texte)}" data-note-reponse-qui="${escapeAttr(rep.auteur || '')}"` : ''}
             data-cellule data-tid="${escapeAttr(e.tourneeId)}" data-did="${escapeAttr(e.dateId)}" data-pid="${escapeAttr(m.id)}"
             data-ptype="${ptypeMatrice}" data-date="${escapeAttr(e.date)}" data-reco="${e.estRecording ? '1' : ''}"
-            style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}">${symbol}</span>${
+            style="background-color:${colorFor(e)};"><button type="button" class="co-matrix-btn m-cell ${cls}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}" aria-label="${escapeAttr(
+              (hors ? `${fullName(m)}, ${fmtDateFRShort(e.date)}${e.ville ? ' ' + e.ville : ''} : pas sollicité·e`
+                    : CurieuxDispos.annonce({ qui: fullName(m), quand: fmtDateFRShort(e.date) + (e.ville ? ' ' + e.ville : ''), cle }))
+              + (note ? ' — a laissé une précision' : ''))}">${symbol}</button>${
             note ? `<button type="button" class="point-note${rep ? ' repondue' : ''}" data-repondre aria-label="${
               rep ? 'Précision — déjà répondu' : 'Précision — répondre'}" title="${
               rep ? 'On y a répondu — cliquer pour relire ou changer' : 'Une précision — cliquer pour y répondre'}"></button>
@@ -832,12 +1133,44 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     `;
   }).join('');
 
+  /* La lecture verticale.
+   *
+   * Le tableau se lisait parfaitement en ligne — une personne, sa saison — et
+   * pas du tout en colonne : pour savoir s'il manquait un alto le 15 mars, il
+   * fallait compter les cases à l'œil sur quarante lignes. Le socle portait
+   * pourtant le style de cette rangée (.co-matrix-total) et la maquette la
+   * dessinait : il ne manquait que de la remplir.
+   *
+   * Deux chiffres, et ils ne se lisent pas pareil. Le nombre d'affecté·es est
+   * absolu : il vient du projet, il ne bouge pas avec les filtres. Le nombre
+   * de personnes encore disponibles ne peut porter que sur les lignes
+   * affichées — filtrer la vue le fait baisser. C'est écrit dans le libellé,
+   * sinon les deux se lisent comme équivalents et le second fait autorité à
+   * tort.
+   */
+  const dispoLibres = e => sorted.filter(m=>
+    !(e.assignes || []).includes(m.id)
+    && ((m.disponibilites || {})[e.date] || '') === 'dispo').length;
+
+  const totaux = `
+    <div class="co-matrix-row co-matrix-total">
+      <div class="co-matrix-name"><b>Par date</b><small>affecté·es · encore libres</small></div>
+      ${entries.map(e=>{
+        const n = (e.assignes || []).length;
+        const libres = dispoLibres(e);
+        return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${e.statut === 'annulee' ? ' date-annulee' : ''}"
+          title="${escapeHtml(fmtDateFRShort(e.date))} — ${n} affecté·e${n>1?'s':''}, ${libres} encore disponible${libres>1?'s':''} parmi les lignes affichées">
+          <span class="total-case"><b>${n}</b><small>${libres}</small></span>
+        </div>`;
+      }).join('')}
+    </div>`;
+
   // La bande de couleurs qui listait ici les projets a disparu : le bandeau
   // écrit leur nom à même les colonnes, à quarante pixels de là. Deux fois la
   // même chose, dont une en devinettes.
   holder.innerHTML = `
     <div class="co-matrix">
-      <div class="co-matrix-in"><div class="co-matrix-tete">${bandeau}${head}</div>${rows}</div>
+      <div class="co-matrix-in"><div class="co-matrix-tete">${bandeau}${head}</div>${rows}${totaux}</div>
     </div>
   `;
 }
@@ -1047,7 +1380,7 @@ function ordreNoyauEtRemplacants(liste, ptype){
   const ordre = [];
   const place = new Set();
   liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant')
-    .sort((a, b)=> fullName(a).localeCompare(fullName(b)))
+    .sort(curieuxComparePupitrePuisNom)
     .forEach(t=>{
       ordre.push(t); place.add(t.id);
       prefsDe(t.id, ptype)
@@ -1061,7 +1394,7 @@ function ordreNoyauEtRemplacants(liste, ptype){
         });
     });
   liste.filter(p=> (p.statutPoste || 'titulaire') === 'remplacant' && vus.has(p.id) && !place.has(p.id))
-    .sort((a, b)=> fullName(a).localeCompare(fullName(b)))
+    .sort(curieuxComparePupitrePuisNom)
     .forEach(p=>{ ordre.push(p); place.add(p.id); });
   return ordre;
 }
@@ -1148,17 +1481,23 @@ function renderDashboard(){
   // dates" de la modale Demandes titulaires dans Tournées).
   const tourneesById = new Map(loadTournees().map(t=> [t.id, t]));
   const peopleById = new Map([...loadMusicians(), ...loadTechnicians()].map(p=> [p.id, p]));
-  let reponsesEnAttente = 0;
+  // Le compte passe par CurieuxDispos, comme la page des demandes.
+  // Cette tuile comptait auparavant TOUTES les dates à venir du projet, sans
+  // tenir compte des dates que le lien couvrait réellement : quelqu'un
+  // sollicité sur trois dates d'une tournée qui en compte douze, et ayant
+  // répondu à ses trois, restait « en attente » ici et « ✓ Répondu » là-bas.
+  // Et l'on comptait des demandes, pas des personnes : deux projets pour la
+  // même personne faisaient deux fois le compte, sous un libellé au singulier.
+  const enAttenteParPersonne = new Set();
   dispoDemandesCache.forEach(d=>{
     const tournee = tourneesById.get(d.tourneeId);
     const person = peopleById.get(d.personId);
     if(!tournee || !person) return;
-    const answerableDates = (tournee.dates||[]).filter(dt=> dt.date && dt.date >= today && dt.statut !== 'annulee');
-    if(answerableDates.length === 0) return;
-    const dispo = person.disponibilites || {};
-    const allAnswered = answerableDates.every(dt=> dispo[dt.date]);
-    if(!allAnswered) reponsesEnAttente++;
+    if(CurieuxDispos.avancement(person, d, tournee, today).enAttente){
+      enAttenteParPersonne.add(d.personType + ':' + d.personId);
+    }
   });
+  const reponsesEnAttente = enAttenteParPersonne.size;
 
   const ICONS = {
     calendar: '<rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.4"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><circle cx="8" cy="13.6" r="1.1" fill="currentColor"></circle><circle cx="12" cy="13.6" r="1.1" fill="currentColor"></circle><circle cx="16" cy="13.6" r="1.1" fill="currentColor"></circle>',
@@ -1195,7 +1534,10 @@ function renderDashboard(){
     {
       icon: kpiIcon('clock'), href:'suivi-dispo.html',
       value: String(reponsesEnAttente), valueClass: reponsesEnAttente > 0 ? 'warn' : 'ok',
-      label:'Réponse' + (reponsesEnAttente>1?'s':'') + ' de dispo en attente (titulaires)'
+      // « Personnes » et non « réponses » : on compte désormais des gens, une
+      // fois chacun·e, et le libellé ne promet plus « titulaires » alors qu'il
+      // inclut les remplaçant·es qu'on a sollicité·es.
+      label:'Personne' + (reponsesEnAttente>1?'s':'') + ' qui n\'ont pas fini de répondre'
     },
     {
       icon: kpiIcon('bus'), href:'tournees.html',
@@ -1278,6 +1620,14 @@ document.addEventListener('scroll', ()=>{
 window.addEventListener('blur', cacherNote);
 
 document.getElementById('showPastDates').addEventListener('change', e=>{ showPastDates = e.target.checked; renderAll(); });
+document.getElementById('showDatesAnnulees').addEventListener('change', e=>{ showDatesAnnulees = e.target.checked; renderAll(); });
+const champFenetre = document.getElementById('fenetrePeriode');
+champFenetre.value = String(fenetreMois);
+champFenetre.addEventListener('change', e=>{
+  fenetreMois = parseInt(e.target.value, 10) || 0;
+  try{ localStorage.setItem(CLE_FENETRE, String(fenetreMois)); }catch(err){}
+  renderAll();
+});
 
 // La recherche : rendu immédiat, la liste est en mémoire. Le champ vit hors
 // des matrices, donc le re-rendu ne lui prend jamais le curseur.
@@ -1321,8 +1671,11 @@ setInterval(applyAutoTheme, 5 * 60 * 1000);
    par le même chemin d'écriture qu'à l'aller.
 --------------------------------------------------------------------------- */
 
-const CYCLE_DISPO = ['', 'dispo', 'indispo', 'incertain'];
-const LIBELLE_DISPO = { '': 'non renseigné', dispo: 'disponible', indispo: 'indisponible', incertain: 'à confirmer' };
+// Le cycle et les libellés viennent de CurieuxDispos (assets/dispo-statuts.js) :
+// cette page les définissait de son côté, la Grille interne aussi, et rien ne
+// garantissait qu'ils restent d'accord. En minuscules, parce qu'ils s'insèrent
+// ici au milieu d'une phrase (« Marie est indisponible ce jour-là »).
+function libelleDispo(cle){ return CurieuxDispos.libelle(cle).toLowerCase(); }
 let mode = (()=>{ try{ return localStorage.getItem('curieuxRecapMode') || 'marquer'; }catch(e){ return 'marquer'; } })();
 let pileOups = [];
 
@@ -1456,9 +1809,9 @@ async function surClicCellule(cel){
 
   if(mode === 'marquer'){
     const avant = (personne.disponibilites || {})[date] || '';
-    const apres = CYCLE_DISPO[(CYCLE_DISPO.indexOf(avant) + 1) % CYCLE_DISPO.length];
+    const apres = CurieuxDispos.suivant(avant);
     if(await ecrireDispo(ptype, personne, date, apres,
-      `dispo de ${nom} le ${fmtDateFRShort(date)} (retour à « ${LIBELLE_DISPO[avant]} »)`)){
+      `dispo de ${nom} le ${fmtDateFRShort(date)} (retour à « ${libelleDispo(avant)} »)`)){
       rendreEnGardantLeScroll();
     }
     return;
@@ -1478,7 +1831,7 @@ async function surClicCellule(cel){
   if(etat !== 'dispo'){
     // Pas d'affectation en un clic sans un « oui » : le panneau de la tournée
     // garde la main, avec ses remplaçants proposés et ses règles.
-    if(!confirm(`${nom} est ${LIBELLE_DISPO[etat]} ce jour-là — pas d'affectation en un clic.\n\nOuvrir le panneau d'affectation de « ${t.nom || 'la tournée'} » ?`)) return;
+    if(!confirm(`${nom} est ${libelleDispo(etat)} ce jour-là — pas d'affectation en un clic.\n\nOuvrir le panneau d'affectation de « ${t.nom || 'la tournée'} » ?`)) return;
     location.href = 'tournees.html?' + (cel.dataset.reco ? 'type=recording&' : '') + 'affecter=' + encodeURIComponent(tid + ':' + did);
     return;
   }
@@ -1533,6 +1886,22 @@ document.addEventListener('click', (e)=>{
     noterDemandeEnvoyee(ptype, pid);
     return;
   }
+  // Déplier une date : l'en-tête de colonne ouvre le panneau.
+  const enTeteDate = e.target.closest('[data-ouvrir-date]');
+  if(enTeteDate){
+    const [tid, did] = enTeteDate.dataset.ouvrirDate.split('|');
+    ouvrirDate(tid, did);
+    return;
+  }
+  // Replier un pupitre : le clic ne doit pas retomber sur la case en dessous.
+  const groupe = e.target.closest('[data-groupe]');
+  if(groupe){
+    const cle = groupe.dataset.groupe;
+    if(groupesReplies.has(cle)) groupesReplies.delete(cle); else groupesReplies.add(cle);
+    memoriserGroupes();
+    renderAll();
+    return;
+  }
   const bande = e.target.closest('[data-bande]');
   if(bande){
     projetsMasques.add(bande.dataset.bande);
@@ -1540,6 +1909,17 @@ document.addEventListener('click', (e)=>{
     renderAll();
   }
 });
+// L'en-tête de date est annoncé comme un bouton : il doit répondre au clavier
+// comme un bouton, sans quoi la promesse du rôle est fausse.
+document.addEventListener('keydown', (e)=>{
+  if(e.key !== 'Enter' && e.key !== ' ') return;
+  const cible = e.target.closest && e.target.closest('[data-ouvrir-date]');
+  if(!cible) return;
+  e.preventDefault();
+  const [tid, did] = cible.dataset.ouvrirDate.split('|');
+  ouvrirDate(tid, did);
+});
+
 poserMode(mode);
 majOups();
 
@@ -1559,6 +1939,288 @@ CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(
 CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; curieuxRafraichir(renderAll); }); });
 CurieuxDB.subscribe('remplacant_prefs', ()=>{ CurieuxDB.fetchAll('remplacant_prefs').then(list=>{ remplacantPrefsCache = list; curieuxRafraichir(renderAll); }); });
 initData();
+
+/* ---------------------------------------------------------------------------
+   Une date, dépliée
+   ---------------------------------------------------------------------------
+   Le tableau croisé répond très bien à « où en est cette personne » — une
+   ligne, on la suit — et très mal à « où en est cette date », qui demande de
+   descendre une colonne de 76 px sur des dizaines de lignes en comptant à
+   l'œil. C'est pourtant la question du bureau : « il me manque un alto le 15
+   mars ? »
+
+   Le panneau reprend le même vocabulaire et le même ordre que le tableau : les
+   quatre états de CurieuxDispos, les gens rangés dans l'ordre de l'orchestre.
+   Ce qu'il ajoute, c'est le regroupement — et « personne n'a répondu », qui
+   n'existe nulle part ailleurs puisque c'est une absence.
+--------------------------------------------------------------------------- */
+let dateOuverte = null;   // { tid, did }
+
+function ouvrirDate(tid, did){
+  const t = loadTournees().find(x=> x.id === tid);
+  const d = t && (t.dates || []).find(x=> x.id === did);
+  if(!d) return;
+  dateOuverte = { tid, did };
+  document.getElementById('dateTitre').textContent = fmtDateFR(d.date);
+  document.getElementById('dateSousTitre').textContent =
+    [t.nom, [d.ville, d.lieu].filter(Boolean).join(' · '), d.statut === 'annulee' ? 'date annulée' : '']
+      .filter(Boolean).join(' — ');
+  rendreDateOuverte();
+  document.getElementById('dateOverlay').classList.add('open');
+}
+
+function rendreDateOuverte(){
+  if(!dateOuverte) return;
+  const { tid, did } = dateOuverte;
+  const t = loadTournees().find(x=> x.id === tid);
+  const d = t && (t.dates || []).find(x=> x.id === did);
+  const corps = document.getElementById('dateCorps');
+  if(!d){ corps.innerHTML = ''; return; }
+
+  // Les deux répertoires, avec le même filtre que le tableau : on ne fait pas
+  // apparaître dans ce panneau des gens que la vue courante a écartés.
+  const lots = [
+    { ptype: 'musicien', champ: 'musiciensAssignes', gens: garderSelonFiltre(loadMusicians(), 'musicien') },
+    { ptype: 'technicien', champ: 'techniciensAssignes', gens: garderSelonFiltre(loadTechnicians(), 'technicien') },
+  ];
+
+  // Cinq colonnes de lecture, dans l'ordre où l'on s'en sert : qui joue, qui
+  // pourrait jouer, qui a dit non, qui hésite, et de qui l'on n'a rien.
+  const CASES = [
+    { cle: 'affecte',   titre: 'Sur la date' },
+    { cle: 'dispo',     titre: 'Disponibles, pas encore retenu·es' },
+    { cle: 'incertain', titre: 'À confirmer' },
+    { cle: 'indispo',   titre: 'Indisponibles' },
+    { cle: 'sans',      titre: "Sans réponse" },
+  ];
+
+  const blocs = lots.map(lot=>{
+    const rangs = { affecte: [], dispo: [], incertain: [], indispo: [], sans: [] };
+    lot.gens.forEach(p=>{
+      const affecte = (d[lot.champ] || []).includes(p.id);
+      const etat = (p.disponibilites || {})[d.date] || '';
+      // On ne réclame pas une réponse à quelqu'un qu'on n'a pas sollicité :
+      // il n'apparaît simplement pas dans « sans réponse ».
+      const sollicite = estSollicite(p, lot.ptype, { tourneeId: tid, dateId: did, estRecording: t.type === 'recording' });
+      if(affecte) rangs.affecte.push(p);
+      else if(etat) rangs[etat].push(p);
+      else if(sollicite) rangs.sans.push(p);
+    });
+    const listes = CASES.map(c=>{
+      const gens = rangs[c.cle];
+      if(!gens.length) return '';
+      const cls = c.cle === 'sans' ? '' : CurieuxDispos.classe(c.cle);
+      return `
+        <div class="date-groupe">
+          <h4><span class="pastille-etat ${cls}"></span>${c.titre} <small>${gens.length}</small></h4>
+          <ul>${gens.map(p=> `<li><b>${escapeHtml(fullName(p))}</b>${
+            p.instrument || p.poste ? `<span>${escapeHtml(p.instrument || p.poste)}</span>` : ''}</li>`).join('')}</ul>
+        </div>`;
+    }).join('');
+    if(!listes) return '';
+    return `<section class="date-lot"><h3>${lot.ptype === 'musicien' ? 'Musicien·nes' : 'Technicien·nes'}</h3>${listes}</section>`;
+  }).join('');
+
+  corps.innerHTML = blocs || `<div class="empty-hint">Personne à afficher avec le filtre en cours.</div>`;
+}
+
+document.getElementById('dateFermerBtn').addEventListener('click', ()=>{
+  document.getElementById('dateOverlay').classList.remove('open');
+  dateOuverte = null;
+});
+document.getElementById('dateOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'dateOverlay'){ e.currentTarget.classList.remove('open'); dateOuverte = null; }
+});
+
+/* ---------------------------------------------------------------------------
+   Importer des réponses collées (tableur, formulaire)
+   ---------------------------------------------------------------------------
+   Venu de la Grille interne, qui n'avait plus que cela en propre. Deux
+   différences avec l'original : l'écriture se fait fiche par fiche
+   (upsertOne), comme partout ailleurs sur cette page — l'ancienne version
+   réécrivait tout le répertoire d'un coup, ce qui écrasait le travail d'une
+   autre personne connectée en même temps ; et le rendu se refait par
+   rendreEnGardantLeScroll, pour ne pas ramener le tableau en haut à gauche.
+--------------------------------------------------------------------------- */
+const FR_MONTHS = {
+  JANVIER:1, FEVRIER:2, MARS:3, AVRIL:4, MAI:5, JUIN:6, JUILLET:7, AOUT:8,
+  SEPTEMBRE:9, OCTOBRE:10, NOVEMBRE:11, DECEMBRE:12
+};
+const IMPORT_SYMBOLE = { dispo:'✓', indispo:'✕', incertain:'?' };
+let importRole = 'musiciens';
+let importPreviewData = null;   // { rows, matchedDateCols }
+
+function stripAccents(str){ return (str||'').normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+// Un export de formulaire n'indique pas l'année dans l'en-tête (« 22 JANVIER
+// - ... ») : on retrouve la date exacte en cherchant, parmi les dates déjà
+// créées, celle qui a le même jour et le même mois.
+function buildDayMonthIndex(){
+  const idx = new Map();
+  loadTournees().forEach(t=> (t.dates||[]).forEach(d=>{
+    if(!d.date) return;
+    const [, mm, dd] = d.date.split('-').map(Number);
+    const key = `${dd}-${mm}`;
+    if(!idx.has(key)) idx.set(key, d.date);
+  }));
+  return idx;
+}
+function parseDateHeader(header){
+  const m = /^(\d{1,2})\s+([A-Za-zÀ-ÿ]+)/.exec((header||'').trim());
+  if(!m) return null;
+  const month = FR_MONTHS[stripAccents(m[2]).toUpperCase()];
+  if(!month) return null;
+  return { day: parseInt(m[1],10), month };
+}
+function nameKey(prenom, nom){
+  return stripAccents(`${prenom||''}${nom||''}`).toLowerCase().replace(/[^a-z]/g,'');
+}
+function mapAnswerToState(raw){
+  const v = stripAccents(raw||'').trim().toUpperCase();
+  if(v === '') return null;
+  if(v === 'OUI') return 'dispo';
+  if(v === 'NON') return 'indispo';
+  return 'incertain';
+}
+
+function parseAvailabilityPaste(text){
+  const lines = text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim() !== '');
+  if(lines.length < 2) return { error: "Colle la ligne d'en-têtes et au moins une ligne de réponse." };
+  const headerCells = lines[0].split('\t');
+  const nomIdx = headerCells.findIndex(h => stripAccents(h).trim().toUpperCase() === 'NOM');
+  const prenomIdx = headerCells.findIndex(h => stripAccents(h).trim().toUpperCase().startsWith('PRENOM'));
+  if(nomIdx === -1 || prenomIdx === -1){
+    return { error: "Colonnes NOM / PRÉNOM introuvables — vérifie que la ligne de titres est bien collée." };
+  }
+  const dayMonthIndex = buildDayMonthIndex();
+  const dateCols = [];
+  headerCells.forEach((h, i)=>{
+    if(i === nomIdx || i === prenomIdx) return;
+    const parsed = parseDateHeader(h);
+    if(!parsed) return;
+    dateCols.push({ colIndex: i, label: h.trim(), iso: dayMonthIndex.get(`${parsed.day}-${parsed.month}`) || null });
+  });
+  const rows = [];
+  for(let li = 1; li < lines.length; li++){
+    const cells = lines[li].split('\t');
+    const nom = (cells[nomIdx] || '').trim();
+    const prenom = (cells[prenomIdx] || '').trim();
+    if(!nom && !prenom) continue;
+    rows.push({ nom, prenom, answers: dateCols.map(dc => ({ iso: dc.iso, label: dc.label, raw: (cells[dc.colIndex] || '').trim() })) });
+  }
+  return { rows, dateCols };
+}
+
+function renderAvailabilityPreview(){
+  const roster = importRole === 'musiciens' ? loadMusicians() : loadTechnicians();
+  const rosterByKey = new Map(roster.map(p => [nameKey(p.prenom, p.nom), p]));
+  const parsed = parseAvailabilityPaste(document.getElementById('importAvailTextarea').value);
+  const preview = document.getElementById('importAvailPreview');
+  const confirmBtn = document.getElementById('importAvailConfirmBtn');
+
+  if(parsed.error){
+    preview.innerHTML = `<div class="empty-hint">${escapeHtml(parsed.error)}</div>`;
+    confirmBtn.style.display = 'none';
+    importPreviewData = null;
+    return;
+  }
+  const rows = parsed.rows.map(r => ({ ...r, person: rosterByKey.get(nameKey(r.prenom, r.nom)) || null }));
+  const matchedDateCols = parsed.dateCols.filter(dc => dc.iso);
+  const matchedPeople = rows.filter(r => r.person).length;
+  const unmatchedPeople = rows.filter(r => !r.person);
+
+  if(rows.length === 0 || matchedDateCols.length === 0){
+    preview.innerHTML = `<div class="empty-hint">Aucune ligne exploitable — vérifie les colonnes NOM/PRÉNOM et que les dates collées correspondent à des dates déjà créées dans un projet.</div>`;
+    confirmBtn.style.display = 'none';
+    importPreviewData = null;
+    return;
+  }
+  preview.innerHTML = `
+    <div class="import-summary">
+      <strong>${matchedPeople}</strong> / ${rows.length} personne(s) reconnue(s) dans l'annuaire (${importRole === 'musiciens' ? 'musicien·nes' : 'technicien·nes'}) ·
+      <strong>${matchedDateCols.length}</strong> / ${parsed.dateCols.length} colonne(s) de date reconnue(s)
+      ${unmatchedPeople.length ? `<br>Non reconnu·es (vérifie l'orthographe dans l'annuaire) : ${unmatchedPeople.map(r=>escapeHtml(`${r.prenom} ${r.nom}`.trim())).join(', ')}` : ''}
+      ${parsed.dateCols.length > matchedDateCols.length ? `<br>Colonnes de date ignorées (aucune date de projet correspondante) : ${parsed.dateCols.filter(dc=>!dc.iso).map(dc=>escapeHtml(dc.label)).join(', ')}` : ''}
+    </div>
+    <div class="import-preview-wrap">
+      <table class="import-preview-table">
+        <thead><tr><th>Nom</th>${matchedDateCols.map(dc => `<th>${escapeHtml(fmtDateFRShort(dc.iso))}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td class="import-name ${r.person ? '' : 'unmatched'}">${escapeHtml(`${r.prenom} ${r.nom}`.trim())}</td>
+              ${matchedDateCols.map(dc => {
+                const answer = r.answers.find(a => a.iso === dc.iso);
+                const state = answer ? mapAnswerToState(answer.raw) : null;
+                return `<td><span class="import-dot ${state || 'none'}" title="${escapeAttr(answer ? answer.raw : '')}">${state ? IMPORT_SYMBOLE[state] : '—'}</span></td>`;
+              }).join('')}
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  confirmBtn.textContent = `Importer pour ${matchedPeople} personne${matchedPeople>1?'s':''}`;
+  confirmBtn.style.display = matchedPeople > 0 ? 'inline-block' : 'none';
+  importPreviewData = { rows, matchedDateCols };
+}
+
+function openImportAvailModal(){
+  document.getElementById('importAvailTextarea').value = '';
+  document.getElementById('importAvailPreview').innerHTML = '';
+  document.getElementById('importAvailConfirmBtn').style.display = 'none';
+  importPreviewData = null;
+  document.getElementById('importAvailOverlay').classList.add('open');
+}
+function closeImportAvailModal(){
+  document.getElementById('importAvailOverlay').classList.remove('open');
+}
+document.getElementById('importAvailBtn').addEventListener('click', openImportAvailModal);
+document.getElementById('importAvailCancelBtn').addEventListener('click', closeImportAvailModal);
+document.getElementById('importAvailOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'importAvailOverlay') closeImportAvailModal(); });
+document.getElementById('importAvailAnalyzeBtn').addEventListener('click', renderAvailabilityPreview);
+document.querySelectorAll('[data-import-role]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    importRole = btn.dataset.importRole;
+    document.querySelectorAll('[data-import-role]').forEach(b=> b.classList.toggle('active', b === btn));
+    if(document.getElementById('importAvailTextarea').value.trim()) renderAvailabilityPreview();
+  });
+});
+
+// Fiche par fiche, et on dit ce qui a échoué plutôt que d'annoncer un succès
+// global : sur trente personnes, une écriture refusée passait inaperçue.
+document.getElementById('importAvailConfirmBtn').addEventListener('click', async ()=>{
+  if(!importPreviewData) return;
+  const table = importRole === 'musiciens' ? 'musiciens' : 'techniciens';
+  const roster = importRole === 'musiciens' ? loadMusicians() : loadTechnicians();
+  const btn = document.getElementById('importAvailConfirmBtn');
+  btn.disabled = true;
+  let ecrites = 0;
+  const echecs = [];
+  for(const r of importPreviewData.rows){
+    if(!r.person) continue;
+    const cible = roster.find(p => p.id === r.person.id);
+    if(!cible) continue;
+    const avant = JSON.parse(JSON.stringify(cible.disponibilites || {}));
+    if(!cible.disponibilites) cible.disponibilites = {};
+    let change = false;
+    r.answers.forEach(a=>{
+      if(!a.iso) return;
+      const state = mapAnswerToState(a.raw);
+      if(state === null) return;
+      cible.disponibilites[a.iso] = state;
+      change = true;
+    });
+    if(!change) continue;
+    const { error } = await CurieuxDB.upsertOne(table, cible);
+    if(error){ cible.disponibilites = avant; echecs.push(fullName(cible)); }
+    else ecrites++;
+  }
+  btn.disabled = false;
+  closeImportAvailModal();
+  rendreEnGardantLeScroll();
+  curieuxFlash(echecs.length
+    ? `${ecrites} enregistré·es — échec pour ${echecs.join(', ')}`
+    : `${ecrites} ${importRole === 'musiciens' ? 'musicien·ne' : 'technicien·ne'}${ecrites>1?'s':''} mis·es à jour`);
+});
 
 /* ============================================================================
    L'export PDF de la Vue d'ensemble
@@ -1632,11 +2294,13 @@ function pdfHachures(doc, x, y, w, h){
   }
 }
 
+// Les fonds du PDF sont ceux que CurieuxDispos déclare : c'est précisément
+// cette table, recopiée ici, qui avait fini par contredire l'écran.
 const PDF_FONDS = {
-  affecte: [47, 143, 91],
-  dispo: [206, 225, 244],
-  indispo: [178, 59, 46],
-  incertain: [184, 121, 42],
+  affecte: CurieuxDispos.couleurPdf('affecte'),
+  dispo: CurieuxDispos.couleurPdf('dispo'),
+  indispo: CurieuxDispos.couleurPdf('indispo'),
+  incertain: CurieuxDispos.couleurPdf('incertain'),
 };
 
 // La légende, dessinée avec les mêmes marques que les cases — sinon elle
