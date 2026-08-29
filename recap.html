@@ -143,6 +143,25 @@
     border-color:var(--border);
   }
 
+  /* La rangée de totaux, sous le tableau. Le gros chiffre est le nombre
+     d'affecté·es, le petit celui des personnes encore disponibles. Chiffres
+     tabulaires : sans cela, « 11 » et « 44 » n'ont pas la même largeur et la
+     colonne se met à danser d'une date à l'autre. */
+  /* Collante en bas : posée en fin de tableau, elle n'aurait servi qu'à qui
+     défile jusqu'au dernier nom — c'est-à-dire jamais, quand on cherche
+     justement à savoir si une date est couverte. Sous l'en-tête dans l'ordre
+     des plans (z-index 4 contre 5), qui reste prioritaire. */
+  .co-matrix-total{position:sticky; bottom:0; z-index:4; border-top:2px solid var(--border);}
+  .co-matrix-total .co-matrix-name{z-index:5;}
+  .co-matrix-total .co-matrix-name small{display:block; font-size:9.5px; font-weight:600; color:var(--muted);}
+  .total-case{display:flex; align-items:baseline; gap:4px; font-variant-numeric:tabular-nums;}
+  .total-case b{font-size:13px; font-weight:800; color:var(--text);}
+  .total-case small{font-size:10.5px; font-weight:700; color:var(--accent-dark);}
+  /* Sur téléphone, la matrice se replie en liste par personne : une rangée de
+     totaux y deviendrait une « personne » nommée « Par date », ce qui n'a pas
+     de sens. On la retire, comme l'en-tête l'est déjà. */
+  @media (max-width:760px){ .co-matrix-total{display:none;} }
+
   /* Une date annulée qu'on a choisi de revoir : barrée et estompée, comme sur
      la page des tournées. Elle reste cliquable — on peut vouloir corriger une
      dispo sur un concert annulé la veille — mais elle ne se confond plus avec
@@ -848,12 +867,44 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     `;
   }).join('');
 
+  /* La lecture verticale.
+   *
+   * Le tableau se lisait parfaitement en ligne — une personne, sa saison — et
+   * pas du tout en colonne : pour savoir s'il manquait un alto le 15 mars, il
+   * fallait compter les cases à l'œil sur quarante lignes. Le socle portait
+   * pourtant le style de cette rangée (.co-matrix-total) et la maquette la
+   * dessinait : il ne manquait que de la remplir.
+   *
+   * Deux chiffres, et ils ne se lisent pas pareil. Le nombre d'affecté·es est
+   * absolu : il vient du projet, il ne bouge pas avec les filtres. Le nombre
+   * de personnes encore disponibles ne peut porter que sur les lignes
+   * affichées — filtrer la vue le fait baisser. C'est écrit dans le libellé,
+   * sinon les deux se lisent comme équivalents et le second fait autorité à
+   * tort.
+   */
+  const dispoLibres = e => sorted.filter(m=>
+    !(e.assignes || []).includes(m.id)
+    && ((m.disponibilites || {})[e.date] || '') === 'dispo').length;
+
+  const totaux = `
+    <div class="co-matrix-row co-matrix-total">
+      <div class="co-matrix-name"><b>Par date</b><small>affecté·es · encore libres</small></div>
+      ${entries.map(e=>{
+        const n = (e.assignes || []).length;
+        const libres = dispoLibres(e);
+        return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${e.statut === 'annulee' ? ' date-annulee' : ''}"
+          title="${escapeHtml(fmtDateFRShort(e.date))} — ${n} affecté·e${n>1?'s':''}, ${libres} encore disponible${libres>1?'s':''} parmi les lignes affichées">
+          <span class="total-case"><b>${n}</b><small>${libres}</small></span>
+        </div>`;
+      }).join('')}
+    </div>`;
+
   // La bande de couleurs qui listait ici les projets a disparu : le bandeau
   // écrit leur nom à même les colonnes, à quarante pixels de là. Deux fois la
   // même chose, dont une en devinettes.
   holder.innerHTML = `
     <div class="co-matrix">
-      <div class="co-matrix-in"><div class="co-matrix-tete">${bandeau}${head}</div>${rows}</div>
+      <div class="co-matrix-in"><div class="co-matrix-tete">${bandeau}${head}</div>${rows}${totaux}</div>
     </div>
   `;
 }
