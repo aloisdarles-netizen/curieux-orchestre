@@ -221,7 +221,38 @@ sur la Vue d'ensemble donne une page inutilisable (barre de modes flottante
 comprise), et rien n'oriente vers l'export PDF, qui est pourtant excellent et
 pensé pour ça.
 
-### 3.7 Deux fois le même tableau
+### 3.7 Les pages ne racontent pas tout à fait la même histoire
+
+**Une date annulée reste une colonne pleine et cliquable.** Le statut `annulee`
+existe, se pose à la main dans les tournées et s'affiche en pastille barrée
+là-bas. Mais ni `allDateEntries` (Vue d'ensemble) ni `allDates` (Grille interne)
+ne le filtrent : un concert annulé continue d'occuper sa colonne, on peut y
+marquer des disponibilités, et il compte dans le nombre de dates affiché sur la
+puce du projet. Sur une saison, ce sont des colonnes qui ne servent qu'à
+encombrer — et une source d'erreur, puisqu'on peut y affecter quelqu'un.
+
+**L'ordre des lignes n'est pas celui de l'orchestre.** L'annuaire pose
+explicitement `PUPITRE_ORDER` — chef d'orchestre, cordes, bois, cuivres,
+percussions — avec le commentaire « ordre de l'orchestre, pas alphabétique ».
+Les trois pages de disponibilités, elles, trient alphabétiquement. On y cherche
+donc un pupitre entier en sautant de ligne en ligne, alors que la règle de
+rangement existe déjà à côté.
+
+**« Pas sollicité·e » n'existe que sur la Vue d'ensemble.** Toute la sémantique
+construite autour de « lui a-t-on seulement demandé ? » — les hachures, la règle
+d'office, les exclusions manuelles — s'arrête à cette page. La Grille interne
+affiche les mêmes personnes sur les mêmes dates sans distinguer « n'a pas
+répondu » de « on ne lui a rien demandé ».
+
+**Le même menu « Afficher » n'a ni les mêmes choix ni le même défaut** d'une
+grille à l'autre (trois options démarrant sur « Titulaires uniquement » ici,
+cinq démarrant sur « Titulaires + sollicité·es » là), alors qu'ils portent le
+même identifiant. Et la nature « recording » se signale de plusieurs façons
+selon la page — voile assombri, mention « Rec », pastille — alors que
+`pastilleProjetHtml()` existe dans `ui-helpers.js` en désignant nommément les
+dispos comme lieu d'emploi. Une seule des quatre pages l'appelle.
+
+### 3.8 Deux fois le même tableau
 
 Le point qui revient le plus dans l'historique. Le tableau croisé est écrit deux
 fois : une fois pour l'écran, une fois pour le PDF (`recap.html:1466-1912`). Les
@@ -290,6 +321,12 @@ apporte l'en-tête collant, la colonne de noms figée et les cibles tactiles à
 
 **Un `@media print` minimal** sur les quatre pages : masquer la barre flottante
 et les filtres, et poser une ligne qui renvoie vers l'export PDF.
+
+**Écarter les dates annulées des deux grilles**, ou au minimum les barrer et les
+rendre inertes. Une ligne de filtre dans `allDateEntries` et `allDates`.
+
+**Trier les lignes dans l'ordre de l'orchestre** en réutilisant `PUPITRE_ORDER`
+et le comparateur de l'annuaire, au lieu du tri alphabétique.
 
 **Faire survivre recherche et filtres au rafraîchissement temps réel** sur
 Demandes titulaires.
