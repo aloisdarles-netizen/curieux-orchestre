@@ -4373,3 +4373,62 @@ as $$
     from techniciens t join p on p.person_id = t.id and p.person_type = 'technicien';
 $$;
 grant execute on function get_own_person_by_token(text) to anon, authenticated;
+
+-- ============================================================================
+-- Les dates de projet, enfin interrogeables
+-- ============================================================================
+-- Le calendrier vit dans un seul document jsonb par projet : tournees.dates.
+-- C'était le bon choix tant que l'application le lisait toujours en bloc, et
+-- ça l'est resté — mais cela rendait impossible la moindre question simple.
+-- « Quelles dates n'ont personne d'affecté ? », « lesquelles sont annulées ? »,
+-- « combien de dates le trimestre qui vient ? » : autant de balayages en
+-- JavaScript, refaits par chaque page, chacune à sa façon.
+--
+-- Une vue déplie ce tableau en lignes. Rien ne bouge : pas une donnée déplacée,
+-- pas une écriture changée, et `create or replace` la rend rejouable. C'est
+-- volontairement le petit geste avant le grand : il rend déjà la moitié du
+-- service qu'on attendrait d'une normalisation, et permet d'éprouver ce
+-- qu'elle apporterait avant de s'y engager.
+--
+-- Ce qu'elle ne fait PAS, et qu'il faut dire : une vue sur du jsonb ne
+-- s'indexe pas. Chaque lecture déroule le tableau de chaque projet. C'est un
+-- gain de justesse et de non-duplication, pas de vitesse. Sur une centaine de
+-- projets, personne ne le verra ; sur dix mille, il faudra la table.
+
+create or replace view dates_projet as
+select t.id                                        as tournee_id,
+       t.nom                                       as tournee_nom,
+       coalesce(t.type, 'tournee')                 as type,
+       e ->> 'id'                                  as date_id,
+       (e ->> 'date')::date                        as jour,
+       coalesce(e ->> 'ville', '')                 as ville,
+       coalesce(e ->> 'lieu', '')                  as lieu,
+       coalesce(e ->> 'statut', '')                as statut,
+       coalesce(e -> 'musiciensAssignes', '[]'::jsonb)   as musiciens_assignes,
+       coalesce(e -> 'techniciensAssignes', '[]'::jsonb) as techniciens_assignes,
+       coalesce(jsonb_array_length(e -> 'musiciensAssignes'), 0)
+         + coalesce(jsonb_array_length(e -> 'techniciensAssignes'), 0) as nb_affectes
+  from tournees t,
+       jsonb_array_elements(coalesce(t.dates, '[]'::jsonb)) e
+ where coalesce(e ->> 'date', '') <> ''
+   -- Une chaîne qui n'est pas une date ferait échouer la vue entière, donc
+   -- toute page qui la lit. Le format est écrit par l'app et toujours ISO,
+   -- mais une vue ne doit pas dépendre de la bonne conduite de son producteur.
+   and (e ->> 'date') ~ '^\d{4}-\d{2}-\d{2}$';
+
+comment on view dates_projet is
+  'Le tableau jsonb tournees.dates, déplié en lignes. Lecture seule, aucune donnée dupliquée.';
+
+-- Les dates auxquelles on peut encore répondre : à venir, et pas annulées.
+-- C'est la définition qu'applique déjà l'application (CurieuxDispos.
+-- datesRepondables dans assets/dispo-statuts.js) ; elle existe ici pour que le
+-- SQL et le JavaScript ne puissent pas en avoir deux versions.
+create or replace view dates_actives as
+select * from dates_projet
+ where jour >= current_date
+   and statut <> 'annulee';
+
+comment on view dates_actives is
+  'Les dates de dates_projet encore ouvertes : à venir et non annulées.';
+
+grant select on dates_projet, dates_actives to anon, authenticated;
