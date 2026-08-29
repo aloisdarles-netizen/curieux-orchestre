@@ -779,6 +779,40 @@ if(typeof window !== 'undefined') window.addEventListener('load', reprendreFeuil
 // personne ne les voit.
 // ============================================================================
 
+/* L'ordre de l'orchestre.
+ *
+ * L'annuaire posait déjà cette règle et l'expliquait : « on classe par pupitre
+ * (ordre de l'orchestre, pas alphabétique) ». Les pages de disponibilités,
+ * elles, triaient par ordre alphabétique — on y cherchait donc un pupitre
+ * entier en sautant de ligne en ligne, alors que la règle existait à côté.
+ *
+ * Elle vit ici pour que les deux la partagent. Le rang inconnu passe en fin de
+ * liste plutôt qu'en tête : une personne sans pupitre renseigné ne doit pas
+ * ouvrir le tableau.
+ */
+const CURIEUX_PUPITRES = ["Chef d'orchestre", 'Cordes', 'Bois', 'Cuivres', 'Percussions', 'Autre'];
+
+function curieuxRangPupitre(personne){
+  const i = CURIEUX_PUPITRES.indexOf((personne && personne.pupitre) || 'Autre');
+  return i === -1 ? 99 : i;
+}
+
+/* Pupitre, puis nom. Les technicien·nes n'ont pas de pupitre mais un pôle,
+ * pour lequel aucun ordre de métier n'est établi : elles et ils restent donc
+ * classé·es par pôle alphabétique, ce qui les regroupe déjà — c'est le seul
+ * point où cette fonction ne fait pas ce que son nom promet, et c'est voulu. */
+function curieuxComparePupitrePuisNom(a, b){
+  // Seulement si l'un des deux a un pupitre : sinon (deux technicien·nes) ce
+  // rang vaudrait « Autre » pour tout le monde et n'apprendrait rien.
+  if(((a && a.pupitre) || '') || ((b && b.pupitre) || '')){
+    const ia = curieuxRangPupitre(a), ib = curieuxRangPupitre(b);
+    if(ia !== ib) return ia - ib;
+  }
+  const polA = (a && a.pole) || '', polB = (b && b.pole) || '';
+  if(polA !== polB) return polA.localeCompare(polB, 'fr');
+  return fullName(a).localeCompare(fullName(b), 'fr');
+}
+
 const CURIEUX_VOCABULAIRE = {
   tournee: {
     type: 'tournee',

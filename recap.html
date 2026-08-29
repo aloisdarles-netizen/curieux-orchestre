@@ -143,6 +143,13 @@
     border-color:var(--border);
   }
 
+  /* Une date annulée qu'on a choisi de revoir : barrée et estompée, comme sur
+     la page des tournées. Elle reste cliquable — on peut vouloir corriger une
+     dispo sur un concert annulé la veille — mais elle ne se confond plus avec
+     une date qui attend encore une réponse. */
+  .co-matrix-date.date-annulee{text-decoration:line-through; opacity:.55;}
+  .co-matrix-cell.date-annulee{opacity:.5;}
+
   /* Une précision laissée par la personne (« ok mais je pars à 22h ») : point
      orange au coin de la case, texte complet au survol. */
   .m-cell{position:relative;}
@@ -386,6 +393,10 @@
     <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:var(--muted);">
       <input type="checkbox" id="showPastDates"> Afficher aussi les dates passées
     </label>
+    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:var(--muted);"
+           title="Une date annulée n'attend plus de réponse. Elle reste consultable, barrée.">
+      <input type="checkbox" id="showDatesAnnulees"> Afficher les dates annulées
+    </label>
     <span class="legend-actions">
       <select class="co-select" id="pdfTourneeSelect">
         <option value="">Tous les projets</option>
@@ -493,6 +504,9 @@ function fmtDateFRShort(iso){
 }
 
 let showPastDates = false;
+// Les dates annulées sont écartées par défaut : elles n'appellent plus de
+// réponse, et occupaient une colonne entière sur un tableau qui en manque.
+let showDatesAnnulees = false;
 
 // Projets masqués (par id). Rangé dans le navigateur : on ne change pas d'avis
 // à chaque rechargement, et ce n'est pas une donnée d'équipe — chacun regarde
@@ -520,11 +534,19 @@ function allDateEntries(assignField, tourneeId){
     });
   });
   entries.sort((a,b)=> a.date.localeCompare(b.date));
+  let sortie = entries;
   if(!showPastDates){
     const today = new Date().toISOString().slice(0, 10);
-    return entries.filter(e=> e.date >= today);
+    sortie = sortie.filter(e=> e.date >= today);
   }
-  return entries;
+  // Une date annulée n'attend plus de réponse de personne. Elle gardait
+  // pourtant une colonne pleine et cliquable : on pouvait y marquer une dispo,
+  // et même y affecter quelqu'un. Le tableau de bord de cette même page
+  // l'écartait déjà de ses trois comptes — la colonne disait donc autre chose
+  // que les chiffres au-dessus d'elle. On peut la rouvrir d'une case à cocher,
+  // parce qu'un concert annulé la semaine dernière se relit encore.
+  if(!showDatesAnnulees) sortie = sortie.filter(e=> e.statut !== 'annulee');
+  return sortie;
 }
 
 // Titulaires en priorité (avant les remplaçant·es), alphabétique au sein de chaque
@@ -661,19 +683,18 @@ function idsSollicites(ptype){
     .map(d=> d.personId));
 }
 
-// Le noyau d'abord, les sollicité·es ensuite, alphabétique dans chaque groupe.
-function compareNoyauPuisSollicites(a, b){
-  const rang = m => (m.statutPoste === 'remplacant' ? 1 : 0);
-  const ra = rang(a), rb = rang(b);
-  if(ra !== rb) return ra - rb;
-  return fullName(a).localeCompare(fullName(b));
-}
 
+/* Le noyau d'abord, puis l'ordre de l'orchestre — pas l'alphabet.
+ *
+ * L'annuaire classait déjà par pupitre en l'écrivant noir sur blanc, et cette
+ * page triait par nom : on y cherchait « les cordes » en parcourant quarante
+ * lignes où les altos croisaient les trombones. Le comparateur est maintenant
+ * celui de ui-helpers.js, partagé avec l'annuaire. */
 function compareByStatutThenName(a, b){
   const rank = m => (m.statutPoste === 'remplacant' ? 1 : 0);
   const ra = rank(a), rb = rank(b);
   if(ra !== rb) return ra - rb;
-  return fullName(a).localeCompare(fullName(b));
+  return curieuxComparePupitrePuisNom(a, b);
 }
 
 // Les puces de projets. Comptent les dates de la fenêtre en cours (à venir, ou
@@ -683,8 +704,12 @@ function renderProjetsFiltre(){
   const holder = document.getElementById('projetsFiltre');
   const today = new Date().toISOString().slice(0, 10);
   const couleurs = couleursProjets();
+  // Le compte doit être celui des colonnes réellement posées, annulées
+  // écartées : une puce qui annonce douze dates devant un tableau qui en
+  // montre dix ne sert plus à décider ce qu'on masque.
   const avecDates = loadTournees().map(t=> ({
-    t, n: (t.dates || []).filter(d=> d.date && (showPastDates || d.date >= today)).length,
+    t, n: (t.dates || []).filter(d=> d.date && (showPastDates || d.date >= today)
+      && (showDatesAnnulees || d.statut !== 'annulee')).length,
   })).filter(x=> x.n > 0);
   if(avecDates.length < 2){ holder.innerHTML = ''; return; }
   const nbMasques = avecDates.filter(x=> projetsMasques.has(x.t.id)).length;
@@ -774,7 +799,7 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     <div class="co-matrix-row co-matrix-head">
       <div class="co-matrix-name">${nameLabel}</div>
       ${entries.map(e=>`
-        <div class="co-matrix-date${e.estRecording ? ' colonne-reco' : ''}" style="background:${colorFor(e)};" title="${escapeHtml(e.tourneeNom || '')}${e.estRecording ? ' (recording)' : ''} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}">
+        <div class="co-matrix-date${e.estRecording ? ' colonne-reco' : ''}${e.statut === 'annulee' ? ' date-annulee' : ''}" style="background:${colorFor(e)};" title="${e.statut === 'annulee' ? 'Date annulée — ' : ''}${escapeHtml(e.tourneeNom || '')}${e.estRecording ? ' (recording)' : ''} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}">
           ${escapeHtml(fmtDateFRShort(e.date))}
           <small>${escapeHtml((e.ville || '').split(' (')[0] || '—')}</small>
         </div>
@@ -810,7 +835,7 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
             : CurieuxDispos.libelle(cle);
           // data-jour : voir disponibilites.html — sert uniquement à la mise en
           // liste sur petit écran, sans rien changer au tableau sur ordinateur.
-          return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${hors ? ' hors-demande' : ''}${note ? ' porte-note' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
+          return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${e.statut === 'annulee' ? ' date-annulee' : ''}${hors ? ' hors-demande' : ''}${note ? ' porte-note' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
             ${note ? `data-note="${escapeAttr(note)}" data-note-qui="${escapeAttr(fullName(m))}" data-note-quand="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"` : ''}
             ${rep ? `data-note-reponse="${escapeAttr(rep.texte)}" data-note-reponse-qui="${escapeAttr(rep.auteur || '')}"` : ''}
             data-cellule data-tid="${escapeAttr(e.tourneeId)}" data-did="${escapeAttr(e.dateId)}" data-pid="${escapeAttr(m.id)}"
@@ -1021,7 +1046,7 @@ function ordreNoyauEtRemplacants(liste, ptype){
   const ordre = [];
   const place = new Set();
   liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant')
-    .sort((a, b)=> fullName(a).localeCompare(fullName(b)))
+    .sort(curieuxComparePupitrePuisNom)
     .forEach(t=>{
       ordre.push(t); place.add(t.id);
       prefsDe(t.id, ptype)
@@ -1035,7 +1060,7 @@ function ordreNoyauEtRemplacants(liste, ptype){
         });
     });
   liste.filter(p=> (p.statutPoste || 'titulaire') === 'remplacant' && vus.has(p.id) && !place.has(p.id))
-    .sort((a, b)=> fullName(a).localeCompare(fullName(b)))
+    .sort(curieuxComparePupitrePuisNom)
     .forEach(p=>{ ordre.push(p); place.add(p.id); });
   return ordre;
 }
@@ -1252,6 +1277,7 @@ document.addEventListener('scroll', ()=>{
 window.addEventListener('blur', cacherNote);
 
 document.getElementById('showPastDates').addEventListener('change', e=>{ showPastDates = e.target.checked; renderAll(); });
+document.getElementById('showDatesAnnulees').addEventListener('change', e=>{ showDatesAnnulees = e.target.checked; renderAll(); });
 
 // La recherche : rendu immédiat, la liste est en mémoire. Le champ vit hors
 // des matrices, donc le re-rendu ne lui prend jamais le curseur.
