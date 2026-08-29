@@ -76,9 +76,68 @@ const CurieuxDispos = (function(){
     return ['affecte', 'dispo', 'indispo', 'incertain'].map(c=> ({ cle:c, ...ETATS[c] }));
   }
 
+  /* --------------------------------------------------------------------------
+     À qui manque-t-il une réponse ?
+     --------------------------------------------------------------------------
+     La question la plus posée de l'application, et elle avait deux réponses
+     chiffrées contradictoires, visibles à un clic l'une de l'autre : la Vue
+     d'ensemble comptait toutes les dates à venir du projet, la page des
+     demandes seulement celles que le lien couvrait. Quelqu'un sollicité sur
+     trois dates d'une tournée qui en compte douze, et qui avait répondu à ses
+     trois, était « ✓ Répondu » d'un côté et « en attente » de l'autre.
+
+     C'est la seconde définition qui est juste : on ne peut pas reprocher à
+     quelqu'un de n'avoir pas répondu sur des dates qu'on ne lui a pas
+     soumises. Elle est écrite ici, une fois.
+  -------------------------------------------------------------------------- */
+
+  /* Les dates d'un projet auxquelles on peut encore répondre : à venir, et pas
+     annulées — une date annulée n'attend plus rien de personne. */
+  function datesRepondables(projet, aujourdhui){
+    const jour = aujourdhui || new Date().toISOString().slice(0, 10);
+    return ((projet && projet.dates) || [])
+      .filter(d=> d.date && d.date >= jour && d.statut !== 'annulee');
+  }
+
+  /* Les dates que CETTE demande couvre réellement.
+     Une liste de dates vide veut dire « tout le projet » — c'est la sentinelle
+     la plus recopiée de l'application (sept fois côté client, une fois en SQL).
+     Elle n'est plus écrite qu'ici. */
+  function datesDeLaDemande(demande, repondables){
+    const choisies = demande && demande.dates;
+    if(!choisies || !choisies.length) return repondables;
+    return repondables.filter(d=> choisies.includes(d.id));
+  }
+
+  /* Ce qui manque à une personne sur un projet donné : rien de plus que les
+     dates qu'on lui a soumises et auxquelles elle n'a pas répondu. */
+  function datesManquantes(personne, demande, projet, aujourdhui){
+    const concernees = datesDeLaDemande(demande, datesRepondables(projet, aujourdhui));
+    const dispo = (personne && personne.disponibilites) || {};
+    return concernees.filter(d=> !dispo[d.date]);
+  }
+
+  /* L'avancement d'une personne sur un projet : combien de dates soumises,
+     combien répondues, et s'il reste quelque chose à attendre. */
+  function avancement(personne, demande, projet, aujourdhui){
+    const concernees = datesDeLaDemande(demande, datesRepondables(projet, aujourdhui));
+    const manquantes = datesManquantes(personne, demande, projet, aujourdhui);
+    return {
+      concernees,
+      manquantes,
+      total: concernees.length,
+      repondues: concernees.length - manquantes.length,
+      complet: concernees.length > 0 && manquantes.length === 0,
+      // Un projet sans date répondable ne met personne en attente : sans cela,
+      // une tournée passée aurait gonflé le compteur jusqu'à la fin des temps.
+      enAttente: concernees.length > 0 && manquantes.length > 0,
+    };
+  }
+
   return {
     ORDRE, ETATS,
     etat, libelle, symbole, classe, couleurPdf,
     suivant, precedent, etatCellule, annonce, pourLegende,
+    datesRepondables, datesDeLaDemande, datesManquantes, avancement,
   };
 })();

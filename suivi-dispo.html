@@ -651,9 +651,11 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
   // uniquement sur "a déjà validé une fois" (lastRespondedAt), ce qui affichait "Nouvelles
   // dates" pour quelqu'un qui n'avait en réalité rempli qu'une partie de ses dispo — d'où
   // le calcul explicite du nombre de dates manquantes ci-dessous.
-  const relevantDates = (existing && existing.dates && existing.dates.length > 0)
-    ? answerableDates.filter(d=> existing.dates.includes(d.id))
-    : answerableDates;
+  // « Liste de dates vide = tout le projet » : la sentinelle vit maintenant
+  // dans CurieuxDispos, une seule fois. Elle était recopiée sept fois côté
+  // client et une fois en SQL, et la Vue d'ensemble, elle, l'oubliait — d'où
+  // deux comptes d'attente qui se contredisaient à un clic l'un de l'autre.
+  const relevantDates = CurieuxDispos.datesDeLaDemande(existing, answerableDates);
   const missingDates = existing ? relevantDates.filter(d=> !dispo[d.date]) : [];
   const answeredCount = relevantDates.length - missingDates.length;
   let statusHtml;
@@ -800,9 +802,7 @@ function renderResume(tournees){
         .find(x=> x.id === dem.personId);
       if(!personne) return;
       const dispo = personne.disponibilites || {};
-      const pertinentes = (dem.dates && dem.dates.length)
-        ? answerable.filter(d=> dem.dates.includes(d.id))
-        : answerable;
+      const pertinentes = CurieuxDispos.datesDeLaDemande(dem, answerable);
       if(pertinentes.length === 0) return;
       const manquantes = pertinentes.filter(d=> !dispo[d.date]).length;
 
@@ -870,9 +870,7 @@ async function relancerRetardataires(){
         .find(x=> x.id === dem.personId);
       if(!personne) return;
       const dispo = personne.disponibilites || {};
-      const pertinentes = (dem.dates && dem.dates.length)
-        ? answerable.filter(d=> dem.dates.includes(d.id))
-        : answerable;
+      const pertinentes = CurieuxDispos.datesDeLaDemande(dem, answerable);
       const manquantes = pertinentes.filter(d=> !dispo[d.date]);
       if(manquantes.length === 0) return;
       const cle = `${dem.personType}:${dem.personId}`;
@@ -1052,9 +1050,7 @@ function avancementProjet(t){
     const personne = (dem.personType === 'musicien' ? loadMusicians() : loadTechnicians())
       .find(x=> x.id === dem.personId);
     if(!personne) return;
-    const pertinentes = (dem.dates && dem.dates.length)
-      ? answerable.filter(d=> dem.dates.includes(d.id))
-      : answerable;
+    const pertinentes = CurieuxDispos.datesDeLaDemande(dem, answerable);
     if(pertinentes.length === 0) return;
     total++;
     const dispo = personne.disponibilites || {};
@@ -1171,9 +1167,7 @@ function donneesParPersonne(projets){
     if(!personne) return;
 
     const aRepondre = (projet.dates || []).filter(d=> d.date && d.statut !== 'annulee');
-    const concernees = (dem.dates && dem.dates.length)
-      ? aRepondre.filter(d=> dem.dates.includes(d.id))
-      : aRepondre;
+    const concernees = CurieuxDispos.datesDeLaDemande(dem, aRepondre);
     const dispo = personne.disponibilites || {};
     const manquantes = concernees.filter(d=> !dispo[d.date]);
 
@@ -1408,8 +1402,7 @@ function render(){
       const p = loadTechnicians().find(x=> x.id === dem.personId);
       if(!p || (p.statutPoste || 'titulaire') !== 'titulaire') return false;
       const dispo = p.disponibilites || {};
-      const pertinentes = (dem.dates && dem.dates.length)
-        ? answerableDates.filter(d=> dem.dates.includes(d.id)) : answerableDates;
+      const pertinentes = CurieuxDispos.datesDeLaDemande(dem, answerableDates);
       return pertinentes.every(d=> !dispo[d.date]);
     });
     const musicienRows = [
@@ -1653,8 +1646,7 @@ function render(){
         const p = loadTechnicians().find(x=> x.id === dem.personId);
         if(!p || (p.statutPoste || 'titulaire') !== 'titulaire') return false;
         const dispo = p.disponibilites || {};
-        const pertinentes = (dem.dates && dem.dates.length)
-          ? answerable.filter(d=> dem.dates.includes(d.id)) : answerable;
+        const pertinentes = CurieuxDispos.datesDeLaDemande(dem, answerable);
         return pertinentes.every(d=> !dispo[d.date]);
       });
       if(!aRetirer.length) return;

@@ -1147,17 +1147,23 @@ function renderDashboard(){
   // dates" de la modale Demandes titulaires dans Tournées).
   const tourneesById = new Map(loadTournees().map(t=> [t.id, t]));
   const peopleById = new Map([...loadMusicians(), ...loadTechnicians()].map(p=> [p.id, p]));
-  let reponsesEnAttente = 0;
+  // Le compte passe par CurieuxDispos, comme la page des demandes.
+  // Cette tuile comptait auparavant TOUTES les dates à venir du projet, sans
+  // tenir compte des dates que le lien couvrait réellement : quelqu'un
+  // sollicité sur trois dates d'une tournée qui en compte douze, et ayant
+  // répondu à ses trois, restait « en attente » ici et « ✓ Répondu » là-bas.
+  // Et l'on comptait des demandes, pas des personnes : deux projets pour la
+  // même personne faisaient deux fois le compte, sous un libellé au singulier.
+  const enAttenteParPersonne = new Set();
   dispoDemandesCache.forEach(d=>{
     const tournee = tourneesById.get(d.tourneeId);
     const person = peopleById.get(d.personId);
     if(!tournee || !person) return;
-    const answerableDates = (tournee.dates||[]).filter(dt=> dt.date && dt.date >= today && dt.statut !== 'annulee');
-    if(answerableDates.length === 0) return;
-    const dispo = person.disponibilites || {};
-    const allAnswered = answerableDates.every(dt=> dispo[dt.date]);
-    if(!allAnswered) reponsesEnAttente++;
+    if(CurieuxDispos.avancement(person, d, tournee, today).enAttente){
+      enAttenteParPersonne.add(d.personType + ':' + d.personId);
+    }
   });
+  const reponsesEnAttente = enAttenteParPersonne.size;
 
   const ICONS = {
     calendar: '<rect x="3.5" y="5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="3.5" y1="9.5" x2="20.5" y2="9.5" stroke="currentColor" stroke-width="1.4"></line><line x1="8" y1="3" x2="8" y2="6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><line x1="16" y1="3" x2="16" y2="6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line><circle cx="8" cy="13.6" r="1.1" fill="currentColor"></circle><circle cx="12" cy="13.6" r="1.1" fill="currentColor"></circle><circle cx="16" cy="13.6" r="1.1" fill="currentColor"></circle>',
@@ -1194,7 +1200,10 @@ function renderDashboard(){
     {
       icon: kpiIcon('clock'), href:'suivi-dispo.html',
       value: String(reponsesEnAttente), valueClass: reponsesEnAttente > 0 ? 'warn' : 'ok',
-      label:'Réponse' + (reponsesEnAttente>1?'s':'') + ' de dispo en attente (titulaires)'
+      // « Personnes » et non « réponses » : on compte désormais des gens, une
+      // fois chacun·e, et le libellé ne promet plus « titulaires » alors qu'il
+      // inclut les remplaçant·es qu'on a sollicité·es.
+      label:'Personne' + (reponsesEnAttente>1?'s':'') + ' qui n\'ont pas fini de répondre'
     },
     {
       icon: kpiIcon('bus'), href:'tournees.html',
