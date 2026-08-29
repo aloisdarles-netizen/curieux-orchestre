@@ -320,6 +320,43 @@
   .champ-recherche button:hover{color:var(--accent); background:var(--accent-tint);}
   .recherche-etat{font-size:12px; color:var(--secondary); font-weight:700;}
 
+  /* La fenêtre d'import de réponses (venue de la Grille interne). */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(20,15,10,.5);
+    align-items:flex-start; justify-content:center; padding:32px 16px; z-index:60; overflow-y:auto;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--card); border-radius:14px; padding:24px; max-width:820px; width:100%;
+    box-shadow:0 20px 60px rgba(0,0,0,.25);
+  }
+  .modal h2{font-size:17px; margin:0 0 4px;}
+  .modal .modal-sub{color:var(--muted); font-size:12.5px; margin:0 0 14px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+  .role-toggle{display:inline-flex; border-radius:20px; overflow:hidden; border:1px solid var(--border); margin-bottom:12px;}
+  .role-opt{
+    padding:7px 14px; font-size:12.5px; font-weight:700; border:none; cursor:pointer; font-family:inherit;
+    background:var(--card); color:var(--muted); border-right:1px solid var(--border);
+  }
+  .role-opt:last-child{border-right:none;}
+  .role-opt.active{background:var(--accent-tint); color:var(--accent-dark);}
+  textarea#importAvailTextarea{
+    width:100%; min-height:130px; font-size:12px; font-family:ui-monospace,monospace;
+    padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text);
+  }
+  .import-summary{font-size:12.5px; color:var(--muted); margin:10px 0;}
+  .import-summary strong{color:var(--text);}
+  .import-preview-wrap{overflow-x:auto; max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; margin-top:8px;}
+  table.import-preview-table{border-collapse:collapse; font-size:11.5px; min-width:100%;}
+  table.import-preview-table th, table.import-preview-table td{padding:5px 8px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  table.import-preview-table th{position:sticky; top:0; background:var(--card); color:var(--muted); text-transform:uppercase; font-size:9.5px; text-align:left;}
+  .import-name.unmatched{color:var(--ko); font-style:italic;}
+  .import-dot{display:inline-block; width:16px; height:16px; border-radius:4px; text-align:center; line-height:16px; font-size:10px; font-weight:800; color:#fff;}
+  .import-dot.dispo{background:var(--accent-tint); color:var(--accent-dark);}
+  .import-dot.indispo{background:var(--ko);}
+  .import-dot.incertain{background:var(--maybe);}
+  .import-dot.none{background:var(--border); color:var(--muted);}
+
   .dispo-filter-row{display:flex; gap:8px; align-items:center; margin:-2px 0 10px; flex-wrap:wrap;}
   .dispo-filter-row label{font-size:12px; color:var(--muted); font-weight:600;}
   .dispo-filter-row select{
@@ -357,6 +394,7 @@
              title="Les précisions laissées sur les dispos, numérotées dans les cases et reprises en clair sous chaque tableau.">
         <input type="checkbox" id="pdfAvecNotes" checked> Avec les précisions
       </label>
+      <button type="button" class="co-btn secondary md" id="importAvailBtn" title="Coller les réponses d'un tableur (Numbers, Excel, Sheets) ou d'un formulaire"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="10.5" width="17" height="9" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="6.5" y1="14.5" x2="9.5" y2="14.5" stroke="currentColor" stroke-width="1.3"></line><line x1="14.5" y1="14.5" x2="17.5" y2="14.5" stroke="currentColor" stroke-width="1.3"></line><line x1="12" y1="2.5" x2="12" y2="12.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="7.8,9 12,13.2 16.2,9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Importer des réponses</button>
       <button type="button" class="co-btn primary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
     </span>
   </div>
@@ -398,6 +436,31 @@
   <div id="matrixHolderTechniciens"></div>
 
   <div id="precisionsHolder"></div>
+</div>
+
+<!-- L'import de réponses collées depuis un tableur ou un formulaire. Il vivait
+     sur la Grille interne, qui n'avait plus que lui en propre : il rejoint la
+     page où l'on regarde les dispos, plutôt que de justifier un écran à lui
+     seul. Le reste de cette page écrit fiche par fiche ; l'import fait de même,
+     une personne à la fois. -->
+<div class="modal-overlay" id="importAvailOverlay">
+  <div class="modal">
+    <h2>Importer des réponses de disponibilité</h2>
+    <p class="modal-sub">Colle la plage de cellules copiée depuis Numbers/Excel/Sheets (ligne d'en-têtes incluse, avec les colonnes NOM, PRÉNOM et une colonne par date).</p>
+    <div class="role-toggle">
+      <button type="button" class="role-opt active" data-import-role="musiciens">Musicien·nes</button>
+      <button type="button" class="role-opt" data-import-role="techniciens">Technicien·nes</button>
+    </div>
+    <textarea id="importAvailTextarea" placeholder="Horodateur	Adresse e-mail	NOM	PRÉNOM	INSTRUMENT(S)	22 JANVIER - REPETITIONS	25 JANVIER - REPETITIONS	...&#10;...	...	Rabatti	Roxanne	Violon 1	OUI	OUI	..."></textarea>
+    <div style="margin-top:10px;">
+      <button type="button" class="co-btn secondary sm" id="importAvailAnalyzeBtn">Analyser</button>
+    </div>
+    <div id="importAvailPreview"></div>
+    <div class="modal-actions">
+      <button type="button" class="co-btn ghost" id="importAvailCancelBtn">Annuler</button>
+      <button type="button" class="co-btn primary" id="importAvailConfirmBtn" style="display:none;">Importer</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1462,6 +1525,196 @@ CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(
 CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; curieuxRafraichir(renderAll); }); });
 CurieuxDB.subscribe('remplacant_prefs', ()=>{ CurieuxDB.fetchAll('remplacant_prefs').then(list=>{ remplacantPrefsCache = list; curieuxRafraichir(renderAll); }); });
 initData();
+
+/* ---------------------------------------------------------------------------
+   Importer des réponses collées (tableur, formulaire)
+   ---------------------------------------------------------------------------
+   Venu de la Grille interne, qui n'avait plus que cela en propre. Deux
+   différences avec l'original : l'écriture se fait fiche par fiche
+   (upsertOne), comme partout ailleurs sur cette page — l'ancienne version
+   réécrivait tout le répertoire d'un coup, ce qui écrasait le travail d'une
+   autre personne connectée en même temps ; et le rendu se refait par
+   rendreEnGardantLeScroll, pour ne pas ramener le tableau en haut à gauche.
+--------------------------------------------------------------------------- */
+const FR_MONTHS = {
+  JANVIER:1, FEVRIER:2, MARS:3, AVRIL:4, MAI:5, JUIN:6, JUILLET:7, AOUT:8,
+  SEPTEMBRE:9, OCTOBRE:10, NOVEMBRE:11, DECEMBRE:12
+};
+const IMPORT_SYMBOLE = { dispo:'✓', indispo:'✕', incertain:'?' };
+let importRole = 'musiciens';
+let importPreviewData = null;   // { rows, matchedDateCols }
+
+function stripAccents(str){ return (str||'').normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+// Un export de formulaire n'indique pas l'année dans l'en-tête (« 22 JANVIER
+// - ... ») : on retrouve la date exacte en cherchant, parmi les dates déjà
+// créées, celle qui a le même jour et le même mois.
+function buildDayMonthIndex(){
+  const idx = new Map();
+  loadTournees().forEach(t=> (t.dates||[]).forEach(d=>{
+    if(!d.date) return;
+    const [, mm, dd] = d.date.split('-').map(Number);
+    const key = `${dd}-${mm}`;
+    if(!idx.has(key)) idx.set(key, d.date);
+  }));
+  return idx;
+}
+function parseDateHeader(header){
+  const m = /^(\d{1,2})\s+([A-Za-zÀ-ÿ]+)/.exec((header||'').trim());
+  if(!m) return null;
+  const month = FR_MONTHS[stripAccents(m[2]).toUpperCase()];
+  if(!month) return null;
+  return { day: parseInt(m[1],10), month };
+}
+function nameKey(prenom, nom){
+  return stripAccents(`${prenom||''}${nom||''}`).toLowerCase().replace(/[^a-z]/g,'');
+}
+function mapAnswerToState(raw){
+  const v = stripAccents(raw||'').trim().toUpperCase();
+  if(v === '') return null;
+  if(v === 'OUI') return 'dispo';
+  if(v === 'NON') return 'indispo';
+  return 'incertain';
+}
+
+function parseAvailabilityPaste(text){
+  const lines = text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim() !== '');
+  if(lines.length < 2) return { error: "Colle la ligne d'en-têtes et au moins une ligne de réponse." };
+  const headerCells = lines[0].split('\t');
+  const nomIdx = headerCells.findIndex(h => stripAccents(h).trim().toUpperCase() === 'NOM');
+  const prenomIdx = headerCells.findIndex(h => stripAccents(h).trim().toUpperCase().startsWith('PRENOM'));
+  if(nomIdx === -1 || prenomIdx === -1){
+    return { error: "Colonnes NOM / PRÉNOM introuvables — vérifie que la ligne de titres est bien collée." };
+  }
+  const dayMonthIndex = buildDayMonthIndex();
+  const dateCols = [];
+  headerCells.forEach((h, i)=>{
+    if(i === nomIdx || i === prenomIdx) return;
+    const parsed = parseDateHeader(h);
+    if(!parsed) return;
+    dateCols.push({ colIndex: i, label: h.trim(), iso: dayMonthIndex.get(`${parsed.day}-${parsed.month}`) || null });
+  });
+  const rows = [];
+  for(let li = 1; li < lines.length; li++){
+    const cells = lines[li].split('\t');
+    const nom = (cells[nomIdx] || '').trim();
+    const prenom = (cells[prenomIdx] || '').trim();
+    if(!nom && !prenom) continue;
+    rows.push({ nom, prenom, answers: dateCols.map(dc => ({ iso: dc.iso, label: dc.label, raw: (cells[dc.colIndex] || '').trim() })) });
+  }
+  return { rows, dateCols };
+}
+
+function renderAvailabilityPreview(){
+  const roster = importRole === 'musiciens' ? loadMusicians() : loadTechnicians();
+  const rosterByKey = new Map(roster.map(p => [nameKey(p.prenom, p.nom), p]));
+  const parsed = parseAvailabilityPaste(document.getElementById('importAvailTextarea').value);
+  const preview = document.getElementById('importAvailPreview');
+  const confirmBtn = document.getElementById('importAvailConfirmBtn');
+
+  if(parsed.error){
+    preview.innerHTML = `<div class="empty-hint">${escapeHtml(parsed.error)}</div>`;
+    confirmBtn.style.display = 'none';
+    importPreviewData = null;
+    return;
+  }
+  const rows = parsed.rows.map(r => ({ ...r, person: rosterByKey.get(nameKey(r.prenom, r.nom)) || null }));
+  const matchedDateCols = parsed.dateCols.filter(dc => dc.iso);
+  const matchedPeople = rows.filter(r => r.person).length;
+  const unmatchedPeople = rows.filter(r => !r.person);
+
+  if(rows.length === 0 || matchedDateCols.length === 0){
+    preview.innerHTML = `<div class="empty-hint">Aucune ligne exploitable — vérifie les colonnes NOM/PRÉNOM et que les dates collées correspondent à des dates déjà créées dans un projet.</div>`;
+    confirmBtn.style.display = 'none';
+    importPreviewData = null;
+    return;
+  }
+  preview.innerHTML = `
+    <div class="import-summary">
+      <strong>${matchedPeople}</strong> / ${rows.length} personne(s) reconnue(s) dans l'annuaire (${importRole === 'musiciens' ? 'musicien·nes' : 'technicien·nes'}) ·
+      <strong>${matchedDateCols.length}</strong> / ${parsed.dateCols.length} colonne(s) de date reconnue(s)
+      ${unmatchedPeople.length ? `<br>Non reconnu·es (vérifie l'orthographe dans l'annuaire) : ${unmatchedPeople.map(r=>escapeHtml(`${r.prenom} ${r.nom}`.trim())).join(', ')}` : ''}
+      ${parsed.dateCols.length > matchedDateCols.length ? `<br>Colonnes de date ignorées (aucune date de projet correspondante) : ${parsed.dateCols.filter(dc=>!dc.iso).map(dc=>escapeHtml(dc.label)).join(', ')}` : ''}
+    </div>
+    <div class="import-preview-wrap">
+      <table class="import-preview-table">
+        <thead><tr><th>Nom</th>${matchedDateCols.map(dc => `<th>${escapeHtml(fmtDateFRShort(dc.iso))}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td class="import-name ${r.person ? '' : 'unmatched'}">${escapeHtml(`${r.prenom} ${r.nom}`.trim())}</td>
+              ${matchedDateCols.map(dc => {
+                const answer = r.answers.find(a => a.iso === dc.iso);
+                const state = answer ? mapAnswerToState(answer.raw) : null;
+                return `<td><span class="import-dot ${state || 'none'}" title="${escapeAttr(answer ? answer.raw : '')}">${state ? IMPORT_SYMBOLE[state] : '—'}</span></td>`;
+              }).join('')}
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  confirmBtn.textContent = `Importer pour ${matchedPeople} personne${matchedPeople>1?'s':''}`;
+  confirmBtn.style.display = matchedPeople > 0 ? 'inline-block' : 'none';
+  importPreviewData = { rows, matchedDateCols };
+}
+
+function openImportAvailModal(){
+  document.getElementById('importAvailTextarea').value = '';
+  document.getElementById('importAvailPreview').innerHTML = '';
+  document.getElementById('importAvailConfirmBtn').style.display = 'none';
+  importPreviewData = null;
+  document.getElementById('importAvailOverlay').classList.add('open');
+}
+function closeImportAvailModal(){
+  document.getElementById('importAvailOverlay').classList.remove('open');
+}
+document.getElementById('importAvailBtn').addEventListener('click', openImportAvailModal);
+document.getElementById('importAvailCancelBtn').addEventListener('click', closeImportAvailModal);
+document.getElementById('importAvailOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'importAvailOverlay') closeImportAvailModal(); });
+document.getElementById('importAvailAnalyzeBtn').addEventListener('click', renderAvailabilityPreview);
+document.querySelectorAll('[data-import-role]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    importRole = btn.dataset.importRole;
+    document.querySelectorAll('[data-import-role]').forEach(b=> b.classList.toggle('active', b === btn));
+    if(document.getElementById('importAvailTextarea').value.trim()) renderAvailabilityPreview();
+  });
+});
+
+// Fiche par fiche, et on dit ce qui a échoué plutôt que d'annoncer un succès
+// global : sur trente personnes, une écriture refusée passait inaperçue.
+document.getElementById('importAvailConfirmBtn').addEventListener('click', async ()=>{
+  if(!importPreviewData) return;
+  const table = importRole === 'musiciens' ? 'musiciens' : 'techniciens';
+  const roster = importRole === 'musiciens' ? loadMusicians() : loadTechnicians();
+  const btn = document.getElementById('importAvailConfirmBtn');
+  btn.disabled = true;
+  let ecrites = 0;
+  const echecs = [];
+  for(const r of importPreviewData.rows){
+    if(!r.person) continue;
+    const cible = roster.find(p => p.id === r.person.id);
+    if(!cible) continue;
+    const avant = JSON.parse(JSON.stringify(cible.disponibilites || {}));
+    if(!cible.disponibilites) cible.disponibilites = {};
+    let change = false;
+    r.answers.forEach(a=>{
+      if(!a.iso) return;
+      const state = mapAnswerToState(a.raw);
+      if(state === null) return;
+      cible.disponibilites[a.iso] = state;
+      change = true;
+    });
+    if(!change) continue;
+    const { error } = await CurieuxDB.upsertOne(table, cible);
+    if(error){ cible.disponibilites = avant; echecs.push(fullName(cible)); }
+    else ecrites++;
+  }
+  btn.disabled = false;
+  closeImportAvailModal();
+  rendreEnGardantLeScroll();
+  curieuxFlash(echecs.length
+    ? `${ecrites} enregistré·es — échec pour ${echecs.join(', ')}`
+    : `${ecrites} ${importRole === 'musiciens' ? 'musicien·ne' : 'technicien·ne'}${ecrites>1?'s':''} mis·es à jour`);
+});
 
 /* ============================================================================
    L'export PDF de la Vue d'ensemble

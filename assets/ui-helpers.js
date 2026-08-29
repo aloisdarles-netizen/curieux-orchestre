@@ -455,8 +455,8 @@ const CURIEUX_NAV = [
     { href:'infos-sociales.html',  icone:'cadenas',               libelle:'Infos sociales' },
   ]},
   { type:'groupe', libelle:'Disponibilités', entrees:[
-    { href:'disponibilites.html', icone:'icone-disponibilites.svg',        libelle:'Grille interne' },
     { href:'suivi-dispo.html',    icone:'icone-demandes-titulaires.svg',   libelle:'Demandes titulaires' },
+    { href:'recap.html',          icone:'icone-disponibilites.svg',        libelle:"Vue d'ensemble" },
   ]},
   { type:'groupe', libelle:'Direction technique', entrees:[
     { href:'technique.html',          icone:'icone-technique-avancement.svg', libelle:'Avancement par date' },

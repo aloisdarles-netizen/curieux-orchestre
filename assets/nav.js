@@ -42,10 +42,21 @@ const CURIEUX_SECTIONS = [
   ]},
   // « Demandes titulaires » en tête, et donc page d'atterrissage de l'onglet :
   // c'est de là qu'on part — on demande leurs disponibilités, puis on regarde
-  // la grille. La grille interne était première par ancienneté, pas par usage.
+  // le tableau.
+  //
+  // La « Grille interne » a disparu : elle montrait la même matrice que la Vue
+  // d'ensemble, en sachant moins de choses (ni les projets, ni qui a été
+  // sollicité, ni les précisions), et n'avait plus en propre que l'import de
+  // réponses collées — qui est passé sur la Vue d'ensemble. Deux écrans
+  // suffisent : un pour demander et relancer, un pour voir et décider.
+  //
+  // La Vue d'ensemble entre donc dans cette section, tout en gardant son entrée
+  // primaire dans le bandeau : c'est la page la plus ouverte de l'application,
+  // la reléguer à deux clics aurait été un recul. Elle est bien une page de
+  // disponibilités, elle se range ici aussi.
   { libelle:'Disponibilités', href:'suivi-dispo.html', entrees:[
     { libelle:'Demandes titulaires', href:'suivi-dispo.html', pages:['suivi-dispo.html'] },
-    { libelle:'Grille interne', href:'disponibilites.html', pages:['disponibilites.html'] },
+    { libelle:"Vue d'ensemble", href:'recap.html', pages:['recap.html'] },
   ]},
   { libelle:'Technique', href:'technique.html', entrees:[
     { libelle:'Avancement', href:'technique.html', pages:['technique.html','technique-date.html'] },
