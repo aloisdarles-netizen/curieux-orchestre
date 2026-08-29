@@ -537,13 +537,13 @@
       <input type="checkbox" id="showDatesAnnulees"> Afficher les dates annulées
     </label>
     <label style="display:flex; align-items:center; gap:6px; font-weight:600; color:var(--muted);"
-           title="Borne le nombre de colonnes. Une saison entière fait quatre écrans de large : on la fait défiler au lieu de la lire.">
+           title="Resserrer la vue sur les semaines qui viennent, quand la saison entière fait trop de colonnes. Par défaut, tout est affiché.">
       Période :
       <select class="co-select" id="fenetrePeriode" style="width:auto; padding:5px 8px; font-size:12px;">
+        <option value="0">Toute la saison</option>
         <option value="3">3 mois à venir</option>
         <option value="6">6 mois</option>
         <option value="12">12 mois</option>
-        <option value="0">Tout</option>
       </select>
     </label>
     <span class="legend-actions">
@@ -694,9 +694,14 @@ function memoriserGroupes(){
 }
 
 const CLE_FENETRE = 'curieuxRecapFenetre';
+// Toute la saison par défaut : c'est ainsi que l'équipe travaille. Trois mois
+// avaient été choisis pour tenir l'écran, mais borner d'office une vue qu'on
+// ouvre justement pour embrasser l'année, c'est répondre à un problème
+// d'affichage par une amputation du travail. La fenêtre reste offerte à qui
+// veut resserrer un moment ; elle ne s'impose plus.
 let fenetreMois = (()=>{
-  try{ const v = parseInt(localStorage.getItem(CLE_FENETRE), 10); return isFinite(v) ? v : 3; }
-  catch(e){ return 3; }
+  try{ const v = parseInt(localStorage.getItem(CLE_FENETRE), 10); return isFinite(v) ? v : 0; }
+  catch(e){ return 0; }
 })();
 
 // La borne haute de la fenêtre, en date ISO. 0 = pas de borne.
