@@ -402,6 +402,28 @@
   .import-dot.incertain{background:var(--maybe);}
   .import-dot.none{background:var(--border); color:var(--muted);}
 
+  /* Le panneau d'une date dépliée. */
+  .co-matrix-date[data-ouvrir-date]{cursor:pointer;}
+  .co-matrix-date[data-ouvrir-date]:hover{filter:brightness(.95); text-decoration:underline;}
+  .co-matrix-date[data-ouvrir-date]:focus-visible{outline:2px solid var(--text); outline-offset:-2px;}
+  .date-lot{margin-bottom:18px;}
+  .date-lot h3{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 8px;}
+  .date-groupe{margin-bottom:12px;}
+  .date-groupe h4{display:flex; align-items:center; gap:7px; font-size:12.5px; margin:0 0 5px;}
+  .date-groupe h4 small{color:var(--muted); font-weight:700;}
+  .date-groupe ul{list-style:none; margin:0; padding:0; display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:2px 12px;}
+  .date-groupe li{font-size:13px; display:flex; gap:6px; align-items:baseline;}
+  .date-groupe li span{font-size:11px; color:var(--muted);}
+  /* La pastille reprend l'aplat de l'état, pour que le panneau et le tableau
+     se lisent avec le même code — c'est tout l'intérêt d'avoir un vocabulaire
+     partagé plutôt que quatre déclarations parallèles. */
+  .pastille-etat{width:11px; height:11px; border-radius:3px; flex-shrink:0; border:1px solid var(--border);}
+  .pastille-etat.assigned{background:var(--ok); border-color:var(--ok);}
+  .pastille-etat.dispo{background:var(--accent-tint); border-color:var(--accent-dark);}
+  .pastille-etat.indispo{background:var(--ko); border-color:var(--ko);}
+  .pastille-etat.incertain{background:var(--maybe); border-color:var(--maybe);}
+
   .dispo-filter-row{display:flex; gap:8px; align-items:center; margin:-2px 0 10px; flex-wrap:wrap;}
   .dispo-filter-row label{font-size:12px; color:var(--muted); font-weight:600;}
   .dispo-filter-row select{
@@ -502,6 +524,22 @@
   <div id="matrixHolderTechniciens"></div>
 
   <div id="precisionsHolder"></div>
+</div>
+
+<!-- Lire le tableau dans l'autre sens. Le tableau croisé répond très bien à
+     « où en est cette personne » et très mal à « où en est cette date » : il
+     faut suivre une colonne de 76 px sur des dizaines de lignes. Ce panneau
+     déplie une colonne — qui joue, qui est libre, qui manque à l'appel — en
+     rangeant tout le monde dans l'ordre de l'orchestre. -->
+<div class="modal-overlay" id="dateOverlay">
+  <div class="modal" style="max-width:680px;">
+    <h2 id="dateTitre">Date</h2>
+    <p class="modal-sub" id="dateSousTitre"></p>
+    <div id="dateCorps"></div>
+    <div class="modal-actions">
+      <button type="button" class="co-btn ghost" id="dateFermerBtn">Fermer</button>
+    </div>
+  </div>
 </div>
 
 <!-- L'import de réponses collées depuis un tableur ou un formulaire. Il vivait
@@ -921,7 +959,9 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     <div class="co-matrix-row co-matrix-head">
       <div class="co-matrix-name">${nameLabel}</div>
       ${entries.map(e=>`
-        <div class="co-matrix-date${e.estRecording ? ' colonne-reco' : ''}${e.statut === 'annulee' ? ' date-annulee' : ''}" style="background:${colorFor(e)};" title="${e.statut === 'annulee' ? 'Date annulée — ' : ''}${escapeHtml(e.tourneeNom || '')}${e.estRecording ? ' (recording)' : ''} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}">
+        <div class="co-matrix-date${e.estRecording ? ' colonne-reco' : ''}${e.statut === 'annulee' ? ' date-annulee' : ''}" style="background:${colorFor(e)};"
+          data-ouvrir-date="${escapeAttr(e.tourneeId + '|' + e.dateId)}" role="button" tabindex="0"
+          title="${e.statut === 'annulee' ? 'Date annulée — ' : ''}${escapeHtml(e.tourneeNom || '')}${e.estRecording ? ' (recording)' : ''} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}&#10;&#10;Cliquer pour voir cette date en entier : qui joue, qui est libre, qui manque.">
           ${escapeHtml(fmtDateFRShort(e.date))}
           <small>${escapeHtml((e.ville || '').split(' (')[0] || '—')}</small>
         </div>
@@ -1744,6 +1784,13 @@ document.addEventListener('click', (e)=>{
     noterDemandeEnvoyee(ptype, pid);
     return;
   }
+  // Déplier une date : l'en-tête de colonne ouvre le panneau.
+  const enTeteDate = e.target.closest('[data-ouvrir-date]');
+  if(enTeteDate){
+    const [tid, did] = enTeteDate.dataset.ouvrirDate.split('|');
+    ouvrirDate(tid, did);
+    return;
+  }
   // Replier un pupitre : le clic ne doit pas retomber sur la case en dessous.
   const groupe = e.target.closest('[data-groupe]');
   if(groupe){
@@ -1760,6 +1807,17 @@ document.addEventListener('click', (e)=>{
     renderAll();
   }
 });
+// L'en-tête de date est annoncé comme un bouton : il doit répondre au clavier
+// comme un bouton, sans quoi la promesse du rôle est fausse.
+document.addEventListener('keydown', (e)=>{
+  if(e.key !== 'Enter' && e.key !== ' ') return;
+  const cible = e.target.closest && e.target.closest('[data-ouvrir-date]');
+  if(!cible) return;
+  e.preventDefault();
+  const [tid, did] = cible.dataset.ouvrirDate.split('|');
+  ouvrirDate(tid, did);
+});
+
 poserMode(mode);
 majOups();
 
@@ -1779,6 +1837,98 @@ CurieuxDB.subscribe('techniciens', ()=>{ CurieuxDB.fetchAll('techniciens').then(
 CurieuxDB.subscribe('dispo_demandes', ()=>{ CurieuxDB.fetchAll('dispo_demandes').then(list=>{ dispoDemandesCache = list; curieuxRafraichir(renderAll); }); });
 CurieuxDB.subscribe('remplacant_prefs', ()=>{ CurieuxDB.fetchAll('remplacant_prefs').then(list=>{ remplacantPrefsCache = list; curieuxRafraichir(renderAll); }); });
 initData();
+
+/* ---------------------------------------------------------------------------
+   Une date, dépliée
+   ---------------------------------------------------------------------------
+   Le tableau croisé répond très bien à « où en est cette personne » — une
+   ligne, on la suit — et très mal à « où en est cette date », qui demande de
+   descendre une colonne de 76 px sur des dizaines de lignes en comptant à
+   l'œil. C'est pourtant la question du bureau : « il me manque un alto le 15
+   mars ? »
+
+   Le panneau reprend le même vocabulaire et le même ordre que le tableau : les
+   quatre états de CurieuxDispos, les gens rangés dans l'ordre de l'orchestre.
+   Ce qu'il ajoute, c'est le regroupement — et « personne n'a répondu », qui
+   n'existe nulle part ailleurs puisque c'est une absence.
+--------------------------------------------------------------------------- */
+let dateOuverte = null;   // { tid, did }
+
+function ouvrirDate(tid, did){
+  const t = loadTournees().find(x=> x.id === tid);
+  const d = t && (t.dates || []).find(x=> x.id === did);
+  if(!d) return;
+  dateOuverte = { tid, did };
+  document.getElementById('dateTitre').textContent = fmtDateFR(d.date);
+  document.getElementById('dateSousTitre').textContent =
+    [t.nom, [d.ville, d.lieu].filter(Boolean).join(' · '), d.statut === 'annulee' ? 'date annulée' : '']
+      .filter(Boolean).join(' — ');
+  rendreDateOuverte();
+  document.getElementById('dateOverlay').classList.add('open');
+}
+
+function rendreDateOuverte(){
+  if(!dateOuverte) return;
+  const { tid, did } = dateOuverte;
+  const t = loadTournees().find(x=> x.id === tid);
+  const d = t && (t.dates || []).find(x=> x.id === did);
+  const corps = document.getElementById('dateCorps');
+  if(!d){ corps.innerHTML = ''; return; }
+
+  // Les deux répertoires, avec le même filtre que le tableau : on ne fait pas
+  // apparaître dans ce panneau des gens que la vue courante a écartés.
+  const lots = [
+    { ptype: 'musicien', champ: 'musiciensAssignes', gens: garderSelonFiltre(loadMusicians(), 'musicien') },
+    { ptype: 'technicien', champ: 'techniciensAssignes', gens: garderSelonFiltre(loadTechnicians(), 'technicien') },
+  ];
+
+  // Cinq colonnes de lecture, dans l'ordre où l'on s'en sert : qui joue, qui
+  // pourrait jouer, qui a dit non, qui hésite, et de qui l'on n'a rien.
+  const CASES = [
+    { cle: 'affecte',   titre: 'Sur la date' },
+    { cle: 'dispo',     titre: 'Disponibles, pas encore retenu·es' },
+    { cle: 'incertain', titre: 'À confirmer' },
+    { cle: 'indispo',   titre: 'Indisponibles' },
+    { cle: 'sans',      titre: "Sans réponse" },
+  ];
+
+  const blocs = lots.map(lot=>{
+    const rangs = { affecte: [], dispo: [], incertain: [], indispo: [], sans: [] };
+    lot.gens.forEach(p=>{
+      const affecte = (d[lot.champ] || []).includes(p.id);
+      const etat = (p.disponibilites || {})[d.date] || '';
+      // On ne réclame pas une réponse à quelqu'un qu'on n'a pas sollicité :
+      // il n'apparaît simplement pas dans « sans réponse ».
+      const sollicite = estSollicite(p, lot.ptype, { tourneeId: tid, dateId: did, estRecording: t.type === 'recording' });
+      if(affecte) rangs.affecte.push(p);
+      else if(etat) rangs[etat].push(p);
+      else if(sollicite) rangs.sans.push(p);
+    });
+    const listes = CASES.map(c=>{
+      const gens = rangs[c.cle];
+      if(!gens.length) return '';
+      const cls = c.cle === 'sans' ? '' : CurieuxDispos.classe(c.cle);
+      return `
+        <div class="date-groupe">
+          <h4><span class="pastille-etat ${cls}"></span>${c.titre} <small>${gens.length}</small></h4>
+          <ul>${gens.map(p=> `<li><b>${escapeHtml(fullName(p))}</b>${
+            p.instrument || p.poste ? `<span>${escapeHtml(p.instrument || p.poste)}</span>` : ''}</li>`).join('')}</ul>
+        </div>`;
+    }).join('');
+    if(!listes) return '';
+    return `<section class="date-lot"><h3>${lot.ptype === 'musicien' ? 'Musicien·nes' : 'Technicien·nes'}</h3>${listes}</section>`;
+  }).join('');
+
+  corps.innerHTML = blocs || `<div class="empty-hint">Personne à afficher avec le filtre en cours.</div>`;
+}
+
+document.getElementById('dateFermerBtn').addEventListener('click', ()=>{
+  document.getElementById('dateOverlay').classList.remove('open');
+  dateOuverte = null;
+});
+document.getElementById('dateOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'dateOverlay'){ e.currentTarget.classList.remove('open'); dateOuverte = null; }
+});
 
 /* ---------------------------------------------------------------------------
    Importer des réponses collées (tableur, formulaire)
