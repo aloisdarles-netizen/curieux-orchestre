@@ -2,10 +2,33 @@
 
 Projet : `nffqcvysweidquouulzs`. Ce document décrit les tables créées par `migrations.sql`.
 
+> **Deux parties, deux régimes.** Ce qui suit — les principes, les intentions —
+> s'écrit et se relit à la main : c'est le *pourquoi*, et aucune base ne sait le
+> raconter. La section « Le schéma tel qu'il est », plus bas, est en revanche
+> produite depuis la base par `outils/schema-courant.mjs` : c'est le *quoi*, et
+> le corriger à la main revient à écrire une carte fausse. Une fois de plus.
+>
+> ```sh
+> npm i postgres --no-save
+> SUPABASE_DB_URL='postgresql://…' node outils/schema-courant.mjs
+> SUPABASE_DB_URL='postgresql://…' node outils/schema-courant.mjs --verifier
+> ```
+>
+> À relancer après chaque strate ajoutée à `migrations.sql`.
+
 ## Principe général
 
-- **Pas de compte utilisateur.** Toutes les tables ont RLS activé avec une policy unique `for all using (true) with check (true)` : accès public en lecture/écriture avec la clé anonyme (`sb_publishable_...`). C'est équivalent à l'ancien localStorage (aucune barrière), mais partagé entre tous les postes.
-- **Realtime activé** sur toutes les tables : toute modification faite par une personne apparaît instantanément chez les autres (Supabase Realtime, canal Postgres Changes).
+- **Un accès public, et des portes gardées.** Ce document a longtemps annoncé
+  « pas de compte utilisateur » et une policy unique `using (true)` sur toutes
+  les tables : ce n'est plus vrai. Il y a désormais des comptes, des rôles
+  (dont `admin`), des liens à jeton pour les titulaires qui n'ont pas de compte,
+  et des fonctions `security definer` par lesquelles passe tout ce qu'un jeton
+  autorise. La section générée ci-dessous dit, table par table, ce qu'il en est
+  réellement — c'est elle qui fait foi.
+- **Realtime : sur une partie des tables seulement.** Là encore, « toutes les
+  tables » était faux, et un abonnement posé sur une table non publiée ne se
+  déclenche jamais sans que rien ne le signale. La liste exacte est produite
+  plus bas.
 - **IDs texte**, pas des UUID Postgres : on garde le format `genId('prefixe')` déjà généré côté client (ex: `mus1a2b3c4d`), pour ne rien changer à la logique de création d'ID dans l'app.
 - **JSONB pour les structures imbriquées** (dates de tournée, contenu de feuille de route) plutôt qu'un éclatement en sous-tables : ces structures bougent encore souvent et sont toujours lues/écrites en bloc par l'app — les normaliser aurait forcé une réécriture bien plus large sans bénéfice réel aujourd'hui.
 
@@ -39,4 +62,16 @@ Une seule ligne (`id = 1`), remplacée à chaque "Marquer comme envoyé" dans la
 1. Ouvrir le projet Supabase → **SQL Editor** → **New query**.
 2. Coller le contenu de `migrations.sql`.
 3. **Run**. Toutes les instructions sont idempotentes (`create table if not exists`, `drop policy if exists`) — tu peux relancer le script sans risque si besoin.
-4. Vérifier dans **Table Editor** que les 6 tables sont bien créées, et dans **Database → Replication** que Realtime est actif sur ces 6 tables.
+4. Régénérer la carte ci-dessous (`node outils/schema-courant.mjs`) et relire ce
+   qu'elle dit : c'est la seule vérification qui porte sur ce qui existe
+   vraiment. Compter les tables à la main dans le Table Editor, c'est ce qui a
+   laissé ce document affirmer pendant des semaines qu'il y en avait six.
+
+<!-- SCHEMA-COURANT:DEBUT -->
+
+*La carte n'a pas encore été produite. Lancer `node outils/schema-courant.mjs`
+avec `SUPABASE_DB_URL` pour la remplir — elle décrira alors les tables,
+colonnes, policies, index, publications temps réel et fonctions réellement en
+place.*
+
+<!-- SCHEMA-COURANT:FIN -->

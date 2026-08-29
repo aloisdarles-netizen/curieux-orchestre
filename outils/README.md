@@ -93,3 +93,41 @@ dépassent légitimement.
 Le seul signe fiable est que la page défile vraiment : on tente un
 `scrollTo(9999, 0)` et on regarde si `scrollX` a bougé. Les éléments fautifs ne
 sont listés qu'ensuite, en excluant ceux qu'un ancêtre découpe déjà.
+
+---
+
+# Régénérer la carte du schéma
+
+`schema-courant.mjs` lit la base et réécrit la section « Le schéma tel qu'il
+est » de `SUPABASE_SCHEMA.md` : tables, colonnes, policies effectives, index,
+tables réellement publiées en temps réel, fonctions et leurs droits.
+
+## Pourquoi cet outil existe
+
+La documentation du schéma a été écrite une fois, juste ce jour-là, et a cessé
+de l'être. Elle annonçait « pas de compte utilisateur », une policy
+`using (true)` sur toutes les tables et le temps réel partout, alors que la base
+avait entre-temps des rôles, des liens à jeton, des fonctions `security definer`
+et une publication temps réel qui ne couvrait pas tout — un abonnement posé sur
+une table absente de cette liste ne se déclenche jamais, sans que rien ne le
+signale.
+
+Une carte fausse est pire qu'une carte absente : on décide en la croyant. Elle
+se produit donc depuis la base, et le *pourquoi* — les intentions écrites en
+français, qui font la valeur de ces fichiers — reste seul à la main.
+
+## Utilisation
+
+```sh
+npm i postgres --no-save                 # pilote SQL, hors dépendances du site
+SUPABASE_DB_URL='postgresql://…' node outils/schema-courant.mjs
+SUPABASE_DB_URL='postgresql://…' node outils/schema-courant.mjs --verifier
+```
+
+L'URI de connexion est dans Supabase → Project Settings → Database → Connection
+string. Ce n'est pas la clé publishable de `assets/db.js` : celle-ci ne lit pas
+les catalogues système, et c'est très bien ainsi.
+
+`--verifier` ne réécrit rien et sort en échec si la documentation ne correspond
+plus à la base — de quoi le lancer après chaque strate ajoutée à
+`migrations.sql`.
