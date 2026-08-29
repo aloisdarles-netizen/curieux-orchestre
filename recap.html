@@ -10,6 +10,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/dispo-statuts.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
@@ -799,12 +800,15 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           const note = ((m.disponibilitesCommentaires || {})[e.date] || '').trim();
           const rep = note ? reponseDe(m, e.date) : null;
           // Une affectation prime : on ne grise jamais quelqu'un qui joue.
+          // Classe, symbole et libellé viennent tous de CurieuxDispos : c'est
+          // ce qui garantit que l'écran et le PDF disent la même chose.
           const hors = !assigned && !estSollicite(m, ptypeMatrice, e);
-          let cls = '', symbol = '—', title = 'Non renseigné';
-          if(assigned){ cls = 'assigned'; symbol = '✓'; title = `Affecté·e — ${escapeHtml(e.tourneeNom || '')}`; }
-          else if(state === 'dispo'){ cls = 'dispo'; symbol = '✓'; title = 'Disponible'; }
-          else if(state === 'indispo'){ cls = 'indispo'; symbol = '✕'; title = 'Indisponible'; }
-          else if(state === 'incertain'){ cls = 'incertain'; symbol = '?'; title = 'À confirmer'; }
+          const cle = CurieuxDispos.etatCellule({ affecte: assigned, statut: state });
+          const cls = CurieuxDispos.classe(cle);
+          const symbol = CurieuxDispos.symbole(cle);
+          const title = assigned
+            ? `Affecté·e — ${escapeHtml(e.tourneeNom || '')}`
+            : CurieuxDispos.libelle(cle);
           // data-jour : voir disponibilites.html — sert uniquement à la mise en
           // liste sur petit écran, sans rien changer au tableau sur ordinateur.
           return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${hors ? ' hors-demande' : ''}${note ? ' porte-note' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
@@ -1292,8 +1296,11 @@ setInterval(applyAutoTheme, 5 * 60 * 1000);
    par le même chemin d'écriture qu'à l'aller.
 --------------------------------------------------------------------------- */
 
-const CYCLE_DISPO = ['', 'dispo', 'indispo', 'incertain'];
-const LIBELLE_DISPO = { '': 'non renseigné', dispo: 'disponible', indispo: 'indisponible', incertain: 'à confirmer' };
+// Le cycle et les libellés viennent de CurieuxDispos (assets/dispo-statuts.js) :
+// cette page les définissait de son côté, la Grille interne aussi, et rien ne
+// garantissait qu'ils restent d'accord. En minuscules, parce qu'ils s'insèrent
+// ici au milieu d'une phrase (« Marie est indisponible ce jour-là »).
+function libelleDispo(cle){ return CurieuxDispos.libelle(cle).toLowerCase(); }
 let mode = (()=>{ try{ return localStorage.getItem('curieuxRecapMode') || 'marquer'; }catch(e){ return 'marquer'; } })();
 let pileOups = [];
 
@@ -1427,9 +1434,9 @@ async function surClicCellule(cel){
 
   if(mode === 'marquer'){
     const avant = (personne.disponibilites || {})[date] || '';
-    const apres = CYCLE_DISPO[(CYCLE_DISPO.indexOf(avant) + 1) % CYCLE_DISPO.length];
+    const apres = CurieuxDispos.suivant(avant);
     if(await ecrireDispo(ptype, personne, date, apres,
-      `dispo de ${nom} le ${fmtDateFRShort(date)} (retour à « ${LIBELLE_DISPO[avant]} »)`)){
+      `dispo de ${nom} le ${fmtDateFRShort(date)} (retour à « ${libelleDispo(avant)} »)`)){
       rendreEnGardantLeScroll();
     }
     return;
@@ -1449,7 +1456,7 @@ async function surClicCellule(cel){
   if(etat !== 'dispo'){
     // Pas d'affectation en un clic sans un « oui » : le panneau de la tournée
     // garde la main, avec ses remplaçants proposés et ses règles.
-    if(!confirm(`${nom} est ${LIBELLE_DISPO[etat]} ce jour-là — pas d'affectation en un clic.\n\nOuvrir le panneau d'affectation de « ${t.nom || 'la tournée'} » ?`)) return;
+    if(!confirm(`${nom} est ${libelleDispo(etat)} ce jour-là — pas d'affectation en un clic.\n\nOuvrir le panneau d'affectation de « ${t.nom || 'la tournée'} » ?`)) return;
     location.href = 'tournees.html?' + (cel.dataset.reco ? 'type=recording&' : '') + 'affecter=' + encodeURIComponent(tid + ':' + did);
     return;
   }
@@ -1788,11 +1795,13 @@ function pdfHachures(doc, x, y, w, h){
   }
 }
 
+// Les fonds du PDF sont ceux que CurieuxDispos déclare : c'est précisément
+// cette table, recopiée ici, qui avait fini par contredire l'écran.
 const PDF_FONDS = {
-  affecte: [47, 143, 91],
-  dispo: [206, 225, 244],
-  indispo: [178, 59, 46],
-  incertain: [184, 121, 42],
+  affecte: CurieuxDispos.couleurPdf('affecte'),
+  dispo: CurieuxDispos.couleurPdf('dispo'),
+  indispo: CurieuxDispos.couleurPdf('indispo'),
+  incertain: CurieuxDispos.couleurPdf('incertain'),
 };
 
 // La légende, dessinée avec les mêmes marques que les cases — sinon elle

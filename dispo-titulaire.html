@@ -8,6 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/dispo-statuts.js"></script>
 <!-- Page volontairement PUBLIQUE : pas de hideCurieuxPageUntilAuth()/requireAdminAuth()
      ici, contrairement à toutes les autres pages — ce lien est envoyé à des titulaires qui n'ont
      pas de compte admin de l'app interne. L'identification se fait par le token imprévisible
@@ -630,10 +631,10 @@ function render(){
           <div class="date-place">${escapeHtml([d.ville, d.lieu].filter(Boolean).join(' · ') || '—')}${state.tournee.type === 'recording' && d.cachetSeance != null && d.cachetSeance !== '' ? `<span class="cachet-seance-tag">${escapeHtml(String(d.cachetSeance))} € brut</span>` : ''}</div>
         </div>
         <div class="state-toggle">
-          <button type="button" class="state-btn dispo ${current==='dispo'?'active':''}" data-date="${escapeAttr(d.date)}" data-state="dispo">Disponible</button>
+          <button type="button" class="state-btn dispo ${current==='dispo'?'active':''}" data-date="${escapeAttr(d.date)}" data-state="dispo">${CurieuxDispos.libelle('dispo')}</button>
           <button type="button" class="state-btn indispo ${current==='indispo'?'active':''}${affecte ? ' verrouille' : ''}"
             data-date="${escapeAttr(d.date)}" data-state="indispo"
-            ${affecte ? `data-verrouille="1" aria-expanded="false" aria-controls="alerte-${escapeAttr(d.date)}" title="Tu es affecté·e sur cette date — préviens la production"` : ''}>Indisponible</button>
+            ${affecte ? `data-verrouille="1" aria-expanded="false" aria-controls="alerte-${escapeAttr(d.date)}" title="Tu es affecté·e sur cette date — préviens la production"` : ''}>${CurieuxDispos.libelle('indispo')}</button>
         </div>
         <div class="alerte-affecte" id="alerte-${escapeAttr(d.date)}" data-alerte="${escapeAttr(d.date)}" role="status" style="display:none;"></div>
         <input type="text" class="date-comment" data-date="${escapeAttr(d.date)}" placeholder="Une précision ? (facultatif)" value="${escapeAttr(comment)}">
