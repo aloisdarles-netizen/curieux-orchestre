@@ -164,12 +164,30 @@
     display:grid; place-items:center; padding:0; border:none; background:none;
     cursor:pointer; -webkit-tap-highlight-color:transparent;
   }
+  /* Le disque et le crayon occupent la MÊME cellule de grille : sans
+     grid-area, place-items les poserait côte à côte. */
   .point-note::before{
-    content:''; width:10px; height:10px; border-radius:50%;
+    content:''; grid-area:1/1;
+    width:10px; height:10px; border-radius:50%;
     background:var(--secondary); border:2px solid var(--card);
-    transition:transform .1s ease;
+    transition:width .12s ease, height .12s ease;
   }
-  .point-note:hover::before, .point-note:focus-visible::before{transform:scale(1.45);}
+  /* Un point orange dans un tableau ressemble à un voyant, pas à une commande.
+     Au survol il grossit et montre un crayon — le même ✎ que « Marquer » dans
+     la barre de mode, que le bouton « modifier » de Comm et des tâches
+     techniques : dans cette application, le crayon veut dire « écris ici ».
+
+     Le disque grandit par width/height et non par transform:scale — une
+     mise à l'échelle emporterait sa bordure de 2 px avec elle, qui passerait
+     à 3,8 px et ne laisserait que 11 px au glyphe. À taille réelle la bordure
+     reste à 2 px, l'intérieur fait 15 px, le crayon y tient. */
+  .point-note::after{
+    content:'✎'; grid-area:1/1;
+    font-size:10px; line-height:1; color:#fff;
+    opacity:0; transition:opacity .12s ease; pointer-events:none;
+  }
+  .point-note:hover::before, .point-note:focus-visible::before{width:19px; height:19px;}
+  .point-note:hover::after, .point-note:focus-visible::after{opacity:1;}
   .point-note:focus-visible{outline:2px solid var(--secondary); outline-offset:-3px; border-radius:50%;}
   .point-note.repondue::before{background:var(--prune);}
   /* Sur ordinateur, la précision s'affiche dans une bulle au survol : le

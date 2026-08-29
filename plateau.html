@@ -87,20 +87,29 @@
   .qui-nom{flex:0 0 40%; min-width:0; font-size:13px; line-height:1.3;}
   .qui-nom b{font-weight:700;}
   .qui-nom small{display:block; color:var(--muted); font-size:11.5px;}
+  /* L'état de repos, deux fois corrigé.
+     D'abord l'invite « Une précision pour la prod ? » s'affichait en toutes
+     lettres quatre-vingt-huit fois : plus de texte d'invite que de noms. Je
+     l'ai alors masquée au repos — et le champ est devenu invisible, avec
+     l'affordance. Le bon réglage est entre les deux : un trait pointillé, qui
+     dit « à remplir » dans toutes les conventions de formulaire et ne pèse
+     presque rien, et une invite courte à 55 %. Le crayon est le même que celui
+     du point de Vue d'ensemble — dans cette application, ✎ veut dire
+     « écris ici ». */
   .qui-note{
     flex:1 1 auto; min-width:0; align-self:center;
-    padding:5px 8px; border:1px solid transparent; border-radius:7px;
+    padding:5px 8px; border:1px solid transparent;
+    border-bottom:1px dashed var(--border); border-radius:7px 7px 0 0;
     background:transparent; color:var(--text); font-family:inherit; font-size:12.5px;
   }
-  /* Quatre-vingt-huit fois « Une précision pour la prod ? » en italique gris,
-     c'était plus de texte que de noms : l'invite ne se montre que sur la ligne
-     survolée, et le champ rempli, lui, se voit toujours. */
-  .qui-note::placeholder{color:var(--muted); font-style:italic; opacity:0;}
+  .qui-note::placeholder{color:var(--muted); font-style:italic; opacity:.55;}
   .qui:hover .qui-note::placeholder, .qui-note:focus::placeholder{opacity:1;}
-  .qui-note:hover{border-color:var(--border);}
-  .qui-note:focus{outline:none; border-color:var(--prune); background:var(--bg);
-    box-shadow:inset 0 0 0 1px var(--prune);}
-  .qui-note.remplie{border-color:var(--border); background:var(--bg); font-weight:600;}
+  .qui-note:hover{border-color:var(--border); border-radius:7px;}
+  .qui-note:focus{outline:none; border-color:var(--prune); border-radius:7px;
+    background:var(--bg); box-shadow:inset 0 0 0 1px var(--prune);}
+  /* Un champ rempli n'a plus rien à annoncer : bordure pleine, plus de pointillé. */
+  .qui-note.remplie{border-color:var(--border); border-style:solid; border-radius:7px;
+    background:var(--bg); font-weight:600;}
 
   .empty-hint{
     background:var(--card); border:1px dashed var(--border); border-radius:14px;
@@ -282,11 +291,9 @@ function render(){
   const nbPersonnes = liste.reduce((n, e)=>
     n + (avecMus ? equipeDe(e, 'musicien').length : 0)
       + (avecTech ? equipeDe(e, 'technicien').length : 0), 0);
-  // Le champ de précision ne se dessine qu'au survol : sans un mot, personne ne
-  // devinerait qu'on peut écrire sous un nom.
   compte.innerHTML = `<b>${liste.length}</b> date${liste.length > 1 ? 's' : ''} · <b>${nbPersonnes}</b>
     affectation${nbPersonnes > 1 ? 's' : ''} — du ${jourCourt(liste[0].d.date)} au ${jourCourt(liste[liste.length - 1].d.date)}.
-    Passe sur un nom pour lui ajouter une précision : elle part sur le PDF, à côté du sien.`;
+    Sous chaque nom, un champ libre : ce que la prod doit savoir. Il part sur le PDF, à côté du sien.`;
 
   const bloc = (titre, gens, ptype, e)=> !gens.length ? '' : `
     <div class="groupe">
@@ -301,7 +308,7 @@ function render(){
             <span class="qui-nom"><b>${escapeHtml(fullName(p))}</b><small>${escapeHtml(role)}${
               rempl ? (role ? ' · ' : '') + 'remplaçant·e' : ''}</small></span>
             <input type="text" class="qui-note${note ? ' remplie' : ''}"
-              value="${escapeAttr(note)}" placeholder="Une précision pour la prod ?"
+              value="${escapeAttr(note)}" placeholder="✎ précision"
               data-note data-tid="${escapeAttr(e.tournee.id)}" data-did="${escapeAttr(e.d.id)}"
               data-ptype="${ptype}" data-pid="${escapeAttr(p.id)}">
           </div>`;
@@ -378,8 +385,12 @@ function exporterPdf(){
   const avecMus = document.getElementById('fMus').checked;
   const avecTech = document.getElementById('fTech').checked;
 
+  // Paysage, et non portrait : ce document est repris par quelqu'un de la
+  // production qui en EXTRAIT des informations. En portrait, la colonne des
+  // précisions — du texte libre, la partie qui compte — faisait 78 mm et se
+  // repliait sur trois lignes. En paysage elle en fait 125 et tient sur une.
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   registerHostFont(doc);
 
   const projet = document.getElementById('fProjet').value;
@@ -390,34 +401,84 @@ function exporterPdf(){
       : `${liste.length} date${liste.length > 1 ? 's' : ''}, tous projets`,
     mention: `Du ${jourCourt(liste[0].d.date)} au ${jourCourt(liste[liste.length - 1].d.date)}`,
   });
+  page.paragraphe("Une ligne surlignée, précédée d'un +, arrive à cette date-là. "
+    + "La comparaison se fait avec la date précédente du même projet dans ce document, "
+    + "et les départs sont notés sous chaque tableau.");
+
+  // La dernière équipe vue pour chaque projet, pour dire ce qui change. Comparer
+  // une date de tournée à une séance de studio n'aurait aucun sens : chaque
+  // projet a sa propre mémoire.
+  const veille = new Map();
 
   liste.forEach(e=>{
+    const equipes = [];
+    if(avecMus) equipes.push({ ptype: 'musicien', libelle: 'Musique', gens: equipeDe(e, 'musicien') });
+    if(avecTech) equipes.push({ ptype: 'technicien', libelle: 'Technique', gens: equipeDe(e, 'technicien') });
+
+    // Qui est là ce jour-là, par clé « ptype:id », avec de quoi les nommer si
+    // jamais ils manquent à la date suivante.
+    const presents = new Map();
+    equipes.forEach(g=> g.gens.forEach(p=> presents.set(cle(g.ptype, p.id), {
+      nom: fullName(p),
+      role: g.ptype === 'musicien' ? (p.instrument || p.pupitre || '') : (p.poste || p.pole || ''),
+    })));
+
+    const avant = veille.get(e.tournee.id) || null;
+    const arrivant = (k)=> !!avant && !avant.gens.has(k);
+    const partants = avant
+      ? [...avant.gens.entries()].filter(([k])=> !presents.has(k)).map(([, v])=> v)
+      : [];
+
     const lignes = [];
-    const ajouter = (gens, ptype, libelle)=> gens.forEach((p, i)=> lignes.push([
-      i === 0 ? libelle : '',
-      fullName(p),
-      ptype === 'musicien' ? (p.instrument || p.pupitre || '') : (p.poste || p.pole || ''),
-      noteDe(e.d, ptype, p.id),
-    ]));
-    if(avecMus) ajouter(equipeDe(e, 'musicien'), 'musicien', 'Musique');
-    if(avecTech) ajouter(equipeDe(e, 'technicien'), 'technicien', 'Technique');
+    equipes.forEach(g=> g.gens.forEach((p, i)=>{
+      const k = cle(g.ptype, p.id);
+      const neuf = arrivant(k);
+      const cellules = [
+        i === 0 ? g.libelle : '',
+        // Le « + » double la teinte : un bandeau pâle disparaît d'une photocopie
+        // en noir et blanc, pas un signe. La police Host embarquée a le +
+        // (elle n'a ni ✓ ni ✗ ni ● — voir pdfMarque dans recap.html).
+        (neuf ? '+ ' : '') + fullName(p),
+        g.ptype === 'musicien' ? (p.instrument || p.pupitre || '') : (p.poste || p.pole || ''),
+        noteDe(e.d, g.ptype, p.id),
+      ];
+      lignes.push(neuf ? { cellules, accent: true } : cellules);
+    }));
 
     const lieu = [e.d.ville, e.d.lieu].filter(Boolean).join(' · ');
     const titre = [jourLong(e.d.date), lieu, e.d.statut === 'option' ? 'option' : '']
       .filter(Boolean).join('  —  ');
-    // Le nom du projet sous le titre seulement quand le document en mêle
-    // plusieurs : sur une feuille d'un seul projet, il est déjà en tête.
-    const note = tournee ? '' : (e.tournee.nom || '');
+
+    // Ce qui change et qu'aucun tableau ne peut montrer : les absents. Un
+    // tableau ne liste que les présents — sans cette ligne, quelqu'un qui ne
+    // joue pas ce soir n'apparaît nulle part sur la page du soir.
+    const bouts = [];
+    // Le nom du projet seulement quand le document en mêle plusieurs : sur une
+    // feuille d'un seul projet, il est déjà en tête.
+    if(!tournee) bouts.push(e.tournee.nom || '');
+    if(avant){
+      const quand = jourCourt(avant.date);
+      if(partants.length){
+        bouts.push(`Ne joue${partants.length > 1 ? 'nt' : ''} pas ce jour-là, contrairement au ${quand} : `
+          + partants.map(v=> v.role ? `${v.nom} (${v.role.toLowerCase()})` : v.nom).join(', ') + '.');
+      } else if(!lignes.some(l=> !Array.isArray(l))){
+        bouts.push(`Même équipe que le ${quand}.`);
+      }
+    }
+    const note = bouts.filter(Boolean).join('  —  ');
+
+    veille.set(e.tournee.id, { gens: presents, date: e.d.date });
 
     if(!lignes.length){
       page.tableau(titre, [{ titre: '' }], [['Aucune affectation sur cette date.']], note);
       return;
     }
+    // Les 273 mm du paysage versés à la précision : elle passe de 78 à 125 mm.
     page.tableau(titre, [
-      { titre: '', largeur: 0.7 },
-      { titre: 'Nom', largeur: 1.5 },
-      { titre: 'Rôle', largeur: 1.2 },
-      { titre: 'Précision', largeur: 2.2 },
+      { titre: '', largeur: 0.55 },
+      { titre: 'Nom', largeur: 1.3 },
+      { titre: 'Rôle', largeur: 1.0 },
+      { titre: 'Précision', largeur: 2.4 },
     ], lignes, note);
   });
 

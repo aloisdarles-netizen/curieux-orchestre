@@ -35,6 +35,11 @@ const PDF_CHARTE = {
   bord:       [240, 219, 230],
   muted:      [122, 102, 118],
   ok:         [47, 143, 91],
+  // Le bandeau d'une ligne de tableau qu'on veut faire ressortir, et son encre.
+  // Un bleu très pâle : il reste un gris clair lisible sous une photocopie en
+  // noir et blanc, ce qu'un jaune ou un rose fluo ne font pas.
+  accent:     [232, 241, 250],
+  accentEncre:[61, 88, 118],
 };
 
 // Le logo blanc n'était pas préparé pour le PDF — seul le prune l'était, pour
@@ -559,9 +564,20 @@ function creerComposeurPdf(doc, options){
 
      colonnes : [{titre, largeur}] — largeur en part relative (défaut : égales)
      lignes   : [[val, val, …], …]                                            */
+  /* Une ligne de tableau prend deux formes :
+   *
+   *     ['Musique', 'Roxanne Rabatti', 'Violon solo', '']   — le cas courant
+   *     { cellules: [...], accent: true }                   — une ligne à faire ressortir
+   *
+   * La seconde sert à marquer ce qui change d'un tableau à l'autre (le plateau
+   * qui bouge d'une date à la suivante) : un bandeau pâle et une encre bleue,
+   * là où le reste est noir sur blanc. Les appelants qui ne connaissent que la
+   * première forme empruntent exactement le chemin d'avant. */
+  const cellulesDe = (l)=> Array.isArray(l) ? l : ((l && l.cellules) || []);
+
   api.tableau = function(titre, colonnes, lignes, note){
     const cols = (colonnes || []).filter(Boolean);
-    const corps = (lignes || []).filter(l=> l && l.some(v=> v != null && v !== ''));
+    const corps = (lignes || []).filter(l=> l && cellulesDe(l).some(v=> v != null && v !== ''));
     if(!cols.length || !corps.length) return api;
 
     sections.push((k, dessiner, yDepart)=>{
@@ -602,15 +618,24 @@ function creerComposeurPdf(doc, options){
       y += 2.2 * k;
 
       corps.forEach(ligne=>{
+        const cellules = cellulesDe(ligne);
+        const accent = !Array.isArray(ligne) && !!ligne.accent;
         doc.setFontSize(ptTexte); doc.setFont('Host', 'normal');
-        const decoupes = cols.map((c, i)=> lignes_(ligne[i], largeurs[i]));
+        const decoupes = cols.map((c, i)=> lignes_(cellules[i], largeurs[i]));
         const h = Math.max(...decoupes.map(d=> d.length)) * hLigne(ptTexte);
         if(dessiner){
+          // Le bandeau d'abord, le texte par-dessus. Il déborde d'un millimètre
+          // de part et d'autre de la colonne des données pour que la ligne se
+          // lise comme une bande, et non comme quatre rectangles.
+          if(accent){
+            fond(PDF_CHARTE.accent);
+            doc.rect(o.marge - 1 * k, y - 1.2 * k, utile + 2 * k, h + 2.4 * k, 'F');
+          }
           decoupes.forEach((d, i)=>{
             // La première colonne porte le repère — en gras, c'est elle qu'on
             // cherche des yeux sur un plateau.
             doc.setFont('Host', i === 0 ? 'bold' : 'normal');
-            encre(i === 0 ? PDF_CHARTE.noir : PDF_CHARTE.noir);
+            encre(accent ? PDF_CHARTE.accentEncre : PDF_CHARTE.noir);
             doc.text(d, xDe(i), y, { baseline:'top' });
           });
         }

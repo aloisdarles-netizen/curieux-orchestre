@@ -94,7 +94,7 @@
 // (db.js : jetonsPermanentsPour), ui-helpers.js connaît les villes où
 // l'orchestre est chez lui, et base.css élargit bandeau et sous-menu au format
 // des pages de travail.
-const VERSION = 'curieux-v56';
+const VERSION = 'curieux-v57';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
