@@ -438,6 +438,15 @@ migrations ci-dessus se ferait à l'aveugle.
 
 ---
 
+## 4.4 Le détail, piste par piste
+
+Les propositions ci-dessus sont reprises une par une, numérotées et
+référençables (CT-1, MT-6, LT-3…), dans **[`PISTES_DISPOS.md`](PISTES_DISPOS.md)** :
+pour chacune, le problème, le geste exact avec ses fichiers et ses lignes,
+l'effort, les dépendances, et ce à quoi il faut faire attention.
+
+---
+
 ## 5. Si l'on ne devait retenir que trois choses
 
 1. **Un signe, un sens.** Le vert qui change de signification d'une page à
