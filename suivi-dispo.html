@@ -209,6 +209,11 @@
   /* Le statut de réponse est l'information qu'on vient chercher : il passe de
      11 px à 14 px, sur une largeur fixe pour que la colonne s'aligne. */
   .dispo-statut{width:130px; font-size:14px; font-weight:800; white-space:nowrap;}
+  /* Depuis quand on attend. Au-delà d'une semaine, l'ancienneté se colore :
+     c'est elle qui décide s'il faut réécrire, et on la repère alors en
+     balayant la page plutôt qu'en lisant trente dates une par une. */
+  .relance-quand{font-size:11px; font-weight:700; color:var(--muted);}
+  .relance-quand.vieille{color:var(--secondary);}
   /* La fenêtre de la fiche de prise en main, venue de l'annuaire avec elle :
      sans ces règles, la modale se déposait en bas de page comme du contenu
      ordinaire. */
@@ -251,7 +256,7 @@
       <div class="jauge">
         <div class="detail" id="resumeDetail"></div>
       </div>
-      <button type="button" class="co-btn tonic md" id="relancerTousBtn" title="Ouvrir la première relance de chaque personne encore en attente">Relancer les retardataires</button>
+      <button type="button" class="co-btn tonic md" id="relancerTousBtn" title="Copier un récapitulatif — une ligne par personne en attente, avec son lien — puis noter ces personnes comme relancées">Copier les relances à faire</button>
     </div>
   </div>
 
@@ -641,6 +646,23 @@ function renderAddRemplacantResults(tourneeId, query, holder){
   });
 }
 
+/* Depuis combien de temps attend-on cette personne ?
+ *
+ * « Relancé le 12 mars » suffit pour hier, pas pour un mois : c'est
+ * l'ancienneté qui décide s'il faut réécrire, et la compter de tête sur trente
+ * lignes, personne ne le fait. Au-delà d'une semaine, on l'écrit donc en
+ * clair, et la date part dans l'infobulle. */
+function quandRelance(iso){
+  if(!iso) return '';
+  const jour = String(iso).slice(0, 10);
+  const jours = Math.floor((Date.now() - new Date(jour + 'T12:00:00').getTime()) / 86400000);
+  if(!isFinite(jours) || jours < 0) return '';
+  const texte = jours === 0 ? "relancé·e aujourd'hui"
+    : jours === 1 ? 'relancé·e hier'
+    : `relancé·e il y a ${jours} jours`;
+  return `<small class="relance-quand${jours >= 7 ? ' vieille' : ''}" title="Dernière relance : ${escapeAttr(fmtDateFR(jour))}">${texte}</small>`;
+}
+
 function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
   const demandes = loadDispoDemandes();
   const existing = demandes.find(d=> d.tourneeId === tourneeId && d.personType === personType && d.personId === person.id);
@@ -669,6 +691,13 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
     statusHtml = `<span class="dispo-statut" style="color:var(--muted);">En attente</span>`;
   }
   const tourneeObj = loadTournees().find(t=> t.id === tourneeId);
+  // Depuis quand attend-on ? La base le savait (lastReminderAt) et la Vue
+  // d'ensemble l'affichait déjà en face de chaque nom, mais la page depuis
+  // laquelle on relance ne le disait pas : on y lisait « Relancer » sans savoir
+  // si l'on avait écrit hier ou il y a trois semaines. Hors du bloc de relance
+  // ci-dessous : c'est aussi une information sur quelqu'un qui a fini par
+  // répondre — on voit alors combien de temps il aura fallu.
+  const relanceQuand = existing ? quandRelance(existing.lastReminderAt) : '';
   let relanceHtml = '';
   if(existing && missingDates.length > 0){
     // Label "Première relance" tant qu'aucune relance n'a été enregistrée pour ce lien,
@@ -718,7 +747,8 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
       <div class="dispo-row">
         <div style="flex:1; min-width:160px;">
           <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${roleChip} ${datesTag}</div>
-          <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}</div>
+          <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}${
+            relanceQuand ? ' · ' + relanceQuand : ''}</div>
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           ${statusHtml}
@@ -874,8 +904,11 @@ async function relancerRetardataires(){
       const manquantes = pertinentes.filter(d=> !dispo[d.date]);
       if(manquantes.length === 0) return;
       const cle = `${dem.personType}:${dem.personId}`;
-      if(!parPersonne.has(cle)) parPersonne.set(cle, { personne, lien: lienPersonne(dem.personType, dem.personId, dem.id), manques: [] });
+      if(!parPersonne.has(cle)) parPersonne.set(cle, { personne, lien: lienPersonne(dem.personType, dem.personId, dem.id), manques: [], demandes: [] });
       parPersonne.get(cle).manques.push(`${t.nom || 'Tournée'} (${manquantes.map(d=> fmtDateFR(d.date)).join(', ')})`);
+      // On retient les demandes concernées : sans elles, la relance groupée ne
+      // laissait aucune trace et tout le monde restait « Première relance ».
+      parPersonne.get(cle).demandes.push(dem.id);
     });
   });
   const lignes = [...parPersonne.values()]
@@ -884,12 +917,35 @@ async function relancerRetardataires(){
 
   const btn = document.getElementById('relancerTousBtn');
   if(lignes.length === 0){ btn.textContent = '✓ Personne à relancer'; return; }
+  let copie = false;
   try{
     await navigator.clipboard.writeText(lignes.join('\n'));
+    copie = true;
     btn.textContent = `✓ ${lignes.length} relance${lignes.length>1?'s':''} copiée${lignes.length>1?'s':''}`;
   }catch(e){
     btn.textContent = 'Copie impossible — relance ligne par ligne';
   }
+  if(!copie) return;
+
+  /* Noter que ces gens ont été relancés.
+   *
+   * Cette action ne le faisait pas, contrairement aux boutons de relance
+   * individuels : après une relance groupée, tout le monde restait « Première
+   * relance » et le résumé annonçait un nombre de relancé·es qui n'avait pas
+   * bougé. Au balayage suivant, on réécrivait à des gens contactés la veille.
+   *
+   * On demande d'abord, parce que le presse-papiers ne prouve pas l'envoi :
+   * personne ne sait si le message a été collé quelque part. C'est le seul
+   * garde-fou possible sans suivre l'envoi lui-même, et il vaut mieux qu'une
+   * page qui décide à notre place — dans un sens comme dans l'autre.
+   */
+  const gens = [...parPersonne.values()];
+  const ids = gens.flatMap(g=> g.demandes);
+  if(!confirm(`${lignes.length} message${lignes.length>1?'s':''} copié${lignes.length>1?'s':''}.\n\n`
+    + `Noter ces ${gens.length} personne${gens.length>1?'s':''} comme relancée${gens.length>1?'s':''} ?\n`
+    + `À faire une fois les messages réellement envoyés — sinon réponds Annuler.`)) return;
+  for(const id of ids) await markReminderSent(id);
+  btn.textContent = `✓ ${gens.length} personne${gens.length>1?'s':''} notée${gens.length>1?'s':''} relancée${gens.length>1?'s':''}`;
 }
 document.getElementById('relancerTousBtn').addEventListener('click', relancerRetardataires);
 
@@ -1103,10 +1159,24 @@ function appliquerVue(){
 document.querySelectorAll('#vueBascule [data-vue]').forEach(b=>
   b.addEventListener('click', ()=> poserVue(b.dataset.vue)));
 
+/* Ce que la personne était en train de chercher.
+ *
+ * Les deux contrôles vivent dans le bloc que le rendu remplace : chaque
+ * rafraîchissement temps réel — c'est-à-dire chaque fois que QUELQU'UN D'AUTRE
+ * enregistre quelque chose — les recréait vides. On tapait trois lettres, une
+ * réponse arrivait à l'autre bout de l'orchestre, et le champ se vidait sous
+ * les doigts. L'état vit donc ici, et le rendu le repose.
+ */
+let rechercheEnCours = '';
+let attenteSeule = false;
+
 function filtrerPersonnes(){
   const champ = document.getElementById('recherchePerso');
-  const seulesEnAttente = !!(document.getElementById('filtrePersonneAttente') || {}).checked;
-  const q = champ ? champ.value.toLowerCase().trim() : '';
+  const caseAttente = document.getElementById('filtrePersonneAttente');
+  if(champ) rechercheEnCours = champ.value;
+  if(caseAttente) attenteSeule = !!caseAttente.checked;
+  const seulesEnAttente = attenteSeule;
+  const q = (rechercheEnCours || '').toLowerCase().trim();
   document.querySelectorAll('#holderPersonnes [data-perso-nom]').forEach(l=>{
     const ok = (!q || l.dataset.persoNom.includes(q))
       && (!seulesEnAttente || l.dataset.persoAttente === '1');
@@ -1285,8 +1355,8 @@ function renderParPersonne(projets){
       </div>
       <button type="button" class="co-btn secondary sm" id="fichesToutesBtn"
         title="Une fiche de prise en main par personne affichée, en un seul PDF">Fiches de prise en main</button>
-      <label class="projets-option"><input type="checkbox" id="filtrePersonneAttente"> Seulement celles en attente</label>
-      <input type="text" id="recherchePerso" placeholder="Chercher une personne…"
+      <label class="projets-option"><input type="checkbox" id="filtrePersonneAttente"${attenteSeule ? ' checked' : ''}> Seulement celles en attente</label>
+      <input type="text" id="recherchePerso" placeholder="Chercher une personne…" value="${escapeAttr(rechercheEnCours)}"
         style="flex:0 1 240px; padding:8px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg); color:var(--text); font-family:inherit;">
     </div>
     ${lignes}`;
@@ -1482,9 +1552,17 @@ function render(){
         ${pastTournees.map(renderTourneeCard).join('')}
       </details>`
     : '';
+  // Si l'on était en train de taper dans la recherche, on y revient : le champ
+  // vient d'être recréé, et sans cela le curseur partait au premier
+  // rafraîchissement venu — celui déclenché par la réponse de quelqu'un d'autre.
+  const tapaitDansRecherche = (document.activeElement || {}).id === 'recherchePerso';
   holder.innerHTML = upcomingHtml + pastHtml;
   renderParPersonne(upcomingTournees);
   appliquerVue();
+  if(tapaitDansRecherche){
+    const champ = document.getElementById('recherchePerso');
+    if(champ){ champ.focus(); champ.setSelectionRange(champ.value.length, champ.value.length); }
+  }
 
   // Les deux vues sont rendues à chaque fois : les écouteurs qui valent pour
   // l'une comme pour l'autre (copier, relancer) doivent balayer les deux.
