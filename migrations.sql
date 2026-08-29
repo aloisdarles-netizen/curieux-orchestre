@@ -4734,3 +4734,136 @@ as $$
 $$;
 
 grant execute on function saison_de(date) to anon, authenticated;
+
+-- ============================================================================
+-- Ce qu'une personne laisse derrière elle, et l'histoire des relances
+-- ============================================================================
+-- Deux gestes du même chapitre. Le troisième — séparer l'identité (le lien
+-- d'une personne) du droit (la sollicitation sur tel projet, telles dates) —
+-- n'est PAS ici, et volontairement : réécrire le routage des jetons
+-- invaliderait des liens déjà envoyés, qui vivent dans des conversations
+-- WhatsApp et des courriels. Cela se décide, s'annonce, et demande d'accepter
+-- les deux formes pendant au moins une saison. Ce n'est pas un geste qu'on
+-- glisse dans une strate de migration.
+
+-- ----------------------------------------------------------------------------
+-- 1. Fermer la cascade de suppression
+-- ----------------------------------------------------------------------------
+-- Retirer quelqu'un supprimait sa fiche, ses infos sociales et ses
+-- sollicitations. Restaient : son JETON PERMANENT, toujours valide — donc un
+-- lien qui ouvre encore une page de dispos au nom de quelqu'un qui n'est plus
+-- là — sa liste de remplaçant·es, les mentions d'elle dans les listes des
+-- autres, et ses affectations dans le calendrier, qui continuaient de la
+-- compter parmi les personnes prévues.
+--
+-- La cascade vit ici plutôt que dans l'application : côté client, elle
+-- s'exécutait en plusieurs requêtes parallèles dont certaines pouvaient
+-- échouer sans que les autres soient annulées. En base, c'est une seule
+-- transaction — tout part, ou rien ne part.
+
+create or replace function trg_effacer_traces_personne() returns trigger
+language plpgsql
+as $$
+declare
+  v_type text := tg_argv[0];
+begin
+  -- Le lien personnel : c'est le plus important. Un jeton qui survit à sa
+  -- personne est une porte ouverte sur des données qui ne la concernent plus.
+  delete from acces_personnels where person_id = old.id and person_type = v_type;
+  delete from dispo_demandes    where person_id = old.id and person_type = v_type;
+  delete from infos_sociales    where id = old.id;
+  delete from remplacant_prefs  where id = old.id and coalesce(person_type, 'musicien') = v_type;
+
+  -- Les mentions d'elle dans les listes des AUTRES : sans quoi son nom reste
+  -- proposé au moment de chercher un·e remplaçant·e.
+  update remplacant_prefs p
+     set items = (
+       select coalesce(jsonb_agg(x), '[]'::jsonb)
+         from jsonb_array_elements(coalesce(p.items, '[]'::jsonb)) x
+        where coalesce(x ->> 'personId', '') <> old.id
+     )
+   where coalesce(p.person_type, 'musicien') = v_type
+     and coalesce(p.items, '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('personId', old.id));
+
+  -- Les affectations dans le calendrier. Une personne supprimée qui reste
+  -- « affectée » fausse les comptes de couverture des dates : on croit la
+  -- soirée pourvue.
+  update tournees t
+     set dates = (
+       select coalesce(jsonb_agg(
+         case when v_type = 'musicien'
+           then jsonb_set(d, '{musiciensAssignes}',
+                  coalesce((select jsonb_agg(a) from jsonb_array_elements_text(coalesce(d -> 'musiciensAssignes', '[]'::jsonb)) a
+                             where a <> old.id), '[]'::jsonb))
+           else jsonb_set(d, '{techniciensAssignes}',
+                  coalesce((select jsonb_agg(a) from jsonb_array_elements_text(coalesce(d -> 'techniciensAssignes', '[]'::jsonb)) a
+                             where a <> old.id), '[]'::jsonb))
+         end order by ord), '[]'::jsonb)
+         from jsonb_array_elements(coalesce(t.dates, '[]'::jsonb)) with ordinality as e(d, ord)
+     )
+   where coalesce(t.dates, '[]'::jsonb)::text like '%' || old.id || '%';
+
+  return old;
+end;
+$$;
+
+drop trigger if exists trg_traces_musiciens on musiciens;
+create trigger trg_traces_musiciens
+  before delete on musiciens for each row
+  execute function trg_effacer_traces_personne('musicien');
+
+drop trigger if exists trg_traces_techniciens on techniciens;
+create trigger trg_traces_techniciens
+  before delete on techniciens for each row
+  execute function trg_effacer_traces_personne('technicien');
+
+-- ----------------------------------------------------------------------------
+-- 2. L'histoire des relances, au lieu d'une seule date écrasée
+-- ----------------------------------------------------------------------------
+-- dispo_demandes.last_reminder_at ne retient que la DERNIÈRE relance : on ne
+-- peut donc pas savoir si l'on a écrit une fois ou cinq, ni à quel rythme.
+-- « Je lui ai déjà écrit trois fois » est pourtant l'information qui décide
+-- s'il faut relancer encore ou décrocher son téléphone.
+--
+-- La colonne existante reste : les pages la lisent, et cette table ne la
+-- remplace pas — elle l'accompagne. C'est ce qui permet de la poser sans rien
+-- changer à ce qui fonctionne.
+
+create table if not exists relances (
+  id          bigserial primary key,
+  demande_id  text not null,
+  envoyee_le  timestamptz not null default now(),
+  canal       text not null default 'inconnu'
+                check (canal in ('whatsapp', 'email', 'presse-papiers', 'a-la-main', 'inconnu')),
+  par         text not null default ''
+);
+
+create index if not exists idx_relances_demande on relances(demande_id, envoyee_le desc);
+
+alter table relances enable row level security;
+drop policy if exists relances_admin on relances;
+create policy relances_admin on relances for all to authenticated using (true) with check (true);
+
+comment on table relances is
+  'Une ligne par message de relance envoyé. dispo_demandes.last_reminder_at '
+  'reste la dernière en date ; cette table garde le reste.';
+
+-- Noter une relance en écrivant les deux : la ligne d'histoire, et la colonne
+-- que les pages lisent déjà. Un seul appel, pas deux écritures à tenir
+-- d'accord côté client.
+create or replace function noter_relance(p_demande_id text, p_canal text default 'inconnu', p_par text default '')
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into relances(demande_id, canal, par)
+  values (p_demande_id,
+          case when p_canal in ('whatsapp','email','presse-papiers','a-la-main') then p_canal else 'inconnu' end,
+          coalesce(p_par, ''));
+  update dispo_demandes set last_reminder_at = now() where id = p_demande_id;
+end;
+$$;
+
+grant execute on function noter_relance(text, text, text) to authenticated;
