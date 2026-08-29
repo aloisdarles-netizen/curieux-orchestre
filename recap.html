@@ -145,10 +145,33 @@
   /* Une précision laissée par la personne (« ok mais je pars à 22h ») : point
      orange au coin de la case, texte complet au survol. */
   .m-cell{position:relative;}
-  .m-cell.avec-note::after{
-    content:''; position:absolute; top:-4px; right:-4px; width:10px; height:10px;
-    border-radius:50%; background:var(--secondary); border:2px solid var(--card);
+  /* Le point n'est plus un ::after décoratif mais un vrai bouton : c'est lui
+     qu'on clique pour répondre. Sa boîte fait 24 px (cible au doigt), son
+     rembourrage transparent ; seul le disque de 10 px se voit. Il déborde la
+     case de quelques pixels — d'où le z-index, pour passer devant la case
+     voisine. */
+  .co-matrix-cell{position:relative;}
+  /* Poser le disque sur le coin haut-droit de la PASTILLE, pas sur celui de la
+     case. On ne peut se caler ni sur le bord droit ni sur le bord haut de la
+     case : elle est en flex:1 0 76px (donc plus large que 76 dès qu'il reste de
+     la place) et sa hauteur suit la ligne, que la colonne des noms fixe. Seul
+     le centre est stable — la pastille y est centrée par place-items:center.
+     Elle fait 38 × 30 : son coin est à +19 px et -15 px du centre. */
+  .point-note{
+    position:absolute; left:calc(50% + 19px); top:calc(50% - 15px);
+    transform:translate(-50%, -50%);
+    width:24px; height:24px; z-index:3;
+    display:grid; place-items:center; padding:0; border:none; background:none;
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
   }
+  .point-note::before{
+    content:''; width:10px; height:10px; border-radius:50%;
+    background:var(--secondary); border:2px solid var(--card);
+    transition:transform .1s ease;
+  }
+  .point-note:hover::before, .point-note:focus-visible::before{transform:scale(1.45);}
+  .point-note:focus-visible{outline:2px solid var(--secondary); outline-offset:-3px; border-radius:50%;}
+  .point-note.repondue::before{background:var(--prune);}
   /* Sur ordinateur, la précision s'affiche dans une bulle au survol : le
      title du navigateur arrive après une seconde, se coupe, et ne sait rien
      dire de qui parle ni de quand. Sur téléphone, où le survol n'existe pas,
@@ -169,44 +192,75 @@
   #noteBulle u{display:block; text-decoration:none; margin-top:6px; padding-top:5px;
     border-top:1px dashed var(--border); color:var(--prune); font-weight:600;}
   #noteBulle u small{display:block; font-weight:400; font-size:10.5px; color:var(--muted); margin-top:2px;}
-  /* Une précision à laquelle on a répondu ne réclame plus rien : son point
-     passe du orange au prune, plein — l'œil ne cherche que les orange. */
-  .m-cell.avec-note.repondue::after{background:var(--prune);}
   @media (max-width:760px){
+    /* Sur téléphone il n'y a pas de survol et le point de 24 px est une cible
+       étroite au pouce : c'est la ligne de la précision, écrite en clair sur la
+       carte de la date, qui ouvre la réponse. Elle est donc un bouton — mais
+       elle doit continuer à ressembler à du texte. */
     .note-repliee{
       display:block; flex:1 1 100%; order:3; margin-top:4px;
       font-size:12px; font-style:italic; color:var(--secondary); line-height:1.4;
-      white-space:normal;
+      white-space:normal; text-align:left; width:100%;
+      background:none; border:none; padding:4px 0; font-family:inherit; cursor:pointer;
     }
+    /* En liste, la case devient une ligne pleine largeur et la pastille se cale
+       à droite : le centre ne dit plus rien, on repart du bord droit. */
+    .point-note{left:auto; right:6px; top:4px; transform:none;}
     .reponse-repliee{display:block; margin-top:2px; color:var(--prune); font-weight:600;}
     .co-matrix-cell.porte-note{flex-wrap:wrap;}
   }
 
-  /* Le bloc des précisions, sous les deux tableaux. */
-  .precisions-chapo{color:var(--muted); font-size:13px; margin:-6px 0 12px;}
-  .precisions{display:grid; gap:10px;}
-  .precision{
-    background:var(--card); border:1px solid var(--border); border-left:4px solid var(--secondary);
-    border-radius:12px; padding:11px 14px;
+  /* ------------------------------------------------------------------------
+     Répondre à une précision, sans quitter le tableau.
+
+     La liste des précisions occupait, sous les deux matrices, une carte par
+     précision : 566 px pour quatre remarques, un quart de la page, et sans
+     plafond. Pour un geste qu'on fait trois fois par mois, sur une page dont
+     le sujet est le tableau. Elle a disparu. On répond là où la remarque vit :
+     le point du coin de la case est devenu un bouton, et il ouvre un petit
+     panneau ancré à la case. Zéro pixel de page au repos.
+  ------------------------------------------------------------------------ */
+  .reponse-panneau{
+    position:fixed; z-index:70; width:290px; max-width:calc(100vw - 24px);
+    background:var(--card); border:1px solid var(--border); border-left:3px solid var(--secondary);
+    border-radius:12px; box-shadow:0 14px 34px rgba(20,15,10,.24); padding:11px 13px;
   }
-  .precision.est-repondue{border-left-color:var(--prune);}
-  .precision-tete{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; font-size:13px;}
-  .precision-tete b{font-size:14px;}
-  .precision-quand{color:var(--muted);}
-  .precision-projet{
-    font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;
-    border:1px solid var(--border); color:#141617;
+  .reponse-panneau.est-repondue{border-left-color:var(--prune);}
+  .reponse-panneau b{display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--secondary); font-weight:800; margin-bottom:3px;}
+  .reponse-panneau i{display:block; font-style:italic; line-height:1.45; font-size:12.5px;}
+  .reponse-panneau textarea{
+    width:100%; margin-top:9px; min-height:54px; resize:vertical; padding:7px 9px;
+    border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text);
+    font:inherit; font-size:12.5px; line-height:1.4;
   }
-  .precision-dit{margin:6px 0 0; font-style:italic; line-height:1.45;}
-  .precision-reponse{margin-top:8px; padding-left:10px; border-left:2px solid var(--prune);}
-  .precision-reponse p{margin:0; color:var(--prune); font-weight:600; line-height:1.45;}
-  .precision-reponse small{display:block; margin-top:2px; color:var(--muted); font-size:11.5px;}
-  .precision-forme{margin-top:8px; display:grid; gap:8px;}
-  .precision-forme textarea{resize:vertical; min-height:52px;}
-  .precision-actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
-  .precision-forme .precision-actions{margin-top:0;}
+  .reponse-panneau textarea:focus{outline:none; border-color:var(--prune); box-shadow:inset 0 0 0 1px var(--prune);}
+  .reponse-actions{display:flex; align-items:center; gap:7px; margin-top:8px; flex-wrap:wrap;}
+  .reponse-actions .co-btn{padding:5px 11px; font-size:12px;}
+  .reponse-signature{font-size:11px; color:var(--muted); margin-left:auto;}
   .lien-nu{background:none; border:none; padding:0; font:inherit; color:var(--secondary);
     text-decoration:underline; cursor:pointer;}
+
+  /* La pastille qui dit ce qui attend encore un mot, glissée dans la bande de
+     filtres qui existe déjà. Elle DISPARAÎT dès que tout a reçu une réponse :
+     un compteur permanent qui ne tombe jamais à zéro serait une alarme de
+     plus sur une page qui n'en manque pas. */
+  .chip-precisions{
+    display:inline-flex; align-items:center; gap:6px; border:1px solid var(--secondary);
+    background:transparent; color:var(--secondary); border-radius:999px;
+    padding:5px 11px; font:inherit; font-size:12px; font-weight:700; cursor:pointer;
+  }
+  .chip-precisions:hover{background:var(--accent-tint);}
+  .chip-precisions::before{content:''; width:7px; height:7px; border-radius:50%; background:var(--secondary);}
+  .chip-precisions[hidden]{display:none;}
+
+  /* La case visée par « précision suivante » : deux battements, le temps de
+     la retrouver des yeux dans un tableau de quatre-vingts colonnes. */
+  @keyframes viseBat{
+    0%,100%{box-shadow:0 0 0 0 rgba(236,75,21,0);}
+    35%{box-shadow:0 0 0 4px rgba(236,75,21,.55);}
+  }
+  .co-matrix-cell.visee .m-cell{animation:viseBat .7s ease 2;}
 
   .m-cell.assigned{background:var(--ok); border-color:var(--ok); color:#fff;}
   .m-cell.dispo{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark); font-weight:900;}
@@ -387,6 +441,8 @@
       <button type="button" id="rechercheVider" title="Effacer la recherche" hidden>✕</button>
     </span>
     <span id="rechercheEtat" class="recherche-etat"></span>
+    <button type="button" class="chip-precisions" id="chipPrecisions" hidden
+            title="Aller à la prochaine précision qui attend une réponse"></button>
   </div>
 
   <div class="projets-filtre co-fade" id="projetsFiltre"></div>
@@ -396,8 +452,6 @@
 
   <h2 class="section-title">Technicien·nes</h2>
   <div id="matrixHolderTechniciens"></div>
-
-  <div id="precisionsHolder"></div>
 </div>
 
 <script>
@@ -749,9 +803,12 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
             ${rep ? `data-note-reponse="${escapeAttr(rep.texte)}" data-note-reponse-qui="${escapeAttr(rep.auteur || '')}"` : ''}
             data-cellule data-tid="${escapeAttr(e.tourneeId)}" data-did="${escapeAttr(e.dateId)}" data-pid="${escapeAttr(m.id)}"
             data-ptype="${ptypeMatrice}" data-date="${escapeAttr(e.date)}" data-reco="${e.estRecording ? '1' : ''}"
-            style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? (rep ? ' avec-note repondue' : ' avec-note') : ''}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}">${symbol}</span>${
-            note ? `<span class="note-repliee">${escapeHtml(note)}${
-              rep ? `<em class="reponse-repliee">↳ ${escapeHtml(rep.texte)}</em>` : ''}</span>` : ''}</div>`;
+            style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}">${symbol}</span>${
+            note ? `<button type="button" class="point-note${rep ? ' repondue' : ''}" data-repondre aria-label="${
+              rep ? 'Précision — déjà répondu' : 'Précision — répondre'}" title="${
+              rep ? 'On y a répondu — cliquer pour relire ou changer' : 'Une précision — cliquer pour y répondre'}"></button>
+            <button type="button" class="note-repliee" data-repondre>${escapeHtml(note)}${
+              rep ? `<em class="reponse-repliee">↳ ${escapeHtml(rep.texte)}</em>` : ''}</button>` : ''}</div>`;
         }).join('')}
       </div>
     `;
@@ -768,128 +825,145 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
 }
 
 /* ---------------------------------------------------------------------------
-   Les précisions, en clair, sous les tableaux
+   Répondre à une précision, sans quitter le tableau
    ---------------------------------------------------------------------------
-   Le point orange au coin d'une case dit qu'il y a quelque chose à lire, et la
-   bulle le lit — mais il faut passer sur trente cases pour savoir lesquelles.
-   Ce bloc les rassemble, dans l'ordre des dates, et c'est là qu'on répond.
-   Il suit le tableau : mêmes personnes, mêmes projets, même période.
+   Il y avait ici une liste des précisions, en pleine largeur sous les deux
+   matrices : une carte par remarque, 566 px pour quatre remarques, un quart de
+   la page — et sans plafond. Sur une page dont le sujet est le tableau, pour un
+   geste qu'on fait trois fois par mois, c'était l'exact inverse de la bonne
+   hiérarchie.
+
+   Elle a disparu. On répond là où la remarque vit : le point du coin de la case
+   est un bouton, il ouvre un petit panneau ancré à cette case, et la page ne
+   grandit pas d'un pixel. Reste le problème que la liste résolvait — savoir
+   lesquelles attendent un mot sans survoler trente cases : c'est la pastille de
+   la bande de filtres, qui mène à la suivante et s'efface quand il n'y en a
+   plus.
 --------------------------------------------------------------------------- */
-// Une seule réponse ouverte à la fois — « ptype:pid:date » — pour que le
-// re-rendu (temps réel, clic ailleurs) ne referme pas le champ en cours.
-let editionReponse = '';
 
-function collecterPrecisions(){
-  const lots = [
-    { ptype: 'musicien', champ: 'musiciensAssignes', gens: garderSelonFiltre(loadMusicians(), 'musicien') },
-    { ptype: 'technicien', champ: 'techniciensAssignes', gens: garderSelonFiltre(loadTechnicians(), 'technicien') },
-  ];
-  const out = [];
-  const vus = new Set();
-  lots.forEach(lot=>{
-    const entries = allDateEntries(lot.champ).filter(e=> !projetsMasques.has(e.tourneeId));
-    lot.gens.forEach(p=> entries.forEach(e=>{
-      const texte = ((p.disponibilitesCommentaires || {})[e.date] || '').trim();
-      if(!texte) return;
-      // Le commentaire porte sur une DATE, pas sur un projet : deux projets le
-      // même jour affichent la même phrase sur deux cases. Une seule ligne ici.
-      const cle = lot.ptype + ':' + p.id + ':' + e.date;
-      if(vus.has(cle)) return;
-      vus.add(cle);
-      out.push({ cle, ptype: lot.ptype, personne: p, entry: e, texte, reponse: reponseDe(p, e.date) });
-    }));
+let panneauReponse = null;
+
+function fermerReponse(){
+  if(panneauReponse){ panneauReponse.remove(); panneauReponse = null; }
+  document.querySelectorAll('.co-matrix-cell.visee').forEach(c=> c.classList.remove('visee'));
+}
+
+// Sous la case, ou au-dessus s'il n'y a pas la place ; jamais hors de l'écran.
+function placerReponse(cel){
+  if(!panneauReponse || !cel || !cel.isConnected) return;
+  const r = cel.getBoundingClientRect();
+  const b = panneauReponse.getBoundingClientRect();
+  const x = Math.max(8, Math.min(r.left + r.width / 2 - b.width / 2, window.innerWidth - b.width - 8));
+  const y = (r.bottom + b.height + 8 > window.innerHeight) ? Math.max(8, r.top - b.height - 6) : r.bottom + 6;
+  panneauReponse.style.left = Math.round(x) + 'px';
+  panneauReponse.style.top = Math.round(y) + 'px';
+}
+
+function ouvrirReponse(cel){
+  fermerReponse();
+  cacherNote();
+  const { ptype, pid, date } = cel.dataset;
+  const personne = personneDe(ptype, pid);
+  if(!personne) return;
+  const rep = reponseDe(personne, date);
+
+  const p = document.createElement('div');
+  p.className = 'reponse-panneau' + (rep ? ' est-repondue' : '');
+  // Le verrou qui empêche un rafraîchissement temps réel d'effacer la phrase
+  // en cours de frappe (voir _curieuxOccupe dans ui-helpers.js). Il part avec
+  // le panneau : fermerReponse() le retire du DOM, il n'y a pas d'autre état
+  // à remettre à zéro, donc pas de verrou qui fuit.
+  p.setAttribute('data-panneau-ouvert', '');
+  // Le panneau porte lui-même de quoi écrire : si un re-rendu détruit la case
+  // pendant qu'on tape (recherche, filtre), il continue de fonctionner.
+  p.dataset.ptype = ptype; p.dataset.pid = pid; p.dataset.date = date;
+  p.innerHTML = `
+    <b>${escapeHtml(cel.dataset.noteQui || '')} · ${escapeHtml(cel.dataset.noteQuand || '')}</b>
+    <i>« ${escapeHtml(cel.dataset.note || '')} »</i>
+    <textarea placeholder="Ta réponse, en une phrase — Entrée pour enregistrer">${escapeHtml(rep ? rep.texte : '')}</textarea>
+    <div class="reponse-actions">
+      <button type="button" class="co-btn small" data-rep-ok>Enregistrer</button>
+      <button type="button" class="co-btn small secondary" data-rep-non>Annuler</button>
+      ${rep ? `<span class="reponse-signature" title="${escapeAttr(rep.auteur || '')}">${
+        escapeHtml(quandCourt(rep.le))}</span>` : ''}
+    </div>`;
+  document.body.appendChild(p);
+  panneauReponse = p;
+  placerReponse(cel);
+
+  const champ = p.querySelector('textarea');
+  champ.focus();
+  champ.setSelectionRange(champ.value.length, champ.value.length);
+
+  const enregistrer = async ()=>{
+    const texte = champ.value;
+    const avait = !!rep;
+    // Vider le champ retire la réponse — mais jamais par mégarde.
+    if(avait && !texte.trim() && !confirm('Retirer la réponse ?')) return;
+    fermerReponse();
+    if(await ecrireReponse(ptype, personne, date, texte)) rendreEnGardantLeScroll();
+  };
+  p.addEventListener('click', (e)=>{
+    if(e.target.closest('[data-rep-ok]')) enregistrer();
+    else if(e.target.closest('[data-rep-non]')) fermerReponse();
   });
-  out.sort((a, b)=> a.entry.date.localeCompare(b.entry.date)
-    || fullName(a.personne).localeCompare(fullName(b.personne), 'fr'));
-  return out;
+  // Entrée enregistre, Maj+Entrée va à la ligne : une réponse tient en une
+  // phrase, on ne va pas demander d'attraper un bouton pour ça.
+  champ.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); enregistrer(); }
+    if(e.key === 'Escape'){ e.preventDefault(); fermerReponse(); }
+  });
+  // Le panneau suit sa case tant qu'elle existe — le tableau défile beaucoup.
+  const suivre = ()=> placerReponse(cel);
+  document.addEventListener('scroll', suivre, true);
+  window.addEventListener('resize', suivre);
+  const nettoyer = new MutationObserver(()=>{
+    if(!p.isConnected){
+      document.removeEventListener('scroll', suivre, true);
+      window.removeEventListener('resize', suivre);
+      nettoyer.disconnect();
+    }
+  });
+  nettoyer.observe(document.body, { childList: true });
 }
 
-function renderPrecisions(){
-  const holder = document.getElementById('precisionsHolder');
-  if(!holder) return;
-  const liste = collecterPrecisions();
-  if(!liste.length){ holder.innerHTML = ''; return; }
-  const couleurs = couleursProjets();
-  const sansReponse = liste.filter(x=> !x.reponse).length;
-  holder.innerHTML = `
-    <h2 class="section-title">Précisions laissées sur les dates</h2>
-    <p class="precisions-chapo">Ce que les gens ont écrit à côté de leur réponse, sur les projets
-      et la période affichés. ${sansReponse
-        ? `<b>${sansReponse}</b> ${sansReponse > 1 ? 'attendent' : 'attend'} encore un mot.`
-        : 'Tout a reçu une réponse.'}</p>
-    <div class="precisions">
-      ${liste.map(x=>{
-        const enEdition = editionReponse === x.cle;
-        const projet = x.entry.tourneeNom || 'Projet';
-        return `
-        <article class="precision${x.reponse ? ' est-repondue' : ''}" data-precision="${escapeAttr(x.cle)}">
-          <div class="precision-tete">
-            <b>${escapeHtml(fullName(x.personne))}</b>
-            <span class="precision-quand">${escapeHtml(fmtDateFR(x.entry.date))}${
-              x.entry.ville ? ' · ' + escapeHtml(x.entry.ville.split(' (')[0]) : ''}</span>
-            <span class="precision-projet" style="background:${escapeAttr(couleurs.get(x.entry.tourneeId) || 'transparent')};">${
-              escapeHtml(projet)}${x.entry.estRecording ? ' · Rec' : ''}</span>
-          </div>
-          <p class="precision-dit">« ${escapeHtml(x.texte)} »</p>
-          ${enEdition ? `
-            <div class="precision-forme">
-              <textarea class="co-input" data-champ-reponse rows="2"
-                placeholder="Ta réponse, en une phrase…">${escapeHtml(x.reponse ? x.reponse.texte : '')}</textarea>
-              <div class="precision-actions">
-                <button type="button" class="co-btn small" data-rep-enregistrer>Enregistrer</button>
-                <button type="button" class="co-btn small secondary" data-rep-annuler>Annuler</button>
-                ${x.reponse ? '<button type="button" class="co-btn small secondary" data-rep-retirer>Retirer la réponse</button>' : ''}
-              </div>
-            </div>` : (x.reponse ? `
-            <div class="precision-reponse">
-              <p>↳ ${escapeHtml(x.reponse.texte)}</p>
-              <small>${x.reponse.auteur ? escapeHtml(x.reponse.auteur) + ' · ' : ''}${
-                escapeHtml(quandCourt(x.reponse.le))} — <button type="button" class="lien-nu" data-rep-ouvrir>modifier</button></small>
-            </div>` : `
-            <div class="precision-actions">
-              <button type="button" class="co-btn small secondary" data-rep-ouvrir>Répondre</button>
-            </div>`)}
-        </article>`;
-      }).join('')}
-    </div>
-  `;
-  const champ = holder.querySelector('[data-champ-reponse]');
-  if(champ && document.activeElement !== champ){
-    champ.focus();
-    champ.setSelectionRange(champ.value.length, champ.value.length);
-  }
+// Un clic ailleurs referme — sauf dans le panneau, et sauf sur un point qui
+// en rouvrirait un autre (ouvrirReponse referme déjà le précédent).
+document.addEventListener('mousedown', (e)=>{
+  if(!panneauReponse) return;
+  if(e.target.closest('.reponse-panneau') || e.target.closest('[data-repondre]')) return;
+  fermerReponse();
+}, true);
+
+/* La pastille « n précisions sans réponse ».
+ *
+ * Elle lit le tableau tel qu'il est à l'écran — mêmes personnes, mêmes projets,
+ * même période — plutôt que de refaire le calcul de son côté : deux comptages
+ * du même fait finissent toujours par diverger. Et elle DISPARAÎT dès que tout
+ * a reçu une réponse : un compteur permanent, qui ne tombe jamais à zéro, ne
+ * serait qu'une alarme de plus sur une page qui n'en manque pas.
+ */
+function casesEnAttente(){
+  return [...document.querySelectorAll('.co-matrix-cell[data-note]')]
+    .filter(c=> !c.dataset.noteReponse);
+}
+function majChipPrecisions(){
+  const chip = document.getElementById('chipPrecisions');
+  if(!chip) return;
+  const n = casesEnAttente().length;
+  chip.hidden = n === 0;
+  chip.textContent = `${n} précision${n > 1 ? 's' : ''} sans réponse`;
 }
 
-// Les trois gestes du bloc : ouvrir le champ, enregistrer, refermer. Rend
-// true quand le clic a été traité, pour que rien d'autre ne s'en saisisse.
-function surClicPrecision(ev, carte){
-  const cle = carte.dataset.precision || '';
-  if(ev.target.closest('[data-rep-ouvrir]')){
-    editionReponse = cle;
-    renderPrecisions();
-    return true;
-  }
-  if(ev.target.closest('[data-rep-annuler]')){
-    editionReponse = '';
-    renderPrecisions();
-    return true;
-  }
-  const retirer = !!ev.target.closest('[data-rep-retirer]');
-  if(retirer || ev.target.closest('[data-rep-enregistrer]')){
-    const champ = carte.querySelector('[data-champ-reponse]');
-    const texte = retirer ? '' : (champ ? champ.value : '');
-    if(retirer && !confirm('Retirer la réponse ?')) return true;
-    const [ptype, pid, date] = cle.split(':');
-    const personne = personneDe(ptype, pid);
-    if(!personne) return true;
-    ecrireReponse(ptype, personne, date, texte).then(ok=>{
-      if(!ok) return;
-      editionReponse = '';
-      rendreEnGardantLeScroll();
-    });
-    return true;
-  }
-  return false;
+// « La suivante » : toujours la première du tableau qui attend encore un mot.
+// Y répondre la retire de la file, alors des clics répétés les parcourent
+// toutes sans qu'on ait à retenir où l'on en était.
+function allerPrecisionSuivante(){
+  const cel = casesEnAttente()[0];
+  if(!cel) return;
+  cel.scrollIntoView({ block: 'center', inline: 'center' });
+  cel.classList.add('visee');
+  ouvrirReponse(cel);
 }
 
 // « 12 mars » quand c'est cette année, « 12 mars 2025 » sinon — une réponse
@@ -1014,7 +1088,7 @@ function renderAll(){
   renderPeopleMatrix(garderSelonFiltre(loadMusicians(), 'musicien'), 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musicien·nes', "Musicien·ne");
   renderPeopleMatrix(garderSelonFiltre(loadTechnicians(), 'technicien'), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire technicien·nes', "Technicien·ne");
   renderProjetsFiltre();
-  renderPrecisions();
+  majChipPrecisions();
   try{ majEtatRecherche(); }catch(e){}
   populateTourneeSelect();
   renderDashboard();
@@ -1422,10 +1496,15 @@ document.querySelectorAll('.mode-pilules button').forEach(b=>
   b.addEventListener('click', ()=> poserMode(b.dataset.mode)));
 document.getElementById('oupsBtn').addEventListener('click', annulerDerniereAction);
 document.addEventListener('click', (e)=>{
-  // Le bloc des précisions d'abord : ses boutons vivent hors des matrices,
-  // mais un clic qui y ouvre un champ ne doit rien déclencher d'autre.
-  const carte = e.target.closest('[data-precision]');
-  if(carte && surClicPrecision(e, carte)) return;
+  // Le point d'une précision, et la ligne de précision des petits écrans :
+  // ils vivent DANS la case, mais ouvrent le panneau de réponse au lieu de
+  // marquer une dispo ou d'affecter — d'où la sortie avant surClicCellule.
+  const pointNote = e.target.closest('[data-repondre]');
+  if(pointNote){
+    const cellule = pointNote.closest('[data-cellule]');
+    if(cellule) ouvrirReponse(cellule);
+    return;
+  }
   const cel = e.target.closest('[data-cellule]');
   if(cel) surClicCellule(cel);
   // Un clic sur la bande d'un projet le retire du tableau : c'est là qu'on
@@ -1899,6 +1978,7 @@ function exportRecapPdf(){
   doc.save(`Vue_ensemble_Curieux_orchestre_${fileSuffix}.pdf`);
 }
 document.getElementById('exportPdfBtn').addEventListener('click', exportRecapPdf);
+document.getElementById('chipPrecisions').addEventListener('click', allerPrecisionSuivante);
 
 function populateTourneeSelect(){
   const sel = document.getElementById('pdfTourneeSelect');
