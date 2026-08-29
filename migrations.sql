@@ -4318,3 +4318,58 @@ alter table bug_reports add column if not exists auteur text not null default ''
 
 comment on column bug_reports.auteur is
   'Qui a envoyé le retour, tel que la page l''a su : email du compte, nom du lien personnel, ou nom saisi. Informatif, non vérifié.';
+
+-- ============================================================================
+-- Répondre à une précision laissée sur une date
+--
+-- Quelqu'un écrit « je dois être à Lille le lendemain matin » en cochant sa
+-- dispo. L'information arrivait bien jusqu'à la production — et s'arrêtait là :
+-- aucun moyen de dire « c'est bon, tu pars après le concert » autrement que par
+-- un message à côté, que personne ne retrouve trois semaines plus tard.
+--
+-- Une réponse, une seule, par personne et par date. Pas un fil de discussion :
+-- la question posée appelle un oui, un non ou une consigne, et la réponse se
+-- réécrit si elle change. Elle est facultative — la plupart des précisions
+-- n'en appellent aucune.
+--
+--   { "2027-03-12": { "texte": "ok, départ après le concert",
+--                     "auteur": "alois@lessoudaines.fr",
+--                     "le": "2026-08-27T09:12:00.000Z" } }
+--
+-- Écriture réservée aux comptes de l'équipe (RLS des tables musiciens et
+-- techniciens, inchangée). Lecture par la personne concernée via son lien
+-- personnel : get_own_person_by_token rend la colonne, plus bas.
+-- ============================================================================
+alter table musiciens   add column if not exists reponses_prod jsonb not null default '{}'::jsonb;
+alter table techniciens add column if not exists reponses_prod jsonb not null default '{}'::jsonb;
+
+comment on column musiciens.reponses_prod is
+  'Réponse de la production à une précision de dispo, par date : { date: { texte, auteur, le } }.';
+comment on column techniciens.reponses_prod is
+  'Réponse de la production à une précision de dispo, par date : { date: { texte, auteur, le } }.';
+
+-- La fiche que la personne lit depuis son lien : une colonne de plus, pour
+-- qu'elle voie la réponse là où elle a posé sa question.
+drop function if exists get_own_person_by_token(text);
+create or replace function get_own_person_by_token(p_token text)
+returns table(
+  id text, prenom text, nom text, instrument text, pupitre text,
+  poste text, pole text, statut_poste text, telephone text, email text,
+  disponibilites jsonb, disponibilites_commentaires jsonb, reponses_prod jsonb
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with p as (select * from resolve_person_token(p_token))
+  select m.id, m.prenom, m.nom, m.instrument, m.pupitre, null::text, null::text,
+         m.statut_poste, m.telephone, m.email, m.disponibilites, m.disponibilites_commentaires,
+         coalesce(m.reponses_prod, '{}'::jsonb)
+    from musiciens m join p on p.person_id = m.id and p.person_type = 'musicien'
+  union all
+  select t.id, t.prenom, t.nom, null::text, null::text, t.poste, t.pole,
+         t.statut_poste, t.telephone, t.email, t.disponibilites, t.disponibilites_commentaires,
+         coalesce(t.reponses_prod, '{}'::jsonb)
+    from techniciens t join p on p.person_id = t.id and p.person_type = 'technicien';
+$$;
+grant execute on function get_own_person_by_token(text) to anon, authenticated;

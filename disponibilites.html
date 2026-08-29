@@ -66,6 +66,9 @@
     position:absolute; top:-3px; right:-3px; width:9px; height:9px; border-radius:50%;
     background:var(--secondary); border:1.5px solid var(--card); pointer-events:none;
   }
+  /* Prune : la production a répondu à cette précision, il n'y a plus rien à
+     faire dessus (voir Vue d'ensemble). */
+  .comment-dot.repondu{background:var(--prune);}
   .m-instrument-sub{font-weight:500; color:var(--muted); font-size:11px;}
   .remplacant-tag{
     font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
@@ -282,12 +285,17 @@ function renderDispoGrid(people, saveFn, holderId, roleAttr, emptyLinkHref, empt
           const state = dispo[d] || '';
           const cls = STATE_CLASS[state];
           const comment = commentaires[d] || '';
-          const title = comment ? `${STATE_LABEL[state]} — ${comment}` : `${STATE_LABEL[state]} — clique pour changer`;
+          // La réponse laissée par la production sur cette précision (Vue
+          // d'ensemble) : le point passe au prune, et l'infobulle la dit.
+          const rep = ((m.reponsesProd || {})[d] || {}).texte || '';
+          const title = comment
+            ? `${STATE_LABEL[state]} — ${comment}${rep ? ' | Réponse : ' + rep : ''}`
+            : `${STATE_LABEL[state]} — clique pour changer`;
           // data-jour : invisible à l'écran (un attribut ne rend rien), mais il
           // permet à la version mobile d'afficher la date en tête de chaque
           // ligne quand le tableau se replie en liste. Aucun effet sur le
           // rendu sur ordinateur.
-          return `<td class="cell" data-jour="${escapeHtml(fmtDateFR(d))}"><div class="dispo-btn-wrap"><button type="button" class="dispo-btn ${cls}" data-role="${roleAttr}" data-person="${m.id}" data-date="${escapeHtml(d)}" title="${escapeHtml(title)}">${STATE_SYMBOL[state]}</button>${comment ? '<span class="comment-dot"></span>' : ''}</div></td>`;
+          return `<td class="cell" data-jour="${escapeHtml(fmtDateFR(d))}"><div class="dispo-btn-wrap"><button type="button" class="dispo-btn ${cls}" data-role="${roleAttr}" data-person="${m.id}" data-date="${escapeHtml(d)}" title="${escapeHtml(title)}">${STATE_SYMBOL[state]}</button>${comment ? `<span class="comment-dot${rep ? ' repondu' : ''}"></span>` : ''}</div></td>`;
         }).join('')}
       </tr>
     `;

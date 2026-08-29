@@ -165,14 +165,48 @@
   #noteBulle b{display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
     color:var(--secondary); font-weight:800; margin-bottom:3px;}
   #noteBulle i{font-style:italic; color:var(--text);}
+  /* La réponse de la production, sous la précision, dans la même bulle. */
+  #noteBulle u{display:block; text-decoration:none; margin-top:6px; padding-top:5px;
+    border-top:1px dashed var(--border); color:var(--prune); font-weight:600;}
+  #noteBulle u small{display:block; font-weight:400; font-size:10.5px; color:var(--muted); margin-top:2px;}
+  /* Une précision à laquelle on a répondu ne réclame plus rien : son point
+     passe du orange au prune, plein — l'œil ne cherche que les orange. */
+  .m-cell.avec-note.repondue::after{background:var(--prune);}
   @media (max-width:760px){
     .note-repliee{
       display:block; flex:1 1 100%; order:3; margin-top:4px;
       font-size:12px; font-style:italic; color:var(--secondary); line-height:1.4;
       white-space:normal;
     }
+    .reponse-repliee{display:block; margin-top:2px; color:var(--prune); font-weight:600;}
     .co-matrix-cell.porte-note{flex-wrap:wrap;}
   }
+
+  /* Le bloc des précisions, sous les deux tableaux. */
+  .precisions-chapo{color:var(--muted); font-size:13px; margin:-6px 0 12px;}
+  .precisions{display:grid; gap:10px;}
+  .precision{
+    background:var(--card); border:1px solid var(--border); border-left:4px solid var(--secondary);
+    border-radius:12px; padding:11px 14px;
+  }
+  .precision.est-repondue{border-left-color:var(--prune);}
+  .precision-tete{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; font-size:13px;}
+  .precision-tete b{font-size:14px;}
+  .precision-quand{color:var(--muted);}
+  .precision-projet{
+    font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;
+    border:1px solid var(--border); color:#141617;
+  }
+  .precision-dit{margin:6px 0 0; font-style:italic; line-height:1.45;}
+  .precision-reponse{margin-top:8px; padding-left:10px; border-left:2px solid var(--prune);}
+  .precision-reponse p{margin:0; color:var(--prune); font-weight:600; line-height:1.45;}
+  .precision-reponse small{display:block; margin-top:2px; color:var(--muted); font-size:11.5px;}
+  .precision-forme{margin-top:8px; display:grid; gap:8px;}
+  .precision-forme textarea{resize:vertical; min-height:52px;}
+  .precision-actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+  .precision-forme .precision-actions{margin-top:0;}
+  .lien-nu{background:none; border:none; padding:0; font:inherit; color:var(--secondary);
+    text-decoration:underline; cursor:pointer;}
 
   .m-cell.assigned{background:var(--ok); border-color:var(--ok); color:#fff;}
   .m-cell.dispo{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark); font-weight:900;}
@@ -362,6 +396,8 @@
 
   <h2 class="section-title">Technicien·nes</h2>
   <div id="matrixHolderTechniciens"></div>
+
+  <div id="precisionsHolder"></div>
 </div>
 
 <script>
@@ -698,6 +734,7 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           const assigned = (e.assignes||[]).includes(m.id);
           const state = dispo[e.date] || '';
           const note = ((m.disponibilitesCommentaires || {})[e.date] || '').trim();
+          const rep = note ? reponseDe(m, e.date) : null;
           // Une affectation prime : on ne grise jamais quelqu'un qui joue.
           const hors = !assigned && !estSollicite(m, ptypeMatrice, e);
           let cls = '', symbol = '—', title = 'Non renseigné';
@@ -709,10 +746,12 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
           // liste sur petit écran, sans rien changer au tableau sur ordinateur.
           return `<div class="co-matrix-cell${e.estRecording ? ' colonne-reco' : ''}${hors ? ' hors-demande' : ''}${note ? ' porte-note' : ''}" data-jour="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"
             ${note ? `data-note="${escapeAttr(note)}" data-note-qui="${escapeAttr(fullName(m))}" data-note-quand="${escapeAttr(fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''))}"` : ''}
+            ${rep ? `data-note-reponse="${escapeAttr(rep.texte)}" data-note-reponse-qui="${escapeAttr(rep.auteur || '')}"` : ''}
             data-cellule data-tid="${escapeAttr(e.tourneeId)}" data-did="${escapeAttr(e.dateId)}" data-pid="${escapeAttr(m.id)}"
             data-ptype="${ptypeMatrice}" data-date="${escapeAttr(e.date)}" data-reco="${e.estRecording ? '1' : ''}"
-            style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? ' avec-note' : ''}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}">${symbol}</span>${
-            note ? `<span class="note-repliee">${escapeHtml(note)}</span>` : ''}</div>`;
+            style="background-color:${colorFor(e)};"><span class="co-matrix-btn m-cell ${cls}${note ? (rep ? ' avec-note repondue' : ' avec-note') : ''}${hors ? ' hors-demande' : ''}" title="${hors ? 'Pas sollicité·e sur cette date — cliquer pour lui demander ses dispos' : title}">${symbol}</span>${
+            note ? `<span class="note-repliee">${escapeHtml(note)}${
+              rep ? `<em class="reponse-repliee">↳ ${escapeHtml(rep.texte)}</em>` : ''}</span>` : ''}</div>`;
         }).join('')}
       </div>
     `;
@@ -726,6 +765,141 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
       <div class="co-matrix-in"><div class="co-matrix-tete">${bandeau}${head}</div>${rows}</div>
     </div>
   `;
+}
+
+/* ---------------------------------------------------------------------------
+   Les précisions, en clair, sous les tableaux
+   ---------------------------------------------------------------------------
+   Le point orange au coin d'une case dit qu'il y a quelque chose à lire, et la
+   bulle le lit — mais il faut passer sur trente cases pour savoir lesquelles.
+   Ce bloc les rassemble, dans l'ordre des dates, et c'est là qu'on répond.
+   Il suit le tableau : mêmes personnes, mêmes projets, même période.
+--------------------------------------------------------------------------- */
+// Une seule réponse ouverte à la fois — « ptype:pid:date » — pour que le
+// re-rendu (temps réel, clic ailleurs) ne referme pas le champ en cours.
+let editionReponse = '';
+
+function collecterPrecisions(){
+  const lots = [
+    { ptype: 'musicien', champ: 'musiciensAssignes', gens: garderSelonFiltre(loadMusicians(), 'musicien') },
+    { ptype: 'technicien', champ: 'techniciensAssignes', gens: garderSelonFiltre(loadTechnicians(), 'technicien') },
+  ];
+  const out = [];
+  const vus = new Set();
+  lots.forEach(lot=>{
+    const entries = allDateEntries(lot.champ).filter(e=> !projetsMasques.has(e.tourneeId));
+    lot.gens.forEach(p=> entries.forEach(e=>{
+      const texte = ((p.disponibilitesCommentaires || {})[e.date] || '').trim();
+      if(!texte) return;
+      // Le commentaire porte sur une DATE, pas sur un projet : deux projets le
+      // même jour affichent la même phrase sur deux cases. Une seule ligne ici.
+      const cle = lot.ptype + ':' + p.id + ':' + e.date;
+      if(vus.has(cle)) return;
+      vus.add(cle);
+      out.push({ cle, ptype: lot.ptype, personne: p, entry: e, texte, reponse: reponseDe(p, e.date) });
+    }));
+  });
+  out.sort((a, b)=> a.entry.date.localeCompare(b.entry.date)
+    || fullName(a.personne).localeCompare(fullName(b.personne), 'fr'));
+  return out;
+}
+
+function renderPrecisions(){
+  const holder = document.getElementById('precisionsHolder');
+  if(!holder) return;
+  const liste = collecterPrecisions();
+  if(!liste.length){ holder.innerHTML = ''; return; }
+  const couleurs = couleursProjets();
+  const sansReponse = liste.filter(x=> !x.reponse).length;
+  holder.innerHTML = `
+    <h2 class="section-title">Précisions laissées sur les dates</h2>
+    <p class="precisions-chapo">Ce que les gens ont écrit à côté de leur réponse, sur les projets
+      et la période affichés. ${sansReponse
+        ? `<b>${sansReponse}</b> ${sansReponse > 1 ? 'attendent' : 'attend'} encore un mot.`
+        : 'Tout a reçu une réponse.'}</p>
+    <div class="precisions">
+      ${liste.map(x=>{
+        const enEdition = editionReponse === x.cle;
+        const projet = x.entry.tourneeNom || 'Projet';
+        return `
+        <article class="precision${x.reponse ? ' est-repondue' : ''}" data-precision="${escapeAttr(x.cle)}">
+          <div class="precision-tete">
+            <b>${escapeHtml(fullName(x.personne))}</b>
+            <span class="precision-quand">${escapeHtml(fmtDateFR(x.entry.date))}${
+              x.entry.ville ? ' · ' + escapeHtml(x.entry.ville.split(' (')[0]) : ''}</span>
+            <span class="precision-projet" style="background:${escapeAttr(couleurs.get(x.entry.tourneeId) || 'transparent')};">${
+              escapeHtml(projet)}${x.entry.estRecording ? ' · Rec' : ''}</span>
+          </div>
+          <p class="precision-dit">« ${escapeHtml(x.texte)} »</p>
+          ${enEdition ? `
+            <div class="precision-forme">
+              <textarea class="co-input" data-champ-reponse rows="2"
+                placeholder="Ta réponse, en une phrase…">${escapeHtml(x.reponse ? x.reponse.texte : '')}</textarea>
+              <div class="precision-actions">
+                <button type="button" class="co-btn small" data-rep-enregistrer>Enregistrer</button>
+                <button type="button" class="co-btn small secondary" data-rep-annuler>Annuler</button>
+                ${x.reponse ? '<button type="button" class="co-btn small secondary" data-rep-retirer>Retirer la réponse</button>' : ''}
+              </div>
+            </div>` : (x.reponse ? `
+            <div class="precision-reponse">
+              <p>↳ ${escapeHtml(x.reponse.texte)}</p>
+              <small>${x.reponse.auteur ? escapeHtml(x.reponse.auteur) + ' · ' : ''}${
+                escapeHtml(quandCourt(x.reponse.le))} — <button type="button" class="lien-nu" data-rep-ouvrir>modifier</button></small>
+            </div>` : `
+            <div class="precision-actions">
+              <button type="button" class="co-btn small secondary" data-rep-ouvrir>Répondre</button>
+            </div>`)}
+        </article>`;
+      }).join('')}
+    </div>
+  `;
+  const champ = holder.querySelector('[data-champ-reponse]');
+  if(champ && document.activeElement !== champ){
+    champ.focus();
+    champ.setSelectionRange(champ.value.length, champ.value.length);
+  }
+}
+
+// Les trois gestes du bloc : ouvrir le champ, enregistrer, refermer. Rend
+// true quand le clic a été traité, pour que rien d'autre ne s'en saisisse.
+function surClicPrecision(ev, carte){
+  const cle = carte.dataset.precision || '';
+  if(ev.target.closest('[data-rep-ouvrir]')){
+    editionReponse = cle;
+    renderPrecisions();
+    return true;
+  }
+  if(ev.target.closest('[data-rep-annuler]')){
+    editionReponse = '';
+    renderPrecisions();
+    return true;
+  }
+  const retirer = !!ev.target.closest('[data-rep-retirer]');
+  if(retirer || ev.target.closest('[data-rep-enregistrer]')){
+    const champ = carte.querySelector('[data-champ-reponse]');
+    const texte = retirer ? '' : (champ ? champ.value : '');
+    if(retirer && !confirm('Retirer la réponse ?')) return true;
+    const [ptype, pid, date] = cle.split(':');
+    const personne = personneDe(ptype, pid);
+    if(!personne) return true;
+    ecrireReponse(ptype, personne, date, texte).then(ok=>{
+      if(!ok) return;
+      editionReponse = '';
+      rendreEnGardantLeScroll();
+    });
+    return true;
+  }
+  return false;
+}
+
+// « 12 mars » quand c'est cette année, « 12 mars 2025 » sinon — une réponse
+// vieille d'un an ne se lit pas comme celle d'hier.
+function quandCourt(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d)) return '';
+  const jour = d.toISOString().slice(0, 10);
+  return d.getFullYear() === new Date().getFullYear() ? fmtDateFRShort(jour) : fmtDateFR(jour);
 }
 
 /* Le filtre de personnes, à un seul endroit.
@@ -840,6 +1014,7 @@ function renderAll(){
   renderPeopleMatrix(garderSelonFiltre(loadMusicians(), 'musicien'), 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musicien·nes', "Musicien·ne");
   renderPeopleMatrix(garderSelonFiltre(loadTechnicians(), 'technicien'), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire technicien·nes', "Technicien·ne");
   renderProjetsFiltre();
+  renderPrecisions();
   try{ majEtatRecherche(); }catch(e){}
   populateTourneeSelect();
   renderDashboard();
@@ -982,8 +1157,11 @@ function bulleDeNote(){
 }
 function montrerNote(cel){
   const b = bulleDeNote();
+  const rep = cel.dataset.noteReponse || '';
   b.innerHTML = `<b>${escapeHtml(cel.dataset.noteQui || '')} · ${escapeHtml(cel.dataset.noteQuand || '')}</b>`
-    + `<i>« ${escapeHtml(cel.dataset.note || '')} »</i>`;
+    + `<i>« ${escapeHtml(cel.dataset.note || '')} »</i>`
+    + (rep ? `<u>↳ ${escapeHtml(rep)}${
+        cel.dataset.noteReponseQui ? `<small>${escapeHtml(cel.dataset.noteReponseQui)}</small>` : ''}</u>` : '');
   b.classList.add('visible');
   const r = cel.getBoundingClientRect();
   const bb = b.getBoundingClientRect();
@@ -1090,6 +1268,47 @@ function rendreEnGardantLeScroll(){ renderAll(); }
 
 function personneDe(ptype, pid){
   return (ptype === 'musicien' ? loadMusicians() : loadTechnicians()).find(p=> p.id === pid);
+}
+
+/* ---------------------------------------------------------------------------
+   Répondre à une précision
+   ---------------------------------------------------------------------------
+   Quelqu'un écrit « ok mais je dois être à Nantes le lendemain » : jusqu'ici
+   la production le lisait et personne ne savait quoi en penser. Une réponse,
+   une seule, par personne et par date — « c'est bon, tu pars après le
+   filage » — et elle s'affiche à la personne sur sa page de dispos. Pas un
+   fil de discussion : une réponse qui se réécrit tant qu'on veut, et qui
+   s'efface si l'on vide le champ.
+--------------------------------------------------------------------------- */
+function reponseDe(personne, date){
+  const r = (personne.reponsesProd || {})[date];
+  const texte = r && (r.texte || '').trim();
+  return texte ? { texte, auteur: (r.auteur || '').trim(), le: r.le || '' } : null;
+}
+
+// Qui répond : l'e-mail de la session admin. La page n'est ouverte qu'à
+// l'équipe, mais rien n'oblige à ce qu'une seule personne y travaille.
+let auteurReponse = '';
+try{
+  Promise.resolve(CurieuxDB.getSession()).then(s=>{
+    auteurReponse = (s && s.user && s.user.email) || '';
+  }).catch(()=>{});
+}catch(e){}
+
+async function ecrireReponse(ptype, personne, date, texte){
+  const avant = JSON.parse(JSON.stringify(personne.reponsesProd || {}));
+  if(!personne.reponsesProd) personne.reponsesProd = {};
+  const propre = (texte || '').trim();
+  if(propre) personne.reponsesProd[date] = { texte: propre, auteur: auteurReponse, le: new Date().toISOString() };
+  else delete personne.reponsesProd[date];
+  const { error } = await CurieuxDB.upsertOne(ptype === 'musicien' ? 'musiciens' : 'techniciens', personne);
+  if(error){
+    personne.reponsesProd = avant;
+    alert('Écriture impossible — rien n\'a été changé :\n\n' + error.message);
+    return false;
+  }
+  curieuxFlash(propre ? 'Réponse enregistrée' : 'Réponse retirée');
+  return true;
 }
 
 async function ecrireDispo(ptype, personne, date, valeur, texteOups){
@@ -1203,6 +1422,10 @@ document.querySelectorAll('.mode-pilules button').forEach(b=>
   b.addEventListener('click', ()=> poserMode(b.dataset.mode)));
 document.getElementById('oupsBtn').addEventListener('click', annulerDerniereAction);
 document.addEventListener('click', (e)=>{
+  // Le bloc des précisions d'abord : ses boutons vivent hors des matrices,
+  // mais un clic qui y ouvre un champ ne doit rien déclencher d'autre.
+  const carte = e.target.closest('[data-precision]');
+  if(carte && surClicPrecision(e, carte)) return;
   const cel = e.target.closest('[data-cellule]');
   if(cel) surClicCellule(cel);
   // Un clic sur la bande d'un projet le retire du tableau : c'est là qu'on
@@ -1433,8 +1656,10 @@ function pdfCase(doc, cell, personne, entry, ptype, etat, numero){
   pdfMarque(doc, etat, cell.x + cell.width / 2, cell.y + cell.height / 2, Math.min(w, h) * 0.62);
   if(numero){
     // Un numéro plutôt qu'un point : le texte de la précision ne tient pas
-    // dans neuf millimètres, il se lit sous le tableau, à ce numéro-là.
-    doc.setFillColor(236, 75, 21);
+    // dans neuf millimètres, il se lit sous le tableau, à ce numéro-là. Prune
+    // quand la production y a déjà répondu, orange quand elle doit encore.
+    const repondu = !!reponseDe(personne, entry.date);
+    doc.setFillColor(repondu ? 121 : 236, repondu ? 22 : 75, repondu ? 73 : 21);
     doc.circle(x + w - 0.1, y + 0.1, 1.35, 'F');
     doc.setFont('Host', 'bold'); doc.setFontSize(4.6); doc.setTextColor(255, 255, 255);
     doc.text(String(numero), x + w - 0.1, y + 0.68, { align: 'center' });
@@ -1461,18 +1686,33 @@ function pdfPrecisions(doc, y, notes, dessinerEntete){
   doc.setCharSpace(0.08);
   doc.text('PRÉCISIONS LAISSÉES SUR LES DATES', PDF_MARGE, y);
   doc.setCharSpace(0);
+  // Le numéro d'une précision à laquelle on a répondu est prune, pas orange :
+  // sans un mot, personne ne devinerait ce que veut dire la couleur.
+  if(notes.some(n=> n.reponse)){
+    doc.setFont('Host', 'normal'); doc.setFontSize(6.4); doc.setTextColor(140, 125, 133);
+    doc.text('numéro prune = réponse de la production', PDF_MARGE + 62, y);
+  }
   y += 4.8;
   notes.forEach(n=>{
     doc.setFont('Host', 'normal'); doc.setFontSize(7.4);
     const lignes = doc.splitTextToSize(`${n.qui} · ${n.quand} — « ${n.texte} »`, largeur);
-    placer(lignes.length * 3.2 + 2);
-    doc.setFillColor(236, 75, 21);
+    // La réponse de la production juste dessous, en prune : sur papier comme à
+    // l'écran, on lit la question et ce qu'on y a répondu d'un seul tenant.
+    const reponse = n.reponse ? doc.splitTextToSize('> ' + n.reponse, largeur - 3) : [];
+    placer((lignes.length + reponse.length) * 3.2 + 2);
+    doc.setFillColor(n.reponse ? 121 : 236, n.reponse ? 22 : 75, n.reponse ? 73 : 21);
     doc.circle(PDF_MARGE + 1.9, y - 1.05, 1.9, 'F');
     doc.setFont('Host', 'bold'); doc.setFontSize(5.4); doc.setTextColor(255, 255, 255);
     doc.text(String(n.num), PDF_MARGE + 1.9, y - 0.25, { align: 'center' });
     doc.setFont('Host', 'normal'); doc.setFontSize(7.4); doc.setTextColor(58, 50, 55);
     doc.text(lignes, PDF_MARGE + 5.6, y);
-    y += lignes.length * 3.2 + 1.4;
+    y += lignes.length * 3.2;
+    if(reponse.length){
+      doc.setFont('Host', 'bold'); doc.setFontSize(7.2); doc.setTextColor(121, 22, 73);
+      doc.text(reponse, PDF_MARGE + 8.6, y);
+      y += reponse.length * 3.2;
+    }
+    y += 1.4;
   });
   return y + 3;
 }
@@ -1527,9 +1767,15 @@ function buildMatrixTable(doc, startY, people, assignField, titre, entries, dess
   if(avecNotes) sorted.forEach(m=> entries.forEach(e=>{
     const texte = ((m.disponibilitesCommentaires || {})[e.date] || '').trim();
     if(!texte) return;
-    numeroNote.set(m.id + '|' + e.date, notes.length + 1);
+    // Deux projets le même jour montrent la même phrase sur deux cases : un
+    // seul numéro, une seule ligne sous le tableau.
+    const cle = m.id + '|' + e.date;
+    if(numeroNote.has(cle)) return;
+    numeroNote.set(cle, notes.length + 1);
+    const rep = reponseDe(m, e.date);
     notes.push({ num: notes.length + 1, qui: fullName(m),
-      quand: fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''), texte });
+      quand: fmtDateFRShort(e.date) + (e.ville ? ' · ' + e.ville : ''), texte,
+      reponse: rep ? rep.texte : '' });
   }));
   const fondsProjets = new Map();
   entries.forEach(e=>{

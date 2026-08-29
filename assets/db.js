@@ -51,7 +51,10 @@ const CurieuxDB = (()=>{
         rang: m.rang || null,
         telephone: m.telephone || '', email: m.email || '', notes: m.notes || '',
         disponibilites: m.disponibilites || {},
-        disponibilites_commentaires: m.disponibilitesCommentaires || {}
+        disponibilites_commentaires: m.disponibilitesCommentaires || {},
+        // Ce que la production répond à une précision laissée sur une date :
+        // { "2027-03-12": { texte, auteur, le } }. Voir recap.html.
+        reponses_prod: m.reponsesProd || {}
       }),
       fromDb: (r)=> ({
         id: r.id, prenom: r.prenom, nom: r.nom,
@@ -60,7 +63,8 @@ const CurieuxDB = (()=>{
         rang: r.rang || undefined,
         telephone: r.telephone, email: r.email, notes: r.notes,
         disponibilites: r.disponibilites || {},
-        disponibilitesCommentaires: r.disponibilites_commentaires || {}
+        disponibilitesCommentaires: r.disponibilites_commentaires || {},
+        reponsesProd: r.reponses_prod || {}
       })
     },
     techniciens: {
@@ -71,7 +75,8 @@ const CurieuxDB = (()=>{
         statut_poste: t.statutPoste || 'titulaire',
         telephone: t.telephone || '', email: t.email || '', notes: t.notes || '',
         disponibilites: t.disponibilites || {},
-        disponibilites_commentaires: t.disponibilitesCommentaires || {}
+        disponibilites_commentaires: t.disponibilitesCommentaires || {},
+        reponses_prod: t.reponsesProd || {}
       }),
       fromDb: (r)=> ({
         id: r.id, prenom: r.prenom, nom: r.nom,
@@ -79,7 +84,8 @@ const CurieuxDB = (()=>{
         statutPoste: r.statut_poste || 'titulaire',
         telephone: r.telephone, email: r.email, notes: r.notes,
         disponibilites: r.disponibilites || {},
-        disponibilitesCommentaires: r.disponibilites_commentaires || {}
+        disponibilitesCommentaires: r.disponibilites_commentaires || {},
+        reponsesProd: r.reponses_prod || {}
       })
     },
     tournees: {
@@ -645,6 +651,41 @@ const CurieuxDB = (()=>{
     return res || { error: null };
   }
 
+  // Le nom de la colonne qu'une erreur d'écriture dit introuvable, ou ''.
+  // PostgREST : « Could not find the 'reponses_prod' column of 'musiciens' » ;
+  // Postgres : « column "reponses_prod" of relation "musiciens" does not exist ».
+  function _colonneManquante(error){
+    if(!error) return '';
+    const code = error.code || '';
+    if(code !== 'PGRST204' && code !== '42703') return '';
+    const texte = (error.message || '') + ' ' + (error.details || '');
+    const m = texte.match(/'([A-Za-z0-9_]+)'/) || texte.match(/"([A-Za-z0-9_]+)"/);
+    return m ? m[1] : '';
+  }
+
+  /* Écrire même quand la base a une migration de retard.
+   *
+   * Le code d'une page part toujours avant le SQL : on déploie, on joue la
+   * migration ensuite. Entre les deux, une colonne inconnue de la base faisait
+   * échouer TOUTES les écritures de la table — y compris celles qui n'avaient
+   * rien à voir avec la nouveauté. On retire la colonne fautive de la ligne et
+   * on renvoie : le reste s'enregistre, et la colonne reprend sa place d'
+   * elle-même dès la migration jouée. Deux tours au plus, et on abandonne si
+   * la colonne nommée n'est même pas dans ce qu'on envoie — sans quoi une
+   * erreur mal formée tournerait en rond.
+   */
+  async function _upsertTolerant(table, rows, onConflict){
+    let payload = rows;
+    for(let essai = 0; essai < 3; essai++){
+      const res = await supabaseClient.from(table).upsert(payload, { onConflict });
+      const colonne = _colonneManquante(res && res.error);
+      if(!colonne || !payload.some(r=> colonne in r)) return res;
+      console.warn(`[CurieuxDB] colonne « ${colonne} » absente de ${table} — écriture sans elle (migration à jouer).`);
+      payload = payload.map(r=>{ const c = Object.assign({}, r); delete c[colonne]; return c; });
+    }
+    return supabaseClient.from(table).upsert(payload, { onConflict });
+  }
+
   // Les messages bruts de Postgres/Supabase ne veulent rien dire pour qui les
   // lit dans une salle de concert : on traduit les deux cas réellement fréquents.
   function _messageLisible(message){
@@ -774,7 +815,7 @@ const CurieuxDB = (()=>{
     const rows = (list || []).map(adapter.toDb);
     if(rows.length === 0) return { error: null };
     return _ecrire(`syncCollection(${table})`,
-      () => supabaseClient.from(table).upsert(rows, { onConflict: 'id' }));
+      () => _upsertTolerant(table, rows, 'id'));
   }
 
   // Upsert d'une seule ligne — utilisé pour les sauvegardes à haute fréquence
@@ -785,7 +826,7 @@ const CurieuxDB = (()=>{
     const adapter = adapterFor(table);
     const row = adapter.toDb(item);
     return _ecrire(`upsertOne(${table})`,
-      () => supabaseClient.from(table).upsert(row, { onConflict: 'id' }));
+      () => _upsertTolerant(table, [row], 'id'));
   }
   async function removeOne(table, id){
     return _ecrire(`removeOne(${table})`,

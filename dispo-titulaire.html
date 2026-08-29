@@ -136,6 +136,18 @@
     background:var(--bg); color:var(--text); font-family:inherit;
   }
   .date-comment:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  /* La réponse de la production à la précision laissée sur cette date. Elle
+     arrive au fil de l'eau, longtemps après qu'on a répondu : elle se met
+     donc sous le champ, à sa place dans la lecture de la date. */
+  .reponse-prod{
+    margin-top:8px; padding:8px 10px 8px 11px; border-left:3px solid var(--prune);
+    background:color-mix(in srgb, var(--prune) 7%, transparent);
+    border-radius:0 8px 8px 0; font-size:12.5px; line-height:1.45; color:var(--text);
+  }
+  .reponse-prod b{
+    display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--prune); margin-bottom:2px;
+  }
 
   .save-bar{
     position:fixed; bottom:0; left:0; right:0; z-index:20; display:none;
@@ -498,6 +510,10 @@ function render(){
   const blocMap = computeBlocMap(allDates);
   const dispo = state.person.disponibilites;
   const commentaires = state.person.disponibilites_commentaires;
+  // Ce que la production a répondu à une précision. Une seule réponse par
+  // date, en lecture seule ici : ce n'est pas une messagerie, c'est un « oui,
+  // c'est bon » ou un « non, on a besoin de toi jusqu'au bout ».
+  const reponsesProd = state.person.reponses_prod || {};
 
   // Une personne peut avoir un cachet différent du cachet standard de la tournée
   // (voir cachet_overrides dans migrations.sql) — elle ne voit jamais le montant des
@@ -601,6 +617,8 @@ function render(){
 
     const current = dispo[d.date] || '';
     const comment = commentaires[d.date] || '';
+    const brute = reponsesProd[d.date];
+    const reponseProd = brute && (brute.texte || '').trim() ? { texte: (brute.texte || '').trim() } : null;
     // Déjà retenu·e sur cette date : l'équipe est faite, on ne s'en retire pas
     // d'un clic. Sauf si l'on s'était déjà déclaré indisponible avant d'être
     // affecté·e — auquel cas le bouton reste tel quel, il dit l'état réel.
@@ -619,6 +637,7 @@ function render(){
         </div>
         <div class="alerte-affecte" id="alerte-${escapeAttr(d.date)}" data-alerte="${escapeAttr(d.date)}" role="status" style="display:none;"></div>
         <input type="text" class="date-comment" data-date="${escapeAttr(d.date)}" placeholder="Une précision ? (facultatif)" value="${escapeAttr(comment)}">
+        ${reponseProd ? `<div class="reponse-prod"><b>Réponse de la production</b>${escapeHtml(reponseProd.texte)}</div>` : ''}
       </div>
     `;
 
