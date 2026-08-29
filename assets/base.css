@@ -937,3 +937,37 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
   /* Le filet de bloc passe du bord gauche de la ligne à celui de la carte. */
   .co-row.date-row.bloc-row{ padding-left:0; border-left-width:4px; }
 }
+
+/* --- 20. Impression -------------------------------------------------------
+   Il n'y avait aucune règle d'impression dans tout le projet : Ctrl+P sortait
+   la barre de navigation, la barre de modes flottante par-dessus le tableau,
+   et seules les lignes visibles de la matrice — le reste étant dans une
+   fenêtre de défilement, l'imprimante n'en voyait rien.
+
+   Ce bloc ne rend pas l'impression belle, il la rend honnête : la page part
+   entière, sans les commandes qui n'ont pas de sens sur papier. Pour un
+   tirage propre et paginé d'un grand tableau, l'export PDF reste le bon
+   chemin, et un mot visible seulement à l'impression le dit — plutôt que de
+   laisser quelqu'un découvrir le problème une fois la feuille sortie.
+   -------------------------------------------------------------------------- */
+@media print{
+  /* Les commandes ne s'impriment pas : on ne clique pas sur du papier. */
+  .co-topbar, .co-subnav, .co-footer, .mode-bar, .co-actions, .legend-actions,
+  .dispo-filter-row, .projets-filtre, .co-fab, .modal-overlay,
+  [data-bug-report], #noteBulle{ display:none !important; }
+
+  /* Les fenêtres de défilement s'ouvrent : sans cela, l'imprimante ne reçoit
+     que ce qui tenait à l'écran, et le tableau paraît complet alors qu'il est
+     tronqué — le pire des résultats, parce qu'il ne se voit pas. */
+  .co-matrix, .table-wrap, .grid-table-wrap{
+    max-height:none !important; overflow:visible !important; border:none !important;
+  }
+  .co-matrix-tete, .co-matrix-total{ position:static !important; }
+
+  body, body.co-has-topbar{ padding:0 !important; background:#fff !important; }
+  a[href]:after{ content:''; }          /* pas d'URL entre parenthèses partout */
+
+  /* Le renvoi vers l'export, invisible à l'écran. */
+  .co-print-note{ display:block !important; margin:0 0 12px; font-size:12px; }
+}
+.co-print-note{ display:none; }
