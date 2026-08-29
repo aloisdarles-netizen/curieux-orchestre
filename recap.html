@@ -295,6 +295,25 @@
   .chip-projet em{font-style:normal; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
   .chip-projet:hover{border-color:var(--accent); color:var(--accent);}
   .chip-projet.off{opacity:.45; border-style:dashed; text-decoration:line-through; text-decoration-thickness:1px;}
+  /* Ce que la fenêtre de période laisse dehors. Une coupe silencieuse ferait
+     croire que la tournée n'a que quatre dates. */
+  .hors-fenetre{font-size:12px; color:var(--secondary); font-weight:700;}
+
+  /* Les bandes de pupitre. Elles n'ont pas de cases : la rangée s'arrête à la
+     colonne des noms, et la bande de couleur court sur toute la largeur pour
+     séparer nettement deux familles d'instruments. */
+  .co-matrix-row.bande-groupe{background:var(--row-alt); border-bottom:1px solid var(--border);}
+  .co-matrix-row.bande-groupe .co-matrix-name{background:var(--row-alt); padding:4px 10px;}
+  .bande-bouton{
+    display:flex; align-items:center; gap:6px; width:100%; text-align:left;
+    background:none; border:none; padding:2px 0; cursor:pointer; font-family:inherit;
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent-dark);
+  }
+  .bande-bouton:hover{color:var(--accent);}
+  .bande-bouton .chevron{font-size:9px;}
+  .bande-bouton small{font-weight:700; color:var(--muted); letter-spacing:0;}
+  @media (max-width:760px){ .co-matrix-row.bande-groupe{display:none;} }
 
   /* Bandeau de projets, au-dessus des dates : la couleur seule ne dit pas de
      quelle tournée il s'agit, le nom écrit en toutes lettres si. Les deux
@@ -423,6 +442,16 @@
            title="Une date annulée n'attend plus de réponse. Elle reste consultable, barrée.">
       <input type="checkbox" id="showDatesAnnulees"> Afficher les dates annulées
     </label>
+    <label style="display:flex; align-items:center; gap:6px; font-weight:600; color:var(--muted);"
+           title="Borne le nombre de colonnes. Une saison entière fait quatre écrans de large : on la fait défiler au lieu de la lire.">
+      Période :
+      <select class="co-select" id="fenetrePeriode" style="width:auto; padding:5px 8px; font-size:12px;">
+        <option value="3">3 mois à venir</option>
+        <option value="6">6 mois</option>
+        <option value="12">12 mois</option>
+        <option value="0">Tout</option>
+      </select>
+    </label>
     <span class="legend-actions">
       <select class="co-select" id="pdfTourneeSelect">
         <option value="">Tous les projets</option>
@@ -534,6 +563,40 @@ let showPastDates = false;
 // réponse, et occupaient une colonne entière sur un tableau qui en manque.
 let showDatesAnnulees = false;
 
+/* Jusqu'où regarde-t-on ?
+ *
+ * Le tableau tenait parce que la saison était jeune. À quatre-vingts dates, il
+ * fait quatre écrans de large : on ne le lit plus, on le fait défiler. Or on
+ * travaille presque toujours sur les semaines qui viennent — la saison entière
+ * sert à vérifier, pas à décider.
+ *
+ * La fenêtre borne donc le futur, et se retient d'un rechargement à l'autre :
+ * c'est une façon de regarder, pas une donnée d'équipe. Elle n'a rien à voir
+ * avec « afficher les dates passées », qui ouvre l'autre côté du calendrier.
+ */
+// Les pupitres qu'on a repliés. Retenu par le navigateur, comme le reste de ce
+// qui relève de la façon de regarder plutôt que des données de l'équipe.
+const CLE_GROUPES = 'curieuxRecapGroupesReplies';
+let groupesReplies = new Set();
+try{ groupesReplies = new Set(JSON.parse(localStorage.getItem(CLE_GROUPES) || '[]')); }catch(e){}
+function memoriserGroupes(){
+  try{ localStorage.setItem(CLE_GROUPES, JSON.stringify([...groupesReplies])); }catch(e){}
+}
+
+const CLE_FENETRE = 'curieuxRecapFenetre';
+let fenetreMois = (()=>{
+  try{ const v = parseInt(localStorage.getItem(CLE_FENETRE), 10); return isFinite(v) ? v : 3; }
+  catch(e){ return 3; }
+})();
+
+// La borne haute de la fenêtre, en date ISO. 0 = pas de borne.
+function finDeFenetre(){
+  if(!fenetreMois) return '';
+  const d = new Date();
+  d.setMonth(d.getMonth() + fenetreMois);
+  return d.toISOString().slice(0, 10);
+}
+
 // Projets masqués (par id). Rangé dans le navigateur : on ne change pas d'avis
 // à chaque rechargement, et ce n'est pas une donnée d'équipe — chacun regarde
 // la saison sous l'angle qui l'occupe.
@@ -572,6 +635,10 @@ function allDateEntries(assignField, tourneeId){
   // que les chiffres au-dessus d'elle. On peut la rouvrir d'une case à cocher,
   // parce qu'un concert annulé la semaine dernière se relit encore.
   if(!showDatesAnnulees) sortie = sortie.filter(e=> e.statut !== 'annulee');
+  // La fenêtre de période ne borne que le futur : le passé, lui, s'ouvre ou se
+  // ferme par sa propre case.
+  const fin = finDeFenetre();
+  if(fin) sortie = sortie.filter(e=> e.date <= fin);
   return sortie;
 }
 
@@ -726,6 +793,20 @@ function compareByStatutThenName(a, b){
 // Les puces de projets. Comptent les dates de la fenêtre en cours (à venir, ou
 // tout l'historique si la case est cochée) : c'est le nombre de colonnes que le
 // projet coûte, donc la seule information qui aide à décider de le masquer.
+// Le raccourci « tout afficher » de la note de fenêtre : il ouvre la période
+// en grand, et remet le sélecteur d'accord avec ce qu'on voit.
+function brancherOuvrirFenetre(holder){
+  const b = holder.querySelector('#ouvrirFenetre');
+  if(!b) return;
+  b.addEventListener('click', ()=>{
+    fenetreMois = 0;
+    try{ localStorage.setItem(CLE_FENETRE, '0'); }catch(e){}
+    const sel = document.getElementById('fenetrePeriode');
+    if(sel) sel.value = '0';
+    renderAll();
+  });
+}
+
 function renderProjetsFiltre(){
   const holder = document.getElementById('projetsFiltre');
   const today = new Date().toISOString().slice(0, 10);
@@ -737,7 +818,20 @@ function renderProjetsFiltre(){
     t, n: (t.dates || []).filter(d=> d.date && (showPastDates || d.date >= today)
       && (showDatesAnnulees || d.statut !== 'annulee')).length,
   })).filter(x=> x.n > 0);
-  if(avecDates.length < 2){ holder.innerHTML = ''; return; }
+  /* Combien de dates la fenêtre laisse-t-elle dehors ?
+   *
+   * Une fenêtre qui coupe en silence est pire que pas de fenêtre : on croit que
+   * la tournée n'a que quatre dates, et on décide là-dessus. Elle se dit donc,
+   * avec le moyen de l'ouvrir d'un clic. */
+  const fin = finDeFenetre();
+  const horsFenetre = !fin ? 0 : loadTournees().reduce((n, t)=> n + (t.dates || []).filter(d=>
+    d.date && d.date > fin && (showDatesAnnulees || d.statut !== 'annulee')).length, 0);
+  const noteFenetre = horsFenetre
+    ? `<span class="hors-fenetre">${horsFenetre} date${horsFenetre>1?'s':''} plus loin —
+        <button type="button" class="lien-nu" id="ouvrirFenetre">tout afficher</button></span>`
+    : '';
+
+  if(avecDates.length < 2){ holder.innerHTML = noteFenetre; brancherOuvrirFenetre(holder); return; }
   const nbMasques = avecDates.filter(x=> projetsMasques.has(x.t.id)).length;
   holder.innerHTML = `
     <span class="projets-filtre-label">Colonnes affichées :</span>
@@ -750,7 +844,9 @@ function renderProjetsFiltre(){
         <small>${n}</small>
       </button>`;
     }).join('')}
-    ${nbMasques ? `<button type="button" class="co-btn ghost sm" id="projetsTout">Tout afficher</button>` : ''}`;
+    ${nbMasques ? `<button type="button" class="co-btn ghost sm" id="projetsTout">Tout afficher</button>` : ''}
+    ${noteFenetre}`;
+  brancherOuvrirFenetre(holder);
   holder.querySelectorAll('[data-projet]').forEach(b=> b.addEventListener('click', ()=>{
     const id = b.dataset.projet;
     if(projetsMasques.has(id)) projetsMasques.delete(id); else projetsMasques.add(id);
@@ -835,12 +931,52 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
 
   const ptypeMatrice = assignField === 'musiciensAssignes' ? 'musicien' : 'technicien';
 
+  /* Des bandes de pupitre, repliables.
+   *
+   * Quarante lignes d'affilée se parcourent mal. Maintenant qu'elles sont
+   * rangées dans l'ordre de l'orchestre, elles forment des groupes naturels :
+   * on les annonce, et on peut replier ceux qu'on ne travaille pas. Replier
+   * les cordes quand on cherche un vent divise par trois la hauteur à balayer.
+   *
+   * Le repli est retenu par le navigateur, comme le reste de ce qui relève de
+   * la façon de regarder. Il ne s'applique qu'aux vues triées par pupitre : en
+   * mode « titulaires + leurs remplaçant·es », chacun·e suit son ou sa
+   * titulaire et découper là-dedans casserait justement ce qu'on a voulu
+   * montrer.
+   */
+  const groupePar = p => (ptypeMatrice === 'musicien' ? (p.pupitre || 'Autre') : (p.pole || 'Autre'));
+  const avecGroupes = document.getElementById('musicienStatutFilter').value !== 'noyau_rempl'
+    && !termeRecherche();
+
+  let groupePrecedent = null;
   const rows = sorted.map(m=>{
     const dispo = m.disponibilites || {};
     const metier = m.statutPoste === 'remplacant' ? 'Remplaçant·e' : (m.instrument || m.poste || '');
     const demandeLe = demandeLeHtml(m, ptypeMatrice);
     const sous = sousRemplacants[ptypeMatrice].has(m.id);
-    return `
+
+    // La bande de groupe, posée avant la première personne de chaque pupitre.
+    let bande = '';
+    const g = groupePar(m);
+    if(avecGroupes && g !== groupePrecedent){
+      groupePrecedent = g;
+      const cleG = ptypeMatrice + ':' + g;
+      const replie = groupesReplies.has(cleG);
+      const combien = sorted.filter(p=> groupePar(p) === g).length;
+      bande = `
+        <div class="co-matrix-row bande-groupe${replie ? ' replie' : ''}">
+          <div class="co-matrix-name">
+            <button type="button" class="bande-bouton" data-groupe="${escapeAttr(cleG)}"
+              aria-expanded="${!replie}" title="${replie ? 'Déplier' : 'Replier'} ${escapeHtml(g)}">
+              <span class="chevron" aria-hidden="true">${replie ? '▸' : '▾'}</span>
+              ${escapeHtml(g)} <small>${combien}</small>
+            </button>
+          </div>
+        </div>`;
+    }
+    if(avecGroupes && groupesReplies.has(ptypeMatrice + ':' + g)) return bande;
+
+    return bande + `
       <div class="co-matrix-row${sous ? ' sous-remplacant' : ''}">
         <div class="co-matrix-name">${sous ? '<span class="fleche-sous" aria-hidden="true">↳</span>' : ''}<b>${escapeHtml(fullName(m))}</b><small>${escapeHtml(metier)}${
           demandeLe ? (metier ? ' · ' : '') + demandeLe : ''}</small></div>
@@ -1348,6 +1484,13 @@ window.addEventListener('blur', cacherNote);
 
 document.getElementById('showPastDates').addEventListener('change', e=>{ showPastDates = e.target.checked; renderAll(); });
 document.getElementById('showDatesAnnulees').addEventListener('change', e=>{ showDatesAnnulees = e.target.checked; renderAll(); });
+const champFenetre = document.getElementById('fenetrePeriode');
+champFenetre.value = String(fenetreMois);
+champFenetre.addEventListener('change', e=>{
+  fenetreMois = parseInt(e.target.value, 10) || 0;
+  try{ localStorage.setItem(CLE_FENETRE, String(fenetreMois)); }catch(err){}
+  renderAll();
+});
 
 // La recherche : rendu immédiat, la liste est en mémoire. Le champ vit hors
 // des matrices, donc le re-rendu ne lui prend jamais le curseur.
@@ -1599,6 +1742,15 @@ document.addEventListener('click', (e)=>{
   if(marque){
     const [ptype, pid] = marque.dataset.demandeLe.split(':');
     noterDemandeEnvoyee(ptype, pid);
+    return;
+  }
+  // Replier un pupitre : le clic ne doit pas retomber sur la case en dessous.
+  const groupe = e.target.closest('[data-groupe]');
+  if(groupe){
+    const cle = groupe.dataset.groupe;
+    if(groupesReplies.has(cle)) groupesReplies.delete(cle); else groupesReplies.add(cle);
+    memoriserGroupes();
+    renderAll();
     return;
   }
   const bande = e.target.closest('[data-bande]');
