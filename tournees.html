@@ -10,6 +10,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/messages-dispo.js"></script>
 <!-- Le moteur de calcul des devis, pour afficher le budget d'un projet sans
      dupliquer la formule : les totaux vus ici sont ceux de l'espace Devis. -->
 <script src="assets/devis-commun.js"></script>
@@ -1290,7 +1291,7 @@ function renderAssignList(search){
 
 // Ouvre le lien personnel de dispo de quelqu'un, en le créant s'il n'existe
 // pas encore, et propose le message à lui envoyer pour la date en cours.
-async function demanderDispo(personId, role){
+async function demanderDispo(personId, role, ancre){
   if(!assignContext) return;
   const personne = (role === 'musicien' ? loadMusicians() : loadTechnicians()).find(p=> p.id === personId);
   if(!personne) return;
@@ -1310,37 +1311,17 @@ async function demanderDispo(personId, role){
 
   await assurerJetonPermanent(personType, personId);
   const lien = lienPersonne(personType, personId, demande.id);
-  const message = [
-    `Bonjour ${personne.prenom || ''},`.trim(),
-    '',
-    `On monte l'équipe pour ${(tournee && tournee.nom) || VOC.unProjet} et il nous manque ta réponse sur le ${fmtDateFR(assignDateIso)}.`,
-    `Tu peux répondre ici, en deux clics : ${lien}`,
-    '',
-    'Merci !',
-  ].join('\n');
-
-  const waDigits = normalizeWhatsappPhoneTournees(personne.telephone);
-  if(waDigits){
-    window.open(`https://wa.me/${encodeURIComponent(waDigits)}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
-    return;
-  }
-  if(personne.email){
-    location.href = `mailto:${encodeURIComponent(personne.email)}?subject=${encodeURIComponent('Ta dispo du ' + fmtDateFR(assignDateIso))}&body=${encodeURIComponent(message)}`;
-    return;
-  }
-  try{
-    await navigator.clipboard.writeText(message);
-    alert('Aucun téléphone ni e-mail pour cette personne — le message est copié, colle-le où tu la joins.');
-  }catch(e){
-    alert(message);
-  }
-}
-
-function normalizeWhatsappPhoneTournees(phone){
-  let chiffres = (phone || '').replace(/[^\d+]/g, '');
-  if(chiffres.startsWith('+')) chiffres = chiffres.slice(1);
-  else if(chiffres.startsWith('0') && chiffres.length === 10) chiffres = '33' + chiffres.slice(1);
-  return chiffres;
+  // Le contexte du message : on ne demande que la date qu'on est en train de
+  // servir, mais les modèles savent tous quoi en faire — et le menu ▾ laisse
+  // choisir le ton (première demande, relance, date butoir…).
+  const ctx = {
+    prenom: personne.prenom || '', telephone: personne.telephone || '', email: personne.email || '',
+    projet: (tournee && tournee.nom) || VOC.unProjet, lien,
+    manquantes: [assignDateIso], toutes: [assignDateIso],
+    sujet: 'Ta dispo du ' + fmtDateFR(assignDateIso),
+  };
+  if(ancre){ CurieuxMessages.ouvrirMenu(ancre, ctx); return; }
+  await CurieuxMessages.envoyer(ctx, CurieuxMessages.construire('premiere', ctx));
 }
 
 function closeAssignModal(){
@@ -1427,7 +1408,7 @@ document.getElementById('assignList').addEventListener('click', (e)=>{
   const lienDispo = e.target.closest('[data-aff-suivi]');
   if(lienDispo){
     const tuileParente = lienDispo.closest('[data-aff-id]');
-    if(tuileParente) demanderDispo(tuileParente.dataset.affId, tuileParente.dataset.affRole);
+    if(tuileParente) demanderDispo(tuileParente.dataset.affId, tuileParente.dataset.affRole, lienDispo);
     return;
   }
   const tuile = e.target.closest('[data-aff-id]');
