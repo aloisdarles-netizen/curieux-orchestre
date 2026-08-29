@@ -1055,6 +1055,16 @@ grant execute on function ensure_acces_personnel(text, text) to authenticated;
 -- ----------------------------------------------------------------------------
 
 -- 1. Sa propre fiche (dispo-titulaire.html, mes-infos.html, mes-remplacants.html).
+--
+-- Le drop précède le create parce qu'une strate plus bas dans ce fichier
+-- redéfinit cette fonction avec une colonne de plus (reponses_prod). Or
+-- « create or replace » refuse de changer le type de retour d'une fonction
+-- existante : au premier passage tout allait bien, mais le SECOND échouait ici
+-- même — le fichier cessait donc d'être rejouable, contrairement à ce qu'il
+-- promet. Le défaut ne se voyait qu'en relançant les migrations sur une base
+-- déjà à jour, ce qui est précisément le geste que la documentation invite à
+-- faire sans crainte.
+drop function if exists get_own_person_by_token(text);
 create or replace function get_own_person_by_token(p_token text)
 returns table(
   id text, prenom text, nom text, instrument text, pupitre text, poste text, pole text,
@@ -4432,3 +4442,161 @@ comment on view dates_actives is
   'Les dates de dates_projet encore ouvertes : à venir et non annulées.';
 
 grant select on dates_projet, dates_actives to anon, authenticated;
+
+-- ============================================================================
+-- La disponibilité devient une ligne, et non plus une clé dans une map
+-- ============================================================================
+-- Jusqu'ici, les disponibilités d'une personne tiennent dans trois documents
+-- jsonb portés par sa fiche : `disponibilites` (date → statut),
+-- `disponibilites_commentaires` (date → ce qu'elle a écrit) et `reponses_prod`
+-- (date → ce qu'on lui a répondu). Toute modification réécrit le document
+-- entier. Deux conséquences, l'une gênante, l'autre grave :
+--
+--   · on ne peut rien demander à la base — « qui est libre le 15 mars ? » est
+--     un balayage de toutes les fiches, refait en JavaScript à chaque rendu ;
+--   · deux personnes qui écrivent en même temps s'écrasent en silence. Un·e
+--     titulaire répond depuis son téléphone pendant qu'on corrige sa ligne :
+--     chacun renvoie la map lue plus tôt, et les cases de l'autre disparaissent
+--     sans la moindre erreur. Le temps réel resynchronise l'écran, pas la
+--     donnée perdue.
+--
+-- La bascule se fait en trois temps, dont seuls les deux premiers sont ici :
+--   1. la table existe et se remplit de ce qui est déjà là (cette strate) ;
+--   2. elle suit automatiquement les écritures des maps, par trigger — donc
+--      sans toucher une ligne de l'application, qui continue comme avant ;
+--   3. plus tard, les lectures passent à la table, puis les écritures, et les
+--      maps ne sont plus qu'un miroir qu'on finit par retirer.
+--
+-- Tant que l'étape 3 n'est pas faite, la vérité reste dans les maps : la table
+-- est une projection. C'est ce qui rend cette strate sûre — si elle se révélait
+-- fausse, on la vide et on la reconstruit, sans avoir rien perdu.
+
+create table if not exists disponibilites (
+  personne_type text not null check (personne_type in ('musicien', 'technicien')),
+  personne_id   text not null,
+  jour          date not null,
+  -- Les quatre états de l'application, moins « non renseigné » : ici, l'absence
+  -- de ligne EST le non-renseigné. C'est tout l'intérêt d'une table — une
+  -- réponse qui n'existe pas n'occupe rien, là où la map devait porter la clé.
+  statut        text not null check (statut in ('dispo', 'indispo', 'incertain')),
+  precision     text not null default '',
+  reponse_prod  jsonb,
+  maj_le        timestamptz not null default now(),
+  primary key (personne_type, personne_id, jour)
+);
+
+comment on table disponibilites is
+  'Projection des maps jsonb portées par les fiches (voir le trigger plus bas). '
+  'La vérité reste dans musiciens.disponibilites / techniciens.disponibilites '
+  'tant que la bascule des écritures n''est pas faite.';
+
+-- « Qui est libre le 15 mars ? » — la question qui n'avait pas de réponse.
+create index if not exists idx_dispos_jour on disponibilites(jour);
+-- « Où en est cette personne ? », en une lecture au lieu d'un document entier.
+create index if not exists idx_dispos_personne on disponibilites(personne_type, personne_id);
+
+alter table disponibilites enable row level security;
+drop policy if exists dispos_lecture on disponibilites;
+create policy dispos_lecture on disponibilites for select to anon, authenticated using (true);
+-- Pas de policy d'écriture : rien ni personne n'écrit ici directement. Le
+-- trigger, lui, s'exécute avec les droits du propriétaire et n'est pas soumis
+-- à RLS. Une table dont personne ne peut fausser le contenu à la main est
+-- exactement ce qu'il faut pour une projection.
+
+/* Reprojeter les trois maps d'une personne vers des lignes.
+ *
+ * On supprime puis on réinsère : c'est la seule façon de refléter une clé
+ * RETIRÉE de la map — un statut remis à « non renseigné » disparaît du
+ * document, et un simple upsert laisserait la ligne derrière lui, à raconter
+ * une réponse que la personne a effacée.
+ *
+ * Les clés qui ne sont pas des dates ou dont le statut est inconnu sont
+ * ignorées plutôt que de faire échouer l'écriture de la fiche : cette
+ * projection ne doit jamais empêcher quelqu'un d'enregistrer sa réponse.
+ */
+create or replace function projeter_disponibilites(
+  p_type text, p_id text, p_dispos jsonb, p_commentaires jsonb, p_reponses jsonb
+) returns void
+language plpgsql
+as $$
+begin
+  delete from disponibilites where personne_type = p_type and personne_id = p_id;
+
+  insert into disponibilites (personne_type, personne_id, jour, statut, precision, reponse_prod)
+  select p_type, p_id, e.key::date, e.value,
+         coalesce(p_commentaires ->> e.key, ''),
+         p_reponses -> e.key
+    from jsonb_each_text(coalesce(p_dispos, '{}'::jsonb)) as e(key, value)
+   where e.key ~ '^\d{4}-\d{2}-\d{2}$'
+     and e.value in ('dispo', 'indispo', 'incertain');
+end;
+$$;
+
+create or replace function trg_projeter_dispos_musicien() returns trigger
+language plpgsql
+as $$
+begin
+  perform projeter_disponibilites('musicien', new.id,
+    new.disponibilites, new.disponibilites_commentaires, new.reponses_prod);
+  return new;
+end;
+$$;
+
+create or replace function trg_projeter_dispos_technicien() returns trigger
+language plpgsql
+as $$
+begin
+  perform projeter_disponibilites('technicien', new.id,
+    new.disponibilites, new.disponibilites_commentaires, new.reponses_prod);
+  return new;
+end;
+$$;
+
+-- On ne reprojette que si l'un des trois documents a bougé : changer un numéro
+-- de téléphone ne doit pas réécrire quatre-vingts lignes.
+drop trigger if exists trg_dispos_musiciens on musiciens;
+create trigger trg_dispos_musiciens
+  after insert or update of disponibilites, disponibilites_commentaires, reponses_prod
+  on musiciens for each row execute function trg_projeter_dispos_musicien();
+
+drop trigger if exists trg_dispos_techniciens on techniciens;
+create trigger trg_dispos_techniciens
+  after insert or update of disponibilites, disponibilites_commentaires, reponses_prod
+  on techniciens for each row execute function trg_projeter_dispos_technicien();
+
+-- Une personne supprimée n'a plus de disponibilités. Sans cela, la table
+-- garderait des lignes orphelines — le genre de reste qui fausse un compte des
+-- mois plus tard, sans que personne comprenne pourquoi.
+create or replace function trg_purger_dispos_personne() returns trigger
+language plpgsql
+as $$
+begin
+  delete from disponibilites
+   where personne_type = tg_argv[0] and personne_id = old.id;
+  return old;
+end;
+$$;
+
+drop trigger if exists trg_dispos_purge_musiciens on musiciens;
+create trigger trg_dispos_purge_musiciens
+  after delete on musiciens for each row
+  execute function trg_purger_dispos_personne('musicien');
+
+drop trigger if exists trg_dispos_purge_techniciens on techniciens;
+create trigger trg_dispos_purge_techniciens
+  after delete on techniciens for each row
+  execute function trg_purger_dispos_personne('technicien');
+
+-- Remplissage initial, rejouable : on reprojette tout le monde. Sur un
+-- répertoire d'une centaine de personnes, c'est instantané, et cela remet la
+-- table d'aplomb si elle avait dérivé.
+do $$
+declare r record;
+begin
+  for r in select id, disponibilites, disponibilites_commentaires, reponses_prod from musiciens loop
+    perform projeter_disponibilites('musicien', r.id, r.disponibilites, r.disponibilites_commentaires, r.reponses_prod);
+  end loop;
+  for r in select id, disponibilites, disponibilites_commentaires, reponses_prod from techniciens loop
+    perform projeter_disponibilites('technicien', r.id, r.disponibilites, r.disponibilites_commentaires, r.reponses_prod);
+  end loop;
+end $$;
