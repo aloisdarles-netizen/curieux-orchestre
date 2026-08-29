@@ -30,6 +30,17 @@
   --ok: #2f8f5b;
   --ok-tint: #e2f4ea;
   --old-champagne: #c98aa0;
+  /* L'encre posée SUR un aplat de statut (--ok, --ko, --maybe). En thème
+     clair, les aplats sont soutenus : le blanc est le bon choix. En sombre ils
+     s'éclaircissent, et le blanc y tombait à 1,7:1 — le ✓ ou le ✕ devenaient
+     invisibles, ne laissant que la couleur pour dire l'état. Deux jetons donc,
+     pas une encre unique : réparer le sombre ne doit pas abîmer le clair. */
+  --sur-statut: #ffffff;
+  /* Le prune de la charte sert d'aplat (--prune) ET d'encre. En sombre, cette
+     encre reste figée sur un fond foncé : la réponse de la production y passait
+     sous le seuil de lisibilité. --prune-ink est la version qui suit le thème,
+     et ne sert qu'au TEXTE. Le patron existait déjà pour .co-btn.secondary. */
+  --prune-ink: #791649;
   /* Échelle de rayons de la maquette. --radius reste l'alias historique du
      rayon d'encart (--radius-md) : les pages qui l'utilisent encore suivent. */
   --radius-sm: 8px;
@@ -113,6 +124,10 @@
   --ok: #7fd9a6;
   --ok-tint: #1c3327;
   --old-champagne: #7a5064;
+  /* Encre sombre sur les aplats clairs du thème nuit : le symbole redevient
+     lisible, et redevient donc un canal d'information à part entière. */
+  --sur-statut: #101314;
+  --prune-ink: #f0b6d2;
   --secondary: #ff7a4a;
   --secondary-dark: #ffab84;
   --secondary-tint: #3d2430;
@@ -757,9 +772,22 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
   font-family:var(--font-body); display:grid; place-items:center;
   border:1px solid var(--border); background:var(--card); color:var(--muted);
 }
-.co-matrix-btn.dispo{ background:var(--ok); border-color:var(--ok); color:#fff; }
-.co-matrix-btn.indispo{ background:var(--ko); border-color:var(--ko); color:#fff; }
-.co-matrix-btn.incertain{ background:var(--maybe); border-color:var(--maybe); color:#fff; }
+/* Les quatre états d'une case, à un seul endroit — voir dispo-statuts.js pour
+   le vocabulaire correspondant.
+
+   Le vert (--ok) est réservé à « affecté·e », l'état le plus fort, le seul qui
+   engage l'orchestre. « Disponible » prend l'aplat bleu : c'est une réponse de
+   la personne, pas une décision de la production. Avant cette règle, le même
+   vert disait « disponible » sur un écran et « affecté·e » sur un autre.
+
+   L'encre passe par --sur-statut, qui bascule avec le thème : en sombre, du
+   blanc pur sur ces aplats tombait sous le seuil de lisibilité et le symbole
+   disparaissait — l'information redevenait portée par la seule couleur, ce
+   que le ✓ est justement là pour éviter. */
+.co-matrix-btn.assigned{ background:var(--ok); border-color:var(--ok); color:var(--sur-statut); }
+.co-matrix-btn.dispo{ background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark); font-weight:900; }
+.co-matrix-btn.indispo{ background:var(--ko); border-color:var(--ko); color:var(--sur-statut); }
+.co-matrix-btn.incertain{ background:var(--maybe); border-color:var(--maybe); color:var(--sur-statut); }
 .co-matrix-total{ background:var(--row-alt); }
 .co-matrix-total .co-matrix-name{ background:var(--row-alt); }
 .co-legend-row{ display:flex; gap:16px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:var(--muted); }
