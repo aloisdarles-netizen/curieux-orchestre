@@ -4600,3 +4600,137 @@ begin
     perform projeter_disponibilites('technicien', r.id, r.disponibilites, r.disponibilites_commentaires, r.reponses_prod);
   end loop;
 end $$;
+
+-- ============================================================================
+-- Les comptes, calculés là où sont les données
+-- ============================================================================
+-- « Combien de personnes n'ont pas fini de répondre ? » est la question la plus
+-- posée de l'application, et elle a longtemps eu deux réponses contradictoires
+-- selon la page qui la posait. Le module partagé côté client
+-- (assets/dispo-statuts.js) les a mises d'accord ; ces fonctions font la même
+-- chose côté base, pour les usages où charger cinq tables entières afin
+-- d'afficher sept chiffres n'a pas de sens.
+--
+-- Prudence assumée : poser la même règle deux fois, en JavaScript et en SQL,
+-- c'est risquer de recréer la divergence qu'on vient de résorber. Ces
+-- fonctions ne sont donc PAS branchées dans les pages aujourd'hui. Elles
+-- existent pour l'étape suivante — quand les lectures basculeront sur la
+-- table — et pour répondre depuis le SQL Editor à une question qu'on se pose
+-- une fois. Le jour où une page les appellera, ce sera pour retirer le calcul
+-- correspondant du JavaScript, pas pour le doubler.
+
+/* Les dates qu'une sollicitation couvre réellement.
+ *
+ * « Liste de dates vide = tout le projet » : la sentinelle la plus recopiée de
+ * l'application. Elle était écrite à huit endroits, sept en JavaScript et un
+ * ici ; elle hérite maintenant du filtre « à venir et non annulée » de
+ * dates_actives, au lieu de le redire à sa façon. */
+create or replace function dates_demandees(p_demande_id text)
+returns table(date_id text, jour date)
+language sql
+stable
+as $$
+  select d.date_id, d.jour
+    from dispo_demandes dd
+    join dates_actives d on d.tournee_id = dd.tournee_id
+   where dd.id = p_demande_id
+     and (jsonb_array_length(coalesce(dd.dates, '[]'::jsonb)) = 0
+          or coalesce(dd.dates, '[]'::jsonb) ? d.date_id);
+$$;
+
+/* Où en est une personne sur une sollicitation donnée.
+ *
+ * Renvoie ce que la page affiche : combien de dates lui ont été soumises,
+ * combien elle a renseignées, et s'il reste quelque chose à attendre — un
+ * projet sans date ouverte ne met personne en attente, sinon une tournée
+ * passée gonflerait le compteur jusqu'à la fin des temps. */
+create or replace function avancement_demande(p_demande_id text)
+returns table(total int, repondues int, en_attente boolean)
+language sql
+stable
+as $$
+  with d as (select * from dispo_demandes where id = p_demande_id),
+       attendues as (select * from dates_demandees(p_demande_id)),
+       faites as (
+         select a.jour
+           from attendues a
+           join d on true
+           join disponibilites x
+             on x.personne_type = d.person_type
+            and x.personne_id = d.person_id
+            and x.jour = a.jour
+       )
+  select (select count(*) from attendues)::int,
+         (select count(*) from faites)::int,
+         (select count(*) from attendues) > 0
+           and (select count(*) from attendues) > (select count(*) from faites);
+$$;
+
+/* Qui est libre tel jour — la question qui n'avait pas de réponse.
+ *
+ * On rend aussi les personnes affectées ce jour-là : « libre » ne veut rien
+ * dire si l'on ignore qui joue déjà. */
+create or replace function personnes_du_jour(p_jour date)
+returns table(personne_type text, personne_id text, statut text, affectee boolean)
+language sql
+stable
+as $$
+  select x.personne_type, x.personne_id, x.statut,
+         exists (
+           select 1 from dates_projet dp
+            where dp.jour = p_jour
+              and dp.statut <> 'annulee'
+              and (case when x.personne_type = 'musicien'
+                        then dp.musiciens_assignes else dp.techniciens_assignes end)
+                  ? x.personne_id
+         )
+    from disponibilites x
+   where x.jour = p_jour;
+$$;
+
+grant execute on function dates_demandees(text), avancement_demande(text),
+                          personnes_du_jour(date) to anon, authenticated;
+
+-- ============================================================================
+-- Les saisons : archiver en choisissant sa fenêtre, pas en déménageant
+-- ============================================================================
+-- La case « afficher les dates passées » est la bonne intention, mais elle ne
+-- borne rien : au fil des années, le tableau s'allonge et il n'existe aucun
+-- mot pour dire « la saison dernière ». Maintenant que les disponibilités sont
+-- des lignes, archiver n'est plus un déménagement de données mais un choix de
+-- fenêtre — rien à déplacer, donc rien à casser.
+--
+-- Deux lignes par an : la table restera minuscule, ce qui est le bon
+-- dimensionnement. Ce qu'il faut accepter en revanche, c'est qu'aucun découpage
+-- ne satisfera tout le monde — un projet à cheval sur l'été appartiendra à la
+-- saison où il commence, et c'est un choix, pas une vérité.
+
+create table if not exists saisons (
+  id      text primary key,
+  libelle text not null,
+  debut   date not null,
+  fin     date not null,
+  check (fin > debut)
+);
+
+alter table saisons enable row level security;
+drop policy if exists saisons_lecture on saisons;
+create policy saisons_lecture on saisons for select to anon, authenticated using (true);
+drop policy if exists saisons_ecriture on saisons;
+create policy saisons_ecriture on saisons for all to authenticated using (true) with check (true);
+
+comment on table saisons is
+  'Bornes nommées du calendrier. Sert à filtrer, jamais à déplacer des données.';
+
+-- La saison d'un jour donné. Sans borne connue, on ne devine pas : mieux vaut
+-- rendre null et laisser la page dire « hors saison » que d'inventer un
+-- découpage que personne n'a décidé.
+create or replace function saison_de(p_jour date)
+returns text
+language sql
+stable
+as $$
+  select id from saisons where p_jour between debut and fin order by debut limit 1;
+$$;
+
+grant execute on function saison_de(date) to anon, authenticated;
