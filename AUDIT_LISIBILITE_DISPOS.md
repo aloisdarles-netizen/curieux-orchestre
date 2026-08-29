@@ -310,6 +310,9 @@ trace de relance dans l'action groupée (§3.2).
 
 **Reprendre les contrastes du thème sombre** sur le circuit des précisions et
 des réponses, en passant par une variable qui bascule au lieu du prune littéral.
+Le geste le plus simple est un jeton d'encre par thème — un `--sur-statut`
+blanc en clair, sombre en sombre — appliqué aux symboles des statuts : une
+séance de CSS, sans toucher au JavaScript.
 
 **Basculer la Grille interne sur `.co-matrix`.** Elle est la page de *saisie* et
 c'est la seule à ne pas avoir d'en-tête de dates collant : sur ordinateur, on
@@ -356,7 +359,16 @@ framework.
 
 **Des regroupements repliables par pupitre et par pôle.** Le socle sait déjà
 dessiner des bandes de groupe. Replier les cordes quand on travaille les vents
-divise par trois la hauteur à balayer.
+divise par trois la hauteur à balayer. Dans le même esprit, une fenêtre de
+période — le trimestre plutôt que la saison entière — borne le nombre de
+colonnes sans rien cacher définitivement.
+
+**Écrire une case, pas une fiche.** Étape intermédiaire entre l'existant et la
+normalisation : une fonction SQL ciblée qui ne modifie qu'une clé de la map
+(`jsonb_set` sur une date) au lieu de remplacer la colonne entière. Deux
+personnes qui travaillent sur deux dates différentes cessent alors de
+s'écraser, sans changer une ligne du modèle. C'est nettement moins coûteux que
+la table normalisée, et cela retire la majeure partie du risque décrit en §3.5.
 
 **Et la question de fond : faut-il encore trois lieux ?** La Vue d'ensemble sait
 déjà saisir les disponibilités (mode Marquer), avec en plus le contexte des
@@ -395,6 +407,14 @@ silencieux en conflit signalé (« quelqu'un a modifié cette fiche entre-temps 
 voici sa version »). Si une seule chose devait être faite du chapitre long
 terme, ce serait celle-là.
 
+**Rendre les dates de projet requêtables, sans rien migrer.** Avant même de
+toucher aux disponibilités, une simple vue SQL qui déplie le tableau `dates` de
+chaque tournée en lignes (`create or replace view`, donc rejouable, aucune
+donnée déplacée) rend interrogeable ce qui ne l'est pas aujourd'hui : les dates
+d'une période, celles qui sont annulées, celles sans affectation. C'est presque
+gratuit et cela rend déjà la moitié du service qu'on attend d'une
+normalisation — un bon premier pas avant de décider si la suite vaut la peine.
+
 **Des agrégats côté SQL pour les compteurs**, afin que les bandeaux de chiffres
 cessent d'exiger le chargement de cinq tables entières par page — et que le
 temps réel n'entraîne plus le rechargement complet d'une table à chaque
@@ -409,6 +429,12 @@ identifiants de dates ; les réponses sont indexées par jour calendaire. Dépla
 une date d'un jour orpheline donc la réponse qui s'y rattachait, sans que
 personne ne le voie. C'est le genre de faux silencieux qui, sur une page qu'on
 consulte pour décider, coûte cher.
+
+**Et le préalable à tout le reste : une carte fiable du modèle.** `SUPABASE_SCHEMA.md`
+et `DATA_STRUCTURE.md` décrivent aujourd'hui une base qui n'existe plus (§3.8).
+Un petit script dans `outils/` qui interroge le schéma courant et régénère cette
+documentation la rendrait vraie par construction. Sans carte juste, chacune des
+migrations ci-dessus se ferait à l'aveugle.
 
 ---
 
