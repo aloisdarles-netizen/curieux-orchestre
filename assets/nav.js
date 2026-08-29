@@ -67,7 +67,12 @@ const CURIEUX_SECTIONS = [
     { libelle:'Page salle', href:'page-salle.html', pages:['page-salle.html'] },
   ]},
   { libelle:'Comm', href:'comm.html', pages:['comm.html'] },
-  { libelle:"Vue d'ensemble", href:'recap.html', pages:['recap.html'] },
+  // Deux façons de lire la même donnée : le tableau croisé pour décider qui
+  // joue quoi, et la feuille par date pour le dire à quelqu'un d'extérieur.
+  { libelle:"Vue d'ensemble", href:'recap.html', entrees:[
+    { libelle:'Le tableau', href:'recap.html', pages:['recap.html'] },
+    { libelle:'Plateau par date', href:'plateau.html', pages:['plateau.html'] },
+  ]},
   // Réservée aux comptes 'admin' : elle n'entre dans le bandeau qu'après
   // vérification (voir ajouterEntreeAdmin), pour éviter d'afficher à toute
   // l'équipe une porte qui lui serait refusée.

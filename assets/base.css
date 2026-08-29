@@ -734,6 +734,13 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
    un petit écran en paysage. */
 .co-matrix{
   overflow:auto; border:1px solid var(--border); border-radius:12px; background:var(--card);
+  /* Une barre de défilement qu'on voit. Par défaut, macOS ne la montre que
+     pendant le geste : sur un tableau qui déborde de trois écrans en largeur,
+     rien n'indiquait qu'il y avait quelque chose à droite. On la garde donc
+     affichée, discrète mais présente — c'est le seul repère qui dise que la
+     saison continue au-delà du bord. */
+  scrollbar-width:thin;
+  scrollbar-color:var(--old-champagne) transparent;
   max-height:max(380px, calc(100vh - 170px));
   max-height:max(380px, calc(100dvh - 170px));
 }
@@ -745,7 +752,13 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
 .co-matrix-row{ display:flex; border-bottom:1px solid var(--border); align-items:stretch; }
 .co-matrix-row:last-child{ border-bottom:none; }
 .co-matrix-name{
-  position:sticky; left:0; z-index:2; background:var(--card);
+  /* z-index:4 et non 2 : les pastilles de précision (.point-note) sont posées
+     à 3 pour se détacher de leur case, et passaient donc PAR-DESSUS cette
+     colonne quand on faisait défiler le tableau vers la droite — on voyait des
+     points orange flotter sur les noms, sans savoir à quelle date ils se
+     rapportaient. La colonne collante doit couvrir tout ce qui glisse dessous,
+     et rester elle-même sous la rangée de dates (.co-matrix-tete, z-index 5). */
+  position:sticky; left:0; z-index:4; background:var(--card);
   width:210px; flex-shrink:0; padding:var(--row-pad) 14px; border-right:1px solid var(--border);
 }
 .co-matrix-name b{ font-weight:800; font-size:13px; display:block; }
@@ -753,9 +766,11 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
 /* Le bandeau des dates suit le défilement vertical. Fond opaque obligatoire :
    certaines cellules de tête sont transparentes (dates hors tournée colorée)
    et laisseraient les lignes transparaître. */
-.co-matrix-head{ position:sticky; top:0; z-index:4; background:var(--card); }
+/* Au-dessus de la colonne des noms (4), qui est elle-même au-dessus des
+   pastilles (3) : chaque plan couvre ce qui glisse dessous. */
+.co-matrix-head{ position:sticky; top:0; z-index:6; background:var(--card); }
 .co-matrix-head .co-matrix-name{
-  z-index:5; padding:9px 14px; font-size:10.5px; font-weight:800;
+  z-index:7; padding:9px 14px; font-size:10.5px; font-weight:800;
   text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
 }
 .co-matrix-date{
@@ -983,3 +998,15 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
   .co-print-note{ display:block !important; margin:0 0 12px; font-size:12px; }
 }
 .co-print-note{ display:none; }
+
+/* La barre de défilement des grands tableaux, pour les moteurs WebKit (Safari,
+   Chrome) qui ignorent scrollbar-width/-color. Même intention : la rendre
+   visible en permanence plutôt que de la laisser apparaître au geste. */
+.co-matrix::-webkit-scrollbar{ width:11px; height:11px; }
+.co-matrix::-webkit-scrollbar-track{ background:transparent; }
+.co-matrix::-webkit-scrollbar-thumb{
+  background:var(--old-champagne); border-radius:99px;
+  border:3px solid var(--card);        /* le liseré affine le pouce sans le rétrécir */
+}
+.co-matrix::-webkit-scrollbar-thumb:hover{ background:var(--accent); }
+.co-matrix::-webkit-scrollbar-corner{ background:transparent; }
