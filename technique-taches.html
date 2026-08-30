@@ -9,6 +9,7 @@
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/technique-avancement.js"></script>
+<script src="assets/echeances.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
@@ -183,6 +184,7 @@ setInterval(applyAutoTheme, 5 * 60 * 1000);
 const GENRE = 'technique';
 
 let tourneesCache = [], moyensCache = [], remarquesCache = [], tachesCache = [], echangesCache = [];
+let techniciensCache = [], carnetsCache = [], vehiculesCache = [];
 let affectationsParDate = new Map();
 let seuils = {};                 // ce qui est enregistré
 let seuilsEnCours = null;        // le brouillon du formulaire
@@ -252,6 +254,9 @@ const DETAIL_MANQUE = {
   dechargement: 'combien de semis en simultané ?',
   vacations:    'la salle doit poser puis confirmer',
   transport:    'aucun camion ou aucun chauffeur sur au moins une date',
+  autorisations:'une autorisation manque à l’appel',
+  habilitation: 'un titre à jour est exigé sur le plateau',
+  ata:          'sans carnet valable, le matériel ne passe pas',
   equipe:       "personne n'est affecté sur au moins une date",
 };
 
@@ -292,6 +297,81 @@ function toutesLesAlertes(){
         texte: 'Remarque non traitée — ' + (x.auteur || 'quelqu’un'),
         detail: x.message || '', r: null, age });
     });
+
+  // Les autorisations d'une date qui approche : voirie, stationnement, badges.
+  // Elles se demandent des semaines à l'avance et se refusent — c'est le genre
+  // de chose qu'on découvre trop tard.
+  sallesAVenir().forEach(s=>{
+    const r = jRestant(s);
+    if(r == null || r < 0) return;
+    const [orange, rouge] = techniqueSeuil(seuils, 'autorisations');
+    ((s.moyens && s.moyens.autorisations) || []).forEach(a=>{
+      const e = etatAutorisation(a, r, [orange, rouge]);
+      if(!e.presse) return;
+      liste.push({ salle: s, cle:'autorisations', grav: e.sev === 'ko' ? 'rouge' : 'orange',
+        texte: `${AUTORISATION_LIBELLE[a.type] || 'Autorisation'} — ${e.statut.libelle.toLowerCase()}`,
+        detail: a.precision || 'sans précision', r });
+    });
+  });
+
+  // Les habilitations des personnes affectées, jugées AU JOUR DU CONCERT : un
+  // titre valable aujourd'hui et périmé ce soir-là ne vaut rien.
+  // UNE alerte par personne et par titre, et non une par salle : la même
+  // équipe monte toutes les dates, si bien qu'un titre périmé sortait quinze
+  // fois pour un seul renouvellement à faire. On garde la date la plus proche
+  // — c'est celle qui donne le délai — et on compte les autres.
+  const parId = new Map(techniciensCache.map(t=> [t.id, t]));
+  const seuilHab = techniqueSeuil(seuils, 'habilitation');
+  const titres = new Map();
+  sallesAVenir().forEach(s=>{
+    const r = jRestant(s);
+    if(r == null || r < 0) return;
+    s.dates.forEach(d=>{
+      (d.techniciensAssignes || []).forEach(id=>{
+        const p = parId.get(id);
+        if(!p) return;
+        habilitationsDe(p, seuilHab, d.date).forEach(h=>{
+          if(h.etat.etat !== 'perime' && h.etat.etat !== 'bientot_rouge') return;
+          const cle = `${id}|${h.id || h.type}`;
+          const vu = titres.get(cle);
+          if(vu){ vu.dates++; return; }
+          titres.set(cle, { personne: p, hab: h, salle: s, r, dates: 1 });
+        });
+      });
+    });
+  });
+  titres.forEach(({ personne, hab, salle, r, dates })=>{
+    const accord = hab.accord || '';
+    liste.push({ salle, cle:'habilitation', grav: hab.etat.etat === 'perime' ? 'rouge' : 'orange',
+      texte: `${fullName(personne)} — ${hab.libelle} ${hab.etat.etat === 'perime' ? 'périmé' + accord : 'expire bientôt'}`,
+      detail: `${hab.precision ? hab.precision + ' · ' : ''}${texteEcheance(hab.etat)} au jour du concert`
+            + (dates > 1 ? ` · affecté·e sur ${dates} dates` : ''), r });
+  });
+
+  // Les carnets ATA : ceux qui ne sont pas obtenus à l'approche d'une date, et
+  // ceux qui expirent avant ou pendant la tournée.
+  if(t){
+    const premiere = sallesAVenir()[0];
+    const rTournee = premiere ? jRestant(premiere) : null;
+    const [orangeA, rougeA] = techniqueSeuil(seuils, 'ata');
+    const derniere = sallesAVenir().slice(-1)[0];
+    carnetsCache.filter(c=> c.tourneeId === t.id).forEach(c=>{
+      const veh = vehiculesCache.find(v=> v.id === c.vehiculeId);
+      const quoi = 'Carnet ATA' + (c.numero ? ' ' + c.numero : '') + (veh ? ' — ' + (veh.nom || 'semi') : '');
+      if(!['obtenu','en_cours','a_apurer','apure'].includes(c.statut) && rTournee != null && rTournee <= orangeA){
+        liste.push({ salle: premiere, cle:'ata', grav: rTournee <= rougeA ? 'rouge' : 'orange',
+          texte: `${quoi} — pas encore obtenu`, detail: 'la première date approche', r: rTournee });
+      }
+      // Un carnet qui expire AVANT la dernière date de la tournée est le vrai
+      // piège : il est valable au départ et ne l'est plus au retour.
+      if(c.expireLe && derniere && derniere.dernier && c.expireLe < derniere.dernier){
+        liste.push({ salle: derniere, cle:'ata', grav:'rouge',
+          texte: `${quoi} — expire avant la fin de la tournée`,
+          detail: `valable jusqu'au ${joli(c.expireLe)}, dernière date le ${joli(derniere.dernier)}`,
+          r: jRestant(derniere) });
+      }
+    });
+  }
 
   // Les échanges de matériel encore à planifier (module Matériel).
   echangesCache
@@ -391,7 +471,8 @@ function lienAlerte(a){
       ? { href:`technique-date.html?t=${encodeURIComponent(t.id)}&d=${encodeURIComponent(a.remarque.dateId)}`, libelle:'Voir la remarque' }
       : { href:'technique.html', libelle:'Voir la remarque' };
   }
-  if(a.cle === 'transport') return { href:'vehicules.html', libelle:'Ouvrir Véhicules' };
+  if(a.cle === 'transport' || a.cle === 'ata') return { href:'vehicules.html', libelle: a.cle === 'ata' ? 'Ouvrir les carnets' : 'Ouvrir Véhicules' };
+  if(a.cle === 'habilitation') return { href:'techniciens.html', libelle:'Ouvrir l’annuaire' };
   if(a.cle === 'equipe' || a.cle === 'option') return { href:`tournees.html#${encodeURIComponent(t ? t.id : '')}`, libelle:'Ouvrir la tournée' };
   return { href:`technique-date.html?t=${encodeURIComponent(t ? t.id : '')}&d=${encodeURIComponent(a.salle.id)}`, libelle:'Ouvrir la fiche' };
 }
@@ -655,7 +736,8 @@ function poserAffectations(liste){
 
 async function initData(){
   let affectations, reglages, session;
-  [tourneesCache, moyensCache, remarquesCache, tachesCache, echangesCache, affectations, reglages, session] = await Promise.all([
+  [tourneesCache, moyensCache, remarquesCache, tachesCache, echangesCache, affectations, reglages, session,
+   techniciensCache, carnetsCache, vehiculesCache] = await Promise.all([
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('moyens_salle'),
     CurieuxDB.fetchAll('remarques'),
@@ -664,6 +746,9 @@ async function initData(){
     CurieuxDB.fetchAll('affectations_transport'),
     CurieuxDB.fetchReglages(),
     CurieuxDB.getSession(),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('carnets_ata'),
+    CurieuxDB.fetchAll('vehicules'),
   ]);
   poserAffectations(affectations);
   seuils = (reglages && reglages.techniqueSeuils) || {};

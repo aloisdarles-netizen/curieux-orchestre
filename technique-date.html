@@ -10,6 +10,7 @@
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/technique-avancement.js"></script>
 <script src="assets/salles.js"></script>
+<script src="assets/echeances.js"></script>
 <script src="assets/nav.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -51,6 +52,15 @@
   fieldset.groupe legend{font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); padding:0 6px 0 0; font-weight:800;}
   .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
   .aide-champ{margin:0; font-size:11.5px; color:var(--muted); line-height:1.45;}
+  .autor{border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:8px; background:var(--bg);}
+  .autor.att{border-left:3px solid var(--maybe);}
+  .autor.ko{border-left:3px solid var(--ko);}
+  .autor.ok{border-left:3px solid var(--ok);}
+  .autor-tete{display:flex; align-items:center; gap:9px; margin-bottom:8px; flex-wrap:wrap;}
+  .autor-tete .co-btn{margin-left:auto;}
+  .autor-rangee{display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px;}
+  .autor-rangee label{display:block; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:2px;}
+  .autor-rangee input, .autor-rangee select{width:100%;}
   .field-row{display:flex; gap:12px; flex-wrap:wrap;}
   .field-row .field{flex:1; min-width:150px;}
   label{font-size:12px; color:var(--muted); font-weight:600;}
@@ -366,6 +376,17 @@
     <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Où la salle nous donne le courant. Les points de puissance <em>demandés</em> par la tournée se règlent une fois pour toutes depuis Direction technique.</p>
     <div id="distributionListe"></div>
     <button type="button" class="co-btn secondary sm" id="addDistributionBtn">+ Ajouter un point de distribution</button>
+  </fieldset>
+
+  <!-- Occupation de voirie, stationnement des semis, badges : ça se demande des
+       semaines à l'avance, ça se refuse, et ça n'existait nulle part dans
+       l'outil. Même grammaire que le reste du site : à demander / demandée /
+       obtenue, avec la date de la démarche et le document quand il arrive. -->
+  <fieldset class="groupe">
+    <legend>Autorisations</legend>
+    <p class="aide-champ" style="margin:-6px 0 10px;">Ce qu'il faut obtenir d'un tiers pour que le montage soit possible. Le tableau de bord les rappelle à l'approche de la date.</p>
+    <div id="autorisationsListe"></div>
+    <button type="button" class="co-btn secondary sm" id="addAutorisationBtn">+ Ajouter une autorisation</button>
   </fieldset>
 
   <fieldset class="groupe">
@@ -969,6 +990,7 @@ function moyensVierge(){
     nombreSemisSimultanees:null, emplacementsDechargement:[], accesNotes:'',
     horairesJournee:[], roadiesVacations:[], chariotsVacations:[], riggVacations:[],
     hauteurGrill:'', ouvertureScene:'', profondeurScene:'', puissance:'', typeCourant:'', chargeMaxAccroche:'', typeSol:'',
+    autorisations:[],
     contactsSalle:[], contactsTechniciensIds:[], pointsDistribution:[],
     planImagePath:'', semisPositions:[], notes:''
   };
@@ -1012,6 +1034,7 @@ function peupler(){
   renderContactsSalle();
   renderContactsTechniciens();
   renderSalle();
+  renderAutorisations();
   majBoutonsDemandeType();
 
   if(moyens.planImagePath && supabaseClient){
@@ -1260,6 +1283,70 @@ function appliquerAnalyse(){
 }
 
 // ============================================================================
+// Les autorisations de la date
+//
+// Voirie, stationnement des semis, badges. La sévérité croise deux axes : ce
+// qu'on en a fait, et le temps qui reste avant la date — une autorisation
+// encore à demander à dix jours du concert n'a pas le même poids qu'à trois
+// mois.
+// ============================================================================
+function renderAutorisations(){
+  const box = document.getElementById('autorisationsListe');
+  const liste = moyens.autorisations = moyens.autorisations || [];
+  const reste = dateEntry && dateEntry.date ? daysBetween(new Date().toISOString().slice(0,10), dateEntry.date) : null;
+  const seuil = techniqueSeuil((reglagesCache && reglagesCache.techniqueSeuils) || {}, 'autorisations');
+
+  box.innerHTML = liste.map((a, i)=>{
+    const e = etatAutorisation(a, reste, seuil);
+    return `
+      <div class="autor ${e.sev}">
+        <div class="autor-tete">
+          <b style="font-size:13.5px;">${escapeHtml(AUTORISATION_LIBELLE[a.type] || 'Autorisation')}</b>
+          <span class="co-pill ${e.sev === 'non' ? '' : e.sev}">${escapeHtml(e.statut.libelle)}</span>
+          ${e.presse && e.statut.cle !== 'refuse' ? `<span class="co-pill ko">${escapeHtml(reste === 0 ? "c'est aujourd'hui" : 'plus que ' + reste + ' jours')}</span>` : ''}
+          <button type="button" class="co-btn danger sm" data-autor-suppr="${i}">Retirer</button>
+        </div>
+        <div class="autor-rangee">
+          <div><label for="au-${i}-type">Nature</label>
+            <select id="au-${i}-type" data-autor="${i}" data-af="type">
+              ${AUTORISATION_TYPES.map(t=> `<option value="${t.cle}" ${a.type === t.cle ? 'selected' : ''}>${escapeHtml(t.libelle)}</option>`).join('')}
+            </select></div>
+          <div><label for="au-${i}-statut">Où on en est</label>
+            <select id="au-${i}-statut" data-autor="${i}" data-af="statut">
+              ${AUTORISATION_STATUTS.map(st=> `<option value="${st.cle}" ${(a.statut || 'a_demander') === st.cle ? 'selected' : ''}>${escapeHtml(st.libelle)}</option>`).join('')}
+            </select></div>
+          <div><label for="au-${i}-dem">Demandée le</label>
+            <input type="date" id="au-${i}-dem" data-autor="${i}" data-af="demandeLe" value="${escapeAttr(a.demandeLe || '')}"></div>
+          <div><label for="au-${i}-obt">Obtenue le</label>
+            <input type="date" id="au-${i}-obt" data-autor="${i}" data-af="obtenuLe" value="${escapeAttr(a.obtenuLe || '')}"></div>
+        </div>
+        <div class="autor-rangee" style="margin-top:8px;">
+          <div><label for="au-${i}-prec">Précision</label>
+            <input type="text" id="au-${i}-prec" data-autor="${i}" data-af="precision" value="${escapeAttr(a.precision || '')}" placeholder="Rue, créneau, nombre de badges…"></div>
+          <div><label for="au-${i}-url">Document</label>
+            <input type="url" id="au-${i}-url" data-autor="${i}" data-af="url" value="${escapeAttr(a.url || '')}" placeholder="https://…"></div>
+        </div>
+      </div>`;
+  }).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune autorisation à obtenir sur cette date.</p>`;
+
+  box.querySelectorAll('[data-autor]').forEach(inp=> inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', ()=>{
+    liste[Number(inp.dataset.autor)][inp.dataset.af] = inp.value;
+    // Le statut et la nature changent la couleur et l'intitulé de la carte ;
+    // les champs libres, non — redessiner reprendrait le focus à chaque frappe.
+    if(inp.tagName === 'SELECT') renderAutorisations();
+  }));
+  box.querySelectorAll('[data-autor-suppr]').forEach(b=> b.addEventListener('click', ()=>{
+    liste.splice(Number(b.dataset.autorSuppr), 1);
+    renderAutorisations();
+  }));
+}
+document.getElementById('addAutorisationBtn').addEventListener('click', ()=>{
+  moyens.autorisations = moyens.autorisations || [];
+  moyens.autorisations.push({ id: genId('autor'), type:'voirie', precision:'', statut:'a_demander', demandeLe:'', obtenuLe:'', url:'', notes:'' });
+  renderAutorisations();
+});
+
+// ============================================================================
 // Reprendre la demande type de la tournée
 //
 // Une tournée demande à peu près la même chose partout. La demande type se
@@ -1314,6 +1401,9 @@ document.addEventListener('click', (e)=>{
 // fonctionner sans rien savoir des fiches de salle.
 // ============================================================================
 let sallesCache = [], salleLiee = null;
+// Les seuils d'alerte, réglés depuis le tableau de bord : la fiche s'en sert
+// pour dire qu'une autorisation commence à presser.
+let reglagesCache = {};
 // Vrai tant que la migration du Lot E n'est pas jouée : le bloc le dit, et la
 // fiche de date reste utilisable exactement comme avant.
 let sallesAbsentes = false;
@@ -1554,6 +1644,7 @@ async function init(){
     CurieuxDB.fetchAll('remarques'), CurieuxDB.fetchAll('salles'),
   ]);
   sallesCache = salles;
+  CurieuxDB.fetchReglages().then(r=>{ reglagesCache = r || {}; if(moyens) renderAutorisations(); });
   // Tant que la migration du Lot E n'est pas jouée, le bloc le dit et se met en
   // retrait : la fiche de date reste entièrement utilisable comme avant.
   CurieuxDB.tableManquante('salles').then(manque=>{ sallesAbsentes = manque; renderSalle(); });

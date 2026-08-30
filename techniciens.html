@@ -10,6 +10,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/echeances.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
@@ -125,6 +126,21 @@
   textarea{min-height:60px; resize:vertical;}
   input:focus, textarea:focus, select:focus{outline:2px solid var(--accent); outline-offset:1px;}
   .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
+
+  .hab-aide{margin:-2px 0 8px; font-size:11.5px; color:var(--muted); line-height:1.45;}
+  .hab-ligne{border:1px solid var(--border); border-radius:9px; padding:9px 10px; margin-bottom:7px; background:var(--bg);}
+  .hab-rangee{display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) 34px; gap:7px; align-items:center;}
+  .hab-rangee + .hab-rangee{margin-top:6px;}
+  .hab-rangee.dates{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 34px;}
+  .hab-rangee label{display:block; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:2px;}
+  .hab-etat{font-size:11.5px; font-weight:700; margin:6px 0 0;}
+  .hab-etat.ok{color:var(--ok);} .hab-etat.att{color:var(--maybe);} .hab-etat.ko{color:var(--ko);} .hab-etat.rien{color:var(--muted);}
+  .hab-suppr{border:1px solid var(--border); background:transparent; color:var(--muted); border-radius:8px; width:32px; height:32px; cursor:pointer; font-weight:800; align-self:end;}
+  .hab-suppr:hover{border-color:var(--ko); color:var(--ko);}
+  /* La pastille sur la fiche : elle ne paraît que si un titre pose problème. */
+  .hab-pastille{font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap;}
+  .hab-pastille.att{background:var(--maybe-tint); color:var(--maybe);}
+  .hab-pastille.ko{background:var(--danger-tint); color:var(--danger);}
   @media (max-width:600px){
     input, select, textarea{ font-size:16px !important; }
     .m-select-checkbox, .select-all-row input{ width:20px; height:20px; }
@@ -247,6 +263,15 @@
     <div class="field-row">
       <div class="field"><label for="fTelephone">Téléphone (WhatsApp)</label><input type="tel" id="fTelephone" placeholder="06 12 34 56 78"></div>
       <div class="field"><label for="fEmail">Email</label><input type="email" id="fEmail" placeholder="prenom.nom@mail.com"></div>
+    </div>
+    <!-- Les habilitations. Une électrique, un CACES, un titre de travail en
+         hauteur ou un SST se périment ; rien ne l'écrivait, et affecter
+         quelqu'un dont le titre a expiré ne provoquait aucune objection. -->
+    <div class="field">
+      <label>Habilitations</label>
+      <p class="hab-aide">Laisse la date de fin vide si tu ne la connais pas — ce n'est pas « valide », c'est « on ne sait pas », et l'écran le dira ainsi.</p>
+      <div id="habListe"></div>
+      <button type="button" class="co-btn ghost sm" id="addHabBtn">+ Ajouter une habilitation</button>
     </div>
     <div class="field"><label for="fNotes">Notes</label><textarea id="fNotes" placeholder="Notes libres…"></textarea></div>
     <div class="modal-actions">
@@ -383,7 +408,11 @@ function render(){
         <input type="checkbox" class="m-select-checkbox" data-select="${m.id}" ${isSelected ? 'checked' : ''} aria-label="Sélectionner ${escapeHtml(fullName(m))}">
         <span class="m-avatar" aria-hidden="true" style="--co-tilt:${index % 2 ? '4deg' : '-5deg'}; background:${poleFond}; color:${poleEncre};">${escapeHtml(initialesDe(m))}</span>
         <span class="m-identite">
-          <span class="m-nom">${escapeHtml(fullName(m))}${m.statutPoste === 'remplacant' ? '<span class="remplacant-tag">Par projet</span>' : ''}</span>
+          <span class="m-nom">${escapeHtml(fullName(m))}${m.statutPoste === 'remplacant' ? '<span class="remplacant-tag">Par projet</span>' : ''}${
+            (()=>{ const h = pireHabilitation(m);
+                   if(!h || h.etat.etat === 'valide') return '';
+                   const sev = ECHEANCE_SEV[h.etat.etat];
+                   return `<span class="hab-pastille ${sev}" title="${escapeAttr(h.libelle + (h.precision ? ' — ' + h.precision : '') + ' : ' + texteEcheance(h.etat))}">${escapeHtml(h.etat.etat === 'perime' ? 'titre périmé' : 'titre à renouveler')}</span>`; })()}</span>
           <span class="m-role">${escapeHtml(m.poste || '—')}</span>
         </span>
         <span class="m-pupitre"><span class="pupitre-badge" style="background:${poleFond}; color:${poleEncre};">${escapeHtml(m.pole || 'Autre')}</span></span>
@@ -451,6 +480,67 @@ function updateStatutPosteFieldVisibility(){
 }
 document.getElementById('fPole').addEventListener('change', updateStatutPosteFieldVisibility);
 
+// ============================================================================
+// Les habilitations
+//
+// Le brouillon vit ici tant que la modale est ouverte : on ne touche à la fiche
+// qu'à l'enregistrement, comme pour tous les autres champs.
+// ============================================================================
+let habEnCours = [];
+
+function renderHabilitations(){
+  const box = document.getElementById('habListe');
+  box.innerHTML = habEnCours.map((h, i)=>{
+    const e = etatEcheance(h.expireLe);
+    const sev = ECHEANCE_SEV[e.etat] || 'rien';
+    const modele = HABILITATION_TYPES.find(t=> t.cle === h.type) || HABILITATION_TYPES[4];
+    return `
+      <div class="hab-ligne">
+        <div class="hab-rangee">
+          <div>
+            <label for="hab-${i}-type">Titre</label>
+            <select id="hab-${i}-type" data-hab="${i}" data-hf="type">
+              ${HABILITATION_TYPES.map(t=> `<option value="${t.cle}" ${h.type === t.cle ? 'selected' : ''}>${escapeHtml(t.libelle)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label for="hab-${i}-prec">Niveau</label>
+            <input type="text" id="hab-${i}-prec" data-hab="${i}" data-hf="precision" value="${escapeAttr(h.precision || '')}" placeholder="${escapeAttr(modele.exemple || 'en clair')}">
+          </div>
+          <button type="button" class="hab-suppr" data-hab-suppr="${i}" title="Retirer" aria-label="Retirer cette habilitation">✕</button>
+        </div>
+        <div class="hab-rangee dates">
+          <div>
+            <label for="hab-${i}-obt">Obtenue le</label>
+            <input type="date" id="hab-${i}-obt" data-hab="${i}" data-hf="obtenuLe" value="${escapeAttr(h.obtenuLe || '')}">
+          </div>
+          <div>
+            <label for="hab-${i}-exp">Expire le</label>
+            <input type="date" id="hab-${i}-exp" data-hab="${i}" data-hf="expireLe" value="${escapeAttr(h.expireLe || '')}">
+          </div>
+          <span></span>
+        </div>
+        <p class="hab-etat ${sev || 'rien'}">${escapeHtml(ECHEANCE_LIBELLE[e.etat])} — ${escapeHtml(texteEcheance(e))}</p>
+      </div>`;
+  }).join('') || '<p class="hab-aide" style="margin:0 0 8px;">Aucune habilitation renseignée.</p>';
+
+  box.querySelectorAll('[data-hab]').forEach(inp=> inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', ()=>{
+    habEnCours[Number(inp.dataset.hab)][inp.dataset.hf] = inp.value;
+    // Le type change le repère de saisie du niveau, la date change l'état :
+    // dans les deux cas il faut redessiner. Sur le texte libre, non — cela
+    // reprendrait le focus à chaque frappe.
+    if(inp.dataset.hf !== 'precision') renderHabilitations();
+  }));
+  box.querySelectorAll('[data-hab-suppr]').forEach(b=> b.addEventListener('click', ()=>{
+    habEnCours.splice(Number(b.dataset.habSuppr), 1);
+    renderHabilitations();
+  }));
+}
+document.getElementById('addHabBtn').addEventListener('click', ()=>{
+  habEnCours.push({ id: genId('hab'), type:'electrique', precision:'', obtenuLe:'', expireLe:'', notes:'' });
+  renderHabilitations();
+});
+
 function openModal(id){
   const overlay = document.getElementById('modalOverlay');
   document.getElementById('editId').value = id || '';
@@ -466,6 +556,7 @@ function openModal(id){
     document.getElementById('fTelephone').value = m.telephone || '';
     document.getElementById('fEmail').value = m.email || '';
     document.getElementById('fNotes').value = m.notes || '';
+    habEnCours = (m.habilitations || []).map(h=> ({ ...h }));
   } else {
     document.getElementById('modalTitle').textContent = "Ajouter un·e technicien·ne";
     ['fPrenom','fNom','fPoste','fTelephone','fEmail','fNotes'].forEach(id=> document.getElementById(id).value = '');
@@ -473,7 +564,9 @@ function openModal(id){
     // Par projet par défaut : un·e technicien·ne s'ajoute au cas par cas,
     // c'est le noyau qui se coche explicitement.
     document.getElementById('fStatutPoste').value = 'remplacant';
+    habEnCours = [];
   }
+  renderHabilitations();
   updateStatutPosteFieldVisibility();
   overlay.classList.add('open');
   document.getElementById('fPrenom').focus();
@@ -807,6 +900,7 @@ document.getElementById('saveBtn').addEventListener('click', ()=>{
       person.telephone = document.getElementById('fTelephone').value.trim();
       person.email = document.getElementById('fEmail').value.trim();
       person.notes = document.getElementById('fNotes').value.trim();
+      person.habilitations = habEnCours;
     }
   } else {
     const pole = document.getElementById('fPole').value;
@@ -819,6 +913,7 @@ document.getElementById('saveBtn').addEventListener('click', ()=>{
       telephone: document.getElementById('fTelephone').value.trim(),
       email: document.getElementById('fEmail').value.trim(),
       notes: document.getElementById('fNotes').value.trim(),
+      habilitations: habEnCours,
       disponibilites: {}
     };
     list.push(person);

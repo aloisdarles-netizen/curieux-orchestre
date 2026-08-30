@@ -5282,3 +5282,44 @@ create index if not exists idx_moyens_salle_salle on moyens_salle(salle_id);
 -- Le gabarit de la tournée (les minima qu'une salle doit tenir) vit dans
 -- tournees.technique_tournee, à côté des points de jus et des accès scène :
 -- c'est du jsonb, il n'y a rien à migrer ici. Voir technique.html.
+
+-- ============================================================================
+-- LOT F — habilitations, autorisations, échéances (audit technique, sept. 2026)
+--
+-- Trois angles morts de l'audit, de même nature : des DATES qui expirent, que
+-- personne ne surveillait, et dont on découvrait le problème le jour du
+-- montage — quand il est trop tard pour y remédier.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- HABIL-01 — les habilitations des technicien·nes
+--
+-- Une habilitation électrique, un CACES, un titre de travail en hauteur ou un
+-- SST se périment. Rien ne l'écrivait : affecter quelqu'un dont le titre a
+-- expiré ne provoquait aucune objection, et la découverte se faisait sur le
+-- plateau, avec un rigg à monter.
+--
+-- Forme : [{id, type, precision, obtenuLe, expireLe, notes}]
+--   type      : 'electrique' | 'caces' | 'hauteur' | 'sst' | 'autre'
+--   precision : le niveau, en clair — « B1V BR », « CACES R489 cat. 3 »…
+--   expireLe  : vide = sans échéance connue. Ce n'est PAS « valide » : c'est
+--               « on ne sait pas », et l'écran le dit ainsi.
+-- ----------------------------------------------------------------------------
+alter table techniciens add column if not exists habilitations jsonb not null default '[]'::jsonb;
+
+-- ----------------------------------------------------------------------------
+-- AUTOR-01 — les autorisations d'une date
+--
+-- Occupation de voirie, stationnement des semis, badges et accréditations : ça
+-- se demande des semaines à l'avance, ça se refuse, et ça n'existait nulle part
+-- dans l'outil. Même grammaire que le reste du site — à demander / demandé /
+-- obtenu — avec la date de la démarche et le document quand il arrive.
+--
+-- Forme : [{id, type, precision, statut, demandeLe, obtenuLe, url, notes}]
+--   type   : 'voirie' | 'stationnement' | 'badges' | 'autre'
+--   statut : 'a_demander' | 'demande' | 'obtenu' | 'refuse'
+--
+-- Sur moyens_salle, et non sur la date : c'est un objet de direction technique,
+-- il suit la fiche du montage et disparaît avec elle.
+-- ----------------------------------------------------------------------------
+alter table moyens_salle add column if not exists autorisations jsonb not null default '[]'::jsonb;

@@ -85,7 +85,11 @@ const CurieuxDB = (()=>{
         telephone: t.telephone || '', email: t.email || '', notes: t.notes || '',
         disponibilites: t.disponibilites || {},
         disponibilites_commentaires: t.disponibilitesCommentaires || {},
-        reponses_prod: t.reponsesProd || {}
+        reponses_prod: t.reponsesProd || {},
+        // Habilitation électrique, CACES, travail en hauteur, SST : des titres
+        // qui EXPIRENT. Rien ne l'écrivait, et affecter quelqu'un dont le titre
+        // a expiré ne provoquait aucune objection.
+        habilitations: t.habilitations || []
       }),
       fromDb: (r)=> ({
         id: r.id, prenom: r.prenom, nom: r.nom,
@@ -94,7 +98,8 @@ const CurieuxDB = (()=>{
         telephone: r.telephone, email: r.email, notes: r.notes,
         disponibilites: r.disponibilites || {},
         disponibilitesCommentaires: r.disponibilites_commentaires || {},
-        reponsesProd: r.reponses_prod || {}
+        reponsesProd: r.reponses_prod || {},
+        habilitations: r.habilitations || []
       })
     },
     tournees: {
@@ -191,6 +196,9 @@ const CurieuxDB = (()=>{
         // salle. Les colonnes de faits ci-dessus restent lues tant que le lien
         // n'existe pas : relier une date ne perd rien de ce qui y est saisi.
         salle_id: m.salleId || null,
+        // Voirie, stationnement des semis, badges : ça se demande des semaines
+        // à l'avance, ça se refuse, et ça n'existait nulle part.
+        autorisations: m.autorisations || [],
         notes: m.notes || ''
       }),
       fromDb: (r)=> ({
@@ -229,6 +237,7 @@ const CurieuxDB = (()=>{
         semisPositions: r.semis_positions || [],
         ficheEnvoyeeLe: r.fiche_envoyee_le || '',
         salleId: r.salle_id || '',
+        autorisations: r.autorisations || [],
         notes: r.notes || '',
         // La version lue, pour que la fiche de date puisse écrire « si personne
         // n'a écrit entre-temps » (upsertOneVersionne). Sans elle, un onglet

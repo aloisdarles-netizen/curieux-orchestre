@@ -10,6 +10,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/echeances.js"></script>
 <script src="assets/messages-dispo.js"></script>
 <!-- Le moteur de calcul des devis, pour afficher le budget d'un projet sans
      dupliquer la formule : les totaux vus ici sont ceux de l'espace Devis. -->
@@ -523,6 +524,12 @@
   .aff-pour{
     display:inline-block; margin-top:3px; font-size:11px; font-weight:800;
     padding:2px 8px; border-radius:999px; background:var(--ko-tint); color:var(--ko);
+  }
+  /* L'habilitation qui pose problème LE JOUR DU CONCERT. Elle avertit, elle
+     ne bloque pas : c'est une décision humaine, pas une règle automatique. */
+  .aff-habilitation{
+    display:inline-block; margin-top:4px; font-size:10.5px; font-weight:800;
+    padding:2px 8px; border-radius:999px; background:var(--danger-tint); color:var(--danger);
   }
   .aff-demander{
     display:inline-block; margin-top:5px; font-size:11px; font-weight:800;
@@ -1131,6 +1138,13 @@ function tuileAffectation(personne, role, selection, conflicts, pour){
   const sansDispo = !affecte && dispo === '';
   const metier = role === 'musicien' ? (personne.instrument || 'Musicien·ne') : (personne.poste || 'Technicien·ne');
 
+  // L'habilitation se juge AU JOUR DU CONCERT, pas aujourd'hui : un titre
+  // valable ce matin et périmé le soir du montage ne vaut rien. C'est
+  // exactement l'erreur que l'écran doit rendre impossible à commettre sans
+  // le savoir — il l'annonce, mais ne bloque pas : la décision reste humaine.
+  const hab = role === 'technicien' ? pireHabilitation(personne, null, assignDateIso) : null;
+  const habAlerte = hab && (hab.etat.etat === 'perime' || hab.etat.etat === 'bientot_rouge');
+
   const marque = affecte ? '✓' : bloque ? '✕' : sansDispo ? '?' : '+';
   const titre = affecte ? 'Affecté·e — clique pour retirer'
     : bloque ? 'Indisponible à cette date — affectation impossible'
@@ -1158,6 +1172,7 @@ function tuileAffectation(personne, role, selection, conflicts, pour){
              mais visible — c'est le geste attendu sur une proposition. */''}
         ${(pour && sansDispo) ? `<span class="aff-demander" data-aff-suivi="1"
           title="Créer son lien et lui écrire pour cette date">Demander ses dispos</span>` : ''}
+        ${habAlerte ? `<span class="aff-habilitation" title="${escapeAttr(hab.libelle + (hab.precision ? ' — ' + hab.precision : '') + ' : ' + texteEcheance(hab.etat) + '. Vérifie avant de l’affecter sur cette date.')}">\u26A0 ${escapeHtml(hab.libelle.toLowerCase())} ${escapeHtml(hab.etat.etat === 'perime' ? 'périmée' : 'expire')}</span>` : ''}
         ${conflictBadge(conflicts, personne.id)}
       </span>
     </button>

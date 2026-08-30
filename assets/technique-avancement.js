@@ -27,8 +27,13 @@ const TECHNIQUE_SEUILS_DEFAUT = {
   transport:    [21, 10],
   equipe:       [30, 14],
   option:       [21, 10],
+  autorisations:[30, 10],
   // Celui-ci se compte à l'envers : l'ÂGE d'une remarque non traitée, en jours.
   remarque:     [3, 7],
+  // Ceux-là se comptent en jours AVANT L'EXPIRATION du titre ou du carnet, et
+  // non avant le concert. Ils partagent la même forme [à suivre, ça presse].
+  habilitation: [60, 15],
+  ata:          [45, 15],
 };
 
 const TECHNIQUE_SEUILS_LIBELLES = {
@@ -40,7 +45,10 @@ const TECHNIQUE_SEUILS_LIBELLES = {
   transport:    'Camion et chauffeur — à affecter',
   equipe:       'Équipe technique — à composer',
   option:       'Date encore en option — à signer ou libérer',
+  autorisations:'Voirie, stationnement, badges — à demander puis obtenir',
   remarque:     "Remarque reçue et non traitée — compté en jours d'attente",
+  habilitation: "Habilitation d'un·e technicien·ne — compté avant l'expiration",
+  ata:          "Carnet ATA — compté avant son expiration",
 };
 
 function techniqueSeuil(seuils, cle){
