@@ -136,7 +136,65 @@ function techniquePostes(moyens, dates, affectationsParDate){
   ];
 }
 
+/* ---------------------------------------------------------------------------
+   La demande type en personnel de la tournée
+   ---------------------------------------------------------------------------
+   Une tournée demande à peu près la même chose partout : autant de roadies au
+   déchargement, autant de chariots, autant de riggers dont un au grill. Ça se
+   ressaisissait pourtant date par date, à l'identique, avec le risque qu'une
+   date en oublie la moitié.
+
+   La demande type se pose une fois sur la tournée, à côté des points de jus et
+   du gabarit, et se reprend d'un clic sur chaque date. Elle est PROPOSÉE,
+   jamais imposée : les horaires dépendent du get-in de la salle, et une date
+   peut légitimement demander autre chose. Rien ne s'applique tout seul.
+--------------------------------------------------------------------------- */
+
+const VACATION_GENRES = [
+  { cle:'roadies',  libelle:'Roadies',  liste:'roadiesVacations',  nombre:'nombreDemande' },
+  { cle:'chariots', libelle:'Chariots', liste:'chariotsVacations', nombre:'nombreChariotsDemande' },
+  { cle:'rigg',     libelle:'Rigg',     liste:'riggVacations',     nombre:'nombreDemande' },
+];
+
+// Les mêmes champs que sur une date, moins ceux qui n'ont de sens que là-bas :
+// une demande type n'est ni confirmée par une salle, ni à cheval sur un
+// déjeuner qu'on ne connaît pas encore.
+function vacationTypeVierge(cle, equipesRoad){
+  if(cle === 'roadies') return {
+    horaireDebut:'', horaireFin:'', nombreDemande:null, notes:'',
+    equipes: (equipesRoad || []).map(eq=> ({ equipeId: eq.id, nombre:null })),
+  };
+  if(cle === 'chariots') return {
+    horaireDebut:'', horaireFin:'', nombreChariotsDemande:null,
+    nombreCaristesDemande:null, fourches:[], notes:'',
+  };
+  return { horaireDebut:'', horaireFin:'', nombreDemande:null, nombreSol:null, nombreGrill:null, notes:'' };
+}
+
+function demandeTypeDe(tournee){
+  const brut = (tournee && tournee.techniqueTournee && tournee.techniqueTournee.vacationsType) || {};
+  const out = {};
+  VACATION_GENRES.forEach(g=>{ out[g.cle] = Array.isArray(brut[g.cle]) ? brut[g.cle] : []; });
+  return out;
+}
+function demandeTypeVide(dt){ return VACATION_GENRES.every(g=> !(dt[g.cle] || []).length); }
+
+// Une vacation de date née d'une demande type : la copie, plus ce qui
+// n'appartient qu'à la date. `confirme:false` explicitement — reprendre une
+// demande type ne présume rien de ce que la salle en dira.
+function vacationDepuisType(cle, modele){
+  const v = JSON.parse(JSON.stringify(modele || {}));
+  v.confirme = false;
+  if(cle === 'roadies') v.dejeunerInclus = null;
+  return v;
+}
+
 if(typeof window !== 'undefined'){
+  window.VACATION_GENRES = VACATION_GENRES;
+  window.vacationTypeVierge = vacationTypeVierge;
+  window.demandeTypeDe = demandeTypeDe;
+  window.demandeTypeVide = demandeTypeVide;
+  window.vacationDepuisType = vacationDepuisType;
   window.TECHNIQUE_SEUILS_DEFAUT = TECHNIQUE_SEUILS_DEFAUT;
   window.TECHNIQUE_SEUILS_LIBELLES = TECHNIQUE_SEUILS_LIBELLES;
   window.techniqueSeuil = techniqueSeuil;

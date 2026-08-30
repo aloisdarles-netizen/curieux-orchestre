@@ -102,6 +102,31 @@
   .exi-entete.jus{grid-template-columns:22px repeat(4, minmax(0,1fr)) 34px;}
   .exi-entete.acces{grid-template-columns:22px minmax(0,1fr) minmax(0,1.4fr) 34px;}
   .exi-multi{display:grid; grid-template-columns:110px minmax(0,1fr) minmax(0,1.4fr); gap:7px;}
+  /* Une vacation type : la même carte que sur la fiche de date, en plus court —
+     ni case « confirmée » (personne n'a encore répondu), ni pause déjeuner
+     (on ne connaît pas encore la journée). */
+  .dt-genre{margin-bottom:14px;}
+  .dt-genre > h4{margin:0 0 6px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
+  .dt-vac{border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:8px; background:var(--bg);}
+  .dt-tete{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .dt-tete b{font-size:12.5px;}
+  .dt-tete .co-btn{margin-left:auto;}
+  /* auto-fill AVEC un maximum, et non 1fr : sur un grand écran, trois champs
+     d'heure étirés à 430 px chacun se lisaient comme un formulaire vide. */
+  .dt-champs{display:grid; grid-template-columns:repeat(auto-fill, minmax(112px, 190px)); gap:8px;}
+  .dt-champs label{display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:3px;}
+  .dt-champs input, .dt-champs select{width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:7px; font-size:13px; background:var(--card); color:var(--text); font-family:inherit;}
+  .dt-equipes{margin-top:9px;}
+  .dt-equipes > span{display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:4px;}
+  .dt-equipes-grille{display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 190px)); gap:8px 12px;}
+  .dt-equipe{display:flex; align-items:center; gap:6px;}
+  .dt-equipe .pastille{width:9px; height:9px; border-radius:50%; flex:none;}
+  .dt-equipe .nom{font-size:11.5px; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .dt-equipe input{width:52px; padding:5px 6px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; background:var(--card); color:var(--text); font-family:inherit;}
+  .dt-somme{font-size:11.5px; font-weight:700; margin:6px 0 0;}
+  .dt-somme.ecart{color:var(--maybe);}
+  .dt-vide{font-size:12.5px; color:var(--muted); margin:0 0 8px;}
+
   .exi-gabarit{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px;}
   .exi-gabarit label{display:block; font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:3px;}
   .exi-gabarit .champ-unite{position:relative;}
@@ -164,6 +189,15 @@
           <input type="text" id="fMultiDepart" placeholder="Point de départ — ex : jardin, lointain">
           <input type="text" id="fMultiNotes" placeholder="Précisions — longueur, cheminement…">
         </div>
+      </div>
+
+      <!-- La demande type en personnel : ce que la tournée demande à peu près
+           partout. Ça se ressaisissait date par date, à l'identique, avec le
+           risque qu'une date en oublie la moitié. -->
+      <div class="exi-bloc">
+        <h3>Demande type en personnel</h3>
+        <p class="aide">Ce que la tournée demande à chaque salle : roadies, chariots, rigg. Chaque fiche de date la reprend d'un clic, puis l'ajuste — les horaires dépendent du get-in, rien ne s'applique tout seul.</p>
+        <div id="demandeTypeBlocs"></div>
       </div>
 
       <!-- Le gabarit : les minima qu'une salle doit tenir pour que la tournée y
@@ -378,7 +412,159 @@ function chargerExigences(){
     accesScene: (Array.isArray(brut.accesScene) ? brut.accesScene : []).map(a=> ({ ...a })),
     multis: { ...(brut.multis && typeof brut.multis === 'object' ? brut.multis : {}) },
     gabarit: { ...(brut.gabarit && typeof brut.gabarit === 'object' ? brut.gabarit : {}) },
+    // Copie profonde : les vacations types portent des sous-tableaux (équipes,
+    // fourches), qu'un simple spread laisserait partagés avec la tournée.
+    vacationsType: JSON.parse(JSON.stringify(demandeTypeDe(t))),
+    // Le registre d'équipes vit sur la tournée et sert à la répartition des
+    // roadies. La fiche de date l'initialise déjà ainsi quand il est vide ;
+    // ici on ne l'écrit qu'à l'enregistrement, pour ne pas modifier une tournée
+    // du seul fait qu'on a ouvert la page.
+    equipesRoad: (Array.isArray(t && t.equipesRoad) && t.equipesRoad.length
+      ? t.equipesRoad
+      : DEPARTEMENTS_ROAD.map(d=> ({ id: genId('eq'), label: d.label, couleur: d.couleur }))
+    ).map(e=> ({ ...e })),
   };
+}
+
+/* --- La demande type en personnel ---------------------------------------- */
+
+// Le nom d'une équipe, à travers le registre de la tournée. Les vacations
+// stockent un equipeId, pas un libellé : renommer « Backline » en « Plateau »
+// ne doit pas orphaliner les demandes déjà posées.
+function equipeDe(id){ return exigencesEnCours.equipesRoad.find(e=> e.id === id) || null; }
+
+function renderDemandeType(){
+  const dt = exigencesEnCours.vacationsType;
+  document.getElementById('demandeTypeBlocs').innerHTML = VACATION_GENRES.map(g=>{
+    const liste = dt[g.cle] || [];
+    return `<div class="dt-genre">
+      <h4>${escapeHtml(g.libelle)}</h4>
+      ${liste.length ? liste.map((v, i)=> carteVacationType(g, v, i)).join('')
+                     : `<p class="dt-vide">Rien de demandé par défaut — les dates partiront d'une liste vide.</p>`}
+      <button type="button" class="co-btn secondary sm" data-dt-add="${g.cle}">+ Ajouter une vacation type</button>
+    </div>`;
+  }).join('');
+
+  const box = document.getElementById('demandeTypeBlocs');
+  box.querySelectorAll('[data-dt-add]').forEach(b=> b.addEventListener('click', ()=>{
+    const cle = b.dataset.dtAdd;
+    dt[cle] = dt[cle] || [];
+    dt[cle].push(vacationTypeVierge(cle, exigencesEnCours.equipesRoad));
+    renderDemandeType();
+    majResumeExigences();
+  }));
+  box.querySelectorAll('[data-dt-suppr]').forEach(b=> b.addEventListener('click', ()=>{
+    const [cle, i] = b.dataset.dtSuppr.split('|');
+    dt[cle].splice(Number(i), 1);
+    renderDemandeType();
+    majResumeExigences();
+  }));
+  box.querySelectorAll('[data-dt-f]').forEach(inp=> inp.addEventListener('input', ()=>{
+    const [cle, i, champ] = inp.dataset.dtF.split('|');
+    dt[cle][Number(i)][champ] = inp.type === 'number'
+      ? (inp.value === '' ? null : Number(inp.value))
+      : inp.value;
+    if(inp.type === 'number') renderDemandeType();
+    majResumeExigences();
+  }));
+  box.querySelectorAll('[data-dt-eq]').forEach(inp=> inp.addEventListener('input', ()=>{
+    const [cle, i, equipeId] = inp.dataset.dtEq.split('|');
+    const v = dt[cle][Number(i)];
+    v.equipes = v.equipes || [];
+    const e = v.equipes.find(x=> x.equipeId === equipeId);
+    const n = inp.value === '' ? null : Number(inp.value);
+    if(e) e.nombre = n; else v.equipes.push({ equipeId, nombre: n });
+    renderDemandeType();
+  }));
+  box.querySelectorAll('[data-dt-fourche-add]').forEach(b=> b.addEventListener('click', ()=>{
+    const [cle, i] = b.dataset.dtFourcheAdd.split('|');
+    const v = dt[cle][Number(i)];
+    v.fourches = v.fourches || [];
+    v.fourches.push({ fourche:'inconnu' });
+    renderDemandeType();
+  }));
+  box.querySelectorAll('[data-dt-fourche]').forEach(sel=> sel.addEventListener('change', ()=>{
+    const [cle, i, fi] = sel.dataset.dtFourche.split('|');
+    dt[cle][Number(i)].fourches[Number(fi)].fourche = sel.value;
+  }));
+  box.querySelectorAll('[data-dt-fourche-suppr]').forEach(b=> b.addEventListener('click', ()=>{
+    const [cle, i, fi] = b.dataset.dtFourcheSuppr.split('|');
+    dt[cle][Number(i)].fourches.splice(Number(fi), 1);
+    renderDemandeType();
+  }));
+}
+
+const FOURCHE_LABEL = { inconnu:'Fourches inconnues', longues:'Fourches longues', courtes:'Fourches courtes' };
+
+function carteVacationType(g, v, i){
+  const num = (champ, label, val)=> `
+    <div>
+      <label for="dt-${g.cle}-${i}-${champ}">${escapeHtml(label)}</label>
+      <input type="number" min="0" id="dt-${g.cle}-${i}-${champ}" data-dt-f="${g.cle}|${i}|${champ}" value="${val == null ? '' : val}">
+    </div>`;
+  const heures = `
+    <div><label for="dt-${g.cle}-${i}-deb">Début</label><input type="time" id="dt-${g.cle}-${i}-deb" data-dt-f="${g.cle}|${i}|horaireDebut" value="${escapeAttr(v.horaireDebut || '')}"></div>
+    <div><label for="dt-${g.cle}-${i}-fin">Fin</label><input type="time" id="dt-${g.cle}-${i}-fin" data-dt-f="${g.cle}|${i}|horaireFin" value="${escapeAttr(v.horaireFin || '')}"></div>`;
+
+  let corps = '';
+  if(g.cle === 'roadies'){
+    corps = heures + num('nombreDemande', 'Demandé', v.nombreDemande);
+  } else if(g.cle === 'chariots'){
+    corps = heures + num('nombreChariotsDemande', 'Chariots', v.nombreChariotsDemande)
+                   + num('nombreCaristesDemande', 'Caristes', v.nombreCaristesDemande);
+  } else {
+    corps = heures + num('nombreDemande', 'Demandé', v.nombreDemande)
+                   + num('nombreSol', 'dont au sol', v.nombreSol)
+                   + num('nombreGrill', 'dont au grill', v.nombreGrill);
+  }
+
+  // La répartition par équipe : c'est elle qui dit « 4 au son, 2 lumière ». La
+  // somme est rappelée quand elle s'écarte du total demandé — sur place, c'est
+  // l'écart qui coûte, pas le total.
+  let extra = '';
+  if(g.cle === 'roadies'){
+    const somme = (v.equipes || []).reduce((t, e)=> t + (Number(e.nombre) || 0), 0);
+    const total = Number(v.nombreDemande) || 0;
+    extra = `<div class="dt-equipes">
+      <span>Répartition par équipe</span>
+      <div class="dt-equipes-grille">
+        ${exigencesEnCours.equipesRoad.map(eq=>{
+          const e = (v.equipes || []).find(x=> x.equipeId === eq.id);
+          return `<label class="dt-equipe">
+            <span class="pastille" style="background:${escapeAttr(eq.couleur || '#888')};"></span>
+            <span class="nom" title="${escapeAttr(eq.label || '')}">${escapeHtml(eq.label || 'Équipe')}</span>
+            <input type="number" min="0" data-dt-eq="${g.cle}|${i}|${escapeAttr(eq.id)}" value="${e && e.nombre != null ? e.nombre : ''}" aria-label="${escapeAttr(eq.label || 'Équipe')}">
+          </label>`;
+        }).join('')}
+      </div>
+      ${somme || total ? `<p class="dt-somme ${somme !== total ? 'ecart' : ''}">${somme} réparti${somme > 1 ? 's' : ''} sur ${total} demandé${total > 1 ? 's' : ''}${somme !== total ? ' — l’écart se règle sur place' : ''}</p>` : ''}
+    </div>`;
+  }
+  if(g.cle === 'chariots'){
+    extra = `<div class="dt-equipes">
+      <span>Fourches</span>
+      ${(v.fourches || []).map((f, fi)=> `
+        <div style="display:flex; gap:6px; align-items:center; margin-bottom:5px;">
+          <select data-dt-fourche="${g.cle}|${i}|${fi}" style="flex:0 1 220px; padding:6px 8px; border:1px solid var(--border); border-radius:7px; font-size:12.5px; background:var(--card); color:var(--text); font-family:inherit;">
+            ${Object.entries(FOURCHE_LABEL).map(([k, lib])=> `<option value="${k}" ${f.fourche === k ? 'selected' : ''}>${escapeHtml(lib)}</option>`).join('')}
+          </select>
+          <button type="button" class="co-btn danger sm" data-dt-fourche-suppr="${g.cle}|${i}|${fi}">×</button>
+        </div>`).join('')}
+      <button type="button" class="co-btn ghost sm" data-dt-fourche-add="${g.cle}|${i}">+ Un chariot détaillé</button>
+    </div>`;
+  }
+
+  return `<div class="dt-vac">
+    <div class="dt-tete">
+      <b>Vacation ${i + 1}</b>
+      <button type="button" class="co-btn danger sm" data-dt-suppr="${g.cle}|${i}">Retirer</button>
+    </div>
+    <div class="dt-champs">${corps}</div>
+    ${extra}
+    <div class="dt-champs" style="margin-top:8px; grid-template-columns:1fr;">
+      <div><label for="dt-${g.cle}-${i}-notes">Notes</label><input type="text" id="dt-${g.cle}-${i}-notes" data-dt-f="${g.cle}|${i}|notes" value="${escapeAttr(v.notes || '')}" placeholder="Justification, contraintes…"></div>
+    </div>
+  </div>`;
 }
 
 function renderGabarit(){
@@ -403,6 +589,7 @@ function renderGabarit(){
 function renderExigences(){
   if(!exigencesEnCours) chargerExigences();
   renderGabarit();
+  renderDemandeType();
   const jus = exigencesEnCours.pointsJus;
   const acces = exigencesEnCours.accesScene;
   const multis = exigencesEnCours.multis;
@@ -461,6 +648,8 @@ function majResumeExigences(){
     nbMultis ? `${nbMultis} multipaire${nbMultis>1?'s':''}` : '',
     (()=>{ const n = SALLE_FAITS.filter(f=> e.gabarit[f.gab] != null && e.gabarit[f.gab] !== '').length;
            return n ? `gabarit sur ${n} critère${n>1?'s':''}` : ''; })(),
+    (()=>{ const n = VACATION_GENRES.reduce((t,g)=> t + (e.vacationsType[g.cle] || []).length, 0);
+           return n ? `${n} vacation${n>1?'s':''} type` : ''; })(),
   ].filter(Boolean);
   document.getElementById('exigencesResume').textContent = morceaux.length ? morceaux.join(' · ') : 'rien de réglé';
 }
@@ -474,12 +663,16 @@ async function enregistrerExigences(){
     pointsJus: exigencesEnCours.pointsJus,
     accesScene: exigencesEnCours.accesScene,
     gabarit: exigencesEnCours.gabarit,
+    vacationsType: exigencesEnCours.vacationsType,
     multis: {
       nombre: nombre === '' ? null : Number(nombre),
       depart: document.getElementById('fMultiDepart').value.trim(),
       notes: document.getElementById('fMultiNotes').value.trim(),
     },
   };
+  // Le registre d'équipes accompagne la demande type : sans lui, les
+  // equipeId qu'elle porte ne renverraient à rien sur les fiches de date.
+  t.equipesRoad = exigencesEnCours.equipesRoad;
   etat.textContent = 'Enregistrement…';
   const { error } = await CurieuxDB.upsertOne('tournees', t);
   etat.textContent = error

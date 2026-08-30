@@ -8,6 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/technique-avancement.js"></script>
 <script src="assets/salles.js"></script>
 <script src="assets/nav.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
@@ -323,18 +324,21 @@
     <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">En vacations plutôt qu'en demande globale — chaque créneau a son effectif demandé, une confirmation, et se répartit sur les équipes de la tournée.</p>
     <div id="roadiesListe"></div>
     <button type="button" class="co-btn secondary sm" id="addRoadiesBtn">+ Ajouter une vacation</button>
+    <button type="button" class="co-btn ghost sm" data-reprendre-type="roadies" hidden>Reprendre la demande type</button>
   </fieldset>
 
   <fieldset class="groupe">
     <legend>Chariots élévateurs</legend>
     <div id="chariotsListe"></div>
     <button type="button" class="co-btn secondary sm" id="addChariotsBtn">+ Ajouter une vacation</button>
+    <button type="button" class="co-btn ghost sm" data-reprendre-type="chariots" hidden>Reprendre la demande type</button>
   </fieldset>
 
   <fieldset class="groupe">
     <legend>Rigg</legend>
     <div id="riggListe"></div>
     <button type="button" class="co-btn secondary sm" id="addRiggBtn">+ Ajouter une vacation</button>
+    <button type="button" class="co-btn ghost sm" data-reprendre-type="rigg" hidden>Reprendre la demande type</button>
   </fieldset>
 
   <fieldset class="groupe" id="groupeFaits">
@@ -1008,6 +1012,7 @@ function peupler(){
   renderContactsSalle();
   renderContactsTechniciens();
   renderSalle();
+  majBoutonsDemandeType();
 
   if(moyens.planImagePath && supabaseClient){
     const { data } = supabaseClient.storage.from('fiches-techniques').getPublicUrl(moyens.planImagePath);
@@ -1253,6 +1258,48 @@ function appliquerAnalyse(){
   box.style.display = 'none';
   document.getElementById('analyseStatut').textContent = "Appliqué — pense à enregistrer en bas de page.";
 }
+
+// ============================================================================
+// Reprendre la demande type de la tournée
+//
+// Une tournée demande à peu près la même chose partout. La demande type se
+// pose une fois (Direction technique → Exigences techniques) et se reprend ici
+// d'un clic — jamais toute seule : les horaires dépendent du get-in de la
+// salle, et une date peut légitimement demander autre chose.
+//
+// Le bouton ne s'affiche que si la tournée a posé quelque chose pour ce
+// genre-là : proposer « reprendre » ce qui n'existe pas serait une fausse piste.
+// ============================================================================
+function majBoutonsDemandeType(){
+  const dt = demandeTypeDe(tournee);
+  VACATION_GENRES.forEach(g=>{
+    const btn = document.querySelector(`[data-reprendre-type="${g.cle}"]`);
+    if(!btn) return;
+    const modeles = dt[g.cle] || [];
+    btn.hidden = modeles.length === 0;
+    const n = modeles.length;
+    btn.textContent = `Reprendre la demande type (${n} vacation${n > 1 ? 's' : ''})`;
+    // Sur une liste vide, c'est le geste le plus probable : il passe devant.
+    const vide = (moyens[g.liste] || []).length === 0;
+    btn.classList.toggle('ghost', !vide);
+    btn.classList.toggle('secondary', vide);
+  });
+}
+
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('[data-reprendre-type]');
+  if(!btn) return;
+  const g = VACATION_GENRES.find(x=> x.cle === btn.dataset.reprendreType);
+  if(!g) return;
+  const modeles = demandeTypeDe(tournee)[g.cle] || [];
+  if(!modeles.length) return;
+  const deja = (moyens[g.liste] || []).length;
+  if(deja && !confirm(`Ajouter ${modeles.length} vacation${modeles.length > 1 ? 's' : ''} type à ${deja} déjà posée${deja > 1 ? 's' : ''} ?`)) return;
+  moyens[g.liste] = (moyens[g.liste] || []).concat(modeles.map(m=> vacationDepuisType(g.cle, m)));
+  ({ roadies: renderRoadiesListe, chariots: renderChariotsListe, rigg: renderRiggListe })[g.cle]();
+  majBoutonsDemandeType();
+  document.getElementById('saveStatus').textContent = 'Demande type reprise — pense à enregistrer.';
+});
 
 // ============================================================================
 // La salle où se joue cette date
