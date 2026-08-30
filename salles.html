@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Salles</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/salles.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:min(1500px, 97vw); margin:0 auto; font-variant-numeric:tabular-nums;}
+  .barre{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px;}
+  .barre input[type=search]{flex:1 1 240px; min-width:0;}
+  .barre select{flex:0 1 280px;}
+
+  .salle-carte{display:block; text-decoration:none; color:inherit;}
+  .salle-tete{display:flex; align-items:center; gap:9px; flex-wrap:wrap;}
+  .salle-nom{font-weight:800; font-size:16px;}
+  .salle-ville{font-size:12.5px; color:var(--muted); font-weight:700;}
+  .salle-faits{display:flex; flex-direction:column; gap:4px; margin-top:10px;}
+  .fait{display:flex; align-items:center; gap:9px; font-size:12.5px; border-top:1px solid var(--border); padding-top:5px;}
+  .fait:first-child{border-top:none; padding-top:0;}
+  .fait .pt{width:8px; height:8px; border-radius:50%; flex:none; background:var(--border);}
+  .fait.ok .pt{background:var(--ok);}
+  .fait.att .pt{background:var(--maybe);}
+  .fait.ko .pt{background:var(--ko);}
+  .fait .lib{color:var(--muted); font-weight:700;}
+  .fait .val{margin-left:auto; font-weight:800;}
+  .fait .val.vide{color:var(--muted); font-weight:700;}
+  .verdict-resume{font-size:12px; color:var(--muted); margin-top:8px; line-height:1.45;}
+
+  .empty-hint{color:var(--muted); font-size:13.5px; padding:40px 4px; text-align:center;}
+  @media (max-width:600px){ input, select{ font-size:16px !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Salles</h1>
+      <p class="subtitle">Ce qu'on sait de chaque lieu, une fois pour toutes — les faits se saisissent ici, plus date par date.</p>
+    </div>
+    <div class="co-actions"><button type="button" class="co-btn primary" id="ajouterBtn">+ Nouvelle salle</button></div>
+  </div>
+
+  <div class="barre co-fade">
+    <input type="search" class="co-input" id="recherche" placeholder="Chercher une salle, une ville…" aria-label="Chercher une salle">
+    <select class="co-select" id="gabaritSelect" aria-label="Comparer au gabarit d'une tournée"></select>
+  </div>
+
+  <div id="liste" class="co-grid co-grid-cards co-fade"></div>
+  <div class="empty-hint" id="vide" style="display:none;">Aucune salle enregistrée. La première se crée depuis une fiche de date, ou avec le bouton ci-dessus.</div>
+</div>
+
+<script>
+applyBrandLogo();
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+/* ---------------------------------------------------------------------------
+   L'annuaire des salles.
+   ---------------------------------------------------------------------------
+   Une liste, et une seule question posée à chacune : est-ce que ça passe ? On
+   choisit la tournée dont on veut appliquer le gabarit, et chaque carte répond
+   — y compris pour les salles où l'on n'a pas encore de date, ce qui est tout
+   l'intérêt : c'est au moment de chercher où jouer qu'on veut la réponse.
+--------------------------------------------------------------------------- */
+
+let sallesCache = [], tourneesCache = [], moyensCache = [];
+
+function tourneeChoisie(){
+  const id = document.getElementById('gabaritSelect').value;
+  return tourneesCache.find(t=> t.id === id) || null;
+}
+
+// Combien de dates se sont jouées, ou vont se jouer, dans cette salle.
+function datesDe(salleId){ return moyensCache.filter(m=> m.salleId === salleId).length; }
+
+function render(){
+  const q = document.getElementById('recherche').value.trim().toLowerCase();
+  const gab = gabaritDe(tourneeChoisie());
+  const sansGabarit = gabaritVide(gab);
+
+  const liste = sallesCache
+    .filter(s=> !q || [s.nom, s.ville, s.adresse].join(' ').toLowerCase().includes(q))
+    .sort((a,b)=> (a.ville||'').localeCompare(b.ville||'', 'fr') || (a.nom||'').localeCompare(b.nom||'', 'fr'));
+
+  const box = document.getElementById('liste');
+  const vide = document.getElementById('vide');
+  if(liste.length === 0){
+    box.innerHTML = '';
+    vide.style.display = 'block';
+    vide.textContent = sallesCache.length === 0
+      ? "Aucune salle enregistrée. La première se crée depuis une fiche de date, ou avec le bouton ci-dessus."
+      : "Aucune salle ne correspond à cette recherche.";
+    return;
+  }
+  vide.style.display = 'none';
+
+  box.innerHTML = liste.map(s=>{
+    const v = verdictSalle(s, gab);
+    const n = datesDe(s.id);
+    const etatParFait = {};
+    v.lignes.forEach(l=> etatParFait[l.fait.cle] = l.etat);
+    return `
+      <a class="co-card co-pad salle-carte" href="salle.html?id=${encodeURIComponent(s.id)}">
+        <div class="salle-tete">
+          <span class="salle-nom">${escapeHtml(s.nom || 'Salle sans nom')}</span>
+          ${sansGabarit ? '' : `<span class="co-pill ${VERDICT_SEV[v.etat] || ''}">${escapeHtml(VERDICT_LIBELLE[v.etat])}</span>`}
+        </div>
+        <div class="salle-ville">${escapeHtml(s.ville || '—')}${n ? ` · ${n} date${n > 1 ? 's' : ''} chez nous` : ''}</div>
+        <div class="salle-faits">
+          ${SALLE_FAITS.map(f=>{
+            const e = etatParFait[f.cle];
+            const sev = e === 'non' ? 'ko' : e === 'juste' ? 'att' : e === 'ok' ? 'ok' : '';
+            const val = salleFaitTexte(s, f);
+            return `<div class="fait ${sev}"><span class="pt" aria-hidden="true"></span><span class="lib">${escapeHtml(f.label)}</span><span class="val ${val === '—' ? 'vide' : ''}">${escapeHtml(val)}</span></div>`;
+          }).join('')}
+        </div>
+        ${sansGabarit || v.etat === 'ok' ? '' : `<div class="verdict-resume">${escapeHtml(v.resume)}</div>`}
+      </a>`;
+  }).join('');
+}
+
+document.getElementById('recherche').addEventListener('input', render);
+document.getElementById('gabaritSelect').addEventListener('change', render);
+document.getElementById('ajouterBtn').addEventListener('click', async ()=>{
+  const nom = prompt('Nom de la salle ?');
+  if(!nom || !nom.trim()) return;
+  const s = { id: genId('salle'), nom: nom.trim(), ville:'', adresse:'',
+    hauteurGrillM:null, ouvertureSceneM:null, profondeurSceneM:null,
+    puissanceA:null, chargeAccrocheKg:null,
+    typeCourant:'', typeSol:'', accesNotes:'', pointsDistribution:[],
+    contacts:[], lecons:[], notes:'', ficheUrl:'' };
+  await CurieuxDB.upsertOne('salles', s);
+  location.href = 'salle.html?id=' + encodeURIComponent(s.id);
+});
+
+async function initData(){
+  [sallesCache, tourneesCache, moyensCache] = await Promise.all([
+    CurieuxDB.fetchAll('salles'),
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('moyens_salle'),
+  ]);
+  tourneesCache = tourneesCache.filter(t=> t.type !== 'recording');
+  const sel = document.getElementById('gabaritSelect');
+  sel.innerHTML = '<option value="">Sans gabarit — juste les faits</option>'
+    + tourneesCache.map(t=>{
+        const pose = !gabaritVide(gabaritDe(t));
+        return `<option value="${escapeAttr(t.id)}">Gabarit : ${escapeHtml(t.nom || 'Tournée')}${pose ? '' : ' (non posé)'}</option>`;
+      }).join('');
+  render();
+}
+CurieuxDB.subscribe('salles', ()=> CurieuxDB.fetchAll('salles').then(l=>{ sallesCache = l; curieuxRafraichir(render); }));
+initData();
+</script>
+</body>
+</html>

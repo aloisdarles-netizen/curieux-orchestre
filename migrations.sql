@@ -5192,3 +5192,93 @@ create policy "comm taches acces" on comm_taches for all to authenticated
               else has_comm_access() end)
   with check (case when genre = 'technique' then has_direction_technique_access()
                    else has_comm_access() end);
+
+-- ============================================================================
+-- LOT E — la salle existe (audit technique, sept. 2026)
+--
+-- « Le truc c'est que c'est moi qui rentre les infos de la salle à chaque
+-- fois. » Il n'existait pas d'entité « salle » : le lieu était un texte libre
+-- posé sur une date. Jouer deux fois au même endroit obligeait donc à ressaisir
+-- intégralement grill, puissance, charge à l'accroche, nature du plateau et
+-- contacts — et aucune de ces saisies ne profitait à la suivante.
+--
+-- Une salle vit désormais pour elle-même, survit aux tournées, et se compare à
+-- ce que la tournée exige.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- SALLE-01 — la table
+--
+-- Deux natures d'information, délibérément séparées :
+--
+--   · les FAITS MESURABLES, en colonnes numériques d'unité fixe (mètres,
+--     ampères, kilos). C'est ce qui permet de répondre « est-ce que ça passe ? »
+--     sans lire une phrase. Un texte libre « 12 m environ » ne se compare pas.
+--   · le RESTE en clair : type de courant, nature du plateau, contraintes
+--     d'accès, contacts, et ce qu'on a appris en y jouant.
+--
+-- La colonne `lecons` est celle qui manquait le plus : l'orchestre revient dans
+-- les mêmes salles, et ce que le montage précédent a coûté à découvrir n'était
+-- écrit nulle part. Forme : [{id, quand, texte, par}].
+-- ----------------------------------------------------------------------------
+create table if not exists salles (
+  id text primary key,
+  nom text not null default '',
+  ville text not null default '',
+  adresse text not null default '',
+
+  -- Faits mesurables. NULL = pas encore renseigné, et non « zéro ».
+  hauteur_grill_m      numeric,
+  ouverture_scene_m    numeric,
+  profondeur_scene_m   numeric,
+  puissance_a          numeric,
+  charge_accroche_kg   numeric,
+
+  type_courant text not null default '',
+  type_sol text not null default '',
+  acces_notes text not null default '',
+  -- [{id, position, notes}, ...] — ce que la salle donne comme arrivées de
+  -- courant. Même forme que moyens_salle.points_distribution, exprès : relier
+  -- une date recopie la liste telle quelle, et la page salle comme le PDF
+  -- continuent de la lire sans rien savoir des fiches de salle.
+  points_distribution jsonb not null default '[]'::jsonb,
+  -- [{nom, role, tel, email}, ...]
+  contacts jsonb not null default '[]'::jsonb,
+  -- [{id, quand, texte, par}, ...]
+  lecons jsonb not null default '[]'::jsonb,
+  notes text not null default '',
+  -- Le lien vers la fiche technique de la salle, telle qu'ELLE nous l'envoie.
+  fiche_url text not null default '',
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_salles_ville on salles(ville);
+drop trigger if exists trg_salles_updated_at on salles;
+create trigger trg_salles_updated_at before update on salles
+  for each row execute function set_updated_at();
+
+alter table salles enable row level security;
+drop policy if exists "salles acces" on salles;
+create policy "salles acces" on salles for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());
+
+-- ----------------------------------------------------------------------------
+-- SALLE-02 — la date pointe vers sa salle
+--
+-- `on delete set null` et non `cascade` : supprimer une fiche de salle ne doit
+-- pas emporter le travail fait sur les dates qui s'y jouaient. La date perd son
+-- lien, garde tout le reste, et se relie à nouveau en un clic.
+-- ----------------------------------------------------------------------------
+alter table moyens_salle add column if not exists salle_id text;
+do $$ begin
+  alter table moyens_salle
+    add constraint moyens_salle_salle_id_fkey
+    foreign key (salle_id) references salles(id) on delete set null;
+exception when duplicate_object then null;
+end $$;
+create index if not exists idx_moyens_salle_salle on moyens_salle(salle_id);
+
+-- Le gabarit de la tournée (les minima qu'une salle doit tenir) vit dans
+-- tournees.technique_tournee, à côté des points de jus et des accès scène :
+-- c'est du jsonb, il n'y a rien à migrer ici. Voir technique.html.

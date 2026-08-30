@@ -64,6 +64,7 @@ const CURIEUX_SECTIONS = [
   { libelle:'Technique', href:'technique-taches.html', entrees:[
     { libelle:'Tableau de bord', href:'technique-taches.html', pages:['technique-taches.html'] },
     { libelle:'Avancement', href:'technique.html', pages:['technique.html','technique-date.html'] },
+    { libelle:'Salles', href:'salles.html', pages:['salles.html','salle.html'] },
     { libelle:'Matériel', href:'materiel.html', pages:['materiel.html'] },
     { libelle:'Véhicules & chauffeurs', href:'vehicules.html', pages:['vehicules.html'] },
     { libelle:'Fiches techniques', href:'fiches-techniques.html', pages:['fiches-techniques.html'] },

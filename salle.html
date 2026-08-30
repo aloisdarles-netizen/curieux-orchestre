@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Fiche de salle</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/salles.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:900px; margin:0 auto; font-variant-numeric:tabular-nums;}
+  [hidden]{display:none;}
+  .groupe{border:1px solid var(--border); border-radius:var(--radius); background:var(--card); padding:16px 18px; margin-bottom:14px;}
+  .groupe > legend, .groupe > h2{font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); margin:0 0 12px;}
+  .aide-champ{margin:0; font-size:11.5px; color:var(--muted); line-height:1.45;}
+  .champ{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .champ > label{font-size:12px; color:var(--muted); font-weight:700;}
+  .rangee{display:flex; gap:12px; flex-wrap:wrap;}
+  .rangee > .champ{flex:1; min-width:150px;}
+  input, select, textarea{
+    padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:14px;
+    background:var(--card); color:var(--text); font-family:inherit; width:100%;
+  }
+  textarea{min-height:80px; resize:vertical;}
+  input:focus, select:focus, textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+
+  /* Les faits mesurables : le champ porte son unité, pour qu'on n'ait pas à la
+     taper ni à deviner celle qui était attendue. */
+  .fait-champ{position:relative;}
+  .fait-champ input{padding-right:44px;}
+  .fait-champ .unite{position:absolute; right:12px; top:50%; transform:translateY(-50%); font-size:12.5px; font-weight:800; color:var(--muted); pointer-events:none;}
+  .fait-verdict{font-size:11.5px; font-weight:700; margin-top:3px;}
+  .fait-verdict.ok{color:var(--ok);} .fait-verdict.att{color:var(--maybe);} .fait-verdict.ko{color:var(--ko);}
+  .fait-verdict.rien{color:var(--muted);}
+
+  .ligne-liste{display:flex; gap:8px; align-items:center; margin-bottom:7px; flex-wrap:wrap;}
+  .ligne-liste > input{flex:1; min-width:110px; width:auto;}
+  .m-icone{
+    cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted);
+    border-radius:8px; width:32px; height:32px; font-weight:800; font-size:13px; font-family:inherit;
+    display:grid; place-items:center; flex-shrink:0;
+  }
+  .m-icone:hover{border-color:var(--accent); color:var(--accent);}
+  .m-icone.danger:hover{border-color:var(--ko); color:var(--ko);}
+
+  /* Ce qu'on a appris en y jouant : la mémoire qui manquait le plus. */
+  .lecon{display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--border);}
+  .lecon:first-child{border-top:none; padding-top:0;}
+  .lecon .quand{flex:0 0 92px; font-size:11.5px; color:var(--muted); font-weight:700;}
+  .lecon .texte{flex:1; font-size:13.5px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere;}
+  .lecon .par{font-size:11px; color:var(--muted); display:block; margin-top:2px;}
+
+  .ana-bloc{margin-bottom:14px;}
+  .ana-bloc > h4{font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 7px; font-weight:800;}
+  .ana-ligne{display:flex; gap:9px; align-items:flex-start; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:9px 10px; margin-bottom:6px;}
+  .ana-ligne input[type=checkbox]{width:18px; height:18px; accent-color:var(--accent); flex:0 0 auto; margin-top:1px;}
+  .ana-ligne .ana-corps{flex:1; min-width:0;}
+  .ana-ligne .ana-champ{font-size:11.5px; color:var(--muted); font-weight:600;}
+  .ana-ligne .ana-valeur{font-size:13.5px; word-break:break-word;}
+  .ana-ligne .ana-actuel{font-size:12px; color:var(--muted); margin-top:2px;}
+  .ana-point{display:flex; gap:9px; align-items:flex-start; border-radius:8px; padding:9px 10px; margin-bottom:6px; border:1px solid var(--border); background:var(--bg);}
+  .ana-point .ana-pastille{flex:0 0 auto; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:3px 8px; border-radius:20px;}
+  .ana-point.manquant{border-color:var(--danger);}
+  .ana-point.manquant .ana-pastille{background:var(--secondary-tint); color:var(--danger);}
+  .ana-point.attention .ana-pastille{background:#F5C518; color:#2b2200;}
+  .ana-point.info .ana-pastille{background:var(--accent-tint); color:var(--accent-dark);}
+  .ana-point b{font-size:13px; display:block;}
+  .ana-point span.ana-detail{font-size:12.5px; color:var(--muted);}
+
+  .empty-hint{color:var(--muted); font-size:13.5px; padding:14px 4px;}
+  @media (max-width:600px){ input, select, textarea{ font-size:16px !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="co-back" href="salles.html">← Toutes les salles</a>
+
+  <div class="co-page-head co-fade">
+    <div>
+      <h1 id="titre">Fiche de salle</h1>
+      <p class="subtitle" id="sousTitre">Ce qu'on sait de ce lieu — saisi une fois, relu à chaque date qui s'y joue.</p>
+    </div>
+    <select class="co-select" id="gabaritSelect" style="max-width:280px;" aria-label="Comparer au gabarit d'une tournée"></select>
+  </div>
+
+  <div id="corps" hidden>
+    <fieldset class="groupe">
+      <legend>Identité</legend>
+      <div class="rangee">
+        <div class="champ"><label for="fNom">Nom</label><input type="text" id="fNom" placeholder="Le Millenium"></div>
+        <div class="champ"><label for="fVille">Ville</label><input type="text" id="fVille" placeholder="Épernay"></div>
+      </div>
+      <div class="champ"><label for="fAdresse">Adresse</label><input type="text" id="fAdresse" placeholder="Rue, code postal"></div>
+      <div class="champ"><label for="fFicheUrl">Lien de leur fiche technique</label><input type="url" id="fFicheUrl" placeholder="https://…"></div>
+    </fieldset>
+
+    <!-- Les faits mesurables, en chiffres et à unité fixe. C'est ce qui permet
+         de répondre « est-ce que ça passe ? » sans lire une phrase : un texte
+         libre « 12 m environ » ne se compare à aucun gabarit. -->
+    <fieldset class="groupe">
+      <legend>Ce qui se mesure</legend>
+      <p class="aide-champ" style="margin:-6px 0 12px;">Laisse vide ce que tu ne sais pas : un champ vide dit « on ne sait pas », un zéro dirait « ça ne passe pas ».</p>
+      <div class="rangee" id="faitsRangee"></div>
+    </fieldset>
+
+    <fieldset class="groupe">
+      <legend>Ce qui ne se mesure pas</legend>
+      <div class="rangee">
+        <div class="champ"><label for="fTypeCourant">Type de courant</label><input type="text" id="fTypeCourant" placeholder="Tri 400V + N + T"></div>
+        <div class="champ"><label for="fTypeSol">Nature du plateau</label><input type="text" id="fTypeSol" placeholder="Parquet sur lambourdes"></div>
+      </div>
+      <div class="champ"><label for="fAccesNotes">Accès et déchargement</label><textarea id="fAccesNotes" placeholder="Quai, hauteur de porte, marches, portage, stationnement des semis, autorisation de circulation…"></textarea></div>
+      <div class="champ">
+        <label>Points de distribution électrique</label>
+        <div id="pointsListe"></div>
+        <button type="button" class="co-btn ghost sm" id="addPoint">+ Ajouter un point</button>
+      </div>
+    </fieldset>
+
+    <fieldset class="groupe">
+      <legend>Contacts de la salle</legend>
+      <div id="contactsListe"></div>
+      <button type="button" class="co-btn ghost sm" id="addContact">+ Ajouter un contact</button>
+    </fieldset>
+
+    <!-- La mémoire qui manquait le plus : l'orchestre revient dans les mêmes
+         salles, et ce que le montage précédent a coûté à découvrir n'était
+         écrit nulle part. -->
+    <fieldset class="groupe">
+      <legend>Ce qu'on a appris en y jouant</legend>
+      <p class="aide-champ" style="margin:-6px 0 12px;">Ce qu'on aurait aimé savoir avant d'arriver. Daté et signé — dans deux ans, ça compte.</p>
+      <div class="rangee" style="align-items:flex-end;">
+        <div class="champ" style="flex:3 1 300px;"><label for="fLecon">Ajouter</label><input type="text" id="fLecon" placeholder="Le quai est partagé le samedi — prévoir 30 min de plus."></div>
+        <button type="button" class="co-btn secondary" id="addLecon" style="margin-bottom:12px;">Ajouter</button>
+      </div>
+      <div id="leconsListe"></div>
+    </fieldset>
+
+    <fieldset class="groupe">
+      <legend>Notes libres</legend>
+      <div class="champ"><textarea id="fNotes" placeholder="Tout ce qui ne rentre nulle part ailleurs."></textarea></div>
+    </fieldset>
+
+    <fieldset class="groupe" id="blocAnalyse" hidden>
+      <legend>Lire leur fiche technique</legend>
+      <p class="aide-champ" style="margin:-6px 0 10px;">Dépose le PDF (ou une photo) envoyé par la salle : les informations sont extraites et les manques signalés. Rien n'est écrit tant que tu n'as pas coché puis appliqué.</p>
+      <div class="champ"><label for="fAnalyseFichier">Fichier — PDF, PNG ou JPEG, 3 Mo maximum</label><input type="file" id="fAnalyseFichier" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"></div>
+      <button type="button" class="co-btn secondary sm" id="analyserBtn" disabled>Analyser la fiche</button>
+      <span id="analyseStatut" style="margin-left:10px; font-size:12.5px; color:var(--muted);"></span>
+      <div id="analyseResultat" style="display:none; margin-top:14px;"></div>
+    </fieldset>
+
+    <fieldset class="groupe" id="datesGroupe" hidden>
+      <legend>Où on y a joué</legend>
+      <div id="datesListe"></div>
+    </fieldset>
+
+    <div class="co-savebar">
+      <button type="button" class="co-btn primary" id="enregistrerBtn">Enregistrer</button>
+      <span id="etat" style="font-size:12.5px; color:var(--muted);"></span>
+      <button type="button" class="co-btn ghost sm" id="supprimerBtn" style="margin-left:auto;">Supprimer cette salle</button>
+    </div>
+  </div>
+
+  <div class="empty-hint" id="introuvable" hidden>Cette salle n'existe pas, ou plus. <a href="salles.html">Retour à la liste</a>.</div>
+</div>
+
+<script>
+applyBrandLogo();
+injectCurieuxFonts();
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+const SALLE_ID = new URLSearchParams(location.search).get('id') || '';
+let salle = null, tourneesCache = [], moyensCache = [], monEmail = '';
+let analyseExtraction = null;
+const ANALYSE_TAILLE_MAX = 3 * 1024 * 1024;
+
+function tourneeChoisie(){
+  const id = document.getElementById('gabaritSelect').value;
+  return tourneesCache.find(t=> t.id === id) || null;
+}
+
+/* --- Les faits mesurables ------------------------------------------------- */
+
+function renderFaits(){
+  const gab = gabaritDe(tourneeChoisie());
+  const v = verdictSalle(salle, gab);
+  const parCle = {};
+  v.lignes.forEach(l=> parCle[l.fait.cle] = l);
+
+  document.getElementById('faitsRangee').innerHTML = SALLE_FAITS.map(f=>{
+    const val = salle[f.cle];
+    const l = parCle[f.cle];
+    let verdict = '';
+    if(l){
+      const mot = { ok:'ok', juste:'att', non:'ko', inconnu:'rien' }[l.etat];
+      const texte = l.etat === 'ok' ? `au-dessus du minimum (${l.mini} ${f.unite})`
+                  : l.etat === 'juste' ? `tout juste — minimum ${l.mini} ${f.unite}`
+                  : l.etat === 'non' ? `en dessous du minimum (${l.mini} ${f.unite})`
+                  : `la tournée demande ${l.mini} ${f.unite}`;
+      verdict = `<span class="fait-verdict ${mot}">${escapeHtml(texte)}</span>`;
+    }
+    return `<div class="champ" style="flex:1 1 170px;">
+      <label for="fait-${f.cle}">${escapeHtml(f.label)}</label>
+      <span class="fait-champ">
+        <input type="number" step="${f.pas}" min="0" id="fait-${f.cle}" data-fait="${f.cle}"
+               value="${val == null ? '' : val}" placeholder="—">
+        <span class="unite">${escapeHtml(f.unite)}</span>
+      </span>
+      ${verdict}
+    </div>`;
+  }).join('');
+
+  document.getElementById('faitsRangee').querySelectorAll('[data-fait]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      salle[inp.dataset.fait] = inp.value === '' ? null : Number(inp.value);
+    });
+    // Le verdict ne se recalcule qu'à la sortie du champ : le refaire à chaque
+    // frappe redessinerait la rangée sous les doigts et perdrait le curseur.
+    inp.addEventListener('change', renderFaits);
+  });
+}
+
+/* --- Points de distribution ----------------------------------------------- */
+
+function renderPoints(){
+  const box = document.getElementById('pointsListe');
+  box.innerHTML = (salle.pointsDistribution || []).map((p, i)=>`
+    <div class="ligne-liste">
+      <input type="text" data-pt="${i}" data-f="position" value="${escapeAttr(p.position || '')}" placeholder="Position — jardin, sous scène…">
+      <input type="text" data-pt="${i}" data-f="notes" value="${escapeAttr(p.notes || '')}" placeholder="Précisions — 125 A, P17, différentiel…">
+      <button type="button" class="m-icone danger" data-suppr-pt="${i}" title="Retirer" aria-label="Retirer ce point">✕</button>
+    </div>`).join('') || '<p class="empty-hint" style="padding:4px 0;">Aucun point renseigné.</p>';
+  box.querySelectorAll('[data-pt]').forEach(inp=> inp.addEventListener('input', ()=>{
+    salle.pointsDistribution[Number(inp.dataset.pt)][inp.dataset.f] = inp.value;
+  }));
+  box.querySelectorAll('[data-suppr-pt]').forEach(b=> b.addEventListener('click', ()=>{
+    salle.pointsDistribution.splice(Number(b.dataset.supprPt), 1);
+    renderPoints();
+  }));
+}
+
+/* --- Contacts -------------------------------------------------------------- */
+
+function renderContacts(){
+  const box = document.getElementById('contactsListe');
+  box.innerHTML = (salle.contacts || []).map((c, i)=>`
+    <div class="ligne-liste">
+      <input type="text" data-ct="${i}" data-f="nom" value="${escapeAttr(c.nom || '')}" placeholder="Nom">
+      <input type="text" data-ct="${i}" data-f="role" value="${escapeAttr(c.role || '')}" placeholder="Rôle — régie générale">
+      <input type="tel" data-ct="${i}" data-f="tel" value="${escapeAttr(c.tel || '')}" placeholder="Téléphone">
+      <input type="email" data-ct="${i}" data-f="email" value="${escapeAttr(c.email || '')}" placeholder="E-mail">
+      <button type="button" class="m-icone danger" data-suppr-ct="${i}" title="Retirer" aria-label="Retirer ce contact">✕</button>
+    </div>`).join('') || '<p class="empty-hint" style="padding:4px 0;">Aucun contact — c\'est la première chose qui manque le jour J.</p>';
+  box.querySelectorAll('[data-ct]').forEach(inp=> inp.addEventListener('input', ()=>{
+    salle.contacts[Number(inp.dataset.ct)][inp.dataset.f] = inp.value;
+  }));
+  box.querySelectorAll('[data-suppr-ct]').forEach(b=> b.addEventListener('click', ()=>{
+    salle.contacts.splice(Number(b.dataset.supprCt), 1);
+    renderContacts();
+  }));
+}
+
+/* --- Leçons ---------------------------------------------------------------- */
+
+function renderLecons(){
+  const box = document.getElementById('leconsListe');
+  const liste = (salle.lecons || []).slice().sort((a,b)=> String(b.quand||'').localeCompare(String(a.quand||'')));
+  box.innerHTML = liste.map(l=>`
+    <div class="lecon">
+      <div class="quand">${escapeHtml(l.quand ? new Date(l.quand + 'T00:00:00').toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' }) : '—')}</div>
+      <div class="texte">${escapeHtml(l.texte || '')}
+        ${l.par ? `<span class="par">par ${escapeHtml(String(l.par).split('@')[0])}</span>` : ''}</div>
+      <button type="button" class="m-icone danger" data-suppr-lec="${escapeAttr(l.id)}" title="Retirer" aria-label="Retirer cette leçon">✕</button>
+    </div>`).join('') || '<p class="empty-hint" style="padding:4px 0;">Rien encore. La prochaine fois qu\'un montage réserve une surprise, c\'est ici que ça se note.</p>';
+  box.querySelectorAll('[data-suppr-lec]').forEach(b=> b.addEventListener('click', ()=>{
+    salle.lecons = salle.lecons.filter(x=> x.id !== b.dataset.supprLec);
+    renderLecons();
+  }));
+}
+
+/* --- Où on y a joué -------------------------------------------------------- */
+
+function renderDates(){
+  const liens = [];
+  moyensCache.filter(m=> m.salleId === SALLE_ID).forEach(m=>{
+    const t = tourneesCache.find(x=> x.id === m.tourneeId);
+    const d = t && (t.dates || []).find(x=> x.id === m.dateId);
+    if(!t || !d) return;
+    liens.push({ t, d });
+  });
+  liens.sort((a,b)=> (a.d.date || '').localeCompare(b.d.date || ''));
+  const groupe = document.getElementById('datesGroupe');
+  if(!liens.length){ groupe.hidden = true; return; }
+  groupe.hidden = false;
+  document.getElementById('datesListe').innerHTML = liens.map(({t, d})=>`
+    <div class="co-row">
+      <span class="co-row-name">
+        <b>${escapeHtml(d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'long', year:'numeric' }) : 'Date sans jour')}</b>
+        <small>${escapeHtml(t.nom || 'Tournée')}</small>
+      </span>
+      <a class="co-btn ghost sm" href="technique-date.html?t=${encodeURIComponent(t.id)}&d=${encodeURIComponent(d.id)}">Ouvrir la fiche</a>
+    </div>`).join('');
+}
+
+/* --- L'analyse de leur fiche technique ------------------------------------- */
+
+// Les lignes que l'extraction sait remplir sur une FICHE DE SALLE. Les repères
+// horaires et le nombre de semis n'y sont pas : ils appartiennent à la journée,
+// pas au lieu, et se règlent sur la fiche de date.
+const ANALYSE_SALLE = [
+  { groupe:'salle',        champ:'nom',                label:'Nom',                     cible:'fNom' },
+  { groupe:'salle',        champ:'ville',              label:'Ville',                   cible:'fVille' },
+  { groupe:'salle',        champ:'adresse',            label:'Adresse',                 cible:'fAdresse' },
+  { groupe:'scene',        champ:'hauteur_grill',      label:'Hauteur sous grill',      fait:'hauteurGrillM' },
+  { groupe:'scene',        champ:'ouverture_scene',    label:'Ouverture de scène',      fait:'ouvertureSceneM' },
+  { groupe:'scene',        champ:'profondeur_scene',   label:'Profondeur de scène',     fait:'profondeurSceneM' },
+  { groupe:'scene',        champ:'charge_max_accroche',label:'Charge à l’accroche',     fait:'chargeAccrocheKg' },
+  { groupe:'scene',        champ:'type_sol',           label:'Nature du plateau',       cible:'fTypeSol' },
+  { groupe:'electricite',  champ:'puissance',          label:'Puissance disponible',    fait:'puissanceA' },
+  { groupe:'electricite',  champ:'type_courant',       label:'Type de courant',         cible:'fTypeCourant' },
+  { groupe:'acces',        champ:'notes',              label:'Accès et déchargement',   cible:'fAccesNotes' },
+];
+
+// L'extraction rend le texte du document, unités comprises — « 14 m »,
+// « 500 kg / point », « 400 A ». Pour un champ mesurable, on en tire le premier
+// nombre ; et on le propose seulement si on a su le lire, avec la valeur
+// d'origine sous les yeux. Deviner à la place du document serait pire que rien.
+function premierNombre(texte){
+  const m = String(texte || '').replace(',', '.').match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+
+async function sonderAnalyse(){
+  try{
+    const rep = await fetch('/api/analyser-fiche', { method:'POST' });
+    if(rep.status === 401) document.getElementById('blocAnalyse').hidden = false;
+  }catch(e){}
+}
+
+function lireBase64(fichier){
+  return new Promise((resolve, reject)=>{
+    const lecteur = new FileReader();
+    lecteur.onload = ()=> resolve(String(lecteur.result).split(',')[1] || '');
+    lecteur.onerror = ()=> reject(new Error('Fichier illisible.'));
+    lecteur.readAsDataURL(fichier);
+  });
+}
+
+async function analyserFiche(){
+  const fichier = document.getElementById('fAnalyseFichier').files[0];
+  const statutEl = document.getElementById('analyseStatut');
+  const btn = document.getElementById('analyserBtn');
+  if(!fichier) return;
+  if(fichier.size > ANALYSE_TAILLE_MAX){ statutEl.textContent = 'Trop lourd — 3 Mo maximum.'; return; }
+  const session = await CurieuxDB.getSession();
+  if(!session){ statutEl.textContent = 'Session expirée — reconnecte-toi.'; return; }
+
+  btn.disabled = true;
+  document.getElementById('analyseResultat').style.display = 'none';
+  statutEl.textContent = 'Lecture en cours — compte une minute…';
+  try{
+    const base64 = await lireBase64(fichier);
+    const rep = await fetch('/api/analyser-fiche', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token },
+      body: JSON.stringify({ fichier: base64, mediaType: fichier.type, nomFichier: fichier.name })
+    });
+    const data = await rep.json().catch(()=> ({}));
+    if(!rep.ok) throw new Error(data.erreur || `Erreur ${rep.status}.`);
+    analyseExtraction = data.extraction;
+    statutEl.textContent = '';
+    renderAnalyse();
+  }catch(e){
+    statutEl.textContent = e.message || "L'analyse a échoué.";
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+function valeurActuelle(def){
+  if(def.fait){ const v = salle[def.fait]; return v == null ? '' : String(v); }
+  const el = document.getElementById(def.cible);
+  return el ? String(el.value || '').trim() : '';
+}
+
+function renderAnalyse(){
+  const box = document.getElementById('analyseResultat');
+  const ex = analyseExtraction;
+  if(!ex){ box.style.display = 'none'; return; }
+  const blocs = [];
+
+  const lignes = ANALYSE_SALLE.map((def, i)=>{
+    const brut = String(((ex[def.groupe] || {})[def.champ]) || '').trim();
+    if(!brut) return '';
+    const actuel = valeurActuelle(def);
+    const nombre = def.fait ? premierNombre(brut) : null;
+    const lisible = !def.fait || nombre != null;
+    const affiche = def.fait && nombre != null
+      ? `${nombre} ${SALLE_FAITS.find(f=> f.cle === def.fait).unite}  —  lu dans « ${brut} »`
+      : brut;
+    return `
+      <div class="ana-ligne">
+        <input type="checkbox" data-champ="${i}" ${lisible && !actuel ? 'checked' : ''} ${lisible ? '' : 'disabled'}>
+        <div class="ana-corps">
+          <div class="ana-champ">${escapeHtml(def.label)}</div>
+          <div class="ana-valeur">${escapeHtml(affiche)}</div>
+          ${actuel ? `<div class="ana-actuel">Actuellement : ${escapeHtml(actuel)} — décoche pour garder.</div>` : ''}
+          ${lisible ? '' : `<div class="ana-actuel">Aucun nombre lisible là-dedans — à saisir à la main.</div>`}
+        </div>
+      </div>`;
+  }).filter(Boolean).join('');
+  if(lignes) blocs.push(`<div class="ana-bloc"><h4>Informations trouvées</h4>${lignes}</div>`);
+
+  const contacts = (ex.contacts || []).filter(c=> c.nom || c.tel || c.email);
+  if(contacts.length){
+    blocs.push(`<div class="ana-bloc"><h4>Contacts</h4>${contacts.map((c,i)=>`
+      <div class="ana-ligne">
+        <input type="checkbox" data-contact="${i}" checked>
+        <div class="ana-corps">
+          <div class="ana-valeur">${escapeHtml([c.nom, c.role].filter(Boolean).join(' — ')) || 'Contact'}</div>
+          <div class="ana-actuel">${escapeHtml([c.tel, c.email].filter(Boolean).join(' · ')) || 'Pas de coordonnées'}</div>
+        </div>
+      </div>`).join('')}</div>`);
+  }
+
+  const points = ex.points_attention || [];
+  if(points.length){
+    const ordre = { manquant:0, attention:1, info:2 };
+    const etiquette = { manquant:'Manquant', attention:'Attention', info:'Info' };
+    blocs.push(`<div class="ana-bloc"><h4>Points à vérifier</h4>${points.slice().sort((a,b)=> (ordre[a.niveau] ?? 3) - (ordre[b.niveau] ?? 3)).map(p=>`
+      <div class="ana-point ${p.niveau === 'manquant' || p.niveau === 'attention' ? p.niveau : 'info'}">
+        <span class="ana-pastille">${etiquette[p.niveau] || 'Info'}</span>
+        <div>
+          <b>${escapeHtml(p.libelle || '')}</b>
+          ${p.detail ? `<span class="ana-detail">${escapeHtml(p.detail)}</span>` : ''}
+        </div>
+      </div>`).join('')}</div>`);
+  }
+
+  if(!blocs.length){
+    box.innerHTML = `<p class="empty-hint" style="padding:8px 0;">Rien d'exploitable n'a été trouvé dans ce document.</p>`;
+    box.style.display = 'block';
+    return;
+  }
+  box.innerHTML = blocs.join('') + `
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <button type="button" class="co-btn secondary sm" id="appliquerAnalyseBtn">Appliquer ce qui est coché</button>
+      <button type="button" class="co-btn ghost sm" id="fermerAnalyseBtn">Fermer</button>
+      <span style="font-size:12px; color:var(--muted);">Puis « Enregistrer » en bas de page.</span>
+    </div>`;
+  box.style.display = 'block';
+  document.getElementById('appliquerAnalyseBtn').addEventListener('click', appliquerAnalyse);
+  document.getElementById('fermerAnalyseBtn').addEventListener('click', ()=>{
+    analyseExtraction = null;
+    box.style.display = 'none';
+  });
+}
+
+function appliquerAnalyse(){
+  const box = document.getElementById('analyseResultat');
+  const ex = analyseExtraction;
+  if(!ex) return;
+  box.querySelectorAll('[data-champ]:checked').forEach(chk=>{
+    const def = ANALYSE_SALLE[Number(chk.dataset.champ)];
+    const brut = String(((ex[def.groupe] || {})[def.champ]) || '').trim();
+    if(def.fait){
+      const n = premierNombre(brut);
+      if(n != null) salle[def.fait] = n;
+      return;
+    }
+    const el = document.getElementById(def.cible);
+    if(el) el.value = brut;
+  });
+  box.querySelectorAll('[data-contact]:checked').forEach(chk=>{
+    const c = (ex.contacts || [])[Number(chk.dataset.contact)];
+    if(!c) return;
+    salle.contacts.push({ nom:c.nom || '', role:c.role || '', tel:c.tel || '', email:c.email || '' });
+  });
+  analyseExtraction = null;
+  box.style.display = 'none';
+  document.getElementById('analyseStatut').textContent = 'Appliqué — pense à enregistrer.';
+  renderFaits();
+  renderContacts();
+}
+
+/* --- Enregistrer ----------------------------------------------------------- */
+
+function lireFormulaire(){
+  salle.nom = document.getElementById('fNom').value.trim();
+  salle.ville = document.getElementById('fVille').value.trim();
+  salle.adresse = document.getElementById('fAdresse').value.trim();
+  salle.ficheUrl = document.getElementById('fFicheUrl').value.trim();
+  salle.typeCourant = document.getElementById('fTypeCourant').value.trim();
+  salle.typeSol = document.getElementById('fTypeSol').value.trim();
+  salle.accesNotes = document.getElementById('fAccesNotes').value;
+  salle.notes = document.getElementById('fNotes').value;
+}
+
+async function enregistrer(){
+  lireFormulaire();
+  const etat = document.getElementById('etat');
+  etat.textContent = 'Enregistrement…';
+  const { error } = await CurieuxDB.upsertOne('salles', salle);
+  etat.textContent = error ? "Échec de l'enregistrement — réessaie."
+                           : 'Enregistré à ' + new Date().toLocaleTimeString('fr-FR');
+  majTitre();
+}
+
+function majTitre(){
+  document.getElementById('titre').textContent = salleLibelle(salle) || 'Fiche de salle';
+  document.title = 'Curieux orchestre — ' + (salle.nom || 'Fiche de salle');
+}
+
+/* --- Chargement ------------------------------------------------------------ */
+
+function peupler(){
+  document.getElementById('fNom').value = salle.nom || '';
+  document.getElementById('fVille').value = salle.ville || '';
+  document.getElementById('fAdresse').value = salle.adresse || '';
+  document.getElementById('fFicheUrl').value = salle.ficheUrl || '';
+  document.getElementById('fTypeCourant').value = salle.typeCourant || '';
+  document.getElementById('fTypeSol').value = salle.typeSol || '';
+  document.getElementById('fAccesNotes').value = salle.accesNotes || '';
+  document.getElementById('fNotes').value = salle.notes || '';
+  renderFaits();
+  renderPoints();
+  renderContacts();
+  renderLecons();
+  renderDates();
+  majTitre();
+}
+
+async function initData(){
+  let session;
+  [salle, tourneesCache, moyensCache, session] = await Promise.all([
+    CurieuxDB.fetchOne('salles', SALLE_ID),
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('moyens_salle'),
+    CurieuxDB.getSession(),
+  ]);
+  monEmail = (session && session.user && session.user.email) || '';
+  if(!salle){ document.getElementById('introuvable').hidden = false; return; }
+  // Les tableaux jsonb peuvent revenir absents d'une ligne créée ailleurs.
+  salle.pointsDistribution = salle.pointsDistribution || [];
+  salle.contacts = salle.contacts || [];
+  salle.lecons = salle.lecons || [];
+
+  tourneesCache = tourneesCache.filter(t=> t.type !== 'recording');
+  const sel = document.getElementById('gabaritSelect');
+  sel.innerHTML = '<option value="">Sans gabarit — juste les faits</option>'
+    + tourneesCache.map(t=>{
+        const pose = !gabaritVide(gabaritDe(t));
+        return `<option value="${escapeAttr(t.id)}">Gabarit : ${escapeHtml(t.nom || 'Tournée')}${pose ? '' : ' (non posé)'}</option>`;
+      }).join('');
+  sel.addEventListener('change', renderFaits);
+
+  document.getElementById('corps').hidden = false;
+  peupler();
+  sonderAnalyse();
+}
+
+document.getElementById('addPoint').addEventListener('click', ()=>{
+  // Même forme que sur la fiche de date ({id, position, notes}) : le lien
+  // recopie la liste telle quelle vers la date, et la page salle comme le PDF
+  // continuent de la lire sans rien savoir des fiches de salle.
+  salle.pointsDistribution.push({ id: genId('distrib'), position:'', notes:'' });
+  renderPoints();
+});
+document.getElementById('addContact').addEventListener('click', ()=>{
+  salle.contacts.push({ nom:'', role:'', tel:'', email:'' });
+  renderContacts();
+});
+document.getElementById('addLecon').addEventListener('click', ()=>{
+  const champ = document.getElementById('fLecon');
+  const texte = champ.value.trim();
+  if(!texte) { champ.focus(); return; }
+  salle.lecons.push({ id: genId('lecon'), quand: new Date().toISOString().slice(0,10), texte, par: monEmail });
+  champ.value = '';
+  renderLecons();
+});
+document.getElementById('fLecon').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('addLecon').click(); }
+});
+document.getElementById('fAnalyseFichier').addEventListener('change', (e)=>{
+  const f = e.target.files[0];
+  document.getElementById('analyserBtn').disabled = !f;
+  document.getElementById('analyseStatut').textContent = (f && f.size > ANALYSE_TAILLE_MAX)
+    ? `Trop lourd (${(f.size/1024/1024).toFixed(1)} Mo) — il faut le compresser sous 3 Mo.` : '';
+});
+document.getElementById('analyserBtn').addEventListener('click', analyserFiche);
+document.getElementById('enregistrerBtn').addEventListener('click', enregistrer);
+document.getElementById('supprimerBtn').addEventListener('click', async ()=>{
+  const n = moyensCache.filter(m=> m.salleId === SALLE_ID).length;
+  const avert = n
+    ? `\n\n${n} date${n > 1 ? 's' : ''} y ${n > 1 ? 'sont reliées' : 'est reliée'} : ${n > 1 ? 'elles perdront' : 'elle perdra'} le lien, mais rien d'autre.`
+    : '';
+  if(!confirm(`Supprimer la fiche de « ${salle.nom || 'cette salle'} » ?${avert}`)) return;
+  await CurieuxDB.removeOne('salles', SALLE_ID);
+  location.href = 'salles.html';
+});
+
+initData();
+</script>
+</body>
+</html>

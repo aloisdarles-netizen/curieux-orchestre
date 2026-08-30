@@ -461,6 +461,7 @@ const CURIEUX_NAV = [
   { type:'groupe', libelle:'Direction technique', entrees:[
     { href:'technique-taches.html',   icone:'icone-technique-avancement.svg', libelle:'Tableau de bord' },
     { href:'technique.html',          icone:'icone-technique-avancement.svg', libelle:'Avancement par date' },
+    { href:'salles.html',             icone:'icone-technique-fiches.svg',     libelle:'Salles' },
     { href:'materiel.html',           icone:'icone-technique-materiel.svg',   libelle:'Matériel' },
     { href:'vehicules.html',          icone:'icone-technique-vehicules.svg',  libelle:'Véhicules & chauffeurs' },
     { href:'fiches-techniques.html',  icone:'icone-technique-fiches.svg',     libelle:'Fiches techniques' },

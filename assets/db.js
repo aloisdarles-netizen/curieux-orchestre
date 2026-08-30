@@ -41,6 +41,15 @@ if(!supabaseClient){
 // --- Adaptateurs JS <-> colonnes SQL (pour les tables à colonnes réelles) ---
 const CurieuxDB = (()=>{
 
+  // « 12 » et « 12,5 » viennent d'un <input type=number> ; '' vient d'un champ
+  // vidé, et doit redevenir NULL et non 0 — sans quoi une salle non renseignée
+  // annoncerait zéro mètre sous grill et échouerait tout gabarit.
+  function _nombreOuNull(v){
+    if(v === '' || v === null || v === undefined) return null;
+    const n = Number(String(v).replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+
   const ADAPTERS = {
     musiciens: {
       toDb: (m)=> ({
@@ -178,6 +187,10 @@ const CurieuxDB = (()=>{
         // disait, et ce n'est pas déductible : la fiche part souvent par un
         // canal que l'outil ne voit pas. L'avancement compte ce poste-là.
         fiche_envoyee_le: m.ficheEnvoyeeLe || null,
+        // La salle où se joue cette date, quand on l'a reliée à une fiche de
+        // salle. Les colonnes de faits ci-dessus restent lues tant que le lien
+        // n'existe pas : relier une date ne perd rien de ce qui y est saisi.
+        salle_id: m.salleId || null,
         notes: m.notes || ''
       }),
       fromDb: (r)=> ({
@@ -215,12 +228,49 @@ const CurieuxDB = (()=>{
         planImagePath: r.plan_image_path || '',
         semisPositions: r.semis_positions || [],
         ficheEnvoyeeLe: r.fiche_envoyee_le || '',
+        salleId: r.salle_id || '',
         notes: r.notes || '',
         // La version lue, pour que la fiche de date puisse écrire « si personne
         // n'a écrit entre-temps » (upsertOneVersionne). Sans elle, un onglet
         // resté ouvert écrasait en silence la vacation que la salle venait de
         // confirmer et les horaires que le stage manager venait de poser.
         _updatedAt: r.updated_at
+      })
+    },
+    // Une salle vit pour elle-même et survit aux tournées : jouer deux fois au
+    // même endroit ne doit pas obliger à ressaisir grill, puissance, charge à
+    // l'accroche et contacts. Les faits mesurables sont numériques, d'unité
+    // fixe (m, A, kg) — c'est ce qui permet de les comparer au gabarit de la
+    // tournée ; le reste est du texte, parce qu'il ne se compare pas.
+    salles: {
+      toDb: (s)=> ({
+        id: s.id, nom: s.nom || '', ville: s.ville || '', adresse: s.adresse || '',
+        // null et non 0 : « pas renseigné » n'est pas « zéro mètre ».
+        hauteur_grill_m:    _nombreOuNull(s.hauteurGrillM),
+        ouverture_scene_m:  _nombreOuNull(s.ouvertureSceneM),
+        profondeur_scene_m: _nombreOuNull(s.profondeurSceneM),
+        puissance_a:        _nombreOuNull(s.puissanceA),
+        charge_accroche_kg: _nombreOuNull(s.chargeAccrocheKg),
+        type_courant: s.typeCourant || '', type_sol: s.typeSol || '',
+        acces_notes: s.accesNotes || '',
+        points_distribution: s.pointsDistribution || [],
+        contacts: s.contacts || [],
+        lecons: s.lecons || [],
+        notes: s.notes || '', fiche_url: s.ficheUrl || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, nom: r.nom || '', ville: r.ville || '', adresse: r.adresse || '',
+        hauteurGrillM:    r.hauteur_grill_m    == null ? null : Number(r.hauteur_grill_m),
+        ouvertureSceneM:  r.ouverture_scene_m  == null ? null : Number(r.ouverture_scene_m),
+        profondeurSceneM: r.profondeur_scene_m == null ? null : Number(r.profondeur_scene_m),
+        puissanceA:       r.puissance_a        == null ? null : Number(r.puissance_a),
+        chargeAccrocheKg: r.charge_accroche_kg == null ? null : Number(r.charge_accroche_kg),
+        typeCourant: r.type_courant || '', typeSol: r.type_sol || '',
+        accesNotes: r.acces_notes || '',
+        pointsDistribution: r.points_distribution || [],
+        contacts: r.contacts || [],
+        lecons: r.lecons || [],
+        notes: r.notes || '', ficheUrl: r.fiche_url || ''
       })
     },
     // Registre partagé des prestataires (provenance matériel, loueur véhicule).

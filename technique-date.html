@@ -8,6 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/salles.js"></script>
 <script src="assets/nav.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -155,6 +156,41 @@
     </div>
   </div>
 
+  <!-- La salle où se joue cette date.
+
+       « C'est moi qui rentre les infos de la salle à chaque fois » : il
+       n'existait pas d'entité salle, le lieu était un texte libre posé sur une
+       date, et jouer deux fois au même endroit obligeait à tout ressaisir.
+       Relier cette date à une fiche de salle règle ça une fois pour toutes.
+
+       Ce que la fiche de salle porte (faits mesurables, accès, points de
+       distribution, contacts) est alors recopié dans cette date à
+       l'enregistrement : la page salle, le PDF et les liens partagés
+       continuent de lire la date, sans rien savoir des fiches de salle. -->
+  <fieldset class="groupe" id="blocSalle">
+    <legend>Salle</legend>
+    <div id="salleNonLiee">
+      <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Relie cette date à une fiche de salle : les faits techniques, l'accès, les points de distribution et les contacts viendront de là, et n'auront plus à être ressaisis la prochaine fois qu'on y joue.</p>
+      <div class="field-row" style="align-items:flex-end;">
+        <div class="field"><label for="fSalleChoix">Salle existante</label><select id="fSalleChoix"></select></div>
+        <div class="field" style="flex:0 0 auto;"><button type="button" class="co-btn secondary" id="lierSalleBtn">Relier</button></div>
+        <div class="field" style="flex:0 0 auto;"><button type="button" class="co-btn ghost" id="creerSalleBtn" title="Crée la fiche à partir de ce qui est déjà saisi sur cette date — rien à retaper">Créer la fiche depuis cette date</button></div>
+      </div>
+    </div>
+    <div id="salleLieeBloc" hidden>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+        <b id="salleLieeNom" style="font-size:15px;"></b>
+        <span id="salleLieeVerdict"></span>
+        <span style="margin-left:auto; display:flex; gap:8px;">
+          <a class="co-btn secondary sm" id="salleLieeLien" href="#">Ouvrir la fiche de salle</a>
+          <button type="button" class="co-btn ghost sm" id="delierSalleBtn" title="La date garde tout ce qui y est écrit, elle cesse simplement de suivre la fiche de salle">Délier</button>
+        </span>
+      </div>
+      <div id="salleLieeFaits" class="field-row" style="gap:14px;"></div>
+      <p class="aide-champ" style="margin-top:8px;">Ces faits se modifient sur la fiche de salle, et sont recopiés ici à l'enregistrement.</p>
+    </div>
+  </fieldset>
+
   <!-- Lire une fiche technique de salle.
 
        Ce bloc existait EN DOUBLE, avec les mêmes identifiants : un exemplaire
@@ -264,7 +300,7 @@
     <legend>Déchargement</legend>
     <div class="field"><label for="fNombreSemis">Semis en simultané</label><input type="number" id="fNombreSemis" min="0" step="1"></div>
     <div class="emplacement-liste" id="emplacementsListe"></div>
-    <div class="field"><label for="fAccesNotes">Notes d'accès</label><textarea id="fAccesNotes" placeholder="Marches, largeur de porte, distance…"></textarea></div>
+    <div class="field" id="champAccesNotes"><label for="fAccesNotes">Notes d'accès</label><textarea id="fAccesNotes" placeholder="Marches, largeur de porte, distance…"></textarea></div>
   </fieldset>
 
   <fieldset class="groupe">
@@ -300,7 +336,7 @@
     <button type="button" class="co-btn secondary sm" id="addRiggBtn">+ Ajouter une vacation</button>
   </fieldset>
 
-  <fieldset class="groupe">
+  <fieldset class="groupe" id="groupeFaits">
     <legend>Faits techniques</legend>
     <div class="field-row">
       <div class="field"><label for="fHauteurGrill">Hauteur de grill</label><input type="text" id="fHauteurGrill" placeholder="Ex: 14 m"></div>
@@ -320,7 +356,7 @@
   <!-- Le pendant côté salle des points de puissance demandés par la tournée
        (réglés une fois pour toutes dans Direction technique) : où cette salle-ci
        met son jus à disposition. Ça change à chaque date, donc ça vit ici. -->
-  <fieldset class="groupe">
+  <fieldset class="groupe" id="groupeDistribution">
     <legend>Points de distribution électrique de la salle</legend>
     <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Où la salle nous donne le courant. Les points de puissance <em>demandés</em> par la tournée se règlent une fois pour toutes depuis Direction technique.</p>
     <div id="distributionListe"></div>
@@ -329,9 +365,12 @@
 
   <fieldset class="groupe">
     <legend>Contacts</legend>
-    <label style="display:block; margin-bottom:8px;">Contacts côté salle</label>
-    <div id="contactsSalleListe"></div>
-    <button type="button" class="co-btn secondary sm" id="addContactSalleBtn">+ Ajouter un contact</button>
+    <div id="contactsSalleBloc">
+      <label style="display:block; margin-bottom:8px;">Contacts côté salle</label>
+      <div id="contactsSalleListe"></div>
+      <button type="button" class="co-btn secondary sm" id="addContactSalleBtn">+ Ajouter un contact</button>
+    </div>
+    <p class="aide-champ" id="contactsSalleRenvoi" hidden style="margin-bottom:16px;">Les contacts de la salle se tiennent sur sa fiche — ils sont recopiés ici à l'enregistrement.</p>
 
     <label style="display:block; margin:16px 0 8px;">Technicien·nes affecté·es à exposer comme contact production</label>
     <div id="contactsTechniciensListe" style="display:flex; flex-direction:column; gap:6px;"></div>
@@ -967,6 +1006,7 @@ function peupler(){
   renderDistribution();
   renderContactsSalle();
   renderContactsTechniciens();
+  renderSalle();
 
   if(moyens.planImagePath && supabaseClient){
     const { data } = supabaseClient.storage.from('fiches-techniques').getPublicUrl(moyens.planImagePath);
@@ -1213,6 +1253,142 @@ function appliquerAnalyse(){
   document.getElementById('analyseStatut').textContent = "Appliqué — pense à enregistrer en bas de page.";
 }
 
+// ============================================================================
+// La salle où se joue cette date
+//
+// Le lieu était un texte libre posé sur la date : jouer deux fois au même
+// endroit obligeait à ressaisir grill, puissance, charge à l'accroche, accès et
+// contacts. Relier la date à une fiche de salle règle ça une fois pour toutes.
+//
+// La fiche de salle devient alors la source ; la date en garde une COPIE,
+// recopiée à chaque enregistrement. C'est délibéré : la page salle, le PDF
+// envoyé à la salle et les liens partagés lisent la date et continuent de
+// fonctionner sans rien savoir des fiches de salle.
+// ============================================================================
+let sallesCache = [], salleLiee = null;
+
+// « 14 » + « m » → « 14 m ». Vide si le fait n'est pas renseigné : mieux vaut
+// une case vide qu'un « 0 m » que personne n'a écrit.
+function faitEnTexte(valeur, unite){
+  return (valeur == null || valeur === '') ? '' : `${valeur} ${unite}`;
+}
+
+function recopierSalleDansMoyens(){
+  if(!salleLiee) return;
+  moyens.hauteurGrill      = faitEnTexte(salleLiee.hauteurGrillM, 'm');
+  moyens.ouvertureScene    = faitEnTexte(salleLiee.ouvertureSceneM, 'm');
+  moyens.profondeurScene   = faitEnTexte(salleLiee.profondeurSceneM, 'm');
+  moyens.puissance         = faitEnTexte(salleLiee.puissanceA, 'A');
+  moyens.chargeMaxAccroche = faitEnTexte(salleLiee.chargeAccrocheKg, 'kg');
+  moyens.typeCourant       = salleLiee.typeCourant || '';
+  moyens.typeSol           = salleLiee.typeSol || '';
+  moyens.accesNotes        = salleLiee.accesNotes || '';
+  // Copies, jamais les mêmes tableaux : sans quoi éditer la date modifierait
+  // l'objet de la salle resté en mémoire.
+  moyens.pointsDistribution = (salleLiee.pointsDistribution || []).map(p=> ({ ...p }));
+  moyens.contactsSalle      = (salleLiee.contacts || []).map(c=> ({ ...c }));
+}
+
+// Créer la fiche depuis la date : elle part de ce qui est DÉJÀ saisi ici. Rien
+// à retaper, rien de perdu — et les faits mesurables se déduisent du texte
+// quand ils sont lisibles (« 14 m » → 14), sinon ils restent vides.
+function premierNombre(texte){
+  const m = String(texte || '').replace(',', '.').match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+function salleDepuisDate(){
+  return {
+    id: genId('salle'),
+    nom: dateEntry.lieu || dateEntry.ville || 'Salle sans nom',
+    ville: dateEntry.ville || '',
+    adresse: '',
+    hauteurGrillM:    premierNombre(moyens.hauteurGrill),
+    ouvertureSceneM:  premierNombre(moyens.ouvertureScene),
+    profondeurSceneM: premierNombre(moyens.profondeurScene),
+    puissanceA:       premierNombre(moyens.puissance),
+    chargeAccrocheKg: premierNombre(moyens.chargeMaxAccroche),
+    typeCourant: moyens.typeCourant || '',
+    typeSol: moyens.typeSol || '',
+    accesNotes: moyens.accesNotes || '',
+    pointsDistribution: (moyens.pointsDistribution || []).map(p=> ({ ...p })),
+    contacts: (moyens.contactsSalle || []).map(c=> ({ ...c })),
+    lecons: [], notes: '', ficheUrl: '',
+  };
+}
+
+function renderSalle(){
+  salleLiee = moyens.salleId ? (sallesCache.find(s=> s.id === moyens.salleId) || null) : null;
+  const nonLiee = document.getElementById('salleNonLiee');
+  const liee = document.getElementById('salleLieeBloc');
+
+  // Les blocs que la fiche de salle prend en charge s'effacent quand elle est
+  // reliée : les laisser modifiables donnerait deux vérités pour un seul fait.
+  ['groupeFaits', 'groupeDistribution', 'champAccesNotes', 'contactsSalleBloc'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.hidden = !!salleLiee;
+  });
+  document.getElementById('contactsSalleRenvoi').hidden = !salleLiee;
+
+  if(!salleLiee){
+    nonLiee.hidden = false; liee.hidden = true;
+    const sel = document.getElementById('fSalleChoix');
+    const attendu = (dateEntry.lieu || dateEntry.ville || '').toLowerCase();
+    const triees = sallesCache.slice().sort((a,b)=> (a.ville||'').localeCompare(b.ville||'', 'fr') || (a.nom||'').localeCompare(b.nom||'', 'fr'));
+    sel.innerHTML = triees.length
+      ? '<option value="">— Choisir —</option>' + triees.map(x=>
+          `<option value="${escapeAttr(x.id)}" ${attendu && (x.nom||'').toLowerCase() === attendu ? 'selected' : ''}>${escapeHtml(salleLibelle(x))}</option>`).join('')
+      : '<option value="">Aucune fiche de salle pour l’instant</option>';
+    return;
+  }
+
+  nonLiee.hidden = true; liee.hidden = false;
+  document.getElementById('salleLieeNom').textContent = salleLibelle(salleLiee);
+  document.getElementById('salleLieeLien').href = 'salle.html?id=' + encodeURIComponent(salleLiee.id);
+
+  const gab = gabaritDe(tournee);
+  const v = verdictSalle(salleLiee, gab);
+  document.getElementById('salleLieeVerdict').innerHTML = gabaritVide(gab) ? ''
+    : `<span class="co-pill ${VERDICT_SEV[v.etat] || ''}" title="${escapeAttr(v.resume)}">${escapeHtml(VERDICT_LIBELLE[v.etat])}</span>`;
+
+  document.getElementById('salleLieeFaits').innerHTML = SALLE_FAITS.map(f=>`
+    <div class="field" style="flex:1 1 130px;">
+      <label>${escapeHtml(f.label)}</label>
+      <b style="font-size:14px;">${escapeHtml(salleFaitTexte(salleLiee, f))}</b>
+    </div>`).join('')
+    + [['Type de courant', salleLiee.typeCourant], ['Nature du plateau', salleLiee.typeSol]].map(([lib, val])=>`
+    <div class="field" style="flex:1 1 130px;">
+      <label>${escapeHtml(lib)}</label>
+      <b style="font-size:14px;">${escapeHtml(val || '—')}</b>
+    </div>`).join('');
+}
+
+document.getElementById('lierSalleBtn').addEventListener('click', async ()=>{
+  const id = document.getElementById('fSalleChoix').value;
+  if(!id){ alert('Choisis une salle, ou crée sa fiche depuis cette date.'); return; }
+  moyens.salleId = id;
+  renderSalle();
+  await enregistrer();
+});
+document.getElementById('creerSalleBtn').addEventListener('click', async ()=>{
+  const brouillon = salleDepuisDate();
+  const nom = prompt('Nom de la salle ?', brouillon.nom);
+  if(!nom || !nom.trim()) return;
+  brouillon.nom = nom.trim();
+  const { error } = await CurieuxDB.upsertOne('salles', brouillon);
+  if(error){ alert("La fiche n'a pas pu être créée — réessaie."); return; }
+  sallesCache.push(brouillon);
+  moyens.salleId = brouillon.id;
+  renderSalle();
+  await enregistrer();
+});
+document.getElementById('delierSalleBtn').addEventListener('click', async ()=>{
+  if(!confirm('Délier cette date de sa fiche de salle ?\n\nLa date garde tout ce qui y est écrit — elle cesse simplement de suivre la fiche.')) return;
+  moyens.salleId = '';
+  renderSalle();
+  peupler();
+  await enregistrer();
+});
+
 async function enregistrer(){
   moyens.planStatut = document.getElementById('fPlanStatut').value;
   moyens.planValideNous = document.getElementById('fPlanValideNous').checked;
@@ -1238,6 +1414,11 @@ async function enregistrer(){
   moyens.typeCourant = document.getElementById('fTypeCourant').value.trim();
   moyens.chargeMaxAccroche = document.getElementById('fChargeAccroche').value.trim();
   moyens.typeSol = document.getElementById('fTypeSol').value.trim();
+
+  // La fiche de salle est la source : ce qu'elle porte écrase ici la copie,
+  // après lecture des champs (qui sont masqués quand elle est reliée, donc
+  // vides ou périmés). L'ordre compte — recopier avant lirait la copie.
+  recopierSalleDansMoyens();
   moyens.notes = document.getElementById('fNotes').value.trim();
 
   const statutEl = document.getElementById('saveStatus');
@@ -1304,14 +1485,18 @@ CurieuxDB.subscribe('moyens_salle', ()=>{
   });
 });
 CurieuxDB.subscribe('remarques', ()=> renderRemarques());
+// La fiche de salle peut être modifiée depuis son propre écran pendant qu'on
+// est ici : sans ça, on enregistrerait une copie périmée.
+CurieuxDB.subscribe('salles', ()=> CurieuxDB.fetchAll('salles').then(l=>{ sallesCache = l; curieuxRafraichir(renderSalle); }));
 
 async function init(){
   if(!tourneeId || !dateId){ document.getElementById('titre').textContent = 'Lien incomplet'; return; }
-  const [tournees, moyensListe, techniciens, vehicules, remarques] = await Promise.all([
+  const [tournees, moyensListe, techniciens, vehicules, remarques, salles] = await Promise.all([
     CurieuxDB.fetchAll('tournees'), CurieuxDB.fetchAll('moyens_salle'),
     CurieuxDB.fetchAll('techniciens'), CurieuxDB.fetchAll('vehicules'),
-    CurieuxDB.fetchAll('remarques'),
+    CurieuxDB.fetchAll('remarques'), CurieuxDB.fetchAll('salles'),
   ]);
+  sallesCache = salles;
   tournee = tournees.find(t=>t.id === tourneeId);
   techniciensCache = techniciens; vehiculesCache = vehicules;
   remarquesCache = remarques;

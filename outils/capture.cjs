@@ -515,16 +515,41 @@ async function preparerContexte(ctx) {
     contentType: 'application/javascript; charset=utf-8',
     body: `
 const __seed = ${JSON.stringify(SEED)};
+// Ce que les pages ont ÉCRIT pendant la capture ou le test. Un scénario qui
+// vérifie un enregistrement n'a aucun autre moyen de le voir : la page ne
+// redessine pas toujours ce qu'elle vient d'envoyer.
+window.__ecrits = [];
 const CurieuxDB = new Proxy({
   fetchAll: async t => JSON.parse(JSON.stringify(__seed[t] || [])),
-  fetchOne: async () => null,
+  // Lit le jeu de démo, comme fetchAll : une page de détail (fiche de salle,
+  // devis…) rendait sinon « introuvable » alors que la ligne est dans le seed.
+  fetchOne: async (t, id) => {
+    const r = (__seed[t] || []).find(x => x && x.id === id);
+    return r ? JSON.parse(JSON.stringify(r)) : null;
+  },
   // Rend null, comme la base quand aucun instantané n'existe encore — la
   // liste vide du Proxy ferait croire à un instantané présent mais sans entries.
   fetchSnapshot: async () => null,
   subscribe: () => {},
-  syncCollection: async () => ({ error: null }),
-  upsertOne: async () => ({ error: null }),
-  upsertOneVersionne: async () => ({ error: null, _updatedAt: 'demo-version' }),
+  syncCollection: async (t, rows) => { window.__ecrits.push({ table: t, rows }); return { error: null }; },
+  upsertOne: async (t, row) => {
+    window.__ecrits.push({ table: t, rows: [row] });
+    // L'écriture rejoint le seed : une page qui relit juste après (ou une autre
+    // page du même scénario) doit retrouver ce qu'elle vient d'écrire.
+    const liste = __seed[t] || (__seed[t] = []);
+    const i = liste.findIndex(x => x && x.id === row.id);
+    if (i >= 0) liste[i] = JSON.parse(JSON.stringify(row)); else liste.push(JSON.parse(JSON.stringify(row)));
+    return { error: null };
+  },
+  removeOne: async (t, id) => {
+    window.__ecrits.push({ table: t, supprime: id });
+    if (__seed[t]) __seed[t] = __seed[t].filter(x => !x || x.id !== id);
+    return { error: null };
+  },
+  upsertOneVersionne: async (t, row) => {
+    window.__ecrits.push({ table: t, rows: [row], versionne: true });
+    return { error: null, _updatedAt: 'demo-version' };
+  },
   // Une Map, comme le vrai : le Proxy rendrait un tableau, et .get() exploserait.
   jetonsPermanentsPour: async () => new Map(),
   getSession: async () => ({ user:{ id:'demo', email:'demo@curieux.fr' } }),
