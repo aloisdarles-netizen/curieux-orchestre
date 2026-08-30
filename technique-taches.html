@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Curieux orchestre — Tableau de bord technique (maquette)</title>
+<title>Curieux orchestre — Tableau de bord technique</title>
 <script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/technique-avancement.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
@@ -15,11 +16,13 @@
 <style>
   .wrap{max-width:min(1500px, 97vw); margin:0 auto; font-variant-numeric:tabular-nums;}
   [hidden]{display:none;}
+  .tournee-select{padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--card); color:var(--text); font-family:inherit; max-width:100%;}
 
   .stats-plates{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:20px;}
   .stats-plates > div{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px;}
   .stats-plates b{display:block; font-size:26px; font-weight:800; line-height:1; color:var(--accent);}
   .stats-plates b.ko{color:var(--ko);}
+  .stats-plates b.att{color:var(--maybe);}
   .stats-plates span{display:block; font-size:11.5px; font-weight:700; color:var(--muted); margin-top:5px;}
 
   .bloc{margin-bottom:20px;}
@@ -28,7 +31,7 @@
   .bloc-tete .compte{font-size:12.5px; color:var(--muted); font-weight:700;}
 
   /* Une alerte : ce que l'outil a vu tout seul. Elle ne se coche pas — elle
-     s'éteint d'elle-même quand l'état change (la fiche arrive, le plan est
+     s'éteint d'elle-même quand l'état change (la fiche part, le plan est
      validé). La gravité à gauche, le manque au milieu, l'action à droite. */
   .alerte{display:flex; align-items:center; gap:14px; padding:11px 18px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
   .alerte:last-child{border-bottom:none;}
@@ -40,8 +43,6 @@
   .alerte .quoi{flex:1; min-width:220px;}
   .alerte .quoi b{display:block; font-weight:800; font-size:13.5px;}
   .alerte .quoi small{display:block; font-size:11.5px; color:var(--muted);}
-  .alerte.reglee{opacity:.55;}
-  .alerte.reglee .quoi b{text-decoration:line-through;}
 
   /* Une tâche : le même composant que l'espace comm — l'échéance à gauche,
      la coche à droite, la pastille d'auteur. Un seul langage pour tout le site. */
@@ -72,6 +73,9 @@
 
   .tache-form{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
   .tache-form .champ{display:flex; flex-direction:column; gap:4px;}
+  /* display:flex l'emportait sur [hidden] : le champ « jours avant la date »
+     restait affiché en mode échéance libre, à côté d'un champ date vide. */
+  .tache-form .champ[hidden]{display:none;}
   .tache-form label{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
   .tache-form input, .tache-form select{
     padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13.5px;
@@ -81,15 +85,40 @@
   .tache-form .libelle{flex:2 1 240px;}
   .tache-form .libelle input{width:100%;}
 
-  /* Les salles qui approchent : une carte par salle, l'avancement en 2/6. */
+  /* Les salles qui approchent : une carte par salle, l'avancement en 4/9. */
   .salle-carte .jauges{display:flex; flex-direction:column; gap:5px; margin-top:10px;}
   .salle-poste{display:flex; align-items:center; gap:8px; font-size:12px;}
   .salle-poste .pt{width:8px; height:8px; border-radius:50%; flex:none;}
   .salle-poste .pt.ok{background:var(--ok);}
   .salle-poste .pt.att{background:var(--maybe);}
-  .salle-poste .pt.non{background:var(--ko);}
-  .salle-poste .lib{font-weight:700; flex:0 0 108px;}
-  .salle-poste .val{color:var(--muted);}
+  .salle-poste .pt.non{background:transparent; box-shadow:inset 0 0 0 1.5px var(--border);}
+  .salle-poste .lib{font-weight:700; flex:0 0 126px;}
+  .salle-poste .val{color:var(--muted); text-align:right; margin-left:auto;}
+
+  /* Les seuils : ce qui décide qu'une chose « presse ». Repliés — on les règle
+     une fois, puis on n'y revient qu'en changeant de façon de travailler. */
+  .seuils{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:18px; overflow:hidden;}
+  .seuils > summary{cursor:pointer; padding:14px 16px; font-weight:800; font-size:14.5px; list-style:none; display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .seuils > summary::-webkit-details-marker{display:none;}
+  .seuils > summary::after{content:'▾'; color:var(--muted); font-size:12px;}
+  .seuils[open] > summary::after{content:'▴';}
+  .seuils > summary .resume{font-weight:600; font-size:12.5px; color:var(--muted);}
+  .seuils-corps{padding:0 16px 16px;}
+  .seuils-corps > p{margin:0 0 12px; font-size:12.5px; color:var(--muted); line-height:1.5;}
+  .seuil-ligne{display:grid; grid-template-columns:minmax(0,1fr) 92px 92px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid var(--border);}
+  .seuil-ligne .lib{font-size:12.5px; font-weight:700;}
+  .seuil-ligne input{padding:7px 9px; border:1px solid var(--border); border-radius:7px; font-size:13px; background:var(--card); color:var(--text); font-family:inherit; width:100%;}
+  .seuil-entete{display:grid; grid-template-columns:minmax(0,1fr) 92px 92px; gap:8px; font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+  .seuil-entete span:not(:first-child){text-align:center;}
+  .seuils-pied{display:flex; align-items:center; gap:12px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:14px; margin-top:8px;}
+  .seuils-pied .etat{font-size:12.5px; color:var(--muted);}
+
+  .empty-hint{color:var(--muted); font-size:13.5px; padding:30px 4px; text-align:center;}
+  @media (max-width:760px){
+    .seuil-entete{display:none;}
+    .seuil-ligne{grid-template-columns:1fr 80px 80px;}
+  }
+  @media (max-width:600px){ input, select{ font-size:16px !important; } }
 </style>
 </head>
 <body>
@@ -99,17 +128,30 @@
       <h1>Tableau de bord technique</h1>
       <p class="subtitle">Ce que l'outil a vu tout seul, tes tâches et tes rappels, les salles qui approchent.</p>
     </div>
-    <div class="co-actions"><span class="co-pill att">Maquette</span></div>
+    <select class="tournee-select" id="tourneeSelect" aria-label="Tournée"></select>
   </div>
 
-  <div class="co-note" style="margin-bottom:18px;">
-    <b>Maquette — rien n'est enregistré.</b> Les données sont inventées et la date du jour
-    est fixée au <b>mercredi 24 février 2027</b>, en pleine préparation de la tournée, pour que
-    les alertes aient de la matière. Coche, ajoute, transforme une alerte en tâche : tout
-    marche, et tout revient à zéro au rechargement.
-  </div>
+  <!-- Les seuils décident de ce qui « presse ». Ils venaient de la pratique et
+       étaient écrits en dur ; la pratique change d'une tournée à l'autre. -->
+  <details class="seuils co-fade" id="seuils">
+    <summary>
+      <span>Seuils d'alerte</span>
+      <span class="resume" id="seuilsResume">—</span>
+    </summary>
+    <div class="seuils-corps">
+      <p>À combien de jours du concert chaque manque commence à se signaler, puis à crier.
+         Ce sont des jours <b>avant la date</b> — sauf pour les remarques reçues, comptées en jours d'attente.</p>
+      <div class="seuil-entete"><span>Ce qui manque</span><span>À suivre</span><span>Ça presse</span></div>
+      <div id="seuilsListe"></div>
+      <div class="seuils-pied">
+        <button type="button" class="co-btn primary sm" id="seuilsSave">Enregistrer les seuils</button>
+        <button type="button" class="co-btn ghost sm" id="seuilsReset">Revenir aux valeurs d'origine</button>
+        <span class="etat" id="seuilsEtat"></span>
+      </div>
+    </div>
+  </details>
 
-  <div id="contenu"></div>
+  <div id="contenu"><div class="empty-hint">Chargement…</div></div>
 </div>
 
 <script>
@@ -119,144 +161,174 @@ applyAutoTheme();
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 
 /* ---------------------------------------------------------------------------
-   Tableau de bord technique — maquette
+   Tableau de bord technique
    ---------------------------------------------------------------------------
-   Le parti pris : la direction technique n'a pas besoin d'une liste de tâches
-   vide à remplir — le module technique SAIT déjà ce qui manque, salle par
-   salle (plan de scène, plan de charge, vacations, remarques des liens
-   partagés, pannes de matériel). Le tableau de bord a donc deux étages :
+   Le parti pris, hérité de la maquette et enfin branché : la direction
+   technique n'a pas besoin d'une liste de tâches vide à remplir — le module
+   technique SAIT déjà ce qui manque, salle par salle. Deux étages :
 
    — LES ALERTES, engendrées : l'outil confronte l'état de chaque salle au
-     nombre de jours restants et dit ce qui presse. Une alerte ne se coche
-     pas : elle s'éteint d'elle-même quand l'état change. Si elle demande du
-     travail qui s'étale, un clic la transforme en tâche.
-   — LES TÂCHES ET RAPPELS, saisis : tout ce que l'outil ne peut pas deviner
-     (« rappeler le Dôme pour le rigg », « acheter des gaffeurs »). Même
-     composant que l'espace comm : échéance libre ou comptée en jours avant
-     la date, auteur visible, coche qui archive.
+     nombre de jours restants et dit ce qui presse. Une alerte ne se coche pas :
+     elle s'éteint d'elle-même quand l'état change. Si elle demande du travail
+     qui s'étale, un clic la transforme en tâche.
+   — LES TÂCHES ET RAPPELS, saisis : tout ce que l'outil ne peut pas deviner.
+     Elles vivent dans comm_taches, avec genre='technique' — la table portait
+     déjà exactement ce qu'il faut, et inventer une seconde table aurait produit
+     deux composants de tâche à maintenir au lieu d'un.
+
+   Les neuf postes d'avancement viennent de assets/technique-avancement.js : la
+   même définition que la page Avancement, sinon les deux écrans se contredisent.
 --------------------------------------------------------------------------- */
 
-const AUJOURDHUI = '2027-02-24';
+const GENRE = 'technique';
 
-// Une salle = un groupe de dates au même endroit (comme sur l'avancement).
-// L'état reprend les six postes réels de technique.html.
-const SALLES = [
-  { id:'s1', ville:'Épernay', lieu:'Le Millenium', dates:['2027-02-10','2027-02-11','2027-02-12'],
-    statut:'validee',
-    plan:'valide2', charge:'valide', dechargement:2, roadies:[4,4], chariots:[2,2], rigg:[2,2],
-  },
-  { id:'s2', ville:'Lyon', lieu:'Salle 3000', dates:['2027-03-12'],
-    statut:'validee',
-    // Plan reçu mais validé d'un seul côté ; une vacation rigg pas confirmée.
-    plan:'recu', charge:'envoye', dechargement:2, roadies:[4,4], chariots:[2,2], rigg:[1,2],
-  },
-  { id:'s3', ville:'Grenoble', lieu:'Le Summum', dates:['2027-03-13'],
-    statut:'validee',
-    // Rien n'est parti : c'est la salle qui doit faire peur sur ce tableau.
-    plan:'non_demande', charge:'non_envoye', dechargement:null, roadies:[0,0], chariots:[0,0], rigg:[0,0],
-  },
-  { id:'s4', ville:'Marseille', lieu:'Le Dôme', dates:['2027-03-15'],
-    statut:'option',
-    plan:'non_demande', charge:'non_envoye', dechargement:null, roadies:[0,0], chariots:[0,0], rigg:[0,0],
-  },
-];
-
-// Les remarques laissées par les salles et stage managers (liens partagés).
-const REMARQUES = [
-  { id:'r1', quand:'2027-02-15', auteur:'Le Millenium (Épernay)', texte:"Le quai de déchargement sera partagé avec un autre événement le 12 — prévoir 30 min de plus." },
-  { id:'r2', quand:'2027-02-22', auteur:'Stage manager — Lyon', texte:"La salle demande le plan de charge au format A3, pas A4." },
-];
-
-// Les pannes et échanges de matériel en attente (module Matériel).
-const ECHANGES = [
-  { id:'e1', quoi:'Ampli casque HA-8000 en panne', ou:'kit retour Épernay', etat:'a_planifier' },
-];
-
-// Les tâches saisies — le même objet que l'espace comm.
-let TACHES = [
-  { id:'t1', libelle:'Rappeler le Dôme pour le rigg (36 points, à confirmer)', notes:'', auteur:'alois.darles@lessoudaines.fr',
-    salleId:'s4', j:20, echeance:'', fait:false, faitLe:'' },
-  { id:'t2', libelle:'Acheter gaffeurs + gants (stock épuisé à Épernay)', notes:'avant le départ Lyon', auteur:'demo@curieux.fr',
-    salleId:'', j:null, echeance:'2027-03-08', fait:false, faitLe:'' },
-  { id:'t3', libelle:'Renvoyer la feuille de mission chauffeur d\'Épernay signée', notes:'', auteur:'demo@curieux.fr',
-    salleId:'', j:null, echeance:'2027-02-18', fait:true, faitLe:'2027-02-18' },
-];
-const monEmail = 'demo@curieux.fr';
+let tourneesCache = [], moyensCache = [], remarquesCache = [], tachesCache = [], echangesCache = [];
+let affectationsParDate = new Map();
+let seuils = {};                 // ce qui est enregistré
+let seuilsEnCours = null;        // le brouillon du formulaire
+let monEmail = '';
 let tacheEnEdition = null;
-const alertesEnTache = new Set();
+
+function aujourdhui(){ return new Date().toISOString().slice(0,10); }
+function activeTourneeId(){ return document.getElementById('tourneeSelect').value; }
+function activeTournee(){ return tourneesCache.find(t=> t.id === activeTourneeId()); }
+function moyensDe(dateId){
+  return moyensCache.find(m=> m.id === `${activeTourneeId()}::${dateId}`) || null;
+}
 
 const MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const JOURS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
 function joli(iso, avecJour){
   if(!iso) return '';
   const d = new Date(iso + 'T00:00:00');
+  if(isNaN(d)) return iso;
   return (avecJour ? JOURS[d.getDay()].slice(0, 3) + '. ' : '') + d.getDate() + ' ' + MOIS[d.getMonth()];
 }
 function libelleJ(j){ return j >= 0 ? 'J-' + j : 'J+' + (-j); }
-function premierJour(s){ return s.dates[0]; }
-function jRestant(s){ return daysBetween(AUJOURDHUI, premierJour(s)); }
-function libelleSalle(s){ return s.ville + ' · ' + s.lieu + (s.dates.length > 1 ? ` (${s.dates.length} soirs)` : ''); }
+
+/* --- Les salles : les mêmes groupes que la page Avancement ---------------- */
+
+// Une salle, c'est un groupe de dates au même endroit : quatre soirs au
+// Millenium ne font qu'un montage, donc une seule ligne d'alerte par manque.
+function sallesAVenir(){
+  const t = activeTournee();
+  if(!t) return [];
+  const today = aujourdhui();
+  const dates = (t.dates || [])
+    .filter(d=> !d.date || d.date >= today)
+    .filter(d=> d.statut !== 'annulee')
+    .sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  return groupesFicheTechnique(dates, (id)=> !!moyensDe(id)).map(g=>{
+    const ref = g.reference;
+    return {
+      id: ref.id,
+      dates: g.dates,
+      reference: ref,
+      moyens: moyensDe(ref.id),
+      ville: ref.ville || ref.lieu || 'Date',
+      lieu: ref.lieu || '',
+      premier: g.dates[0].date || '',
+      dernier: g.dates[g.dates.length - 1].date || '',
+      // Une série est une option si AUCUNE de ses dates n'est signée.
+      option: g.dates.every(d=> (d.statut || 'option') === 'option'),
+    };
+  });
+}
+function jRestant(s){ return s.premier ? daysBetween(aujourdhui(), s.premier) : null; }
+function libelleSalle(s){
+  return s.ville + (s.lieu && s.lieu !== s.ville ? ' · ' + s.lieu : '')
+       + (s.dates.length > 1 ? ` (${s.dates.length} soirs)` : '');
+}
 
 /* --- Les alertes : l'état confronté au calendrier ------------------------- */
 
-// Chaque règle dit : à partir de quand ça se signale (orange), à partir de
-// quand ça crie (rouge). Les seuils viennent de la pratique : un plan de
-// scène se demande six semaines avant, une vacation se confirme à deux.
+// Chaque poste non réglé devient une alerte quand la date se rapproche de son
+// seuil. Les postes viennent de technique-avancement.js, les seuils des
+// réglages : ni l'un ni l'autre n'est réécrit ici.
+const DETAIL_MANQUE = {
+  fiche:        "elle n'est pas partie vers la salle",
+  planScene:    "rien n'est parti, ou la salle n'a pas répondu",
+  planCharge:   'le bureau de contrôle doit le voir venir',
+  dechargement: 'combien de semis en simultané ?',
+  vacations:    'la salle doit poser puis confirmer',
+  transport:    'aucun camion ou aucun chauffeur sur au moins une date',
+  equipe:       "personne n'est affecté sur au moins une date",
+};
+
 function alertesDe(s){
   const r = jRestant(s);
-  if(r < 0 || s.statut === 'annulee') return [];
+  if(r == null || r < 0) return [];
   const out = [];
-  const pousser = (des, rouge, texte, detail)=>{
-    if(r > des) return;
-    out.push({ salle: s, grav: r <= rouge ? 'rouge' : 'orange', texte, detail, r });
+  const pousser = (cle, texte, detail)=>{
+    const [orange, rouge] = techniqueSeuil(seuils, cle);
+    if(r > orange) return;
+    out.push({ salle: s, cle, grav: r <= rouge ? 'rouge' : 'orange', texte, detail, r });
   };
-  if(s.statut === 'option'){
-    // Une option ne réclame rien d'autre que sa signature : UNE alerte, pas six.
-    pousser(21, 10, 'Toujours en option', 'à ' + r + ' jours, il faut signer ou libérer la salle');
+
+  // Une option ne réclame rien d'autre que sa signature : UNE alerte, pas neuf.
+  if(s.option){
+    pousser('option', 'Toujours en option', `à ${r} jours, il faut signer ou libérer la salle`);
     return out;
   }
-  if(s.plan === 'non_demande') pousser(45, 21, 'Plan de scène à demander', 'rien n\'est parti vers la salle');
-  if(s.plan === 'demande') pousser(30, 14, 'Plan de scène demandé, sans réponse', 'relancer la salle');
-  if(s.plan === 'recu') pousser(30, 14, 'Plan de scène reçu, à valider', 'il attend votre validation');
-  if(s.plan === 'valide_nous') pousser(21, 10, 'Plan de scène : validation salle manquante', 'relancer pour leur accord');
-  if(s.charge === 'non_envoye') pousser(30, 14, 'Plan de charge à envoyer', 'le bureau de contrôle doit le voir venir');
-  if(s.charge === 'envoye') pousser(21, 10, 'Plan de charge envoyé, en attente', 'relancer le bureau de contrôle');
-  if(s.dechargement == null) pousser(21, 10, 'Déchargement non renseigné', 'combien de semis en simultané ?');
-  [['roadies','Roadies'], ['chariots','Chariots'], ['rigg','Rigg']].forEach(([cle, lib])=>{
-    const [conf, total] = s[cle];
-    if(total === 0) pousser(21, 10, lib + ' : aucune vacation posée', 'la salle n\'a rien prévu');
-    else if(conf < total) pousser(14, 7, `${lib} : ${conf}/${total} confirmée${total > 1 ? 's' : ''}`, 'faire confirmer le reste');
-  });
+  techniquePostes(s.moyens, s.dates, affectationsParDate)
+    .filter(p=> p.sev !== 'ok')
+    .forEach(p=> pousser(p.cle, `${p.libelle} — ${p.valeur}`, DETAIL_MANQUE[p.cle] || ''));
   return out;
 }
 
 function toutesLesAlertes(){
-  const liste = SALLES.flatMap(alertesDe);
-  REMARQUES.forEach(x=>{
-    const age = daysBetween(x.quand, AUJOURDHUI);
-    liste.push({ remarque: x, grav: age > 7 ? 'rouge' : 'orange',
-      texte: 'Remarque non traitée — ' + x.auteur,
-      detail: x.texte, r: null, age });
-  });
-  ECHANGES.filter(x=> x.etat === 'a_planifier').forEach(x=>{
-    liste.push({ echange: x, grav: 'rouge', texte: 'Échange matériel à planifier', detail: x.quoi + ' — ' + x.ou, r: null });
-  });
+  const t = activeTournee();
+  const liste = sallesAVenir().flatMap(alertesDe);
+
+  // Les retours reçus et non traités. Comptés à l'envers des autres : c'est
+  // l'ÂGE de la remarque qui devient inacceptable, pas la proximité du concert.
+  const [orangeR, rougeR] = techniqueSeuil(seuils, 'remarque');
+  remarquesCache
+    .filter(x=> !x.traitee && t && x.tourneeId === t.id)
+    .forEach(x=>{
+      const age = x.createdAt ? daysBetween(String(x.createdAt).slice(0,10), aujourdhui()) : 0;
+      if(age < orangeR) return;
+      liste.push({ remarque: x, cle:'remarque', grav: age >= rougeR ? 'rouge' : 'orange',
+        texte: 'Remarque non traitée — ' + (x.auteur || 'quelqu’un'),
+        detail: x.message || '', r: null, age });
+    });
+
+  // Les échanges de matériel encore à planifier (module Matériel).
+  echangesCache
+    .filter(x=> x.etat === 'a_planifier' && t && x.tourneeId === t.id)
+    .forEach(x=> liste.push({ echange: x, cle:'echange', grav:'rouge',
+      texte: 'Échange matériel à planifier',
+      detail: [x.elements, x.motif].filter(Boolean).join(' — '), r: null }));
+
   // Le rouge d'abord, puis ce qui est le plus près du concert.
-  return liste.sort((a, b)=> (a.grav === b.grav ? (a.r ?? 0) - (b.r ?? 0) : a.grav === 'rouge' ? -1 : 1));
+  return liste.sort((a, b)=> (a.grav === b.grav ? (a.r ?? 999) - (b.r ?? 999) : a.grav === 'rouge' ? -1 : 1));
 }
 
-/* --- Les tâches (même langage que l'espace comm) -------------------------- */
+// Une alerte transformée en tâche se range derrière elle : la tâche porte la
+// clé, l'alerte disparaît de la liste engendrée tant que la tâche est ouverte.
+function cleAlerte(a){
+  return a.salle ? 'p|' + a.salle.id + '|' + a.cle + '|' + a.texte
+       : a.remarque ? 'r|' + a.remarque.id
+       : 'e|' + a.echange.id;
+}
+function clesEnTache(){
+  return new Set(tachesCache.filter(t=> !t.fait && t.notes && t.notes.startsWith('#alerte:'))
+    .map(t=> t.notes.slice(8).split('\n')[0]));
+}
+
+/* --- Les tâches (mêmes règles que l'espace comm) -------------------------- */
 
 function echeanceDe(t){
-  if(t.salleId){
-    const s = SALLES.find(x=> x.id === t.salleId);
-    if(s) return addDaysIso(premierJour(s), -(t.j || 0));
+  if(t.dateId){
+    const s = sallesAVenir().find(x=> x.dates.some(d=> d.id === t.dateId));
+    const jour = s ? s.premier : ((activeTournee()||{}).dates||[]).find(d=> d.id === t.dateId)?.date;
+    if(jour) return addDaysIso(jour, -(t.j || 0));
   }
   return t.echeance || '';
 }
 function etatDe(t){
   const ech = echeanceDe(t);
-  const reste = ech ? daysBetween(AUJOURDHUI, ech) : null;
+  const reste = ech ? daysBetween(aujourdhui(), ech) : null;
   if(t.fait) return { etat:'fait', ech, reste };
   if(reste == null) return { etat:'libre', ech, reste };
   if(reste < 0) return { etat:'retard', ech, reste };
@@ -272,16 +344,26 @@ function libelleEcheance(x){
   if(x.reste === 1) return 'demain';
   return 'dans ' + x.reste + ' jours';
 }
+// Les notes portent parfois un marqueur technique en première ligne
+// (#alerte:…) : il ne se montre pas.
+function notesVisibles(t){
+  const n = t.notes || '';
+  return n.startsWith('#alerte:') ? n.split('\n').slice(1).join('\n') : n;
+}
+function tachesDeLaTournee(){
+  const t = activeTournee();
+  return tachesCache.filter(x=> x.genre === GENRE && (!x.tourneeId || (t && x.tourneeId === t.id)));
+}
 
 function renderTache(t){
   const x = etatDe(t);
-  const s = t.salleId ? SALLES.find(v=> v.id === t.salleId) : null;
-  const contexte = s ? joli(premierJour(s)) + ' · ' + s.ville + ' — ' + libelleJ(t.j || 0) : '';
-  const sous = [contexte, t.notes].filter(Boolean).join(' — ');
+  const s = t.dateId ? sallesAVenir().find(v=> v.dates.some(d=> d.id === t.dateId)) : null;
+  const contexte = s ? joli(s.premier) + ' · ' + s.ville + ' — ' + libelleJ(t.j || 0) : '';
+  const sous = [contexte, notesVisibles(t)].filter(Boolean).join(' — ');
   const classe = ['tache', t.fait ? 'faite' : '', x.etat === 'retard' ? 'retard' : '', x.etat === 'aujourdhui' ? 'aujourdhui' : ''].filter(Boolean).join(' ');
   const par = t.auteur
     ? `<span class="par" title="${escapeAttr(t.auteur)}">par ${escapeHtml(t.auteur.split('@')[0])}</span>`
-    : '<span class="par" title="Créée automatiquement">auto</span>';
+    : '<span class="par" title="Créée depuis une alerte">auto</span>';
   return `<div class="${classe}">
     <div class="quand">
       <b>${x.ech ? escapeHtml(joli(x.ech, true)) : '—'}</b>
@@ -294,51 +376,53 @@ function renderTache(t){
     ${par}
     <span class="co-pill ${pilleEtat(x.etat)}">${escapeHtml(LIBELLE_ETAT[x.etat])}</span>
     <label class="coche"><input type="checkbox" data-coche="${escapeAttr(t.id)}" ${t.fait ? 'checked' : ''}> fait</label>
-    <button type="button" class="outil" data-modif="${escapeAttr(t.id)}" title="Modifier">✎</button>
-    <button type="button" class="outil danger" data-suppr="${escapeAttr(t.id)}" title="Supprimer">✕</button>
+    <button type="button" class="outil" data-modif="${escapeAttr(t.id)}" title="Modifier" aria-label="Modifier">✎</button>
+    <button type="button" class="outil danger" data-suppr="${escapeAttr(t.id)}" title="Supprimer" aria-label="Supprimer">✕</button>
   </div>`;
+}
+
+/* --- Où mène une alerte --------------------------------------------------- */
+
+function lienAlerte(a){
+  const t = activeTournee();
+  if(a.echange) return { href:'materiel.html', libelle:'Ouvrir Matériel' };
+  if(a.remarque){
+    return a.remarque.dateId && t
+      ? { href:`technique-date.html?t=${encodeURIComponent(t.id)}&d=${encodeURIComponent(a.remarque.dateId)}`, libelle:'Voir la remarque' }
+      : { href:'technique.html', libelle:'Voir la remarque' };
+  }
+  if(a.cle === 'transport') return { href:'vehicules.html', libelle:'Ouvrir Véhicules' };
+  if(a.cle === 'equipe' || a.cle === 'option') return { href:`tournees.html#${encodeURIComponent(t ? t.id : '')}`, libelle:'Ouvrir la tournée' };
+  return { href:`technique-date.html?t=${encodeURIComponent(t ? t.id : '')}&d=${encodeURIComponent(a.salle.id)}`, libelle:'Ouvrir la fiche' };
 }
 
 /* --- Le rendu ------------------------------------------------------------- */
 
-function statutPill(statut){
-  if(statut === 'validee') return '<span class="co-pill ok">Validée</span>';
-  if(statut === 'option') return '<span class="co-pill att">Option</span>';
-  return '<span class="co-pill ko">Annulée</span>';
-}
-function pointsPostes(s){
-  const p = [];
-  const plan = { non_demande:['non','à demander'], demande:['att','demandé, en attente'], recu:['att','reçu, à valider'],
-    valide_nous:['att','validation salle manquante'], valide2:['ok','validé des deux côtés'] }[s.plan];
-  p.push(['Plan de scène', ...plan]);
-  const charge = { non_envoye:['non','à envoyer'], envoye:['att','envoyé, en attente'], valide:['ok','validé'] }[s.charge];
-  p.push(['Plan de charge', ...charge]);
-  p.push(['Déchargement', s.dechargement == null ? 'non' : 'ok', s.dechargement == null ? 'à renseigner' : s.dechargement + ' semis en simultané']);
-  [['roadies','Roadies'], ['chariots','Chariots'], ['rigg','Rigg']].forEach(([cle, lib])=>{
-    const [c, t] = s[cle];
-    p.push([lib, t === 0 ? 'non' : c >= t ? 'ok' : 'att', t === 0 ? 'aucune vacation' : `${c}/${t} confirmée${t > 1 ? 's' : ''}`]);
-  });
-  return p;
-}
-
 function rendre(){
-  const alertes = toutesLesAlertes().filter(a=> !alertesEnTache.has(cleAlerte(a)));
+  const box = document.getElementById('contenu');
+  const t = activeTournee();
+  if(!t){ box.innerHTML = '<div class="empty-hint">Aucune tournée à suivre.</div>'; return; }
+
+  const dejaEnTache = clesEnTache();
+  const alertes = toutesLesAlertes().filter(a=> !dejaEnTache.has(cleAlerte(a)));
   const rouges = alertes.filter(a=> a.grav === 'rouge').length;
-  const avecEtat = TACHES.map(t=> ({ t, x: etatDe(t) }));
-  const enRetard = avecEtat.filter(a=> a.x.etat === 'retard').length;
+
+  const taches = tachesDeLaTournee();
+  const avecEtat = taches.map(t=> ({ t, x: etatDe(t) }));
+  const enRetard = avecEtat.filter(a=> !a.t.fait && a.x.etat === 'retard').length;
   const semaine = avecEtat.filter(a=> !a.t.fait && a.x.reste != null && a.x.reste >= 0 && a.x.reste <= 7).length;
-  const enCours = tacheEnEdition ? TACHES.find(t=> t.id === tacheEnEdition) : null;
+  const retours = remarquesCache.filter(x=> !x.traitee && x.tourneeId === t.id).length;
+  const enCours = tacheEnEdition ? taches.find(x=> x.id === tacheEnEdition) : null;
+  const salles = sallesAVenir();
 
   const stats = [
     [rouges, 'alertes rouges', rouges ? 'ko' : ''],
     [enRetard, 'tâches en retard', enRetard ? 'ko' : ''],
-    [semaine, 'dans les 7 jours', ''],
-    [REMARQUES.length, 'remarques non traitées', ''],
+    [semaine, 'dans les 7 jours', semaine ? 'att' : ''],
+    [retours, 'retours non traités', retours ? 'att' : ''],
   ];
 
-  const sallesAVenir = SALLES.filter(s=> jRestant(s) >= 0);
-
-  document.getElementById('contenu').innerHTML = `
+  box.innerHTML = `
     <div class="stats-plates">
       ${stats.map(([n, lib, cl])=> `<div><b class="${cl}">${n}</b><span>${escapeHtml(lib)}</span></div>`).join('')}
     </div>
@@ -347,20 +431,20 @@ function rendre(){
       <div class="bloc-tete"><h2>Ce que l'outil a vu</h2>
         <span class="compte">${alertes.length} alerte${alertes.length > 1 ? 's' : ''} — engendrées depuis l'état des salles, jamais saisies. Elles s'éteignent d'elles-mêmes quand l'état change.</span></div>
       <div class="co-card co-clip">
-        ${alertes.length ? alertes.map(a=> `<div class="alerte ${a.grav}">
+        ${alertes.length ? alertes.map(a=>{ const l = lienAlerte(a); return `<div class="alerte ${a.grav}">
           <div class="quand">
-            ${a.salle ? `<b>${escapeHtml(joli(premierJour(a.salle), true))}</b><small>${a.r === 0 ? "c'est aujourd'hui" : 'dans ' + a.r + ' jours'}</small>`
-              : a.remarque ? `<b>${escapeHtml(joli(a.remarque.quand, true))}</b><small>il y a ${a.age} jour${a.age > 1 ? 's' : ''}</small>`
+            ${a.salle ? `<b>${escapeHtml(joli(a.salle.premier, true))}</b><small>${a.r === 0 ? "c'est aujourd'hui" : 'dans ' + a.r + ' jours'}</small>`
+              : a.remarque ? `<b>${escapeHtml(joli(String(a.remarque.createdAt||'').slice(0,10), true))}</b><small>il y a ${a.age} jour${a.age > 1 ? 's' : ''}</small>`
               : `<b>—</b><small>en attente</small>`}
           </div>
           <div class="quoi">
             <b>${escapeHtml(a.texte)}</b>
-            <small>${escapeHtml((a.salle ? libelleSalle(a.salle) + ' — ' : '') + a.detail)}</small>
+            <small>${escapeHtml((a.salle ? libelleSalle(a.salle) + ' — ' : '') + (a.detail || ''))}</small>
           </div>
           <span class="co-pill ${a.grav === 'rouge' ? 'ko' : 'att'}">${a.grav === 'rouge' ? 'Ça presse' : 'À suivre'}</span>
-          <button type="button" class="co-btn secondary sm" data-maquette>${a.salle ? 'Ouvrir la fiche' : a.remarque ? 'Voir la remarque' : 'Ouvrir Matériel'}</button>
+          <a class="co-btn secondary sm" href="${escapeAttr(l.href)}">${escapeHtml(l.libelle)}</a>
           <button type="button" class="co-btn ghost sm" data-en-tache="${escapeAttr(cleAlerte(a))}" title="Pour la planifier ou la confier — l'alerte se range derrière la tâche">→ tâche</button>
-        </div>`).join('') : '<div class="empty-hint co-vide">Rien à signaler — tout est à jour pour les prochaines salles.</div>'}
+        </div>`; }).join('') : '<div class="empty-hint co-vide">Rien à signaler — tout est à jour pour les prochaines salles.</div>'}
       </div>
     </div>
 
@@ -377,16 +461,16 @@ function rendre(){
             <label for="fSalle">Rattachée à</label>
             <select id="fSalle">
               <option value="">— Libre (échéance en clair) —</option>
-              ${SALLES.filter(s=> jRestant(s) >= 0).map(s=> `<option value="${escapeAttr(s.id)}" ${enCours && enCours.salleId === s.id ? 'selected' : ''}>${escapeHtml(joli(premierJour(s)) + ' · ' + s.ville)}</option>`).join('')}
+              ${salles.map(s=> `<option value="${escapeAttr(s.id)}" ${enCours && enCours.dateId === s.id ? 'selected' : ''}>${escapeHtml(joli(s.premier) + ' · ' + s.ville)}</option>`).join('')}
             </select>
           </div>
           <div class="champ" id="fEcheanceChamp">
             <label for="fEcheance">Échéance</label>
-            <input type="date" id="fEcheance" value="${escapeAttr(enCours && !enCours.salleId ? enCours.echeance : '')}">
+            <input type="date" id="fEcheance" value="${escapeAttr(enCours && !enCours.dateId ? (enCours.echeance || '') : '')}">
           </div>
           <div class="champ" id="fJChamp" hidden>
             <label for="fJ">Jours avant la date</label>
-            <input type="number" id="fJ" style="width:110px;" value="${escapeAttr(enCours && enCours.salleId ? String(enCours.j || 0) : '10')}">
+            <input type="number" id="fJ" style="width:110px;" value="${escapeAttr(enCours && enCours.dateId ? String(enCours.j || 0) : '10')}">
           </div>
           <button type="button" class="co-btn primary md" id="fEnregistrer">${enCours ? 'Enregistrer' : 'Ajouter'}</button>
           ${enCours ? '<button type="button" class="co-btn ghost md" id="fAnnuler">Annuler</button>' : ''}
@@ -400,19 +484,24 @@ function rendre(){
     </div>
 
     <div class="bloc">
-      <div class="bloc-tete"><h2>Les salles qui approchent</h2><span class="compte">le même avancement que la page Technique, d'un seul regard</span></div>
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
-        ${sallesAVenir.map(s=> `<div class="co-card co-pad salle-carte">
+      <div class="bloc-tete"><h2>Les salles qui approchent</h2><span class="compte">le même avancement que la page Avancement, d'un seul regard</span></div>
+      ${salles.length ? `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px;">
+        ${salles.map(s=>{
+          const postes = techniquePostes(s.moyens, s.dates, affectationsParDate);
+          const regles = postes.filter(p=> p.sev === 'ok').length;
+          const r = jRestant(s);
+          return `<a class="co-card co-pad salle-carte" href="technique-date.html?t=${encodeURIComponent(t.id)}&d=${encodeURIComponent(s.id)}" style="text-decoration:none; color:inherit; display:block;">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            <b style="font-size:14.5px;">${escapeHtml(s.ville)}</b>${statutPill(s.statut)}
-            <span style="margin-left:auto; font-size:12px; font-weight:800; color:${jRestant(s) <= 14 ? 'var(--ko)' : 'var(--muted)'};">${libelleJ(jRestant(s))}</span>
+            <b style="font-size:14.5px;">${escapeHtml(s.ville)}</b>
+            ${s.option ? '<span class="co-pill att">Option</span>' : ''}
+            <span style="margin-left:auto; font-size:12px; font-weight:800; color:${r != null && r <= 14 ? 'var(--ko)' : 'var(--muted)'};">${r == null ? '' : escapeHtml(libelleJ(r))}</span>
           </div>
-          <div style="font-size:12.5px; color:var(--muted); margin-top:2px;">${escapeHtml(s.dates.length > 1 ? joli(s.dates[0]) + ' → ' + joli(s.dates[s.dates.length - 1]) : joli(premierJour(s), true))} · ${escapeHtml(s.lieu)}</div>
+          <div style="font-size:12.5px; color:var(--muted); margin-top:2px;">${escapeHtml(s.dates.length > 1 ? joli(s.premier) + ' → ' + joli(s.dernier) : joli(s.premier, true))}${s.lieu ? ' · ' + escapeHtml(s.lieu) : ''} · <b>${regles} / ${postes.length} réglés</b></div>
           <div class="jauges">
-            ${pointsPostes(s).map(([lib, sev, val])=> `<div class="salle-poste"><span class="pt ${sev}"></span><span class="lib">${escapeHtml(lib)}</span><span class="val">${escapeHtml(val)}</span></div>`).join('')}
+            ${postes.map(p=> `<div class="salle-poste"><span class="pt ${p.sev}"></span><span class="lib">${escapeHtml(p.libelle)}</span><span class="val">${escapeHtml(p.valeur)}</span></div>`).join('')}
           </div>
-        </div>`).join('')}
-      </div>
+        </a>`; }).join('')}
+      </div>` : '<div class="co-card co-pad"><div class="empty-hint co-vide">Aucune date à venir sur cette tournée.</div></div>'}
     </div>
   `;
 
@@ -423,64 +512,183 @@ function rendre(){
   };
   salleSel.addEventListener('change', majChamps);
   majChamps();
-  document.getElementById('fEnregistrer').addEventListener('click', enregistrer);
+  document.getElementById('fEnregistrer').addEventListener('click', enregistrerTache);
   const annuler = document.getElementById('fAnnuler');
   if(annuler) annuler.addEventListener('click', ()=>{ tacheEnEdition = null; rendre(); });
 }
 
-function cleAlerte(a){
-  return a.salle ? a.salle.id + '|' + a.texte : a.remarque ? 'r|' + a.remarque.id : 'e|' + a.echange.id;
-}
+/* --- Les seuils ----------------------------------------------------------- */
 
-function enregistrer(){
-  const libelle = document.getElementById('fLibelle').value.trim();
-  if(!libelle){ alert('Il manque le « quoi » de la tâche.'); return; }
-  const salleId = document.getElementById('fSalle').value;
-  const enCours = tacheEnEdition ? TACHES.find(t=> t.id === tacheEnEdition) : null;
-  const t = enCours || { id: genId('tache'), fait: false, faitLe: '', auteur: monEmail, notes: '' };
-  t.libelle = libelle;
-  t.salleId = salleId;
-  t.j = salleId ? (Number(document.getElementById('fJ').value) || 0) : null;
-  t.echeance = salleId ? '' : (document.getElementById('fEcheance').value || '');
-  if(!enCours) TACHES.push(t);
-  tacheEnEdition = null;
+function chargerSeuils(){
+  seuilsEnCours = {};
+  Object.keys(TECHNIQUE_SEUILS_DEFAUT).forEach(cle=>{ seuilsEnCours[cle] = techniqueSeuil(seuils, cle).slice(); });
+}
+function renderSeuils(){
+  if(!seuilsEnCours) chargerSeuils();
+  document.getElementById('seuilsListe').innerHTML = Object.keys(TECHNIQUE_SEUILS_DEFAUT).map(cle=>`
+    <div class="seuil-ligne">
+      <span class="lib">${escapeHtml(TECHNIQUE_SEUILS_LIBELLES[cle])}</span>
+      <input type="number" min="0" max="365" data-seuil="${escapeAttr(cle)}" data-rang="0" value="${seuilsEnCours[cle][0]}" aria-label="À suivre — ${escapeAttr(TECHNIQUE_SEUILS_LIBELLES[cle])}">
+      <input type="number" min="0" max="365" data-seuil="${escapeAttr(cle)}" data-rang="1" value="${seuilsEnCours[cle][1]}" aria-label="Ça presse — ${escapeAttr(TECHNIQUE_SEUILS_LIBELLES[cle])}">
+    </div>`).join('');
+  document.getElementById('seuilsListe').querySelectorAll('[data-seuil]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const v = Number(inp.value);
+      seuilsEnCours[inp.dataset.seuil][Number(inp.dataset.rang)] = Number.isFinite(v) ? v : 0;
+      majResumeSeuils();
+    });
+  });
+  majResumeSeuils();
+}
+function majResumeSeuils(){
+  const s = seuilsEnCours || {};
+  const parDefaut = Object.keys(TECHNIQUE_SEUILS_DEFAUT)
+    .every(c=> s[c] && s[c][0] === TECHNIQUE_SEUILS_DEFAUT[c][0] && s[c][1] === TECHNIQUE_SEUILS_DEFAUT[c][1]);
+  document.getElementById('seuilsResume').textContent = parDefaut
+    ? 'valeurs d’origine'
+    : `plan de scène à J-${s.planScene[0]}/J-${s.planScene[1]} · vacations à J-${s.vacations[0]}/J-${s.vacations[1]}`;
+}
+async function enregistrerSeuils(){
+  const etat = document.getElementById('seuilsEtat');
+  etat.textContent = 'Enregistrement…';
+  // Un seuil rouge plus lointain que l'orange n'aurait aucun sens : le rouge ne
+  // se déclencherait jamais. On le ramène silencieusement dans l'ordre.
+  const propre = {};
+  Object.keys(seuilsEnCours).forEach(c=>{
+    const [o, r] = seuilsEnCours[c];
+    propre[c] = c === 'remarque' ? [Math.max(0, o), Math.max(o, r)] : [Math.max(0, o), Math.min(o, Math.max(0, r))];
+  });
+  const { error } = await CurieuxDB.setTechniqueSeuils(propre);
+  if(error){ etat.textContent = "Échec de l'enregistrement — réessaie."; return; }
+  seuils = propre;
+  seuilsEnCours = null;
+  renderSeuils();
+  etat.textContent = 'Enregistré à ' + new Date().toLocaleTimeString('fr-FR');
   rendre();
 }
 
-document.addEventListener('click', (e)=>{
+/* --- Les gestes ----------------------------------------------------------- */
+
+async function enregistrerTache(){
+  const libelle = document.getElementById('fLibelle').value.trim();
+  if(!libelle){ alert('Il manque le « quoi » de la tâche.'); return; }
+  const dateId = document.getElementById('fSalle').value;
+  const enCours = tacheEnEdition ? tachesCache.find(t=> t.id === tacheEnEdition) : null;
+  const t = enCours || { id: genId('tache'), fait: false, faitLe: '', auteur: monEmail, notes: '', genre: GENRE };
+  t.libelle = libelle;
+  t.tourneeId = activeTourneeId();
+  t.dateId = dateId;
+  t.j = dateId ? (Number(document.getElementById('fJ').value) || 0) : null;
+  t.echeance = dateId ? '' : (document.getElementById('fEcheance').value || '');
+  if(!enCours) tachesCache.push(t);
+  tacheEnEdition = null;
+  rendre();
+  await CurieuxDB.upsertOne('comm_taches', t);
+}
+
+document.addEventListener('click', async (e)=>{
   const coche = e.target.closest('[data-coche]');
   if(coche){
-    const t = TACHES.find(x=> x.id === coche.dataset.coche);
-    if(t){ t.fait = coche.checked; t.faitLe = coche.checked ? AUJOURDHUI : ''; }
-    rendre();
+    const t = tachesCache.find(x=> x.id === coche.dataset.coche);
+    if(t){
+      t.fait = coche.checked;
+      t.faitLe = coche.checked ? aujourdhui() : '';
+      rendre();
+      await CurieuxDB.upsertOne('comm_taches', t);
+    }
     return;
   }
   const modif = e.target.closest('[data-modif]');
   if(modif){ tacheEnEdition = modif.dataset.modif; rendre(); document.getElementById('fLibelle').focus(); return; }
+
   const suppr = e.target.closest('[data-suppr]');
   if(suppr){
-    const t = TACHES.find(x=> x.id === suppr.dataset.suppr);
-    if(t && confirm(`Supprimer « ${t.libelle} » ?`)) TACHES = TACHES.filter(x=> x.id !== t.id);
-    rendre();
+    const t = tachesCache.find(x=> x.id === suppr.dataset.suppr);
+    if(t && confirm(`Supprimer « ${t.libelle} » ?`)){
+      tachesCache = tachesCache.filter(x=> x.id !== t.id);
+      rendre();
+      await CurieuxDB.removeOne('comm_taches', t.id);
+    }
     return;
   }
+
   const enTache = e.target.closest('[data-en-tache]');
   if(enTache){
     const a = toutesLesAlertes().find(x=> cleAlerte(x) === enTache.dataset.enTache);
     if(a){
-      alertesEnTache.add(cleAlerte(a));
-      TACHES.push({ id: genId('tache'), libelle: a.texte, notes: a.salle ? libelleSalle(a.salle) : a.detail,
-        auteur: monEmail, salleId: a.salle ? a.salle.id : '', j: a.salle ? Math.min(a.r, 7) : null,
-        echeance: a.salle ? '' : addDaysIso(AUJOURDHUI, 2), fait: false, faitLe: '' });
+      // La clé de l'alerte est écrite en première ligne des notes : c'est ce
+      // qui range l'alerte derrière la tâche, et la fait revenir si la tâche
+      // est supprimée ou cochée sans que l'état ait changé.
+      const contexte = a.salle ? libelleSalle(a.salle) : (a.detail || '');
+      const t = {
+        id: genId('tache'), genre: GENRE, libelle: a.texte,
+        notes: '#alerte:' + cleAlerte(a) + '\n' + contexte,
+        auteur: monEmail, tourneeId: activeTourneeId(),
+        dateId: a.salle ? a.salle.id : (a.remarque ? a.remarque.dateId : ''),
+        j: a.salle ? Math.max(0, Math.min(a.r, 7)) : null,
+        echeance: a.salle ? '' : addDaysIso(aujourdhui(), 2),
+        fait: false, faitLe: '',
+      };
+      if(!t.dateId){ t.j = null; } else if(t.j == null){ t.j = 2; }
+      tachesCache.push(t);
+      rendre();
+      await CurieuxDB.upsertOne('comm_taches', t);
     }
-    rendre();
     return;
   }
-  const factice = e.target.closest('[data-maquette]');
-  if(factice) alert("Maquette : dans la vraie page, ce bouton ouvrira la fiche concernée (technique, partage, matériel).");
 });
 
-rendre();
+document.getElementById('seuilsSave').addEventListener('click', enregistrerSeuils);
+document.getElementById('seuilsReset').addEventListener('click', ()=>{
+  seuilsEnCours = null;
+  seuils = {};
+  renderSeuils();
+  document.getElementById('seuilsEtat').textContent = 'Valeurs d’origine rétablies — pense à enregistrer.';
+});
+
+/* --- Chargement ----------------------------------------------------------- */
+
+function poserAffectations(liste){
+  affectationsParDate = new Map();
+  (liste || []).forEach(a=> affectationsParDate.set(a.dateId, a));
+}
+
+async function initData(){
+  let affectations, reglages, session;
+  [tourneesCache, moyensCache, remarquesCache, tachesCache, echangesCache, affectations, reglages, session] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('moyens_salle'),
+    CurieuxDB.fetchAll('remarques'),
+    CurieuxDB.fetchAll('comm_taches'),
+    CurieuxDB.fetchAll('echanges'),
+    CurieuxDB.fetchAll('affectations_transport'),
+    CurieuxDB.fetchReglages(),
+    CurieuxDB.getSession(),
+  ]);
+  poserAffectations(affectations);
+  seuils = (reglages && reglages.techniqueSeuils) || {};
+  monEmail = (session && session.user && session.user.email) || '';
+
+  // Les recordings sont écartés, comme sur la page Avancement : ce tableau
+  // suit ce qu'une SALLE doit fournir, un studio apporte tout lui-même.
+  tourneesCache = tourneesCache.filter(t=> t.type !== 'recording');
+
+  const sel = document.getElementById('tourneeSelect');
+  sel.innerHTML = tourneesCache.length
+    ? tourneesCache.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml(t.nom || 'Tournée sans nom')}</option>`).join('')
+    : '<option value="">Aucune tournée</option>';
+  sel.addEventListener('change', rendre);
+
+  renderSeuils();
+  rendre();
+}
+
+CurieuxDB.subscribe('moyens_salle', ()=> CurieuxDB.fetchAll('moyens_salle').then(l=>{ moyensCache = l; curieuxRafraichir(rendre); }));
+CurieuxDB.subscribe('remarques', ()=> CurieuxDB.fetchAll('remarques').then(l=>{ remarquesCache = l; curieuxRafraichir(rendre); }));
+CurieuxDB.subscribe('comm_taches', ()=> CurieuxDB.fetchAll('comm_taches').then(l=>{ tachesCache = l; curieuxRafraichir(rendre); }));
+CurieuxDB.subscribe('affectations_transport', ()=> CurieuxDB.fetchAll('affectations_transport').then(l=>{ poserAffectations(l); curieuxRafraichir(rendre); }));
+
+initData();
 </script>
 </body>
 </html>

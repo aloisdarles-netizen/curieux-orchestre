@@ -58,7 +58,11 @@ const CURIEUX_SECTIONS = [
     { libelle:'Demandes titulaires', href:'suivi-dispo.html', pages:['suivi-dispo.html'] },
     { libelle:"Vue d'ensemble", href:'recap.html', pages:['recap.html'] },
   ]},
-  { libelle:'Technique', href:'technique.html', entrees:[
+  // Le tableau de bord passe en tête et devient la porte de l'espace : la page
+  // Avancement dit l'état, le tableau de bord dit quoi faire — c'est par là
+  // qu'on entre le matin.
+  { libelle:'Technique', href:'technique-taches.html', entrees:[
+    { libelle:'Tableau de bord', href:'technique-taches.html', pages:['technique-taches.html'] },
     { libelle:'Avancement', href:'technique.html', pages:['technique.html','technique-date.html'] },
     { libelle:'Matériel', href:'materiel.html', pages:['materiel.html'] },
     { libelle:'Véhicules & chauffeurs', href:'vehicules.html', pages:['vehicules.html'] },

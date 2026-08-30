@@ -8,6 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/technique-avancement.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
@@ -31,6 +32,9 @@
     font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
     padding:2px 8px; border-radius:999px; background:var(--accent-tint); color:var(--tint-ink, var(--accent-dark));
   }
+  /* Une option n'est pas une date : on la prépare, mais on n'engage rien
+     dessus. Le badge le dit sans la sortir de la liste. */
+  .serie-badge.badge-option{background:var(--maybe-tint); color:var(--maybe);}
   .date-card-quand{font-size:13px; color:var(--muted); font-weight:700; white-space:nowrap;}
 
   /* Une barre plutôt qu'un pourcentage seul : la part réglée se voit avant
@@ -177,6 +181,9 @@
 let tourneesCache = [];
 let moyensCache = [];
 let remarquesCache = [];
+// Les affectations camion/chauffeur de la tournée affichée, indexées par date :
+// deux des neuf postes d'avancement en sortent.
+let affectationsParDate = new Map();
 let carnetsCache = [];
 let vehiculesCache = [];
 let fichesCache = [];
@@ -186,62 +193,27 @@ function activeTournee(){ return tourneesCache.find(t=>t.id === activeTourneeId(
 function idMoyens(tourneeId, dateId){ return `${tourneeId}::${dateId}`; }
 function moyensFor(dateId){ return moyensCache.find(m=>m.id === idMoyens(activeTourneeId(), dateId)) || null; }
 function todayIso(){ return new Date().toISOString().slice(0,10); }
+// Les dates annulées sortent de l'écran : elles n'ont plus de montage à
+// préparer, et elles faisaient baisser un avancement que personne n'allait
+// remonter. Les options restent — une option se prépare, ou se libère — mais
+// elles se signalent, parce qu'on n'engage pas un camion sur un peut-être.
 function datesFutures(){
   const t = activeTournee();
   if(!t) return [];
   const today = todayIso();
-  return (t.dates||[]).filter(d=> !d.date || d.date >= today).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  return (t.dates||[])
+    .filter(d=> !d.date || d.date >= today)
+    .filter(d=> d.statut !== 'annulee')
+    .sort((a,b)=> (a.date||'').localeCompare(b.date||''));
 }
 
-// Un poste, c'est un intitulé fixe et son état du moment.
+// L'avancement se lit dans assets/technique-avancement.js — la même définition
+// que le tableau de bord, sinon les deux écrans se contredisent.
 //
-// La carte les répartissait en deux colonnes « fait » / « à faire ». Un poste
-// changeait donc de colonne selon son état : on ne pouvait pas apprendre où
-// regarder, il fallait relire les six pastilles à chaque carte pour retrouver
-// celle qu'on cherchait. Les postes sont désormais toujours dans le même ordre,
-// aux mêmes places ; c'est la couleur et la valeur à droite qui disent l'état.
-function poste(sev, libelle, valeur){ return { sev, libelle, valeur }; }
-
-function posteDechargement(m){
-  if(!m || m.nombreSemisSimultanees == null) return poste('non', 'Déchargement', 'à renseigner');
-  const n = m.nombreSemisSimultanees;
-  return poste('ok', 'Déchargement', `${n} semi${n > 1 ? 's' : ''} en simultané`);
-}
-function posteVacations(vacs, libelle){
-  const liste = vacs || [];
-  if(!liste.length) return poste('non', libelle, 'aucune vacation');
-  const confirmees = liste.filter(v => v.confirme).length;
-  return poste(confirmees >= liste.length ? 'ok' : 'att', libelle,
-               `${confirmees}/${liste.length} confirmée${liste.length > 1 ? 's' : ''}`);
-}
-function posteBureauControle(m){
-  if(!m || m.planChargeStatut === 'non_envoye') return poste('non', 'Plan de charge', 'à envoyer');
-  if(m.planChargeStatut === 'envoye') return poste('att', 'Plan de charge', 'envoyé, en attente');
-  return poste('ok', 'Plan de charge', 'validé');
-}
-// Le plan de scène se valide de deux côtés, séparément : tant que les deux
-// n'ont pas dit oui, il n'est pas acquis, et la valeur dit lequel manque.
-function postePlan(m){
-  if(!m || m.planStatut === 'non_demande') return poste('non', 'Plan de scène', 'à demander');
-  if(m.planStatut === 'demande') return poste('att', 'Plan de scène', 'demandé, en attente');
-  if(m.planValideNous && m.planValideSalle) return poste('ok', 'Plan de scène', 'validé des deux côtés');
-  if(m.planValideNous) return poste('att', 'Plan de scène', 'côté salle manquant');
-  if(m.planValideSalle) return poste('att', 'Plan de scène', 'notre validation manque');
-  return poste('att', 'Plan de scène', 'reçu, à valider');
-}
-
-// « Réponse de la salle » a disparu de la fiche de date : son statut général
-// doublait ce que disent déjà le plan de scène et le plan de charge.
-function postesDe(m){
-  return [
-    postePlan(m),
-    posteBureauControle(m),
-    posteDechargement(m),
-    posteVacations(m && m.roadiesVacations, 'Roadies'),
-    posteVacations(m && m.chariotsVacations, 'Chariots'),
-    posteVacations(m && m.riggVacations, 'Rigg'),
-  ];
-}
+// Neuf postes et non six : les six d'origine sortaient tous de moyens_salle,
+// si bien qu'une date pouvait afficher « 6/6 réglés » sans camion, sans
+// chauffeur, sans équipe technique et sans que la fiche soit partie.
+function postesDe(m, dates){ return techniquePostes(m, dates, affectationsParDate); }
 
 // ============================================================================
 // Les retours en attente
@@ -327,7 +299,7 @@ function render(){
     const jour = g.dates.length > 1
       ? libelleSerieDates(g.dates, { weekday:'short' })
       : (d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'2-digit' }) : '—');
-    const postes = postesDe(m);
+    const postes = postesDe(m, g.dates);
     const regles = postes.filter(p => p.sev === 'ok').length;
     // L'avancement se lit sur les mêmes postes que la liste : c'est une part de
     // postes réglés, pas une estimation posée à la main. Et on l'annonce en
@@ -340,6 +312,8 @@ function render(){
         <div class="date-card-top">
           <span class="date-card-nom">${escapeHtml(d.ville || d.lieu || 'Date')}${d.lieu && d.ville ? ' — ' + escapeHtml(d.lieu) : ''}${
             g.dates.length > 1 ? `<span class="serie-badge" title="${escapeAttr(g.dates.map(x=> x.date).filter(Boolean).join(' · '))}">${g.dates.length} dates</span>` : ''}${
+            g.dates.every(x=> (x.statut || 'option') === 'option')
+              ? '<span class="serie-badge badge-option" title="Date encore en option — rien n’est engagé tant qu’elle n’est pas signée">option</span>' : ''}${
             (()=>{ const ids = g.dates.map(x=> x.id);
                    const n = enAttente.filter(r=> ids.includes(r.dateId)).length;
                    return n ? `<span class="serie-badge" style="background:var(--maybe-tint); color:var(--maybe);" title="Un retour reçu depuis un lien partagé attend d\u2019être traité">${n} retour${n>1?'s':''}</span>` : ''; })()}</span>
@@ -497,11 +471,14 @@ async function verifierMigrationPresente(){
 
 async function initData(){
   verifierMigrationPresente();
-  [tourneesCache, moyensCache, remarquesCache] = await Promise.all([
+  let affectations;
+  [tourneesCache, moyensCache, remarquesCache, affectations] = await Promise.all([
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('moyens_salle'),
     CurieuxDB.fetchAll('remarques'),
+    CurieuxDB.fetchAll('affectations_transport'),
   ]);
+  poserAffectations(affectations);
   const sel = document.getElementById('tourneeSelect');
   tourneesCache = tourneesCache.filter(t=> t.type !== 'recording');
   if(tourneesCache.length === 0){
@@ -522,7 +499,13 @@ async function initData(){
   render();
 }
 
+function poserAffectations(liste){
+  affectationsParDate = new Map();
+  (liste || []).forEach(a=> affectationsParDate.set(a.dateId, a));
+}
+
 CurieuxDB.subscribe('moyens_salle', ()=> CurieuxDB.fetchAll('moyens_salle').then(l=>{ moyensCache=l; curieuxRafraichir(render); }));
+CurieuxDB.subscribe('affectations_transport', ()=> CurieuxDB.fetchAll('affectations_transport').then(l=>{ poserAffectations(l); curieuxRafraichir(render); }));
 // Une remarque arrive pendant qu'on regarde l'écran : elle doit s'y afficher
 // sans qu'on ait à recharger. C'est tout l'intérêt de la remonter en tête.
 CurieuxDB.subscribe('remarques', ()=> CurieuxDB.fetchAll('remarques').then(l=>{ remarquesCache=l; curieuxRafraichir(render); }));

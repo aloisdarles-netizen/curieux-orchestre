@@ -5126,3 +5126,69 @@ begin
 end;
 $$;
 grant execute on function toucher_acces(text, text) to anon, authenticated;
+
+-- ============================================================================
+-- LOT D — brancher le tableau de bord, élargir l'avancement (audit, sept. 2026)
+--
+-- Deux constats de l'audit se règlent ensemble ici :
+--   · l'avancement ne mesurait qu'un tiers du travail. Les six postes de
+--     technique.html sortaient TOUS de moyens_salle : une date pouvait afficher
+--     « 6/6 réglés » sans camion, sans chauffeur, sans équipe technique et sans
+--     que la fiche technique soit partie.
+--   · le tableau de bord technique était une maquette morte — date gelée,
+--     salles écrites en dur, boutons qui ouvrent une alert(). Il décrivait
+--     pourtant exactement le pilotage qui manque, seuils compris.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- MESURE-01 — la fiche technique est-elle partie ?
+--
+-- Rien ne le disait nulle part. Ce n'est pas déductible : la fiche part souvent
+-- par un canal que l'outil ne voit pas (un mail direct, une pièce jointe). Une
+-- date suffit — celle où on l'a envoyée — et l'avancement peut enfin compter
+-- ce poste-là.
+-- ----------------------------------------------------------------------------
+alter table moyens_salle add column if not exists fiche_envoyee_le date;
+
+-- ----------------------------------------------------------------------------
+-- PILOTAGE-01 — les seuils d'alerte se règlent depuis l'écran
+--
+-- La maquette portait ses seuils en dur (plan de scène à J-45/J-21, plan de
+-- charge à J-30/J-14, vacations à J-14/J-7). Ils viennent de la pratique, et la
+-- pratique change d'une tournée à l'autre : ils se posent dans les réglages,
+-- comme les tâches types de l'espace comm juste au-dessus.
+--
+-- Forme : { "planScene": [45, 21], "planCharge": [30, 14], … } — [orange, rouge]
+-- en jours avant la date. Un objet vide fait retomber la page sur ses défauts.
+-- ----------------------------------------------------------------------------
+alter table reglages add column if not exists technique_seuils jsonb not null default '{}'::jsonb;
+
+-- La direction technique règle ses propres seuils. La politique d'écriture des
+-- réglages ne connaissait qu'admin et comm ; elle laissait donc un DT non-admin
+-- devant un formulaire qui échoue en silence.
+drop policy if exists "reglages ecriture" on reglages;
+create policy "reglages ecriture" on reglages for all to authenticated
+  using (is_admin() or has_comm_access() or has_direction_technique_access())
+  with check (is_admin() or has_comm_access() or has_direction_technique_access());
+
+-- ----------------------------------------------------------------------------
+-- PILOTAGE-02 — les tâches techniques vivent dans la table des tâches
+--
+-- Il n'y avait aucune raison d'inventer une seconde table : comm_taches porte
+-- déjà exactement ce qu'il faut (libellé, notes, auteur, échéance libre OU
+-- comptée en jours avant une date, coche, fait_le) et l'espace comm en a
+-- éprouvé le comportement. Le champ `genre`, prévu pour cela, distingue les
+-- deux espaces — 'technique' d'un côté, '' ou 'newsletter' de l'autre.
+--
+-- La politique suivait le seul droit comm : un DT non-admin ne pouvait ni lire
+-- ni écrire ses propres tâches. Elle est désormais tranchée par le genre de la
+-- ligne, dans les deux sens (using sur l'ancienne ligne, with check sur la
+-- nouvelle) : personne ne peut faire passer une tâche d'un espace à l'autre
+-- sans avoir les deux droits.
+-- ----------------------------------------------------------------------------
+drop policy if exists "comm taches acces" on comm_taches;
+create policy "comm taches acces" on comm_taches for all to authenticated
+  using (case when genre = 'technique' then has_direction_technique_access()
+              else has_comm_access() end)
+  with check (case when genre = 'technique' then has_direction_technique_access()
+                   else has_comm_access() end);

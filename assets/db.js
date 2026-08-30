@@ -174,6 +174,10 @@ const CurieuxDB = (()=>{
         plan_image_path: m.planImagePath || '',
         // [{type:'semi'|'note', vehiculeId, label, xPct, yPct}, ...]
         semis_positions: m.semisPositions || [],
+        // Le jour où la fiche technique est partie vers cette salle. Rien ne le
+        // disait, et ce n'est pas déductible : la fiche part souvent par un
+        // canal que l'outil ne voit pas. L'avancement compte ce poste-là.
+        fiche_envoyee_le: m.ficheEnvoyeeLe || null,
         notes: m.notes || ''
       }),
       fromDb: (r)=> ({
@@ -210,6 +214,7 @@ const CurieuxDB = (()=>{
         contactsTechniciensIds: r.contacts_techniciens_ids || [],
         planImagePath: r.plan_image_path || '',
         semisPositions: r.semis_positions || [],
+        ficheEnvoyeeLe: r.fiche_envoyee_le || '',
         notes: r.notes || '',
         // La version lue, pour que la fiche de date puisse écrire « si personne
         // n'a écrit entre-temps » (upsertOneVersionne). Sans elle, un onglet
@@ -1429,6 +1434,9 @@ const CurieuxDB = (()=>{
       referentTelephone: (data && data.referent_telephone) || '',
       commTachesTypes: (data && data.comm_taches_types) || null,
       commNewsletterJour: (data && data.comm_newsletter_jour) || 25,
+      // Seuils d'alerte du tableau de bord technique : { cle: [orange, rouge] }
+      // en jours avant la date. Objet vide = la page garde ses défauts.
+      techniqueSeuils: (data && data.technique_seuils) || {},
       absent: !data,
     };
   }
@@ -1477,6 +1485,16 @@ const CurieuxDB = (()=>{
     const { error } = await supabaseClient.from('reglages')
       .update({ comm_taches_types: types || [] }).eq('id', 1);
     if(error) console.warn('[CurieuxDB] setCommTachesTypes', error.message);
+    return { error };
+  }
+
+  // Les seuils d'alerte du tableau de bord technique, réglés depuis l'écran :
+  // { planScene:[45,21], … } — [orange, rouge] en jours avant la date.
+  async function setTechniqueSeuils(seuils){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { error } = await supabaseClient.from('reglages')
+      .update({ technique_seuils: seuils || {} }).eq('id', 1);
+    if(error) console.warn('[CurieuxDB] setTechniqueSeuils', error.message);
     return { error };
   }
 
@@ -1740,7 +1758,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, fetchOne, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
-    fetchReglages, setPhaseTest, setVillesBase, setCommTachesTypes, setCommNewsletterJour, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
+    fetchReglages, setPhaseTest, setVillesBase, setCommTachesTypes, setCommNewsletterJour, setTechniqueSeuils, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,

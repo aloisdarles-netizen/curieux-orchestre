@@ -48,6 +48,7 @@
   fieldset.groupe{border:1px solid var(--border); border-radius:14px; padding:15px 18px 17px; margin:0 0 14px; background:var(--card);}
   fieldset.groupe legend{font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); padding:0 6px 0 0; font-weight:800;}
   .field{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .aide-champ{margin:0; font-size:11.5px; color:var(--muted); line-height:1.45;}
   .field-row{display:flex; gap:12px; flex-wrap:wrap;}
   .field-row .field{flex:1; min-width:150px;}
   label{font-size:12px; color:var(--muted); font-weight:600;}
@@ -186,6 +187,18 @@
   <!-- « Réponse de la salle » a disparu : son statut général doublait le suivi
        réel, qui se lit au plan de scène, au plan de charge et à la fiche
        déposée ci-dessus. La colonne reste en base, plus personne ne l'écrit. -->
+
+  <!-- Rien ne disait si la fiche technique était partie vers cette salle, et
+       ce n'est pas déductible : elle part souvent par un canal que l'outil ne
+       voit pas. Une date suffit, et l'avancement peut enfin compter ce poste. -->
+  <fieldset class="groupe">
+    <legend>Fiche technique</legend>
+    <div class="field">
+      <label for="fFicheEnvoyeeLe">Envoyée à la salle le</label>
+      <input type="date" id="fFicheEnvoyeeLe">
+      <p class="aide-champ">Laisse vide tant qu'elle n'est pas partie — l'avancement de la date compte ce poste.</p>
+    </div>
+  </fieldset>
 
   <fieldset class="groupe">
     <legend>Plan de scène</legend>
@@ -902,7 +915,7 @@ function moyensVierge(){
     id: `${tourneeId}::${dateId}`, tourneeId, dateId,
     statut:'non_demande', planStatut:'non_demande', planUrl:'',
     planValideNous:false, planValideSalle:false,
-    planChargeStatut:'non_envoye',
+    planChargeStatut:'non_envoye', ficheEnvoyeeLe:'',
     // Un bureau d'étude est prévu sur place par défaut : c'est son absence qui
     // fait exception, et qui se coche.
     bureauElectriqueSurPlace:true, bureauElectriqueHoraire:'',
@@ -922,6 +935,7 @@ function peupler(){
   document.getElementById('fPlanValideSalle').checked = moyens.planValideSalle;
   document.getElementById('fPlanUrl').value = moyens.planUrl;
   document.getElementById('fPlanCharge').value = moyens.planChargeStatut;
+  document.getElementById('fFicheEnvoyeeLe').value = moyens.ficheEnvoyeeLe || '';
   document.getElementById('fBureauElecAbsent').checked = !moyens.bureauElectriqueSurPlace;
   document.getElementById('fBureauElecNom').value = moyens.bureauElectriqueNom;
   document.getElementById('fBureauElecTel').value = moyens.bureauElectriqueTel;
@@ -1205,6 +1219,7 @@ async function enregistrer(){
   moyens.planValideSalle = document.getElementById('fPlanValideSalle').checked;
   moyens.planUrl = document.getElementById('fPlanUrl').value.trim();
   moyens.planChargeStatut = document.getElementById('fPlanCharge').value;
+  moyens.ficheEnvoyeeLe = document.getElementById('fFicheEnvoyeeLe').value || '';
   moyens.bureauElectriqueSurPlace = !document.getElementById('fBureauElecAbsent').checked;
   moyens.bureauElectriqueNom = document.getElementById('fBureauElecNom').value.trim();
   moyens.bureauElectriqueTel = document.getElementById('fBureauElecTel').value.trim();
