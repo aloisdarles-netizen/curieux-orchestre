@@ -2747,7 +2747,7 @@ function bindTourneeEvents(){
     });
   });
   document.querySelectorAll('[data-del-date]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
+    btn.addEventListener('click', async ()=>{
       const card = btn.closest('[data-tournee-id]');
       const tourneeId = card.dataset.tourneeId;
       const tournees = loadTournees();
@@ -2758,6 +2758,10 @@ function bindTourneeEvents(){
       if(!confirm(`Supprimer DÉFINITIVEMENT la date du ${label} ?\n\nElle disparaîtra complètement, y compris du récap newsletter (pas de trace d'annulation). Si tu veux garder une trace visible qu'elle est annulée, utilise plutôt le bouton "Annulée" à côté du statut.`)) return;
       t.dates = (t.dates||[]).filter(x=>x.id !== btn.dataset.delDate);
       saveTournees(tournees);
+      // La promesse « elle disparaîtra complètement » était fausse : les dates
+      // vivant en jsonb, sans clé étrangère, sa fiche technique, ses remarques,
+      // ses affectations de transport et ses tâches lui survivaient, invisibles.
+      await CurieuxDB.supprimerRattachesDate(tourneeId, btn.dataset.delDate);
       render();
     });
   });

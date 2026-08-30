@@ -383,7 +383,7 @@ function reponseForm(m, type, i, v){
   return `
     <div class="reponse-form" data-date="${m.date_id}" data-type="${type}" data-index="${i}">
       <label style="display:flex; align-items:center; gap:6px; font-size:12.5px;"><input type="checkbox" data-champ="confirme" ${v.confirme?'checked':''}> ${t('confirmer')}</label>
-      <input type="text" placeholder="${escapeAttr(t('justification'))}" data-champ="notes">
+      <input type="text" placeholder="${escapeAttr(t('justification'))}" data-champ="notesSalle" value="${escapeAttr(v.notesSalle || '')}">
       <button type="button" data-repondre>${t('envoyer')}</button>
       <span class="reponse-ok" data-ok style="display:none;">${t('envoye_ok')}</span>
     </div>`;
@@ -395,7 +395,8 @@ function blocVacationsRoadies(m, editable){
     ${vacs.map((v,i)=>`
       <div class="vacation-pub">
         <div class="h">${escapeHtml(v.horaireDebut||'?')} – ${escapeHtml(v.horaireFin||'?')} ${v.confirme ? '· <span style="color:var(--ok);">' + t('confirmee') + '</span>' : ''}</div>
-        <div class="demande">${t('demande_label')} : <strong>${v.nombreDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>
+        <div class="demande">${t('demande_label')} : <strong>${v.nombreDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>${
+          v.notesSalle ? `<div class="demande" style="font-style:italic;">↳ ${escapeHtml(v.notesSalle)}</div>` : ''}
         ${chipsEquipes(v)}
         ${editable ? reponseForm(m, 'roadies', i, v) : ''}
       </div>
@@ -409,7 +410,8 @@ function blocVacationsChariots(m, editable){
     ${vacs.map((v,i)=>`
       <div class="vacation-pub">
         <div class="h">${escapeHtml(v.horaireDebut||'?')} – ${escapeHtml(v.horaireFin||'?')} ${v.confirme ? '· <span style="color:var(--ok);">' + t('confirmee') + '</span>' : ''}</div>
-        <div class="demande">${t('chariots_demandes')} : <strong>${v.nombreChariotsDemande ?? '—'}</strong> — ${t('caristes_demandes')} : <strong>${v.nombreCaristesDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>
+        <div class="demande">${t('chariots_demandes')} : <strong>${v.nombreChariotsDemande ?? '—'}</strong> — ${t('caristes_demandes')} : <strong>${v.nombreCaristesDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>${
+          v.notesSalle ? `<div class="demande" style="font-style:italic;">↳ ${escapeHtml(v.notesSalle)}</div>` : ''}
         ${editable ? reponseForm(m, 'chariots', i, v) : ''}
       </div>
     `).join('')}
@@ -422,7 +424,8 @@ function blocVacationsRigg(m, editable){
     ${vacs.map((v,i)=>`
       <div class="vacation-pub">
         <div class="h">${escapeHtml(v.horaireDebut||'?')} – ${escapeHtml(v.horaireFin||'?')} ${v.confirme ? '· <span style="color:var(--ok);">' + t('confirmee') + '</span>' : ''}</div>
-        <div class="demande">${t('demande_label')} : <strong>${v.nombreDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>
+        <div class="demande">${t('demande_label')} : <strong>${v.nombreDemande ?? '—'}</strong>${v.notes?` — ${escapeHtml(v.notes)}`:''}</div>${
+          v.notesSalle ? `<div class="demande" style="font-style:italic;">↳ ${escapeHtml(v.notesSalle)}</div>` : ''}
         ${(v.nombreSol || v.nombreGrill) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
           ${v.nombreSol ? `<span class="equipe-chip">${escapeHtml(String(v.nombreSol))} × ${t('rigg_sol')}</span>` : ''}
           ${v.nombreGrill ? `<span class="equipe-chip">${escapeHtml(String(v.nombreGrill))} × ${t('rigg_grill')}</span>` : ''}

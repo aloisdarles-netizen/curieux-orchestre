@@ -52,6 +52,18 @@
   .field-row .field{flex:1; min-width:150px;}
   label{font-size:12px; color:var(--muted); font-weight:600;}
 
+  /* La réponse de la salle, sous notre note : filet à gauche, pas de fond —
+     elle informe, elle ne réclame rien. */
+  .reponse-salle{
+    margin:8px 0 0; padding:7px 0 7px 11px; border-left:2px solid var(--ok);
+    font-size:12.5px; line-height:1.45; color:var(--text);
+  }
+  .reponse-salle b{
+    display:block; font-size:10px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--ok); font-weight:800; margin-bottom:2px;
+  }
+  .reponse-salle i{color:var(--muted);}
+
   .vacation{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 13px; margin-bottom:10px;}
   .vacation-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
   .vacation-head b{font-size:12.5px;}
@@ -458,6 +470,22 @@ function afficherSommeEquipes(vacationIndex){
   el.textContent = `Somme des équipes : ${somme}${total!=null ? ' / ' + total + ' demandé' : ''}`;
   el.style.color = total == null ? 'var(--muted)' : (correspond ? 'var(--ok)' : 'var(--maybe)');
 }
+/* Ce que la salle a répondu sur cette vacation.
+ *
+ * Sa justification vivait dans la MÊME clé que notre note (« notes ») et
+ * l'écrasait à chaque réponse — la fonction serveur fusionnait par `||`, où la
+ * droite l'emporte. Elle a maintenant sa clé, `notesSalle`, et s'affiche ici en
+ * lecture seule, sous la nôtre : c'est sa parole, on ne la réécrit pas.
+ */
+function reponseSalleHtml(v){
+  if(!v || (!v.notesSalle && !v.reponduLe && !v.repondu_le)) return '';
+  const quand = v.reponduLe || v.repondu_le || '';
+  const jour = quand ? new Date(quand).toLocaleDateString('fr-FR', { day:'numeric', month:'short' }) : '';
+  return `<p class="reponse-salle">
+    <b>Réponse de la salle${jour ? ' · ' + escapeHtml(jour) : ''}</b>
+    ${v.notesSalle ? escapeHtml(v.notesSalle) : '<i>sans commentaire</i>'}</p>`;
+}
+
 function renderRoadiesListe(){
   const box = document.getElementById('roadiesListe');
   const liste = moyens.roadiesVacations;
@@ -484,7 +512,7 @@ function renderRoadiesListe(){
       <label style="display:block; margin:6px 0 4px;">Équipes de la tournée</label>
       <div data-equipes-de="${i}"></div>
       <p style="font-size:12px; font-weight:700; margin:6px 0 0;" data-somme-equipes-de="${i}"></p>
-      <div class="field" style="margin-top:10px;"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
+      <div class="field" style="margin-top:10px;"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>${reponseSalleHtml(v)}
     </div>
   `;}).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
   box.querySelectorAll('.vacation').forEach(card=>{
@@ -551,7 +579,7 @@ function renderChariotsListe(){
       <div class="field-row" style="margin-top:10px;">
         <div class="field"><label>Caristes demandés</label><input type="number" min="0" data-f="nombreCaristesDemande" value="${v.nombreCaristesDemande!=null?v.nombreCaristesDemande:''}"></div>
       </div>
-      <div class="field"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
+      <div class="field"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>${reponseSalleHtml(v)}
     </div>
   `).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
   box.querySelectorAll('.vacation').forEach(card=>{
@@ -601,7 +629,7 @@ function renderRiggListe(){
         <div class="field"><label>Riggers au grill</label><input type="number" min="0" data-f="nombreGrill" value="${v.nombreGrill!=null?v.nombreGrill:''}"></div>
       </div>
       <p class="rigg-somme" data-somme="${i}">${sommeRiggHtml(v)}</p>
-      <div class="field"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>
+      <div class="field"><label>Notes / justification</label><input type="text" data-f="notes" value="${escapeAttr(v.notes||'')}"></div>${reponseSalleHtml(v)}
     </div>
   `).join('') || `<p class="empty-hint" style="padding:10px 0;">Aucune vacation.</p>`;
   box.querySelectorAll('.vacation').forEach(card=>{
@@ -1199,10 +1227,68 @@ async function enregistrer(){
 
   const statutEl = document.getElementById('saveStatus');
   statutEl.textContent = 'Enregistrement…';
-  await CurieuxDB.upsertOne('moyens_salle', moyens);
+
+  /* Écrire sans écraser personne.
+   *
+   * Cette page réécrivait l'objet moyens_salle COMPLET, tel qu'il était au
+   * moment où on l'avait ouverte — et elle n'avait aucun abonnement temps réel.
+   * Une vacation confirmée par la salle, un horaire réécrit par le stage
+   * manager ou un plan déposé pendant qu'un onglet traînait ouvert étaient
+   * remplacés par l'état d'avant, sans un mot et sans trace.
+   *
+   * On écrit désormais « si personne n'a écrit entre-temps ». En cas de
+   * conflit, rien n'est écrasé : on le dit, et on laisse choisir entre
+   * reprendre la version du serveur ou forcer la sienne. Une fiche jamais
+   * enregistrée n'a pas de version : elle passe par l'écriture simple, qui
+   * crée la ligne.
+   */
+  if(!moyens._updatedAt){
+    const { error } = await CurieuxDB.upsertOne('moyens_salle', moyens);
+    if(error){ statutEl.textContent = "Échec de l'enregistrement — rien n'a été écrit."; return; }
+    const frais = await CurieuxDB.fetchOne('moyens_salle', moyens.id);
+    if(frais) moyens._updatedAt = frais._updatedAt;
+    statutEl.textContent = 'Enregistré à ' + new Date().toLocaleTimeString('fr-FR');
+    return;
+  }
+
+  const res = await CurieuxDB.upsertOneVersionne('moyens_salle', moyens);
+  if(res.error){ statutEl.textContent = "Échec de l'enregistrement — rien n'a été écrit."; return; }
+  if(res.conflit){
+    statutEl.textContent = 'Quelqu\'un a enregistré entre-temps.';
+    const forcer = confirm(
+      "Quelqu'un a modifié cette fiche pendant que tu l'avais ouverte — la salle "
+      + "a peut-être confirmé une vacation, ou le stage manager posé un horaire.\n\n"
+      + "OK : recharger leur version (tes modifications non enregistrées sont perdues).\n"
+      + "Annuler : écraser leur version avec la tienne.");
+    if(forcer){ location.reload(); return; }
+    moyens._updatedAt = res.distant._updatedAt;
+    const forcee = await CurieuxDB.upsertOneVersionne('moyens_salle', moyens);
+    if(forcee.error || forcee.conflit){ statutEl.textContent = "Échec — recharge la page."; return; }
+    moyens._updatedAt = forcee._updatedAt;
+    statutEl.textContent = 'Enregistré (en écrasant) à ' + new Date().toLocaleTimeString('fr-FR');
+    return;
+  }
+  moyens._updatedAt = res._updatedAt;
   statutEl.textContent = 'Enregistré à ' + new Date().toLocaleTimeString('fr-FR');
 }
 document.getElementById('saveBtn').addEventListener('click', enregistrer);
+
+/* Et la page se tient au courant. Sans abonnement, elle ignorait tout de ce
+ * qui arrivait pendant qu'elle était ouverte. curieuxRafraichir diffère le
+ * rendu tant qu'un champ est en cours de frappe : on ne se fait pas voler son
+ * curseur au milieu d'une phrase. */
+CurieuxDB.subscribe('moyens_salle', ()=>{
+  CurieuxDB.fetchOne('moyens_salle', `${tourneeId}::${dateId}`).then(frais=>{
+    if(!frais || !frais._updatedAt || frais._updatedAt === moyens._updatedAt) return;
+    curieuxRafraichir(()=>{
+      moyens = frais;
+      peupler();
+      const statutEl = document.getElementById('saveStatus');
+      if(statutEl) statutEl.textContent = 'Mis à jour depuis un autre écran.';
+    });
+  });
+});
+CurieuxDB.subscribe('remarques', ()=> renderRemarques());
 
 async function init(){
   if(!tourneeId || !dateId){ document.getElementById('titre').textContent = 'Lien incomplet'; return; }

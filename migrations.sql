@@ -4867,3 +4867,194 @@ end;
 $$;
 
 grant execute on function noter_relance(text, text, text) to authenticated;
+
+-- ============================================================================
+-- LOT B — refermer ce qui fuit (audit technique, sept. 2026)
+--
+-- Trois corrections qui touchent la base. Elles répondent à des défauts
+-- constatés dans le code, pas à des suppositions : chacun est nommé par le
+-- code de la réserve d'audit correspondante.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- PORTÉE-01 — le lien d'une salle transportait les données de toutes les autres
+--
+-- get_recap_logistique renvoyait `to_jsonb(m)` de TOUS les moyens_salle de la
+-- tournée, ligne entière : contacts, téléphones et notes internes de chaque
+-- salle, quel que soit le périmètre du jeton. Le filtrage par dates_ids était
+-- fait dans le NAVIGATEUR du destinataire — c'est-à-dire nulle part.
+--
+-- Deux verrous posés ici :
+--   · les dates. Un jeton qui nomme des dates ne reçoit que celles-là ; un
+--     jeton sans date (stage manager, technicien) garde la tournée entière,
+--     ce qui est son usage.
+--   · les colonnes. On ne renvoie plus que les vingt-six champs que
+--     technique-partage.html lit réellement, relevés un par un dans la page.
+--     `notes` — nos notes internes sur la salle — n'en fait pas partie, pas
+--     plus que les validations de plan, la charge à l'accroche ou les
+--     technicien·nes exposés comme contacts.
+--
+-- Si un bloc devait manquer côté salle après cette migration, c'est ici qu'on
+-- ajoute le champ, et nulle part ailleurs.
+-- ----------------------------------------------------------------------------
+create or replace function get_recap_logistique(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces acces_logistique%rowtype;
+  resultat jsonb;
+begin
+  select * into acces from acces_logistique where id = p_token and actif limit 1;
+  if not found then
+    return null;
+  end if;
+
+  select jsonb_build_object(
+    'libelle', acces.libelle,
+    'type', acces.type,
+    'datesIds', acces.dates_ids,
+    'tournee', (select jsonb_build_object('id', t.id, 'nom', t.nom, 'dates', t.dates,
+                       'equipesRoad', t.equipes_road,
+                       'techniqueTournee', t.technique_tournee)
+                from tournees t where t.id = acces.tournee_id),
+    'moyens', coalesce((select jsonb_agg(jsonb_build_object(
+                  'date_id', m.date_id,
+                  'plan_url', m.plan_url,
+                  'plan_image_path', m.plan_image_path,
+                  'semis_positions', m.semis_positions,
+                  'nombre_semis_simultanees', m.nombre_semis_simultanees,
+                  'emplacements_dechargement', m.emplacements_dechargement,
+                  'acces_notes', m.acces_notes,
+                  'hauteur_grill', m.hauteur_grill,
+                  'ouverture_scene', m.ouverture_scene,
+                  'puissance', m.puissance,
+                  'points_distribution', m.points_distribution,
+                  'contacts_salle', m.contacts_salle,
+                  'horaires_journee', m.horaires_journee,
+                  'roadies_vacations', m.roadies_vacations,
+                  'chariots_vacations', m.chariots_vacations,
+                  'rigg_vacations', m.rigg_vacations,
+                  'bureau_electrique_sur_place', m.bureau_electrique_sur_place,
+                  'bureau_electrique_nom', m.bureau_electrique_nom,
+                  'bureau_electrique_tel', m.bureau_electrique_tel,
+                  'bureau_electrique_horaire', m.bureau_electrique_horaire,
+                  'bureau_electrique_dossier_url', m.bureau_electrique_dossier_url,
+                  'bureau_accroche_sur_place', m.bureau_accroche_sur_place,
+                  'bureau_accroche_nom', m.bureau_accroche_nom,
+                  'bureau_accroche_tel', m.bureau_accroche_tel,
+                  'bureau_accroche_horaire', m.bureau_accroche_horaire,
+                  'bureau_accroche_dossier_url', m.bureau_accroche_dossier_url))
+                from moyens_salle m
+                where m.tournee_id = acces.tournee_id
+                  -- Un jeton sans date couvre la tournée ; sinon, ses dates seules.
+                  and (coalesce(jsonb_array_length(acces.dates_ids), 0) = 0
+                       or acces.dates_ids ? m.date_id)), '[]'::jsonb),
+    'lots', coalesce((select jsonb_agg(to_jsonb(l))
+                from lots_materiel l where l.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'carnets', coalesce((select jsonb_agg(to_jsonb(c))
+                from carnets_ata c where c.tournee_id = acces.tournee_id), '[]'::jsonb),
+    'fichesTechniques', coalesce((select jsonb_agg(jsonb_build_object(
+                  'id', f.id, 'nom', f.nom, 'driveUrl', f.drive_url,
+                  'versionActuelle', f.version_actuelle, 'versionLe', f.version_le))
+                from fiches_techniques f
+                where f.tournee_id = acces.tournee_id or f.tournee_id is null), '[]'::jsonb),
+    'vehicules', coalesce((
+                select jsonb_agg(jsonb_build_object(
+                  'id', v.id, 'nom', v.nom, 'type', v.type,
+                  'immatriculation', v.immatriculation, 'hayon', v.hayon,
+                  'capacite', v.capacite, 'prestataire_id', v.prestataire_id,
+                  'hauteur_m', v.hauteur_m, 'largeur_m', v.largeur_m,
+                  'profondeur_m', v.profondeur_m,
+                  'chauffeur_defaut_id', v.chauffeur_defaut_id))
+                from vehicules v
+                -- LIEN-02 : l'engagement du véhicule sur le projet fait foi.
+                -- Auparavant, seules les exceptions par date étaient regardées :
+                -- une semi « engagée » par le bouton de vehicules.html
+                -- n'apparaissait sur AUCUN lien partagé. L'écran interne
+                -- annonçait trois véhicules, la salle en voyait zéro.
+                where v.tournees_ids ? acces.tournee_id
+                   or v.id in (select af.vehicule_id from affectations_transport af
+                               where af.tournee_id = acces.tournee_id and af.vehicule_id is not null)
+                ), '[]'::jsonb),
+    'chauffeurs', coalesce((
+                select jsonb_agg(jsonb_build_object(
+                  'id', ch.id, 'prenom', ch.prenom, 'nom', ch.nom,
+                  'telephone', ch.telephone, 'email', ch.email))
+                from chauffeurs ch
+                where ch.tournees_ids ? acces.tournee_id
+                   or ch.id in (select af.chauffeur_id from affectations_transport af
+                                where af.tournee_id = acces.tournee_id and af.chauffeur_id is not null)
+                   or ch.id in (select v.chauffeur_defaut_id from vehicules v
+                                where v.chauffeur_defaut_id is not null
+                                  and (v.tournees_ids ? acces.tournee_id
+                                       or v.id in (select af2.vehicule_id from affectations_transport af2
+                                                   where af2.tournee_id = acces.tournee_id)))
+                ), '[]'::jsonb),
+    'affectationsTransport', coalesce((select jsonb_agg(to_jsonb(af))
+                from affectations_transport af where af.tournee_id = acces.tournee_id), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
+grant execute on function get_recap_logistique(text) to anon, authenticated;
+
+-- ----------------------------------------------------------------------------
+-- PERTE-03 — la réponse de la salle effaçait notre note
+--
+-- La fonction fusionnait la réponse dans la vacation par `||`, où la droite
+-- l'emporte. Or les deux côtés écrivaient la même clé `notes` : « Notes » chez
+-- nous, « justification » chez la salle. Notre note lui était même montrée à
+-- l'écran juste avant d'être remplacée, sans trace nulle part.
+--
+-- La salle écrit désormais dans `notesSalle`, et la fonction retire par
+-- précaution toute clé `notes` de ce qu'elle reçoit : un navigateur resté sur
+-- l'ancienne version de la page ne peut plus écraser quoi que ce soit.
+-- ----------------------------------------------------------------------------
+create or replace function repondre_vacation_salle(
+  p_token text, p_date_id text, p_type_vacation text, p_index int, p_reponse jsonb
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acces acces_logistique%rowtype;
+  ms moyens_salle%rowtype;
+  liste jsonb;
+  reponse jsonb;
+begin
+  select * into acces from acces_logistique where id = p_token and actif and type = 'salle' limit 1;
+  if not found then return false; end if;
+  if not (acces.dates_ids ? p_date_id) then return false; end if;
+
+  select * into ms from moyens_salle
+   where tournee_id = acces.tournee_id and date_id = p_date_id limit 1;
+  if not found then return false; end if;
+
+  liste := case p_type_vacation
+    when 'roadies' then ms.roadies_vacations
+    when 'chariots' then ms.chariots_vacations
+    else ms.rigg_vacations
+  end;
+  if p_index < 0 or p_index >= jsonb_array_length(liste) then return false; end if;
+
+  -- La salle ne touche ni à notre note, ni au reste de la vacation : seuls la
+  -- confirmation et sa justification lui appartiennent.
+  reponse := (coalesce(p_reponse, '{}'::jsonb) - 'notes') || jsonb_build_object('repondu_le', now());
+  liste := jsonb_set(liste, array[p_index::text], (liste->p_index) || reponse);
+
+  if p_type_vacation = 'roadies' then
+    update moyens_salle set roadies_vacations = liste where id = ms.id;
+  elsif p_type_vacation = 'chariots' then
+    update moyens_salle set chariots_vacations = liste where id = ms.id;
+  else
+    update moyens_salle set rigg_vacations = liste where id = ms.id;
+  end if;
+  return true;
+end;
+$$;
+grant execute on function repondre_vacation_salle(text, text, text, int, jsonb) to anon, authenticated;

@@ -210,7 +210,12 @@ const CurieuxDB = (()=>{
         contactsTechniciensIds: r.contacts_techniciens_ids || [],
         planImagePath: r.plan_image_path || '',
         semisPositions: r.semis_positions || [],
-        notes: r.notes || ''
+        notes: r.notes || '',
+        // La version lue, pour que la fiche de date puisse écrire « si personne
+        // n'a écrit entre-temps » (upsertOneVersionne). Sans elle, un onglet
+        // resté ouvert écrasait en silence la vacation que la salle venait de
+        // confirmer et les horaires que le stage manager venait de poser.
+        _updatedAt: r.updated_at
       })
     },
     // Registre partagé des prestataires (provenance matériel, loueur véhicule).
@@ -837,6 +842,28 @@ const CurieuxDB = (()=>{
     return _ecrire(`removeMany(${table})`,
       () => supabaseClient.from(table).delete().in('id', ids));
   }
+  /* Supprimer une date, et ce qui vivait avec elle.
+   *
+   * Les dates n'existent pas comme lignes : elles vivent dans tournees.dates,
+   * une colonne jsonb. Il n'y a donc AUCUNE clé étrangère, et retirer une date
+   * du tableau laissait derrière elle sa fiche technique (moyens_salle), les
+   * remarques que la salle y avait laissées, les affectations de transport et
+   * les tâches qui la visaient — invisibles et inatteignables, alors que la
+   * confirmation promettait qu'elle « disparaîtra complètement ».
+   *
+   * Best-effort, comme removePerson : un compte qui n'aurait pas le droit sur
+   * l'une de ces tables ne doit pas empêcher la suppression de la date.
+   */
+  async function supprimerRattachesDate(tourneeId, dateId){
+    if(!supabaseClient) return;
+    await Promise.all([
+      supabaseClient.from('moyens_salle').delete().eq('id', `${tourneeId}::${dateId}`),
+      supabaseClient.from('remarques').delete().eq('tournee_id', tourneeId).eq('date_id', dateId),
+      supabaseClient.from('affectations_transport').delete().eq('tournee_id', tourneeId).eq('date_id', dateId),
+      supabaseClient.from('comm_taches').delete().eq('tournee_id', tourneeId).eq('date_id', dateId),
+    ]);
+  }
+
   // Supprime un·e musicien·ne/technicien·ne ET les données rattachées ailleurs
   // (fiche infos_sociales, liens dispo_demandes) — sans quoi elles restaient
   // orphelines et invisibles indéfiniment. Best-effort : un compte de rôle
@@ -1685,7 +1712,7 @@ const CurieuxDB = (()=>{
   }
 
   return {
-    fetchAll, fetchOne, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, fetchSnapshot, saveSnapshot, subscribe,
+    fetchAll, fetchOne, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
     fetchReglages, setPhaseTest, setVillesBase, setCommTachesTypes, setCommNewsletterJour, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,
