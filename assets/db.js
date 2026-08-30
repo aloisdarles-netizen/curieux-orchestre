@@ -418,13 +418,22 @@ const CurieuxDB = (()=>{
         // accompagne le PDF, depuis partage.html. Jamais exposée par le lien
         // public (get_recap_logistique ne la renvoie pas).
         email: a.email || '',
-        actif: a.actif !== false
+        actif: a.actif !== false,
+        // Les deux seuls horodatages que NOUS posons. ouvert_le, dernier_acces_le
+        // et repondu_le appartiennent au destinataire (toucher_acces, côté
+        // serveur) : les renvoyer ici, ce serait réécrire depuis un cache vieux
+        // de dix minutes ce que la page publique vient d'enregistrer.
+        envoye_le: a.envoyeLe || null,
+        relance_le: a.relanceLe || null
       }),
       fromDb: (r)=> ({
         id: r.id, libelle: r.libelle || '', tourneeId: r.tournee_id || '',
         type: r.type || 'stage_manager', datesIds: r.dates_ids || [],
         email: r.email || '',
-        actif: r.actif !== false, createdAt: r.created_at
+        actif: r.actif !== false, createdAt: r.created_at,
+        envoyeLe: r.envoye_le || '', ouvertLe: r.ouvert_le || '',
+        dernierAccesLe: r.dernier_acces_le || '',
+        reponduLe: r.repondu_le || '', relanceLe: r.relance_le || ''
       })
     },
     // Exceptions par personne au cachet standard d'une tournée (voir tournees.cachet_montant) —
@@ -1656,6 +1665,24 @@ const CurieuxDB = (()=>{
     if(error){ console.warn('[CurieuxDB] ajouterRemarqueParJeton', error.message); return { error }; }
     return { ok: !!data };
   }
+  // Horodate le cycle de vie d'un accès partagé depuis la page publique :
+  // 'ouverture' au chargement, 'reponse' après chaque écriture réussie. C'est
+  // le seul droit d'écriture du destinataire sur sa propre ligne d'accès, et il
+  // ne porte que des dates (voir toucher_acces dans migrations.sql).
+  //
+  // Volontairement silencieuse : si la migration du Lot C n'a pas encore été
+  // passée, la fonction n'existe pas et l'appel échoue — ce n'est pas une
+  // raison pour empêcher une salle de confirmer ses vacations.
+  async function toucherAcces(token, evenement){
+    if(!supabaseClient || !token) return false;
+    try{
+      const { data, error } = await supabaseClient.rpc('toucher_acces', {
+        p_token: token, p_evenement: evenement || 'ouverture'
+      });
+      if(error) return false;
+      return !!data;
+    }catch(e){ return false; }
+  }
   // Les remarques déjà envoyées par ce lien — pour que son auteur les relise au
   // lieu de croire que rien n'est parti.
   async function getRemarquesParJeton(token){
@@ -1718,7 +1745,7 @@ const CurieuxDB = (()=>{
     listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
     getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis, enregistrerHorairesJournee,
-    ajouterRemarqueParJeton, getRemarquesParJeton, enregistrerPlanSalleParJeton,
+    ajouterRemarqueParJeton, getRemarquesParJeton, enregistrerPlanSalleParJeton, toucherAcces,
     deposerPlanSalle, urlPubliquePlanSalle,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,

@@ -5058,3 +5058,71 @@ begin
 end;
 $$;
 grant execute on function repondre_vacation_salle(text, text, text, int, jsonb) to anon, authenticated;
+
+-- ============================================================================
+-- LOT C — les retours se voient (audit technique, sept. 2026)
+--
+-- Six façons de fabriquer un lien, un PDF ou un message — et aucun mécanisme
+-- pour dire que quelque chose est revenu. Un accès logistique ne portait ni
+-- date d'envoi, ni date d'ouverture, ni date de réponse, là où dispo_demandes
+-- porte les trois et alimente un « Relancer » qui fonctionne depuis des mois.
+--
+-- On pose ici les mêmes quatre horodatages sur acces_logistique, et la seule
+-- fonction qui manque pour les remplir depuis la page publique.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- BOUCLE-01 — l'accès logistique porte enfin son cycle
+--
+-- envoye_le        : posé par nous, au moment où l'on copie le lien ou où l'on
+--                    ouvre le message qui l'accompagne. C'est un « c'est parti »
+--                    déclaratif, comme pour les demandes de dispo.
+-- ouvert_le        : la première fois que le destinataire a chargé sa page.
+-- dernier_acces_le : la dernière fois — pour distinguer « ouvert une fois par
+--                    curiosité » de « consulté hier encore ».
+-- repondu_le       : la dernière fois qu'il a ÉCRIT quelque chose (remarque,
+--                    confirmation de vacation, horaires, plan déposé).
+-- relance_le       : notre dernière relance, pour ne pas relancer deux fois le
+--                    même jour sans le savoir.
+-- ----------------------------------------------------------------------------
+alter table acces_logistique add column if not exists envoye_le timestamptz;
+alter table acces_logistique add column if not exists ouvert_le timestamptz;
+alter table acces_logistique add column if not exists dernier_acces_le timestamptz;
+alter table acces_logistique add column if not exists repondu_le timestamptz;
+alter table acces_logistique add column if not exists relance_le timestamptz;
+
+-- ----------------------------------------------------------------------------
+-- toucher_acces — le seul droit d'écriture du destinataire sur sa propre ligne
+--
+-- Appelée par technique-partage.html : au chargement (« ouverture »), et après
+-- chaque écriture réussie (« reponse »). Elle est délibérément minuscule et ne
+-- peut rien faire d'autre :
+--   · elle exige un jeton existant ET actif ;
+--   · elle n'écrit que des horodatages, jamais un contenu ;
+--   · ouvert_le n'est posé qu'une fois (coalesce), les autres n'avancent que
+--     dans le sens du temps — on ne peut pas rajeunir une ligne.
+-- Le pire qu'un destinataire mal intentionné puisse faire, c'est prétendre
+-- avoir ouvert sa page. On accepte : ces dates servent à savoir qui relancer,
+-- pas à établir une preuve.
+-- ----------------------------------------------------------------------------
+create or replace function toucher_acces(p_token text, p_evenement text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_evenement not in ('ouverture','reponse') then return false; end if;
+
+  update acces_logistique
+     set ouvert_le        = coalesce(ouvert_le, now()),
+         dernier_acces_le = greatest(coalesce(dernier_acces_le, now()), now()),
+         repondu_le       = case when p_evenement = 'reponse'
+                                 then greatest(coalesce(repondu_le, now()), now())
+                                 else repondu_le end
+   where id = p_token and actif;
+
+  return found;
+end;
+$$;
+grant execute on function toucher_acces(text, text) to anon, authenticated;

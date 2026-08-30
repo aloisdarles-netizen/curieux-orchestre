@@ -447,6 +447,7 @@ document.addEventListener('click', async (e)=>{
     btnRemarque.disabled = false;
     if(res.error || !res.ok){ alert("La remarque n'a pas pu être envoyée — réessaie."); return; }
     zone.querySelector('[data-ok]').style.display = 'inline';
+    CurieuxDB.toucherAcces(TOKEN, 'reponse');
     remarquesEnvoyees = await CurieuxDB.getRemarquesParJeton(TOKEN);
     renderContenu();
     return;
@@ -465,6 +466,7 @@ document.addEventListener('click', async (e)=>{
   const res = await CurieuxDB.repondreVacationSalle(TOKEN, form.dataset.date, form.dataset.type, Number(form.dataset.index), reponse);
   btn.disabled = false;
   if(res.error || !res.ok){ alert("Échec de l'envoi — réessaie."); return; }
+  CurieuxDB.toucherAcces(TOKEN, 'reponse');
   form.querySelector('[data-ok]').style.display = 'inline';
 });
 
@@ -502,6 +504,7 @@ function choisirEtDeposerPlan(dateId){
       const data = await rep.json().catch(()=> ({}));
       if(!rep.ok || !data.ok){ dire(data.erreur || `Le dépôt a échoué (${rep.status}).`); return; }
       dire(t('plan_depot_ok'));
+      CurieuxDB.toucherAcces(TOKEN, 'reponse');
       // On recharge le récap : la page redessine alors la zone de plan avec
       // l'image, prête à recevoir les pastilles de semis.
       RECAP = await CurieuxDB.getRecapLogistique(TOKEN);
@@ -572,6 +575,7 @@ function initPlanZone(containerId, imgUrl, m, editable){
 
   async function sauvegarder(){
     await CurieuxDB.enregistrerPositionsSemis(TOKEN, m.date_id, positions);
+    CurieuxDB.toucherAcces(TOKEN, 'reponse');
   }
   function placerPin(pos){
     const pin = document.createElement('div');
@@ -642,6 +646,7 @@ function initHorairesEdition(boxId, m){
   let horaires = m.horaires_journee || [];
   async function sauvegarder(){
     await CurieuxDB.enregistrerHorairesJournee(TOKEN, m.date_id, horaires);
+    CurieuxDB.toucherAcces(TOKEN, 'reponse');
   }
   function rendre(){
     box.innerHTML = horaires.map((h,i)=>`
@@ -869,6 +874,9 @@ async function init(){
 
   RECAP = await CurieuxDB.getRecapLogistique(TOKEN);
   remarquesEnvoyees = await CurieuxDB.getRemarquesParJeton(TOKEN);
+  // Le lien a été ouvert. Sans cette trace, la direction technique ne peut pas
+  // distinguer « la salle n'a pas répondu » de « la salle n'a jamais reçu ».
+  CurieuxDB.toucherAcces(TOKEN, 'ouverture');
   if(!RECAP || !RECAP.tournee){ box.innerHTML = `<div class="state-box">${t('lien_inactif')}</div>`; return; }
 
   renderContenu();

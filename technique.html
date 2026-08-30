@@ -58,6 +58,23 @@
   .poste.att .val{color:var(--maybe);}
   .poste.non .val{color:var(--muted); font-weight:700;}
 
+  /* Les retours reçus par les liens partagés. Ils n'étaient lisibles que dans
+     un bloc replié de la fiche de la date concernée : personne n'y allait sans
+     savoir qu'il y avait quelque chose à y lire. Ils remontent ici, en tête,
+     et redescendent d'eux-mêmes une fois traités. */
+  .retours{background:var(--card); border:1px solid var(--maybe); border-left-width:4px;
+           border-radius:var(--radius); padding:13px 16px; margin-bottom:18px;}
+  .retours > h2{margin:0 0 3px; font-size:14.5px; font-weight:800;}
+  .retours > .aide{margin:0 0 11px; font-size:12.5px; color:var(--muted); line-height:1.45;}
+  .retour{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:9px 12px;
+          align-items:start; padding:9px 0; border-top:1px solid var(--border);}
+  .retour .qui{font-size:12px; font-weight:800; color:var(--muted);}
+  .retour .qui b{color:var(--text);}
+  .retour .quoi{font-size:13.5px; line-height:1.5; margin-top:2px; white-space:pre-wrap; overflow-wrap:anywhere;}
+  .retour .quoi .sujet{font-weight:800;}
+  .retour .gestes{display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
+  @media (max-width:600px){ .retour{grid-template-columns:1fr;} }
+
   .empty-hint{color:var(--muted); font-size:13.5px; padding:40px 4px; text-align:center;}
   @media (max-width:600px){ input, select{ font-size:16px !important; } }
 
@@ -146,6 +163,12 @@
     </div>
   </details>
 
+  <div class="retours co-fade" id="retours" style="display:none;">
+    <h2>Retours en attente</h2>
+    <p class="aide">Ce que les salles, les stage managers et les technicien·nes nous ont écrit depuis leur lien, et que personne n'a encore traité.</p>
+    <div id="retoursListe"></div>
+  </div>
+
   <div id="dates" class="co-grid co-grid-cards co-fade"></div>
   <div class="empty-hint" id="datesEmpty" style="display:none;">Aucune date à venir pour cette tournée.</div>
 </div>
@@ -153,6 +176,7 @@
 <script>
 let tourneesCache = [];
 let moyensCache = [];
+let remarquesCache = [];
 let carnetsCache = [];
 let vehiculesCache = [];
 let fichesCache = [];
@@ -219,13 +243,76 @@ function postesDe(m){
   ];
 }
 
+// ============================================================================
+// Les retours en attente
+//
+// Une remarque laissée depuis un lien partagé n'était visible qu'en rouvrant la
+// fiche de sa date, dans un bloc masqué par défaut : il fallait déjà savoir
+// qu'elle existait pour la trouver. Elle remonte ici, en tête de l'espace, avec
+// le geste qui la fait disparaître — la même bascule « traitée » que la fiche.
+// ============================================================================
+function remarquesEnAttente(){
+  const t = activeTournee();
+  if(!t) return [];
+  return remarquesCache
+    .filter(r=> !r.traitee && r.tourneeId === t.id)
+    .sort((a,b)=> String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+}
+function libelleDateDe(dateId){
+  const t = activeTournee();
+  const d = t && (t.dates||[]).find(x=> x.id === dateId);
+  if(!d) return '';
+  const jour = d.date
+    ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' })
+    : '';
+  return [jour, d.ville || d.lieu].filter(Boolean).join(' · ');
+}
+function quandCourt(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' });
+}
+
+function renderRetours(){
+  const box = document.getElementById('retoursListe');
+  const bloc = document.getElementById('retours');
+  const liste = remarquesEnAttente();
+  if(liste.length === 0){ bloc.style.display = 'none'; box.innerHTML = ''; return; }
+  bloc.style.display = 'block';
+  const t = activeTournee();
+  box.innerHTML = liste.map(r=>{
+    const ou = libelleDateDe(r.dateId);
+    const quand = quandCourt(r.createdAt);
+    return `
+      <div class="retour">
+        <div>
+          <div class="qui"><b>${escapeHtml(r.auteur || 'Quelqu\u2019un')}</b>${ou ? ' — ' + escapeHtml(ou) : ''}${quand ? ' · le ' + escapeHtml(quand) : ''}</div>
+          <div class="quoi">${r.sujet ? `<span class="sujet">${escapeHtml(r.sujet)} — </span>` : ''}${escapeHtml(r.message || '')}</div>
+        </div>
+        <div class="gestes">
+          ${r.dateId && t ? `<a class="co-btn ghost sm" href="technique-date.html?t=${encodeURIComponent(t.id)}&d=${encodeURIComponent(r.dateId)}">Ouvrir la fiche</a>` : ''}
+          <button type="button" class="co-btn secondary sm" data-traiter="${escapeAttr(r.id)}">Marquer traitée</button>
+        </div>
+      </div>`;
+  }).join('');
+  box.querySelectorAll('[data-traiter]').forEach(btn=> btn.addEventListener('click', async ()=>{
+    const r = remarquesCache.find(x=> x.id === btn.dataset.traiter);
+    if(!r) return;
+    r.traitee = true;
+    renderRetours(); render();
+    await CurieuxDB.upsertOne('remarques', r);
+  }));
+}
+
 function render(){
+  renderRetours();
   const dates = datesFutures();
   const box = document.getElementById('dates');
   const empty = document.getElementById('datesEmpty');
   if(dates.length === 0){ box.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display = 'none';
   const t = activeTournee();
+  const enAttente = remarquesEnAttente();
 
   // Une salle, une fiche : quatre soirs au Millenium, c'est un seul montage —
   // un seul plan de scène à demander, un seul déchargement à organiser, un
@@ -252,7 +339,10 @@ function render(){
       <a class="co-card-btn" href="technique-date.html?t=${encodeURIComponent(t.id)}&d=${encodeURIComponent(d.id)}">
         <div class="date-card-top">
           <span class="date-card-nom">${escapeHtml(d.ville || d.lieu || 'Date')}${d.lieu && d.ville ? ' — ' + escapeHtml(d.lieu) : ''}${
-            g.dates.length > 1 ? `<span class="serie-badge" title="${escapeAttr(g.dates.map(x=> x.date).filter(Boolean).join(' · '))}">${g.dates.length} dates</span>` : ''}</span>
+            g.dates.length > 1 ? `<span class="serie-badge" title="${escapeAttr(g.dates.map(x=> x.date).filter(Boolean).join(' · '))}">${g.dates.length} dates</span>` : ''}${
+            (()=>{ const ids = g.dates.map(x=> x.id);
+                   const n = enAttente.filter(r=> ids.includes(r.dateId)).length;
+                   return n ? `<span class="serie-badge" style="background:var(--maybe-tint); color:var(--maybe);" title="Un retour reçu depuis un lien partagé attend d\u2019être traité">${n} retour${n>1?'s':''}</span>` : ''; })()}</span>
           <span class="date-card-quand">${escapeHtml(jour)}</span>
         </div>
         <div class="avancement">
@@ -407,9 +497,10 @@ async function verifierMigrationPresente(){
 
 async function initData(){
   verifierMigrationPresente();
-  [tourneesCache, moyensCache] = await Promise.all([
+  [tourneesCache, moyensCache, remarquesCache] = await Promise.all([
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('moyens_salle'),
+    CurieuxDB.fetchAll('remarques'),
   ]);
   const sel = document.getElementById('tourneeSelect');
   tourneesCache = tourneesCache.filter(t=> t.type !== 'recording');
@@ -432,6 +523,9 @@ async function initData(){
 }
 
 CurieuxDB.subscribe('moyens_salle', ()=> CurieuxDB.fetchAll('moyens_salle').then(l=>{ moyensCache=l; curieuxRafraichir(render); }));
+// Une remarque arrive pendant qu'on regarde l'écran : elle doit s'y afficher
+// sans qu'on ait à recharger. C'est tout l'intérêt de la remonter en tête.
+CurieuxDB.subscribe('remarques', ()=> CurieuxDB.fetchAll('remarques').then(l=>{ remarquesCache=l; curieuxRafraichir(render); }));
 
 injectCurieuxFonts();
 applyAutoTheme();
