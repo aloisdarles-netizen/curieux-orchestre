@@ -282,6 +282,30 @@ const CurieuxDB = (()=>{
         notes: r.notes || '', ficheUrl: r.fiche_url || ''
       })
     },
+    // Ce qu'on demande à un prestataire pour une tournée. Les prestataires
+    // n'avaient aucun canal dans l'outil : la date de récupération se retapait
+    // depuis un appel, et rien ne disait si une demande était partie, acceptée
+    // ou honorée. Sans montant : le coût est du ressort de la production.
+    demandes_materiel: {
+      toDb: (d)=> ({
+        id: d.id, tournee_id: d.tourneeId || null,
+        prestataire_id: d.prestataireId || null,
+        objet: d.objet || '', dates_ids: d.datesIds || [],
+        statut: d.statut || 'a_demander',
+        demande_le: d.demandeLe || null, confirme_le: d.confirmeLe || null, recu_le: d.recuLe || null,
+        retrait_date: d.retraitDate || null, retrait_heure: d.retraitHeure || '',
+        notes: d.notes || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, tourneeId: r.tournee_id || '',
+        prestataireId: r.prestataire_id || '',
+        objet: r.objet || '', datesIds: r.dates_ids || [],
+        statut: r.statut || 'a_demander',
+        demandeLe: r.demande_le || '', confirmeLe: r.confirme_le || '', recuLe: r.recu_le || '',
+        retraitDate: r.retrait_date || '', retraitHeure: r.retrait_heure || '',
+        notes: r.notes || ''
+      })
+    },
     // Registre partagé des prestataires (provenance matériel, loueur véhicule).
     prestataires: {
       // L'adresse et le téléphone servent aux feuilles de mission des
@@ -322,6 +346,10 @@ const CurieuxDB = (()=>{
         // La colonne historique, qui portait les deux, devient l'heure de pick up.
         retour_prestataire_heure: l.retourPrestataireHeurePickup || '',
         retour_prestataire_heure_livraison: l.retourPrestataireHeureLivraison || '',
+        // L'état du kit au retour : {etat, note, photoUrl, faitLe, par}. Sans
+        // valorisation — ce qu'a coûté une casse est du ressort de la direction
+        // de production, on note ce qui manque, pas ce que ça vaut.
+        retour: l.retour || {},
         notes: l.notes || ''
       }),
       fromDb: (r)=> ({
@@ -339,6 +367,7 @@ const CurieuxDB = (()=>{
         retourPrestataireDate: r.retour_prestataire_date || '',
         retourPrestataireHeurePickup: r.retour_prestataire_heure || '',
         retourPrestataireHeureLivraison: r.retour_prestataire_heure_livraison || '',
+        retour: r.retour || {},
         notes: r.notes || ''
       })
     },

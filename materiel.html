@@ -41,6 +41,17 @@
 
   .modal-overlay{display:none; position:fixed; inset:0; background:rgba(20,15,10,.5); align-items:center; justify-content:center; padding:20px; z-index:50; overflow-y:auto;}
   .modal-overlay.open{display:flex;}
+  .aide-mat{margin:-2px 0 6px; font-size:11.5px; color:var(--muted); line-height:1.45;}
+  .dates-choix{max-height:150px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:6px 10px;}
+  .dates-choix label{display:flex; align-items:center; gap:8px; font-size:13px; padding:3px 0; cursor:pointer;}
+  .dates-choix input{width:17px; height:17px; accent-color:var(--accent);}
+  .sous-bloc{border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin:0 0 12px;}
+  .sous-bloc > legend{font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:0 6px;}
+  /* Le constat de retour sur la carte du kit : il ne paraît que s'il y a
+     quelque chose à dire. Un kit conforme n'a pas besoin de le crier. */
+  .retour-pastille{font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; padding:3px 9px; border-radius:20px; white-space:nowrap;}
+  .retour-pastille.ok{background:var(--ok-tint); color:var(--ok);}
+  .retour-pastille.ko{background:var(--danger-tint); color:var(--danger);}
   .modal{background:var(--card); border-radius:14px; padding:24px; max-width:640px; width:100%; max-height:88vh; overflow-y:auto; margin:auto;}
   .modal h2{font-size:17px; margin:0 0 16px;}
   .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
@@ -161,7 +172,11 @@
   .orphelins[hidden]{display:none;}
   .orphelins-texte{flex:1; min-width:240px;}
   .orphelins-texte p{margin:3px 0 0; font-size:12.5px; color:var(--muted); line-height:1.45;}
-  .orphelins-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  /* min-width:0 : sans lui, le <select> impose sa largeur intrinsèque et
+     déborde de trois pixels sur un écran de 390 px. Antérieur à ce lot, mais
+     corrigé en passant. */
+  .orphelins-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap; min-width:0;}
+  .orphelins-actions > .co-select{min-width:0; max-width:100%;}
 
   .bloc-head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px;}
   .bloc-titre{font-family:var(--font-display); font-size:19px; font-weight:500; color:var(--accent); margin:0; letter-spacing:var(--tracking-display);}
@@ -296,6 +311,23 @@
     <div id="suiviListe"></div>
   </section>
 
+  <!-- Les prestataires n'avaient AUCUN canal dans l'outil : la date de
+       récupération se retapait depuis un appel téléphonique, et rien ne disait
+       si une demande était partie, acceptée ou honorée. Sans montant : le coût
+       est du ressort de la direction de production. -->
+  <section class="co-card co-pad co-fade" id="demandesSection" style="margin-top:22px;">
+    <div class="bloc-head">
+      <div>
+        <h2 class="bloc-titre">Demandes aux prestataires</h2>
+        <p class="subtitle">Ce qu'on leur demande pour ce projet, et où en est chaque demande. Sans prix — la dépense se suit en production.</p>
+      </div>
+      <div class="agenda-filtres">
+        <button type="button" class="co-btn secondary sm" id="addDemandeBtn">+ Demande</button>
+      </div>
+    </div>
+    <div id="demandesListe"></div>
+  </section>
+
   <h2 class="bloc-titre" style="margin:22px 0 10px;">Kits</h2>
   <div id="lotsListe"></div>
   <div class="empty-hint" id="lotsEmpty" style="display:none;">Aucun kit sur cette tournée.</div>
@@ -388,6 +420,43 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="demandeModalOverlay">
+  <div class="modal">
+    <h2 id="demandeModalTitle">Demande à un prestataire</h2>
+    <input type="hidden" id="dEditId">
+    <div class="field-row">
+      <div class="field"><label for="dPresta">Chez qui</label><select id="dPresta"></select></div>
+      <div class="field"><label for="dStatut">Où on en est</label>
+        <select id="dStatut">
+          <option value="a_demander">À demander</option>
+          <option value="demande">Demandée</option>
+          <option value="confirme">Confirmée</option>
+          <option value="recu">Reçue</option>
+          <option value="refuse">Refusée</option>
+        </select></div>
+    </div>
+    <div class="field"><label for="dObjet">Ce qu'on demande</label><textarea id="dObjet" placeholder="4 découpes 614, 2 barres LED, un pied de charge…"></textarea></div>
+    <div class="field-row">
+      <div class="field"><label for="dDemandeLe">Demandée le</label><input type="date" id="dDemandeLe"></div>
+      <div class="field"><label for="dConfirmeLe">Confirmée le</label><input type="date" id="dConfirmeLe"></div>
+      <div class="field"><label for="dRecuLe">Reçue le</label><input type="date" id="dRecuLe"></div>
+    </div>
+    <fieldset class="sous-bloc">
+      <legend>Retrait</legend>
+      <p class="aide-mat">Le rendez-vous, quand il est connu — c'est l'information qui se retapait à chaque fois depuis un appel.</p>
+      <div class="field-row">
+        <div class="field"><label for="dRetraitDate">Date</label><input type="date" id="dRetraitDate"></div>
+        <div class="field"><label for="dRetraitHeure">Heure</label><input type="time" id="dRetraitHeure"></div>
+      </div>
+    </fieldset>
+    <div class="field"><label for="dNotes">Notes</label><textarea id="dNotes" placeholder="Interlocuteur, conditions, ce qui reste à confirmer…"></textarea></div>
+    <div class="modal-actions">
+      <button type="button" class="co-btn ghost" id="demandeModalCancel">Annuler</button>
+      <button type="button" class="co-btn secondary" id="demandeModalSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="lotModalOverlay">
   <div class="modal">
     <h2 id="lotModalTitle">Ajouter un lot</h2>
@@ -416,6 +485,34 @@
     </div>
     <div class="field"><label for="lDescription">Description</label><textarea id="lDescription" placeholder="Ce que contient ce lot, en clair"></textarea></div>
     <div class="field"><label for="lDatePrepa">Préparation</label><input type="date" id="lDatePrepa"></div>
+
+    <!-- Les dates que ce kit couvre. La colonne dates_ids existait depuis le
+         début et l'écran y écrivait un tableau vide, en dur : un kit était donc
+         attaché à une tournée entière, jamais aux soirs qui le concernent. -->
+    <div class="field">
+      <label>Dates couvertes</label>
+      <p class="aide-mat">Rien de coché = tout le projet. Coche des dates quand le kit ne part que sur une partie de la tournée.</p>
+      <div id="lDatesListe" class="dates-choix"></div>
+    </div>
+
+    <!-- L'état au retour. Sans valorisation : ce qu'a coûté une casse est du
+         ressort de la direction de production. Ici on note ce qui manque et ce
+         qui est abîmé, pour ne pas le redécouvrir à la préparation suivante. -->
+    <fieldset class="sous-bloc">
+      <legend>État au retour</legend>
+      <div class="field-row">
+        <div class="field"><label for="lRetourEtat">Constat</label>
+          <select id="lRetourEtat">
+            <option value="non_fait">Pas encore vérifié</option>
+            <option value="conforme">Conforme — tout est revenu</option>
+            <option value="manquant">Il manque des choses</option>
+            <option value="casse">Du matériel est abîmé</option>
+          </select></div>
+        <div class="field"><label for="lRetourFaitLe">Vérifié le</label><input type="date" id="lRetourFaitLe"></div>
+      </div>
+      <div class="field"><label for="lRetourNote">Ce qui manque ou ce qui est abîmé</label><textarea id="lRetourNote" placeholder="2 câbles XLR 10 m manquants, une barre LED HS…"></textarea></div>
+      <div class="field"><label for="lRetourPhoto">Photo</label><input type="url" id="lRetourPhoto" placeholder="https://… (Drive, lien de partage)"></div>
+    </fieldset>
 
     <!-- Le premier rendez-vous du chauffeur. Une date sèche ne suffisait pas :
          sans heure ni adresse, on ne peut rien lui transmettre. -->
@@ -1269,7 +1366,121 @@ document.getElementById('orphelinsBtn').addEventListener('click', async ()=>{
   toutRedessiner();
 });
 
+// ============================================================================
+// Les demandes aux prestataires
+//
+// Les prestataires n'avaient aucun canal : la date de récupération se retapait
+// depuis un appel, et rien ne disait si une demande était partie, acceptée ou
+// honorée. Sans montant — le coût se suit en production, pas ici.
+// ============================================================================
+let demandesCache = [];
+
+const DEMANDE_STATUTS = [
+  { cle:'a_demander', libelle:'À demander', pill:'' },
+  { cle:'demande',    libelle:'Demandée',   pill:'att' },
+  { cle:'confirme',   libelle:'Confirmée',  pill:'info' },
+  { cle:'recu',       libelle:'Reçue',      pill:'ok' },
+  { cle:'refuse',     libelle:'Refusée',    pill:'ko' },
+];
+const DEMANDE_STATUT = Object.fromEntries(DEMANDE_STATUTS.map(d=> [d.cle, d]));
+
+function jourCourtMat(iso){
+  if(!iso) return '';
+  const d = new Date(String(iso).slice(0,10) + 'T00:00:00');
+  return isNaN(d) ? '' : d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' });
+}
+
+function renderDemandes(){
+  const box = document.getElementById('demandesListe');
+  const liste = demandesCache.filter(d=> d.tourneeId === tourneeActiveId());
+  if(!liste.length){
+    box.innerHTML = `<p class="empty-hint co-vide" style="padding:22px 4px;">Aucune demande sur ce projet.</p>`;
+    return;
+  }
+  // Ce qui n'est pas encore réglé d'abord : c'est ce qui demande un geste.
+  const rang = { a_demander:0, demande:1, refuse:2, confirme:3, recu:4 };
+  box.innerHTML = liste
+    .slice()
+    .sort((a, b)=> (rang[a.statut] ?? 9) - (rang[b.statut] ?? 9) || (a.retraitDate || '9999').localeCompare(b.retraitDate || '9999'))
+    .map(d=>{
+      const st = DEMANDE_STATUT[d.statut] || DEMANDE_STATUTS[0];
+      const p = prestatairesCache.find(x=> x.id === d.prestataireId);
+      const rdv = d.retraitDate ? `retrait le ${jourCourtMat(d.retraitDate)}${d.retraitHeure ? ' à ' + d.retraitHeure : ''}` : '';
+      const nbDates = (d.datesIds || []).length;
+      return `
+        <div class="co-row">
+          <span class="co-row-name">
+            <b>${escapeHtml(p ? p.nom : 'Prestataire non renseigné')}</b>
+            <small>${escapeHtml((d.objet || 'Sans détail').replace(/\s+/g, ' ').slice(0, 110))}${
+              nbDates ? ` · ${nbDates} date${nbDates > 1 ? 's' : ''}` : ''}${rdv ? ' · ' + escapeHtml(rdv) : ''}</small>
+          </span>
+          <span class="co-pill ${st.pill}">${escapeHtml(st.libelle)}</span>
+          <button type="button" class="co-btn ghost sm" data-dem-edit="${escapeAttr(d.id)}">Modifier</button>
+          <button type="button" class="co-btn ghost sm" data-dem-suppr="${escapeAttr(d.id)}">Supprimer</button>
+        </div>`;
+    }).join('');
+  box.querySelectorAll('[data-dem-edit]').forEach(b=> b.addEventListener('click', ()=> openDemandeModal(b.dataset.demEdit)));
+  box.querySelectorAll('[data-dem-suppr]').forEach(b=> b.addEventListener('click', async ()=>{
+    const d = demandesCache.find(x=> x.id === b.dataset.demSuppr);
+    if(!d || !confirm('Supprimer cette demande ?')) return;
+    demandesCache = demandesCache.filter(x=> x.id !== d.id);
+    renderDemandes();
+    await CurieuxDB.removeOne('demandes_materiel', d.id);
+  }));
+}
+
+function openDemandeModal(id){
+  document.getElementById('dEditId').value = id || '';
+  document.getElementById('dPresta').innerHTML = optionsPrestataires('');
+  const d = id ? demandesCache.find(x=> x.id === id) : null;
+  document.getElementById('demandeModalTitle').textContent = d ? 'Modifier la demande' : 'Demande à un prestataire';
+  document.getElementById('dPresta').value = d ? (d.prestataireId || '') : '';
+  document.getElementById('dStatut').value = d ? (d.statut || 'a_demander') : 'a_demander';
+  document.getElementById('dObjet').value = d ? (d.objet || '') : '';
+  document.getElementById('dDemandeLe').value = d ? (d.demandeLe || '') : '';
+  document.getElementById('dConfirmeLe').value = d ? (d.confirmeLe || '') : '';
+  document.getElementById('dRecuLe').value = d ? (d.recuLe || '') : '';
+  document.getElementById('dRetraitDate').value = d ? (d.retraitDate || '') : '';
+  document.getElementById('dRetraitHeure').value = d ? (d.retraitHeure || '') : '';
+  document.getElementById('dNotes').value = d ? (d.notes || '') : '';
+  document.getElementById('demandeModalOverlay').classList.add('open');
+}
+
+document.getElementById('addDemandeBtn').addEventListener('click', ()=> openDemandeModal(null));
+document.getElementById('demandeModalCancel').addEventListener('click', ()=> document.getElementById('demandeModalOverlay').classList.remove('open'));
+document.getElementById('demandeModalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'demandeModalOverlay') document.getElementById('demandeModalOverlay').classList.remove('open');
+});
+document.getElementById('demandeModalSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('dEditId').value || genId('dem');
+  const objet = document.getElementById('dObjet').value.trim();
+  if(!objet){ alert("Précise ce qu'on demande."); return; }
+  const existant = demandesCache.find(x=> x.id === id);
+  const obj = {
+    id, tourneeId: existant ? existant.tourneeId : tourneeActiveId(),
+    prestataireId: document.getElementById('dPresta').value || '',
+    objet,
+    // Les dates se poseront depuis les kits ; la demande couvre tout le projet
+    // par défaut, ce qui est le cas courant.
+    datesIds: existant ? (existant.datesIds || []) : [],
+    statut: document.getElementById('dStatut').value,
+    demandeLe: document.getElementById('dDemandeLe').value || '',
+    confirmeLe: document.getElementById('dConfirmeLe').value || '',
+    recuLe: document.getElementById('dRecuLe').value || '',
+    retraitDate: document.getElementById('dRetraitDate').value || '',
+    retraitHeure: document.getElementById('dRetraitHeure').value || '',
+    notes: document.getElementById('dNotes').value.trim(),
+  };
+  const i = demandesCache.findIndex(x=> x.id === id);
+  if(i >= 0) demandesCache[i] = obj; else demandesCache.push(obj);
+  document.getElementById('demandeModalOverlay').classList.remove('open');
+  renderDemandes();
+  const { error } = await CurieuxDB.upsertOne('demandes_materiel', obj);
+  if(error) alert("La demande n'a pas pu être enregistrée — réessaie.");
+});
+
 function toutRedessiner(){
+  renderDemandes();
   renderOrphelins();
   renderConflits();
   renderPlanning();
@@ -1286,7 +1497,12 @@ function carteLot(l, index){
         <div class="lot-identite">
           ${pastilleCategorie(l.categorie, index || 0)}
           <div class="lot-texte">
-          <div class="lot-nom">${escapeHtml(l.nom || 'Sans nom')}</div>
+          <div class="lot-nom">${escapeHtml(l.nom || 'Sans nom')}${
+            (()=>{ const r = l.retour || {};
+                   if(!r.etat || r.etat === 'non_fait') return '';
+                   const ko = r.etat === 'manquant' || r.etat === 'casse';
+                   return `<span class="retour-pastille ${ko ? 'ko' : 'ok'}" title="${escapeAttr((r.note || RETOUR_LIBELLE[r.etat]) + (r.faitLe ? ' — vérifié le ' + r.faitLe : ''))}" style="margin-left:8px;">${escapeHtml(RETOUR_LIBELLE[r.etat] || '')}</span>`; })()}${
+            (l.datesIds || []).length ? `<span class="badge" style="margin-left:8px; background:var(--accent-tint); color:var(--tint-ink, var(--accent-dark));">${(l.datesIds || []).length} date${(l.datesIds || []).length > 1 ? 's' : ''}</span>` : ''}</div>
           ${/* La semi d'abord : c'est elle qui détermine sur quelle feuille de
                 route ce kit apparaîtra. Sans elle, il n'apparaît nulle part. */''}
           <div class="lot-sub">${l.vehiculeId
@@ -1335,6 +1551,26 @@ function render(){
   }));
 }
 
+// Les dates du projet, pour dire lesquelles un kit couvre. Rien de coché veut
+// dire « tout le projet » : c'est le cas courant, et on ne demande pas de
+// cocher quinze cases pour l'exprimer.
+let lotDatesSelection = new Set();
+function renderLotDates(){
+  const box = document.getElementById('lDatesListe');
+  const t = tourneeActive();
+  const dates = t ? (t.dates || []).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||'')) : [];
+  if(!dates.length){ box.innerHTML = '<p class="aide-mat" style="margin:4px 0;">Ce projet n’a pas encore de date.</p>'; return; }
+  box.innerHTML = dates.map(d=>{
+    const jour = d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' }) : '—';
+    return `<label><input type="checkbox" data-lot-date="${escapeAttr(d.id)}" ${lotDatesSelection.has(d.id) ? 'checked' : ''}> ${escapeHtml(jour)} · ${escapeHtml(d.ville || d.lieu || 'Date')}</label>`;
+  }).join('');
+  box.querySelectorAll('[data-lot-date]').forEach(cb=> cb.addEventListener('change', ()=>{
+    if(cb.checked) lotDatesSelection.add(cb.dataset.lotDate); else lotDatesSelection.delete(cb.dataset.lotDate);
+  }));
+}
+
+const RETOUR_LIBELLE = { non_fait:'Pas encore vérifié', conforme:'Conforme', manquant:'Il manque des choses', casse:'Matériel abîmé' };
+
 function openLotModal(id, parentId){
   document.getElementById('lEditId').value = id || '';
   document.getElementById('lParentId').value = parentId || '';
@@ -1372,6 +1608,12 @@ function openLotModal(id, parentId){
     document.getElementById('lNotes').value = l.notes || '';
     elementsEnEdition = (l.elements||[]).map(e=>({...e}));
     mouvementsEnEdition = (l.mouvements||[]).map(mv=>({...mv}));
+    lotDatesSelection = new Set(l.datesIds || []);
+    const ret = l.retour || {};
+    document.getElementById('lRetourEtat').value = ret.etat || 'non_fait';
+    document.getElementById('lRetourFaitLe').value = ret.faitLe || '';
+    document.getElementById('lRetourNote').value = ret.note || '';
+    document.getElementById('lRetourPhoto').value = ret.photoUrl || '';
   } else {
     document.getElementById('lotModalTitle').textContent = parentId ? 'Ajouter un sous-kit' : 'Ajouter un kit';
     ['lNom','lDescription','lDatePrepa','lRetourPrestDate','lRetourPrestPickup','lRetourPrestLivraison','lNotes',
@@ -1384,7 +1626,12 @@ function openLotModal(id, parentId){
     document.getElementById('lPecPresta').value = '';
     elementsEnEdition = [];
     mouvementsEnEdition = [];
+    // Un sous-kit voyage avec son parent : mêmes dates par défaut.
+    lotDatesSelection = new Set(parent ? (parent.datesIds || []) : []);
+    document.getElementById('lRetourEtat').value = 'non_fait';
+    ['lRetourFaitLe','lRetourNote','lRetourPhoto'].forEach(fid=> document.getElementById(fid).value = '');
   }
+  renderLotDates();
   renderEchangesDuLot(id);
   document.getElementById('lotModalOverlay').classList.add('open');
 }
@@ -1437,7 +1684,7 @@ document.getElementById('lotModalSave').addEventListener('click', async ()=>{
     // Un kit appartient à une tournée. Sur modification on garde la sienne ;
     // à la création, c'est celle qu'on regarde.
     tourneeId: (lotsCache.find(x=> x.id === id) || {}).tourneeId || tourneeActiveId(),
-    datesIds: [],
+    datesIds: Array.from(lotDatesSelection),
     description: document.getElementById('lDescription').value.trim(),
     elements: elementsEnEdition,
     datePrepa: document.getElementById('lDatePrepa').value || '',
@@ -1448,6 +1695,16 @@ document.getElementById('lotModalSave').addEventListener('click', async ()=>{
     retourPrestataireDate: document.getElementById('lRetourPrestDate').value || '',
     retourPrestataireHeurePickup: document.getElementById('lRetourPrestPickup').value || '',
     retourPrestataireHeureLivraison: document.getElementById('lRetourPrestLivraison').value || '',
+    retour: (()=>{
+      const etat = document.getElementById('lRetourEtat').value;
+      const note = document.getElementById('lRetourNote').value.trim();
+      const photoUrl = document.getElementById('lRetourPhoto').value.trim();
+      const faitLe = document.getElementById('lRetourFaitLe').value || '';
+      // Un constat vide n'est pas un constat : on ne stocke rien plutôt qu'un
+      // objet qui ferait croire que quelqu'un a vérifié.
+      if(etat === 'non_fait' && !note && !photoUrl && !faitLe) return {};
+      return { etat, note, photoUrl, faitLe, par: (lotsCache.find(x=> x.id === id) || {}).retour?.par || '' };
+    })(),
     notes: document.getElementById('lNotes').value.trim(),
   };
   const idx = lotsCache.findIndex(x=>x.id===id);
@@ -1465,6 +1722,7 @@ async function initData(){
     CurieuxDB.fetchAll('chauffeurs'), CurieuxDB.fetchAll('vehicules'),
     CurieuxDB.fetchAll('echanges'), CurieuxDB.fetchAll('tournees'),
   ]);
+  demandesCache = await CurieuxDB.fetchAll('demandes_materiel');
 
   const sel = document.getElementById('tourneeSelect');
   sel.innerHTML = tourneesCache.length

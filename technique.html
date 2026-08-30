@@ -127,6 +127,11 @@
   .dt-somme.ecart{color:var(--maybe);}
   .dt-vide{font-size:12.5px; color:var(--muted); margin:0 0 8px;}
 
+  .exi-ligne.deroule{grid-template-columns:22px minmax(0,1.4fr) 92px 92px minmax(0,1.6fr) 34px;}
+  .exi-entete.deroule{grid-template-columns:22px minmax(0,1.4fr) 92px 92px minmax(0,1.6fr) 34px;}
+  .deroule-total{margin:10px 0 0; font-size:12.5px; font-weight:800;}
+  .deroule-total .creux{font-weight:600; color:var(--muted);}
+
   .exi-gabarit{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px;}
   .exi-gabarit label{display:block; font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:3px;}
   .exi-gabarit .champ-unite{position:relative;}
@@ -198,6 +203,18 @@
         <h3>Demande type en personnel</h3>
         <p class="aide">Ce que la tournée demande à chaque salle : roadies, chariots, rigg. Chaque fiche de date la reprend d'un clic, puis l'ajuste — les horaires dépendent du get-in, rien ne s'applique tout seul.</p>
         <div id="demandeTypeBlocs"></div>
+      </div>
+
+      <!-- Le déroulé de montage. L'outil savait tout préparer et ne savait rien
+           du jour J : combien de temps ça prend, et avec combien de personnes.
+           C'est pourtant ce qui décide de l'heure du get-in. -->
+      <div class="exi-bloc">
+        <h3>Déroulé de montage</h3>
+        <p class="aide">Les étapes du montage, leur durée et l'effectif qu'elles demandent. Le total dit à quelle heure il faut être dans la salle, et l'effectif de pointe dit combien de roadies demander.</p>
+        <div class="exi-entete deroule"><span></span><span>Étape</span><span>Durée</span><span>Effectif</span><span>Précisions</span><span></span></div>
+        <div id="derouleListe"></div>
+        <button type="button" class="co-btn secondary sm" id="addEtapeBtn">+ Ajouter une étape</button>
+        <p class="deroule-total" id="derouleTotal"></p>
       </div>
 
       <!-- Le gabarit : les minima qu'une salle doit tenir pour que la tournée y
@@ -415,6 +432,7 @@ function chargerExigences(){
     // Copie profonde : les vacations types portent des sous-tableaux (équipes,
     // fourches), qu'un simple spread laisserait partagés avec la tournée.
     vacationsType: JSON.parse(JSON.stringify(demandeTypeDe(t))),
+    deroule: (Array.isArray(brut.deroule) ? brut.deroule : []).map(e=> ({ ...e })),
     // Le registre d'équipes vit sur la tournée et sert à la répartition des
     // roadies. La fiche de date l'initialise déjà ainsi quand il est vide ;
     // ici on ne l'écrit qu'à l'enregistrement, pour ne pas modifier une tournée
@@ -567,6 +585,59 @@ function carteVacationType(g, v, i){
   </div>`;
 }
 
+/* --- Le déroulé de montage ------------------------------------------------ */
+
+function dureeLisible(minutes){
+  const m = Math.max(0, Math.round(Number(minutes) || 0));
+  if(!m) return '—';
+  const h = Math.floor(m / 60), r = m % 60;
+  return h ? (r ? `${h} h ${String(r).padStart(2, '0')}` : `${h} h`) : `${r} min`;
+}
+
+function renderDeroule(){
+  const liste = exigencesEnCours.deroule;
+  document.getElementById('derouleListe').innerHTML = liste.map((e, i)=>`
+    <div class="exi-ligne deroule">
+      <span class="rang">${i + 1}</span>
+      <input type="text" data-der="${i}" data-df="libelle" value="${escapeAttr(e.libelle || '')}" placeholder="Déchargement, accroche, patch…">
+      <input type="number" min="0" step="15" data-der="${i}" data-df="duree" value="${e.duree == null ? '' : e.duree}" placeholder="min" aria-label="Durée en minutes">
+      <input type="number" min="0" data-der="${i}" data-df="effectif" value="${e.effectif == null ? '' : e.effectif}" placeholder="pers." aria-label="Effectif">
+      <input type="text" data-der="${i}" data-df="notes" value="${escapeAttr(e.notes || '')}" placeholder="Qui, avec quoi, en parallèle de…">
+      <button type="button" class="co-btn danger sm" data-der-suppr="${i}">×</button>
+    </div>`).join('') || '<p class="aide" style="margin:0 0 8px;">Aucune étape — le montage ne se chiffre pas encore.</p>';
+
+  const box = document.getElementById('derouleListe');
+  box.querySelectorAll('[data-der]').forEach(inp=> inp.addEventListener('input', ()=>{
+    const v = inp.type === 'number' ? (inp.value === '' ? null : Number(inp.value)) : inp.value;
+    liste[Number(inp.dataset.der)][inp.dataset.df] = v;
+    majTotalDeroule();
+    majResumeExigences();
+  }));
+  box.querySelectorAll('[data-der-suppr]').forEach(b=> b.addEventListener('click', ()=>{
+    liste.splice(Number(b.dataset.derSuppr), 1);
+    renderDeroule();
+    majResumeExigences();
+  }));
+  majTotalDeroule();
+}
+
+// Le total additionne les durées ; l'effectif, lui, ne s'additionne PAS — c'est
+// un maximum. Deux étapes de quatre personnes qui se suivent demandent quatre
+// personnes, pas huit. C'est l'erreur qu'on ferait de tête, et celle qui fait
+// commander le double de roadies.
+function majTotalDeroule(){
+  const liste = exigencesEnCours.deroule;
+  const total = liste.reduce((t, e)=> t + (Number(e.duree) || 0), 0);
+  const pointe = liste.reduce((m, e)=> Math.max(m, Number(e.effectif) || 0), 0);
+  document.getElementById('derouleTotal').innerHTML = liste.length
+    ? `${escapeHtml(dureeLisible(total))} de montage · ${pointe || '—'} personne${pointe > 1 ? 's' : ''} en pointe <span class="creux">— l'effectif est un maximum, pas une somme : deux étapes de quatre qui se suivent demandent quatre personnes.</span>`
+    : '';
+}
+document.getElementById('addEtapeBtn').addEventListener('click', ()=>{
+  exigencesEnCours.deroule.push({ id: genId('etape'), libelle:'', duree:null, effectif:null, notes:'' });
+  renderDeroule();
+});
+
 function renderGabarit(){
   const g = exigencesEnCours.gabarit;
   document.getElementById('gabaritChamps').innerHTML = SALLE_FAITS.map(f=>`
@@ -589,6 +660,7 @@ function renderGabarit(){
 function renderExigences(){
   if(!exigencesEnCours) chargerExigences();
   renderGabarit();
+  renderDeroule();
   renderDemandeType();
   const jus = exigencesEnCours.pointsJus;
   const acces = exigencesEnCours.accesScene;
@@ -650,6 +722,8 @@ function majResumeExigences(){
            return n ? `gabarit sur ${n} critère${n>1?'s':''}` : ''; })(),
     (()=>{ const n = VACATION_GENRES.reduce((t,g)=> t + (e.vacationsType[g.cle] || []).length, 0);
            return n ? `${n} vacation${n>1?'s':''} type` : ''; })(),
+    (()=>{ const t = e.deroule.reduce((s2, x)=> s2 + (Number(x.duree) || 0), 0);
+           return t ? `montage ${dureeLisible(t)}` : ''; })(),
   ].filter(Boolean);
   document.getElementById('exigencesResume').textContent = morceaux.length ? morceaux.join(' · ') : 'rien de réglé';
 }
@@ -664,6 +738,7 @@ async function enregistrerExigences(){
     accesScene: exigencesEnCours.accesScene,
     gabarit: exigencesEnCours.gabarit,
     vacationsType: exigencesEnCours.vacationsType,
+    deroule: exigencesEnCours.deroule,
     multis: {
       nombre: nombre === '' ? null : Number(nombre),
       depart: document.getElementById('fMultiDepart').value.trim(),

@@ -5323,3 +5323,82 @@ alter table techniciens add column if not exists habilitations jsonb not null de
 -- il suit la fiche du montage et disparaît avec elle.
 -- ----------------------------------------------------------------------------
 alter table moyens_salle add column if not exists autorisations jsonb not null default '[]'::jsonb;
+
+-- ============================================================================
+-- LOT G — le jour J et le retour (audit technique, sept. 2026)
+--
+-- L'outil savait tout préparer et ne savait rien de ce qui se passe le jour du
+-- montage, ni de l'état dans lequel le matériel revient.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- RETOUR-01 — l'état d'un kit au retour
+--
+-- Un kit revient conforme, ou avec des manques, ou cassé. Rien ne le notait :
+-- on le redécouvrait à la préparation suivante, souvent la veille d'un départ.
+--
+-- Forme : {etat, note, photoUrl, faitLe, par}
+--   etat : 'non_fait' | 'conforme' | 'manquant' | 'casse'
+--
+-- Volontairement SANS valorisation : ce qu'a coûté une casse est du ressort de
+-- la direction de production, pas de la direction technique. On note ce qui
+-- manque et ce qui est abîmé, pas ce que ça vaut.
+-- ----------------------------------------------------------------------------
+alter table lots_materiel add column if not exists retour jsonb not null default '{}'::jsonb;
+
+-- Le déroulé de montage (étapes, durée, effectif) et la liste de courses vivent
+-- dans tournees.technique_tournee, à côté des points de jus, du gabarit et de
+-- la demande type : c'est du jsonb, il n'y a rien à migrer ici.
+
+-- ============================================================================
+-- LOT H — le matériel retrouve ses dates et ses prestataires
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- KIT-01 — la colonne existait, l'écran ne la remplissait pas
+--
+-- lots_materiel.dates_ids est là depuis le début et materiel.html y écrivait un
+-- tableau vide, en dur. Un kit était donc attaché à une tournée entière, jamais
+-- à la série de dates qui le concerne — impossible de dire quel kit part sur
+-- quels soirs. Rien à créer ici : c'est l'écran qui est corrigé.
+
+-- ----------------------------------------------------------------------------
+-- PRESTA-01 — les demandes de matériel aux prestataires
+--
+-- Les prestataires n'avaient AUCUN canal dans l'outil : la date de récupération
+-- se retapait depuis un appel téléphonique, et rien ne disait si une demande
+-- était partie, acceptée ou honorée.
+--
+-- On suit ici l'état de la demande — à demander / demandée / confirmée / reçue —
+-- sans montant ni devis : le coût est du ressort de la direction de production.
+-- ----------------------------------------------------------------------------
+create table if not exists demandes_materiel (
+  id text primary key,
+  tournee_id text,
+  prestataire_id text references prestataires(id) on delete set null,
+  objet text not null default '',
+  -- Les dates concernées, quand la demande ne couvre qu'une partie de la
+  -- tournée. Vide = toute la tournée.
+  dates_ids jsonb not null default '[]'::jsonb,
+  statut text not null default 'a_demander'
+    check (statut in ('a_demander','demande','confirme','recu','refuse')),
+  demande_le date,
+  confirme_le date,
+  recu_le date,
+  -- Le rendez-vous de retrait, quand il est connu : c'est l'information qui se
+  -- retapait à chaque fois depuis un appel.
+  retrait_date date,
+  retrait_heure text not null default '',
+  notes text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_demandes_materiel_tournee on demandes_materiel(tournee_id);
+drop trigger if exists trg_demandes_materiel_updated_at on demandes_materiel;
+create trigger trg_demandes_materiel_updated_at before update on demandes_materiel
+  for each row execute function set_updated_at();
+
+alter table demandes_materiel enable row level security;
+drop policy if exists "demandes materiel acces" on demandes_materiel;
+create policy "demandes materiel acces" on demandes_materiel for all to authenticated
+  using (has_direction_technique_access()) with check (has_direction_technique_access());

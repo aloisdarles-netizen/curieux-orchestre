@@ -495,6 +495,7 @@ function rendre(){
   const retours = remarquesCache.filter(x=> !x.traitee && x.tourneeId === t.id).length;
   const enCours = tacheEnEdition ? taches.find(x=> x.id === tacheEnEdition) : null;
   const salles = sallesAVenir();
+  const courses = coursesDe(t);
 
   const stats = [
     [rouges, 'alertes rouges', rouges ? 'ko' : ''],
@@ -565,6 +566,42 @@ function rendre(){
     </div>
 
     <div class="bloc">
+      <div class="bloc-tete"><h2>Liste de courses</h2>
+        <span class="compte">ce qu'il faut acheter ou emprunter avant de partir — sans prix, la dépense est du ressort de la production</span></div>
+      <div class="co-card co-pad-lg" style="margin-bottom:10px;">
+        <div class="tache-form">
+          <div class="champ libelle">
+            <label for="cQuoi">Quoi</label>
+            <input type="text" id="cQuoi" placeholder="Gaffeur mat, gants, rallonges 16 A…">
+          </div>
+          <div class="champ" style="flex:0 0 110px;">
+            <label for="cCombien">Combien</label>
+            <input type="text" id="cCombien" placeholder="6 rouleaux">
+          </div>
+          <div class="champ" style="flex:1 1 180px;">
+            <label for="cPour">Pour</label>
+            <input type="text" id="cPour" placeholder="Lumière, plateau…">
+          </div>
+          <button type="button" class="co-btn primary md" id="cAjouter">Ajouter</button>
+        </div>
+      </div>
+      <div class="co-card co-clip">${
+        courses.length
+          ? courses.slice().sort((a, b)=> (a.achete === b.achete ? 0 : a.achete ? 1 : -1)).map(c=> `
+            <div class="tache ${c.achete ? 'faite' : ''}">
+              <div class="quand"><b>${escapeHtml(c.combien || '—')}</b></div>
+              <div class="quoi">
+                <b>${escapeHtml(c.quoi || '')}</b>
+                ${c.pour ? `<small>pour ${escapeHtml(c.pour)}</small>` : ''}
+              </div>
+              <label class="coche"><input type="checkbox" data-course="${escapeAttr(c.id)}" ${c.achete ? 'checked' : ''}> pris</label>
+              <button type="button" class="outil danger" data-course-suppr="${escapeAttr(c.id)}" title="Retirer" aria-label="Retirer">✕</button>
+            </div>`).join('')
+          : '<div class="empty-hint co-vide">Rien à acheter pour l’instant.</div>'
+      }</div>
+    </div>
+
+    <div class="bloc">
       <div class="bloc-tete"><h2>Les salles qui approchent</h2><span class="compte">le même avancement que la page Avancement, d'un seul regard</span></div>
       ${salles.length ? `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px;">
         ${salles.map(s=>{
@@ -594,8 +631,38 @@ function rendre(){
   salleSel.addEventListener('change', majChamps);
   majChamps();
   document.getElementById('fEnregistrer').addEventListener('click', enregistrerTache);
+  document.getElementById('cAjouter').addEventListener('click', ajouterCourse);
+  document.getElementById('cQuoi').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') ajouterCourse(); });
   const annuler = document.getElementById('fAnnuler');
   if(annuler) annuler.addEventListener('click', ()=>{ tacheEnEdition = null; rendre(); });
+}
+
+/* --- La liste de courses --------------------------------------------------
+   Elle vit dans techniqueTournee.courses, avec le reste de ce qui vaut pour
+   toute la tournée. Sans prix : ce qu'une course coûte est du ressort de la
+   direction de production — ici on note ce qu'il ne faut pas oublier.
+--------------------------------------------------------------------------- */
+function coursesDe(tournee){
+  const l = tournee && tournee.techniqueTournee && tournee.techniqueTournee.courses;
+  return Array.isArray(l) ? l : [];
+}
+async function ecrireCourses(liste){
+  const t = activeTournee();
+  if(!t) return;
+  t.techniqueTournee = { ...(t.techniqueTournee || {}), courses: liste };
+  rendre();
+  await CurieuxDB.upsertOne('tournees', t);
+}
+function ajouterCourse(){
+  const quoi = document.getElementById('cQuoi').value.trim();
+  if(!quoi){ document.getElementById('cQuoi').focus(); return; }
+  const t = activeTournee();
+  ecrireCourses(coursesDe(t).concat([{
+    id: genId('course'), quoi,
+    combien: document.getElementById('cCombien').value.trim(),
+    pour: document.getElementById('cPour').value.trim(),
+    achete: false,
+  }]));
 }
 
 /* --- Les seuils ----------------------------------------------------------- */
@@ -690,6 +757,19 @@ document.addEventListener('click', async (e)=>{
       rendre();
       await CurieuxDB.removeOne('comm_taches', t.id);
     }
+    return;
+  }
+
+  const course = e.target.closest('[data-course]');
+  if(course){
+    const t = activeTournee();
+    ecrireCourses(coursesDe(t).map(c=> c.id === course.dataset.course ? { ...c, achete: course.checked } : c));
+    return;
+  }
+  const courseSuppr = e.target.closest('[data-course-suppr]');
+  if(courseSuppr){
+    const t = activeTournee();
+    ecrireCourses(coursesDe(t).filter(c=> c.id !== courseSuppr.dataset.courseSuppr));
     return;
   }
 
