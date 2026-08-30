@@ -530,6 +530,10 @@ const CurieuxDB = new Proxy({
   // Rend null, comme la base quand aucun instantané n'existe encore — la
   // liste vide du Proxy ferait croire à un instantané présent mais sans entries.
   fetchSnapshot: async () => null,
+  // Doit être explicite : le repli du Proxy rend [], qui est VRAI en booléen —
+  // une page se croirait donc toujours devant une migration manquante. Un
+  // scénario force le cas avec window.__tablesAbsentes = ['salles'].
+  tableManquante: async (t) => (window.__tablesAbsentes || []).includes(t),
   subscribe: () => {},
   syncCollection: async (t, rows) => { window.__ecrits.push({ table: t, rows }); return { error: null }; },
   upsertOne: async (t, row) => {

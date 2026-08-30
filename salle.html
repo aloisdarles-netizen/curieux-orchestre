@@ -169,6 +169,7 @@
   </div>
 
   <div class="empty-hint" id="introuvable" hidden>Cette salle n'existe pas, ou plus. <a href="salles.html">Retour à la liste</a>.</div>
+  <div class="empty-hint" id="migrationManque" hidden>La table des salles n'existe pas encore dans Supabase. Colle le bloc <b>LOT E</b> de <code>migrations.sql</code> dans l'éditeur SQL, puis recharge. <a href="salles.html">Retour à la liste</a>.</div>
 </div>
 
 <script>
@@ -509,8 +510,11 @@ async function enregistrer(){
   const etat = document.getElementById('etat');
   etat.textContent = 'Enregistrement…';
   const { error } = await CurieuxDB.upsertOne('salles', salle);
-  etat.textContent = error ? "Échec de l'enregistrement — réessaie."
-                           : 'Enregistré à ' + new Date().toLocaleTimeString('fr-FR');
+  etat.textContent = error
+    ? (await CurieuxDB.tableManquante('salles')
+        ? "La table des salles n'existe pas encore — joue la migration du Lot E."
+        : "Échec de l'enregistrement — réessaie.")
+    : 'Enregistré à ' + new Date().toLocaleTimeString('fr-FR');
   majTitre();
 }
 
@@ -547,7 +551,13 @@ async function initData(){
     CurieuxDB.getSession(),
   ]);
   monEmail = (session && session.user && session.user.email) || '';
-  if(!salle){ document.getElementById('introuvable').hidden = false; return; }
+  if(!salle){
+    // Distinguer « cette salle-là n'existe pas » de « la table n'existe pas » :
+    // le premier est une faute de lien, le second une migration à jouer.
+    const manque = await CurieuxDB.tableManquante('salles');
+    document.getElementById(manque ? 'migrationManque' : 'introuvable').hidden = false;
+    return;
+  }
   // Les tableaux jsonb peuvent revenir absents d'une ligne créée ailleurs.
   salle.pointsDistribution = salle.pointsDistribution || [];
   salle.contacts = salle.contacts || [];

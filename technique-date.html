@@ -169,6 +169,7 @@
        continuent de lire la date, sans rien savoir des fiches de salle. -->
   <fieldset class="groupe" id="blocSalle">
     <legend>Salle</legend>
+    <p id="salleMigration" hidden style="font-size:12.5px; color:var(--danger); margin:-6px 0 10px; font-weight:700;">La table des salles n'existe pas encore dans Supabase — colle le bloc <b>LOT E</b> de <code>migrations.sql</code>, puis recharge. En attendant, les faits techniques se saisissent ici comme avant.</p>
     <div id="salleNonLiee">
       <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Relie cette date à une fiche de salle : les faits techniques, l'accès, les points de distribution et les contacts viendront de là, et n'auront plus à être ressaisis la prochaine fois qu'on y joue.</p>
       <div class="field-row" style="align-items:flex-end;">
@@ -1266,6 +1267,9 @@ function appliquerAnalyse(){
 // fonctionner sans rien savoir des fiches de salle.
 // ============================================================================
 let sallesCache = [], salleLiee = null;
+// Vrai tant que la migration du Lot E n'est pas jouée : le bloc le dit, et la
+// fiche de date reste utilisable exactement comme avant.
+let sallesAbsentes = false;
 
 // « 14 » + « m » → « 14 m ». Vide si le fait n'est pas renseigné : mieux vaut
 // une case vide qu'un « 0 m » que personne n'a écrit.
@@ -1317,6 +1321,10 @@ function salleDepuisDate(){
 }
 
 function renderSalle(){
+  // La sonde « la table existe-t-elle ? » revient de façon asynchrone et peut
+  // donc rappeler ce rendu AVANT que moyens ne soit construit. Sans ce garde,
+  // le premier chargement lève sur moyens.salleId.
+  if(!moyens) return;
   salleLiee = moyens.salleId ? (sallesCache.find(s=> s.id === moyens.salleId) || null) : null;
   const nonLiee = document.getElementById('salleNonLiee');
   const liee = document.getElementById('salleLieeBloc');
@@ -1329,8 +1337,10 @@ function renderSalle(){
   });
   document.getElementById('contactsSalleRenvoi').hidden = !salleLiee;
 
+  document.getElementById('salleMigration').hidden = !sallesAbsentes;
   if(!salleLiee){
-    nonLiee.hidden = false; liee.hidden = true;
+    nonLiee.hidden = sallesAbsentes; liee.hidden = true;
+    if(sallesAbsentes) return;
     const sel = document.getElementById('fSalleChoix');
     const attendu = (dateEntry.lieu || dateEntry.ville || '').toLowerCase();
     const triees = sallesCache.slice().sort((a,b)=> (a.ville||'').localeCompare(b.ville||'', 'fr') || (a.nom||'').localeCompare(b.nom||'', 'fr'));
@@ -1497,6 +1507,9 @@ async function init(){
     CurieuxDB.fetchAll('remarques'), CurieuxDB.fetchAll('salles'),
   ]);
   sallesCache = salles;
+  // Tant que la migration du Lot E n'est pas jouée, le bloc le dit et se met en
+  // retrait : la fiche de date reste entièrement utilisable comme avant.
+  CurieuxDB.tableManquante('salles').then(manque=>{ sallesAbsentes = manque; renderSalle(); });
   tournee = tournees.find(t=>t.id === tourneeId);
   techniciensCache = techniciens; vehiculesCache = vehicules;
   remarquesCache = remarques;

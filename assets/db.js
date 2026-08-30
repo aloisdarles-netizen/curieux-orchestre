@@ -732,6 +732,34 @@ const CurieuxDB = (()=>{
     return m ? m[1] : '';
   }
 
+  /* La table n'existe pas encore dans cette base.
+   *
+   * Le cas est différent d'une colonne manquante : là, il n'y a rien à retirer
+   * de la ligne, l'écriture ne passera pas et la lecture ne rendra jamais rien.
+   * Une page qui repose sur une table toute neuve doit pouvoir le DIRE plutôt
+   * que d'afficher une liste vide, qui se lit « il n'y a rien » alors que la
+   * vérité est « la migration n'est pas jouée ».
+   *
+   * PGRST205 vient de PostgREST (table absente du cache de schéma), 42P01 de
+   * Postgres lui-même (undefined_table).
+   */
+  function _tableAbsente(error){
+    if(!error) return false;
+    const code = error.code || '';
+    if(code === 'PGRST205' || code === '42P01') return true;
+    return /schema cache|does not exist/i.test(error.message || '');
+  }
+
+  // Vrai si la table manque à la base. Sert aux pages d'un lot fraîchement
+  // déployé à afficher « colle la migration » au lieu d'un écran vide.
+  async function tableManquante(table){
+    if(!supabaseClient) return false;
+    try{
+      const res = await supabaseClient.from(table).select('id').limit(1);
+      return _tableAbsente(res && res.error);
+    }catch(e){ return false; }
+  }
+
   /* Écrire même quand la base a une migration de retard.
    *
    * Le code d'une page part toujours avant le SQL : on déploie, on joue la
@@ -1807,7 +1835,7 @@ const CurieuxDB = (()=>{
   }
 
   return {
-    fetchAll, fetchOne, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
+    fetchAll, fetchOne, tableManquante, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
     fetchReglages, setPhaseTest, setVillesBase, setCommTachesTypes, setCommNewsletterJour, setTechniqueSeuils, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,

@@ -35,6 +35,11 @@
   .fait .val.vide{color:var(--muted); font-weight:700;}
   .verdict-resume{font-size:12px; color:var(--muted); margin-top:8px; line-height:1.45;}
 
+  .banniere-alerte{display:flex; gap:11px; align-items:flex-start; background:var(--danger-tint); border-radius:var(--radius); padding:13px 15px; margin-bottom:16px;}
+  .banniere-alerte .sig{color:var(--danger); font-weight:900; font-size:15px; line-height:1.4; flex:0 0 auto;}
+  .banniere-alerte p{margin:0; font-size:13.5px; line-height:1.5;}
+  .banniere-alerte[hidden]{display:none;}
+
   .empty-hint{color:var(--muted); font-size:13.5px; padding:40px 4px; text-align:center;}
   @media (max-width:600px){ input, select{ font-size:16px !important; } }
 </style>
@@ -47,6 +52,11 @@
       <p class="subtitle">Ce qu'on sait de chaque lieu, une fois pour toutes — les faits se saisissent ici, plus date par date.</p>
     </div>
     <div class="co-actions"><button type="button" class="co-btn primary" id="ajouterBtn">+ Nouvelle salle</button></div>
+  </div>
+
+  <div class="banniere-alerte" id="migrationBanner" hidden>
+    <span class="sig">!</span>
+    <p>La table des salles n'existe pas encore dans Supabase. Colle le bloc <b>LOT E</b> de <code>migrations.sql</code> dans l'éditeur SQL, puis recharge cette page — d'ici là, rien ne peut être enregistré ici.</p>
   </div>
 
   <div class="barre co-fade">
@@ -132,6 +142,10 @@ function render(){
 document.getElementById('recherche').addEventListener('input', render);
 document.getElementById('gabaritSelect').addEventListener('change', render);
 document.getElementById('ajouterBtn').addEventListener('click', async ()=>{
+  if(!document.getElementById('migrationBanner').hidden){
+    alert("La table des salles n'existe pas encore dans Supabase — joue d'abord la migration du Lot E.");
+    return;
+  }
   const nom = prompt('Nom de la salle ?');
   if(!nom || !nom.trim()) return;
   const s = { id: genId('salle'), nom: nom.trim(), ville:'', adresse:'',
@@ -139,16 +153,24 @@ document.getElementById('ajouterBtn').addEventListener('click', async ()=>{
     puissanceA:null, chargeAccrocheKg:null,
     typeCourant:'', typeSol:'', accesNotes:'', pointsDistribution:[],
     contacts:[], lecons:[], notes:'', ficheUrl:'' };
-  await CurieuxDB.upsertOne('salles', s);
+  // On n'ouvre la fiche que si la ligne est bien passée : sinon on atterrissait
+  // sur un écran « cette salle n'existe pas », ce qui est vrai mais illisible.
+  const { error } = await CurieuxDB.upsertOne('salles', s);
+  if(error){ alert("La fiche n'a pas pu être créée — réessaie."); return; }
   location.href = 'salle.html?id=' + encodeURIComponent(s.id);
 });
 
 async function initData(){
-  [sallesCache, tourneesCache, moyensCache] = await Promise.all([
+  let manque;
+  [sallesCache, tourneesCache, moyensCache, manque] = await Promise.all([
     CurieuxDB.fetchAll('salles'),
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('moyens_salle'),
+    CurieuxDB.tableManquante('salles'),
   ]);
+  // Une liste vide se lit « il n'y a rien » ; la vérité peut être « la
+  // migration n'est pas jouée ». Ce n'est pas la même chose à faire ensuite.
+  document.getElementById('migrationBanner').hidden = !manque;
   tourneesCache = tourneesCache.filter(t=> t.type !== 'recording');
   const sel = document.getElementById('gabaritSelect');
   sel.innerHTML = '<option value="">Sans gabarit — juste les faits</option>'
