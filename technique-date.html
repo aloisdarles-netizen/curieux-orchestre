@@ -142,19 +142,19 @@
     </div>
   </div>
 
-  <!-- Analyse des fiches techniques par Claude — en sommeil tant qu'aucune
-       clé API n'est configurée (fonction /api/analyser-fiche conservée).
-       Pour réactiver : retirer style="display:none". -->
-  <fieldset class="groupe" style="display:none;">
-    <legend>Lire une fiche technique de salle</legend>
-    <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Dépose le PDF (ou une photo) envoyé par la salle : les informations utiles sont extraites et les manques signalés. Rien n'est écrit tant que tu n'as pas coché puis appliqué.</p>
-    <div class="field"><label for="fAnalyseFichier">Fichier — PDF, PNG ou JPEG, 3 Mo maximum</label><input type="file" id="fAnalyseFichier" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"></div>
-    <button type="button" class="co-btn secondary sm" id="analyserBtn" disabled>Analyser la fiche</button>
-    <span id="analyseStatut" style="margin-left:10px; font-size:12.5px; color:var(--muted);"></span>
-    <div id="analyseResultat" style="display:none; margin-top:14px;"></div>
-  </fieldset>
+  <!-- Lire une fiche technique de salle.
 
-  <fieldset class="groupe">
+       Ce bloc existait EN DOUBLE, avec les mêmes identifiants : un exemplaire
+       masqué placé avant celui-ci, qui captait tous les écouteurs puisque
+       getElementById rend le premier élément du document. Le bloc visible était
+       donc inerte à vie, et son bouton restait désactivé pour toujours. Le
+       doublon a disparu.
+
+       Il reste caché tant que la clé ANTHROPIC_API_KEY n'est pas posée sur
+       Vercel — mais ce n'est plus écrit en dur : sonderAnalyse() le demande au
+       serveur au chargement, et le bloc apparaît de lui-même le jour où la clé
+       est configurée. Rien à rééditer ici. -->
+  <fieldset class="groupe" id="blocAnalyse" hidden>
     <legend>Lire une fiche technique de salle</legend>
     <p style="font-size:12.5px; color:var(--muted); margin:-6px 0 10px;">Dépose le PDF (ou une photo) envoyé par la salle : les informations utiles sont extraites et les manques signalés. Rien n'est écrit tant que tu n'as pas coché puis appliqué.</p>
     <div class="field"><label for="fAnalyseFichier">Fichier — PDF, PNG ou JPEG, 3 Mo maximum</label><input type="file" id="fAnalyseFichier" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"></div>
@@ -973,6 +973,22 @@ function valeurActuelleChamp(def){
   const el = document.getElementById(def.cible);
   return el ? String(el.value || '').trim() : '';
 }
+
+/* Le serveur a-t-il sa clé ?
+ *
+ * /api/analyser-fiche vérifie ANTHROPIC_API_KEY AVANT l'authentification : un
+ * POST sans jeton répond donc 500 quand la clé manque, et 401 quand elle est
+ * là. C'est une sonde qui ne coûte rien et ne révèle rien de plus que ce que
+ * l'API disait déjà. Au moindre doute — réseau coupé, réponse inattendue — on
+ * laisse le bloc caché : mieux vaut une fonction absente qu'un bouton mort.
+ */
+async function sonderAnalyse(){
+  try{
+    const rep = await fetch('/api/analyser-fiche', { method: 'POST' });
+    if(rep.status === 401) document.getElementById('blocAnalyse').hidden = false;
+  }catch(e){}
+}
+sonderAnalyse();
 
 document.getElementById('fAnalyseFichier').addEventListener('change', (e)=>{
   const fichier = e.target.files[0];

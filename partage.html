@@ -112,7 +112,12 @@
 <script>
 let tourneesCache = [], accesCache = [];
 const TYPE_LABEL = { stage_manager:'Stage manager', technicien:'Technicien·ne', salle:'Salle' };
-const TYPE_DROIT = { stage_manager:'peut modifier', technicien:'lecture seule', salle:'peut répondre' };
+// « lecture seule » pour les technicien·nes était faux : technique-partage.html
+// rend le bloc « Une remarque ? » sans aucune condition de type, et la fonction
+// serveur qui l'enregistre n'en pose pas davantage. Un lien technicien écrit
+// donc bel et bien en base — et c'est très bien ainsi : quelqu'un qui repère un
+// problème sur la fiche doit pouvoir le dire.
+const TYPE_DROIT = { stage_manager:'peut modifier', technicien:'peut laisser une remarque', salle:'peut répondre' };
 const TYPE_SOUS = {
   stage_manager:"registre complet — horaires de journée, plan de salle et positionnement des semis",
   technicien:'son, lumière, plateau & rigg, déchargement',
@@ -180,7 +185,7 @@ function render(){
       <button type="button" class="co-btn ghost sm btn-copier" data-url="${escapeAttr(lien(a))}" title="Copier le lien public de ce destinataire">Copier le lien</button>
       <a class="co-btn ghost sm" href="${escapeAttr(lien(a))}" target="_blank" rel="noopener" title="Ouvrir la page telle que le destinataire la voit">Ouvrir</a>
       ${a.type === 'salle' ? `
-        <a class="co-btn ghost sm" href="${escapeAttr(lienPdf(a))}" target="_blank" rel="noopener" title="Produire le PDF de cette salle — une feuille par date concernée">PDF</a>
+        <a class="co-btn ghost sm" href="${escapeAttr(lienPdf(a))}" target="_blank" rel="noopener" title="S'ouvre CHEZ TOI (page réservée à l'équipe technique) : l'aperçu se charge et produit le PDF, que tu joins ensuite au message">Aperçu &amp; PDF</a>
         <a class="co-btn ghost sm" href="${escapeAttr(lienCourrier(a))}" title="${a.email ? 'Écrire à ' + escapeAttr(a.email) + ' — texte prérempli, PDF à joindre' : 'Message prérempli — sans adresse enregistrée pour cette salle'}">Écrire</a>
       ` : ''}
       <button type="button" class="m-icone" data-edit="${a.id}" title="Modifier cet accès" aria-label="Modifier"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5h4l10.3-10.3a2.1 2.1 0 0 0 0-3l-1.5-1.5a2.1 2.1 0 0 0-3 0L3.5 16v4.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><line x1="14.2" y1="6.3" x2="17.7" y2="9.8" stroke="currentColor" stroke-width="1.7"></line></svg></button>

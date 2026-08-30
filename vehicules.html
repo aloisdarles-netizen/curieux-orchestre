@@ -492,6 +492,11 @@ document.getElementById('vehiculeModalSave').addEventListener('click', async ()=
     prestataireId: document.getElementById('vPrestataire').value || '',
     chauffeurDefautId: document.getElementById('vChauffeurDefaut').value || '',
     notes: document.getElementById('vNotes').value.trim(),
+    // L'objet est reconstruit champ par champ, et l'adaptateur écrit
+    // tournees_ids: v.tourneesIds || []. Sans cette ligne, corriger une faute
+    // dans le nom d'une semi la retirait SILENCIEUSEMENT de tous les projets
+    // sur lesquels elle était engagée — et donc de tous les liens partagés.
+    tourneesIds: (vehiculesCache.find(x=> x.id === id) || {}).tourneesIds || [],
   };
   if(!obj.nom){ alert('Donne un nom au véhicule.'); return; }
   const idx = vehiculesCache.findIndex(x=>x.id===id);
@@ -527,7 +532,6 @@ function renderChauffeurs(){
 }
 
 function carteChauffeur(c){
-    const prest = prestatairesCache.find(p=>p.id === c.prestataire); // legacy text fallback if not migrated
     const semisHabituelles = vehiculesCache.filter(v=>v.chauffeurDefautId===c.id);
     return `
     <div class="r-card">
@@ -566,11 +570,13 @@ function openChauffeurModal(id){
     document.getElementById('chNom').value = c.nom || '';
     document.getElementById('chTelephone').value = c.telephone || '';
     document.getElementById('chEmail').value = c.email || '';
-    document.getElementById('chPrestataire').value = '';
+    // Retrouver l'option par le nom, puisque c'est un nom qui est stocké.
+    const dejaPresta = prestatairesCache.find(p=> p.nom === (c.prestataire || ''));
+    document.getElementById('chPrestataire').value = dejaPresta ? dejaPresta.id : '';
     document.getElementById('chNotes').value = c.notes || '';
   } else {
     document.getElementById('chauffeurModalTitle').textContent = 'Ajouter un chauffeur';
-    ['chPrenom','chNom','chTelephone','chEmail','chNotes'].forEach(fid=> document.getElementById(fid).value='');
+    ['chPrenom','chNom','chTelephone','chEmail','chNotes','chPrestataire'].forEach(fid=> document.getElementById(fid).value='');
   }
   document.getElementById('chauffeurModalOverlay').classList.add('open');
 }
@@ -582,11 +588,23 @@ document.getElementById('chauffeurModalSave').addEventListener('click', async ()
   const prenom = document.getElementById('chPrenom').value.trim();
   const nom = document.getElementById('chNom').value.trim();
   if(!prenom && !nom){ alert('Prénom ou nom obligatoire.'); return; }
+  // Le menu propose des identifiants de prestataire, mais la colonne est un
+  // texte libre — et c'est ce texte que la carte affiche. On enregistre donc
+  // le NOM : rien à migrer, et les valeurs saisies avant ce menu restent
+  // lisibles. « — Aucun — » vide le champ.
+  const choixPresta = document.getElementById('chPrestataire').value;
+  const nomPresta = choixPresta && choixPresta !== '__nouveau__'
+    ? ((prestatairesCache.find(p=> p.id === choixPresta) || {}).nom || '')
+    : '';
   const obj = {
     id, prenom, nom,
     telephone: document.getElementById('chTelephone').value.trim(),
     email: document.getElementById('chEmail').value.trim(),
+    prestataire: nomPresta,
     notes: document.getElementById('chNotes').value.trim(),
+    // Même piège que pour les véhicules : sans cette ligne, modifier un
+    // chauffeur le désengageait de tous ses projets.
+    tourneesIds: (chauffeursCache.find(x=> x.id === id) || {}).tourneesIds || [],
   };
   const idx = chauffeursCache.findIndex(x=>x.id===id);
   if(idx>=0) chauffeursCache[idx]=obj; else chauffeursCache.push(obj);
