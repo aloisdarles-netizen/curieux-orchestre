@@ -5402,3 +5402,67 @@ alter table demandes_materiel enable row level security;
 drop policy if exists "demandes materiel acces" on demandes_materiel;
 create policy "demandes materiel acces" on demandes_materiel for all to authenticated
   using (has_direction_technique_access()) with check (has_direction_technique_access());
+
+-- ============================================================================
+-- CORRECTIF — la projection des disponibilités était bloquée par RLS
+--
+-- Symptôme, en production : modifier la disponibilité de quelqu'un depuis la
+-- Vue d'ensemble échouait avec « new row violates row-level security policy
+-- for table "disponibilites" », et RIEN n'était enregistré.
+--
+-- La cause est un commentaire faux dans la migration d'origine : « le trigger
+-- s'exécute avec les droits du propriétaire et n'est pas soumis à RLS ». Une
+-- fonction plpgsql ordinaire s'exécute avec les droits de l'APPELANT. Les
+-- triggers de projection tournaient donc en tant que `authenticated`, et la
+-- table `disponibilites` — qui n'a qu'une politique de lecture, délibérément —
+-- refusait leur écriture. L'update sur la fiche échouait avec elle.
+--
+-- On rend les trois fonctions de trigger SECURITY DEFINER : elles s'exécutent
+-- alors bien comme le propriétaire, ce que le commentaire d'origine croyait
+-- déjà vrai. La table reste sans politique d'écriture, ce qui était le bon
+-- choix : personne ne peut fausser la projection à la main.
+--
+-- Et on ferme la porte que ce correctif ouvrirait : projeter_disponibilites
+-- n'est plus appelable directement par un client. Sans ce retrait, n'importe
+-- quel compte pourrait réécrire la projection de n'importe qui — elle
+-- redeviendrait fausse jusqu'au prochain enregistrement réel de la fiche.
+-- ============================================================================
+create or replace function trg_projeter_dispos_musicien() returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform projeter_disponibilites('musicien', new.id,
+    new.disponibilites, new.disponibilites_commentaires, new.reponses_prod);
+  return new;
+end;
+$$;
+
+create or replace function trg_projeter_dispos_technicien() returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform projeter_disponibilites('technicien', new.id,
+    new.disponibilites, new.disponibilites_commentaires, new.reponses_prod);
+  return new;
+end;
+$$;
+
+-- Supprimer une personne effaçait ses lignes projetées — même blocage, même
+-- correctif : sans lui, supprimer une fiche échouait aussi.
+create or replace function trg_purger_dispos_personne() returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from disponibilites
+   where personne_type = tg_argv[0] and personne_id = old.id;
+  return old;
+end;
+$$;
+
+revoke execute on function projeter_disponibilites(text, text, jsonb, jsonb, jsonb) from anon, authenticated;
