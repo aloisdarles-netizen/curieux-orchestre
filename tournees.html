@@ -276,10 +276,16 @@
      ------------------------------------------------------------------------ */
   .dates-rows{ overflow-x:auto; }
   .date-row{
-    display:grid; align-items:center; gap:9px; min-width:980px;
-    grid-template-columns:92px 88px minmax(190px,1fr) 106px 104px 88px minmax(178px,auto) 84px 40px;
+    display:grid; align-items:center; gap:9px; min-width:1006px;
+    grid-template-columns:26px 92px 88px minmax(190px,1fr) 106px 104px 88px minmax(178px,auto) 84px 40px;
     flex-wrap:nowrap;
   }
+  /* Une case par UNITÉ DE STATUT, et non par ligne : un bloc de trois soirs
+     partage un statut, il ne se coche donc qu'une fois. Les lignes suivantes
+     du bloc gardent la colonne vide, comme elles gardent la pastille vide. */
+  .col-select{display:flex; align-items:center; justify-content:center; min-width:0;}
+  .col-select input{width:16px; height:16px; accent-color:var(--accent); cursor:pointer;}
+  .co-row.date-row.selectionnee{background:var(--champagne);}
   .co-rows-head.date-row{ padding:8px 20px; }
   .co-row.date-row{ padding:10px 20px; }
   .col-date{white-space:nowrap; font-size:12.5px;}
@@ -315,6 +321,24 @@
      retrait, pour que la colonne se lise comme « un trajet, trois jours ». */
   .col-voyage.sur-place{font-size:12px; color:var(--muted); font-style:italic; padding-left:2px;}
   .col-statut, .col-fdr, .col-suppr{min-width:0;}
+
+  /* La barre d'action groupée flotte en bas : le tableau des dates est long,
+     une barre posée au-dessus se serait perdue au premier défilement, juste au
+     moment où l'on finit de cocher. */
+  .barre-lot{
+    display:none; position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+    z-index:40; align-items:center; gap:10px; flex-wrap:wrap; max-width:min(920px, 94vw);
+    background:var(--card); border:1px solid var(--old-champagne); border-radius:12px;
+    padding:11px 15px; box-shadow:0 8px 28px rgba(20,15,10,.18);
+  }
+  .barre-lot.open{display:flex;}
+  .barre-lot .compte{font-size:13px; font-weight:800; color:var(--accent-dark); white-space:nowrap;}
+  .barre-lot .quoi{font-size:12px; color:var(--muted); white-space:nowrap;}
+  .barre-lot .sep{width:1px; align-self:stretch; background:var(--border);}
+  @media (max-width:700px){
+    .barre-lot{left:10px; right:10px; transform:none; max-width:none; justify-content:center;}
+    .barre-lot .quoi{width:100%; text-align:center;}
+  }
   .col-type select, .col-voyage select, .col-seance select{flex:1; min-width:0;}
 
   /* ------------------------------------------------------------------------
@@ -378,8 +402,8 @@
      identique à celle d'une tournée — c'est le même travail de planification.
      ------------------------------------------------------------------------ */
   .recording-rows .date-row{
-    min-width:1070px;
-    grid-template-columns:92px 94px minmax(190px,1fr) 106px 118px 74px 88px minmax(178px,auto) 88px 40px;
+    min-width:1096px;
+    grid-template-columns:26px 92px 94px minmax(190px,1fr) 106px 118px 74px 88px minmax(178px,auto) 88px 40px;
   }
   .col-cachet{min-width:0;}
   .col-cachet .saisie-cachet{
@@ -666,6 +690,17 @@
       <div id="assignBlocDatesList" style="max-height:20vh; overflow-y:auto;"></div>
     </div>
   </div>
+</div>
+
+<!-- L'action groupée sur les statuts. Elle flotte : le tableau des dates est
+     long, une barre posée au-dessus se serait perdue au premier défilement,
+     juste au moment où l'on finit de cocher. -->
+<div class="barre-lot" id="barreLot" role="region" aria-label="Action sur la sélection">
+  <span class="compte" id="lotCompte"></span>
+  <span class="quoi" id="lotQuoi"></span>
+  <span class="sep" aria-hidden="true"></span>
+  <span id="lotBoutons" style="display:flex; gap:6px; flex-wrap:wrap;"></span>
+  <button type="button" class="co-btn ghost sm" id="lotVider">Désélectionner</button>
 </div>
 
 <script>
@@ -1895,8 +1930,21 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         // concert. La fusionner obligeait à délier les dates pour dire une
         // chose vraie, et faisait perdre le voyage groupé avec.
         const showStatut = !blocInfo || blocInfo.isFirst;
+        const uniteStatut = blocInfo ? blocInfo.blocDates[0].id : d.id;
         return `
-          <div class="co-row date-row ${blocInfo ? `bloc-row bloc-alt-${blocInfo.groupIndex % 2}` : ''}" data-row-date="${escapeAttr(d.id)}" style="${statut==='annulee' ? 'opacity:.5;' : ''}">
+          ${/* data-lot-groupe : l'unité de statut à laquelle la ligne appartient —
+                elle-même, ou la première date de son bloc. C'est ce qui permet
+                de surligner les trois soirs quand on coche la case du bloc :
+                sans lui, la barre annonçait « 3 dates » et une seule ligne
+                s'allumait. */''}
+          <div class="co-row date-row ${blocInfo ? `bloc-row bloc-alt-${blocInfo.groupIndex % 2}` : ''}${lotSelection.has(uniteStatut) ? ' selectionnee' : ''}"
+               data-row-date="${escapeAttr(d.id)}" data-lot-groupe="${escapeAttr(uniteStatut)}"
+               style="${statut==='annulee' ? 'opacity:.5;' : ''}">
+            <span class="col-select">${showStatut
+              ? `<input type="checkbox" data-lot-date="${escapeAttr(d.id)}" data-lot-tournee="${escapeAttr(t.id)}" ${lotSelection.has(d.id) ? 'checked' : ''}
+                   aria-label="Sélectionner ${escapeAttr(fmtDateFR(d.date))}${blocInfo ? ' et son bloc' : ''}"
+                   title="${blocInfo ? 'Le bloc entier — il partage un seul statut' : 'Sélectionner cette date'}">`
+              : ''}</span>
             <span class="col-date"><b>${escapeHtml(fmtDateFR(d.date))}</b></span>
             <span class="col-bloc">${blocBadge}${linkToggle}</span>
             <span class="col-lieu co-row-name">
@@ -2050,6 +2098,8 @@ ${EST_RECORDING ? `
           ${dates.length ? `
             <div class="co-rows dates-rows${EST_RECORDING ? ' recording-rows' : ''}">
               <div class="co-rows-head date-row">
+                <span class="col-select"><input type="checkbox" data-lot-tout="${escapeAttr(t.id)}"
+                  aria-label="Tout sélectionner sur ce projet" title="Tout sélectionner sur ce projet"></span>
                 <span class="col-date">Date</span>
                 <span class="col-bloc">${EST_RECORDING ? 'Session' : 'Bloc'}</span>
                 <span class="col-lieu co-row-name">${VOC.colonneLieu}</span>
@@ -2157,6 +2207,110 @@ function render(){
 // L'annulée reste en capitales : c'est la seule qui doit sauter aux yeux sur
 // un document imprimé. Les autres viennent du libellé partagé — un statut
 // absent de cette table rendrait une cellule VIDE, ce qui est pire que faux.
+// ============================================================================
+// Changer le statut de plusieurs dates d'un coup
+//
+// Une case par UNITÉ DE STATUT : un bloc de trois soirs partage un statut, il
+// ne se coche donc qu'une fois — la case porte l'id de sa première date, comme
+// la pastille. Au moment d'appliquer, on redéploie sur tout le bloc, exactement
+// comme le fait un clic sur la pastille.
+//
+// La sélection survit aux redessins (render() reconstruit tout le tableau) et
+// traverse les projets : la barre dit combien de dates et sur combien de
+// projets, pour qu'on sache ce qu'on s'apprête à changer.
+// ============================================================================
+const lotSelection = new Set();
+
+// Les dates réellement touchées par une case : elle-même, ou son bloc entier.
+function lotDatesDe(tournee, dateId){
+  const d = (tournee.dates || []).find(x=> x.id === dateId);
+  if(!d) return [];
+  const triees = (tournee.dates || []).slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const info = computeBlocMap(triees).get(d.id);
+  return info ? info.blocDates : [d];
+}
+
+// Ce que la sélection représente vraiment, une fois les blocs dépliés.
+function lotPortee(){
+  const tournees = loadTournees();
+  const parTournee = new Map();
+  let dates = 0;
+  lotSelection.forEach(id=>{
+    const t = tournees.find(x=> (x.dates || []).some(d=> d.id === id));
+    if(!t) return;
+    const touchees = lotDatesDe(t, id);
+    dates += touchees.length;
+    parTournee.set(t.id, (parTournee.get(t.id) || 0) + touchees.length);
+  });
+  return { dates, projets: parTournee.size };
+}
+
+// Toutes les lignes de l'unité de statut, et non la seule ligne cochée : un
+// bloc de trois soirs change en bloc, il doit s'allumer en bloc.
+function surlignerGroupe(uniteId, actif){
+  document.querySelectorAll(`[data-lot-groupe="${CSS.escape(uniteId)}"]`)
+    .forEach(row=> row.classList.toggle('selectionnee', actif));
+}
+
+// La case d'en-tête suit l'état réel de son projet : cochée si tout l'est,
+// indéterminée si une partie seulement. Sans le troisième état, elle mentirait
+// dès qu'on décoche une seule ligne.
+function majCasesTout(){
+  document.querySelectorAll('[data-lot-tout]').forEach(cb=>{
+    const cases = Array.from(document.querySelectorAll(`[data-lot-tournee="${CSS.escape(cb.dataset.lotTout)}"]`));
+    const coches = cases.filter(c=> lotSelection.has(c.dataset.lotDate)).length;
+    cb.checked = cases.length > 0 && coches === cases.length;
+    cb.indeterminate = coches > 0 && coches < cases.length;
+  });
+}
+
+function majBarreLot(){
+  const barre = document.getElementById('barreLot');
+  if(!barre) return;
+  const p = lotPortee();
+  barre.classList.toggle('open', p.dates > 0);
+  if(p.dates === 0) return;
+  document.getElementById('lotCompte').textContent = `${p.dates} date${p.dates > 1 ? 's' : ''}`;
+  document.getElementById('lotQuoi').textContent =
+    (p.projets > 1 ? `sur ${p.projets} projets · ` : '') + 'passer en :';
+  document.getElementById('lotBoutons').innerHTML = STATUTS_DATE.map(st=>
+    `<button type="button" class="co-btn ${st.cle === 'annulee' ? 'ghost' : 'secondary'} sm" data-lot-statut="${st.cle}">${escapeHtml(st.court)}</button>`
+  ).join('');
+  document.getElementById('lotBoutons').querySelectorAll('[data-lot-statut]')
+    .forEach(b=> b.addEventListener('click', ()=> appliquerLot(b.dataset.lotStatut)));
+}
+
+function appliquerLot(valeur){
+  const p = lotPortee();
+  if(!p.dates) return;
+  const st = STATUT_DATE[valeur];
+  const ou = p.projets > 1 ? `, réparties sur ${p.projets} projets,` : '';
+  const avertissement = valeur === 'annulee'
+    ? '\n\nLes dates restent visibles (barrées) et apparaîtront comme annulées dans le récap newsletter — rien n\'est supprimé.'
+    : '';
+  if(!confirm(`Passer ${p.dates} date${p.dates > 1 ? 's' : ''}${ou} en « ${st.libelle} » ?${avertissement}`)) return;
+
+  const tournees = loadTournees();
+  lotSelection.forEach(id=>{
+    const t = tournees.find(x=> (x.dates || []).some(d=> d.id === id));
+    if(!t) return;
+    lotDatesDe(t, id).forEach(d=> d.statut = valeur);
+  });
+  lotSelection.clear();
+  saveTournees(tournees);
+  render();
+}
+
+document.getElementById('lotVider').addEventListener('click', ()=>{
+  lotSelection.clear();
+  document.querySelectorAll('[data-lot-date]:checked').forEach(c=>{
+    c.checked = false;
+    surlignerGroupe(c.dataset.lotDate, false);
+  });
+  majCasesTout();
+  majBarreLot();
+});
+
 const STATUT_PDF_LABEL = Object.fromEntries(STATUTS_DATE.map(x=> [x.cle, x.cle === 'annulee' ? 'ANNULÉE' : x.court]));
 // Les libellés de nature viennent du vocabulaire du projet courant : concert /
 // résidence pour une tournée, prise / répétition / overdub / mixage pour un
@@ -2794,6 +2948,31 @@ function bindTourneeEvents(){
       render();
     });
   });
+  // Les cases de sélection. Elles sont recréées à chaque redessin, d'où le
+  // réattachement ici plutôt qu'une délégation : le reste de la page fait
+  // pareil, et une seule façon de faire vaut mieux que deux.
+  document.querySelectorAll('[data-lot-date]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      if(cb.checked) lotSelection.add(cb.dataset.lotDate); else lotSelection.delete(cb.dataset.lotDate);
+      surlignerGroupe(cb.dataset.lotDate, cb.checked);
+      majCasesTout();
+      majBarreLot();
+    });
+  });
+  document.querySelectorAll('[data-lot-tout]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const cases = document.querySelectorAll(`[data-lot-tournee="${CSS.escape(cb.dataset.lotTout)}"]`);
+      cases.forEach(c=>{
+        c.checked = cb.checked;
+        if(cb.checked) lotSelection.add(c.dataset.lotDate); else lotSelection.delete(c.dataset.lotDate);
+        surlignerGroupe(c.dataset.lotDate, cb.checked);
+      });
+      majBarreLot();
+    });
+  });
+  majCasesTout();
+  majBarreLot();
+
   document.querySelectorAll('[data-set-statut]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const value = btn.dataset.statutValue;
