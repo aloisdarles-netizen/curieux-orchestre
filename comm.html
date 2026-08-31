@@ -8,6 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/statuts-date.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireCommAuth); }catch(e){}</script>
@@ -242,7 +243,10 @@ function etatDe(t){
   // La date a disparu (tournée supprimée) ou est annulée : la tâche reste
   // visible en alerte — on a peut-être déjà annoncé ce concert.
   if(t.dateId && (!ref || ref.d.statut === 'annulee')) return { etat:'date_annulee', ech, reste };
-  if(ref && ref.d.statut === 'option' && reste != null && reste <= 0) return { etat:'attente', ech, reste };
+  // Une recherche de dispo compte comme une option ici : dans les deux cas la
+  // date n'est pas acquise, et une tâche dont l'échéance est passée attend la
+  // décision plutôt que d'être en retard.
+  if(ref && estHypothese(ref.d) && reste != null && reste <= 0) return { etat:'attente', ech, reste };
   if(reste == null) return { etat:'libre', ech, reste };
   if(reste < 0) return { etat:'retard', ech, reste };
   if(reste === 0) return { etat:'aujourdhui', ech, reste };
@@ -355,7 +359,7 @@ function renderSemaine(){
 
   const jour = aujourdhui();
   const aVenir = datesConcert().filter(x=> x.d.date >= jour && x.d.statut !== 'annulee');
-  const sansTache = aVenir.filter(x=> x.d.statut === 'validee' && tachesDeDate(x.tournee.id, x.d.id).length === 0);
+  const sansTache = aVenir.filter(x=> estValidee(x.d) && tachesDeDate(x.tournee.id, x.d.id).length === 0);
   const faitesCeMois = tachesCache.filter(t=> t.fait && (t.faitLe || '').startsWith(jour.slice(0, 7))).length;
 
   const nl = tachesCache.find(t=> t.id === `tache-nl-${jour.slice(0, 7)}`);
@@ -425,8 +429,8 @@ function renderSemaine(){
 }
 
 function statutPill(statut){
-  if(statut === 'validee') return '<span class="co-pill ok">Validée</span>';
-  if(statut === 'option') return '<span class="co-pill att">Option</span>';
+  const st = STATUT_DATE[statutDate(statut)];
+  if(st.cle !== 'annulee') return `<span class="co-pill ${st.pill}">${escapeHtml(st.court)}</span>`;
   return '<span class="co-pill ko">Annulée</span>';
 }
 
@@ -609,7 +613,7 @@ function renderDates(){
           ${statutPill(x.d.statut)}
           <span class="resume">${liees.length ? `${faites} / ${liees.length} tâche${liees.length > 1 ? 's' : ''}` : 'aucune tâche'}</span>
           ${!passee && x.d.statut !== 'annulee' ? `<button type="button" class="co-btn secondary sm" data-tache-sur="${escapeAttr(cle)}">+ Tâche</button>` : ''}
-          ${!passee && x.d.statut === 'validee' && liees.length === 0 ? `<button type="button" class="co-btn primary sm" data-types="${escapeAttr(cle)}">Tâches types</button>` : ''}
+          ${!passee && estValidee(x.d) && liees.length === 0 ? `<button type="button" class="co-btn primary sm" data-types="${escapeAttr(cle)}">Tâches types</button>` : ''}
         </div>`;
       }).join('') : '<div class="empty-hint co-vide">Aucune date de concert sur la période (45 derniers jours et à venir).</div>'}
     </div>
@@ -630,7 +634,7 @@ function renderCalendrier(){
   const parJour = {};
   const poser = (iso, html)=> { (parJour[iso] = parJour[iso] || []).push(html); };
   datesConcert().forEach(x=>{
-    const style = x.d.statut === 'annulee' ? 'annulee' : x.d.statut === 'option' ? 'option' : 'concert';
+    const style = estAnnulee(x.d) ? 'annulee' : estHypothese(x.d) ? 'option' : 'concert';
     poser(x.d.date, `<span class="pastille ${style}" title="${escapeAttr((x.d.lieu || '') + ' — ' + (x.tournee.nom || ''))}">${escapeHtml(x.d.ville || '?')}</span>`);
   });
   tachesCache.forEach(t=>{

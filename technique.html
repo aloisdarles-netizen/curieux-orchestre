@@ -8,6 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/statuts-date.js"></script>
 <script src="assets/technique-avancement.js"></script>
 <script src="assets/salles.js"></script>
 <script src="assets/nav.js"></script>
@@ -269,7 +270,7 @@ function datesFutures(){
   const today = todayIso();
   return (t.dates||[])
     .filter(d=> !d.date || d.date >= today)
-    .filter(d=> d.statut !== 'annulee')
+    .filter(d=> !estAnnulee(d))
     .sort((a,b)=> (a.date||'').localeCompare(b.date||''));
 }
 
@@ -378,8 +379,11 @@ function render(){
         <div class="date-card-top">
           <span class="date-card-nom">${escapeHtml(d.ville || d.lieu || 'Date')}${d.lieu && d.ville ? ' — ' + escapeHtml(d.lieu) : ''}${
             g.dates.length > 1 ? `<span class="serie-badge" title="${escapeAttr(g.dates.map(x=> x.date).filter(Boolean).join(' · '))}">${g.dates.length} dates</span>` : ''}${
-            g.dates.every(x=> (x.statut || 'option') === 'option')
-              ? '<span class="serie-badge badge-option" title="Date encore en option — rien n’est engagé tant qu’elle n’est pas signée">option</span>' : ''}${
+            g.dates.every(x=> estHypothese(x))
+              ? `<span class="serie-badge badge-option" title="${escapeAttr(g.dates.every(x=> statutDate(x) === 'recherche')
+                    ? 'Encore une recherche de dispo — la salle ne nous tient rien'
+                    : 'Date encore en option — rien n’est engagé tant qu’elle n’est pas signée')}">${escapeHtml(
+                    g.dates.every(x=> statutDate(x) === 'recherche') ? 'recherche' : 'option')}</span>` : ''}${
             (()=>{ const ids = g.dates.map(x=> x.id);
                    const n = enAttente.filter(r=> ids.includes(r.dateId)).length;
                    return n ? `<span class="serie-badge" style="background:var(--maybe-tint); color:var(--maybe);" title="Un retour reçu depuis un lien partagé attend d\u2019être traité">${n} retour${n>1?'s':''}</span>` : ''; })()}</span>

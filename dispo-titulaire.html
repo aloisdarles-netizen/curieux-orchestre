@@ -8,6 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/statuts-date.js"></script>
 <script src="assets/dispo-statuts.js"></script>
 <!-- Page volontairement PUBLIQUE : pas de hideCurieuxPageUntilAuth()/requireAdminAuth()
      ici, contrairement à toutes les autres pages — ce lien est envoyé à des titulaires qui n'ont
@@ -118,6 +119,12 @@
      explique, elle ne garde pas seule la porte.
      ========================================================================== */
   .date-card.affectee{border-color:var(--accent); background:var(--champagne);}
+  .recherche-tag{
+    display:inline-block; margin-left:8px; font-size:10.5px; font-weight:800;
+    text-transform:uppercase; letter-spacing:.03em; padding:2px 9px; border-radius:999px;
+    background:var(--bg); color:var(--muted); box-shadow:inset 0 0 0 1px var(--border);
+    vertical-align:2px;
+  }
   .affecte-tag{
     display:inline-block; margin-left:8px; font-size:9.5px; font-weight:800;
     text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:999px;
@@ -646,7 +653,11 @@ function render(){
     html += `
       <div class="date-card${affecte ? ' affectee' : ''}" data-date-id="${escapeAttr(d.id)}">
         <div class="date-card-head">
-          <div class="date-label">${escapeHtml(fmtDateFRLong(d.date))}${!blocInfo ? '<span class="isolated-tag">Date isolée</span>' : ''}${affecte ? '<span class="affecte-tag">Tu es sur cette date</span>' : ''}</div>
+          <div class="date-label">${escapeHtml(fmtDateFRLong(d.date))}${!blocInfo ? '<span class="isolated-tag">Date isolée</span>' : ''}${affecte ? '<span class="affecte-tag">Tu es sur cette date</span>' : ''}${
+            /* Dire qu'une date n'est encore qu'une piste évite le malentendu :
+               on demande la dispo de quelqu'un sur un soir qui n'existe pas
+               encore, et il vaut mieux qu'il le sache en répondant. */
+            statutDate(d) === 'recherche' ? '<span class="recherche-tag">Pas encore posée — on cherche</span>' : ''}</div>
           <div class="date-place">${escapeHtml([d.ville, d.lieu].filter(Boolean).join(' · ') || '—')}${state.tournee.type === 'recording' && d.cachetSeance != null && d.cachetSeance !== '' ? `<span class="cachet-seance-tag">${escapeHtml(String(d.cachetSeance))} € brut</span>` : ''}</div>
         </div>
         <div class="state-toggle">

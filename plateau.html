@@ -11,6 +11,7 @@
 <script src="assets/brand-assets.js"></script>
 <script src="assets/pdf-charte.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/statuts-date.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
@@ -324,7 +325,7 @@ function render(){
       <section class="jour" style="border-left-color:${escapeAttr(couleurs.get(e.tournee.id) || 'var(--border)')};">
         <div class="jour-tete">
           <span class="jour-date">${escapeHtml(jourLong(e.d.date))}</span>
-          ${e.d.statut === 'option' ? '<span class="jour-statut">Option</span>' : ''}
+          ${estHypothese(e.d) ? `<span class="jour-statut">${escapeHtml(courtStatut(e.d))}</span>` : ''}
           <span class="jour-lieu">${escapeHtml(lieu || '—')}</span>
           <span class="jour-projet" style="background:${escapeAttr(couleurs.get(e.tournee.id) || 'transparent')};">${
             escapeHtml(e.tournee.nom || 'Projet')}${e.tournee.type === 'recording' ? ' · Rec' : ''}</span>
@@ -446,7 +447,7 @@ function exporterPdf(){
     }));
 
     const lieu = [e.d.ville, e.d.lieu].filter(Boolean).join(' · ');
-    const titre = [jourLong(e.d.date), lieu, e.d.statut === 'option' ? 'option' : '']
+    const titre = [jourLong(e.d.date), lieu, estHypothese(e.d) ? courtStatut(e.d).toLowerCase() : '']
       .filter(Boolean).join('  —  ');
 
     // Ce qui change et qu'aucun tableau ne peut montrer : les absents. Un

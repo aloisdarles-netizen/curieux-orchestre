@@ -10,6 +10,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/statuts-date.js"></script>
 <script src="assets/echeances.js"></script>
 <script src="assets/messages-dispo.js"></script>
 <!-- Le moteur de calcul des devis, pour afficher le budget d'un projet sans
@@ -416,6 +417,9 @@
     padding:4px 11px; border-radius:999px; white-space:nowrap;
     background:var(--border); color:var(--muted);
   }
+  /* Gris : rien n'est engagé, il n'y a rien à colorer. C'est précisément ce
+     qui distingue une recherche d'une option. */
+  .statut-pastille.recherche{background:var(--bg); color:var(--muted); box-shadow:inset 0 0 0 1px var(--border);}
   .statut-pastille.option{background:var(--maybe-tint); color:var(--maybe);}
   .statut-pastille.validee{background:var(--ok-tint); color:var(--ok);}
   .statut-pastille.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
@@ -1671,8 +1675,8 @@ function resteAFaire(t, fdrs, musicianById){
     const eff = effectifPourDate(t, d, musicianById);
     return eff && eff.attendu > 0 && eff.affecte < eff.attendu;
   });
-  const feuillesACreer = dates.filter(d=> d.statut === 'validee' && !fdrs.some(f=> f.eventDate === d.date));
-  const options = dates.filter(d=> (d.statut || 'option') === 'option');
+  const feuillesACreer = dates.filter(d=> estValidee(d) && !fdrs.some(f=> f.eventDate === d.date));
+  const options = dates.filter(d=> statutDate(d) === 'option');
   const sansLieu = dates.filter(d=> !(d.ville || '').trim() && !(d.lieu || '').trim());
   // Un cachet de séance pas encore fixé est un vrai reste à faire : le lien de
   // dispo l'affiche aux musicien·nes, et la paie en dépendra.
@@ -1754,7 +1758,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         // La colonne FDR suit le statut de la date : une feuille ne s'écrit ni
         // pour une date annulée, ni avec la même urgence pour une option que
         // pour une date validée. Le bouton plein est réservé au vrai travail.
-        const statutPourFdr = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+        const statutPourFdr = statutDate(d);
         const fdrAction = fdr
           ? `<a class="co-btn secondary sm" href="feuille-de-route.html?id=${encodeURIComponent(fdr.id)}${EST_RECORDING ? '&type=recording' : ''}">Ouvrir ${EST_RECORDING ? 'la feuille' : 'FDR'}</a>`
           : statutPourFdr === 'annulee'
@@ -1777,7 +1781,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         const summaryText = (musCount + techCount) === 0
           ? 'Aucun·e assigné·e'
           : [musCount ? `${musCount} musicien·ne${musCount>1?'s':''}` : '', techCount ? `${techCount} technicien·ne${techCount>1?'s':''}` : ''].filter(Boolean).join(' · ');
-        const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+        const statut = statutDate(d);
         // La nature d'une date dépend du projet : concert/résidence pour une
         // tournée, prise/répétition/overdub/mixage pour un recording. Une valeur
         // héritée de l'autre monde retombe sur la première du vocabulaire.
@@ -1844,16 +1848,16 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         ` : `
           <span class="col-voyage sur-place" title="M\u00EAme ville que la veille \u2014 pas de nouveau trajet">sur place</span>
         `);
-        // Une seule pastille qui tourne au clic : option → validée → annulée,
-        // comme dans la maquette. La cible suivante est portée par l'attribut,
-        // et le titre l'annonce pour qu'on sache où l'on va avant de cliquer.
-        const SUITE = { option:'validee', validee:'annulee', annulee:'option' };
-        const LIBELLE = { option:'Option', validee:'Validée', annulee:'Annulée' };
+        // Une seule pastille qui tourne au clic. La cible suivante est portée
+        // par l'attribut, et le titre l'annonce pour qu'on sache où l'on va
+        // avant de cliquer. Quatre états depuis qu'une recherche de dispo n'est
+        // plus obligée de se déguiser en option (voir assets/statuts-date.js).
+        const suivant = statutSuivant(statut);
         const statutGroup = `
           <button type="button" class="statut-pastille ${statut}"
-            data-set-statut="${escapeAttr(d.id)}" data-statut-value="${SUITE[statut]}"
-            title="Statut : ${LIBELLE[statut]}. Clique pour passer à « ${LIBELLE[SUITE[statut]]} » (option → validée → annulée)"
-            aria-label="Statut ${LIBELLE[statut]} — changer pour ${LIBELLE[SUITE[statut]]}">${LIBELLE[statut]}</button>
+            data-set-statut="${escapeAttr(d.id)}" data-statut-value="${suivant}"
+            title="Statut : ${escapeAttr(libelleStatut(statut))}. Clique pour passer à « ${escapeAttr(libelleStatut(suivant))} » (recherche → option → validée → annulée)"
+            aria-label="Statut ${escapeAttr(libelleStatut(statut))} — changer pour ${escapeAttr(libelleStatut(suivant))}">${escapeHtml(courtStatut(statut))}</button>
         `;
         const hasNext = dIdx < dates.length - 1;
         let blocBadge = '';
@@ -1950,8 +1954,9 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
           <div class="tournee-meta">
             <span>${[
             `${dates.length} ${EST_RECORDING ? 'séance' : 'date'}${dates.length>1?'s':''}`,
-            dates.filter(d=>d.statut==='validee').length ? `${dates.filter(d=>d.statut==='validee').length} validée${dates.filter(d=>d.statut==='validee').length>1?'s':''}` : '',
-            dates.filter(d=>(d.statut||'option')==='option').length ? `${dates.filter(d=>(d.statut||'option')==='option').length} option${dates.filter(d=>(d.statut||'option')==='option').length>1?'s':''}` : '',
+            dates.filter(d=> estValidee(d)).length ? `${dates.filter(d=> estValidee(d)).length} validée${dates.filter(d=> estValidee(d)).length>1?'s':''}` : '',
+            dates.filter(d=> statutDate(d)==='option').length ? `${dates.filter(d=> statutDate(d)==='option').length} option${dates.filter(d=> statutDate(d)==='option').length>1?'s':''}` : '',
+            dates.filter(d=> statutDate(d)==='recherche').length ? `${dates.filter(d=> statutDate(d)==='recherche').length} en recherche` : '',
             ].filter(Boolean).join(' · ')}</span>
             <button type="button" class="outils-toggle" data-toggle-outils="${escapeAttr(t.id)}"
               aria-expanded="${outilsOuverts.has(t.id) ? 'true' : 'false'}" title="Cachet et effectif attendu">
@@ -2149,7 +2154,10 @@ function render(){
   }
 }
 
-const STATUT_PDF_LABEL = { option:'Option', validee:'Validée', annulee:'ANNULÉE' };
+// L'annulée reste en capitales : c'est la seule qui doit sauter aux yeux sur
+// un document imprimé. Les autres viennent du libellé partagé — un statut
+// absent de cette table rendrait une cellule VIDE, ce qui est pire que faux.
+const STATUT_PDF_LABEL = Object.fromEntries(STATUTS_DATE.map(x=> [x.cle, x.cle === 'annulee' ? 'ANNULÉE' : x.court]));
 // Les libellés de nature viennent du vocabulaire du projet courant : concert /
 // résidence pour une tournée, prise / répétition / overdub / mixage pour un
 // recording. (STATUT_PDF_LABEL, lui, est commun aux deux.)
@@ -2184,13 +2192,19 @@ function exportTourneePdf(tourneeId){
   drawCurieuxPdfHeader(doc, pageWidth, (tournee.nom || VOC.Projet).toUpperCase());
 
   // Résumé en un coup d'œil sous l'en-tête : nombre de dates par statut.
-  const counts = { validee: 0, option: 0, annulee: 0 };
-  dates.forEach(d=>{ counts[['option','validee','annulee'].includes(d.statut) ? d.statut : 'option']++; });
+  const counts = { recherche: 0, validee: 0, option: 0, annulee: 0 };
+  dates.forEach(d=>{ counts[statutDate(d)]++; });
   doc.setFont('Host', 'normal');
   doc.setFontSize(9.5);
   doc.setTextColor(120, 105, 113);
   doc.text(
-    `${dates.length} ${EST_RECORDING ? (dates.length>1?'séances':'séance') : (dates.length>1?'dates':'date')}  ·  ${counts.validee} validée${counts.validee>1?'s':''}  ·  ${counts.option} en option  ·  ${counts.annulee} annulée${counts.annulee>1?'s':''}`,
+    [`${dates.length} ${EST_RECORDING ? (dates.length>1?'séances':'séance') : (dates.length>1?'dates':'date')}`,
+     `${counts.validee} validée${counts.validee>1?'s':''}`,
+     `${counts.option} en option`,
+     // Une recherche de dispo n'est pas une option : elle ne se compte que
+     // quand il y en a, pour ne pas alourdir le résumé des tournées calées.
+     counts.recherche ? `${counts.recherche} en recherche` : '',
+     `${counts.annulee} annulée${counts.annulee>1?'s':''}`].filter(Boolean).join('  ·  '),
     10, 24
   );
 
@@ -2207,7 +2221,7 @@ function exportTourneePdf(tourneeId){
       ? ['Date', 'Nature', 'Statut', 'Séance', 'Ville', 'Studio', 'Cabine', 'Titres / commentaire']
       : ['Date', 'Nature', 'Statut', 'Dép. / Retour', 'Transport', 'Ville', 'Salle', 'Commentaire']],
     body: dates.map((d, idx)=>{
-      const statut = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+      const statut = statutDate(d);
       const type = typeDateValide(PROJET_TYPE, d.type);
       const blocInfo = blocMap.get(d.id);
       if(blocInfo) blocRowInfo.set(idx, blocInfo);
@@ -2789,7 +2803,7 @@ function bindTourneeEvents(){
       const t = tournees.find(x=>x.id === tourneeId);
       const d = t && (t.dates||[]).find(x=>x.id === btn.dataset.setStatut);
       if(!d) return;
-      const current = ['option','validee','annulee'].includes(d.statut) ? d.statut : 'option';
+      const current = statutDate(d);
       if(current === value) return;   // sécurité : la pastille vise toujours le statut suivant
 
       // Si la date fait partie d'un bloc, le changement de statut s'applique à tout le
@@ -2800,7 +2814,7 @@ function bindTourneeEvents(){
       const groupDates = blocInfo ? blocInfo.blocDates : [d];
 
       const label = fmtDateFR(d.date);
-      const STATUT_LABELS = { option:'Option', validee:'Validée', annulee:'Annulée' };
+      const STATUT_LABELS = Object.fromEntries(STATUTS_DATE.map(x=> [x.cle, x.libelle]));
       const groupNote = groupDates.length > 1 ? ` Ce changement s'appliquera aux ${groupDates.length} dates du bloc.` : '';
       const question = value === 'annulee'
         ? `Marquer la date du ${label} comme ANNULÉE ?${groupNote}\n\nElle reste visible (barrée) et apparaîtra comme annulée dans le récap newsletter — rien n'est supprimé.`

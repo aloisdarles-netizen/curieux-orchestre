@@ -10,6 +10,7 @@
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/technique-avancement.js"></script>
 <script src="assets/echeances.js"></script>
+<script src="assets/statuts-date.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireDirectionTechniqueAuth); }catch(e){}</script>
@@ -218,7 +219,7 @@ function sallesAVenir(){
   const today = aujourdhui();
   const dates = (t.dates || [])
     .filter(d=> !d.date || d.date >= today)
-    .filter(d=> d.statut !== 'annulee')
+    .filter(d=> !estAnnulee(d))
     .sort((a,b)=> (a.date||'').localeCompare(b.date||''));
   return groupesFicheTechnique(dates, (id)=> !!moyensDe(id)).map(g=>{
     const ref = g.reference;
@@ -232,7 +233,10 @@ function sallesAVenir(){
       premier: g.dates[0].date || '',
       dernier: g.dates[g.dates.length - 1].date || '',
       // Une série est une option si AUCUNE de ses dates n'est signée.
-      option: g.dates.every(d=> (d.statut || 'option') === 'option'),
+      // Une recherche de dispo comme une option : dans les deux cas rien n'est
+      // signé, et le montage ne se prépare pas pour de bon.
+      hypothese: g.dates.every(d=> estHypothese(d)),
+      recherche: g.dates.every(d=> statutDate(d) === 'recherche'),
     };
   });
 }
@@ -270,9 +274,15 @@ function alertesDe(s){
     out.push({ salle: s, cle, grav: r <= rouge ? 'rouge' : 'orange', texte, detail, r });
   };
 
-  // Une option ne réclame rien d'autre que sa signature : UNE alerte, pas neuf.
-  if(s.option){
-    pousser('option', 'Toujours en option', `à ${r} jours, il faut signer ou libérer la salle`);
+  // Une date qui n'est pas acquise ne réclame rien d'autre que de le devenir :
+  // UNE alerte, pas neuf. Préparer neuf postes pour une date qu'on n'a pas
+  // encore, c'est du travail qu'on refera.
+  if(s.hypothese){
+    pousser('option',
+      s.recherche ? 'Toujours en recherche de dispo' : 'Toujours en option',
+      s.recherche
+        ? `à ${r} jours, il faut poser une option ou passer à autre chose`
+        : `à ${r} jours, il faut signer ou libérer la salle`);
     return out;
   }
   techniquePostes(s.moyens, s.dates, affectationsParDate)
@@ -611,7 +621,7 @@ function rendre(){
           return `<a class="co-card co-pad salle-carte" href="technique-date.html?t=${encodeURIComponent(t.id)}&d=${encodeURIComponent(s.id)}" style="text-decoration:none; color:inherit; display:block;">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <b style="font-size:14.5px;">${escapeHtml(s.ville)}</b>
-            ${s.option ? '<span class="co-pill att">Option</span>' : ''}
+            ${s.hypothese ? `<span class="co-pill ${s.recherche ? '' : 'att'}">${escapeHtml(s.recherche ? 'Recherche' : 'Option')}</span>` : ''}
             <span style="margin-left:auto; font-size:12px; font-weight:800; color:${r != null && r <= 14 ? 'var(--ko)' : 'var(--muted)'};">${r == null ? '' : escapeHtml(libelleJ(r))}</span>
           </div>
           <div style="font-size:12.5px; color:var(--muted); margin-top:2px;">${escapeHtml(s.dates.length > 1 ? joli(s.premier) + ' → ' + joli(s.dernier) : joli(s.premier, true))}${s.lieu ? ' · ' + escapeHtml(s.lieu) : ''} · <b>${regles} / ${postes.length} réglés</b></div>
