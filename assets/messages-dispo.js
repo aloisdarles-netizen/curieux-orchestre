@@ -148,7 +148,91 @@ const CurieuxMessages = (function(){
         return `Ton lien perso pour tes dispos sur ${nomProjet(ctx)} : ${ctx.lien}`;
       },
     },
+
+    /* ------------------------------------------------------------------------
+       Informer, et non plus demander.
+       ------------------------------------------------------------------------
+       Les cinq modèles ci-dessus vont tous chercher quelque chose : une
+       réponse, une dispo. Les trois qui suivent ne demandent rien, ils
+       annoncent — une option posée, des dates validées, une option qui tombe.
+
+       C'est la même mécanique et ce n'est pas le même geste, d'où le champ
+       `contexte`. Sans lui, ces trois-là apparaîtraient dans le menu ▾ du suivi
+       des dispos, où les choisir noterait une relance qui n'a pas eu lieu.
+
+       Une règle traverse les trois : ce qu'on annonce, on dit aussi ce qu'il
+       faut en faire. « Option » tout seul ne veut rien dire pour quelqu'un qui
+       n'est pas dans un bureau de production — au mieux il comprend « je suis
+       retenu », ce qui est faux, et il refuse un autre engagement pour une date
+       qui peut tomber. On écrit donc la conséquence, à chaque fois.
+    ------------------------------------------------------------------------ */
+    {
+      cle: 'option-posee',
+      libelle: 'Option posée',
+      aide: "On tient la date côté salle — rien n'est signé.",
+      contexte: 'info',
+      texte(ctx){
+        const l = propres(enJeu(ctx));
+        const d = listeOuResume(l);
+        const pluriel = l.length !== 1;
+        return [
+          // La date en fin de phrase, toujours : au-delà de cinq, listeOuResume
+          // rend « 8 dates, entre le 12 mars et le 19 juin » — une incise qui,
+          // posée au milieu, casse la lecture en deux.
+          ponctuer(`${salut(ctx)}, on vient de poser une option pour ${nomProjet(ctx)}${d ? ' : ' + d : ''}`),
+          `Rien n'est signé : garde ${pluriel ? 'ces dates' : 'cette date'} si tu peux, on te dit dès que c'est confirmé.`,
+          `Tes dates sont à jour ici : ${ctx.lien}`,
+        ].join('\n');
+      },
+    },
+    {
+      cle: 'dates-validees',
+      libelle: 'Dates validées',
+      aide: "C'est signé — la bonne nouvelle, et le lien pour la suite.",
+      contexte: 'info',
+      texte(ctx){
+        const d = listeOuResume(enJeu(ctx));
+        return [
+          ponctuer(`${salut(ctx)}, c'est confirmé pour ${nomProjet(ctx)}${d ? ' : ' + d : ''}`),
+          `Les détails suivront, et tes dates sont là : ${ctx.lien}`,
+          '',
+          'À très vite !',
+        ].join('\n');
+      },
+    },
+    {
+      cle: 'option-levee',
+      libelle: 'Date annulée ou option levée',
+      aide: "Une date qui tombe doit se dire aussi vite qu'elle s'est posée.",
+      contexte: 'info',
+      texte(ctx){
+        const l = propres(enJeu(ctx));
+        const d = listeOuResume(l);
+        const pluriel = l.length > 1;
+        return [
+          // « Ce qui était posé » plutôt que la liste en sujet : la phrase reste
+          // au singulier quel que soit le nombre de dates, et la liste retrouve
+          // sa place, à la fin.
+          ponctuer(`${salut(ctx)}, ce qui était posé sur ${nomProjet(ctx)} ne se fera finalement pas${d ? ' : ' + d : ''}`),
+          `Tu peux libérer ${pluriel ? 'ces journées' : 'cette journée'}. Merci de ${pluriel ? 'les ' : 'l’'}avoir gardée${pluriel ? 's' : ''} — on se rattrape vite.`,
+          `Le reste de tes dates est ici : ${ctx.lien}`,
+        ].join('\n');
+      },
+    },
   ];
+
+  // Le contexte d'un modèle : 'dispo' quand il va chercher une réponse (les
+  // cinq premiers, qui n'avaient pas de champ parce qu'ils étaient seuls au
+  // monde), 'info' quand il annonce. Un menu ne montre qu'une famille.
+  function contexteDe(m){ return m.contexte || 'dispo'; }
+  function modelesDe(contexte){ return MODELES.filter(m=> contexteDe(m) === (contexte || 'dispo')); }
+
+  /* Un point, mais pas deux. Les mois abrégés de listeOuResume finissent
+     eux-mêmes par un point — « les 12, 13 mars et 2 avr. » — et une phrase qui
+     s'achève sur une liste de dates se terminait donc par « avr.. ». */
+  function ponctuer(phrase){
+    return /[.!?…]$/.test(phrase) ? phrase : phrase + '.';
+  }
 
   function modele(cle){ return MODELES.find(m=> m.cle === cle) || MODELES[1]; }
   function construire(cle, ctx){ return modele(cle).texte(ctx || {}); }
@@ -168,15 +252,29 @@ const CurieuxMessages = (function(){
      incomplète. Rend le canal utilisé. */
   async function envoyer(ctx, texte){
     const wa = numeroWhatsapp(ctx.telephone);
-    if(wa){
+    /* Un canal demandé explicitement passe devant l'ordre habituel. C'est ce
+       que réclame un envoi en série : quarante messages qui ouvrent tantôt
+       WhatsApp tantôt le client de messagerie, selon ce que porte chaque
+       fiche, sont quarante gestes différents à enchaîner.
+
+       S'il n'est pas disponible pour cette personne-là, on retombe sur la
+       chaîne normale plutôt que d'échouer : la promesse du module est que
+       personne ne reste sans rien parce qu'une fiche est incomplète. */
+    const force = ctx.canal || '';
+    const partirWhatsapp = ()=>{
       window.open(`https://wa.me/${encodeURIComponent(wa)}?text=${encodeURIComponent(texte)}`, '_blank', 'noopener');
       return 'whatsapp';
-    }
-    if(ctx.email){
+    };
+    const partirMail = ()=>{
       const sujet = ctx.sujet || ('Tes dispos' + (ctx.projet ? ' — ' + ctx.projet : ''));
       location.href = `mailto:${encodeURIComponent(ctx.email)}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(texte)}`;
       return 'mail';
-    }
+    };
+
+    if(force === 'mail' && ctx.email) return partirMail();
+    if(force === 'whatsapp' && wa) return partirWhatsapp();
+    if(wa) return partirWhatsapp();
+    if(ctx.email) return partirMail();
     try{
       await navigator.clipboard.writeText(texte);
       if(typeof curieuxFlash === 'function') curieuxFlash('Aucun contact enregistré — message copié');
@@ -231,15 +329,20 @@ const CurieuxMessages = (function(){
 
   /* Ouvre le menu sous un bouton. `apres` est appelé une fois le message parti
      — c'est là que les pages notent la relance dans dispo_demandes. */
-  function ouvrirMenu(ancre, ctx, apres){
+  function ouvrirMenu(ancre, ctx, apres, options){
     poserStyle();
     const dejaOuvert = !!pop;
     fermer();
     if(dejaOuvert) return;
 
+    // Par défaut, la famille « dispo » : c'est ce que le menu a toujours
+    // montré, et les deux pages qui l'appellent sans rien préciser demandent
+    // une réponse, pas une annonce.
+    const liste = modelesDe((options && options.contexte) || 'dispo');
+
     pop = document.createElement('div');
     pop.className = 'msg-pop';
-    pop.innerHTML = MODELES.map(m=>
+    pop.innerHTML = liste.map(m=>
       `<button type="button" data-modele="${m.cle}"><b>${escapeHtml(m.libelle)}</b><small>${escapeHtml(m.aide)}</small></button>`
     ).join('') + `<div class="msg-pop-champ" hidden>
         <input type="text" data-msg-butoir>
@@ -294,6 +397,6 @@ const CurieuxMessages = (function(){
       title="${escapeAttr(titre || 'Choisir un modèle de message')}" aria-label="Choisir un modèle de message">▾</button>`;
   }
 
-  return { MODELES, construire, listeOuResume, periode, joindre, numeroWhatsapp, envoyer,
+  return { MODELES, modelesDe, construire, listeOuResume, periode, joindre, numeroWhatsapp, envoyer,
            ouvrirMenu, chevronHtml, fermerMenu: fermer };
 })();
