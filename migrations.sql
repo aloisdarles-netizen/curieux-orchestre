@@ -5466,3 +5466,41 @@ end;
 $$;
 
 revoke execute on function projeter_disponibilites(text, text, jsonb, jsonb, jsonb) from anon, authenticated;
+
+
+-- ============================================================================
+-- 2026-09 · CORRECTIF — les vues de dates étaient ouvertes à la clé anonyme
+--
+-- dates_projet et dates_actives déplient tournees.dates en lignes, et ont été
+-- grantées `to anon, authenticated` en même temps qu'elles ont été écrites.
+-- La table tournees, elle, est en RLS depuis toujours (ligne 624) : personne
+-- ne peut la lire sans compte autorisé. Les vues défaisaient ce verrou.
+--
+-- La raison tient à une règle de PostgreSQL qu'il est facile de manquer : une
+-- vue s'exécute avec les droits de SON PROPRIÉTAIRE, pas de son appelant, tant
+-- qu'on ne lui pose pas security_invoker. Créée depuis l'éditeur SQL de
+-- Supabase, elle appartient au rôle propriétaire de la base — lequel n'est pas
+-- soumis aux policies. La clé anonyme, qui est publique par construction (elle
+-- est écrite en clair dans assets/db.js et part dans chaque navigateur),
+-- pouvait donc lire `select * from dates_actives` : toute la saison, dates,
+-- villes, salles, statuts et identifiants des personnes affectées.
+--
+-- C'est exactement ce que l'espace des musicien·nes leur demande de ne pas
+-- faire : « Les dates ci-dessous sont strictement confidentielles ».
+--
+-- Deux verrous plutôt qu'un, parce qu'ils ne protègent pas de la même chose :
+--   — security_invoker : la vue applique désormais les policies de celui qui
+--     l'interroge. C'est la correction de fond, elle vaut aussi pour un futur
+--     appelant authentifié qui n'aurait pas has_access().
+--   — revoke : aucune page ne lit ces vues (vérifié sur tout le dépôt), la clé
+--     anonyme n'a donc rien à y faire, même corrigées.
+--
+-- Rejouable : `alter view` sur une vue qui porte déjà le réglage ne fait rien,
+-- et `revoke` sur un droit déjà retiré non plus.
+-- ============================================================================
+
+alter view dates_projet  set (security_invoker = true);
+alter view dates_actives set (security_invoker = true);
+
+revoke select on dates_projet  from anon;
+revoke select on dates_actives from anon;
