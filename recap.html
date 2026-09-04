@@ -1542,6 +1542,35 @@ function renderAll(){
     const pos = positions[m.closest('[id]').id];
     if(pos){ m.scrollTop = pos[0]; m.scrollLeft = pos[1]; }
   });
+  synchroniserDefilement();
+}
+
+/* Les deux tableaux défilent ensemble, horizontalement.
+   ---------------------------------------------------------------------------
+   Musicien·nes et technicien·nes portent EXACTEMENT les mêmes colonnes de
+   dates. Les faire défiler séparément obligeait, à chaque aller-retour, à
+   réaligner l'œil : on lisait le 14 mars en haut et le 2 avril en bas, et la
+   comparaison — qui est tout l'objet de cette page — devenait un exercice de
+   mémoire. Le défilement vertical, lui, n'est pas synchronisé : ce sont deux
+   listes de personnes différentes, et rien ne les met en regard.
+
+   Le drapeau retombe à la frame suivante, et non tout de suite : écrire
+   scrollLeft sur l'autre tableau y déclenche à son tour un événement scroll,
+   qui renverrait la valeur en sens inverse — un aller-retour sans fin qui rend
+   le geste poisseux. */
+function synchroniserDefilement(){
+  const matrices = [...document.querySelectorAll(
+    '#matrixHolderMusiciens .co-matrix, #matrixHolderTechniciens .co-matrix')];
+  if(matrices.length < 2) return;
+  let enCours = false;
+  matrices.forEach(source=>{
+    source.addEventListener('scroll', ()=>{
+      if(enCours) return;
+      enCours = true;
+      matrices.forEach(cible=>{ if(cible !== source) cible.scrollLeft = source.scrollLeft; });
+      requestAnimationFrame(()=>{ enCours = false; });
+    }, { passive: true });
+  });
 }
 
 // --- Bande d'indicateurs : lecture rapide de ce qui mérite attention, sans avoir à
