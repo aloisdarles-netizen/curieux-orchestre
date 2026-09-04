@@ -5499,11 +5499,16 @@ revoke execute on function projeter_disponibilites(text, text, jsonb, jsonb, jso
 -- et `revoke` sur un droit déjà retiré non plus.
 -- ============================================================================
 
-alter view dates_projet  set (security_invoker = true);
-alter view dates_actives set (security_invoker = true);
-
+-- Le revoke d'abord, l'alter ensuite, et l'ordre n'est pas indifférent :
+-- security_invoker demande PostgreSQL 15, et un éditeur SQL interrompt tout au
+-- premier échec. Dans cet ordre, une base plus ancienne se retrouve tout de
+-- même fermée à la clé anonyme — ce qui est l'urgence — même si la correction
+-- de fond, elle, n'a pas pu s'appliquer.
 revoke select on dates_projet  from anon;
 revoke select on dates_actives from anon;
+
+alter view dates_projet  set (security_invoker = true);
+alter view dates_actives set (security_invoker = true);
 
 
 -- ============================================================================
