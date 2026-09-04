@@ -7,10 +7,22 @@
    manquantes — sur une tournée de douze dates, le message faisait quinze
    lignes sur un téléphone, et personne ne le lisait jusqu'au lien.
 
-   Un petit menu sur le bouton, cinq modèles, et une règle : au-delà de cinq
-   dates on ne les énumère plus, on dit combien et sur quelle période. Le lien
-   personnel, lui, est dans tous les modèles sans exception — c'est la seule
-   chose que le message doit absolument transmettre.
+   Huit modèles aujourd'hui — cinq qui demandent une disponibilité, trois qui
+   annoncent — et une règle : au-delà de cinq dates on ne les énumère plus, on
+   dit combien et sur quelle période. Le lien personnel, lui, est dans tous les
+   modèles sans exception — c'est la seule chose que le message doit absolument
+   transmettre.
+
+   LE TON, enfin, qui n'est pas un détail : ces messages partent à des gens
+   qu'on connaît, et qu'on va retrouver en tournée. Ni raides ni familiers.
+   Trois règles tiennent tout le fichier :
+     — la charge reste de notre côté (« il ME manque tes dispos », jamais
+       « il TE manque ») : sur un message qu'on envoie parfois trois fois,
+       ce déplacement sépare la relance du reproche ;
+     — on dit pourquoi ça compte (« pour boucler l'équipe »), jamais seulement
+       ce qu'on attend ;
+     — on remercie en toutes lettres, et on s'excuse quand on dérange. Un
+       « Merci ! » sec coûte moins qu'il ne rapporte.
 
    Le module ne connaît ni Supabase ni les pages : on lui donne un contexte
    (prénom, projet, lien, dates), il rend un texte et ouvre le bon canal.
@@ -86,10 +98,11 @@ const CurieuxMessages = (function(){
         return [
           salut(ctx) + ',',
           '',
-          `On monte l'équipe pour ${nomProjet(ctx)}${p ? ', ' + p : ''}.`,
-          `Tu peux renseigner tes dispos ici, en deux clics : ${ctx.lien}`,
+          ponctuer(`On monte l'équipe pour ${nomProjet(ctx)}${p ? ', ' + p : ''}`),
+          `Tes disponibilités nous aideraient à caler la distribution — c'est par ici, et ça prend une minute :`,
+          ctx.lien,
           '',
-          'Merci !',
+          'Merci d\'avance, et à très vite.',
         ].join('\n');
       },
     },
@@ -100,10 +113,15 @@ const CurieuxMessages = (function(){
       texte(ctx){
         const d = listeOuResume(enJeu(ctx));
         return [
-          `${salut(ctx)}, il te manque encore ${d || 'des dates'} à renseigner sur ${nomProjet(ctx)}.`,
-          `Tout est sur ton lien perso : ${ctx.lien}`,
+          // « Il me manque » et non « il te manque » : la charge est de notre
+          // côté, pas du sien. Sur un message qu'on envoie parfois trois fois,
+          // ce déplacement fait toute la différence entre relancer et
+          // reprocher.
+          ponctuer(`${salut(ctx)}, il me manque encore tes disponibilités sur ${nomProjet(ctx)}${d ? ' : ' + d : ''}`),
+          `Dès que tu as un moment, tout est là — ça m'aiderait beaucoup pour boucler l'équipe :`,
+          ctx.lien,
           '',
-          'Merci !',
+          'Merci beaucoup.',
         ].join('\n');
       },
     },
@@ -116,11 +134,11 @@ const CurieuxMessages = (function(){
         const d = listeOuResume(enJeu(ctx));
         const quand = (ctx.butoir || '').trim();
         return [
-          `${salut(ctx)}, il me manque encore tes dispos sur ${nomProjet(ctx)}${d ? ' (' + d + ')' : ''}.`,
-          `On boucle l'équipe ${quand || 'très vite'} — si tu peux répondre avant, ça m'aiderait beaucoup :`,
+          ponctuer(`${salut(ctx)}, je reviens vers toi pour tes disponibilités sur ${nomProjet(ctx)}${d ? ' : ' + d : ''}`),
+          `On boucle l'équipe ${quand || 'très vite'} — si tu peux répondre d'ici là, ça m'arrangerait vraiment :`,
           ctx.lien,
           '',
-          'Merci !',
+          'Merci, et désolé d\'insister.',
         ].join('\n');
       },
     },
@@ -133,10 +151,11 @@ const CurieuxMessages = (function(){
         return [
           salut(ctx) + ',',
           '',
-          `On t'avait demandé tes dispos pour ${nomProjet(ctx)} il y a quelque temps — depuis, des dates se sont ajoutées${d ? ' : ' + d : ''}.`,
-          `Ton lien n'a pas changé, tout est là : ${ctx.lien}`,
+          ponctuer(`On t'avait demandé tes disponibilités pour ${nomProjet(ctx)} il y a quelque temps — depuis, des dates se sont ajoutées${d ? ' : ' + d : ''}`),
+          `Ton lien n'a pas changé, tu peux les compléter au même endroit :`,
+          ctx.lien,
           '',
-          'Merci !',
+          'Merci beaucoup.',
         ].join('\n');
       },
     },
@@ -145,7 +164,7 @@ const CurieuxMessages = (function(){
       libelle: 'Juste le lien',
       aide: "Une ligne, sans contexte — pour un lien qu'on a perdu.",
       texte(ctx){
-        return `Ton lien perso pour tes dispos sur ${nomProjet(ctx)} : ${ctx.lien}`;
+        return `${salut(ctx)}, voilà ton lien personnel pour ${nomProjet(ctx)} — il reste valable pour tous tes projets : ${ctx.lien}`;
       },
     },
 
@@ -176,12 +195,16 @@ const CurieuxMessages = (function(){
         const d = listeOuResume(l);
         const pluriel = l.length !== 1;
         return [
+          salut(ctx) + ',',
+          '',
           // La date en fin de phrase, toujours : au-delà de cinq, listeOuResume
           // rend « 8 dates, entre le 12 mars et le 19 juin » — une incise qui,
           // posée au milieu, casse la lecture en deux.
-          ponctuer(`${salut(ctx)}, on vient de poser une option pour ${nomProjet(ctx)}${d ? ' : ' + d : ''}`),
-          `Rien n'est signé : garde ${pluriel ? 'ces dates' : 'cette date'} si tu peux, on te dit dès que c'est confirmé.`,
-          `Tes dates sont à jour ici : ${ctx.lien}`,
+          ponctuer(`Bonne nouvelle : on vient de poser une option pour ${nomProjet(ctx)}${d ? ' — ' + d : ''}`),
+          `Rien n'est signé pour l'instant. Si tu peux garder ${pluriel ? 'ces dates' : 'cette date'} de côté, c'est idéal — on te confirme dès qu'on en sait plus.`,
+          '',
+          `Tes dates sont toujours à jour ici :`,
+          ctx.lien,
         ].join('\n');
       },
     },
@@ -193,10 +216,13 @@ const CurieuxMessages = (function(){
       texte(ctx){
         const d = listeOuResume(enJeu(ctx));
         return [
-          ponctuer(`${salut(ctx)}, c'est confirmé pour ${nomProjet(ctx)}${d ? ' : ' + d : ''}`),
-          `Les détails suivront, et tes dates sont là : ${ctx.lien}`,
+          salut(ctx) + ',',
           '',
-          'À très vite !',
+          ponctuer(`C'est confirmé pour ${nomProjet(ctx)}${d ? ' — ' + d : ''}`),
+          `Les horaires et le reste suivront. Tes dates sont à jour ici :`,
+          ctx.lien,
+          '',
+          'On a hâte de s\'y mettre — à très vite.',
         ].join('\n');
       },
     },
@@ -210,12 +236,16 @@ const CurieuxMessages = (function(){
         const d = listeOuResume(l);
         const pluriel = l.length > 1;
         return [
+          salut(ctx) + ',',
+          '',
           // « Ce qui était posé » plutôt que la liste en sujet : la phrase reste
           // au singulier quel que soit le nombre de dates, et la liste retrouve
           // sa place, à la fin.
-          ponctuer(`${salut(ctx)}, ce qui était posé sur ${nomProjet(ctx)} ne se fera finalement pas${d ? ' : ' + d : ''}`),
-          `Tu peux libérer ${pluriel ? 'ces journées' : 'cette journée'}. Merci de ${pluriel ? 'les ' : 'l’'}avoir gardée${pluriel ? 's' : ''} — on se rattrape vite.`,
-          `Le reste de tes dates est ici : ${ctx.lien}`,
+          ponctuer(`Ce qui était posé sur ${nomProjet(ctx)} ne se fera finalement pas${d ? ' — ' + d : ''}`),
+          `Tu peux libérer ${pluriel ? 'ces journées' : 'cette journée'}. Merci de ${pluriel ? 'les ' : "l'"}avoir gardée${pluriel ? 's' : ''}, et désolé pour le contretemps — on se rattrape à la prochaine.`,
+          '',
+          `Le reste de tes dates est ici :`,
+          ctx.lien,
         ].join('\n');
       },
     },
