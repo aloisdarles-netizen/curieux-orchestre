@@ -11,6 +11,7 @@
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/dispo-statuts.js"></script>
+<script src="assets/statuts-date.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
@@ -194,6 +195,12 @@
   .co-matrix-date.date-annulee{text-decoration:line-through; opacity:.55;}
   .co-matrix-cell.date-annulee{opacity:.5;}
 
+  /* Une recherche de date, quand on choisit de la voir : le trait pointillé
+     sous l'en-tête dit que rien n'est posé. Les cases, elles, restent pleines —
+     c'est justement sur ces dates-là qu'on collecte les dispos. */
+  .co-matrix-date.date-recherche{border-bottom:2px dashed var(--muted);}
+  .co-matrix-date .marque-rech{font-size:10px; font-weight:800; color:var(--muted); margin-left:2px;}
+
   /* Une précision laissée par la personne (« ok mais je pars à 22h ») : point
      orange au coin de la case, texte complet au survol. */
   .m-cell{position:relative;}
@@ -351,6 +358,12 @@
   .legend-actions .co-select{width:auto; min-width:0; flex:1 1 150px;}
   @media (max-width:600px){ .legend-actions{margin-left:0; width:100%;} }
   .legend span{display:inline-flex; align-items:center; gap:6px;}
+  /* Un tableau qui rétrécit doit dire de combien : sans ce compte, on croit
+     que la saison a vingt dates alors qu'elle en a cinquante. La règle
+     [hidden] est indispensable — la ligne au-dessus donne un display à tous
+     les span de la légende, et l'emporterait sinon sur l'attribut. */
+  .compte-masque{font-weight:700; color:var(--maybe);}
+  .compte-masque[hidden]{display:none;}
   .swatch{width:14px; height:14px; border-radius:4px; display:inline-block; border:1px solid var(--border);}
   .swatch.assigned{background:var(--ok); border-color:var(--ok);}
   .swatch.dispo{background:var(--accent-tint); border-color:var(--accent-dark);}
@@ -563,6 +576,10 @@
            title="Une date annulée n'attend plus de réponse. Elle reste consultable, barrée.">
       <input type="checkbox" id="showDatesAnnulees"> Afficher les dates annulées
     </label>
+    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:var(--muted);"
+           title="Une recherche de date n'est pas posée : on regarde seulement qui serait là. Une saison qui en explore trente les empile en trente colonnes, et les dates réelles s'y perdent.">
+      <input type="checkbox" id="showDatesRecherche" checked> Afficher les recherches de dates<span id="compteRecherches" class="compte-masque" hidden></span>
+    </label>
     <label style="display:flex; align-items:center; gap:6px; font-weight:600; color:var(--muted);"
            title="Resserrer la vue sur les semaines qui viennent, quand la saison entière fait trop de colonnes. Par défaut, tout est affiché.">
       Période :
@@ -700,6 +717,24 @@ let showPastDates = false;
 // réponse, et occupaient une colonne entière sur un tableau qui en manque.
 let showDatesAnnulees = false;
 
+/* Les recherches de dates : visibles, mais escamotables.
+ *
+ * Une recherche n'est pas une date posée — ni la salle ni personne n'est
+ * engagé, on regarde seulement qui serait là. C'est précieux au moment où l'on
+ * collecte les dispos, et c'est pour cela qu'elles restent affichées par
+ * défaut. Mais une saison qui explore trente hypothèses les empile en trente
+ * colonnes, entre lesquelles les dates réelles — les options tenues, les
+ * validées — deviennent illisibles. La case les replie d'un clic.
+ *
+ * Le choix se retient d'un rechargement à l'autre, comme la fenêtre de période
+ * et les projets masqués : c'est une façon de regarder, pas une donnée
+ * d'équipe.
+ */
+const CLE_RECHERCHES = 'curieuxRecapRecherches';
+let showDatesRecherche = (()=>{
+  try{ return localStorage.getItem(CLE_RECHERCHES) !== '0'; }catch(e){ return true; }
+})();
+
 /* Jusqu'où regarde-t-on ?
  *
  * Le tableau tenait parce que la saison était jeune. À quatre-vingts dates, il
@@ -777,6 +812,7 @@ function allDateEntries(assignField, tourneeId){
   // que les chiffres au-dessus d'elle. On peut la rouvrir d'une case à cocher,
   // parce qu'un concert annulé la semaine dernière se relit encore.
   if(!showDatesAnnulees) sortie = sortie.filter(e=> e.statut !== 'annulee');
+  if(!showDatesRecherche) sortie = sortie.filter(e=> statutDate(e) !== 'recherche');
   // La fenêtre de période ne borne que le futur : le passé, lui, s'ouvre ou se
   // ferme par sa propre case.
   const fin = finDeFenetre();
@@ -949,6 +985,25 @@ function brancherOuvrirFenetre(holder){
   });
 }
 
+/* Combien de recherches la case tient-elle hors du tableau ?
+ *
+ * Le périmètre est celui des colonnes : les dates passées si la case les
+ * ouvre, la fenêtre de période si elle borne. On ne compte pas les projets
+ * masqués — leur propre puce dit déjà ce qu'ils coûtent. */
+function majCompteRecherches(){
+  const span = document.getElementById('compteRecherches');
+  if(!span) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const fin = finDeFenetre();
+  const n = loadTournees().reduce((acc, t)=> acc + (t.dates || []).filter(d=>
+    d.date && statutDate(d) === 'recherche'
+    && (showPastDates || d.date >= today)
+    && (!fin || d.date <= fin)).length, 0);
+  const masque = !showDatesRecherche && n > 0;
+  span.hidden = !masque;
+  span.textContent = masque ? ` — ${n} masquée${n > 1 ? 's' : ''}` : '';
+}
+
 function renderProjetsFiltre(){
   const holder = document.getElementById('projetsFiltre');
   const today = new Date().toISOString().slice(0, 10);
@@ -958,7 +1013,8 @@ function renderProjetsFiltre(){
   // montre dix ne sert plus à décider ce qu'on masque.
   const avecDates = loadTournees().map(t=> ({
     t, n: (t.dates || []).filter(d=> d.date && (showPastDates || d.date >= today)
-      && (showDatesAnnulees || d.statut !== 'annulee')).length,
+      && (showDatesAnnulees || d.statut !== 'annulee')
+      && (showDatesRecherche || statutDate(d) !== 'recherche')).length,
   })).filter(x=> x.n > 0);
   /* Combien de dates la fenêtre laisse-t-elle dehors ?
    *
@@ -967,7 +1023,8 @@ function renderProjetsFiltre(){
    * avec le moyen de l'ouvrir d'un clic. */
   const fin = finDeFenetre();
   const horsFenetre = !fin ? 0 : loadTournees().reduce((n, t)=> n + (t.dates || []).filter(d=>
-    d.date && d.date > fin && (showDatesAnnulees || d.statut !== 'annulee')).length, 0);
+    d.date && d.date > fin && (showDatesAnnulees || d.statut !== 'annulee')
+    && (showDatesRecherche || statutDate(d) !== 'recherche')).length, 0);
   const noteFenetre = horsFenetre
     ? `<span class="hors-fenetre">${horsFenetre} date${horsFenetre>1?'s':''} plus loin —
         <button type="button" class="lien-nu" id="ouvrirFenetre">tout afficher</button></span>`
@@ -1063,10 +1120,10 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     <div class="co-matrix-row co-matrix-head">
       <div class="co-matrix-name">${nameLabel}</div>
       ${entries.map(e=>`
-        <div class="co-matrix-date${e.estRecording ? ' colonne-reco' : ''}${e.statut === 'annulee' ? ' date-annulee' : ''}" style="background:${colorFor(e)};"
+        <div class="co-matrix-date${e.estRecording ? ' colonne-reco' : ''}${e.statut === 'annulee' ? ' date-annulee' : ''}${statutDate(e) === 'recherche' ? ' date-recherche' : ''}" style="background:${colorFor(e)};"
           data-ouvrir-date="${escapeAttr(e.tourneeId + '|' + e.dateId)}" role="button" tabindex="0"
-          title="${e.statut === 'annulee' ? 'Date annulée — ' : ''}${escapeHtml(e.tourneeNom || '')}${e.estRecording ? ' (recording)' : ''} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}&#10;&#10;Cliquer pour voir cette date en entier : qui joue, qui est libre, qui manque.">
-          ${escapeHtml(fmtDateFRShort(e.date))}
+          title="${e.statut === 'annulee' ? 'Date annulée — ' : ''}${statutDate(e) === 'recherche' ? 'Recherche de date, rien n\u2019est posé — ' : ''}${escapeHtml(e.tourneeNom || '')}${e.estRecording ? ' (recording)' : ''} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}&#10;&#10;Cliquer pour voir cette date en entier : qui joue, qui est libre, qui manque.">
+          ${escapeHtml(fmtDateFRShort(e.date))}${statutDate(e) === 'recherche' ? '<span class="marque-rech" aria-hidden="true">?</span>' : ''}
           <small>${escapeHtml((e.ville || '').split(' (')[0] || '—')}</small>
         </div>
       `).join('')}
@@ -1466,6 +1523,7 @@ function renderAll(){
   renderPeopleMatrix(garderSelonFiltre(loadMusicians(), 'musicien'), 'musiciensAssignes', 'matrixHolderMusiciens', 'annuaire.html', 'annuaire musicien·nes', "Musicien·ne");
   renderPeopleMatrix(garderSelonFiltre(loadTechnicians(), 'technicien'), 'techniciensAssignes', 'matrixHolderTechniciens', 'techniciens.html', 'annuaire technicien·nes', "Technicien·ne");
   renderProjetsFiltre();
+  majCompteRecherches();
   majChipPrecisions();
   try{ majEtatRecherche(); }catch(e){}
   populateTourneeSelect();
@@ -1526,6 +1584,13 @@ window.addEventListener('blur', cacherNote);
 
 document.getElementById('showPastDates').addEventListener('change', e=>{ showPastDates = e.target.checked; renderAll(); });
 document.getElementById('showDatesAnnulees').addEventListener('change', e=>{ showDatesAnnulees = e.target.checked; renderAll(); });
+const champRecherches = document.getElementById('showDatesRecherche');
+champRecherches.checked = showDatesRecherche;
+champRecherches.addEventListener('change', e=>{
+  showDatesRecherche = e.target.checked;
+  try{ localStorage.setItem(CLE_RECHERCHES, showDatesRecherche ? '1' : '0'); }catch(err){}
+  renderAll();
+});
 const champFenetre = document.getElementById('fenetrePeriode');
 champFenetre.value = String(fenetreMois);
 champFenetre.addEventListener('change', e=>{
