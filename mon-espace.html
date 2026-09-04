@@ -160,6 +160,10 @@ const ICONES = {
   // demande de tournée et une demande de studio, les deux tuiles doivent se
   // distinguer avant même d'avoir lu le nom du projet.
   recording: `<svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.7"></circle><circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"></circle><circle cx="12" cy="12" r="1" fill="currentColor"></circle></svg>`,
+  // Un calendrier dont une case est pleine : celle des dates tenues. La tuile
+  // des dispos porte déjà un calendrier coché — celui-ci dit « ce qui est
+  // acquis », l'autre « ce que tu dois remplir ».
+  dates: `<svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.7"></rect><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path><rect x="7" y="12.2" width="4.2" height="4.2" rx="1" fill="currentColor"></rect><rect x="13.2" y="12.2" width="4" height="4.2" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"></rect></svg>`,
 };
 
 function etat(html){
@@ -293,6 +297,7 @@ async function init(){
 
   const lienInfos = `mes-infos.html?token=${jeton}`;
   const lienRempla = `mes-remplacants.html?token=${jeton}`;
+  const lienDates = `mes-dates.html?token=${jeton}`;
 
   const ligneDossier = (fait, texte, detail)=> `
     <div class="dossier-item">
@@ -340,9 +345,23 @@ async function init(){
       <button type="button" class="porte-plus-tard" id="plusTardBtn">Je le ferai juste après</button>
     </div>`;
 
+  /* « Mes dates » passe avant les disponibilités : c'est la question qu'on se
+     pose en ouvrant le lien — est-ce que je joue, et quand. Une exception,
+     cependant : quand la porte des remplaçant·es est dressée, elle passe
+     devant. Elle a été écrite comme une porte et non comme une tuile pour
+     qu'on ne puisse pas la contourner d'un coup d'œil ; poser quelque chose
+     au-dessus reviendrait à la contourner. */
+  const blocMesDates = `
+    <div class="section-titre">Où en sont les projets</div>
+    <div class="menu">
+      ${tuile(lienDates, ICONES.dates, 'Mes dates', 'Ce qui est confirmé, ce qui est encore en option')}
+    </div>`;
+
   document.getElementById('contenu').innerHTML = `
     ${blocDossier}
+    ${barree ? '' : blocMesDates}
     ${blocDisposOuPorte}
+    ${barree ? blocMesDates : ''}
 
     <div class="section-titre">Mon dossier</div>
     <div class="menu">

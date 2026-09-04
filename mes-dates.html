@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Mes dates</title>
+<!-- Page volontairement PUBLIQUE : pas de hideCurieuxPageUntilAuth()/requireAdminAuth()
+     ici, contrairement aux pages de production — ce lien est envoyé à des musicien·nes et
+     des technicien·nes qui n'ont pas de compte. L'identification se fait par le token
+     imprévisible dans l'URL, pas par un compte. -->
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/statuts-date.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:640px; margin:0 auto; padding-bottom:40px;}
+  .entete{margin-bottom:18px;}
+  .sous{color:var(--muted); font-size:13.5px; margin:4px 0 0;}
+  .etat-boite{text-align:center; color:var(--muted); font-size:13.5px; line-height:1.6;}
+
+  /* La fraîcheur de la page, dite une fois, en haut.
+     Une page qui ne dit pas de quand elle date n'est pas une source : on la
+     lit, on doute, et on redemande par message — c'est-à-dire qu'on retombe
+     dans ce que cette page existe pour remplacer. */
+  .fraicheur{
+    display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted);
+    background:var(--bg); border:1px solid var(--border); border-radius:999px;
+    padding:4px 11px; margin-top:10px;
+  }
+  .fraicheur::before{content:''; width:6px; height:6px; border-radius:50%; background:var(--ok);}
+
+  /* Un groupe = un statut. Le titre porte la traduction, la ligne dessous
+     porte la consigne : ce que la personne doit FAIRE de cette information.
+     C'est là tout l'objet de la page — « option » ne veut rien dire pour
+     quelqu'un qui n'est pas dans un bureau de production. */
+  .groupe{margin-top:26px;}
+  .groupe:first-of-type{margin-top:12px;}
+  .groupe-tete{display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; margin-bottom:3px;}
+  .groupe-titre{
+    font-size:13.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--accent-dark); display:flex; align-items:center; gap:8px;
+  }
+  .groupe-titre::before{content:''; width:5px; height:14px; border-radius:3px; background:var(--accent);}
+  .groupe.g-option .groupe-titre::before{background:var(--maybe);}
+  .groupe.g-recherche .groupe-titre::before{background:var(--border);}
+  .groupe.g-annulee .groupe-titre::before{background:var(--ko);}
+  .groupe-compte{font-size:11.5px; color:var(--muted); font-weight:700;}
+  .groupe-consigne{font-size:12.5px; color:var(--muted); line-height:1.55; margin:0 0 10px;}
+
+  .mois{
+    font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); margin:14px 0 7px;
+  }
+
+  .date-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:12px 14px; margin-bottom:8px;
+  }
+  .date-card.moi{border-color:var(--accent-dark);}
+  .date-card.barree .date-jour{text-decoration:line-through;}
+  .date-card.barree{opacity:.62;}
+  .date-tete{display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;}
+  .date-jour{font-weight:800; font-size:14.5px;}
+  .date-lieu{color:var(--muted); font-size:12.5px; text-align:right;}
+  .date-projet{font-size:12px; color:var(--muted); margin-top:3px;}
+  .date-bas{display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:9px;}
+
+  /* Deux marqueurs, jamais confondus : ce que la PRODUCTION a décidé de la
+     date, et ce que la personne a répondu, elle. Les mélanger, c'est laisser
+     croire qu'une date validée où l'on n'est pas distribué est « la sienne ». */
+  .marque{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em;
+    padding:3px 9px; border-radius:999px; white-space:nowrap;
+  }
+  .marque.moi{background:var(--ok); color:var(--sur-statut);}
+  .marque.pressenti{background:var(--accent-tint); color:var(--accent-dark);}
+  .marque.butoir{background:var(--maybe-tint); color:var(--maybe);}
+  .marque.dispo{background:var(--ok-tint); color:var(--ok);}
+  .marque.indispo{background:var(--ko-tint); color:var(--ko);}
+  .marque.incertain{background:var(--maybe-tint); color:var(--maybe);}
+  .marque.sans{background:var(--border); color:var(--muted);}
+
+  .pied{
+    margin-top:30px; padding-top:16px; border-top:1px solid var(--border);
+    font-size:12px; color:var(--muted); line-height:1.6;
+  }
+  .pied strong{color:var(--text);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="brand-logo-img" alt="Curieux orchestre">
+  <div class="entete">
+    <h1 class="co-h1" id="titre">Mes dates</h1>
+    <p class="sous" id="sousTitre">Chargement…</p>
+  </div>
+  <div id="contenu"></div>
+</div>
+
+<script>
+/* ---------------------------------------------------------------------------
+   Mes dates — ce qui est confirmé, ce qui est encore en option.
+   ---------------------------------------------------------------------------
+   L'espace personnel disait où en était le dossier et ce qu'il restait à
+   répondre. Il ne disait rien de ce qu'on attend pourtant le plus quand on
+   joue : est-ce que je joue, et quand. Le savoir existait — les dates portent
+   un statut depuis longtemps — mais il ne sortait pas des écrans de
+   production. Chacun se rabattait sur le dernier message reçu, qui datait.
+
+   La page tient sur une règle, et elle vaut d'être écrite ici parce que tout
+   le reste en découle : un statut de date est un mot de production, et adressé
+   à quelqu'un qui joue, il doit dire ce qu'il ou elle doit FAIRE.
+
+     validée   → « c'est signé, on y va »        → tu peux compter dessus.
+     option    → « la salle nous tient la date » → garde-la, ne t'engage pas
+                                                    ailleurs, mais ne compte
+                                                    pas encore dessus.
+     recherche → « rien n'est posé »             → ne bloque rien.
+     annulée   → « ça n'aura pas lieu »          → libère ta soirée.
+
+   Et une seconde règle, qui est la source de tous les malentendus qu'on a vus
+   passer : le statut de la DATE et la présence de la PERSONNE sur cette date
+   sont deux choses différentes. Une date validée où l'on n'est pas distribué
+   n'est pas « ta date ». Une date en option où l'on est distribué n'est pas un
+   engagement. La fonction SQL renvoie les deux séparément ; la page les affiche
+   séparément.
+--------------------------------------------------------------------------- */
+
+const params = new URLSearchParams(location.search);
+const TOKEN = params.get('token') || '';
+
+const MOIS_FR = ['janvier','février','mars','avril','mai','juin',
+                 'juillet','août','septembre','octobre','novembre','décembre'];
+
+// Découpage de la chaîne ISO plutôt que new Date() : à minuit, un fuseau
+// décale la date d'un jour, et une date de concert fausse d'un jour est pire
+// que pas de date du tout.
+function jourLong(iso){
+  const [, m, d] = String(iso || '').split('-');
+  if(!d) return '';
+  return `${parseInt(d, 10)} ${MOIS_FR[parseInt(m, 10) - 1] || ''}`;
+}
+function moisAnnee(iso){
+  const [a, m] = String(iso || '').split('-');
+  return `${MOIS_FR[parseInt(m, 10) - 1] || ''} ${a}`;
+}
+function moisDe(iso){ return String(iso || '').slice(0, 7); }
+
+// « le 4 septembre à 16 h 28 » — l'heure de la base, pas celle du navigateur.
+function fraicheur(isoUtc){
+  const d = new Date(isoUtc);
+  if(isNaN(d)) return '';
+  const jour = d.toLocaleDateString('fr-FR', { day:'numeric', month:'long' });
+  const heure = d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }).replace(':', ' h ');
+  return `Mis à jour le ${jour} à ${heure}`;
+}
+
+function etat(html){
+  document.getElementById('contenu').innerHTML = `<div class="co-card co-pad etat-boite">${html}</div>`;
+}
+
+/* Les quatre groupes, dans l'ordre où ils comptent pour la personne : ce sur
+   quoi elle peut s'appuyer d'abord, ce qui n'aura pas lieu en dernier. */
+const GROUPES = [
+  {
+    cle: 'validee', classe: 'g-validee', titre: 'Confirmées',
+    consigne: "C'est signé. Tu peux compter sur ces dates.",
+    vide: '',
+  },
+  {
+    cle: 'option', classe: 'g-option', titre: 'En option',
+    consigne: "La salle nous tient la date, rien n'est signé. Garde-la si tu peux — on te prévient dès que c'est confirmé, ou dès que ça tombe.",
+    vide: '',
+  },
+  {
+    cle: 'recherche', classe: 'g-recherche', titre: 'On cherche',
+    consigne: "Rien n'est posé : on regarde qui serait là. Ne bloque rien pour l'instant.",
+    vide: '',
+  },
+  {
+    cle: 'annulee', classe: 'g-annulee', titre: 'Annulées',
+    consigne: "Ces dates n'auront pas lieu. Tu peux libérer ces journées.",
+    vide: '',
+  },
+];
+
+const LIBELLE_DISPO = { dispo:'Tu es dispo', indispo:'Tu es indispo', incertain:'À confirmer' };
+
+function carteDate(d){
+  const statut = STATUT_DATE[d.statut] ? d.statut : 'option';
+  const lieu = [d.ville, d.lieu].filter(Boolean).join(' · ');
+  const marques = [];
+
+  // Ce que la production a décidé DE MOI sur cette date. « Pressenti·e »
+  // plutôt que « tu joues » tant que la date n'est pas validée : la nuance
+  // est tout ce qui sépare une information d'une promesse.
+  if(d.affecte && statut === 'validee') marques.push('<span class="marque moi">Tu joues</span>');
+  else if(d.affecte) marques.push('<span class="marque pressenti">Tu es pressenti·e</span>');
+
+  if(statut === 'option' && d.optionExpire){
+    marques.push(`<span class="marque butoir">Option jusqu'au ${escapeHtml(jourLong(d.optionExpire))}</span>`);
+  }
+
+  // Ce que la personne a répondu, elle. Sur une date annulée on se tait : sa
+  // disponibilité n'a plus d'objet, et l'afficher ferait du bruit.
+  if(statut !== 'annulee'){
+    const rep = d.maDispo || '';
+    marques.push(rep
+      ? `<span class="marque ${escapeAttr(rep)}">${escapeHtml(LIBELLE_DISPO[rep] || rep)}</span>`
+      : '<span class="marque sans">Dispo pas encore donnée</span>');
+  }
+
+  return `<div class="date-card${d.affecte ? ' moi' : ''}${statut === 'annulee' ? ' barree' : ''}">
+    <div class="date-tete">
+      <span class="date-jour">${escapeHtml(jourLong(d.date))}</span>
+      <span class="date-lieu">${escapeHtml(lieu || '—')}</span>
+    </div>
+    <div class="date-projet">${escapeHtml(d.tourneeNom || (d.tourneeType === 'recording' ? 'Recording' : 'Projet'))}</div>
+    <div class="date-bas">${marques.join('')}</div>
+  </div>`;
+}
+
+// Les mois se répètent d'un groupe à l'autre : le repère est posé à l'intérieur
+// de chaque groupe, pas au-dessus. « Octobre » sous « En option » et « octobre »
+// sous « Confirmées » ne parlent pas de la même chose.
+function bloc(groupe, dates){
+  if(!dates.length) return '';
+  let dernierMois = '';
+  const corps = dates.map(d=>{
+    let tete = '';
+    if(moisDe(d.date) !== dernierMois){
+      dernierMois = moisDe(d.date);
+      tete = `<div class="mois">${escapeHtml(moisAnnee(d.date))}</div>`;
+    }
+    return tete + carteDate(d);
+  }).join('');
+  return `<section class="groupe ${groupe.classe}">
+    <div class="groupe-tete">
+      <span class="groupe-titre">${escapeHtml(groupe.titre)}</span>
+      <span class="groupe-compte">${dates.length} date${dates.length > 1 ? 's' : ''}</span>
+    </div>
+    <p class="groupe-consigne">${escapeHtml(groupe.consigne)}</p>
+    ${corps}
+  </section>`;
+}
+
+async function init(){
+  if(!window.supabase){ etat("La page n'a pas pu se charger. Réessaie dans un instant."); return; }
+  if(!TOKEN){
+    document.getElementById('sousTitre').textContent = '';
+    etat("Ce lien est incomplet. Reprends celui qu'on t'a envoyé, ou demande-nous de te le renvoyer.");
+    return;
+  }
+
+  const moi = await CurieuxDB.mesDates(TOKEN);
+
+  // La migration n'est pas jouée sur cette base. Sans ce cas dit en toutes
+  // lettres, la page afficherait « aucune date », qui se lit « on ne t'a rien
+  // donné » — un mensonge, et le plus décourageant de tous.
+  if(moi && moi.migrationAbsente){
+    document.getElementById('sousTitre').textContent = '';
+    etat("Cette page n'est pas encore active sur ce serveur.<br>Préviens la production — il lui reste une mise à jour à appliquer.");
+    return;
+  }
+  if(!moi){
+    document.getElementById('sousTitre').textContent = '';
+    etat("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau.");
+    return;
+  }
+
+  const prenom = (moi.prenom || '').trim();
+  document.getElementById('titre').textContent = prenom ? `Les dates de ${prenom}` : 'Mes dates';
+  const stamp = fraicheur(moi.genereLe);
+  document.getElementById('sousTitre').innerHTML =
+    `Ce qui est confirmé, ce qui est encore en option.${stamp ? `<br><span class="fraicheur">${escapeHtml(stamp)}</span>` : ''}`;
+
+  const dates = Array.isArray(moi.dates) ? moi.dates : [];
+
+  // Une date annulée sur laquelle on n'était pas distribué n'a rien à faire
+  // ici : on ne l'attendait pas, l'annoncer ne ferait qu'allonger la page.
+  const retenues = dates.filter(d=> (d.statut !== 'annulee') || d.affecte);
+
+  if(!retenues.length){
+    etat("Aucune date à venir pour l'instant.<br>Tu recevras un message dès qu'un projet se prépare.");
+    return;
+  }
+
+  const parGroupe = new Map(GROUPES.map(g=> [g.cle, []]));
+  retenues.forEach(d=>{
+    const cle = parGroupe.has(d.statut) ? d.statut : 'option';
+    parGroupe.get(cle).push(d);
+  });
+
+  document.getElementById('contenu').innerHTML =
+    GROUPES.map(g=> bloc(g, parGroupe.get(g.cle))).join('') + `
+    <div class="pied">
+      <p>Ces dates sont <strong>strictement confidentielles</strong> — merci de ne pas les diffuser en dehors de l'équipe.</p>
+      <p>Cette page est informative et suit le projet au jour le jour. <strong>Seul le contrat d'engagement vaut engagement.</strong></p>
+      <p>Une erreur, une question ? Écris à la personne qui t'a envoyé ce lien.</p>
+    </div>`;
+}
+
+init();
+applyBrandLogo();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+</script>
+</body>
+</html>

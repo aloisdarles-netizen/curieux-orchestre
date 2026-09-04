@@ -15,6 +15,7 @@ const PAGES = {
   'mon-espace.html':       { param: 'token', nom: 'Mon espace',         court: 'Mon espace' },
   'mes-infos.html':        { param: 'token', nom: 'Mes infos',          court: 'Mes infos' },
   'dispo-titulaire.html':  { param: 'token', nom: 'Mes disponibilités', court: 'Mes dispos' },
+  'mes-dates.html':        { param: 'token', nom: 'Mes dates',          court: 'Mes dates' },
   'mes-remplacants.html':  { param: 'token', nom: 'Mes remplaçants',    court: 'Remplaçants' },
   'technique-partage.html':{ param: 'jeton', nom: 'Technique',          court: 'Technique' },
   'fiche-technique.html':  { param: 'jeton', nom: 'Fiche technique',    court: 'Fiche tech' },

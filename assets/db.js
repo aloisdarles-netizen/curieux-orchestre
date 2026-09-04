@@ -1241,6 +1241,29 @@ const CurieuxDB = (()=>{
     return data || null;
   }
 
+  /* Mes dates : ce qui est confirmé, ce qui est en option, ce qu'on cherche.
+     -------------------------------------------------------------------------
+     Trois retours possibles, et la page doit les distinguer — c'est pour cela
+     qu'on ne se contente pas de `null` partout :
+       null                      — le jeton ne vaut rien, ou la lecture a
+                                   échoué. La page dit « ce lien n'est plus
+                                   valide ».
+       { migrationAbsente:true } — la fonction SQL n'existe pas encore sur
+                                   cette base. Sans ce cas, la page afficherait
+                                   une liste vide, qui se lit « tu n'as aucune
+                                   date » alors que la vérité est « la
+                                   migration n'est pas jouée ». C'est le
+                                   contresens le plus coûteux de tous.
+       l'objet                   — identité, heure de la source, et les dates. */
+  async function mesDates(token){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('mes_dates', { p_token: token });
+    if(!error) return data || null;
+    if(_fonctionAbsente(error)) return { migrationAbsente: true };
+    console.warn('[CurieuxDB] mesDates', error.message);
+    return null;
+  }
+
   // --- Historique des modifications (audit_log, réservé aux comptes 'admin'
   // par RLS — voir migrations.sql). tableName optionnel pour filtrer. ---
   async function fetchAuditLog(tableName, limit){
@@ -1886,7 +1909,7 @@ const CurieuxDB = (()=>{
     getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess, hasCommAccess,
     listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess, setCommAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
-    mesDemandesDispo, resolvePersonToken, creerCompteEquipeSansEmail,
+    mesDemandesDispo, mesDates, resolvePersonToken, creerCompteEquipeSansEmail,
     fetchCorbeille, restaurerDepuisCorbeille,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,

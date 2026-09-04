@@ -5504,3 +5504,132 @@ alter view dates_actives set (security_invoker = true);
 
 revoke select on dates_projet  from anon;
 revoke select on dates_actives from anon;
+
+
+-- ============================================================================
+-- 2026-09 · Mes dates — ce qui est confirmé, ce qui est encore en option
+--
+-- L'espace personnel disait où en était le dossier et ce qu'il restait à
+-- répondre. Il ne disait rien de ce que la personne attend pourtant le plus :
+-- est-ce que je joue, et quand. La production le sait — les dates portent un
+-- statut depuis longtemps — mais ce savoir ne sortait jamais des écrans
+-- d'équipe. Chacun se rabattait sur le dernier message reçu, qui datait.
+--
+-- mes_dates rend, pour un jeton personnel (permanent ou de demande), les dates
+-- à venir qui concernent la personne : celles où elle est affectée, et celles
+-- sur lesquelles on lui a demandé ses dispos. Trois faits par date, qu'il ne
+-- faut jamais confondre :
+--
+--   statut   — où en est la DATE côté production : recherche, option, validée,
+--              annulée. C'est la salle, puis le contrat, qui en décident.
+--   affecte  — la personne est-elle sur cette date ? C'est la distribution.
+--   maDispo  — ce qu'elle a répondu, elle. C'est son agenda.
+--
+-- Une date validée où l'on n'est pas affecté n'est pas « ta date » ; une date
+-- en option où l'on est affecté n'est pas un engagement. Confondre ces trois
+-- axes est précisément le malentendu que cette fonction existe pour éviter —
+-- et c'est aussi pour cela qu'elle les renvoie séparément plutôt que de rendre
+-- un statut unique déjà interprété : l'interprétation appartient à la page,
+-- qui sait à qui elle parle.
+--
+-- On lit les maps `disponibilites` portées par la fiche, pas la table
+-- `disponibilites` qui n'en est encore qu'une projection — même source que
+-- mes_demandes_dispo, sous peine de deux vérités.
+-- ============================================================================
+
+create or replace function mes_dates(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cible    record;
+  dispo    jsonb;
+  resultat jsonb;
+begin
+  select * into cible from resolve_person_token(p_token);
+  if not found or cible.person_id is null then
+    return null;
+  end if;
+
+  if cible.person_type = 'musicien' then
+    select coalesce(m.disponibilites, '{}'::jsonb) into dispo
+      from musiciens m where m.id = cible.person_id;
+  else
+    select coalesce(t.disponibilites, '{}'::jsonb) into dispo
+      from techniciens t where t.id = cible.person_id;
+  end if;
+
+  select jsonb_build_object(
+    'personId',   cible.person_id,
+    'personType', cible.person_type,
+    'prenom', coalesce(
+      (select m.prenom from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.prenom from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'), ''),
+    'nom', coalesce(
+      (select m.nom from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien'),
+      (select t.nom from techniciens t where t.id = cible.person_id and cible.person_type = 'technicien'), ''),
+    -- L'heure de la source, pas celle du navigateur : une page qui annonce sa
+    -- fraîcheur doit la tenir de là où vit la donnée.
+    'genereLe', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    'dates', coalesce((
+      select jsonb_agg(q.ligne order by q.jour, q.tournee_nom)
+      from (
+        select
+          (e ->> 'date')                as jour,
+          coalesce(t.nom, '')           as tournee_nom,
+          jsonb_build_object(
+            'tourneeId',    t.id,
+            'tourneeNom',   coalesce(t.nom, ''),
+            'tourneeType',  coalesce(t.type, 'tournee'),
+            'dateId',       e ->> 'id',
+            'date',         e ->> 'date',
+            'ville',        coalesce(e ->> 'ville', ''),
+            'lieu',         coalesce(e ->> 'lieu', ''),
+            -- Un statut vide ou inconnu retombe sur 'option', exactement comme
+            -- statutDate() côté JavaScript. Jamais sur 'recherche' : on ne
+            -- dégrade pas une date que quelqu'un a posée.
+            'statut',       coalesce(nullif(e ->> 'statut', ''), 'option'),
+            -- Jusqu'à quand la salle nous tient la date. Champ récent : absent
+            -- de la plupart des dates, d'où la chaîne vide plutôt que null.
+            'optionExpire', coalesce(e ->> 'optionExpire', ''),
+            'affecte',      a.affectee,
+            'sollicite',    s.sollicitee,
+            'maDispo',      coalesce(dispo ->> (e ->> 'date'), '')
+          ) as ligne
+        from tournees t
+        cross join lateral jsonb_array_elements(coalesce(t.dates, '[]'::jsonb)) e
+        cross join lateral (
+          select coalesce(
+            case when cible.person_type = 'musicien'
+                 then e -> 'musiciensAssignes'  ? cible.person_id
+                 else e -> 'techniciensAssignes' ? cible.person_id
+            end, false) as affectee
+        ) a
+        cross join lateral (
+          select exists (
+            select 1 from dispo_demandes d
+             where d.tournee_id  = t.id
+               and d.person_id   = cible.person_id
+               and d.person_type = cible.person_type
+               -- Demande restreinte : seules les dates qu'on lui a nommées.
+               -- Liste vide = tout le projet, y compris ce qu'on y ajoutera.
+               and (jsonb_array_length(coalesce(d.dates, '[]'::jsonb)) = 0
+                    or coalesce(d.dates, '[]'::jsonb) ? (e ->> 'id'))
+          ) as sollicitee
+        ) s
+        where coalesce(e ->> 'date', '') <> ''
+          and (e ->> 'date') ~ '^\d{4}-\d{2}-\d{2}$'
+          and (e ->> 'date') >= to_char(current_date, 'YYYY-MM-DD')
+          -- Les dates annulées restent : quelqu'un qui gardait sa soirée doit
+          -- l'apprendre ici aussi, pas seulement par un message qu'il a raté.
+          and (a.affectee or s.sollicitee)
+      ) q
+    ), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
+grant execute on function mes_dates(text) to anon, authenticated;
