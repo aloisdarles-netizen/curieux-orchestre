@@ -17,7 +17,13 @@
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:min(1720px, 97vw); margin:0 auto;}
+  /* La saison ne tient jamais dans l'écran : chaque pixel de largeur est une
+     colonne qu'on n'aura pas à aller chercher au défilement. Le plafond de
+     1720 px venait du confort de lecture des pages de texte — il n'a pas de
+     sens ici, où l'on ne lit pas une phrase mais un tableau qu'on balaye. La
+     fenêtre décide donc, quelle qu'elle soit ; les 16 px de marge posés par
+     base.css suffisent à ne pas coller aux bords. */
+  .wrap{max-width:none; margin:0 auto;}
 
   /* Colonnes de recording : la même teinte de projet, assombrie d'un voile.
      Tournées et recordings partagent la palette --tour-0..7, et deux projets
@@ -356,6 +362,9 @@
      largeur de contenu, quelle que soit la place disponible. */
   .legend-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:auto;}
   .legend-actions .co-select{width:auto; min-width:0; flex:1 1 150px;}
+  /* Le nom du fichier : assez large pour qu'on lise la proposition en grisé,
+     et prêt à rétrécir quand la barre se replie sur téléphone. */
+  .pdf-nom{width:auto; min-width:0; flex:1 1 220px; font-size:12px; padding:5px 8px;}
   @media (max-width:600px){ .legend-actions{margin-left:0; width:100%;} }
   .legend span{display:inline-flex; align-items:center; gap:6px;}
   /* Un tableau qui rétrécit doit dire de combien : sans ce compte, on croit
@@ -598,6 +607,8 @@
              title="Les précisions laissées sur les dispos, numérotées dans les cases et reprises en clair sous chaque tableau.">
         <input type="checkbox" id="pdfAvecNotes" checked> Avec les précisions
       </label>
+      <input type="text" class="co-input pdf-nom" id="pdfNom" autocomplete="off" spellcheck="false"
+             title="Le nom du fichier. Laissé vide, il reprend le projet choisi et la date du jour — c'est ce qu'annonce le texte grisé.">
       <button type="button" class="co-btn secondary md" id="importAvailBtn" title="Coller les réponses d'un tableur (Numbers, Excel, Sheets) ou d'un formulaire"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><rect x="3.5" y="10.5" width="17" height="9" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.6"></rect><line x1="6.5" y1="14.5" x2="9.5" y2="14.5" stroke="currentColor" stroke-width="1.3"></line><line x1="14.5" y1="14.5" x2="17.5" y2="14.5" stroke="currentColor" stroke-width="1.3"></line><line x1="12" y1="2.5" x2="12" y2="12.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="7.8,9 12,13.2 16.2,9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Importer des réponses</button>
       <button type="button" class="co-btn primary md" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
     </span>
@@ -2241,6 +2252,11 @@ const PDF_LARGEUR_PAGE = 420;
 const PDF_MARGE = 10;
 const PDF_LARGEUR_NOM = 44;
 const PDF_DATES_PAR_PAGE = 38;
+// Une colonne ne gagne rien à dépasser cette largeur : elle ne porte qu'un
+// repère de 5 mm et trois lignes courtes en tête. Au-delà, on rendrait la
+// place à la colonne des noms plutôt que d'étaler du vide.
+const PDF_COL_MAX = 24;
+const PDF_NOM_MAX = 90;
 
 // Les quatre états, tracés au trait : deux segments pour la coche, deux pour
 // la croix. Rien qui dépende des caractères présents dans la police.
@@ -2486,15 +2502,40 @@ function pdfNomPersonne(doc, cell, personne, sous){
   doc.text(pdfTronquer(doc, metier, cell.width - 4, 6), x, cell.y + cell.height / 2 + 2.2, { baseline: 'middle' });
 }
 
-function colonnesLargeurs(nbDates){
+/* Combien de millimètres pour une colonne, et combien pour les noms.
+   ---------------------------------------------------------------------------
+   Ces deux largeurs étaient figées sur PDF_DATES_PAR_PAGE, quel que soit le
+   nombre de dates réellement tirées. Une saison de quarante-deux dates
+   remplissait donc une page et en laissait une seconde aux trois quarts vide,
+   et un export d'un seul projet de dix dates n'occupait qu'un tiers de la
+   feuille — le reste en blanc.
+
+   Le commentaire d'alors donnait la vraie raison de ce choix : étirer la
+   DERNIÈRE tranche, parfois réduite à deux dates, produisait une page qui ne
+   ressemblait plus aux précédentes. C'était juste. Mais le remède portait sur
+   la mauvaise moitié du problème : ce n'est pas la largeur qu'il fallait
+   figer, c'est le découpage qu'il fallait équilibrer (voir exportRecapPdf).
+   Quarante-deux dates font désormais deux pages de vingt-et-une, toutes deux
+   pleines et identiques, au lieu de trente-huit puis quatre.
+
+   Reste le cas du petit export : dix dates étalées sur 400 mm donneraient des
+   cases de 36 mm pour y poser un repère de 5. On plafonne donc, et le surplus
+   va aux noms — qui, eux, ont toujours quelque chose à en faire. */
+function metriqueColonnes(nbColonnes){
   const utile = PDF_LARGEUR_PAGE - 2 * PDF_MARGE;
-  const largeur = (utile - PDF_LARGEUR_NOM) / PDF_DATES_PAR_PAGE;
-  const styles = { 0: { halign:'left', cellWidth: PDF_LARGEUR_NOM, minCellHeight: 7.6 } };
-  for(let i = 1; i <= nbDates; i++) styles[i] = { cellWidth: largeur };
+  const n = Math.max(1, nbColonnes);
+  const largeurCol = Math.min((utile - PDF_LARGEUR_NOM) / n, PDF_COL_MAX);
+  const largeurNom = Math.max(PDF_LARGEUR_NOM, Math.min(utile - n * largeurCol, PDF_NOM_MAX));
+  return { largeurCol, largeurNom };
+}
+
+function colonnesLargeurs(nbDates, metrique){
+  const styles = { 0: { halign:'left', cellWidth: metrique.largeurNom, minCellHeight: 7.6 } };
+  for(let i = 1; i <= nbDates; i++) styles[i] = { cellWidth: metrique.largeurCol };
   return styles;
 }
 
-function buildMatrixTable(doc, startY, people, assignField, titre, entries, dessinerEntete){
+function buildMatrixTable(doc, startY, people, assignField, titre, entries, dessinerEntete, metrique){
   const sorted = people;   // déjà dans l'ordre voulu, voir garderSelonFiltre
   if(sorted.length === 0 || entries.length === 0) return startY;
 
@@ -2506,7 +2547,10 @@ function buildMatrixTable(doc, startY, people, assignField, titre, entries, dess
   pdfLegende(doc, PDF_MARGE + doc.getTextWidth(titre) + 6, startY);
 
   const bandes = pdfBandesProjets(entries);
-  const largeurCol = (PDF_LARGEUR_PAGE - 2 * PDF_MARGE - PDF_LARGEUR_NOM) / PDF_DATES_PAR_PAGE;
+  // La même métrique pour les deux tableaux d'une page (musicien·nes et
+  // technicien·nes) : calculée une fois par page et passée ici, sinon deux
+  // tableaux de longueurs différentes se décaleraient l'un sous l'autre.
+  const largeurCol = metrique.largeurCol;
   const ptypeMatrice = assignField === 'musiciensAssignes' ? 'musicien' : 'technicien';
 
   // Les précisions de cette tranche, numérotées dans l'ordre de lecture —
@@ -2563,10 +2607,10 @@ function buildMatrixTable(doc, startY, people, assignField, titre, entries, dess
       }));
     }),
     styles: { font:'Host', fontSize:7, cellPadding:1.4, textColor:[20,22,23], halign:'center', valign:'middle', lineWidth:0.1, lineColor:[214,180,196] },
-    // Largeur de colonne fixe, la même d'une page à l'autre : sinon la
-    // dernière tranche, qui n'a parfois que deux dates, les étirait sur toute
-    // la feuille et ne ressemblait plus aux précédentes.
-    columnStyles: colonnesLargeurs(entries.length),
+    // Largeur tirée de la métrique de la page, donc identique d'une page à
+    // l'autre : c'est le découpage équilibré qui le garantit, pas un plafond
+    // arbitraire (voir metriqueColonnes).
+    columnStyles: colonnesLargeurs(entries.length, metrique),
     headStyles: { fillColor:[121,22,73], textColor:255, fontStyle:'bold', fontSize:6.5, halign:'center', valign:'middle', cellPadding:0.9 },
     didParseCell: (data)=>{
       if(data.section !== 'body') return;
@@ -2603,6 +2647,42 @@ function pdfCouleurRgb(variable){
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+/* Le nom du fichier exporté.
+   ---------------------------------------------------------------------------
+   Il était fabriqué et imposé : « Vue_ensemble_Curieux_orchestre_… ». Sur un
+   poste où l'on tire la même vue chaque semaine, cela donne une pile de
+   fichiers homonymes que le système numérote lui-même — le PDF joint à un
+   courriel s'appelait « …toutes_tournees16.pdf », et personne, à l'autre bout,
+   ne savait de quand il datait.
+
+   Deux corrections dans le même geste : la date du tirage entre dans le nom
+   proposé, et le nom reste modifiable. Le champ est vide par défaut et affiche
+   la proposition en texte grisé : on lit ce qu'on va obtenir sans avoir rien à
+   faire, et on écrit par-dessus quand le fichier part chez quelqu'un. */
+function nomPdfPropose(tournee){
+  const suffixe = tournee ? (tournee.nom || 'projet').trim().replace(/[^a-z0-9]+/gi, '_') : 'toutes_tournees';
+  return `Vue_ensemble_Curieux_orchestre_${suffixe}_${new Date().toISOString().slice(0, 10)}`;
+}
+
+// Ce qu'un nom de fichier ne peut pas porter, sur aucun des systèmes où ces
+// PDF atterrissent. Les accents, eux, passent partout : on les garde.
+function nomFichierPdf(nom){
+  const propre = String(nom || '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+  const base = propre || 'Vue_ensemble_Curieux_orchestre';
+  return /\.pdf$/i.test(base) ? base : base + '.pdf';
+}
+
+function tourneeChoisiePdf(){
+  const sel = document.getElementById('pdfTourneeSelect');
+  if(!sel || !sel.value) return null;
+  return loadTournees().find(t=> t.id === sel.value) || null;
+}
+
+function majNomPdfPropose(){
+  const champ = document.getElementById('pdfNom');
+  if(champ) champ.placeholder = nomPdfPropose(tourneeChoisiePdf());
+}
+
 function exportRecapPdf(){
   if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
   const tourneeId = document.getElementById('pdfTourneeSelect').value || null;
@@ -2627,11 +2707,23 @@ function exportRecapPdf(){
   const pageWidth = doc.internal.pageSize.getWidth();
   const dessinerEntete = ()=> drawCurieuxPdfHeader(doc, pageWidth, titreEntete);
 
-  const nbPages = Math.max(1, Math.ceil(Math.max(datesMus.length, datesTech.length) / PDF_DATES_PAR_PAGE));
+  /* Le découpage, équilibré plutôt que gourmand.
+     -------------------------------------------------------------------------
+     On remplissait chaque page jusqu'à PDF_DATES_PAR_PAGE avant d'en ouvrir
+     une autre : quarante-deux dates donnaient une page de trente-huit et une
+     page de quatre, aux trois quarts blanche. On calcule maintenant le nombre
+     de pages d'abord, puis on répartit les dates dessus — deux pages de
+     vingt-et-une. Toutes les pages se ressemblent, et chacune est pleine. */
+  const totalDates = Math.max(datesMus.length, datesTech.length);
+  const nbPages = Math.max(1, Math.ceil(totalDates / PDF_DATES_PAR_PAGE));
+  const parPage = Math.max(1, Math.ceil(totalDates / nbPages));
+  // Une seule métrique pour tout le document : les colonnes ont la même
+  // largeur d'une page à l'autre et d'un tableau à l'autre.
+  const metrique = metriqueColonnes(parPage);
   for(let i = 0; i < nbPages; i++){
     if(i > 0) doc.addPage();
     dessinerEntete();
-    const debut = i * PDF_DATES_PAR_PAGE, fin = debut + PDF_DATES_PAR_PAGE;
+    const debut = i * parPage, fin = debut + parPage;
     const trancheMus = datesMus.slice(debut, fin);
     const trancheTech = datesTech.slice(debut, fin);
     // Le repère de tranche : sans lui, deux pages se ressemblent trop.
@@ -2642,12 +2734,12 @@ function exportRecapPdf(){
         + `  ·  du ${fmtDateFR(bornes[0].date)} au ${fmtDateFR(bornes[bornes.length - 1].date)}`,
         pageWidth - 12, 26, { align: 'right' });
     }
-    let y = buildMatrixTable(doc, 30, musiciens, 'musiciensAssignes', 'MUSICIEN·NES', trancheMus, dessinerEntete);
-    buildMatrixTable(doc, y, techniciens, 'techniciensAssignes', 'TECHNICIEN·NES', trancheTech, dessinerEntete);
+    let y = buildMatrixTable(doc, 30, musiciens, 'musiciensAssignes', 'MUSICIEN·NES', trancheMus, dessinerEntete, metrique);
+    buildMatrixTable(doc, y, techniciens, 'techniciensAssignes', 'TECHNICIEN·NES', trancheTech, dessinerEntete, metrique);
   }
 
-  const fileSuffix = tournee ? (tournee.nom||'tournee').trim().replace(/[^a-z0-9]+/gi,'_') : 'toutes_tournees';
-  doc.save(`Vue_ensemble_Curieux_orchestre_${fileSuffix}.pdf`);
+  const saisi = ((document.getElementById('pdfNom') || {}).value || '').trim();
+  doc.save(nomFichierPdf(saisi || nomPdfPropose(tournee)));
 }
 document.getElementById('exportPdfBtn').addEventListener('click', exportRecapPdf);
 document.getElementById('chipPrecisions').addEventListener('click', allerPrecisionSuivante);
@@ -2658,7 +2750,11 @@ function populateTourneeSelect(){
   sel.innerHTML = `<option value="">Tous les projets</option>` +
     loadTournees().map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml((t.nom || 'Tournée') + suffixeProjetTexte(t))}</option>`).join('');
   if(loadTournees().some(t=>t.id === current)) sel.value = current;
+  majNomPdfPropose();
 }
+// Le nom proposé suit le projet choisi : on voit changer le texte grisé au
+// moment où l'on restreint l'export, pas au moment où le fichier tombe.
+document.getElementById('pdfTourneeSelect').addEventListener('change', majNomPdfPropose);
 </script>
 </body>
 </html>
