@@ -5638,3 +5638,51 @@ begin
 end;
 $$;
 grant execute on function mes_dates(text) to anon, authenticated;
+
+
+-- ============================================================================
+-- 2026-09 · Ce qu'on a envoyé, à qui, et quand
+--
+-- Une relance se notait déjà sur la demande de dispo (last_reminder_at), mais
+-- rien ne gardait trace d'une INFORMATION — « on a posé une option sur ces
+-- dates », « c'est validé », « ça tombe ». Or c'est justement ce qu'on oublie :
+-- sur quarante personnes prévenues une à une dans WhatsApp, il suffit d'une
+-- interruption pour ne plus savoir où l'on s'était arrêté. Quelqu'un apprend
+-- alors l'annulation de sa date par un collègue, et c'est précisément la
+-- confiance qu'on essayait de construire qui s'en va.
+--
+-- On enregistre l'INTENTION au clic, pas la remise : WhatsApp et le client de
+-- messagerie s'ouvrent dans une autre application et ne nous répondent pas.
+-- C'est la convention du reste de l'app (voir last_reminder_at), et elle vaut
+-- d'être connue de qui lit la colonne : « envoyé » veut dire « on a cliqué
+-- pour envoyer », pas « la personne a reçu ».
+--
+-- Pas de clé étrangère vers musiciens/techniciens : la trace doit survivre à
+-- la suppression d'une fiche, sinon l'historique se réécrit tout seul.
+-- ============================================================================
+
+create table if not exists messages_envoyes (
+  id text primary key default replace(gen_random_uuid()::text, '-', ''),
+  person_id text not null,
+  person_type text not null check (person_type in ('musicien','technicien')),
+  tournee_id text,
+  -- La clé du modèle employé : 'relance', 'option-posee', 'dates-validees'…
+  motif text not null default '',
+  -- Les dates ISO dont parlait le message.
+  dates jsonb not null default '[]'::jsonb,
+  -- 'whatsapp' | 'mail' | 'copie'
+  canal text not null default '',
+  -- Qui a envoyé, pour que l'historique dise « toi » ou « quelqu'un d'autre ».
+  par text not null default '',
+  envoye_le timestamptz not null default now()
+);
+create index if not exists idx_messages_envoyes_personne
+  on messages_envoyes(person_id, person_type, envoye_le desc);
+create index if not exists idx_messages_envoyes_tournee
+  on messages_envoyes(tournee_id, envoye_le desc);
+
+alter table messages_envoyes enable row level security;
+-- Table de production : aucun lien public ne la lit, la clé anonyme n'y a rien.
+drop policy if exists "messages envoyes acces equipe" on messages_envoyes;
+create policy "messages envoyes acces equipe" on messages_envoyes for all to authenticated
+  using (has_access()) with check (has_access());

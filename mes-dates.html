@@ -105,6 +105,7 @@
   .col-option .col-mot{background:var(--maybe); color:var(--sur-statut);}
   .col-recherche .col-mot{background:var(--border); color:var(--muted);}
   .col-annulee .col-mot{background:var(--ko); color:var(--sur-statut);}
+  .col-sans-toi .col-mot{background:var(--accent-tint); color:var(--accent-dark);}
   .col-nb{font-size:12px; font-weight:800; color:var(--muted); margin-left:7px;}
   .col-projet{font-size:12.5px; font-weight:700; color:var(--text); margin-left:9px;}
   .col-dit{display:block; font-size:12px; color:var(--muted); line-height:1.45; margin-top:6px;}
@@ -137,6 +138,7 @@
   .l-note.butoir{color:var(--maybe);}
   .l-note.manque{color:var(--accent-dark);}
   .l-note.indispo{color:var(--ko);}
+  .l-note.moi{color:var(--ok);}
 
   /* Le glissement, sur téléphone seulement. scroll-snap tient la colonne
      alignée sur le bord ; les flèches et les points disent qu'il y a autre
@@ -165,29 +167,10 @@
     .nav-points i.on{background:var(--accent);}
   }
 
-  /* Le reste des projets, replié : c'est la moitié de ce que la page reçoit,
-     et la moitié dont personne n'a besoin en l'ouvrant — les dates du projet
-     où l'on n'est pas distribué. Dépliées d'office, elles noyaient les cinq
-     lignes qui comptent. */
   .section-titre{
     font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
     font-weight:800; margin:26px 0 8px;
   }
-  .repli{
-    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-    padding:12px 14px; margin-bottom:8px;
-  }
-  .repli-tete{display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap;}
-  .repli-nom{font-weight:700; font-size:13.5px;}
-  .repli-quoi{font-size:12.5px; color:var(--muted); line-height:1.5; margin:4px 0 0;}
-  .repli-bouton{
-    border:1px solid var(--border); background:var(--bg); color:var(--accent-dark);
-    font:inherit; font-size:12px; font-weight:700; border-radius:999px; padding:5px 12px; cursor:pointer;
-  }
-  .repli-bouton:hover{border-color:var(--accent); color:var(--accent);}
-  .repli-corps{margin-top:8px; columns:2; column-gap:18px;}
-  .repli-corps[hidden]{display:none;}
-  @media (max-width:760px){ .repli-corps{columns:1;} }
 
   /* Le calendrier : la seconde vue. La liste répond à « sur quoi puis-je
      compter ? », le calendrier à « suis-je pris le 14 ? » — deux questions, et
@@ -266,10 +249,16 @@
    2. Le statut de la DATE et la présence de la PERSONNE sur cette date sont
       deux choses différentes. Une date validée où l'on n'est pas distribué
       n'est pas « ta date » ; une option où l'on est distribué n'est pas un
-      engagement. D'où la coupe qui structure la page : « Tes dates » d'abord —
-      celles où l'on est affecté — puis, replié, le reste des projets sur
-      lesquels on nous a demandé nos dispos. Tout mélanger donnait
-      quatre-vingt-dix lignes, c'est-à-dire rien de lisible.
+      engagement. C'est ce croisement, et non le seul statut, qui décide de la
+      colonne où tombe une date — voir groupeDe(). Une date validée où l'on ne
+      joue pas a d'ailleurs sa colonne à elle : « Sans toi », qui dit de libérer
+      la journée là où « Validée » dirait de compter dessus.
+
+      Toutes les dates que la base renvoie entrent dans les colonnes, y compris
+      celles où l'on nous a seulement demandé notre dispo : on nous a demandé de
+      les tenir, nous devons apprendre ici qu'elles sont posées ou tombées, pas
+      par un collègue. Une version précédente les rangeait dans un repli — ce
+      qui revenait à cacher l'annulation d'une date qu'on gardait.
 
    3. Deux formes, deux questions. Les colonnes répondent à « sur quoi puis-je
       compter ? », le calendrier à « suis-je pris le 14 ? ». Aucune des deux ne
@@ -330,7 +319,7 @@ function statutDe(d){ return STATUT_MOT[d.statut] ? d.statut : 'option'; }
    quelque chose a été annulé — une colonne vide en permanence est un rappel
    inutile qu'une date peut tomber. */
 const COLONNES = [
-  { cle:'validee',   titre:'Validée',   dit:"C'est signé. Tu peux compter sur ces dates.",
+  { cle:'validee',   titre:'Validée',   dit:"C'est signé, et tu es dessus. Tu peux compter sur ces dates.",
     vide:"Rien de signé pour l'instant." },
   { cle:'option',    titre:'Option',    dit:"La salle nous tient la date, rien n'est signé. Garde-la sans t'engager ailleurs.",
     vide:'Aucune option en cours.' },
@@ -338,7 +327,32 @@ const COLONNES = [
     vide:'Aucune recherche en cours.' },
   { cle:'annulee',   titre:'Annulée',   dit:'Ces dates ne se feront pas. Tu peux libérer ces journées.',
     vide:'', siVide:'masquer' },
+  // Le cinquième cas, qui n'existait pas et qu'il fallait bien nommer : la date
+  // est confirmée, on t'avait demandé ta dispo, et tu n'es pas dessus. La ranger
+  // sous « Validée » aurait été un contresens — « tu peux compter dessus » sur
+  // une date où l'on ne joue pas. La taire aurait été pire : la personne garde
+  // sa soirée pour rien.
+  { cle:'sans-toi',  titre:'Sans toi',  dit:"Ces dates sont confirmées, mais tu n'y es pas distribué·e. Tu peux libérer ces journées.",
+    vide:'', siVide:'masquer' },
 ];
+
+/* Dans quel groupe tombe une date ?
+   ---------------------------------------------------------------------------
+   Le statut ne suffit pas : il faut le croiser avec la présence de la personne.
+   Une date validée où l'on joue et une date validée où l'on ne joue pas
+   n'appellent pas la même conduite — l'une se garde, l'autre se libère.
+
+   Pour les trois autres statuts la conduite est en revanche la même, qu'on soit
+   distribué ou seulement sollicité : une option se garde, une recherche ne se
+   bloque pas, une annulation se libère. Elles ne se dédoublent donc pas — et
+   c'est pourquoi une date sur laquelle on nous a seulement demandé notre dispo
+   a toute sa place ici. On nous a demandé de la tenir : nous devons apprendre
+   ici qu'elle est tombée, pas par un collègue. */
+function groupeDe(d){
+  const st = statutDe(d);
+  if(st === 'validee') return d.affecte ? 'validee' : 'sans-toi';
+  return st;
+}
 
 // --- Une date, une ligne ---------------------------------------------------
 function ligne(d, sansProjet){
@@ -349,6 +363,14 @@ function ligne(d, sansProjet){
   if(st === 'option' && d.optionExpire){
     notes.push(`<span class="l-note butoir">option jusqu'au ${escapeHtml(jourLong(d.optionExpire))}</span>`);
   }
+  /* Trois colonnes mélangent les dates où l'on est distribué et celles où l'on
+     nous a seulement demandé notre dispo : il faut donc dire lesquelles. Pas
+     « tu joues » sur une option — rien n'est signé, et le mot vaudrait
+     promesse ; « pressenti·e », qui est exactement ce que c'est. */
+  if(d.affecte && st !== 'validee'){
+    notes.push(`<span class="l-note moi">${st === 'annulee' ? 'tu étais dessus' : 'tu es pressenti·e'}</span>`);
+  }
+
   // Sa propre réponse, rappelée seulement quand elle manque ou qu'elle
   // contredit l'affectation : le reste du temps, c'est du bruit.
   if(st !== 'annulee'){
@@ -439,8 +461,9 @@ function vueCalendrier(dates){
 
 // --- État de la page -------------------------------------------------------
 const CLE_VUE = 'curieuxMesDatesVue';
-let MIENNES = [];   // les dates où l'on est affecté·e
-let AUTRES = [];    // celles des projets où l'on n'est que sollicité·e
+// Toutes les dates qui concernent la personne : distribuée, ou sollicitée.
+let MIENNES = [];
+let AUTRES = [];
 let VUE = 'colonnes';
 try{ if(localStorage.getItem(CLE_VUE) === 'calendrier') VUE = 'calendrier'; }catch(e){}
 
@@ -467,10 +490,10 @@ function empan(nb, nbPanneaux){
 }
 
 function vueColonnes(){
-  const remplis = COLONNES.map(c=> ({ c, dates: MIENNES.filter(d=> statutDe(d) === c.cle) }))
+  const remplis = COLONNES.map(c=> ({ c, dates: MIENNES.filter(d=> groupeDe(d) === c.cle) }))
                           .filter(x=> x.dates.length);
   // Les statuts vides ne prennent pas un panneau pour dire qu'ils sont vides.
-  const vides = COLONNES.filter(c=> c.siVide !== 'masquer' && !MIENNES.some(d=> statutDe(d) === c.cle));
+  const vides = COLONNES.filter(c=> c.siVide !== 'masquer' && !MIENNES.some(d=> groupeDe(d) === c.cle));
 
   const cols = remplis.map(({ c, dates })=> {
     const e = empan(dates.length, remplis.length);
@@ -498,31 +521,6 @@ function vueColonnes(){
     </div>` : '';
 
   return `<div class="colonnes" id="colonnes">${cols.join('')}</div>${nav}${rien}`;
-}
-
-function blocAutres(){
-  if(!AUTRES.length) return '';
-  const projets = new Map();
-  AUTRES.forEach(d=>{
-    const cle = d.tourneeId || d.tourneeNom || '?';
-    if(!projets.has(cle)) projets.set(cle, { nom: d.tourneeNom || 'Projet', dates: [] });
-    projets.get(cle).dates.push(d);
-  });
-  const blocs = [...projets.values()].map((p, i)=>{
-    const n = p.dates.length;
-    const debut = jourLong(p.dates[0].date), fin = jourLong(p.dates[n - 1].date);
-    const manquantes = p.dates.filter(d=> !d.maDispo).length;
-    return `<div class="repli">
-      <div class="repli-tete">
-        <span class="repli-nom">${escapeHtml(p.nom)}</span>
-        <button type="button" class="repli-bouton" data-repli="${i}" aria-expanded="false">Voir les ${n} dates</button>
-      </div>
-      <p class="repli-quoi">${n} date${n > 1 ? 's' : ''}${n > 1 ? `, du ${escapeHtml(debut)} au ${escapeHtml(fin)}` : ` le ${escapeHtml(debut)}`} — tu n'y es pas distribué·e pour l'instant.${
-        manquantes ? ` <b>${manquantes} dispo${manquantes > 1 ? 's' : ''} à donner.</b>` : ''}</p>
-      <div class="repli-corps" id="repli-${i}" hidden>${parMois(p.dates)}</div>
-    </div>`;
-  }).join('');
-  return `<div class="section-titre">Les projets où on t'a demandé tes dispos</div>${blocs}`;
 }
 
 /* Ce qui dépasse du cadre, et comment on le dit.
@@ -610,7 +608,7 @@ function rendre(){
     corps = VUE === 'calendrier' ? vueCalendrier(MIENNES) : vueColonnes();
   }
 
-  document.getElementById('contenu').innerHTML = bascule + corps + blocAutres() + `
+  document.getElementById('contenu').innerHTML = bascule + corps + `
     <div class="pied">
       <p>Ces dates sont <strong>strictement confidentielles</strong> — merci de ne pas les diffuser en dehors de l'équipe.</p>
       <p>Cette page est informative et suit le projet au jour le jour. <strong>Seul le contrat d'engagement vaut engagement.</strong></p>
@@ -621,14 +619,6 @@ function rendre(){
     VUE = b.dataset.vue;
     try{ localStorage.setItem(CLE_VUE, VUE); }catch(e){}
     rendre();
-  }));
-  document.querySelectorAll('[data-repli]').forEach(b=> b.addEventListener('click', ()=>{
-    const zone = document.getElementById('repli-' + b.dataset.repli);
-    if(!zone) return;
-    const ouvert = !zone.hidden;
-    zone.hidden = ouvert;
-    b.setAttribute('aria-expanded', String(!ouvert));
-    b.textContent = ouvert ? b.textContent.replace('Masquer', 'Voir') : b.textContent.replace('Voir', 'Masquer');
   }));
   if(VUE === 'colonnes' && MIENNES.length){ brancherGlissement(); poserTroncatures(); }
 }
@@ -678,12 +668,15 @@ async function init(){
   // 20 avril » sur des dates qui vont jusqu'en juin est un mensonge discret.
   const dates = (Array.isArray(moi.dates) ? moi.dates : [])
     .slice().sort((a, b)=> String(a.date).localeCompare(String(b.date)));
-  MIENNES = dates.filter(d=> d.affecte);
-  // Une date annulée où l'on n'était pas distribué n'a rien à faire ici : on
-  // ne l'attendait pas, l'annoncer ne ferait qu'allonger la page.
-  AUTRES = dates.filter(d=> !d.affecte && statutDe(d) !== 'annulee');
+  /* Toutes les dates que la fonction SQL renvoie concernent la personne : elle
+     y est distribuée, ou on lui a demandé sa dispo dessus. Une première version
+     mettait les secondes dans un repli, ce qui revenait à cacher qu'une date
+     qu'on avait demandé de tenir venait d'être annulée. Elles entrent donc
+     toutes dans les colonnes ; c'est groupeDe() qui distingue les conduites. */
+  MIENNES = dates;
+  AUTRES = [];
 
-  if(!MIENNES.length && !AUTRES.length){
+  if(!MIENNES.length){
     etat("Aucune date à venir pour l'instant.<br>Tu recevras un message dès qu'un projet se prépare.");
     return;
   }

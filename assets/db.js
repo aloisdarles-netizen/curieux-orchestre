@@ -616,6 +616,32 @@ const CurieuxDB = (()=>{
         role: r.role || null
       })
     },
+    /* Ce qu'on a envoyé, à qui, et quand.
+       -----------------------------------------------------------------------
+       Une relance se notait déjà sur la demande de dispo (last_reminder_at),
+       mais rien ne gardait trace d'une INFORMATION — « on a posé une option »,
+       « c'est validé ». Or c'est justement ce qu'on oublie : sur quarante
+       personnes prévenues une à une dans WhatsApp, il suffit d'une
+       interruption pour ne plus savoir où l'on s'était arrêté, et quelqu'un
+       apprend l'annulation de sa date par un collègue.
+
+       On enregistre l'INTENTION au clic, pas la remise : WhatsApp et le
+       client de messagerie s'ouvrent dans une autre application, et rien ne
+       nous revient d'eux. C'est la même convention que le reste de l'app, et
+       elle vaut d'être sue en lisant la colonne. */
+    messages_envoyes: {
+      toDb: (m)=> ({
+        id: m.id, person_id: m.personId, person_type: m.personType,
+        tournee_id: m.tourneeId || null, motif: m.motif || '',
+        dates: m.dates || [], canal: m.canal || '', par: m.par || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, personId: r.person_id, personType: r.person_type,
+        tourneeId: r.tournee_id || '', motif: r.motif || '',
+        dates: r.dates || [], canal: r.canal || '', par: r.par || '',
+        envoyeLe: r.envoye_le || undefined
+      })
+    },
     feuilles_route: {
       // La FDR entière (contacts, trajets, planning, lieu, hôtel...) tient dans "data".
       // _updatedAt (préfixé pour ne jamais entrer en collision avec un champ du

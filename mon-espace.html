@@ -59,6 +59,7 @@
     font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
     font-weight:800; margin:24px 0 9px;
   }
+  .sans-date{font-size:12px; color:var(--muted); line-height:1.5; margin:-14px 0 22px;}
 
   /* ------------------------------------------------------------------------
      L'état du dossier, en arrivant.
@@ -250,15 +251,28 @@ async function init(){
   const demandes = moi.demandes || [];
   const enAttente = demandes.filter(resteAFaire);
 
+  /* Une tournée dont il ne reste aucune date à renseigner n'a rien à faire dans
+     la liste des demandes. Le cas arrive dès qu'un projet est annulé, ou
+     simplement passé : la fonction SQL ne compte que les dates à venir et non
+     annulées, si bien que la tuile annonçait « Tu as répondu à tout » sur un
+     projet qui n'existe plus. On la retire, et on dit en une ligne combien de
+     projets sont dans ce cas — les faire disparaître sans un mot laisserait
+     croire qu'on a perdu leur réponse.
+
+     La condition porte sur un nombre FINI : quand la migration n'est pas
+     encore jouée, nbDates est absent, et il ne faut alors rien cacher. */
+  const sansDate = demandes.filter(d=> Number.isFinite(d.nbDates) && d.nbDates === 0);
+  const aRepondre = demandes.filter(d=> !sansDate.includes(d));
+
   // Disponibilités : une entrée par demande en cours, pour que le lien unique
   // couvre plusieurs tournées sans que la personne ait à jongler entre liens.
   let blocDispos = '';
-  if(demandes.length === 0){
+  if(aRepondre.length === 0){
     blocDispos = `<div class="co-card co-pad etat-boite" style="text-align:left; padding:15px 17px;">
       Aucune demande de disponibilité en cours. Tu recevras un message quand un projet se prépare.
     </div>`;
   } else {
-    blocDispos = demandes.map(d => {
+    blocDispos = aRepondre.map(d => {
       const e = etatDemande(d);
       const pluriel = e.manquantes > 1 ? 's' : '';
       let sous, pastille;
@@ -335,7 +349,11 @@ async function init(){
   const barree = remplaAFaire && !reportRemplacants(moi.personId);
   const blocDisposOuPorte = !barree ? `
     <div class="section-titre">Mes disponibilités${enAttente.length ? ` — ${enAttente.length} à compléter` : ''}</div>
-    <div class="menu">${blocDispos}</div>` : `
+    <div class="menu">${blocDispos}</div>${sansDate.length ? `<p class="sans-date">${
+      sansDate.length === 1
+        ? `Un projet n'a plus aucune date à renseigner : ${escapeHtml(sansDate[0].tourneeNom || 'sans nom')}.`
+        : `${sansDate.length} projets n'ont plus aucune date à renseigner.`
+    } Tes réponses sont conservées.</p>` : ''}` : `
     <div class="section-titre">Avant tes disponibilités</div>
     <div class="porte">
       <h2 class="porte-titre">Qui te remplace ?</h2>

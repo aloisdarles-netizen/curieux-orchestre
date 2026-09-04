@@ -57,6 +57,10 @@ const CURIEUX_SECTIONS = [
   { libelle:'Disponibilités', href:'suivi-dispo.html', entrees:[
     { libelle:'Demandes titulaires', href:'suivi-dispo.html', pages:['suivi-dispo.html'] },
     { libelle:"Vue d'ensemble", href:'recap.html', pages:['recap.html'] },
+    // Tout ce qui part vers l'équipe passe par là : relancer une dispo,
+    // annoncer une option, dire qu'une date est validée. C'était éparpillé sur
+    // les boutons de chaque page, donc fait de mémoire et jamais tracé.
+    { libelle:'Messages', href:'messages.html', pages:['messages.html'] },
   ]},
   // Le tableau de bord passe en tête et devient la porte de l'espace : la page
   // Avancement dit l'état, le tableau de bord dit quoi faire — c'est par là

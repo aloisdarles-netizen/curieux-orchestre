@@ -13,7 +13,6 @@
 <script src="assets/pdf-prise-en-main.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/dispo-statuts.js"></script>
-<script src="assets/messages-dispo.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
@@ -784,24 +783,16 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
     // "Relancer" ensuite — même libellé quel que soit le canal (WhatsApp, email, ou
     // presse-papiers en secours si la personne n'a ni téléphone ni email enregistré).
     const relanceLabel = existing.lastReminderAt ? 'Relancer' : 'Première relance';
-    // Le message par défaut du bouton, et le contexte que le menu ▾ donne aux
-    // autres modèles (première demande, date butoir, dates ajoutées…).
-    const ctxMessage = {
-      prenom: person.prenom || '', telephone: person.telephone || '', email: person.email || '',
-      projet: (tourneeObj && tourneeObj.nom) || '', lien: url,
-      manquantes: missingDates.map(d=> d.date), toutes: relevantDates.map(d=> d.date),
-    };
-    contextesMessage.set(existing.id, ctxMessage);
-    const message = CurieuxMessages.construire('relance', ctxMessage);
-    const chevron = CurieuxMessages.chevronHtml(existing.id);
-    const waDigits = normalizeWhatsappPhone(person.telephone);
-    if(waDigits){
-      relanceHtml = `<span class="msg-groupe"><a class="co-btn ghost sm" data-mark-reminder="${escapeAttr(existing.id)}" href="https://wa.me/${encodeURIComponent(waDigits)}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener" title="Relancer par WhatsApp pour les dates manquantes"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</a>${chevron}</span>`;
-    } else if(person.email){
-      relanceHtml = `<span class="msg-groupe"><a class="co-btn ghost sm" data-mark-reminder="${escapeAttr(existing.id)}" href="mailto:${encodeURIComponent(person.email)}?subject=${encodeURIComponent('Dispo manquantes — ' + ((tourneeObj && tourneeObj.nom) || ''))}&body=${encodeURIComponent(message)}" title="Relancer par email pour les dates manquantes"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</a>${chevron}</span>`;
-    } else {
-      relanceHtml = `<span class="msg-groupe"><button type="button" class="co-btn ghost sm" data-copy-relance="${escapeAttr(message)}" data-mark-reminder="${escapeAttr(existing.id)}" title="Copier un message de relance (pas de contact enregistré)"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</button>${chevron}</span>`;
-    }
+    /* Le message ne se compose plus ici : il se compose sur la page Messages,
+       qui sait aussi annoncer une option ou une validation, garde la trace de
+       ce qui est parti, et permet d'enchaîner toute une équipe sans revenir en
+       arrière. Ce bouton n'était qu'un raccourci vers un seul modèle ; il reste
+       un raccourci, mais vers l'endroit où l'on écrit. Le projet et la personne
+       voyagent dans l'adresse : on arrive avec elle déjà cochée. */
+    const versMessages = 'messages.html?projet=' + encodeURIComponent(tourneeId)
+      + '&motif=relance&personne=' + encodeURIComponent(personType + ':' + person.id);
+    relanceHtml = `<a class="co-btn ghost sm" href="${escapeAttr(versMessages)}"
+      title="Écrire à cette personne depuis la page Messages"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M12 3.5a5 5 0 0 0-5 5v3.2c0 1-.4 2-1.1 2.7L5 15.5h14l-.9-1.1a4 4 0 0 1-1.1-2.7V8.5a5 5 0 0 0-5-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9.5 18.5a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>${relanceLabel}</a>`;
   }
   // Le rôle affiché est celui du PROJET, pas le statut de l'annuaire : quelqu'un
   // peut tenir le poste sur cette tournée sans faire partie du noyau. Le bouton
@@ -1484,23 +1475,16 @@ function renderParPersonne(projets){
     const aRelancer = entrees.filter(e=> e.manquantes.length > 0);
     let relance = '';
     if(aRelancer.length){
-      const wa = normalizeWhatsappPhone(personne.telephone);
-      const ids = aRelancer.map(e=> e.demande.id).join(',');
-      // Un seul message pour tous les projets en retard : le nom du projet
-      // devient « X et Y », et les dates manquantes se cumulent — la règle des
-      // cinq s'applique sur le total, sinon on retombe sur le pavé d'origine.
-      const ctxMessage = {
-        prenom: personne.prenom || '', telephone: personne.telephone || '', email: personne.email || '',
-        projet: CurieuxMessages.joindre(aRelancer.map(e=> e.projet.nom || 'projet')), lien: url,
-        manquantes: aRelancer.flatMap(e=> e.manquantes.map(d=> d.date)),
-        toutes: aRelancer.flatMap(e=> e.concernees.map(d=> d.date)),
-      };
-      contextesMessage.set(ids, ctxMessage);
-      const message = CurieuxMessages.construire('relance', ctxMessage);
-      const chevron = CurieuxMessages.chevronHtml(ids);
-      if(wa) relance = `<span class="msg-groupe"><a class="co-btn ghost sm" data-mark-reminder="${escapeAttr(ids)}" href="https://wa.me/${encodeURIComponent(wa)}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener">Relancer</a>${chevron}</span>`;
-      else if(personne.email) relance = `<span class="msg-groupe"><a class="co-btn ghost sm" data-mark-reminder="${escapeAttr(ids)}" href="mailto:${encodeURIComponent(personne.email)}?subject=${encodeURIComponent('Dispo manquantes')}&body=${encodeURIComponent(message)}">Relancer</a>${chevron}</span>`;
-      else relance = `<span class="msg-groupe"><button type="button" class="co-btn ghost sm" data-copy-relance="${escapeAttr(message)}" data-mark-reminder="${escapeAttr(ids)}" title="Aucun téléphone ni email enregistré — le message est copié">Relancer</button>${chevron}</span>`;
+      /* Une personne peut être en retard sur plusieurs projets. On ouvre la
+         page Messages sur le premier — elle y trouvera les autres dans le
+         sélecteur — plutôt que de composer ici un message qui cumule tout :
+         cette page-ci suit les réponses, elle n'écrit plus. */
+      const premier = aRelancer[0];
+      const versMessages = 'messages.html?projet=' + encodeURIComponent(premier.projet.id)
+        + '&motif=relance&personne=' + encodeURIComponent(type + ':' + personne.id);
+      relance = `<a class="co-btn ghost sm" href="${escapeAttr(versMessages)}"
+        title="Écrire à cette personne depuis la page Messages">Relancer${
+          aRelancer.length > 1 ? ` <em style="font-style:normal; opacity:.7;">${aRelancer.length} projets</em>` : ''}</a>`;
     }
 
     return bandeau + `
@@ -1589,16 +1573,7 @@ function renderSommaire(tous, visibles){
   });
 }
 
-/* Les contextes de message, rangés au fil du rendu.
- *
- * Le menu ▾ a besoin du prénom, du projet, du lien et des dates manquantes.
- * Les coller en JSON dans un attribut aurait alourdi chaque ligne du tableau
- * pour rien : une Map, refaite à chaque rendu, indexée par l'identifiant de la
- * demande (ou la liste d'identifiants, dans la vue par personne). */
-const contextesMessage = new Map();
-
 function render(){
-  contextesMessage.clear();
   const tournees = loadTournees();
   const holder = document.getElementById('holder');
   if(tournees.length === 0){
@@ -1893,40 +1868,6 @@ function render(){
       ouvrirPanneau(panel);
       bindDatesPanel(panel, async (selectedTourneeId, dates)=>{
         await generateDispoLink(selectedTourneeId || btn.dataset.tournee, btn.dataset.personType, btn.dataset.personId, dates);
-        render();
-      });
-    });
-  });
-  partout.querySelectorAll('[data-copy-relance]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      navigator.clipboard.writeText(btn.dataset.copyRelance);
-      btn.textContent = '✓ Copié';
-      if(btn.dataset.markReminder){
-        for(const id of btn.dataset.markReminder.split(',')) await markReminderSent(id);
-      }
-      setTimeout(render, 1200);
-    });
-  });
-  partout.querySelectorAll('a[data-mark-reminder]').forEach(a=>{
-    a.addEventListener('click', async ()=>{
-      // Une relance depuis la vue par personne couvre tous ses projets en
-      // attente d'un coup : le marqueur porte alors plusieurs identifiants.
-      for(const id of a.dataset.markReminder.split(',')) await markReminderSent(id);
-      render();
-    });
-  });
-  // Le chevron : le même envoi, mais avec le choix du modèle. La relance est
-  // notée exactement comme sur le bouton principal — sauf pour « Juste le
-  // lien », qui ne relance rien, il dépanne quelqu'un qui a perdu son adresse.
-  partout.querySelectorAll('[data-msg-menu]').forEach(btn=>{
-    btn.addEventListener('click', (e)=>{
-      e.preventDefault();
-      const ref = btn.dataset.msgMenu;
-      const ctx = contextesMessage.get(ref);
-      if(!ctx) return;
-      CurieuxMessages.ouvrirMenu(btn, ctx, async (modele)=>{
-        if(modele === 'lien') return;
-        for(const id of ref.split(',')) await markReminderSent(id);
         render();
       });
     });

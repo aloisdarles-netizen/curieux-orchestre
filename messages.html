@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Messages</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/statuts-date.js"></script>
+<script src="assets/dispo-statuts.js"></script>
+<script src="assets/messages-dispo.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:1280px; margin:0 auto;}
+  .deux{display:grid; grid-template-columns:minmax(0, 1fr) 372px; gap:20px; align-items:start;}
+  @media (max-width:1000px){ .deux{grid-template-columns:minmax(0, 1fr);} }
+
+  .etape{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:12px;
+  }
+  .etape-titre{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+    font-weight:800; margin:0 0 9px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;
+  }
+  .etape-titre em{font-style:normal; color:var(--accent-dark); font-weight:800;}
+  .etape-aide{font-size:12.5px; color:var(--muted); line-height:1.5; margin:0 0 10px;}
+
+  /* Le motif, en deux familles. Demander et informer ne sont pas le même
+     geste : les mêler dans une liste unique, c'est laisser choisir « Relance
+     courte » quand on voulait annoncer une validation. */
+  .famille{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); margin:10px 0 6px;}
+  .famille:first-child{margin-top:0;}
+  .motifs{display:flex; gap:7px; flex-wrap:wrap;}
+  .motif{
+    border:1px solid var(--border); background:var(--bg); color:var(--text);
+    font:inherit; font-size:12.5px; font-weight:700; border-radius:999px;
+    padding:7px 13px; cursor:pointer; text-align:left;
+  }
+  .motif:hover{border-color:var(--accent);}
+  .motif.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .motif small{display:block; font-weight:600; font-size:11px; opacity:.75;}
+
+  .puces{display:flex; gap:6px; flex-wrap:wrap;}
+  .puce-date{
+    border:1px solid var(--border); background:var(--bg); color:var(--text);
+    font:inherit; font-size:12px; font-weight:700; border-radius:999px;
+    padding:5px 11px; cursor:pointer; font-variant-numeric:tabular-nums;
+  }
+  .puce-date small{font-weight:600; color:var(--muted); margin-left:5px;}
+  .puce-date.on{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark);}
+  .puce-date.on small{color:var(--accent-dark);}
+  .mini{
+    border:1px solid var(--border); background:var(--card); color:var(--muted);
+    font:inherit; font-size:11.5px; font-weight:700; border-radius:999px;
+    padding:4px 10px; cursor:pointer;
+  }
+  .mini:hover{border-color:var(--accent); color:var(--accent);}
+
+  /* Les destinataires. Une ligne par personne, et sur chaque ligne les trois
+     choses qui décident : par où on la joint, quand on lui a écrit pour la
+     dernière fois, et le bouton. */
+  .gens{width:100%; border-collapse:collapse;}
+  .gens th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); font-weight:800; padding:0 8px 7px; border-bottom:1px solid var(--border);
+  }
+  .gens td{padding:7px 8px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle;}
+  .gens tr:last-child td{border-bottom:none;}
+  .gens tr.parti td{background:var(--ok-tint);}
+  .gens input[type=checkbox]{width:17px; height:17px; accent-color:var(--accent);}
+  .g-nom{font-weight:700;}
+  .g-metier{display:block; font-size:11.5px; color:var(--muted); font-weight:400;}
+  .g-canal{font-size:11.5px; color:var(--muted); white-space:nowrap;}
+  .g-canal.aucun{color:var(--ko); font-weight:700;}
+  .g-quand{font-size:11.5px; color:var(--muted); white-space:nowrap;}
+  .g-envoi{
+    border:none; background:var(--accent); color:#fff; font:inherit; font-size:12px; font-weight:700;
+    border-radius:8px; padding:6px 12px; cursor:pointer; white-space:nowrap;
+  }
+  .g-envoi:hover{background:var(--accent-dark);}
+  .g-envoi.refait{background:var(--card); color:var(--muted); border:1px solid var(--border);}
+  .vide{font-size:13px; color:var(--muted); padding:16px 4px; line-height:1.6;}
+
+  /* L'aperçu, collé : on écrit rarement un message sans le relire, et le
+     relire trois écrans plus haut n'est pas le relire. */
+  .apercu{position:sticky; top:16px;}
+  .apercu-texte{
+    background:var(--bg); border:1px solid var(--border); border-radius:10px;
+    padding:12px 13px; font-size:13px; line-height:1.6; white-space:pre-wrap;
+    font-family:inherit; min-height:120px;
+  }
+  .apercu-qui{font-size:11.5px; color:var(--muted); margin:0 0 8px;}
+  .canal-choix{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;}
+  .compte{font-size:12.5px; color:var(--muted); margin-top:10px; line-height:1.5;}
+  .compte b{color:var(--text);}
+  .champ-butoir{
+    width:100%; margin-top:9px; padding:8px 10px; border:1px solid var(--border);
+    border-radius:8px; background:var(--card); color:var(--text); font:inherit; font-size:13px;
+  }
+  .avert{
+    background:var(--maybe-tint); color:var(--maybe); border-radius:8px; padding:9px 11px;
+    font-size:12.5px; line-height:1.5; margin-top:10px; font-weight:600;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head">
+    <div>
+      <h1 class="co-h1">Messages</h1>
+      <p class="co-sub">Relancer une dispo, annoncer une option, dire qu'une date est validée — au même endroit, et sans oublier personne.</p>
+    </div>
+  </div>
+
+  <div class="deux">
+    <div>
+      <section class="etape">
+        <p class="etape-titre"><em>1.</em> Le projet</p>
+        <select class="co-select" id="projet" style="max-width:420px;"></select>
+      </section>
+
+      <section class="etape">
+        <p class="etape-titre"><em>2.</em> Le motif</p>
+        <div id="motifs"></div>
+        <input type="text" class="champ-butoir" id="butoir" hidden>
+      </section>
+
+      <section class="etape" id="etapeDates" hidden>
+        <p class="etape-titre"><em>3.</em> Les dates concernées <button type="button" class="mini" id="datesToutes">Tout cocher</button> <button type="button" class="mini" id="datesAucune">Aucune</button></p>
+        <p class="etape-aide" id="datesAide"></p>
+        <div class="puces" id="dates"></div>
+      </section>
+
+      <section class="etape">
+        <p class="etape-titre"><em id="numDest">4.</em> Les destinataires <button type="button" class="mini" id="gensTous">Tout cocher</button> <button type="button" class="mini" id="gensAucun">Aucun</button></p>
+        <p class="etape-aide" id="gensAide"></p>
+        <div id="gens"></div>
+      </section>
+    </div>
+
+    <aside class="apercu">
+      <section class="etape">
+        <p class="etape-titre">Le message</p>
+        <p class="apercu-qui" id="apercuQui"></p>
+        <div class="apercu-texte" id="apercuTexte">Choisis un projet et un motif.</div>
+        <div class="canal-choix" id="canalChoix"></div>
+        <p class="compte" id="compte"></p>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   Messages — prévenir l'équipe, au même endroit
+   ============================================================================
+   Les relances de dispos partaient du suivi des demandes, et rien ne servait à
+   dire le reste : qu'on vient de poser une option, qu'une date est validée,
+   qu'elle tombe. Ces annonces se faisaient donc de mémoire, une par une, et se
+   perdaient — quelqu'un apprenait l'annulation de sa date par un collègue.
+
+   Trois principes tiennent cette page.
+
+   1. Demander et informer ne sont pas le même geste, mais c'est la même
+      mécanique : mêmes personnes, mêmes liens, même règle des cinq dates. On
+      les réunit ici, en deux familles clairement séparées — les mêler dans une
+      liste unique, c'est laisser choisir « Relance courte » quand on voulait
+      annoncer une validation.
+
+   2. Le destinataire d'une annonce n'est pas le destinataire d'une relance.
+      On relance qui n'a pas répondu ; on informe qui est distribué sur les
+      dates concernées. La page présélectionne selon le motif, et on peut
+      toujours corriger à la main — mais le défaut ne doit jamais être « tout
+      le monde », qui est la façon la plus sûre de faire lire les messages par
+      personne.
+
+   3. Ce qui part se note. Sur quarante personnes prévenues une à une dans
+      WhatsApp, il suffit d'une interruption pour ne plus savoir où l'on s'était
+      arrêté. On enregistre l'INTENTION au clic, pas la remise : WhatsApp et le
+      client de messagerie s'ouvrent ailleurs et ne nous répondent pas. « Écrit
+      il y a 2 j » veut donc dire « on a cliqué », pas « la personne a lu ».
+============================================================================ */
+
+let tourneesCache = [], musiciensCache = [], techniciensCache = [];
+let demandesCache = [], envoisCache = [];
+let jetonsPermanents = new Map();
+let monEmail = '';
+
+// Ce qui est choisi à l'écran.
+let projetId = '';
+let motif = 'relance';
+let datesChoisies = new Set();   // ids de date, pour les motifs d'information
+let gensChoisis = new Set();     // 'type:id'
+let canal = '';                  // '' = auto (téléphone puis e-mail)
+let partis = new Set();          // ce qu'on a envoyé depuis l'ouverture de la page
+
+const params = new URLSearchParams(location.search);
+
+function loadTournees(){ return tourneesCache; }
+function projet(){ return tourneesCache.find(t=> t.id === projetId) || null; }
+function estInfo(cle){ return (CurieuxMessages.MODELES.find(m=> m.cle === cle) || {}).contexte === 'info'; }
+
+/* Les dates d'un projet, à venir, hors annulées — sauf pour l'annonce d'une
+   annulation, qui ne parle QUE de celles-là. */
+function datesDuProjet(){
+  const t = projet();
+  if(!t) return [];
+  const today = new Date().toISOString().slice(0, 10);
+  return (t.dates || [])
+    .filter(d=> d.date && d.date >= today)
+    .slice().sort((a, b)=> a.date.localeCompare(b.date));
+}
+
+const MOIS_COURTS = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+function jourCourt(iso){
+  const [, m, j] = String(iso || '').split('-');
+  return j ? `${parseInt(j, 10)} ${MOIS_COURTS[parseInt(m, 10) - 1] || ''}` : '';
+}
+function ilYA(iso){
+  if(!iso) return '';
+  const jours = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if(!isFinite(jours) || jours < 0) return '';
+  if(jours === 0) return "aujourd'hui";
+  if(jours === 1) return 'hier';
+  if(jours < 31) return `il y a ${jours} j`;
+  return `il y a ${Math.round(jours / 30)} mois`;
+}
+
+// --- Qui est concerné -------------------------------------------------------
+function personnesDuProjet(){
+  const t = projet();
+  if(!t) return [];
+  const parCle = new Map();
+  const ajoute = (p, type)=>{ if(p) parCle.set(`${type}:${p.id}`, { p, type }); };
+
+  // Sollicité·es : il existe une demande de dispo sur ce projet.
+  demandesCache.filter(d=> d.tourneeId === t.id).forEach(d=>{
+    const liste = d.personType === 'musicien' ? musiciensCache : techniciensCache;
+    ajoute(liste.find(x=> x.id === d.personId), d.personType);
+  });
+  // Distribué·es : affecté sur au moins une date, même sans demande.
+  (t.dates || []).forEach(d=>{
+    (d.musiciensAssignes || []).forEach(id=> ajoute(musiciensCache.find(x=> x.id === id), 'musicien'));
+    (d.techniciensAssignes || []).forEach(id=> ajoute(techniciensCache.find(x=> x.id === id), 'technicien'));
+  });
+  return [...parCle.values()].sort((a, b)=> curieuxComparePupitrePuisNom(a.p, b.p));
+}
+
+function demandeDe(type, id){
+  return demandesCache.find(d=> d.tourneeId === projetId && d.personType === type && d.personId === id) || null;
+}
+
+/* Les dates dont le message parlera, pour CETTE personne.
+   Informer : celles qu'on a cochées, et sur lesquelles la personne est
+   distribuée — annoncer à quelqu'un une validation qui ne le concerne pas
+   sème un doute inutile. Relancer : celles dont sa dispo manque encore. */
+function datesPour(type, id){
+  const t = projet();
+  if(!t) return { toutes: [], manquantes: [] };
+  const dates = datesDuProjet();
+  const champ = type === 'musicien' ? 'musiciensAssignes' : 'techniciensAssignes';
+  const fiche = (type === 'musicien' ? musiciensCache : techniciensCache).find(x=> x.id === id);
+  const dispo = (fiche && fiche.disponibilites) || {};
+
+  if(estInfo(motif)){
+    const retenues = dates.filter(d=> datesChoisies.has(d.id) && (d[champ] || []).includes(id));
+    return { toutes: retenues.map(d=> d.date), manquantes: retenues.map(d=> d.date) };
+  }
+  const dem = demandeDe(type, id);
+  const bornees = dem && (dem.dates || []).length
+    ? dates.filter(d=> dem.dates.includes(d.id))
+    : dates;
+  const concernees = bornees.filter(d=> statutDate(d) !== 'annulee');
+  return {
+    toutes: concernees.map(d=> d.date),
+    manquantes: concernees.filter(d=> !dispo[d.date]).map(d=> d.date),
+  };
+}
+
+function lienPour(type, id){
+  const dem = demandeDe(type, id);
+  const jeton = jetonsPermanents.get(`${type}:${id}`) || (dem && dem.id) || '';
+  if(!jeton) return '';
+  // Une annonce mène aux dates, une demande de dispo à l'espace personnel qui
+  // porte le formulaire. Envoyer l'un pour l'autre, c'est faire chercher.
+  return lienPublic(estInfo(motif) ? 'mes-dates.html' : 'mon-espace.html', 'token=' + encodeURIComponent(jeton));
+}
+
+function contexteDe(type, id){
+  const fiche = (type === 'musicien' ? musiciensCache : techniciensCache).find(x=> x.id === id);
+  if(!fiche) return null;
+  const t = projet();
+  const d = datesPour(type, id);
+  return {
+    prenom: fiche.prenom || '', telephone: fiche.telephone || '', email: fiche.email || '',
+    projet: (t && t.nom) || '', lien: lienPour(type, id),
+    manquantes: d.manquantes, toutes: d.toutes,
+    butoir: (document.getElementById('butoir') || {}).value || '',
+    canal,
+    sujet: estInfo(motif) ? `${(t && t.nom) || 'Projet'} — tes dates` : undefined,
+  };
+}
+
+function dernierEnvoi(type, id){
+  const pour = envoisCache
+    .filter(e=> e.personType === type && e.personId === id && (!e.tourneeId || e.tourneeId === projetId))
+    .sort((a, b)=> String(b.envoyeLe).localeCompare(String(a.envoyeLe)));
+  if(pour.length) return pour[0].envoyeLe;
+  const dem = demandeDe(type, id);
+  return (dem && dem.lastReminderAt) || '';
+}
+
+// --- Présélections ----------------------------------------------------------
+function presélectionnerDates(){
+  datesChoisies = new Set();
+  if(!estInfo(motif)) return;
+  const vise = motif === 'option-posee' ? 'option'
+             : motif === 'dates-validees' ? 'validee'
+             : 'annulee';
+  datesDuProjet().filter(d=> statutDate(d) === vise).forEach(d=> datesChoisies.add(d.id));
+}
+
+function presélectionnerGens(){
+  gensChoisis = new Set();
+  personnesDuProjet().forEach(({ p, type })=>{
+    const d = datesPour(type, p.id);
+    if(estInfo(motif)){
+      if(d.toutes.length) gensChoisis.add(`${type}:${p.id}`);
+    } else if(motif === 'premiere' || motif === 'lien'){
+      gensChoisis.add(`${type}:${p.id}`);
+    } else if(d.manquantes.length){
+      gensChoisis.add(`${type}:${p.id}`);
+    }
+  });
+}
+
+// --- Rendu ------------------------------------------------------------------
+function rendreProjets(){
+  const sel = document.getElementById('projet');
+  const liste = tourneesCache.slice().sort((a, b)=> (a.nom || '').localeCompare(b.nom || ''));
+  sel.innerHTML = `<option value="">— choisir un projet —</option>` +
+    liste.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml((t.nom || 'Projet') + suffixeProjetTexte(t))}</option>`).join('');
+  sel.value = projetId;
+}
+
+function rendreMotifs(){
+  const groupes = [
+    { titre:'Demander une dispo', contexte:'dispo' },
+    { titre:'Informer',           contexte:'info'  },
+  ];
+  document.getElementById('motifs').innerHTML = groupes.map(g=> `
+    <div class="famille">${escapeHtml(g.titre)}</div>
+    <div class="motifs">${CurieuxMessages.modelesDe(g.contexte).map(m=>
+      `<button type="button" class="motif${m.cle === motif ? ' on' : ''}" data-motif="${escapeAttr(m.cle)}">
+        ${escapeHtml(m.libelle)}<small>${escapeHtml(m.aide)}</small>
+      </button>`).join('')}</div>`).join('');
+
+  const m = CurieuxMessages.MODELES.find(x=> x.cle === motif) || {};
+  const champ = document.getElementById('butoir');
+  champ.hidden = !m.champ;
+  if(m.champ) champ.placeholder = m.champ;
+}
+
+function rendreDates(){
+  const bloc = document.getElementById('etapeDates');
+  bloc.hidden = !estInfo(motif);
+  document.getElementById('numDest').textContent = estInfo(motif) ? '4.' : '3.';
+  if(bloc.hidden) return;
+
+  const dates = datesDuProjet();
+  const aide = motif === 'option-posee' ? "Les dates en option sont cochées d'office — décoche celles dont tu ne parles pas."
+             : motif === 'dates-validees' ? "Les dates validées sont cochées d'office."
+             : "Les dates annulées sont cochées d'office.";
+  document.getElementById('datesAide').textContent = aide;
+  document.getElementById('dates').innerHTML = dates.length
+    ? dates.map(d=> `<button type="button" class="puce-date${datesChoisies.has(d.id) ? ' on' : ''}" data-date="${escapeAttr(d.id)}">
+        ${escapeHtml(jourCourt(d.date))}<small>${escapeHtml(courtStatut(d))}${d.ville ? ' · ' + escapeHtml(d.ville) : ''}</small>
+      </button>`).join('')
+    : `<span class="vide">Ce projet n'a aucune date à venir.</span>`;
+}
+
+function rendreGens(){
+  const holder = document.getElementById('gens');
+  if(!projetId){ holder.innerHTML = `<p class="vide">Choisis d'abord un projet.</p>`; return; }
+
+  const gens = personnesDuProjet();
+  if(!gens.length){ holder.innerHTML = `<p class="vide">Personne n'est encore sollicité ni distribué sur ce projet.</p>`; return; }
+
+  document.getElementById('gensAide').textContent = estInfo(motif)
+    ? "Cochées d'office : les personnes distribuées sur au moins une des dates retenues."
+    : "Cochées d'office : les personnes dont il manque encore une dispo.";
+
+  const lignes = gens.map(({ p, type })=>{
+    const cle = `${type}:${p.id}`;
+    const d = datesPour(type, p.id);
+    const nb = estInfo(motif) ? d.toutes.length : d.manquantes.length;
+    const tel = CurieuxMessages.numeroWhatsapp(p.telephone);
+    const voie = tel ? 'WhatsApp' : (p.email ? 'e-mail' : 'aucun contact');
+    const quand = ilYA(dernierEnvoi(type, p.id));
+    const parti = partis.has(cle);
+    return `<tr class="${parti ? 'parti' : ''}">
+      <td><input type="checkbox" data-gens="${escapeAttr(cle)}"${gensChoisis.has(cle) ? ' checked' : ''} aria-label="${escapeAttr(fullName(p))}"></td>
+      <td><span class="g-nom">${escapeHtml(fullName(p))}</span>
+          <span class="g-metier">${escapeHtml(p.instrument || p.poste || '')}${nb ? ` · ${nb} date${nb > 1 ? 's' : ''}` : ''}</span></td>
+      <td><span class="g-canal${tel || p.email ? '' : ' aucun'}">${escapeHtml(voie)}</span></td>
+      <td><span class="g-quand">${escapeHtml(parti ? 'envoyé' : (quand || '—'))}</span></td>
+      <td style="text-align:right;"><button type="button" class="g-envoi${parti ? ' refait' : ''}" data-envoi="${escapeAttr(cle)}">${parti ? 'Renvoyer' : 'Envoyer'}</button></td>
+    </tr>`;
+  }).join('');
+
+  holder.innerHTML = `<table class="gens">
+    <thead><tr><th></th><th>Personne</th><th>Par où</th><th>Dernier envoi</th><th></th></tr></thead>
+    <tbody>${lignes}</tbody></table>`;
+}
+
+function rendreApercu(){
+  const zone = document.getElementById('apercuTexte');
+  const qui = document.getElementById('apercuQui');
+  const compte = document.getElementById('compte');
+
+  document.getElementById('canalChoix').innerHTML =
+    [['', 'Automatique'], ['whatsapp', 'WhatsApp'], ['mail', 'E-mail']].map(([v, l])=>
+      `<button type="button" class="motif${canal === v ? ' on' : ''}" data-canal="${v}" style="font-size:12px; padding:5px 11px;">${l}</button>`).join('');
+
+  const gens = personnesDuProjet().filter(({ p, type })=> gensChoisis.has(`${type}:${p.id}`));
+  compte.innerHTML = `<b>${gens.length}</b> destinataire${gens.length > 1 ? 's' : ''} coché${gens.length > 1 ? 's' : ''}` +
+    (partis.size ? ` · <b>${partis.size}</b> envoyé${partis.size > 1 ? 's' : ''} depuis l'ouverture de la page.` : '.');
+
+  if(!projetId || !gens.length){
+    qui.textContent = '';
+    zone.textContent = projetId ? "Personne n'est coché : le message n'a pas de destinataire." : 'Choisis un projet et un motif.';
+    return;
+  }
+  const { p, type } = gens[0];
+  const ctx = contexteDe(type, p.id);
+  qui.textContent = `Aperçu pour ${fullName(p)}${gens.length > 1 ? ` — les ${gens.length - 1} autres reçoivent le même, avec leurs dates et leur lien.` : ''}`;
+  zone.textContent = CurieuxMessages.construire(motif, ctx);
+
+  const sansLien = gens.filter(({ p, type })=> !lienPour(type, p.id)).length;
+  const sansContact = gens.filter(({ p })=> !CurieuxMessages.numeroWhatsapp(p.telephone) && !p.email).length;
+  const avert = [];
+  if(sansContact) avert.push(`${sansContact} personne${sansContact > 1 ? 's' : ''} sans téléphone ni e-mail : le message sera copié dans le presse-papiers.`);
+  if(sansLien) avert.push(`${sansLien} personne${sansLien > 1 ? 's' : ''} sans lien personnel.`);
+  const vieux = document.querySelector('.avert');
+  if(vieux) vieux.remove();
+  if(avert.length) compte.insertAdjacentHTML('afterend', `<p class="avert">${escapeHtml(avert.join(' '))}</p>`);
+}
+
+function rendre(){
+  rendreMotifs();
+  rendreDates();
+  rendreGens();
+  rendreApercu();
+}
+
+// --- Envoi ------------------------------------------------------------------
+async function envoyerA(cle){
+  const [type, id] = cle.split(':');
+  const ctx = contexteDe(type, id);
+  if(!ctx) return;
+  const texte = CurieuxMessages.construire(motif, ctx);
+  const voie = await CurieuxMessages.envoyer(ctx, texte);
+  partis.add(cle);
+
+  // La trace, dans l'ordre où elle compte : d'abord ce qu'on vient de faire,
+  // ensuite la relance sur la demande, que le suivi des dispos lit déjà.
+  await CurieuxDB.upsertOne('messages_envoyes', {
+    id: 'msg' + Math.random().toString(36).slice(2, 12),
+    personId: id, personType: type, tourneeId: projetId,
+    motif, dates: ctx.manquantes.length ? ctx.manquantes : ctx.toutes,
+    canal: voie, par: monEmail,
+  });
+  if(!estInfo(motif) && motif !== 'lien'){
+    const dem = demandeDe(type, id);
+    if(dem){
+      dem.lastReminderAt = new Date().toISOString();
+      await CurieuxDB.upsertOne('dispo_demandes', dem);
+    }
+  }
+  rendreGens();
+  rendreApercu();
+}
+
+// --- Branchements -----------------------------------------------------------
+document.getElementById('projet').addEventListener('change', (e)=>{
+  projetId = e.target.value;
+  presélectionnerDates();
+  presélectionnerGens();
+  partis = new Set();
+  rendre();
+});
+
+document.getElementById('motifs').addEventListener('click', (e)=>{
+  const b = e.target.closest('[data-motif]');
+  if(!b) return;
+  motif = b.dataset.motif;
+  presélectionnerDates();
+  presélectionnerGens();
+  rendre();
+});
+
+document.getElementById('dates').addEventListener('click', (e)=>{
+  const b = e.target.closest('[data-date]');
+  if(!b) return;
+  const id = b.dataset.date;
+  if(datesChoisies.has(id)) datesChoisies.delete(id); else datesChoisies.add(id);
+  presélectionnerGens();
+  rendre();
+});
+document.getElementById('datesToutes').addEventListener('click', ()=>{
+  datesDuProjet().forEach(d=> datesChoisies.add(d.id)); presélectionnerGens(); rendre();
+});
+document.getElementById('datesAucune').addEventListener('click', ()=>{
+  datesChoisies = new Set(); presélectionnerGens(); rendre();
+});
+
+document.getElementById('gens').addEventListener('change', (e)=>{
+  const c = e.target.closest('[data-gens]');
+  if(!c) return;
+  if(c.checked) gensChoisis.add(c.dataset.gens); else gensChoisis.delete(c.dataset.gens);
+  rendreApercu();
+});
+document.getElementById('gens').addEventListener('click', (e)=>{
+  const b = e.target.closest('[data-envoi]');
+  if(b) envoyerA(b.dataset.envoi);
+});
+document.getElementById('gensTous').addEventListener('click', ()=>{
+  personnesDuProjet().forEach(({ p, type })=> gensChoisis.add(`${type}:${p.id}`)); rendreGens(); rendreApercu();
+});
+document.getElementById('gensAucun').addEventListener('click', ()=>{
+  gensChoisis = new Set(); rendreGens(); rendreApercu();
+});
+document.getElementById('butoir').addEventListener('input', rendreApercu);
+document.getElementById('canalChoix').addEventListener('click', (e)=>{
+  const b = e.target.closest('[data-canal]');
+  if(!b) return;
+  canal = b.dataset.canal;
+  rendreApercu();
+});
+
+// --- Démarrage --------------------------------------------------------------
+async function demarrer(){
+  const session = await CurieuxDB.getSession();
+  monEmail = (session && session.user && session.user.email) || '';
+
+  [tourneesCache, musiciensCache, techniciensCache, demandesCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('musiciens'),
+    CurieuxDB.fetchAll('techniciens'),
+    CurieuxDB.fetchAll('dispo_demandes'),
+  ]);
+  // La table des envois est neuve : tant que la migration n'est pas jouée, la
+  // page fonctionne sans historique plutôt que de refuser de s'afficher.
+  envoisCache = await CurieuxDB.fetchAll('messages_envoyes').catch(()=> []);
+
+  const gens = new Map();
+  demandesCache.forEach(d=> gens.set(`${d.personType}:${d.personId}`, { id: d.personId, type: d.personType }));
+  jetonsPermanents = await CurieuxDB.jetonsPermanentsPour([...gens.values()]);
+
+  // On arrive souvent d'ailleurs — du suivi des dispos, d'une tournée — avec le
+  // projet déjà en tête. Le lien le porte, la page le prend.
+  const voulu = params.get('projet') || '';
+  if(voulu && tourneesCache.some(t=> t.id === voulu)) projetId = voulu;
+  const motifVoulu = params.get('motif') || '';
+  if(motifVoulu && CurieuxMessages.MODELES.some(m=> m.cle === motifVoulu)) motif = motifVoulu;
+
+  rendreProjets();
+  presélectionnerDates();
+  presélectionnerGens();
+
+  /* Arrivé depuis le suivi des dispos, on vient pour QUELQU'UN. On ne coche
+     alors que cette personne : la présélection par défaut — tous ceux dont il
+     manque une dispo — ferait partir vingt messages là où on en voulait un.
+     Le décochage reste possible, et le sélecteur de projet rend la main. */
+  const personneVoulue = params.get('personne') || '';
+  if(personneVoulue && personnesDuProjet().some(({ p, type })=> `${type}:${p.id}` === personneVoulue)){
+    gensChoisis = new Set([personneVoulue]);
+  }
+  rendre();
+}
+
+demarrer();
+</script>
+</body>
+</html>
