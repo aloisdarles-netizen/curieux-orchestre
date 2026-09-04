@@ -16,75 +16,191 @@
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  .wrap{max-width:640px; margin:0 auto; padding-bottom:40px;}
-  .entete{margin-bottom:18px;}
+  .wrap{max-width:1100px; margin:0 auto; padding-bottom:40px;}
+  .entete{margin-bottom:12px;}
   .sous{color:var(--muted); font-size:13.5px; margin:4px 0 0;}
   .etat-boite{text-align:center; color:var(--muted); font-size:13.5px; line-height:1.6;}
 
-  /* La fraîcheur de la page, dite une fois, en haut.
-     Une page qui ne dit pas de quand elle date n'est pas une source : on la
-     lit, on doute, et on redemande par message — c'est-à-dire qu'on retombe
-     dans ce que cette page existe pour remplacer. */
+  /* La fraîcheur de la page, dite une fois. Une page qui ne dit pas de quand
+     elle date n'est pas une source : on la lit, on doute, et on redemande par
+     message — c'est-à-dire qu'on retombe dans ce que cette page remplace. */
   .fraicheur{
     display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted);
     background:var(--bg); border:1px solid var(--border); border-radius:999px;
-    padding:4px 11px; margin-top:10px;
+    padding:4px 11px; margin-top:8px;
   }
   .fraicheur::before{content:''; width:6px; height:6px; border-radius:50%; background:var(--ok);}
 
-  /* Un groupe = un statut. Le titre porte la traduction, la ligne dessous
-     porte la consigne : ce que la personne doit FAIRE de cette information.
-     C'est là tout l'objet de la page — « option » ne veut rien dire pour
-     quelqu'un qui n'est pas dans un bureau de production. */
-  .groupe{margin-top:26px;}
-  .groupe:first-of-type{margin-top:12px;}
-  .groupe-tete{display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; margin-bottom:3px;}
-  .groupe-titre{
-    font-size:13.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
-    color:var(--accent-dark); display:flex; align-items:center; gap:8px;
+  .barre{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:16px 0 4px;}
+  .bascule{display:inline-flex; gap:3px; background:var(--bg); border:1px solid var(--border);
+    border-radius:999px; padding:3px;}
+  .bascule button{
+    border:none; background:none; color:var(--muted); font:inherit; font-size:12.5px; font-weight:700;
+    padding:6px 15px; border-radius:999px; cursor:pointer;
   }
-  .groupe-titre::before{content:''; width:5px; height:14px; border-radius:3px; background:var(--accent);}
-  .groupe.g-option .groupe-titre::before{background:var(--maybe);}
-  .groupe.g-recherche .groupe-titre::before{background:var(--border);}
-  .groupe.g-annulee .groupe-titre::before{background:var(--ko);}
-  .groupe-compte{font-size:11.5px; color:var(--muted); font-weight:700;}
-  .groupe-consigne{font-size:12.5px; color:var(--muted); line-height:1.55; margin:0 0 10px;}
+  .bascule button.on{background:var(--accent); color:#fff;}
+
+  /* -----------------------------------------------------------------------
+     Les trois colonnes.
+     -----------------------------------------------------------------------
+     Les statuts sont exclusifs : une date est validée OU en option OU en
+     recherche. Côte à côte, on les compare d'un coup d'œil au lieu de faire
+     défiler une liste où il faut retenir où finit un groupe et où commence le
+     suivant. Sur téléphone, la même structure glisse latéralement, une colonne
+     à la fois — avec des flèches et des points, parce qu'un glissement qu'on
+     ne devine pas n'existe pas. */
+  .colonnes{
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;
+    margin-top:10px;
+    /* Chaque colonne à sa propre hauteur : étirées à la plus haute, celle qui
+       ne porte qu'une date affichait quinze centimètres de blanc. */
+    align-items:start;
+  }
+  /* Les annulées ne sont pas un quatrième statut qu'on compare aux trois
+     autres : c'est un rappel, et il est rare. En quatrième colonne il tombait
+     seul à la ligne sous la première ; en bandeau pleine largeur, il se lit
+     sans déséquilibrer la page. */
+  .colonne.col-annulee{grid-column:1 / -1;}
+  .col-annulee .col-corps{columns:3; column-gap:18px;}
+  .col-annulee .mois{break-after:avoid;}
+  .col-annulee .ligne{break-inside:avoid;}
+  .colonne{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:0 0 10px; min-width:0; display:flex; flex-direction:column;
+  }
+  /* L'en-tête reste au-dessus pendant qu'on descend la colonne : le mot
+     « OPTION » doit être sous les yeux à la vingtième ligne comme à la
+     première. C'est tout l'objet de la page. */
+  .col-tete{
+    position:sticky; top:0; z-index:2; border-radius:var(--radius) var(--radius) 0 0;
+    padding:10px 13px 9px; border-bottom:1px solid var(--border); background:var(--card);
+  }
+  .col-mot{
+    display:inline-block; font-size:10.5px; font-weight:800; text-transform:uppercase;
+    letter-spacing:.07em; padding:4px 10px; border-radius:999px;
+  }
+  .col-validee .col-mot{background:var(--ok); color:var(--sur-statut);}
+  .col-option .col-mot{background:var(--maybe); color:var(--sur-statut);}
+  .col-recherche .col-mot{background:var(--border); color:var(--muted);}
+  .col-annulee .col-mot{background:var(--ko); color:var(--sur-statut);}
+  .col-nb{font-size:12px; font-weight:800; color:var(--muted); margin-left:7px;}
+  .col-dit{display:block; font-size:12px; color:var(--muted); line-height:1.45; margin-top:6px;}
+  .col-corps{padding:8px 10px 0; min-width:0;}
+  .col-vide{font-size:12.5px; color:var(--muted); padding:14px 12px; line-height:1.5;}
 
   .mois{
-    font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
-    color:var(--muted); margin:14px 0 7px;
+    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent-dark); margin:10px 0 5px;
+  }
+  .col-corps .mois:first-child{margin-top:2px;}
+
+  /* Une date = une ligne : le jour à gauche, toujours à la même place, ce qui
+     permet de balayer une colonne au lieu de lire des paragraphes. La première
+     version posait une carte de quatre lignes par date — juste sur une date,
+     intenable sur vingt. */
+  .ligne{
+    display:flex; align-items:baseline; gap:9px;
+    padding:6px 4px; border-bottom:1px solid var(--border);
+  }
+  .ligne:last-child{border-bottom:none;}
+  .ligne.barree{opacity:.6;}
+  .ligne.barree .l-jour, .ligne.barree .l-ou b{text-decoration:line-through;}
+  .l-jour{flex:0 0 42px; font-weight:800; font-size:13.5px; font-variant-numeric:tabular-nums; line-height:1.2;}
+  .l-jour small{display:block; font-weight:600; font-size:10px; color:var(--muted); text-transform:uppercase;}
+  .l-ou{flex:1; min-width:0; font-size:12px; line-height:1.35;}
+  .l-ou b{display:block; font-weight:700; font-size:12.5px; color:var(--text);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .l-ou span{color:var(--muted); display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .l-note{display:block; font-size:11px; font-weight:700; margin-top:2px;}
+  .l-note.butoir{color:var(--maybe);}
+  .l-note.manque{color:var(--accent-dark);}
+  .l-note.indispo{color:var(--ko);}
+
+  /* Le glissement, sur téléphone seulement. scroll-snap tient la colonne
+     alignée sur le bord ; les flèches et les points disent qu'il y a autre
+     chose à côté, ce qu'un débordement muet ne dit jamais. */
+  .nav-cols{display:none;}
+  @media (max-width:760px){
+    .colonnes{
+      display:flex; gap:10px; overflow-x:auto; scroll-snap-type:x mandatory;
+      scrollbar-width:none; -webkit-overflow-scrolling:touch; padding-bottom:4px;
+    }
+    .colonnes::-webkit-scrollbar{display:none;}
+    .colonne{flex:0 0 88%; scroll-snap-align:start;}
+    .col-annulee .col-corps{columns:1;}
+    .nav-cols{
+      display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px;
+    }
+    .nav-cols button{
+      border:1px solid var(--border); background:var(--card); color:var(--accent-dark);
+      width:34px; height:34px; border-radius:50%; font-size:16px; line-height:1; cursor:pointer;
+    }
+    .nav-cols button:disabled{opacity:.35;}
+    .nav-points{display:flex; gap:6px;}
+    .nav-points i{width:7px; height:7px; border-radius:50%; background:var(--border); display:block;}
+    .nav-points i.on{background:var(--accent);}
   }
 
-  .date-card{
+  /* Le reste des projets, replié : c'est la moitié de ce que la page reçoit,
+     et la moitié dont personne n'a besoin en l'ouvrant — les dates du projet
+     où l'on n'est pas distribué. Dépliées d'office, elles noyaient les cinq
+     lignes qui comptent. */
+  .section-titre{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+    font-weight:800; margin:26px 0 8px;
+  }
+  .repli{
     background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
     padding:12px 14px; margin-bottom:8px;
   }
-  .date-card.moi{border-color:var(--accent-dark);}
-  .date-card.barree .date-jour{text-decoration:line-through;}
-  .date-card.barree{opacity:.62;}
-  .date-tete{display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;}
-  .date-jour{font-weight:800; font-size:14.5px;}
-  .date-lieu{color:var(--muted); font-size:12.5px; text-align:right;}
-  .date-projet{font-size:12px; color:var(--muted); margin-top:3px;}
-  .date-bas{display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:9px;}
-
-  /* Deux marqueurs, jamais confondus : ce que la PRODUCTION a décidé de la
-     date, et ce que la personne a répondu, elle. Les mélanger, c'est laisser
-     croire qu'une date validée où l'on n'est pas distribué est « la sienne ». */
-  .marque{
-    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em;
-    padding:3px 9px; border-radius:999px; white-space:nowrap;
+  .repli-tete{display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+  .repli-nom{font-weight:700; font-size:13.5px;}
+  .repli-quoi{font-size:12.5px; color:var(--muted); line-height:1.5; margin:4px 0 0;}
+  .repli-bouton{
+    border:1px solid var(--border); background:var(--bg); color:var(--accent-dark);
+    font:inherit; font-size:12px; font-weight:700; border-radius:999px; padding:5px 12px; cursor:pointer;
   }
-  .marque.moi{background:var(--ok); color:var(--sur-statut);}
-  .marque.pressenti{background:var(--accent-tint); color:var(--accent-dark);}
-  .marque.butoir{background:var(--maybe-tint); color:var(--maybe);}
-  .marque.dispo{background:var(--ok-tint); color:var(--ok);}
-  .marque.indispo{background:var(--ko-tint); color:var(--ko);}
-  .marque.incertain{background:var(--maybe-tint); color:var(--maybe);}
-  .marque.sans{background:var(--border); color:var(--muted);}
+  .repli-bouton:hover{border-color:var(--accent); color:var(--accent);}
+  .repli-corps{margin-top:8px; columns:2; column-gap:18px;}
+  .repli-corps[hidden]{display:none;}
+  @media (max-width:760px){ .repli-corps{columns:1;} }
+
+  /* Le calendrier : la seconde vue. La liste répond à « sur quoi puis-je
+     compter ? », le calendrier à « suis-je pris le 14 ? » — deux questions, et
+     aucune ne se répond bien dans la forme de l'autre. */
+  .cal{display:grid; grid-template-columns:repeat(auto-fill, minmax(232px, 1fr)); gap:14px; margin-top:10px;}
+  .cal-grille{
+    display:grid; grid-template-columns:repeat(7, 1fr); gap:3px;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:8px;
+  }
+  .cal-nom{font-size:10px; font-weight:800; color:var(--muted); text-align:center; padding-bottom:2px;}
+  .cal-case{
+    aspect-ratio:1; display:grid; place-items:center; border-radius:8px;
+    font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums;
+  }
+  .cal-case.vide{visibility:hidden;}
+  /* La couleur dit le statut, le point sous le chiffre dit qu'on y joue. Deux
+     informations, deux signes — les confondre ferait croire qu'une date
+     validée est forcément la sienne. */
+  .cal-case.pleine{font-weight:800; position:relative;}
+  .cal-case.pleine.validee{background:var(--ok); color:var(--sur-statut);}
+  .cal-case.pleine.option{background:var(--maybe); color:var(--sur-statut);}
+  .cal-case.pleine.recherche{background:var(--border); color:var(--text);}
+  .cal-case.pleine.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
+  .cal-case.moi::after{
+    content:''; position:absolute; bottom:3px; width:4px; height:4px; border-radius:50%;
+    background:currentColor;
+  }
+  .cal-legende{display:flex; gap:13px; flex-wrap:wrap; font-size:11.5px; color:var(--muted); margin:10px 0 0;}
+  .cal-legende span{display:inline-flex; align-items:center; gap:5px;}
+  .cal-puce{width:11px; height:11px; border-radius:4px; display:inline-block;}
+  .cal-puce.validee{background:var(--ok);} .cal-puce.option{background:var(--maybe);}
+  .cal-puce.recherche{background:var(--border);} .cal-puce.annulee{background:var(--ko-tint);}
+  .cal-puce.moi{background:var(--text); border-radius:50%; width:7px; height:7px;}
 
   .pied{
-    margin-top:30px; padding-top:16px; border-top:1px solid var(--border);
+    margin-top:28px; padding-top:16px; border-top:1px solid var(--border);
     font-size:12px; color:var(--muted); line-height:1.6;
   }
   .pied strong{color:var(--text);}
@@ -106,27 +222,34 @@
    ---------------------------------------------------------------------------
    L'espace personnel disait où en était le dossier et ce qu'il restait à
    répondre. Il ne disait rien de ce qu'on attend pourtant le plus quand on
-   joue : est-ce que je joue, et quand. Le savoir existait — les dates portent
-   un statut depuis longtemps — mais il ne sortait pas des écrans de
-   production. Chacun se rabattait sur le dernier message reçu, qui datait.
+   joue : est-ce que je joue, et quand.
 
-   La page tient sur une règle, et elle vaut d'être écrite ici parce que tout
-   le reste en découle : un statut de date est un mot de production, et adressé
-   à quelqu'un qui joue, il doit dire ce qu'il ou elle doit FAIRE.
+   Trois règles gouvernent tout ce fichier.
 
-     validée   → « c'est signé, on y va »        → tu peux compter dessus.
-     option    → « la salle nous tient la date » → garde-la, ne t'engage pas
-                                                    ailleurs, mais ne compte
-                                                    pas encore dessus.
-     recherche → « rien n'est posé »             → ne bloque rien.
-     annulée   → « ça n'aura pas lieu »          → libère ta soirée.
+   1. Un statut de date est un mot de production. Adressé à quelqu'un qui joue,
+      il doit dire ce qu'il faut FAIRE :
+        validée   → c'est signé, tu peux compter dessus ;
+        option    → la salle nous tient la date, rien n'est signé : garde-la
+                    sans t'engager ailleurs ;
+        recherche → rien n'est posé, ne bloque rien ;
+        annulée   → libère ta journée.
+      Le mot est porté par l'en-tête de sa colonne, qui reste collé en haut
+      pendant qu'on descend : à la vingtième ligne comme à la première, on sait
+      ce qu'on lit. Une première version répétait la phrase sur chaque carte —
+      vingt fois la même phrase, et la page devenait illisible à force de se
+      répéter.
 
-   Et une seconde règle, qui est la source de tous les malentendus qu'on a vus
-   passer : le statut de la DATE et la présence de la PERSONNE sur cette date
-   sont deux choses différentes. Une date validée où l'on n'est pas distribué
-   n'est pas « ta date ». Une date en option où l'on est distribué n'est pas un
-   engagement. La fonction SQL renvoie les deux séparément ; la page les affiche
-   séparément.
+   2. Le statut de la DATE et la présence de la PERSONNE sur cette date sont
+      deux choses différentes. Une date validée où l'on n'est pas distribué
+      n'est pas « ta date » ; une option où l'on est distribué n'est pas un
+      engagement. D'où la coupe qui structure la page : « Tes dates » d'abord —
+      celles où l'on est affecté — puis, replié, le reste des projets sur
+      lesquels on nous a demandé nos dispos. Tout mélanger donnait
+      quatre-vingt-dix lignes, c'est-à-dire rien de lisible.
+
+   3. Deux formes, deux questions. Les colonnes répondent à « sur quoi puis-je
+      compter ? », le calendrier à « suis-je pris le 14 ? ». Aucune des deux ne
+      se répond bien dans la forme de l'autre, et le choix se retient.
 --------------------------------------------------------------------------- */
 
 const params = new URLSearchParams(location.search);
@@ -134,22 +257,32 @@ const TOKEN = params.get('token') || '';
 
 const MOIS_FR = ['janvier','février','mars','avril','mai','juin',
                  'juillet','août','septembre','octobre','novembre','décembre'];
+const JOURS_FR = ['lun.','mar.','mer.','jeu.','ven.','sam.','dim.'];
 
-// Découpage de la chaîne ISO plutôt que new Date() : à minuit, un fuseau
-// décale la date d'un jour, et une date de concert fausse d'un jour est pire
-// que pas de date du tout.
-function jourLong(iso){
-  const [, m, d] = String(iso || '').split('-');
-  if(!d) return '';
-  return `${parseInt(d, 10)} ${MOIS_FR[parseInt(m, 10) - 1] || ''}`;
+/* Découpage de la chaîne ISO plutôt que new Date() : selon le fuseau, minuit
+   décale la date d'un jour, et une date de concert fausse d'un jour est pire
+   que pas de date du tout. Pour le jour de la semaine, on passe par Date.UTC,
+   qui ne connaît pas de fuseau. */
+function partsDe(iso){
+  const [a, m, j] = String(iso || '').split('-').map(n=> parseInt(n, 10));
+  return { a, m, j };
 }
-function moisAnnee(iso){
-  const [a, m] = String(iso || '').split('-');
+function jourNumero(iso){ const p = partsDe(iso); return p.j || 0; }
+function jourSemaine(iso){
+  const p = partsDe(iso);
+  if(!p.j) return '';
+  return JOURS_FR[(new Date(Date.UTC(p.a, p.m - 1, p.j)).getUTCDay() + 6) % 7];
+}
+function jourLong(iso){
+  const p = partsDe(iso);
+  return p.j ? `${p.j} ${MOIS_FR[p.m - 1] || ''}` : '';
+}
+function moisAnnee(cle){
+  const [a, m] = String(cle || '').split('-');
   return `${MOIS_FR[parseInt(m, 10) - 1] || ''} ${a}`;
 }
 function moisDe(iso){ return String(iso || '').slice(0, 7); }
 
-// « le 4 septembre à 16 h 28 » — l'heure de la base, pas celle du navigateur.
 function fraicheur(isoUtc){
   const d = new Date(isoUtc);
   if(isNaN(d)) return '';
@@ -162,89 +295,229 @@ function etat(html){
   document.getElementById('contenu').innerHTML = `<div class="co-card co-pad etat-boite">${html}</div>`;
 }
 
-/* Les quatre groupes, dans l'ordre où ils comptent pour la personne : ce sur
-   quoi elle peut s'appuyer d'abord, ce qui n'aura pas lieu en dernier. */
-const GROUPES = [
-  {
-    cle: 'validee', classe: 'g-validee', titre: 'Confirmées',
-    consigne: "C'est signé. Tu peux compter sur ces dates.",
-    vide: '',
-  },
-  {
-    cle: 'option', classe: 'g-option', titre: 'En option',
-    consigne: "La salle nous tient la date, rien n'est signé. Garde-la si tu peux — on te prévient dès que c'est confirmé, ou dès que ça tombe.",
-    vide: '',
-  },
-  {
-    cle: 'recherche', classe: 'g-recherche', titre: 'On cherche',
-    consigne: "Rien n'est posé : on regarde qui serait là. Ne bloque rien pour l'instant.",
-    vide: '',
-  },
-  {
-    cle: 'annulee', classe: 'g-annulee', titre: 'Annulées',
-    consigne: "Ces dates n'auront pas lieu. Tu peux libérer ces journées.",
-    vide: '',
-  },
+const STATUT_MOT = { validee:'Validée', option:'Option', recherche:'Recherche', annulee:'Annulée' };
+const RANG_STATUT = { validee:0, option:1, recherche:2, annulee:3 };
+const LIBELLE_DISPO = { indispo:'tu t’es dit indispo', incertain:'tu as répondu « à confirmer »' };
+
+function statutDe(d){ return STATUT_MOT[d.statut] ? d.statut : 'option'; }
+
+/* Les colonnes, dans l'ordre où elles comptent : ce sur quoi on peut s'appuyer
+   d'abord, ce qui n'aura pas lieu en dernier. La quatrième n'apparaît que si
+   quelque chose a été annulé — une colonne vide en permanence est un rappel
+   inutile qu'une date peut tomber. */
+const COLONNES = [
+  { cle:'validee',   titre:'Validée',   dit:"C'est signé. Tu peux compter sur ces dates.",
+    vide:"Rien de signé pour l'instant." },
+  { cle:'option',    titre:'Option',    dit:"La salle nous tient la date, rien n'est signé. Garde-la sans t'engager ailleurs.",
+    vide:'Aucune option en cours.' },
+  { cle:'recherche', titre:'Recherche', dit:"Rien n'est posé : on regarde qui serait là. Ne bloque rien.",
+    vide:'Aucune recherche en cours.' },
+  { cle:'annulee',   titre:'Annulée',   dit:'Ces dates ne se feront pas. Tu peux libérer ces journées.',
+    vide:'', siVide:'masquer' },
 ];
 
-const LIBELLE_DISPO = { dispo:'Tu es dispo', indispo:'Tu es indispo', incertain:'À confirmer' };
-
-function carteDate(d){
-  const statut = STATUT_DATE[d.statut] ? d.statut : 'option';
+// --- Une date, une ligne ---------------------------------------------------
+function ligne(d){
+  const st = statutDe(d);
   const lieu = [d.ville, d.lieu].filter(Boolean).join(' · ');
-  const marques = [];
+  const notes = [];
 
-  // Ce que la production a décidé DE MOI sur cette date. « Pressenti·e »
-  // plutôt que « tu joues » tant que la date n'est pas validée : la nuance
-  // est tout ce qui sépare une information d'une promesse.
-  if(d.affecte && statut === 'validee') marques.push('<span class="marque moi">Tu joues</span>');
-  else if(d.affecte) marques.push('<span class="marque pressenti">Tu es pressenti·e</span>');
-
-  if(statut === 'option' && d.optionExpire){
-    marques.push(`<span class="marque butoir">Option jusqu'au ${escapeHtml(jourLong(d.optionExpire))}</span>`);
+  if(st === 'option' && d.optionExpire){
+    notes.push(`<span class="l-note butoir">option jusqu'au ${escapeHtml(jourLong(d.optionExpire))}</span>`);
   }
-
-  // Ce que la personne a répondu, elle. Sur une date annulée on se tait : sa
-  // disponibilité n'a plus d'objet, et l'afficher ferait du bruit.
-  if(statut !== 'annulee'){
+  // Sa propre réponse, rappelée seulement quand elle manque ou qu'elle
+  // contredit l'affectation : le reste du temps, c'est du bruit.
+  if(st !== 'annulee'){
     const rep = d.maDispo || '';
-    marques.push(rep
-      ? `<span class="marque ${escapeAttr(rep)}">${escapeHtml(LIBELLE_DISPO[rep] || rep)}</span>`
-      : '<span class="marque sans">Dispo pas encore donnée</span>');
+    if(!rep) notes.push('<span class="l-note manque">ta dispo reste à donner</span>');
+    else if(rep !== 'dispo') notes.push(`<span class="l-note indispo">${escapeHtml(LIBELLE_DISPO[rep] || rep)}</span>`);
   }
 
-  return `<div class="date-card${d.affecte ? ' moi' : ''}${statut === 'annulee' ? ' barree' : ''}">
-    <div class="date-tete">
-      <span class="date-jour">${escapeHtml(jourLong(d.date))}</span>
-      <span class="date-lieu">${escapeHtml(lieu || '—')}</span>
-    </div>
-    <div class="date-projet">${escapeHtml(d.tourneeNom || (d.tourneeType === 'recording' ? 'Recording' : 'Projet'))}</div>
-    <div class="date-bas">${marques.join('')}</div>
+  return `<div class="ligne${st === 'annulee' ? ' barree' : ''}">
+    <span class="l-jour">${escapeHtml(String(jourNumero(d.date)))}<small>${escapeHtml(jourSemaine(d.date))}</small></span>
+    <span class="l-ou"><b>${escapeHtml(d.tourneeNom || (d.tourneeType === 'recording' ? 'Recording' : 'Projet'))}</b><span>${escapeHtml(lieu || 'lieu à venir')}</span>${notes.join('')}</span>
   </div>`;
 }
 
-// Les mois se répètent d'un groupe à l'autre : le repère est posé à l'intérieur
-// de chaque groupe, pas au-dessus. « Octobre » sous « En option » et « octobre »
-// sous « Confirmées » ne parlent pas de la même chose.
-function bloc(groupe, dates){
-  if(!dates.length) return '';
-  let dernierMois = '';
-  const corps = dates.map(d=>{
+function parMois(dates){
+  let courant = '';
+  return dates.map(d=>{
     let tete = '';
-    if(moisDe(d.date) !== dernierMois){
-      dernierMois = moisDe(d.date);
-      tete = `<div class="mois">${escapeHtml(moisAnnee(d.date))}</div>`;
+    if(moisDe(d.date) !== courant){
+      courant = moisDe(d.date);
+      tete = `<div class="mois">${escapeHtml(moisAnnee(courant))}</div>`;
     }
-    return tete + carteDate(d);
+    return tete + ligne(d);
   }).join('');
-  return `<section class="groupe ${groupe.classe}">
-    <div class="groupe-tete">
-      <span class="groupe-titre">${escapeHtml(groupe.titre)}</span>
-      <span class="groupe-compte">${dates.length} date${dates.length > 1 ? 's' : ''}</span>
-    </div>
-    <p class="groupe-consigne">${escapeHtml(groupe.consigne)}</p>
-    ${corps}
-  </section>`;
+}
+
+// --- La grille d'un mois ---------------------------------------------------
+function grilleMois(cle, dates){
+  const [a, m] = cle.split('-').map(Number);
+  const decalage = (new Date(Date.UTC(a, m - 1, 1)).getUTCDay() + 6) % 7;
+  const nbJours = new Date(Date.UTC(a, m, 0)).getUTCDate();
+
+  const parJour = new Map();
+  dates.forEach(d=>{
+    const j = jourNumero(d.date);
+    if(!parJour.has(j)) parJour.set(j, []);
+    parJour.get(j).push(d);
+  });
+
+  const cases = ['L','M','M','J','V','S','D'].map(n=> `<span class="cal-nom">${n}</span>`);
+  for(let i = 0; i < decalage; i++) cases.push('<span class="cal-case vide"></span>');
+  for(let j = 1; j <= nbJours; j++){
+    const dus = parJour.get(j) || [];
+    if(!dus.length){ cases.push(`<span class="cal-case">${j}</span>`); continue; }
+    // Deux projets le même jour : c'est le statut le plus engageant qui donne
+    // sa couleur. Le détail se lit au survol, et dans les colonnes.
+    const st = dus.map(statutDe).sort((x, y)=> RANG_STATUT[x] - RANG_STATUT[y])[0];
+    const moi = dus.some(x=> x.affecte);
+    const titre = dus.map(x=> `${x.tourneeNom || 'Projet'} — ${STATUT_MOT[statutDe(x)]}${x.ville ? ' · ' + x.ville : ''}`).join(' / ');
+    cases.push(`<span class="cal-case pleine ${escapeAttr(st)}${moi ? ' moi' : ''}" title="${escapeAttr(titre)}">${j}</span>`);
+  }
+  return `<div class="cal-grille">${cases.join('')}</div>`;
+}
+
+function vueCalendrier(dates){
+  const mois = [...new Set(dates.map(d=> moisDe(d.date)))].sort();
+  if(!mois.length) return '';
+  // Les mois sans aucune date ne sont pas dessinés : une saison de trois mois
+  // actifs étalée sur huit ne doit pas faire défiler cinq grilles vides.
+  const corps = mois.map(cle=>`
+    <div>
+      <div class="mois">${escapeHtml(moisAnnee(cle))}</div>
+      ${grilleMois(cle, dates.filter(d=> moisDe(d.date) === cle))}
+    </div>`).join('');
+  return `<div class="cal">${corps}</div>
+    <div class="cal-legende">
+      <span><i class="cal-puce validee"></i> validée</span>
+      <span><i class="cal-puce option"></i> option</span>
+      <span><i class="cal-puce recherche"></i> recherche</span>
+      <span><i class="cal-puce annulee"></i> annulée</span>
+      <span><i class="cal-puce moi"></i> le point : tu joues</span>
+    </div>`;
+}
+
+// --- État de la page -------------------------------------------------------
+const CLE_VUE = 'curieuxMesDatesVue';
+let MIENNES = [];   // les dates où l'on est affecté·e
+let AUTRES = [];    // celles des projets où l'on n'est que sollicité·e
+let VUE = 'colonnes';
+try{ if(localStorage.getItem(CLE_VUE) === 'calendrier') VUE = 'calendrier'; }catch(e){}
+
+function vueColonnes(){
+  const cols = COLONNES.map(c=>{
+    const dates = MIENNES.filter(d=> statutDe(d) === c.cle);
+    if(!dates.length && c.siVide === 'masquer') return null;
+    return `<section class="colonne col-${c.cle}">
+      <div class="col-tete">
+        <span class="col-mot">${escapeHtml(c.titre)}</span><span class="col-nb">${dates.length}</span>
+        <span class="col-dit">${escapeHtml(c.dit)}</span>
+      </div>
+      ${dates.length ? `<div class="col-corps">${parMois(dates)}</div>`
+                     : `<div class="col-vide">${escapeHtml(c.vide)}</div>`}
+    </section>`;
+  }).filter(Boolean);
+
+  return `<div class="colonnes" id="colonnes">${cols.join('')}</div>
+    <div class="nav-cols">
+      <button type="button" id="colPrec" aria-label="Colonne précédente">‹</button>
+      <span class="nav-points" id="colPoints">${cols.map((_, i)=> `<i class="${i ? '' : 'on'}"></i>`).join('')}</span>
+      <button type="button" id="colSuiv" aria-label="Colonne suivante">›</button>
+    </div>`;
+}
+
+function blocAutres(){
+  if(!AUTRES.length) return '';
+  const projets = new Map();
+  AUTRES.forEach(d=>{
+    const cle = d.tourneeId || d.tourneeNom || '?';
+    if(!projets.has(cle)) projets.set(cle, { nom: d.tourneeNom || 'Projet', dates: [] });
+    projets.get(cle).dates.push(d);
+  });
+  const blocs = [...projets.values()].map((p, i)=>{
+    const n = p.dates.length;
+    const debut = jourLong(p.dates[0].date), fin = jourLong(p.dates[n - 1].date);
+    const manquantes = p.dates.filter(d=> !d.maDispo).length;
+    return `<div class="repli">
+      <div class="repli-tete">
+        <span class="repli-nom">${escapeHtml(p.nom)}</span>
+        <button type="button" class="repli-bouton" data-repli="${i}" aria-expanded="false">Voir les ${n} dates</button>
+      </div>
+      <p class="repli-quoi">${n} date${n > 1 ? 's' : ''}${n > 1 ? `, du ${escapeHtml(debut)} au ${escapeHtml(fin)}` : ` le ${escapeHtml(debut)}`} — tu n'y es pas distribué·e pour l'instant.${
+        manquantes ? ` <b>${manquantes} dispo${manquantes > 1 ? 's' : ''} à donner.</b>` : ''}</p>
+      <div class="repli-corps" id="repli-${i}" hidden>${parMois(p.dates)}</div>
+    </div>`;
+  }).join('');
+  return `<div class="section-titre">Les projets où on t'a demandé tes dispos</div>${blocs}`;
+}
+
+/* Les flèches et les points du glissement. Ils ne servent que sur téléphone,
+   mais on les branche toujours : leur affichage est affaire de CSS, et une
+   logique qui dépendrait de la largeur se tromperait à la rotation. */
+function brancherGlissement(){
+  const piste = document.getElementById('colonnes');
+  const points = document.getElementById('colPoints');
+  const prec = document.getElementById('colPrec');
+  const suiv = document.getElementById('colSuiv');
+  if(!piste || !points || !prec || !suiv) return;
+
+  const colonnes = [...piste.children];
+  const majEtat = ()=>{
+    const i = Math.round(piste.scrollLeft / Math.max(1, (colonnes[0] || {}).offsetWidth || 1));
+    [...points.children].forEach((p, k)=> p.classList.toggle('on', k === i));
+    prec.disabled = piste.scrollLeft <= 2;
+    suiv.disabled = piste.scrollLeft + piste.clientWidth >= piste.scrollWidth - 2;
+  };
+  const glisser = (sens)=>{
+    const large = ((colonnes[0] || {}).offsetWidth || piste.clientWidth) + 10;
+    piste.scrollBy({ left: sens * large, behavior: 'smooth' });
+  };
+  prec.addEventListener('click', ()=> glisser(-1));
+  suiv.addEventListener('click', ()=> glisser(1));
+  piste.addEventListener('scroll', majEtat, { passive: true });
+  majEtat();
+}
+
+function rendre(){
+  const bascule = `<div class="barre">
+      <div class="bascule" role="group" aria-label="Forme d'affichage">
+        <button type="button" data-vue="colonnes" class="${VUE === 'colonnes' ? 'on' : ''}">Par statut</button>
+        <button type="button" data-vue="calendrier" class="${VUE === 'calendrier' ? 'on' : ''}">Calendrier</button>
+      </div>
+    </div>`;
+
+  let corps;
+  if(!MIENNES.length){
+    corps = `<div class="co-card co-pad etat-boite" style="text-align:left;">
+      Tu n'es sur aucune date pour l'instant. Dès qu'on te distribue, elles apparaissent ici.
+    </div>`;
+  } else {
+    corps = VUE === 'calendrier' ? vueCalendrier(MIENNES) : vueColonnes();
+  }
+
+  document.getElementById('contenu').innerHTML = bascule + corps + blocAutres() + `
+    <div class="pied">
+      <p>Ces dates sont <strong>strictement confidentielles</strong> — merci de ne pas les diffuser en dehors de l'équipe.</p>
+      <p>Cette page est informative et suit le projet au jour le jour. <strong>Seul le contrat d'engagement vaut engagement.</strong></p>
+      <p>Une erreur, une question ? Écris à la personne qui t'a envoyé ce lien.</p>
+    </div>`;
+
+  document.querySelectorAll('[data-vue]').forEach(b=> b.addEventListener('click', ()=>{
+    VUE = b.dataset.vue;
+    try{ localStorage.setItem(CLE_VUE, VUE); }catch(e){}
+    rendre();
+  }));
+  document.querySelectorAll('[data-repli]').forEach(b=> b.addEventListener('click', ()=>{
+    const zone = document.getElementById('repli-' + b.dataset.repli);
+    if(!zone) return;
+    const ouvert = !zone.hidden;
+    zone.hidden = ouvert;
+    b.setAttribute('aria-expanded', String(!ouvert));
+    b.textContent = ouvert ? b.textContent.replace('Masquer', 'Voir') : b.textContent.replace('Voir', 'Masquer');
+  }));
+  if(VUE === 'colonnes' && MIENNES.length) brancherGlissement();
 }
 
 async function init(){
@@ -277,30 +550,22 @@ async function init(){
   document.getElementById('sousTitre').innerHTML =
     `Ce qui est confirmé, ce qui est encore en option.${stamp ? `<br><span class="fraicheur">${escapeHtml(stamp)}</span>` : ''}`;
 
-  const dates = Array.isArray(moi.dates) ? moi.dates : [];
+  // Le tri est refait ici plutôt que d'être supposé : la fonction SQL trie
+  // déjà, mais un affichage qui dépend en silence de l'ordre d'une source
+  // devient faux le jour où la source change d'avis — et « du 12 mars au
+  // 20 avril » sur des dates qui vont jusqu'en juin est un mensonge discret.
+  const dates = (Array.isArray(moi.dates) ? moi.dates : [])
+    .slice().sort((a, b)=> String(a.date).localeCompare(String(b.date)));
+  MIENNES = dates.filter(d=> d.affecte);
+  // Une date annulée où l'on n'était pas distribué n'a rien à faire ici : on
+  // ne l'attendait pas, l'annoncer ne ferait qu'allonger la page.
+  AUTRES = dates.filter(d=> !d.affecte && statutDe(d) !== 'annulee');
 
-  // Une date annulée sur laquelle on n'était pas distribué n'a rien à faire
-  // ici : on ne l'attendait pas, l'annoncer ne ferait qu'allonger la page.
-  const retenues = dates.filter(d=> (d.statut !== 'annulee') || d.affecte);
-
-  if(!retenues.length){
+  if(!MIENNES.length && !AUTRES.length){
     etat("Aucune date à venir pour l'instant.<br>Tu recevras un message dès qu'un projet se prépare.");
     return;
   }
-
-  const parGroupe = new Map(GROUPES.map(g=> [g.cle, []]));
-  retenues.forEach(d=>{
-    const cle = parGroupe.has(d.statut) ? d.statut : 'option';
-    parGroupe.get(cle).push(d);
-  });
-
-  document.getElementById('contenu').innerHTML =
-    GROUPES.map(g=> bloc(g, parGroupe.get(g.cle))).join('') + `
-    <div class="pied">
-      <p>Ces dates sont <strong>strictement confidentielles</strong> — merci de ne pas les diffuser en dehors de l'équipe.</p>
-      <p>Cette page est informative et suit le projet au jour le jour. <strong>Seul le contrat d'engagement vaut engagement.</strong></p>
-      <p>Une erreur, une question ? Écris à la personne qui t'a envoyé ce lien.</p>
-    </div>`;
+  rendre();
 }
 
 init();
