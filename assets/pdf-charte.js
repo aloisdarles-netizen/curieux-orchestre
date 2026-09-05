@@ -40,6 +40,25 @@ const PDF_CHARTE = {
   // noir et blanc, ce qu'un jaune ou un rose fluo ne font pas.
   accent:     [232, 241, 250],
   accentEncre:[61, 88, 118],
+
+  /* Les quatre statuts d'une date, aux couleurs exactes de l'écran clair
+     (--ok, --maybe, --border, --ko-tint dans assets/base.css). Un document
+     doit se reconnaître : quelqu'un qui a vu son calendrier dans son espace
+     personnel et qui reçoit ce PDF doit y retrouver les mêmes verts et les
+     mêmes ambres, sans avoir à relire la légende.
+     On ne transpose PAS le thème sombre : un aplat sombre imprimé mange une
+     cartouche et rend le chiffre illisible en photocopie.
+
+     Les deux teintes pâles portent en plus un filet : à l'écran la case fait
+     trente pixels de côté et l'aplat se voit ; sur le papier elle en fait
+     cinq millimètres, et un rose à 3 % de gris disparaît — surtout photocopié.
+     Le filet garde la couleur exacte et rend la case lisible comme case. */
+  statuts: {
+    validee:   { fond:[47, 143, 91],   encre:[255, 255, 255] },
+    option:    { fond:[184, 121, 42],  encre:[255, 255, 255] },
+    recherche: { fond:[240, 219, 230], encre:[20, 22, 23],  bord:[214, 180, 199] },
+    annulee:   { fond:[251, 230, 226], encre:[178, 59, 46], bord:[232, 186, 176] },
+  },
 };
 
 // Le logo blanc n'était pas préparé pour le PDF — seul le prune l'était, pour
@@ -659,6 +678,229 @@ function creerComposeurPdf(doc, options){
   // Alias interne : `lignes` est déjà pris par le découpeur de texte.
   const lignes_ = (texte, largeur)=> lignes(texte == null ? '' : texte, largeur);
 
+  /* Le calendrier — la vue de l'espace personnel, sur le papier
+     -------------------------------------------------------------------------
+     Un récapitulatif en tableaux se lit ligne à ligne : on y cherche une date,
+     on ne voit pas un mois. Or ce qu'on demande à ce document, c'est justement
+     de répondre d'un coup d'œil à « suis-je pris la semaine du 12 ? ». Le
+     calendrier le fait, le tableau non — et c'est déjà la forme que les gens
+     ont sous les yeux dans leur espace personnel. On la rejoue donc à
+     l'identique : mêmes couleurs, même grille lundi-dimanche, même point sous
+     le chiffre pour dire « tu joues », même légende sur le côté.
+
+     Ce que la section reçoit ne parle que de calendrier, jamais de tournée :
+     le composeur ignore ce qu'est une date de concert, et doit continuer de
+     l'ignorer.
+
+       mois : [{ annee, mois (1 à 12), jours: { 12: { statut, point } } }]
+       reglages : { legende:[{statut|point, mot}], note, colonnesMax }
+
+     La hauteur est purement arithmétique — nombre de semaines, hauteur de
+     case — donc identique à la mesure et au dessin, ce dont dépend tout le
+     calcul d'échelle du composeur. */
+  const CAL_JOURS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  // Largeur minimale d'une grille de mois, en millimètres et NON à l'échelle du
+  // texte : une grille se lit à sa taille physique, et la faire dépendre de k
+  // ferait changer le nombre de mois par rangée en cours de calcul — donc les
+  // ruptures de page, donc la hauteur, donc k. On la fixe une fois.
+  const CAL_MOIS_MIN = 40;
+
+  api.calendrier = function(titre, mois, reglages){
+    const grilles = (mois || []).filter(m=> m && m.annee && m.mois);
+    if(!grilles.length) return api;
+    const r = Object.assign({ legende: [], note: '', colonnesMax: 3 }, reglages || {});
+    const legende = (r.legende || []).filter(l=> l && l.mot);
+
+    /* Une section par RANGÉE de mois, et non une seule pour tout le
+       calendrier : le composeur ne sait couper qu'entre deux sections. Une
+       saison de huit mois formant un bloc unique déborderait de la feuille
+       sans que rien ne puisse l'en empêcher. */
+    const gapLeg = 5;
+    const largeurLegende = legende.length ? Math.min(38, utile * 0.24) : 0;
+    const largeurCal = utile - (largeurLegende ? largeurLegende + gapLeg : 0);
+    const gapMois = 4;
+    /* La largeur d'un mois ne dépend PAS du nombre de mois. Un projet qui n'en
+       compte qu'un se voyait sinon dessiner une grille de quatorze centimètres
+       de large, en pleine page, avec des quantièmes de trente points : le même
+       objet que le calendrier de la saison, et pourtant méconnaissable. La
+       grille garde donc sa taille, et une saison courte laisse simplement de
+       la place à droite. */
+    let cols = r.colonnesMax;
+    while(cols > 1 && (largeurCal - gapMois * (cols - 1)) / cols < CAL_MOIS_MIN) cols--;
+    const largeurMois = (largeurCal - gapMois * (cols - 1)) / cols;
+    cols = Math.min(cols, grilles.length);
+
+    const rangees = [];
+    for(let i = 0; i < grilles.length; i += cols) rangees.push(grilles.slice(i, i + cols));
+
+    rangees.forEach((rangee, iRangee)=>{
+      const premiere = iRangee === 0;
+      const derniere = iRangee === rangees.length - 1;
+
+      sections.push((k, dessiner, yDepart)=>{
+        /* Une grille de calendrier est un objet PHYSIQUE : sept colonnes dans
+           une largeur donnée, des cases carrées, un chiffre qui doit tenir
+           dedans. Elle ne suit donc pas l'échelle du texte — seuls le titre de
+           section et la note du bas la suivent. La faire grossir avec k faisait
+           déborder les pastilles sur les cases voisines dès qu'un document
+           court autorisait le corps à grandir : « 28 » mordait sur « 27 ».
+           Le corps du quantième se déduit de la case, pas de k. */
+        const ptTitre = 8 * k, ptNote = 7 * k;
+        let y = yDepart;
+
+        // Le bandeau de section, dans l'idiome des tableaux : le document doit
+        // avoir l'air d'un seul document.
+        if(titre && premiere){
+          doc.setFont('Host', 'bold'); doc.setFontSize(ptTitre);
+          const hTitre = hLigne(ptTitre);
+          if(dessiner){
+            fond(PDF_CHARTE.prune);
+            doc.rect(o.marge, y + hTitre * 0.12, 1.1 * k, hTitre * 0.78, 'F');
+            encre(PDF_CHARTE.prune);
+            doc.setCharSpace(0.1 * k);
+            doc.text(String(titre).toUpperCase(), o.marge + 3.2 * k, y, { baseline:'top' });
+            doc.setCharSpace(0);
+          }
+          y += hTitre + 2.4 * k;
+        }
+
+        // Géométrie d'une grille : un cadre, sept colonnes, des cases carrées.
+        // Tout en millimètres, rien à l'échelle du texte.
+        const padGrille = 2.2;
+        const gapCase = 0.9;
+        const largeurCase = (largeurMois - padGrille * 2 - gapCase * 6) / 7;
+        const hauteurCase = largeurCase;
+        // Le quantième occupe un peu plus de la moitié de sa case : deux
+        // chiffres y tiennent avec leur air autour, à toute largeur de grille.
+        const ptJour = (largeurCase / 0.3528) * 0.52;
+        const ptNom = ptJour * 0.80;
+        const ptMois = ptJour * 1.05;
+        const ptLeg = 7 * k;
+        const hauteurNoms = hLigne(ptNom) + 1;
+        const hEnTeteMois = hLigne(ptMois) + 1.6;
+
+        const semainesDe = (m)=>{
+          const decalage = (new Date(Date.UTC(m.annee, m.mois - 1, 1)).getUTCDay() + 6) % 7;
+          const nbJours = new Date(Date.UTC(m.annee, m.mois, 0)).getUTCDate();
+          return { decalage, nbJours, semaines: Math.ceil((decalage + nbJours) / 7) };
+        };
+        const hauteurMois = (m)=>{
+          const { semaines } = semainesDe(m);
+          return hEnTeteMois + padGrille * 2 + hauteurNoms
+               + semaines * hauteurCase + (semaines - 1) * gapCase;
+        };
+
+        const dessinerMois = (m, x, yM)=>{
+          const { decalage, nbJours, semaines } = semainesDe(m);
+          const hGrille = padGrille * 2 + hauteurNoms + semaines * hauteurCase + (semaines - 1) * gapCase;
+
+          doc.setFont('Host', 'bold'); doc.setFontSize(ptMois);
+          encre(PDF_CHARTE.prune);
+          doc.text(String(m.libelle || '').toUpperCase(), x, yM, { baseline:'top' });
+
+          const yG = yM + hEnTeteMois;
+          fond(PDF_CHARTE.carte); trait(PDF_CHARTE.bord); doc.setLineWidth(0.2);
+          doc.roundedRect(x, yG, largeurMois, hGrille, 1.6, 1.6, 'FD');
+
+          const xCase = (col)=> x + padGrille + col * (largeurCase + gapCase);
+          const yCase = (sem)=> yG + padGrille + hauteurNoms + sem * (hauteurCase + gapCase);
+
+          doc.setFont('Host', 'bold'); doc.setFontSize(ptNom);
+          encre(PDF_CHARTE.muted);
+          CAL_JOURS.forEach((n, i)=> doc.text(n, xCase(i) + largeurCase / 2, yG + padGrille,
+            { baseline:'top', align:'center' }));
+
+          for(let j = 1; j <= nbJours; j++){
+            const idx = decalage + j - 1;
+            const cx = xCase(idx % 7), cy = yCase(Math.floor(idx / 7));
+            const info = (m.jours || {})[j] || (m.jours || {})[String(j)] || null;
+            const st = info && PDF_CHARTE.statuts[info.statut] ? PDF_CHARTE.statuts[info.statut] : null;
+
+            if(st){
+              fond(st.fond);
+              if(st.bord){
+                trait(st.bord); doc.setLineWidth(0.2);
+                doc.roundedRect(cx, cy, largeurCase, hauteurCase, 1.2, 1.2, 'FD');
+              } else {
+                doc.roundedRect(cx, cy, largeurCase, hauteurCase, 1.2, 1.2, 'F');
+              }
+            }
+            doc.setFont('Host', st ? 'bold' : 'normal'); doc.setFontSize(ptJour);
+            encre(st ? st.encre : PDF_CHARTE.muted);
+            // Le chiffre remonte un peu quand la case porte un point : sinon le
+            // point mord dessus et les deux deviennent illisibles.
+            const yTexte = cy + hauteurCase / 2 + ((info && info.point) ? -0.45 : 0);
+            doc.text(String(j), cx + largeurCase / 2, yTexte, { baseline:'middle', align:'center' });
+
+            // Une date annulée se barre, comme à l'écran.
+            if(info && info.statut === 'annulee'){
+              const w = doc.getTextWidth(String(j));
+              trait(st.encre); doc.setLineWidth(0.25);
+              doc.line(cx + largeurCase / 2 - w / 2 - 0.3, yTexte,
+                       cx + largeurCase / 2 + w / 2 + 0.3, yTexte);
+            }
+            // Le point sous le chiffre : la couleur dit le statut, le point dit
+            // qu'on y joue. Deux informations, deux signes.
+            if(info && info.point){
+              fond(st ? st.encre : PDF_CHARTE.noir);
+              doc.circle(cx + largeurCase / 2, cy + hauteurCase - 1.25, 0.42, 'F');
+            }
+          }
+        };
+
+        const hRangee = Math.max(...rangee.map(hauteurMois));
+        if(dessiner) rangee.forEach((m, j)=> dessinerMois(m, o.marge + j * (largeurMois + gapMois), y));
+
+        /* La légende, dans son cadre, en face de la première rangée — comme la
+           colonne de légende à l'écran. Les rangées suivantes lui laissent sa
+           largeur pour que toutes les grilles restent alignées. */
+        let hLegende = 0;
+        if(legende.length && premiere){
+          const padLeg = 2.6 * k;
+          const hEntree = Math.max(hLigne(ptLeg), 3.2 * k);
+          const gapEntree = 1.6 * k;
+          hLegende = padLeg * 2 + legende.length * hEntree + (legende.length - 1) * gapEntree;
+          if(dessiner){
+            const xL = o.marge + largeurCal + gapLeg;
+            fond(PDF_CHARTE.carte); trait(PDF_CHARTE.bord); doc.setLineWidth(0.2);
+            doc.roundedRect(xL, y, largeurLegende, hLegende, 1.6 * k, 1.6 * k, 'FD');
+            doc.setFont('Host', 'normal'); doc.setFontSize(ptLeg);
+            legende.forEach((l, i)=>{
+              const yE = y + padLeg + i * (hEntree + gapEntree);
+              const cote = 2.4 * k;
+              if(l.point){
+                fond(PDF_CHARTE.noir);
+                doc.circle(xL + padLeg + cote / 2, yE + hEntree / 2, 0.8 * k, 'F');
+              } else {
+                const st = PDF_CHARTE.statuts[l.statut] || { fond: PDF_CHARTE.bord };
+                fond(st.fond);
+                if(st.bord){
+                  trait(st.bord); doc.setLineWidth(0.2);
+                  doc.roundedRect(xL + padLeg, yE + (hEntree - cote) / 2, cote, cote, 0.7 * k, 0.7 * k, 'FD');
+                } else {
+                  doc.roundedRect(xL + padLeg, yE + (hEntree - cote) / 2, cote, cote, 0.7 * k, 0.7 * k, 'F');
+                }
+              }
+              encre(PDF_CHARTE.muted);
+              doc.text(String(l.mot), xL + padLeg + cote + 2 * k, yE + hEntree / 2, { baseline:'middle' });
+            });
+          }
+        }
+
+        y += Math.max(hRangee, hLegende);
+
+        if(r.note && derniere){
+          doc.setFont('Host', 'normal'); doc.setFontSize(ptNote);
+          const l = lignes_(r.note, utile);
+          if(dessiner){ encre(PDF_CHARTE.muted); doc.text(l, o.marge, y + 2 * k, { baseline:'top' }); }
+          y += l.length * hLigne(ptNote) + 2 * k;
+        }
+        return y - yDepart + (derniere ? 4 * k : gapMois);
+      });
+    });
+    return api;
+  };
+
   // Une section dessinée à la main, pour ce que la charte ne prévoit pas — un
   // QR code, par exemple. Elle reçoit l'échelle en cours et la boîte à outils
   // du composeur, et rend sa hauteur comme n'importe quelle autre section :
@@ -712,7 +954,21 @@ function creerComposeurPdf(doc, options){
   api.rendre = function(nomFichier){
     const dispo = HAUTEUR - o.hauteurEntete - 4 - 12;   // 12 : pied de page
     let k = o.echelleMax;
-    if(hauteurTotale(k) > dispo){
+
+    /* Rétrécir le texte n'a de sens que si ça fait tenir la page.
+       -----------------------------------------------------------------------
+       Certaines sections ont une hauteur incompressible — une grille de
+       calendrier est un objet physique, elle ne suit pas le corps du texte.
+       Quatorze mois de saison ne tiendront jamais sur une feuille : la
+       dichotomie descendait alors jusqu'à ECHELLE_MIN, rendait le texte
+       illisible, et débordait quand même. On y perdait sur les deux tableaux.
+
+       Si le contenu ne tient pas même au plus petit corps admis, le document
+       sera de toute façon sur plusieurs pages : autant le composer à sa taille
+       naturelle et le rendre lisible. */
+    if(hauteurTotale(o.echelleMin) > dispo){
+      k = Math.min(1, o.echelleMax);
+    } else if(hauteurTotale(k) > dispo){
       // Dichotomie sur l'échelle : la hauteur ne décroît pas proportionnellement
       // au corps (le texte se replie moins quand il rétrécit), une simple règle
       // de trois donnerait donc un document plus petit que nécessaire.
@@ -728,17 +984,26 @@ function creerComposeurPdf(doc, options){
     poserFiligrane();
     dessinerEntete(true);
     let y = o.hauteurEntete + 4;
+    // Le pied se posait une seule fois, à la fin : sur un document de deux
+    // feuilles, la première partait sans nom d'orchestre ni mention, et
+    // « suite au verso » s'imprimait sur la dernière page — là où il n'y a
+    // justement pas de suite. On le pose maintenant page par page.
+    let pages = 1;
     sections.forEach((s)=>{
       const h = s(k, false, 0);
       if(y + h > HAUTEUR - 12 && y > o.hauteurEntete + 6){
+        piedDePage(true);
         doc.addPage();
+        pages++;
         poserFiligrane();
         y = o.marge;
       }
       s(k, true, y);
       y += h;
     });
-    piedDePage(deborde);
+    // Une seule page dont le contenu déborde tout de même (une section plus
+    // haute qu'une feuille) : elle a bien une suite. Après une coupure, non.
+    piedDePage(deborde && pages === 1);
     if(nomFichier) doc.save(nomFichier);
     return doc;
   };

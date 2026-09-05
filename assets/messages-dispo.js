@@ -367,6 +367,65 @@ const CurieuxMessages = (function(){
         ].join('\n');
       },
     },
+
+    /* ------------------------------------------------------------------------
+       Le récapitulatif — le message qui accompagne le document.
+       ------------------------------------------------------------------------
+       Les trois modèles ci-dessus annoncent UN changement : une option posée,
+       une validation, une annulation. Ils supposent donc qu'on écrit à chaud,
+       à chaque mouvement. En pratique une saison bouge dix fois par mois, et
+       personne n'envoie dix messages : les changements s'accumulent, et
+       l'équipe finit par apprendre les choses de travers.
+
+       D'où ce quatrième modèle, qui ne dit pas ce qui a changé mais où l'on en
+       est — la photographie du jour, avec le document en pièce jointe. C'est
+       le seul dont le texte reste court quel que soit le nombre de dates :
+       c'est le PDF qui les porte, et le lien qui les tient à jour ensuite.
+
+       Il n'énumère donc aucune date. Recopier dans le corps du message ce que
+       le document dit mieux, c'est prendre le risque que les deux se
+       contredisent — et c'est toujours le message qu'on croit.
+    ------------------------------------------------------------------------ */
+    {
+      cle: 'recap-doc',
+      libelle: 'Le récapitulatif (document)',
+      aide: "Un mot court, et le PDF en pièce jointe.",
+      contexte: 'info',
+      texte(ctx){
+        const m = mots(ctx);
+        const arrete = ctx.edite ? ` au ${ctx.edite}` : '';
+
+        // Tout est tombé : le document n'est plus un point d'étape, c'est une
+        // annulation. Le message doit le dire avant qu'on ouvre la pièce jointe.
+        if(ctx.projetEntier){
+          return [
+            salut(ctx) + ',',
+            '',
+            ponctuer(`Tout est annulé sur ${nomProjet(ctx)}`),
+            `Tu trouveras le détail dans le document joint. Tu peux libérer ces journées — merci de les avoir gardées, et désolé pour le contretemps.`,
+            '',
+            'Tes autres dates restent ici :',
+            ctx.lien,
+          ].join('\n');
+        }
+
+        return [
+          salut(ctx) + ',',
+          '',
+          ponctuer(`Voici où en est ${nomProjet(ctx)} — le récapitulatif est en pièce jointe, arrêté${arrete}`),
+          // La couleur ne se comprend pas toute seule : la légende est dans le
+          // PDF, mais la phrase qui dit ce qu'il faut EN FAIRE est ici.
+          m.rempla
+            ? `Les dates en vert sont validées, celles en ambre sont encore des options : on pense à toi dessus, et rien n'est signé — ni de notre côté, ni du tien.`
+            : `Les dates en vert sont validées, celles en ambre sont encore des options : la salle les tient, rien n'est signé. Tant qu'une date n'est pas validée, garde-la de côté sans la bloquer.`,
+          '',
+          // Le document date du jour, le lien ne date pas : c'est la seule
+          // chose que ce message promet, et la seule qu'on puisse tenir.
+          'Le document est une photographie du jour. La version toujours à jour est ici :',
+          ctx.lien,
+        ].join('\n');
+      },
+    },
   ];
 
   // Le contexte d'un modèle : 'dispo' quand il va chercher une réponse (les

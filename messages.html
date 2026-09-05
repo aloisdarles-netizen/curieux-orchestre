@@ -58,6 +58,22 @@
   .puce-date small{font-weight:600; color:var(--muted); margin-left:5px;}
   .puce-date.on{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark);}
   .puce-date.on small{color:var(--accent-dark);}
+  /* Les projets : mêmes puces que les dates, en un peu plus large — un nom de
+     projet est plus long qu'un quantième. */
+  .puce-projet{
+    border:1px solid var(--border); background:var(--bg); color:var(--text);
+    font:inherit; font-size:12.5px; font-weight:700; border-radius:999px;
+    padding:6px 13px; cursor:pointer; text-align:left;
+  }
+  .puce-projet:hover{border-color:var(--accent);}
+  .puce-projet.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .puce-projet small{font-weight:600; opacity:.75; margin-left:6px;}
+  /* Le nom du projet en tête d'un paquet de dates, quand il y en a plusieurs. */
+  .dates-projet{
+    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); margin:10px 0 5px; width:100%;
+  }
+  .dates-projet:first-child{margin-top:0;}
   .mini{
     border:1px solid var(--border); background:var(--card); color:var(--muted);
     font:inherit; font-size:11.5px; font-weight:700; border-radius:999px;
@@ -114,9 +130,28 @@
     width:100%; margin-top:9px; padding:8px 10px; border:1px solid var(--border);
     border-radius:8px; background:var(--card); color:var(--text); font:inherit; font-size:13px;
   }
-  .doc-choix{display:flex; flex-direction:column; gap:8px; margin-bottom:11px;}
+  .doc-choix{display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:8px 18px; margin-bottom:11px;}
   .doc-case{display:flex; align-items:center; gap:9px; font-size:13px; cursor:pointer;}
-  .doc-case input{width:17px; height:17px; accent-color:var(--accent);}
+  .doc-case input{width:17px; height:17px; accent-color:var(--accent); flex:none;}
+  .doc-case.eteinte{opacity:.45; cursor:default;}
+  /* La portée du document : deux documents très différents sortent d'ici — la
+     saison vue d'en haut, ou le calendrier de chacun·e. Deux onglets, parce
+     qu'ils s'excluent et qu'une case à cocher ne dirait pas qu'ils s'excluent. */
+  .doc-portee{display:flex; gap:7px; flex-wrap:wrap; margin-bottom:11px;}
+  .doc-portee button{
+    border:1px solid var(--border); background:var(--bg); color:var(--text);
+    font:inherit; font-size:12.5px; font-weight:700; border-radius:999px;
+    padding:7px 13px; cursor:pointer; text-align:left;
+  }
+  .doc-portee button:hover{border-color:var(--accent);}
+  .doc-portee button.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .doc-portee button small{display:block; font-weight:600; font-size:11px; opacity:.75;}
+  .doc-mot{
+    width:100%; margin-top:9px; padding:8px 10px; border:1px solid var(--border);
+    border-radius:8px; background:var(--card); color:var(--text); font:inherit; font-size:13px;
+    resize:vertical; min-height:44px;
+  }
+  .doc-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:11px;}
   .doc-avert{
     background:var(--maybe-tint); color:var(--maybe); border-radius:8px; padding:9px 11px;
     font-size:12.5px; line-height:1.5; margin:0 0 11px; font-weight:600;
@@ -139,8 +174,9 @@
   <div class="deux">
     <div>
       <section class="etape">
-        <p class="etape-titre"><em>1.</em> Le projet</p>
-        <select class="co-select" id="projet" style="max-width:420px;"></select>
+        <p class="etape-titre"><em>1.</em> Les projets <button type="button" class="mini" id="projetsAucun">Tout décocher</button></p>
+        <p class="etape-aide">Un seul projet pour un message ; plusieurs pour un document qui reprend tout d'un coup — le récapitulatif d'une saison, par exemple.</p>
+        <div class="puces" id="projets"></div>
       </section>
 
       <section class="etape">
@@ -163,14 +199,29 @@
 
       <section class="etape">
         <p class="etape-titre"><em id="numDoc">5.</em> Le document</p>
-        <p class="etape-aide">Un récapitulatif en PDF, à joindre au message ou à imprimer. Il reprend le projet et ses dates, groupées par statut — jamais les coordonnées de qui que ce soit : un document circule, et on ne sait pas jusqu'où.</p>
+        <p class="etape-aide">Un récapitulatif en PDF, à joindre au message ou à imprimer. Il reprend le calendrier tel qu'on le voit dans l'espace personnel — mêmes couleurs, même grille — arrêté au jour où tu le génères. Jamais les coordonnées de qui que ce soit : un document circule, et on ne sait pas jusqu'où.</p>
+
+        <div class="doc-portee" id="docPortee">
+          <button type="button" data-portee="general" class="on">Le ou les projets<small>Une vue d'ensemble, la même pour tout le monde.</small></button>
+          <button type="button" data-portee="personne">Un document par personne<small>Le calendrier de chacun·e, comme dans son espace.</small></button>
+        </div>
+
         <div class="doc-choix">
+          <label class="doc-case"><input type="checkbox" id="docCalendrier" checked> Le calendrier</label>
+          <label class="doc-case"><input type="checkbox" id="docListe" checked> La liste des dates, par statut</label>
           <label class="doc-case"><input type="checkbox" id="docPerimetre"> Seulement les dates cochées ci-dessus</label>
           <label class="doc-case"><input type="checkbox" id="docAnnulees"> Inclure les dates annulées</label>
-          <label class="doc-case"><input type="checkbox" id="docDistribution"> Dire qui joue sur chaque date</label>
+          <label class="doc-case" id="docCaseDistribution"><input type="checkbox" id="docDistribution"> Dire qui joue sur chaque date</label>
         </div>
+
+        <input type="text" class="champ-butoir" id="docTitre" placeholder="Titre du document (facultatif)">
+        <textarea class="doc-mot" id="docMot" rows="2" placeholder="Un mot d'introduction, en tête du document (facultatif)"></textarea>
+
         <p class="doc-avert" id="docAvert" hidden></p>
-        <button type="button" class="co-btn primary md" id="docGenerer">Générer le PDF</button>
+        <div class="doc-actions">
+          <button type="button" class="co-btn primary md" id="docGenerer">Générer le PDF</button>
+          <span class="g-quand" id="docCompte"></span>
+        </div>
       </section>
     </div>
 
@@ -192,10 +243,10 @@
    ============================================================================
    Les relances de dispos partaient du suivi des demandes, et rien ne servait à
    dire le reste : qu'on vient de poser une option, qu'une date est validée,
-   qu'elle tombe. Ces annonces se faisaient donc de mémoire, une par une, et se
+   qu'elle tombe. Ces annonces se faisaient de mémoire, une par une, et se
    perdaient — quelqu'un apprenait l'annulation de sa date par un collègue.
 
-   Trois principes tiennent cette page.
+   Quatre principes tiennent cette page.
 
    1. Demander et informer ne sont pas le même geste, mais c'est la même
       mécanique : mêmes personnes, mêmes liens, même règle des cinq dates. On
@@ -203,18 +254,24 @@
       liste unique, c'est laisser choisir « Relance courte » quand on voulait
       annoncer une validation.
 
-   2. Le destinataire d'une annonce n'est pas le destinataire d'une relance.
-      On relance qui n'a pas répondu ; on informe qui est distribué sur les
-      dates concernées. La page présélectionne selon le motif, et on peut
-      toujours corriger à la main — mais le défaut ne doit jamais être « tout
-      le monde », qui est la façon la plus sûre de faire lire les messages par
-      personne.
+   2. Le destinataire d'une annonce n'est pas celui d'une relance. On relance
+      qui n'a pas répondu ; on informe qui est distribué sur les dates
+      concernées. La page présélectionne selon le motif, et on peut toujours
+      corriger — mais le défaut ne doit jamais être « tout le monde », qui est
+      la façon la plus sûre de faire lire les messages par personne.
 
    3. Ce qui part se note. Sur quarante personnes prévenues une à une dans
       WhatsApp, il suffit d'une interruption pour ne plus savoir où l'on s'était
       arrêté. On enregistre l'INTENTION au clic, pas la remise : WhatsApp et le
       client de messagerie s'ouvrent ailleurs et ne nous répondent pas. « Écrit
       il y a 2 j » veut donc dire « on a cliqué », pas « la personne a lu ».
+
+   4. PLUSIEURS PROJETS À LA FOIS. Un message ne parle bien que d'un projet, ou
+      de deux quand la même personne est en retard sur les deux — c'est ainsi
+      que le suivi des dispos les cumulait déjà. Un DOCUMENT, lui, sert
+      justement à réunir : le récapitulatif d'une saison tient sur une page et
+      s'envoie une fois. Le choix du projet est donc multiple, et tout ce qui
+      suit — dates, destinataires, rôles, liens — travaille sur l'union.
 ============================================================================ */
 
 let tourneesCache = [], musiciensCache = [], techniciensCache = [];
@@ -223,7 +280,7 @@ let jetonsPermanents = new Map();
 let monEmail = '';
 
 // Ce qui est choisi à l'écran.
-let projetId = '';
+let projetsChoisis = new Set();  // ids de tournée
 let motif = 'relance';
 let datesChoisies = new Set();   // ids de date, pour les motifs d'information
 let gensChoisis = new Set();     // 'type:id'
@@ -232,25 +289,35 @@ let partis = new Set();          // ce qu'on a envoyé depuis l'ouverture de la 
 
 const params = new URLSearchParams(location.search);
 
+// Le motif qui accompagne un document plutôt qu'une annonce. Nommé, parce que
+// quatre endroits de la page s'en écartent — présélections, aide, contexte.
+const MOTIF_DOC = 'recap-doc';
+
 function loadTournees(){ return tourneesCache; }
-function projet(){ return tourneesCache.find(t=> t.id === projetId) || null; }
+function projets(){ return tourneesCache.filter(t=> projetsChoisis.has(t.id)); }
+function unSeulProjet(){ return projets().length === 1 ? projets()[0] : null; }
 function estInfo(cle){ return (CurieuxMessages.MODELES.find(m=> m.cle === cle) || {}).contexte === 'info'; }
 
-/* Les dates d'un projet, à venir, hors annulées — sauf pour l'annonce d'une
-   annulation, qui ne parle QUE de celles-là. */
-function datesDuProjet(){
-  const t = projet();
-  if(!t) return [];
+/* Les dates des projets choisis, à venir, chacune accompagnée de son projet.
+   On les garde appariées plutôt que de recopier le nom du projet dans la date :
+   c'est le même document jsonb, et une copie se désynchronise. */
+function datesDesProjets(){
   const today = new Date().toISOString().slice(0, 10);
-  return (t.dates || [])
-    .filter(d=> d.date && d.date >= today)
-    .slice().sort((a, b)=> a.date.localeCompare(b.date));
+  const out = [];
+  projets().forEach(t=> (t.dates || []).forEach(d=>{
+    if(d.date && d.date >= today) out.push({ d, t });
+  }));
+  out.sort((a, b)=> a.d.date.localeCompare(b.d.date) || (a.t.nom || '').localeCompare(b.t.nom || ''));
+  return out;
 }
+function dateParId(id){ return datesDesProjets().find(x=> x.d.id === id) || null; }
 
 const MOIS_COURTS = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 function jourCourt(iso){
   const [, m, j] = String(iso || '').split('-');
-  return j ? `${parseInt(j, 10)} ${MOIS_COURTS[parseInt(m, 10) - 1] || ''}` : '';
+  if(!j) return '';
+  const n = parseInt(j, 10);
+  return `${n === 1 ? '1er' : n} ${MOIS_COURTS[parseInt(m, 10) - 1] || ''}`;
 }
 function ilYA(iso){
   if(!iso) return '';
@@ -263,54 +330,92 @@ function ilYA(iso){
 }
 
 // --- Qui est concerné -------------------------------------------------------
-function personnesDuProjet(){
-  const t = projet();
-  if(!t) return [];
+function personnesConcernees(){
   const parCle = new Map();
   const ajoute = (p, type)=>{ if(p) parCle.set(`${type}:${p.id}`, { p, type }); };
 
-  // Sollicité·es : il existe une demande de dispo sur ce projet.
-  demandesCache.filter(d=> d.tourneeId === t.id).forEach(d=>{
-    const liste = d.personType === 'musicien' ? musiciensCache : techniciensCache;
-    ajoute(liste.find(x=> x.id === d.personId), d.personType);
-  });
-  // Distribué·es : affecté sur au moins une date, même sans demande.
-  (t.dates || []).forEach(d=>{
-    (d.musiciensAssignes || []).forEach(id=> ajoute(musiciensCache.find(x=> x.id === id), 'musicien'));
-    (d.techniciensAssignes || []).forEach(id=> ajoute(techniciensCache.find(x=> x.id === id), 'technicien'));
+  projets().forEach(t=>{
+    // Sollicité·es : il existe une demande de dispo sur ce projet.
+    demandesCache.filter(d=> d.tourneeId === t.id).forEach(d=>{
+      const liste = d.personType === 'musicien' ? musiciensCache : techniciensCache;
+      ajoute(liste.find(x=> x.id === d.personId), d.personType);
+    });
+    // Distribué·es : affecté sur au moins une date, même sans demande.
+    (t.dates || []).forEach(d=>{
+      (d.musiciensAssignes || []).forEach(id=> ajoute(musiciensCache.find(x=> x.id === id), 'musicien'));
+      (d.techniciensAssignes || []).forEach(id=> ajoute(techniciensCache.find(x=> x.id === id), 'technicien'));
+    });
   });
   return [...parCle.values()].sort((a, b)=> curieuxComparePupitrePuisNom(a.p, b.p));
 }
 
+function demandePour(type, id, tourneeId){
+  return demandesCache.find(d=> d.tourneeId === tourneeId && d.personType === type && d.personId === id) || null;
+}
+// La demande la plus utile parmi les projets choisis : celle qui existe.
 function demandeDe(type, id){
-  return demandesCache.find(d=> d.tourneeId === projetId && d.personType === type && d.personId === id) || null;
+  for(const t of projets()){
+    const d = demandePour(type, id, t.id);
+    if(d) return d;
+  }
+  return null;
+}
+
+/* Le rôle, quand plusieurs projets sont choisis.
+   ---------------------------------------------------------------------------
+   Quelqu'un peut être du noyau sur une tournée et appelé en renfort sur un
+   recording. On ne retient « remplaçant·e » que si la personne l'est sur TOUS
+   les projets concernés : dès qu'elle est titulaire quelque part, le ton du
+   noyau est le bon, et le message nomme de toute façon les deux projets.
+   L'erreur inverse — écrire au noyau comme à un renfort — serait la plus
+   maladroite des deux. */
+function roleDe(type, p){
+  const roles = projets()
+    .filter(t=> concernePar(type, p.id, t))
+    .map(t=> roleSurProjet(demandePour(type, p.id, t.id), p));
+  if(!roles.length) return roleSurProjet(null, p);
+  return roles.every(r=> r === 'remplacant') ? 'remplacant' : 'titulaire';
+}
+
+// Cette personne a-t-elle quelque chose à voir avec CE projet ?
+function concernePar(type, id, t){
+  if(demandePour(type, id, t.id)) return true;
+  const champ = type === 'musicien' ? 'musiciensAssignes' : 'techniciensAssignes';
+  return (t.dates || []).some(d=> (d[champ] || []).includes(id));
 }
 
 /* Les dates dont le message parlera, pour CETTE personne.
    Informer : celles qu'on a cochées, et sur lesquelles la personne est
-   distribuée — annoncer à quelqu'un une validation qui ne le concerne pas
-   sème un doute inutile. Relancer : celles dont sa dispo manque encore. */
+   distribuée — annoncer à quelqu'un une validation qui ne le concerne pas sème
+   un doute inutile. Relancer : celles dont sa dispo manque encore, sur tous les
+   projets choisis. */
 function datesPour(type, id){
-  const t = projet();
-  if(!t) return { toutes: [], manquantes: [] };
-  const dates = datesDuProjet();
   const champ = type === 'musicien' ? 'musiciensAssignes' : 'techniciensAssignes';
   const fiche = (type === 'musicien' ? musiciensCache : techniciensCache).find(x=> x.id === id);
   const dispo = (fiche && fiche.disponibilites) || {};
 
   if(estInfo(motif)){
-    const retenues = dates.filter(d=> datesChoisies.has(d.id) && (d[champ] || []).includes(id));
-    return { toutes: retenues.map(d=> d.date), manquantes: retenues.map(d=> d.date) };
+    const retenues = datesDesProjets()
+      .filter(({ d })=> datesChoisies.has(d.id) && (d[champ] || []).includes(id));
+    return { toutes: retenues.map(x=> x.d.date), manquantes: retenues.map(x=> x.d.date) };
   }
-  const dem = demandeDe(type, id);
-  const bornees = dem && (dem.dates || []).length
-    ? dates.filter(d=> dem.dates.includes(d.id))
-    : dates;
-  const concernees = bornees.filter(d=> statutDate(d) !== 'annulee');
-  return {
-    toutes: concernees.map(d=> d.date),
-    manquantes: concernees.filter(d=> !dispo[d.date]).map(d=> d.date),
-  };
+
+  const toutes = [], manquantes = [];
+  projets().forEach(t=>{
+    const dem = demandePour(type, id, t.id);
+    // Sans demande sur ce projet, on ne parle pas de ses dates : on n'a rien
+    // demandé à cette personne, et une relance porterait sur du vide.
+    if(!dem) return;
+    const bornees = (dem.dates || []).length
+      ? (t.dates || []).filter(d=> dem.dates.includes(d.id))
+      : (t.dates || []);
+    const today = new Date().toISOString().slice(0, 10);
+    bornees.filter(d=> d.date && d.date >= today && statutDate(d) !== 'annulee').forEach(d=>{
+      toutes.push(d.date);
+      if(!dispo[d.date]) manquantes.push(d.date);
+    });
+  });
+  return { toutes, manquantes };
 }
 
 function lienPour(type, id){
@@ -322,48 +427,58 @@ function lienPour(type, id){
   return lienPublic(estInfo(motif) ? 'mes-dates.html' : 'mon-espace.html', 'token=' + encodeURIComponent(jeton));
 }
 
-/* Le projet entier est-il annulé ?
-   ---------------------------------------------------------------------------
+/* Un projet est-il entièrement annulé ?
    On regarde le PROJET, pas ce qui est coché : si toutes ses dates à venir
    portent le statut « annulée », la tournée est annulée, et le message doit le
    dire ainsi. Annoncer « ces dates ne se feront pas » quand il n'en reste
    aucune laisse croire qu'il en reste : la personne rappelle pour savoir ce qui
-   subsiste, c'est-à-dire exactement le message qu'on croyait avoir envoyé.
-
-   Le test porte sur les dates à venir, jamais sur l'historique : une tournée de
-   l'an dernier, jouée puis close, n'est pas une tournée annulée. */
-function projetEntierAnnule(){
-  const dates = datesDuProjet();
+   subsiste, c'est-à-dire exactement le message qu'on croyait avoir envoyé. */
+function projetAnnule(t){
+  const today = new Date().toISOString().slice(0, 10);
+  const dates = (t.dates || []).filter(d=> d.date && d.date >= today);
   return dates.length > 0 && dates.every(d=> statutDate(d) === 'annulee');
+}
+function tousAnnules(){
+  const liste = projets();
+  return liste.length > 0 && liste.every(projetAnnule);
 }
 
 function contexteDe(type, id){
   const fiche = (type === 'musicien' ? musiciensCache : techniciensCache).find(x=> x.id === id);
   if(!fiche) return null;
-  const t = projet();
+  const liste = projets();
   const d = datesPour(type, id);
+  // Un seul type quand tous les projets sont de la même nature ; sinon le
+  // vocabulaire neutre de la tournée, qui ne dit rien de faux d'un recording.
+  const types = [...new Set(liste.map(t=> t.type || 'tournee'))];
   return {
     prenom: fiche.prenom || '', telephone: fiche.telephone || '', email: fiche.email || '',
-    projet: (t && t.nom) || '', lien: lienPour(type, id),
-    /* Ce qui change le message, et qu'on lui donnait jusqu'ici en aveugle.
-       Le rôle vient de la demande du PROJET quand elle en porte un, du statut
-       de l'annuaire sinon (roleSurProjet) : quelqu'un du noyau peut être appelé
-       en remplaçant·e sur une tournée précise, et c'est ce rôle-là qui décide
-       du ton — pas son statut général. */
-    role: roleSurProjet(demandeDe(type, id), fiche),
-    typeProjet: (t && t.type) || 'tournee',
+    projet: CurieuxMessages.joindre(liste.map(t=> t.nom || 'projet')),
+    lien: lienPour(type, id),
+    /* Ce qui change le message, et qu'on lui donnait jusqu'ici en aveugle. Le
+       rôle vient de la demande du PROJET quand elle en porte un, du statut de
+       l'annuaire sinon (roleSurProjet) : quelqu'un du noyau peut être appelé en
+       remplaçant·e sur une tournée précise, et c'est ce rôle-là qui décide du
+       ton — pas son statut général. */
+    role: roleDe(type, fiche),
+    typeProjet: types.length === 1 ? types[0] : 'tournee',
     personType: type,
     manquantes: d.manquantes, toutes: d.toutes,
     butoir: (document.getElementById('butoir') || {}).value || '',
-    projetEntier: projetEntierAnnule(),
+    projetEntier: tousAnnules(),
+    // Le jour où le document a été arrêté. Le message le dit, parce qu'un PDF
+    // qui circule pendant trois semaines sans porter sa date se lit comme s'il
+    // était d'aujourd'hui — et fait bloquer des journées déjà libérées.
+    edite: editeLe(),
     canal,
-    sujet: estInfo(motif) ? `${(t && t.nom) || 'Projet'} — tes dates` : undefined,
+    sujet: estInfo(motif) ? `${CurieuxMessages.joindre(liste.map(t=> t.nom || 'projet')) || 'Projet'} — tes dates` : undefined,
   };
 }
 
 function dernierEnvoi(type, id){
+  const ids = new Set([...projetsChoisis]);
   const pour = envoisCache
-    .filter(e=> e.personType === type && e.personId === id && (!e.tourneeId || e.tourneeId === projetId))
+    .filter(e=> e.personType === type && e.personId === id && (!e.tourneeId || ids.has(e.tourneeId)))
     .sort((a, b)=> String(b.envoyeLe).localeCompare(String(a.envoyeLe)));
   if(pour.length) return pour[0].envoyeLe;
   const dem = demandeDe(type, id);
@@ -374,17 +489,30 @@ function dernierEnvoi(type, id){
 function presélectionnerDates(){
   datesChoisies = new Set();
   if(!estInfo(motif)) return;
+  // Le récapitulatif ne parle pas d'un changement mais de l'état des lieux : il
+  // part de TOUT, et on retire ensuite ce dont on ne veut pas. Les trois autres
+  // annoncent un mouvement, et ne cochent que les dates qui l'ont subi.
+  if(motif === MOTIF_DOC){
+    datesDesProjets().forEach(({ d })=> datesChoisies.add(d.id));
+    return;
+  }
   const vise = motif === 'option-posee' ? 'option'
              : motif === 'dates-validees' ? 'validee'
              : 'annulee';
-  datesDuProjet().filter(d=> statutDate(d) === vise).forEach(d=> datesChoisies.add(d.id));
+  datesDesProjets().filter(({ d })=> statutDate(d) === vise).forEach(({ d })=> datesChoisies.add(d.id));
 }
 
 function presélectionnerGens(){
   gensChoisis = new Set();
-  personnesDuProjet().forEach(({ p, type })=>{
+  personnesConcernees().forEach(({ p, type })=>{
     const d = datesPour(type, p.id);
-    if(estInfo(motif)){
+    // Le récapitulatif va à tout le monde : c'est ce qui en fait une lettre
+    // d'information et non une annonce. Le limiter aux personnes distribuées
+    // laisserait dehors celles dont on attend encore les dispos — c'est-à-dire
+    // exactement celles à qui le document sert le plus.
+    if(motif === MOTIF_DOC){
+      gensChoisis.add(`${type}:${p.id}`);
+    } else if(estInfo(motif)){
       if(d.toutes.length) gensChoisis.add(`${type}:${p.id}`);
     } else if(motif === 'premiere' || motif === 'lien'){
       gensChoisis.add(`${type}:${p.id}`);
@@ -396,11 +524,17 @@ function presélectionnerGens(){
 
 // --- Rendu ------------------------------------------------------------------
 function rendreProjets(){
-  const sel = document.getElementById('projet');
+  const holder = document.getElementById('projets');
   const liste = tourneesCache.slice().sort((a, b)=> (a.nom || '').localeCompare(b.nom || ''));
-  sel.innerHTML = `<option value="">— choisir un projet —</option>` +
-    liste.map(t=> `<option value="${escapeAttr(t.id)}">${escapeHtml((t.nom || 'Projet') + suffixeProjetTexte(t))}</option>`).join('');
-  sel.value = projetId;
+  const today = new Date().toISOString().slice(0, 10);
+  if(!liste.length){ holder.innerHTML = `<span class="vide">Aucun projet.</span>`; return; }
+  holder.innerHTML = liste.map(t=>{
+    const n = (t.dates || []).filter(d=> d.date && d.date >= today).length;
+    const on = projetsChoisis.has(t.id);
+    return `<button type="button" class="puce-projet${on ? ' on' : ''}" data-projet="${escapeAttr(t.id)}" aria-pressed="${on}">
+      ${escapeHtml((t.nom || 'Projet') + suffixeProjetTexte(t))}<small>${n}</small>
+    </button>`;
+  }).join('');
 }
 
 function rendreMotifs(){
@@ -427,34 +561,54 @@ function rendreDates(){
   document.getElementById('numDest').textContent = estInfo(motif) ? '4.' : '3.';
   if(bloc.hidden) return;
 
-  const dates = datesDuProjet();
-  const aide = motif === 'option-posee' ? "Les dates en option sont cochées d'office — décoche celles dont tu ne parles pas."
+  const paires = datesDesProjets();
+  const aide = motif === MOTIF_DOC ? "Tout est coché : ce qui reste ici entrera dans le document si tu limites son périmètre à l'étape 5."
+             : motif === 'option-posee' ? "Les dates en option sont cochées d'office — décoche celles dont tu ne parles pas."
              : motif === 'dates-validees' ? "Les dates validées sont cochées d'office."
              : "Les dates annulées sont cochées d'office.";
   document.getElementById('datesAide').textContent = aide;
-  document.getElementById('dates').innerHTML = dates.length
-    ? dates.map(d=> `<button type="button" class="puce-date${datesChoisies.has(d.id) ? ' on' : ''}" data-date="${escapeAttr(d.id)}">
-        ${escapeHtml(jourCourt(d.date))}<small>${escapeHtml(courtStatut(d))}${d.ville ? ' · ' + escapeHtml(d.ville) : ''}</small>
-      </button>`).join('')
-    : `<span class="vide">Ce projet n'a aucune date à venir.</span>`;
+
+  if(!paires.length){
+    document.getElementById('dates').innerHTML = `<span class="vide">Aucune date à venir sur les projets choisis.</span>`;
+    return;
+  }
+  // Avec plusieurs projets, chaque paquet de dates dit d'où il vient : « 12 avr.
+  // en option » ne veut rien dire quand deux projets tournent en même temps.
+  const plusieurs = projets().length > 1;
+  let courant = '';
+  document.getElementById('dates').innerHTML = paires.map(({ d, t })=>{
+    let tete = '';
+    if(plusieurs && t.id !== courant){
+      courant = t.id;
+      tete = `<div class="dates-projet">${escapeHtml(t.nom || 'Projet')}</div>`;
+    }
+    return tete + `<button type="button" class="puce-date${datesChoisies.has(d.id) ? ' on' : ''}" data-date="${escapeAttr(d.id)}">
+      ${escapeHtml(jourCourt(d.date))}<small>${escapeHtml(courtStatut(d))}${d.ville ? ' · ' + escapeHtml(d.ville) : ''}</small>
+    </button>`;
+  }).join('');
 }
 
 function rendreGens(){
   const holder = document.getElementById('gens');
-  if(!projetId){ holder.innerHTML = `<p class="vide">Choisis d'abord un projet.</p>`; return; }
+  if(!projetsChoisis.size){ holder.innerHTML = `<p class="vide">Choisis d'abord un ou plusieurs projets.</p>`; return; }
 
-  const gens = personnesDuProjet();
-  if(!gens.length){ holder.innerHTML = `<p class="vide">Personne n'est encore sollicité ni distribué sur ce projet.</p>`; return; }
+  const gens = personnesConcernees();
+  if(!gens.length){ holder.innerHTML = `<p class="vide">Personne n'est encore sollicité ni distribué sur ces projets.</p>`; return; }
 
-  document.getElementById('gensAide').textContent = estInfo(motif)
+  document.getElementById('gensAide').textContent = motif === MOTIF_DOC
+    ? "Cochées d'office : tout le monde. Le récapitulatif s'adresse à l'équipe entière, sollicité·es comprises."
+    : estInfo(motif)
     ? "Cochées d'office : les personnes distribuées sur au moins une des dates retenues."
     : "Cochées d'office : les personnes dont il manque encore une dispo.";
 
   const lignes = gens.map(({ p, type })=>{
     const cle = `${type}:${p.id}`;
-    const role = roleSurProjet(demandeDe(type, p.id), p);
+    const role = roleDe(type, p);
     const d = datesPour(type, p.id);
-    const nb = estInfo(motif) ? d.toutes.length : d.manquantes.length;
+    // Sur un récapitulatif, le chiffre utile est le nombre de dates que SON
+    // document portera — pas celles dont un message parlerait.
+    const nb = motif === MOTIF_DOC ? datesDocPour(type, p.id).length
+             : estInfo(motif) ? d.toutes.length : d.manquantes.length;
     const tel = CurieuxMessages.numeroWhatsapp(p.telephone);
     const voie = tel ? 'WhatsApp' : (p.email ? 'e-mail' : 'aucun contact');
     const quand = ilYA(dernierEnvoi(type, p.id));
@@ -483,18 +637,21 @@ function rendreApercu(){
     [['', 'Automatique'], ['whatsapp', 'WhatsApp'], ['mail', 'E-mail']].map(([v, l])=>
       `<button type="button" class="motif${canal === v ? ' on' : ''}" data-canal="${v}" style="font-size:12px; padding:5px 11px;">${l}</button>`).join('');
 
-  const gens = personnesDuProjet().filter(({ p, type })=> gensChoisis.has(`${type}:${p.id}`));
+  const gens = personnesConcernees().filter(({ p, type })=> gensChoisis.has(`${type}:${p.id}`));
   compte.innerHTML = `<b>${gens.length}</b> destinataire${gens.length > 1 ? 's' : ''} coché${gens.length > 1 ? 's' : ''}` +
     (partis.size ? ` · <b>${partis.size}</b> envoyé${partis.size > 1 ? 's' : ''} depuis l'ouverture de la page.` : '.');
 
-  if(!projetId || !gens.length){
+  const vieux = document.querySelector('.avert');
+  if(vieux) vieux.remove();
+
+  if(!projetsChoisis.size || !gens.length){
     qui.textContent = '';
-    zone.textContent = projetId ? "Personne n'est coché : le message n'a pas de destinataire." : 'Choisis un projet et un motif.';
+    zone.textContent = projetsChoisis.size ? "Personne n'est coché : le message n'a pas de destinataire." : 'Choisis un projet et un motif.';
     return;
   }
   const { p, type } = gens[0];
   const ctx = contexteDe(type, p.id);
-  const roleApercu = roleSurProjet(demandeDe(type, p.id), p);
+  const roleApercu = roleDe(type, p);
   // « adapté au rôle » et non « le même » : deux personnes de rôles différents
   // ne reçoivent pas le même texte, et le croire serait le pire des malentendus
   // sur cette page.
@@ -507,19 +664,23 @@ function rendreApercu(){
   const avert = [];
   if(sansContact) avert.push(`${sansContact} personne${sansContact > 1 ? 's' : ''} sans téléphone ni e-mail : le message sera copié dans le presse-papiers.`);
   if(sansLien) avert.push(`${sansLien} personne${sansLien > 1 ? 's' : ''} sans lien personnel.`);
-  const vieux = document.querySelector('.avert');
-  if(vieux) vieux.remove();
+  if(projets().length > 1) avert.push("Plusieurs projets sont choisis : le message les nommera tous. Pour n'en annoncer qu'un, n'en coche qu'un.");
+  /* Le message annonce une pièce jointe, et aucun navigateur ne sait attacher
+     un fichier à un WhatsApp ou à un mailto : c'est la main qui le fait. Ne pas
+     le dire ici, c'est laisser partir quarante messages qui parlent d'un
+     document que personne ne recevra. */
+  if(motif === MOTIF_DOC) avert.push("Ce message annonce une pièce jointe : génère le PDF à l'étape 5, puis joins-le à la main dans WhatsApp ou dans ton client de messagerie.");
   if(avert.length) compte.insertAdjacentHTML('afterend', `<p class="avert">${escapeHtml(avert.join(' '))}</p>`);
 }
 
 function rendre(){
+  rendreProjets();
   rendreMotifs();
   rendreDates();
   rendreGens();
   rendreApercu();
   // Le document se numérote après les dates, qui n'apparaissent que sur une
-  // annonce ; et la case « seulement les dates cochées » se coche d'office
-  // quand il y a justement des dates cochées à dire.
+  // annonce ; et la case « seulement les dates cochées » n'a de sens que là.
   document.getElementById('numDoc').textContent = estInfo(motif) ? '5.' : '4.';
   const perimetre = document.getElementById('docPerimetre');
   perimetre.disabled = !estInfo(motif);
@@ -535,19 +696,26 @@ function rendre(){
    quelqu'un qui n'était pas dans la boucle. Les deux ne servent pas à la même
    chose, et la page devait savoir faire les deux.
 
-   Ce que le document ne contient JAMAIS : ni téléphone, ni adresse, ni courriel.
-   Un document circule — on ne sait pas jusqu'où, et une liste de coordonnées qui
-   sort de l'équipe ne revient pas. La distribution, elle, reste optionnelle : la
-   dire à l'intérieur de l'orchestre va de soi, l'écrire dans un PDF qui partira
-   peut-être chez un partenaire, beaucoup moins.
+   C'est aussi lui qui justifie le choix multiple : un document qui reprend la
+   saison entière — trois tournées et un recording — s'envoie une fois, là où
+   quatre documents séparés se perdent trois fois.
 
-   Le périmètre suit le motif. Une annonce parle des dates qu'on a cochées ; une
-   demande de dispo parle du projet entier. Les cases permettent de trancher
-   autrement, et l'avertissement dit ce qui va sortir avant qu'on clique. */
+   Ce que le document ne contient JAMAIS : ni téléphone, ni adresse, ni
+   courriel. Un document circule — on ne sait pas jusqu'où, et une liste de
+   coordonnées qui sort de l'équipe ne revient pas. La distribution, elle, reste
+   optionnelle : la dire à l'intérieur de l'orchestre va de soi, l'écrire dans
+   un PDF qui partira peut-être chez un partenaire, beaucoup moins. */
 
 const MOIS_DOC = ['janvier','février','mars','avril','mai','juin',
                   'juillet','août','septembre','octobre','novembre','décembre'];
 const JOURS_DOC = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+
+// L'ordre d'engagement : quand deux projets tombent le même jour, c'est le
+// statut le plus engageant qui donne sa couleur à la case. Le même arbitrage
+// qu'à l'écran (assets/mes-dates-vue.js), et pour la même raison : une journée
+// où l'on joue ne doit pas se peindre en « recherche » parce qu'un autre projet
+// cherche encore ses dates.
+const RANG_DOC = { validee:0, option:1, recherche:2, annulee:3 };
 
 // Découpage de la chaîne ISO, jamais new Date() sur une date nue : selon le
 // fuseau, minuit recule d'un jour, et une date de concert fausse d'un jour dans
@@ -556,17 +724,37 @@ function jourDoc(iso){
   const [a, m, j] = String(iso || '').split('-').map(n=> parseInt(n, 10));
   if(!j) return '';
   const sem = JOURS_DOC[(new Date(Date.UTC(a, m - 1, j)).getUTCDay() + 6) % 7];
-  // « 1er » et non « 1 » : le document s'imprime et se relit.
   return `${sem} ${j === 1 ? '1er' : j} ${MOIS_DOC[m - 1] || ''}`;
 }
 
-// Les dates que le document reprendra, dans l'ordre.
+// Les dates que le document reprendra, appariées à leur projet.
 function datesDuDocument(){
   const cochees = document.getElementById('docPerimetre').checked;
   const avecAnnulees = document.getElementById('docAnnulees').checked;
-  return datesDuProjet()
-    .filter(d=> !cochees || datesChoisies.has(d.id))
-    .filter(d=> avecAnnulees || statutDate(d) !== 'annulee');
+  return datesDesProjets()
+    .filter(({ d })=> !cochees || datesChoisies.has(d.id))
+    .filter(({ d })=> avecAnnulees || statutDate(d) !== 'annulee');
+}
+
+/* Les dates du document POUR UNE PERSONNE.
+   ---------------------------------------------------------------------------
+   Deux façons d'être concerné·e par une date, et il faut les deux. Distribué·e
+   dessus : elle joue, la case porte le point. Sollicité·e seulement : on lui a
+   demandé sa dispo, la date la regarde encore — c'est même pour ces dates-là
+   qu'elle attend une réponse. N'en garder que la première, c'est envoyer un
+   calendrier qui ne parle pas des journées qu'elle a bloquées pour nous. */
+function datesDocPour(type, id){
+  const champ = type === 'musicien' ? 'musiciensAssignes' : 'techniciensAssignes';
+  const out = [];
+  datesDuDocument().forEach(({ d, t })=>{
+    const affecte = (d[champ] || []).includes(id);
+    if(affecte){ out.push({ d, t, affecte:true }); return; }
+    const dem = demandePour(type, id, t.id);
+    if(!dem) return;
+    // Une demande sans liste de dates porte sur tout le projet.
+    if(!(dem.dates || []).length || dem.dates.includes(d.id)) out.push({ d, t, affecte:false });
+  });
+  return out;
 }
 
 function nomsSurLaDate(d){
@@ -582,77 +770,255 @@ function nomsSurLaDate(d){
   return noms;
 }
 
-function majAvertDocument(){
-  const zone = document.getElementById('docAvert');
-  const n = datesDuDocument().length;
-  const avecNoms = document.getElementById('docDistribution').checked;
-  if(!projetId){ zone.hidden = true; return; }
-  const morceaux = [`${n} date${n > 1 ? 's' : ''} dans le document`];
-  if(avecNoms) morceaux.push('avec les noms des personnes distribuées');
-  zone.hidden = n > 0 && !avecNoms;
-  zone.textContent = n === 0
-    ? "Aucune date ne correspond : le document serait vide."
-    : morceaux.join(' — ') + '. Vérifie à qui il va partir.';
+/* Les mois du calendrier, à partir des dates retenues.
+   Un mois sans aucune date n'est pas dessiné : une saison de trois mois actifs
+   étalée sur huit ne doit pas faire imprimer cinq grilles vides. */
+function moisPourCalendrier(paires){
+  const parMois = new Map();
+  paires.forEach(({ d, affecte })=>{
+    const [a, m, j] = String(d.date).split('-').map(n=> parseInt(n, 10));
+    if(!j) return;
+    const cle = `${a}-${String(m).padStart(2, '0')}`;
+    if(!parMois.has(cle)) parMois.set(cle, { annee:a, mois:m, libelle:`${MOIS_DOC[m - 1]} ${a}`, jours:{} });
+    const grille = parMois.get(cle);
+    const st = statutDate(d);
+    const dejala = grille.jours[j];
+    if(!dejala){ grille.jours[j] = { statut: st, point: !!affecte }; return; }
+    // Le point survit au changement de couleur : il dit « tu joues », et une
+    // seconde date au même jour ne peut pas le retirer.
+    if(RANG_DOC[st] < RANG_DOC[dejala.statut]) dejala.statut = st;
+    if(affecte) dejala.point = true;
+  });
+  return [...parMois.keys()].sort().map(c=> parMois.get(c));
 }
 
-function genererDocument(){
-  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
-  const t = projet();
-  if(!t){ alert('Choisis un projet.'); return; }
-  const dates = datesDuDocument();
-  if(!dates.length){ alert("Aucune date à mettre dans le document."); return; }
+/* Un tableau par statut, dans l'ordre où ils engagent. Les mêler et poser une
+   colonne « statut » aurait tenu sur moins de place, mais on lit alors ligne à
+   ligne au lieu de voir d'un coup ce qui est acquis et ce qui ne l'est pas — et
+   c'est précisément ce que le document doit transmettre. */
+const GROUPES_DOC = [
+  { cle:'validee',   titre:'Dates validées', note:"c'est signé." },
+  { cle:'option',    titre:'Options',        note:"la salle tient la date, rien n'est signé." },
+  { cle:'recherche', titre:'Recherches',     note:"hypothèses de travail, rien n'est posé." },
+  { cle:'annulee',   titre:'Dates annulées', note:"ces dates ne se feront pas." },
+];
 
-  const avecNoms = document.getElementById('docDistribution').checked;
+// --- L'état de l'atelier ----------------------------------------------------
+let docPortee = 'general';
+
+function docOptions(){
+  const par = docPortee === 'personne';
+  return {
+    parPersonne: par,
+    calendrier: document.getElementById('docCalendrier').checked,
+    liste: document.getElementById('docListe').checked,
+    // « Qui joue sur chaque date » n'a pas de sens dans le document de
+    // quelqu'un : il y verrait la distribution complète de l'orchestre, ce que
+    // ce document n'a pas à porter.
+    avecNoms: !par && document.getElementById('docDistribution').checked,
+    titre: (document.getElementById('docTitre').value || '').trim(),
+    mot: (document.getElementById('docMot').value || '').trim(),
+  };
+}
+
+function gensCoches(){
+  return personnesConcernees().filter(({ p, type })=> gensChoisis.has(`${type}:${p.id}`));
+}
+
+function majAvertDocument(){
+  const zone = document.getElementById('docAvert');
+  const compte = document.getElementById('docCompte');
+  const bouton = document.getElementById('docGenerer');
+  const o = docOptions();
+  const n = datesDuDocument().length;
+  const gens = gensCoches();
+
+  document.getElementById('docCaseDistribution').classList.toggle('eteinte', o.parPersonne);
+  document.getElementById('docDistribution').disabled = o.parPersonne;
+
+  bouton.textContent = !o.parPersonne ? 'Générer le PDF'
+    : gens.length ? `Générer ${gens.length} PDF` : 'Générer les PDF';
+  compte.textContent = o.parPersonne
+    ? (gens.length ? `un fichier par personne cochée — ${gens.length} au total` : '')
+    : (n ? `${n} date${n > 1 ? 's' : ''}` : '');
+
+  if(!projetsChoisis.size){ zone.hidden = true; return; }
+
+  const avert = [];
+  if(!o.calendrier && !o.liste) avert.push("Ni calendrier ni liste : le document serait vide.");
+  else if(n === 0) avert.push("Aucune date ne correspond : le document serait vide.");
+  if(o.avecNoms) avert.push("Il portera les noms des personnes distribuées — vérifie à qui il part.");
+  if(o.parPersonne && !gens.length) avert.push("Personne n'est coché à l'étape des destinataires.");
+  if(o.parPersonne && gens.length > 12) avert.push(`${gens.length} fichiers vont se télécharger d'un coup : le navigateur demandera confirmation.`);
+
+  zone.hidden = !avert.length;
+  zone.textContent = avert.join(' ');
+}
+
+/* ============================================================================
+   La fabrique du PDF
+   ============================================================================
+   Le document tenait jusqu'ici en quatre tableaux — un par statut. Il était
+   juste et illisible : on y cherchait une date en parcourant quatre listes,
+   sans jamais voir un mois. Or la question qu'on pose à ce papier est toujours
+   la même : « suis-je pris la semaine du 12 ? ». Un calendrier y répond d'un
+   coup d'œil, un tableau non.
+
+   Le calendrier passe donc devant, dans la forme exacte que les gens ont déjà
+   sous les yeux dans leur espace personnel : mêmes couleurs, même grille du
+   lundi au dimanche, même point sous le chiffre. Reconnaître son propre
+   calendrier sur le papier vaut mieux que n'importe quelle légende.
+
+   Les listes restent DESSOUS, et restent cochées par défaut : le calendrier
+   donne la forme du mois, il ne donne ni la ville ni le lieu. Les deux ne font
+   pas double emploi — l'un se regarde, l'autre se lit.
+============================================================================ */
+function construireDocument(paires, o, meta){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
   registerHostFont(doc);
 
-  const edite = new Date().toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
-  // Une tournée dont toutes les dates tombent s'annonce en tête du document, et
-  // non ligne à ligne : personne ne lit un tableau pour en déduire une annulation.
-  const toutAnnule = projetEntierAnnule();
   const page = creerComposeurPdf(doc, {
-    echelleMax: 1.15,
-    filigrane: toutAnnule ? 'ANNULÉ' : 'INFORMATIF',
+    // Un récapitulatif court occupait le quart supérieur d'une feuille blanche.
+    // On l'autorise à grandir : c'est aussi ce qui le rend lisible de loin,
+    // punaisé dans une loge.
+    echelleMax: 1.35,
+    // Le filigrane ne sert que lorsqu'il porte une information qu'aucune autre
+    // ligne ne porte : « ANNULÉ ». « INFORMATIF » barrait la page en travers,
+    // passait par-dessus le texte, et disait ce que le paragraphe de pied dit
+    // déjà mieux.
+    filigrane: meta.toutAnnule ? 'ANNULÉ' : '',
   }).entete({
-    titre: (t.nom || 'Projet') + (toutAnnule ? ' — ANNULÉ' : ''),
-    sousTitre: toutAnnule
-      ? `Toutes les dates de ce projet sont annulées · édité le ${edite}`
-      : `Récapitulatif des dates — ${dates.length} date${dates.length > 1 ? 's' : ''} · édité le ${edite}`,
-    mention: 'Curieux orchestre',
+    titre: meta.titre,
+    sousTitre: meta.sousTitre,
+    // Le pied imprime déjà « Curieux orchestre » à gauche : y remettre le même
+    // mot à droite ne disait rien deux fois.
+    mention: 'Document informatif',
   });
 
-  /* Un tableau par statut, dans l'ordre où ils engagent. Les mêler et poser une
-     colonne « statut » aurait tenu sur moins de place, mais on lit alors ligne
-     à ligne au lieu de voir d'un coup ce qui est acquis et ce qui ne l'est pas —
-     et c'est précisément ce que le document doit transmettre. */
-  const GROUPES_DOC = [
-    { cle:'validee',   titre:'Dates validées',   note:"Ces dates sont confirmées." },
-    { cle:'option',    titre:'Options',          note:"La salle tient la date ; rien n'est signé. À libérer ou à confirmer avant l'échéance." },
-    { cle:'recherche', titre:'Recherches',       note:"Hypothèses de travail : rien n'est posé." },
-    { cle:'annulee',   titre:'Dates annulées',   note:"Ces dates ne se feront pas." },
-  ];
+  if(o.mot) page.paragraphe(o.mot);
 
-  const colonnes = [{ titre:'Date', largeur: avecNoms ? 1.5 : 1.6 },
-                    { titre:'Ville', largeur:1 },
-                    { titre:'Lieu', largeur:1.3 }]
-    .concat(avecNoms ? [{ titre:'Sur la date', largeur:2.4 }] : []);
+  if(o.calendrier){
+    const mois = moisPourCalendrier(paires);
+    if(mois.length){
+      // Seulement les statuts qui figurent vraiment sur la grille : une entrée
+      // « recherche » en face d'un calendrier qui n'en porte aucune fait
+      // chercher une couleur qui n'y est pas.
+      const presents = new Set(paires.map(({ d })=> statutDate(d)));
+      const legende = [
+        { statut:'validee',   mot:'validée' },
+        { statut:'option',    mot:'option' },
+        { statut:'recherche', mot:'recherche' },
+        { statut:'annulee',   mot:'annulée' },
+      ].filter(l=> presents.has(l.statut));
+      // Le point ne veut dire quelque chose que dans le document de quelqu'un.
+      // Dans la vue d'ensemble, tout le monde joue : il ne distinguerait rien.
+      if(o.parPersonne) legende.push({ point:true, mot:'tu joues' });
+      page.calendrier(meta.titreCalendrier || 'Le calendrier', mois, {
+        legende,
+        note: o.parPersonne
+          ? "Les journées colorées sont celles qui te concernent. Le point sous le chiffre veut dire que tu es distribué·e dessus ; sans point, on t'a demandé ta disponibilité."
+          : "Une journée porte la couleur du statut le plus engageant qui s'y trouve.",
+      });
+    }
+  }
 
-  GROUPES_DOC.forEach(g=>{
-    const duGroupe = dates.filter(d=> statutDate(d) === g.cle);
-    if(!duGroupe.length) return;
-    page.tableau(g.titre, colonnes, duGroupe.map(d=>{
-      const base = [jourDoc(d.date), d.ville || '—', d.lieu || '—'];
-      if(!avecNoms) return base;
-      const noms = nomsSurLaDate(d);
-      return base.concat([noms.length ? noms.join(', ') : 'à distribuer']);
-    }), `${duGroupe.length} date${duGroupe.length > 1 ? 's' : ''} — ${g.note}`);
-  });
+  if(o.liste){
+    const colonnes = [{ titre:'Date', largeur: o.avecNoms ? 1.5 : 1.6 },
+                      { titre:'Ville', largeur:1 },
+                      { titre:'Lieu', largeur:1.3 }]
+      .concat(o.avecNoms ? [{ titre:'Sur la date', largeur:2.4 }] : [])
+      .concat(meta.plusieursProjets ? [{ titre:'Projet', largeur:1.4 }] : []);
+
+    GROUPES_DOC.forEach(g=>{
+      const duGroupe = paires.filter(({ d })=> statutDate(d) === g.cle);
+      if(!duGroupe.length) return;
+      page.tableau(`${g.titre} (${duGroupe.length})`, colonnes, duGroupe.map(({ d, t })=>{
+        const base = [jourDoc(d.date), d.ville || '—', d.lieu || '—'];
+        if(o.avecNoms){
+          const noms = nomsSurLaDate(d);
+          base.push(noms.length ? noms.join(', ') : 'à distribuer');
+        }
+        // Le nom du projet en dernière colonne quand il y en a plusieurs : sans
+        // lui, deux options se suivent sans qu'on sache de quoi elles parlent.
+        if(meta.plusieursProjets) base.push(t.nom || 'Projet');
+        return base;
+      }), g.note);
+    });
+  }
 
   page.paragraphe("Ce document est informatif et suit le projet au jour le jour : les options peuvent tomber, les dates validées peuvent bouger. Seul le contrat d'engagement vaut engagement. Merci de ne pas le diffuser en dehors des personnes concernées.");
+  page.rendre(meta.fichier);
+}
 
-  const nom = (t.nom || 'projet').trim().replace(/[^a-z0-9]+/gi, '_');
-  page.rendre(`Dates_${nom}_${new Date().toISOString().slice(0, 10)}.pdf`);
+// Un nom de fichier qu'un système d'exploitation accepte, sur toutes les
+// plateformes : ni accent perdu à l'ouverture, ni caractère réservé.
+function nomFichierDoc(morceaux){
+  return morceaux.filter(Boolean).join('_')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 90) || 'document';
+}
+
+function editeLe(){
+  return new Date().toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+}
+
+function genererDocument(){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const liste = projets();
+  if(!liste.length){ alert('Choisis au moins un projet.'); return; }
+  const o = docOptions();
+  if(!o.calendrier && !o.liste){ alert("Coche au moins le calendrier ou la liste des dates."); return; }
+
+  const edite = editeLe();
+  const jour = new Date().toISOString().slice(0, 10);
+  const seul = liste.length === 1 ? liste[0] : null;
+  const nomsProjets = CurieuxMessages.joindre(liste.map(t=> t.nom || 'projet'));
+
+  if(!o.parPersonne){
+    const paires = datesDuDocument();
+    if(!paires.length){ alert("Aucune date à mettre dans le document."); return; }
+    const toutAnnule = tousAnnules();
+    construireDocument(paires, o, {
+      titre: o.titre || (seul ? (seul.nom || 'Projet') + (toutAnnule ? ' — ANNULÉ' : '') : 'Récapitulatif des dates'),
+      sousTitre: seul
+        ? (toutAnnule
+            ? `Toutes les dates de ce projet sont annulées · arrêté au ${edite}`
+            : `${paires.length} date${paires.length > 1 ? 's' : ''} · arrêté au ${edite}`)
+        : `${nomsProjets} — ${paires.length} dates · arrêté au ${edite}`,
+      titreCalendrier: seul ? (seul.nom || 'Le calendrier') : 'Le calendrier',
+      plusieursProjets: liste.length > 1,
+      toutAnnule,
+      fichier: nomFichierDoc(['Dates', seul ? seul.nom : 'plusieurs_projets', jour]) + '.pdf',
+    });
+    return;
+  }
+
+  // Un document par personne : chacun reçoit SON calendrier, celui qu'il voit
+  // déjà dans son espace personnel — et rien de plus.
+  const gens = gensCoches();
+  if(!gens.length){ alert("Coche au moins une personne à l'étape des destinataires."); return; }
+  if(gens.length > 12 && !confirm(`${gens.length} fichiers vont être générés d'un coup. Continuer ?`)) return;
+
+  let vides = 0;
+  gens.forEach(({ p, type })=>{
+    const paires = datesDocPour(type, p.id);
+    if(!paires.length){ vides++; return; }
+    const projetsDeLui = [...new Set(paires.map(x=> x.t.id))];
+    const seulProjet = projetsDeLui.length === 1 ? paires[0].t : null;
+    const toutAnnule = paires.every(({ d })=> statutDate(d) === 'annulee');
+    construireDocument(paires, o, {
+      titre: o.titre || `Les dates de ${p.prenom || fullName(p)}`,
+      sousTitre: `${seulProjet ? (seulProjet.nom || 'Projet') : nomsProjets} · ${paires.length} date${paires.length > 1 ? 's' : ''} · arrêté au ${edite}`,
+      titreCalendrier: 'Le calendrier',
+      plusieursProjets: projetsDeLui.length > 1,
+      toutAnnule,
+      fichier: nomFichierDoc(['Dates', fullName(p), jour]) + '.pdf',
+    });
+  });
+  if(vides){
+    alert(`${vides} personne${vides > 1 ? 's n\'avaient' : " n'avait"} aucune date dans le périmètre choisi : ${vides > 1 ? 'leurs documents' : 'son document'} n'${vides > 1 ? 'ont' : 'a'} pas été généré${vides > 1 ? 's' : ''}.`);
+  }
 }
 
 // --- Envoi ------------------------------------------------------------------
@@ -664,17 +1030,22 @@ async function envoyerA(cle){
   const voie = await CurieuxMessages.envoyer(ctx, texte);
   partis.add(cle);
 
-  // La trace, dans l'ordre où elle compte : d'abord ce qu'on vient de faire,
-  // ensuite la relance sur la demande, que le suivi des dispos lit déjà.
-  await CurieuxDB.upsertOne('messages_envoyes', {
-    id: 'msg' + Math.random().toString(36).slice(2, 12),
-    personId: id, personType: type, tourneeId: projetId,
-    motif, dates: ctx.manquantes.length ? ctx.manquantes : ctx.toutes,
-    canal: voie, par: monEmail,
-  });
+  /* La trace, un enregistrement par projet concerné : « quand a-t-on écrit à
+     cette personne à propos de CE projet » est la question qu'on se pose, et
+     une seule ligne portant deux projets n'y répondrait pas. */
+  const concernes = projets().filter(t=> concernePar(type, id, t));
+  for(const t of (concernes.length ? concernes : projets())){
+    await CurieuxDB.upsertOne('messages_envoyes', {
+      id: 'msg' + Math.random().toString(36).slice(2, 12),
+      personId: id, personType: type, tourneeId: t.id,
+      motif, dates: ctx.manquantes.length ? ctx.manquantes : ctx.toutes,
+      canal: voie, par: monEmail,
+    });
+  }
   if(!estInfo(motif) && motif !== 'lien'){
-    const dem = demandeDe(type, id);
-    if(dem){
+    for(const t of projets()){
+      const dem = demandePour(type, id, t.id);
+      if(!dem) continue;
       dem.lastReminderAt = new Date().toISOString();
       await CurieuxDB.upsertOne('dispo_demandes', dem);
     }
@@ -683,33 +1054,38 @@ async function envoyerA(cle){
   rendreApercu();
 }
 
+/* Un lien pour tout le monde, pas seulement pour qui a une demande de dispo.
+   ---------------------------------------------------------------------------
+   La carte des jetons était bâtie sur dispo_demandes. Quelqu'un de distribué
+   sur une date sans avoir jamais été sollicité — cela arrive chaque fois qu'on
+   complète une équipe à la main — n'y figurait donc pas, et son message partait
+   avec un lien vide : « c'est par ici : » suivi de rien. */
+async function assurerJetons(){
+  const gens = personnesConcernees().map(({ p, type })=> ({ id: p.id, type }));
+  if(!gens.length) return;
+  const avant = jetonsPermanents.size;
+  jetonsPermanents = await CurieuxDB.jetonsPermanentsPour(gens);
+  if(jetonsPermanents.size !== avant){ rendreGens(); rendreApercu(); }
+}
+
 // --- Branchements -----------------------------------------------------------
-document.getElementById('projet').addEventListener('change', async (e)=>{
-  projetId = e.target.value;
+document.getElementById('projets').addEventListener('click', async (e)=>{
+  const b = e.target.closest('[data-projet]');
+  if(!b) return;
+  const id = b.dataset.projet;
+  if(projetsChoisis.has(id)) projetsChoisis.delete(id); else projetsChoisis.add(id);
   presélectionnerDates();
   presélectionnerGens();
   partis = new Set();
   rendre();
   await assurerJetons();
 });
-
-/* Un lien pour tout le monde, pas seulement pour qui a une demande de dispo.
-   ---------------------------------------------------------------------------
-   La carte des jetons était bâtie sur dispo_demandes. Quelqu'un de distribué
-   sur une date sans avoir jamais été sollicité — cela arrive chaque fois qu'on
-   complète une équipe à la main — n'y figurait donc pas, et son message partait
-   avec un lien vide : « c'est par ici : » suivi de rien.
-
-   On les demande donc pour toutes les personnes que la page affiche.
-   jetonsPermanentsPour en crée un à qui n'en a pas ; l'appel ne bloque pas
-   l'affichage, on redessine ensuite. */
-async function assurerJetons(){
-  const gens = personnesDuProjet().map(({ p, type })=> ({ id: p.id, type }));
-  if(!gens.length) return;
-  const avant = jetonsPermanents.size;
-  jetonsPermanents = await CurieuxDB.jetonsPermanentsPour(gens);
-  if(jetonsPermanents.size !== avant){ rendreGens(); rendreApercu(); }
-}
+document.getElementById('projetsAucun').addEventListener('click', ()=>{
+  projetsChoisis = new Set();
+  datesChoisies = new Set();
+  gensChoisis = new Set();
+  rendre();
+});
 
 document.getElementById('motifs').addEventListener('click', (e)=>{
   const b = e.target.closest('[data-motif]');
@@ -729,7 +1105,7 @@ document.getElementById('dates').addEventListener('click', (e)=>{
   rendre();
 });
 document.getElementById('datesToutes').addEventListener('click', ()=>{
-  datesDuProjet().forEach(d=> datesChoisies.add(d.id)); presélectionnerGens(); rendre();
+  datesDesProjets().forEach(({ d })=> datesChoisies.add(d.id)); presélectionnerGens(); rendre();
 });
 document.getElementById('datesAucune').addEventListener('click', ()=>{
   datesChoisies = new Set(); presélectionnerGens(); rendre();
@@ -740,20 +1116,31 @@ document.getElementById('gens').addEventListener('change', (e)=>{
   if(!c) return;
   if(c.checked) gensChoisis.add(c.dataset.gens); else gensChoisis.delete(c.dataset.gens);
   rendreApercu();
+  // « Un document par personne » compte les personnes cochées : le bouton doit
+  // dire combien de fichiers vont sortir, pas un chiffre d'il y a trois clics.
+  majAvertDocument();
 });
 document.getElementById('gens').addEventListener('click', (e)=>{
   const b = e.target.closest('[data-envoi]');
   if(b) envoyerA(b.dataset.envoi);
 });
 document.getElementById('gensTous').addEventListener('click', ()=>{
-  personnesDuProjet().forEach(({ p, type })=> gensChoisis.add(`${type}:${p.id}`)); rendreGens(); rendreApercu();
+  personnesConcernees().forEach(({ p, type })=> gensChoisis.add(`${type}:${p.id}`));
+  rendreGens(); rendreApercu(); majAvertDocument();
 });
 document.getElementById('gensAucun').addEventListener('click', ()=>{
-  gensChoisis = new Set(); rendreGens(); rendreApercu();
+  gensChoisis = new Set(); rendreGens(); rendreApercu(); majAvertDocument();
 });
 document.getElementById('butoir').addEventListener('input', rendreApercu);
-['docPerimetre', 'docAnnulees', 'docDistribution'].forEach(id=>
+['docPerimetre', 'docAnnulees', 'docDistribution', 'docCalendrier', 'docListe'].forEach(id=>
   document.getElementById(id).addEventListener('change', majAvertDocument));
+document.getElementById('docPortee').addEventListener('click', (e)=>{
+  const b = e.target.closest('[data-portee]');
+  if(!b) return;
+  docPortee = b.dataset.portee;
+  document.querySelectorAll('#docPortee [data-portee]').forEach(x=> x.classList.toggle('on', x === b));
+  majAvertDocument();
+});
 document.getElementById('docGenerer').addEventListener('click', genererDocument);
 document.getElementById('canalChoix').addEventListener('click', (e)=>{
   const b = e.target.closest('[data-canal]');
@@ -781,28 +1168,26 @@ async function demarrer(){
   demandesCache.forEach(d=> gens.set(`${d.personType}:${d.personId}`, { id: d.personId, type: d.personType }));
   jetonsPermanents = await CurieuxDB.jetonsPermanentsPour([...gens.values()]);
 
-  // On arrive souvent d'ailleurs — du suivi des dispos, d'une tournée — avec le
-  // projet déjà en tête. Le lien le porte, la page le prend.
-  const voulu = params.get('projet') || '';
-  if(voulu && tourneesCache.some(t=> t.id === voulu)) projetId = voulu;
+  /* On arrive souvent d'ailleurs — du suivi des dispos, d'une tournée — avec le
+     projet déjà en tête. Le lien le porte, la page le prend ; plusieurs projets
+     s'écrivent séparés par des virgules. */
+  (params.get('projet') || '').split(',').map(x=> x.trim()).filter(Boolean).forEach(id=>{
+    if(tourneesCache.some(t=> t.id === id)) projetsChoisis.add(id);
+  });
   const motifVoulu = params.get('motif') || '';
   if(motifVoulu && CurieuxMessages.MODELES.some(m=> m.cle === motifVoulu)) motif = motifVoulu;
 
-  rendreProjets();
   presélectionnerDates();
   presélectionnerGens();
 
   /* Arrivé depuis le suivi des dispos, on vient pour QUELQU'UN. On ne coche
      alors que cette personne : la présélection par défaut — tous ceux dont il
-     manque une dispo — ferait partir vingt messages là où on en voulait un.
-     Le décochage reste possible, et le sélecteur de projet rend la main. */
+     manque une dispo — ferait partir vingt messages là où on en voulait un. */
   const personneVoulue = params.get('personne') || '';
-  if(personneVoulue && personnesDuProjet().some(({ p, type })=> `${type}:${p.id}` === personneVoulue)){
+  if(personneVoulue && personnesConcernees().some(({ p, type })=> `${type}:${p.id}` === personneVoulue)){
     gensChoisis = new Set([personneVoulue]);
   }
   rendre();
-  // Le projet est peut-être déjà choisi par l'adresse : on complète alors les
-  // jetons manquants sans attendre un changement de sélecteur.
   await assurerJetons();
 }
 
