@@ -52,12 +52,19 @@ const PDF_CHARTE = {
      Les deux teintes pâles portent en plus un filet : à l'écran la case fait
      trente pixels de côté et l'aplat se voit ; sur le papier elle en fait
      cinq millimètres, et un rose à 3 % de gris disparaît — surtout photocopié.
-     Le filet garde la couleur exacte et rend la case lisible comme case. */
+     Le filet garde la couleur exacte et rend la case lisible comme case.
+
+     `fond` peint la case, `encre` écrit dedans, `bord` la cerne quand elle est
+     pâle — et `trait` est la couleur à écrire AVEC, ailleurs : un intitulé de
+     tableau, un filet sous une ligne d'en-têtes. Pour les deux teintes pleines
+     c'est la même couleur ; pour les pâles il en faut une autre, sans quoi
+     « RECHERCHES » s'écrit en rose à 3 % de gris sur du blanc et ne se lit
+     pas du tout. */
   statuts: {
-    validee:   { fond:[47, 143, 91],   encre:[255, 255, 255] },
-    option:    { fond:[184, 121, 42],  encre:[255, 255, 255] },
-    recherche: { fond:[240, 219, 230], encre:[20, 22, 23],  bord:[214, 180, 199] },
-    annulee:   { fond:[251, 230, 226], encre:[178, 59, 46], bord:[232, 186, 176] },
+    validee:   { fond:[47, 143, 91],   encre:[255, 255, 255], trait:[47, 143, 91]   },
+    option:    { fond:[184, 121, 42],  encre:[255, 255, 255], trait:[184, 121, 42]  },
+    recherche: { fond:[240, 219, 230], encre:[20, 22, 23],  bord:[214, 180, 199], trait:[122, 102, 118] },
+    annulee:   { fond:[251, 230, 226], encre:[178, 59, 46], bord:[232, 186, 176], trait:[178, 59, 46]   },
   },
 };
 
@@ -98,6 +105,13 @@ function creerComposeurPdf(doc, options){
     // Texte du filigrane, en gris très clair sous le contenu de chaque page.
     // Vide par défaut : seul un document qui n'engage à rien en porte un.
     filigrane: '',
+    /* La couleur du papier. Nulle par défaut — un devis, une fiche technique,
+       une feuille de route sont des documents de travail, souvent photocopiés,
+       et un fond plein leur coûterait de l'encre pour rien.
+       Un document qui part à l'équipe, lui, gagne à porter le crème du site
+       (PDF_CHARTE.fond) : les cartes blanches s'y détachent au lieu de se
+       fondre dans la feuille, et la page cesse d'avoir l'air d'un relevé. */
+    fondPage: null,
   }, options || {});
 
   const LARGEUR = doc.internal.pageSize.getWidth();
@@ -270,31 +284,65 @@ function creerComposeurPdf(doc, options){
 
   /* Pastilles — la transposition de .horaire-chip : une bande de gélules qui
      passent à la ligne, pour ce qui se lit d'un coup d'œil. */
+  /* Une pastille est soit un texte, soit { texte, fond, encre } : de quoi
+     donner à un compte la couleur de ce qu'il compte — « 7 validées » en vert,
+     « 4 options » en ambre. Une ligne de comptes en tête de document dit en
+     deux secondes ce que trois tableaux disent en trois minutes. */
   api.pastilles = function(titre, items){
-    const utiles = (items || []).filter(Boolean);
+    const utiles = (items || []).filter(Boolean).map(i=> typeof i === 'object' ? i : { texte:i });
     if(!utiles.length) return api;
 
     sections.push((k, dessiner, yDepart)=>{
-      const pt = 8 * k, padH = 2.8 * k, gap = 2 * k;
-      const h = hLigne(pt) + 2.4 * k;
+      const pt = 8 * k, padH = 3 * k, gap = 2 * k;
+      const h = hLigne(pt) + 2.8 * k;
       let y = yDepart;
 
-      y += titreSection(titre, o.marge, y, k, dessiner);
-      doc.setFont('Host', 'normal'); doc.setFontSize(pt);
+      if(titre) y += titreSection(titre, o.marge, y, k, dessiner);
 
       let x = o.marge;
-      utiles.forEach((texte)=>{
-        const l = doc.getTextWidth(String(texte)) + padH * 2;
+      utiles.forEach((item)=>{
+        // Une pastille de couleur porte un compte, et se lit de loin : gras.
+        // Une pastille neutre porte un horaire dans une liste : elle garde le
+        // corps de texte qu'elle avait.
+        const gras = !!item.fond;
+        doc.setFont('Host', gras ? 'bold' : 'normal'); doc.setFontSize(pt);
+        const texte = String(item.texte == null ? '' : item.texte);
+        const l = doc.getTextWidth(texte) + padH * 2;
         if(x + l > o.marge + utile){ x = o.marge; y += h + gap; }
         if(dessiner){
-          fond(PDF_CHARTE.fond); trait(PDF_CHARTE.bord); doc.setLineWidth(0.25);
+          fond(item.fond || PDF_CHARTE.fond);
+          trait(item.bord || item.fond || PDF_CHARTE.bord); doc.setLineWidth(0.25);
           doc.roundedRect(x, y, l, h, h / 2, h / 2, 'FD');
-          encre(PDF_CHARTE.noir);
-          doc.text(String(texte), x + padH, y + h / 2 - hLigne(pt) / 2 + 0.3, { baseline:'top' });
+          encre(item.encre || PDF_CHARTE.noir);
+          doc.text(texte, x + padH, y + h / 2, { baseline:'middle' });
         }
         x += l + gap;
       });
       return (y + h) - yDepart + 3 * k;
+    });
+    return api;
+  };
+
+  /* Un encadré — ce qu'un paragraphe de pied de page ne sait pas faire.
+     La mention « ce document est informatif, seul le contrat vaut engagement »
+     posée en gris clair au bas d'une page se lit comme une clause qu'on saute.
+     Dans un cadre teinté, elle se lit comme une note qu'on nous adresse : même
+     texte, même longueur, et cette fois quelqu'un la lit. */
+  api.encadre = function(texte, reglages){
+    if(!texte) return api;
+    const r = Object.assign({ fond: PDF_CHARTE.fond, encre: PDF_CHARTE.muted, bord: PDF_CHARTE.bord }, reglages || {});
+    sections.push((k, dessiner, yDepart)=>{
+      const pt = 7.8 * k, pad = 3.4 * k;
+      doc.setFont('Host', 'normal'); doc.setFontSize(pt);
+      const l = lignes(texte, utile - pad * 2);
+      const h = pad * 2 + l.length * hLigne(pt);
+      if(dessiner){
+        fond(r.fond); trait(r.bord); doc.setLineWidth(0.2);
+        doc.roundedRect(o.marge, yDepart, utile, h, 2.2, 2.2, 'FD');
+        encre(r.encre);
+        doc.text(l, o.marge + pad, yDepart + pad, { baseline:'top' });
+      }
+      return h + 3 * k;
     });
     return api;
   };
@@ -594,29 +642,80 @@ function creerComposeurPdf(doc, options){
    * première forme empruntent exactement le chemin d'avant. */
   const cellulesDe = (l)=> Array.isArray(l) ? l : ((l && l.cellules) || []);
 
-  api.tableau = function(titre, colonnes, lignes, note){
+  /* Réglages facultatifs, en cinquième argument :
+   *
+   *   { couleur, carte, zebre }
+   *
+   * `couleur` remplace le prune du filet et de l'intitulé — un tableau de dates
+   * validées porte alors le vert du calendrier, les options l'ambre : on
+   * retrouve d'un coup d'œil, dans la liste, la couleur qu'on vient de voir
+   * dans la grille. `carte` pose le tableau sur une carte blanche, comme les
+   * blocs du site ; `zebre` alterne un fond crème très pâle une ligne sur deux,
+   * ce qui remplace avantageusement les filets sur une longue liste.
+   *
+   * Aucun des trois n'est le défaut : les feuilles de route, les pages salle et
+   * les devis gardent exactement la composition qu'ils avaient. */
+  api.tableau = function(titre, colonnes, lignes, note, reglages){
     const cols = (colonnes || []).filter(Boolean);
     const corps = (lignes || []).filter(l=> l && cellulesDe(l).some(v=> v != null && v !== ''));
     if(!cols.length || !corps.length) return api;
+    const r = Object.assign({ couleur:null, carte:false, zebre:false }, reglages || {});
+    const teinte = r.couleur || PDF_CHARTE.prune;
 
     sections.push((k, dessiner, yDepart)=>{
       const ptTitre = 8 * k, ptEntete = 6.6 * k, ptTexte = 8.6 * k, ptNote = 7 * k;
+      const padCarte = r.carte ? 3.2 * k : 0;
+      const x0 = o.marge + padCarte;
+      const largeurContenu = utile - padCarte * 2;
+
       const parts = cols.map(c=> c.largeur || 1);
       const total = parts.reduce((a, b)=> a + b, 0);
       const gap = 2.5 * k;
-      const largeurs = parts.map(p=> (utile - gap * (cols.length - 1)) * (p / total));
-      const xDe = (i)=> o.marge + largeurs.slice(0, i).reduce((a, b)=> a + b, 0) + gap * i;
+      const largeurs = parts.map(p=> (largeurContenu - gap * (cols.length - 1)) * (p / total));
+      const xDe = (i)=> x0 + largeurs.slice(0, i).reduce((a, b)=> a + b, 0) + gap * i;
+
+      /* On mesure tout le corps AVANT de dessiner quoi que ce soit : la carte
+         se peint sous le tableau, et pour la peindre il faut connaître sa
+         hauteur. Le découpage du texte est fait une seule fois et resservi. */
+      doc.setFont('Host', 'normal'); doc.setFontSize(ptTexte);
+      const mesures = corps.map(ligne=>{
+        const cellules = cellulesDe(ligne);
+        const decoupes = cols.map((c, i)=> lignes_(cellules[i], largeurs[i]));
+        return {
+          decoupes,
+          accent: !Array.isArray(ligne) && !!ligne.accent,
+          h: Math.max(...decoupes.map(d=> d.length)) * hLigne(ptTexte),
+        };
+      });
+
+      // La note, mesurée avant tout le reste : sur une carte, elle se range
+      // DEDANS, sous la dernière ligne. Posée dessous, elle flottait entre deux
+      // cartes sans qu'on sache à laquelle des deux elle appartenait.
+      doc.setFont('Host', 'normal'); doc.setFontSize(ptNote);
+      const lNote = note ? lignes_(note, largeurContenu) : [];
+      const hNote = lNote.length ? lNote.length * hLigne(ptNote) + 2 * k : 0;
+
+      const hTitre = hLigne(ptTitre);
+      const hEnTete = hTitre + 1.8 * k + hLigne(ptEntete) + 1.4 * k + 2.2 * k;
+      const hCorps = mesures.reduce((s, m)=> s + m.h + 2 * k, 0);
+      const hCarte = padCarte + hEnTete + hCorps + (r.carte ? hNote : 0) + padCarte * 0.6;
+
       let y = yDepart;
+
+      if(r.carte && dessiner){
+        fond(PDF_CHARTE.carte); trait(PDF_CHARTE.bord); doc.setLineWidth(0.2);
+        doc.roundedRect(o.marge, y, utile, hCarte, 2.2, 2.2, 'FD');
+      }
+      if(r.carte) y += padCarte;
 
       // Intitulé de la section, dans l'idiome de la feuille de route.
       doc.setFont('Host', 'bold'); doc.setFontSize(ptTitre);
-      const hTitre = hLigne(ptTitre);
       if(dessiner){
-        fond(PDF_CHARTE.prune);
-        doc.rect(o.marge, y + hTitre * 0.12, 1.1 * k, hTitre * 0.78, 'F');
-        encre(PDF_CHARTE.prune);
+        fond(teinte);
+        doc.rect(x0, y + hTitre * 0.12, 1.4 * k, hTitre * 0.78, 'F');
+        encre(teinte);
         doc.setCharSpace(0.1 * k);
-        doc.text(String(titre || '').toUpperCase(), o.marge + 3.2 * k, y, { baseline:'top' });
+        doc.text(String(titre || '').toUpperCase(), x0 + 3.6 * k, y, { baseline:'top' });
         doc.setCharSpace(0);
       }
       y += hTitre + 1.8 * k;
@@ -631,46 +730,47 @@ function creerComposeurPdf(doc, options){
       }
       y += hLigne(ptEntete) + 1.4 * k;
       if(dessiner){
-        trait(PDF_CHARTE.prune); doc.setLineWidth(0.3);
-        doc.line(o.marge, y, o.marge + utile, y);
+        trait(teinte); doc.setLineWidth(0.3);
+        doc.line(x0, y, x0 + largeurContenu, y);
       }
       y += 2.2 * k;
 
-      corps.forEach(ligne=>{
-        const cellules = cellulesDe(ligne);
-        const accent = !Array.isArray(ligne) && !!ligne.accent;
-        doc.setFontSize(ptTexte); doc.setFont('Host', 'normal');
-        const decoupes = cols.map((c, i)=> lignes_(cellules[i], largeurs[i]));
-        const h = Math.max(...decoupes.map(d=> d.length)) * hLigne(ptTexte);
+      mesures.forEach((m, rang)=>{
         if(dessiner){
           // Le bandeau d'abord, le texte par-dessus. Il déborde d'un millimètre
           // de part et d'autre de la colonne des données pour que la ligne se
           // lise comme une bande, et non comme quatre rectangles.
-          if(accent){
+          if(m.accent){
             fond(PDF_CHARTE.accent);
-            doc.rect(o.marge - 1 * k, y - 1.2 * k, utile + 2 * k, h + 2.4 * k, 'F');
+            doc.rect(x0 - 1 * k, y - 1.2 * k, largeurContenu + 2 * k, m.h + 2.4 * k, 'F');
+          } else if(r.zebre && rang % 2 === 1){
+            fond(PDF_CHARTE.fond);
+            doc.rect(x0 - 1 * k, y - 1.2 * k, largeurContenu + 2 * k, m.h + 2.4 * k, 'F');
           }
-          decoupes.forEach((d, i)=>{
+          m.decoupes.forEach((d, i)=>{
             // La première colonne porte le repère — en gras, c'est elle qu'on
             // cherche des yeux sur un plateau.
             doc.setFont('Host', i === 0 ? 'bold' : 'normal');
-            encre(accent ? PDF_CHARTE.accentEncre : PDF_CHARTE.noir);
+            doc.setFontSize(ptTexte);
+            encre(m.accent ? PDF_CHARTE.accentEncre : PDF_CHARTE.noir);
             doc.text(d, xDe(i), y, { baseline:'top' });
           });
         }
-        y += h + 2 * k;
-        if(dessiner){
+        y += m.h + 2 * k;
+        // Les filets et le zébrage font le même travail : les cumuler charge
+        // la page pour rien.
+        if(dessiner && !r.zebre){
           trait(PDF_CHARTE.bord); doc.setLineWidth(0.15);
-          doc.line(o.marge, y - 1 * k, o.marge + utile, y - 1 * k);
+          doc.line(x0, y - 1 * k, x0 + largeurContenu, y - 1 * k);
         }
       });
 
-      if(note){
+      if(lNote.length && dessiner){
         doc.setFont('Host', 'normal'); doc.setFontSize(ptNote);
-        const l = lignes_(note, utile);
-        if(dessiner){ encre(PDF_CHARTE.muted); doc.text(l, o.marge, y + 1 * k, { baseline:'top' }); }
-        y += l.length * hLigne(ptNote) + 2 * k;
+        encre(PDF_CHARTE.muted);
+        doc.text(lNote, x0, y + 1 * k, { baseline:'top' });
       }
+      y = r.carte ? yDepart + hCarte : y + hNote;
       return y - yDepart + 3 * k;
     });
     return api;
@@ -927,6 +1027,14 @@ function creerComposeurPdf(doc, options){
    * lecteur PDF qui gère mal la transparence rende le texte illisible sous un
    * aplat gris. Un gris très clair suffit : il se voit, il ne gêne pas.
    */
+  // Le papier, posé avant tout le reste : filigrane compris, qui doit rester
+  // dessus pour se voir.
+  function poserFond(){
+    if(!o.fondPage) return;
+    fond(o.fondPage);
+    doc.rect(0, 0, LARGEUR, HAUTEUR, 'F');
+  }
+
   const FILIGRANE_ANGLE = 38;
   function poserFiligrane(){
     if(!o.filigrane) return;
@@ -981,6 +1089,7 @@ function creerComposeurPdf(doc, options){
     }
 
     const deborde = hauteurTotale(k) > dispo;
+    poserFond();
     poserFiligrane();
     dessinerEntete(true);
     let y = o.hauteurEntete + 4;
@@ -995,6 +1104,7 @@ function creerComposeurPdf(doc, options){
         piedDePage(true);
         doc.addPage();
         pages++;
+        poserFond();
         poserFiligrane();
         y = o.marge;
       }

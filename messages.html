@@ -797,11 +797,21 @@ function moisPourCalendrier(paires){
    ligne au lieu de voir d'un coup ce qui est acquis et ce qui ne l'est pas — et
    c'est précisément ce que le document doit transmettre. */
 const GROUPES_DOC = [
-  { cle:'validee',   titre:'Dates validées', note:"c'est signé." },
-  { cle:'option',    titre:'Options',        note:"la salle tient la date, rien n'est signé." },
-  { cle:'recherche', titre:'Recherches',     note:"hypothèses de travail, rien n'est posé." },
-  { cle:'annulee',   titre:'Dates annulées', note:"ces dates ne se feront pas." },
+  { cle:'validee',   titre:'Dates validées', mot:'validées',  note:"c'est signé." },
+  { cle:'option',    titre:'Options',        mot:'options',   note:"la salle tient la date, rien n'est signé." },
+  { cle:'recherche', titre:'Recherches',     mot:'recherches',note:"hypothèses de travail, rien n'est posé." },
+  { cle:'annulee',   titre:'Dates annulées', mot:'annulées',  note:"ces dates ne se feront pas." },
 ];
+
+/* La couleur d'un statut, une seule fois pour tout le document : la case du
+   calendrier, le filet du tableau et la pastille de comptage la partagent. Deux
+   listes de couleurs auraient divergé au premier ajustement, et le document
+   aurait alors menti sur lui-même — un vert dans la grille, un autre trois
+   centimètres plus bas pour la même chose. */
+function couleurStatut(cle){
+  const st = PDF_CHARTE.statuts[cle];
+  return st ? (st.trait || st.fond) : PDF_CHARTE.prune;
+}
 
 // --- L'état de l'atelier ----------------------------------------------------
 let docPortee = 'general';
@@ -888,6 +898,12 @@ function construireDocument(paires, o, meta){
     // passait par-dessus le texte, et disait ce que le paragraphe de pied dit
     // déjà mieux.
     filigrane: meta.toutAnnule ? 'ANNULÉ' : '',
+    /* Le crème du site plutôt que du blanc de bureau. C'est le même geste que
+       le calendrier : quelqu'un qui ouvre ce PDF doit reconnaître l'endroit
+       d'où il vient. Les grilles et les tableaux, eux, restent blancs — c'est
+       ce contraste qui les fait exister comme des cartes, et non comme des
+       blocs de texte posés sur la feuille. */
+    fondPage: PDF_CHARTE.fond,
   }).entete({
     titre: meta.titre,
     sousTitre: meta.sousTitre,
@@ -897,6 +913,26 @@ function construireDocument(paires, o, meta){
   });
 
   if(o.mot) page.paragraphe(o.mot);
+
+  /* Les comptes en tête, aux couleurs des statuts. C'est la première chose
+     qu'on regarde et la dernière qu'on retient : « 7 validées, 4 options ».
+     Trois secondes de lecture pour ce que les tableaux disent en trois
+     minutes — et le reste de la page devient une vérification, pas une
+     découverte. */
+  const comptes = GROUPES_DOC
+    .map(g=> ({ g, n: paires.filter(({ d })=> statutDate(d) === g.cle).length }))
+    .filter(x=> x.n)
+    .map(({ g, n })=> ({
+      texte: `${n} ${n > 1 ? g.mot : g.mot.replace(/s$/, '')}`,
+      // La pastille prend la couleur de la CASE, pas celle de l'intitulé :
+      // c'est un aplat, comme dans la grille juste en dessous.
+      fond: (PDF_CHARTE.statuts[g.cle] || {}).fond || PDF_CHARTE.prune,
+      // Le blanc sur les deux teintes pleines, l'encre sombre sur les pâles :
+      // c'est exactement l'arbitrage des cases du calendrier.
+      encre: (PDF_CHARTE.statuts[g.cle] || {}).encre,
+      bord: (PDF_CHARTE.statuts[g.cle] || {}).bord,
+    }));
+  if(comptes.length > 1) page.pastilles('', comptes);
 
   if(o.calendrier){
     const mois = moisPourCalendrier(paires);
@@ -943,11 +979,12 @@ function construireDocument(paires, o, meta){
         // lui, deux options se suivent sans qu'on sache de quoi elles parlent.
         if(meta.plusieursProjets) base.push(t.nom || 'Projet');
         return base;
-      }), g.note);
+      }), g.note, { couleur: couleurStatut(g.cle), carte:true, zebre:true });
     });
   }
 
-  page.paragraphe("Ce document est informatif et suit le projet au jour le jour : les options peuvent tomber, les dates validées peuvent bouger. Seul le contrat d'engagement vaut engagement. Merci de ne pas le diffuser en dehors des personnes concernées.");
+  page.encadre("Ce document est informatif et suit le projet au jour le jour : les options peuvent tomber, les dates validées peuvent bouger. Seul le contrat d'engagement vaut engagement. Merci de ne pas le diffuser en dehors des personnes concernées.",
+    { fond: PDF_CHARTE.carte });
   page.rendre(meta.fichier);
 }
 
