@@ -199,7 +199,7 @@
 
       <section class="etape">
         <p class="etape-titre"><em id="numDoc">5.</em> Le document</p>
-        <p class="etape-aide">Un récapitulatif en PDF, à joindre au message ou à imprimer. Il reprend le calendrier tel qu'on le voit dans l'espace personnel — mêmes couleurs, même grille — arrêté au jour où tu le génères. Jamais les coordonnées de qui que ce soit : un document circule, et on ne sait pas jusqu'où.</p>
+        <p class="etape-aide">Un récapitulatif en PDF, à joindre au message ou à imprimer. Il reprend le calendrier tel qu'on le voit dans l'espace personnel — mêmes couleurs, même grille — arrêté au jour où tu le génères. Il ne porte que ce qui est posé : <strong>les dates à l'étude n'y figurent pas</strong>, et jamais les coordonnées de qui que ce soit — un document circule, et on ne sait pas jusqu'où.</p>
 
         <div class="doc-portee" id="docPortee">
           <button type="button" data-portee="general" class="on">Le ou les projets<small>Une vue d'ensemble, la même pour tout le monde.</small></button>
@@ -727,11 +727,23 @@ function jourDoc(iso){
   return `${sem} ${j === 1 ? '1er' : j} ${MOIS_DOC[m - 1] || ''}`;
 }
 
-// Les dates que le document reprendra, appariées à leur projet.
+/* Les dates que le document reprendra, appariées à leur projet.
+   ---------------------------------------------------------------------------
+   Les dates à l'étude n'y entrent JAMAIS, quoi qu'on ait coché à l'étape 3.
+   C'est une hypothèse de production : rien n'est posé, ni côté salle ni côté
+   équipe, et la faire figurer sur un papier qui circule la transforme en
+   quelque chose qu'elle n'est pas. Quelqu'un garde une journée pour une date
+   qui n'existe pas, ou un partenaire lit un calendrier plus rempli qu'il ne
+   l'est. Elles restent à l'écran, où on les manipule ; le document, lui, ne
+   porte que ce qui est posé.
+
+   Les annulées, elles, restent optionnelles : elles ont existé, et un
+   récapitulatif qui explique une annulation a besoin de les montrer. */
 function datesDuDocument(){
   const cochees = document.getElementById('docPerimetre').checked;
   const avecAnnulees = document.getElementById('docAnnulees').checked;
   return datesDesProjets()
+    .filter(({ d })=> statutDate(d) !== 'recherche')
     .filter(({ d })=> !cochees || datesChoisies.has(d.id))
     .filter(({ d })=> avecAnnulees || statutDate(d) !== 'annulee');
 }
@@ -796,13 +808,13 @@ function moisPourCalendrier(paires){
    colonne « statut » aurait tenu sur moins de place, mais on lit alors ligne à
    ligne au lieu de voir d'un coup ce qui est acquis et ce qui ne l'est pas — et
    c'est précisément ce que le document doit transmettre. */
+// Trois groupes, et pas quatre : les dates à l'étude n'entrent pas dans le
+// document (voir datesDuDocument). Leur laisser un groupe ici en ferait une
+// section qui ne se remplit jamais.
 const GROUPES_DOC = [
-  { cle:'validee',   titre:'Dates validées',  un:'validée',   plusieurs:'validées',  note:"c'est signé." },
-  { cle:'option',    titre:'Options',         un:'option',    plusieurs:'options',   note:"la salle tient la date, rien n'est signé." },
-  // « à l'étude » est invariable : d'où les deux formes plutôt qu'un « s »
-  // ajouté au vol, qui aurait écrit « 2 à l'études ».
-  { cle:'recherche', titre:"Dates à l'étude", un:"à l'étude", plusieurs:"à l'étude", note:"rien n'est posé — on collecte seulement les disponibilités." },
-  { cle:'annulee',   titre:'Dates annulées',  un:'annulée',   plusieurs:'annulées',  note:"ces dates ne se feront pas." },
+  { cle:'validee',  titre:'Dates validées', un:'validée', plusieurs:'validées', note:"c'est signé." },
+  { cle:'option',   titre:'Options',        un:'option',  plusieurs:'options',  note:"la salle tient la date, rien n'est signé." },
+  { cle:'annulee',  titre:'Dates annulées', un:'annulée', plusieurs:'annulées', note:"ces dates ne se feront pas." },
 ];
 
 /* La couleur d'un statut, une seule fois pour tout le document : la case du
@@ -944,19 +956,23 @@ function construireDocument(paires, o, meta){
       // chercher une couleur qui n'y est pas.
       const presents = new Set(paires.map(({ d })=> statutDate(d)));
       const legende = [
-        { statut:'validee',   mot:'validée' },
-        { statut:'option',    mot:'option' },
-        { statut:'recherche', mot:"à l'étude" },
-        { statut:'annulee',   mot:'annulée' },
+        { statut:'validee', mot:'validée' },
+        { statut:'option',  mot:'option' },
+        { statut:'annulee', mot:'annulée' },
       ].filter(l=> presents.has(l.statut));
       // Le point ne veut dire quelque chose que dans le document de quelqu'un.
       // Dans la vue d'ensemble, tout le monde joue : il ne distinguerait rien.
       if(o.parPersonne) legende.push({ point:true, mot:'tu joues' });
       page.calendrier(meta.titreCalendrier || 'Le calendrier', mois, {
         legende,
+        /* Rien sous la vue d'ensemble : la légende dit déjà ce que la couleur
+           veut dire, et le cas rare — deux projets le même jour — ne se
+           commente pas sur toutes les grilles. Le document personnel garde sa
+           note, elle, parce qu'elle explique le POINT, que la légende seule ne
+           suffit pas à faire comprendre. */
         note: o.parPersonne
           ? "Les journées colorées sont celles qui te concernent. Le point sous le chiffre veut dire que tu es distribué·e dessus ; sans point, on t'a demandé ta disponibilité."
-          : "Une journée porte la couleur du statut le plus engageant qui s'y trouve.",
+          : '',
       });
     }
   }
