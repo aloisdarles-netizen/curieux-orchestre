@@ -83,12 +83,18 @@ const CurieuxMessages = (function(){
     return `${l.length} ${nom || 'dates'}, entre le ${jour(l[0])} et le ${jour(l[l.length - 1])}`;
   }
 
-  // « du 3 mai au 19 juin » : la période, sans jamais énumérer.
+  /* « du 3 mai au 19 juin », la période, sans jamais énumérer — et « du 12 au
+     13 mars » quand tout tient dans le même mois : « du 12 mars au 13 mars »
+     répète un mot que le lecteur vient de lire, ce qui est la définition même
+     d'une phrase mal écrite. */
   function periode(dates){
     const l = propres(dates);
     if(!l.length) return '';
     if(l.length === 1) return 'le ' + jour(l[0]);
-    return `du ${jour(l[0])} au ${jour(l[l.length - 1])}`;
+    const memeMois = String(l[0]).slice(0, 7) === String(l[l.length - 1]).slice(0, 7);
+    return memeMois
+      ? `du ${quantieme(l[0])} au ${jour(l[l.length - 1])}`
+      : `du ${jour(l[0])} au ${jour(l[l.length - 1])}`;
   }
 
   // Les dates dont parle un message : celles qui manquent si on les connaît,
@@ -101,6 +107,39 @@ const CurieuxMessages = (function(){
   function nomProjet(ctx){ return ctx.projet ? `« ${ctx.projet} »` : 'le projet'; }
   function salut(ctx){ return `Bonjour ${(ctx.prenom || '').trim()}`.trim(); }
 
+  /* Ce que le message doit savoir de la personne à qui il s'adresse.
+     -------------------------------------------------------------------------
+     Trois choses le changent, et les ignorer produisait des messages faux.
+
+     LE RÔLE, d'abord, qui est le plus important. Un·e titulaire fait partie du
+     noyau : on la sollicite d'office, sa place est acquise, et « il me manque
+     tes dispos » est la phrase juste. Un·e remplaçant·e est appelé·e au cas par
+     cas : on lui DEMANDE quelque chose, sa place n'est pas acquise, et lui
+     écrire comme au noyau produit deux erreurs symétriques — un ton qui
+     présume, et surtout un malentendu : être sollicité·e n'est pas être
+     engagé·e. Les modèles le disent donc en toutes lettres, et une validation
+     lui annonce d'abord qu'elle est retenue, ce qui pour elle est LA nouvelle.
+
+     LE TYPE DE PROJET ensuite : on ne « monte pas l'équipe » d'un recording
+     comme d'une tournée, et ce qui se tient est une salle ou un studio.
+
+     LE MÉTIER enfin : « caler la distribution » ne veut rien dire pour un·e
+     technicien·ne, dont on cale les postes.
+
+     Rien de tout cela n'est deviné : la page passe le rôle lu sur la demande du
+     projet (roleSurProjet), le type du projet et le type de personne. En leur
+     absence on retombe sur le cas le plus courant — titulaire, tournée,
+     musicien·ne — qui est aussi le plus neutre. */
+  function mots(ctx){
+    const rec = ctx.typeProjet === 'recording';
+    return {
+      rempla:  ctx.role === 'remplacant',
+      prepare: rec ? 'On prépare les séances de' : "On monte l'équipe pour",
+      caler:   ctx.personType === 'technicien' ? 'caler les postes' : 'caler la distribution',
+      equipe:  ctx.personType === 'technicien' ? "l'équipe technique" : "l'équipe",
+    };
+  }
+
   const MODELES = [
     {
       cle: 'premiere',
@@ -108,11 +147,27 @@ const CurieuxMessages = (function(){
       aide: "Présente le projet et la période — sans énumérer les dates.",
       texte(ctx){
         const p = periode(propres(ctx.toutes).length ? ctx.toutes : ctx.manquantes);
+        const m = mots(ctx);
+        if(m.rempla){
+          return [
+            salut(ctx) + ',',
+            '',
+            ponctuer(`On prépare ${nomProjet(ctx)}${p ? ', ' + p : ''}, et on aimerait beaucoup t'avoir avec nous`),
+            `Est-ce que tu serais disponible ? Tu peux répondre ici, ça prend une minute :`,
+            ctx.lien,
+            '',
+            // La phrase la plus importante du modèle : sans elle, quelqu'un
+            // refuse un autre engagement pour une date qu'on ne lui a jamais
+            // promise.
+            "Rien n'est arrêté à ce stade — je reviens vers toi dès que l'équipe se dessine.",
+            'Merci d\'avance.',
+          ].join('\n');
+        }
         return [
           salut(ctx) + ',',
           '',
-          ponctuer(`On monte l'équipe pour ${nomProjet(ctx)}${p ? ', ' + p : ''}`),
-          `Tes disponibilités nous aideraient à caler la distribution — c'est par ici, et ça prend une minute :`,
+          ponctuer(`${m.prepare} ${nomProjet(ctx)}${p ? ', ' + p : ''}`),
+          `Tes disponibilités nous aideraient à ${m.caler} — c'est par ici, et ça prend une minute :`,
           ctx.lien,
           '',
           'Merci d\'avance, et à très vite.',
@@ -125,13 +180,25 @@ const CurieuxMessages = (function(){
       aide: 'Deux lignes : ce qui manque, et le lien.',
       texte(ctx){
         const d = listeOuResume(enJeu(ctx));
+        const m = mots(ctx);
+        if(m.rempla){
+          return [
+            ponctuer(`${salut(ctx)}, je me permets de revenir vers toi pour ${nomProjet(ctx)}${d ? ' : ' + d : ''}`),
+            // « Même un non » : à quelqu'un qui ne nous doit rien, on demande
+            // une réponse, pas un oui — et le dire fait répondre.
+            `Si tu peux me dire ce que ça donne de ton côté, même un non, ça m'aide à avancer :`,
+            ctx.lien,
+            '',
+            'Merci beaucoup.',
+          ].join('\n');
+        }
         return [
           // « Il me manque » et non « il te manque » : la charge est de notre
           // côté, pas du sien. Sur un message qu'on envoie parfois trois fois,
           // ce déplacement fait toute la différence entre relancer et
           // reprocher.
           ponctuer(`${salut(ctx)}, il me manque encore tes disponibilités sur ${nomProjet(ctx)}${d ? ' : ' + d : ''}`),
-          `Dès que tu as un moment, tout est là — ça m'aiderait beaucoup pour boucler l'équipe :`,
+          `Dès que tu as un moment, tout est là — ça m'aiderait beaucoup pour boucler ${m.equipe} :`,
           ctx.lien,
           '',
           'Merci beaucoup.',
@@ -146,9 +213,16 @@ const CurieuxMessages = (function(){
       texte(ctx){
         const d = listeOuResume(enJeu(ctx));
         const quand = (ctx.butoir || '').trim();
+        const m = mots(ctx);
         return [
           ponctuer(`${salut(ctx)}, je reviens vers toi pour tes disponibilités sur ${nomProjet(ctx)}${d ? ' : ' + d : ''}`),
-          `On boucle l'équipe ${quand || 'très vite'} — si tu peux répondre d'ici là, ça m'arrangerait vraiment :`,
+          m.rempla
+            // À un·e remplaçant·e, la date butoir est une information loyale :
+            // passé ce jour on aura appelé quelqu'un d'autre, et mieux vaut
+            // qu'elle l'apprenne maintenant que le jour où l'on ne la rappelle
+            // pas.
+            ? `On arrête ${m.equipe} ${quand || 'très vite'} — au-delà je ne pourrai malheureusement plus te compter dessus :`
+            : `On boucle ${m.equipe} ${quand || 'très vite'} — si tu peux répondre d'ici là, ça m'arrangerait vraiment :`,
           ctx.lien,
           '',
           'Merci, et désolé d\'insister.',
@@ -207,6 +281,7 @@ const CurieuxMessages = (function(){
         const l = propres(enJeu(ctx));
         const d = listeOuResume(l);
         const pluriel = l.length !== 1;
+        const m = mots(ctx);
         return [
           salut(ctx) + ',',
           '',
@@ -214,7 +289,12 @@ const CurieuxMessages = (function(){
           // rend « 8 dates, entre le 12 mars et le 19 juin » — une incise qui,
           // posée au milieu, casse la lecture en deux.
           ponctuer(`Bonne nouvelle : on vient de poser une option pour ${nomProjet(ctx)}${d ? ' — ' + d : ''}`),
-          `Rien n'est signé pour l'instant. Si tu peux garder ${pluriel ? 'ces dates' : 'cette date'} de côté, c'est idéal — on te confirme dès qu'on en sait plus.`,
+          m.rempla
+            // Deux « rien n'est signé » valent mieux qu'un pour quelqu'un dont
+            // la place n'est pas acquise : l'option engage la salle, pas nous,
+            // et surtout pas elle.
+            ? `On pense à toi dessus, et rien n'est signé — ni de notre côté, ni du tien. Si tu peux garder ${pluriel ? 'ces dates' : 'cette date'} de côté, c'est idéal ; je te confirme dès que c'est arrêté.`
+            : `Rien n'est signé pour l'instant. Si tu peux garder ${pluriel ? 'ces dates' : 'cette date'} de côté, c'est idéal — on te confirme dès qu'on en sait plus.`,
           '',
           `Tes dates sont toujours à jour ici :`,
           ctx.lien,
@@ -228,10 +308,16 @@ const CurieuxMessages = (function(){
       contexte: 'info',
       texte(ctx){
         const d = listeOuResume(enJeu(ctx));
+        const m = mots(ctx);
         return [
           salut(ctx) + ',',
           '',
-          ponctuer(`C'est confirmé pour ${nomProjet(ctx)}${d ? ' — ' + d : ''}`),
+          // Pour le noyau, la nouvelle est que la date est signée. Pour un·e
+          // remplaçant·e, c'est qu'elle est retenue — l'ordre des deux
+          // informations n'est pas le même, et c'est la seconde qu'elle attend.
+          m.rempla
+            ? ponctuer(`C'est confirmé pour ${nomProjet(ctx)}, et on te retient sur ${d || 'les dates prévues'}`)
+            : ponctuer(`C'est confirmé pour ${nomProjet(ctx)}${d ? ' — ' + d : ''}`),
           `Les horaires et le reste suivront. Tes dates sont à jour ici :`,
           ctx.lien,
           '',
@@ -254,13 +340,14 @@ const CurieuxMessages = (function(){
            laisse croire qu'il en reste. La personne appelle alors pour savoir
            ce qui subsiste — ce qui est exactement le message qu'on croyait
            avoir envoyé. La page passe le drapeau ; le modèle change de phrase,
-           pas de ton. */
+           pas de ton.
+
+           « Tout est annulé sur X » plutôt que « X est annulé » : le nom d'un
+           projet est tantôt une tournée (féminin), tantôt un recording
+           (masculin), et rien dans la donnée ne dit lequel. On écrit donc une
+           phrase qui n'a pas d'accord à porter. */
         const tout = !!ctx.projetEntier;
         const ouverture = tout
-          // « Tout est annulé sur X » plutôt que « X est annulé » : le nom d'un
-          // projet est tantôt une tournée (féminin), tantôt un recording
-          // (masculin), et rien dans la donnée ne dit lequel. On écrit donc une
-          // phrase qui n'a pas d'accord à porter.
           ? ponctuer(`Tout est annulé sur ${nomProjet(ctx)} — ${pluriel ? 'toutes les dates tombent' : 'la seule date prévue tombe'}${d ? ' : ' + d : ''}`)
           : ponctuer(`Ce qui était posé sur ${nomProjet(ctx)} ne se fera finalement pas${d ? ' — ' + d : ''}`);
 

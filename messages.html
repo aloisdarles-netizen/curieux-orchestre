@@ -79,6 +79,14 @@
   .gens input[type=checkbox]{width:17px; height:17px; accent-color:var(--accent);}
   .g-nom{font-weight:700;}
   .g-metier{display:block; font-size:11.5px; color:var(--muted); font-weight:400;}
+  /* Le rôle sur CE projet, sur la ligne : c'est lui qui décide du message qui
+     part, et le lire ici évite d'envoyer au noyau le ton qu'on réserve à
+     quelqu'un qu'on appelle en renfort. */
+  .g-role{
+    font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+    padding:2px 7px; border-radius:999px; background:var(--border); color:var(--muted);
+    margin-left:7px; vertical-align:1px;
+  }
   .g-canal{font-size:11.5px; color:var(--muted); white-space:nowrap;}
   .g-canal.aucun{color:var(--ko); font-weight:700;}
   .g-quand{font-size:11.5px; color:var(--muted); white-space:nowrap;}
@@ -337,6 +345,14 @@ function contexteDe(type, id){
   return {
     prenom: fiche.prenom || '', telephone: fiche.telephone || '', email: fiche.email || '',
     projet: (t && t.nom) || '', lien: lienPour(type, id),
+    /* Ce qui change le message, et qu'on lui donnait jusqu'ici en aveugle.
+       Le rôle vient de la demande du PROJET quand elle en porte un, du statut
+       de l'annuaire sinon (roleSurProjet) : quelqu'un du noyau peut être appelé
+       en remplaçant·e sur une tournée précise, et c'est ce rôle-là qui décide
+       du ton — pas son statut général. */
+    role: roleSurProjet(demandeDe(type, id), fiche),
+    typeProjet: (t && t.type) || 'tournee',
+    personType: type,
     manquantes: d.manquantes, toutes: d.toutes,
     butoir: (document.getElementById('butoir') || {}).value || '',
     projetEntier: projetEntierAnnule(),
@@ -436,6 +452,7 @@ function rendreGens(){
 
   const lignes = gens.map(({ p, type })=>{
     const cle = `${type}:${p.id}`;
+    const role = roleSurProjet(demandeDe(type, p.id), p);
     const d = datesPour(type, p.id);
     const nb = estInfo(motif) ? d.toutes.length : d.manquantes.length;
     const tel = CurieuxMessages.numeroWhatsapp(p.telephone);
@@ -444,7 +461,7 @@ function rendreGens(){
     const parti = partis.has(cle);
     return `<tr class="${parti ? 'parti' : ''}">
       <td><input type="checkbox" data-gens="${escapeAttr(cle)}"${gensChoisis.has(cle) ? ' checked' : ''} aria-label="${escapeAttr(fullName(p))}"></td>
-      <td><span class="g-nom">${escapeHtml(fullName(p))}</span>
+      <td><span class="g-nom">${escapeHtml(fullName(p))}${role === 'remplacant' ? '<span class="g-role">remplaçant·e</span>' : ''}</span>
           <span class="g-metier">${escapeHtml(p.instrument || p.poste || '')}${nb ? ` · ${nb} date${nb > 1 ? 's' : ''}` : ''}</span></td>
       <td><span class="g-canal${tel || p.email ? '' : ' aucun'}">${escapeHtml(voie)}</span></td>
       <td><span class="g-quand">${escapeHtml(parti ? 'envoyé' : (quand || '—'))}</span></td>
@@ -477,7 +494,12 @@ function rendreApercu(){
   }
   const { p, type } = gens[0];
   const ctx = contexteDe(type, p.id);
-  qui.textContent = `Aperçu pour ${fullName(p)}${gens.length > 1 ? ` — les ${gens.length - 1} autres reçoivent le même, avec leurs dates et leur lien.` : ''}`;
+  const roleApercu = roleSurProjet(demandeDe(type, p.id), p);
+  // « adapté au rôle » et non « le même » : deux personnes de rôles différents
+  // ne reçoivent pas le même texte, et le croire serait le pire des malentendus
+  // sur cette page.
+  qui.textContent = `Aperçu pour ${fullName(p)} (${libelleRoleProjet(roleApercu).toLowerCase()})`
+    + (gens.length > 1 ? ` — les ${gens.length - 1} autres reçoivent le leur, adapté à leur rôle et à leurs dates.` : '');
   zone.textContent = CurieuxMessages.construire(motif, ctx);
 
   const sansLien = gens.filter(({ p, type })=> !lienPour(type, p.id)).length;
@@ -662,13 +684,32 @@ async function envoyerA(cle){
 }
 
 // --- Branchements -----------------------------------------------------------
-document.getElementById('projet').addEventListener('change', (e)=>{
+document.getElementById('projet').addEventListener('change', async (e)=>{
   projetId = e.target.value;
   presélectionnerDates();
   presélectionnerGens();
   partis = new Set();
   rendre();
+  await assurerJetons();
 });
+
+/* Un lien pour tout le monde, pas seulement pour qui a une demande de dispo.
+   ---------------------------------------------------------------------------
+   La carte des jetons était bâtie sur dispo_demandes. Quelqu'un de distribué
+   sur une date sans avoir jamais été sollicité — cela arrive chaque fois qu'on
+   complète une équipe à la main — n'y figurait donc pas, et son message partait
+   avec un lien vide : « c'est par ici : » suivi de rien.
+
+   On les demande donc pour toutes les personnes que la page affiche.
+   jetonsPermanentsPour en crée un à qui n'en a pas ; l'appel ne bloque pas
+   l'affichage, on redessine ensuite. */
+async function assurerJetons(){
+  const gens = personnesDuProjet().map(({ p, type })=> ({ id: p.id, type }));
+  if(!gens.length) return;
+  const avant = jetonsPermanents.size;
+  jetonsPermanents = await CurieuxDB.jetonsPermanentsPour(gens);
+  if(jetonsPermanents.size !== avant){ rendreGens(); rendreApercu(); }
+}
 
 document.getElementById('motifs').addEventListener('click', (e)=>{
   const b = e.target.closest('[data-motif]');
@@ -760,6 +801,9 @@ async function demarrer(){
     gensChoisis = new Set([personneVoulue]);
   }
   rendre();
+  // Le projet est peut-être déjà choisi par l'adresse : on complète alors les
+  // jetons manquants sans attendre un changement de sélecteur.
+  await assurerJetons();
 }
 
 demarrer();
