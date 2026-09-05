@@ -644,7 +644,12 @@ function creerComposeurPdf(doc, options){
 
   /* Réglages facultatifs, en cinquième argument :
    *
-   *   { couleur, carte, zebre }
+   *   { couleur, carte, zebre, chapeau }
+   *
+   * `chapeau` est une phrase posée ENTRE l'intitulé et les lignes. La `note`,
+   * elle, se range sous la dernière ligne. Les deux existent parce qu'une
+   * phrase qui annonce ce qui suit — « on pose officiellement les options
+   * suivantes » — ne peut pas se lire après la liste qu'elle annonce.
    *
    * `couleur` remplace le prune du filet et de l'intitulé — un tableau de dates
    * validées porte alors le vert du calendrier, les options l'ambre : on
@@ -659,7 +664,7 @@ function creerComposeurPdf(doc, options){
     const cols = (colonnes || []).filter(Boolean);
     const corps = (lignes || []).filter(l=> l && cellulesDe(l).some(v=> v != null && v !== ''));
     if(!cols.length || !corps.length) return api;
-    const r = Object.assign({ couleur:null, carte:false, zebre:false }, reglages || {});
+    const r = Object.assign({ couleur:null, carte:false, zebre:false, chapeau:'' }, reglages || {});
     const teinte = r.couleur || PDF_CHARTE.prune;
 
     sections.push((k, dessiner, yDepart)=>{
@@ -695,8 +700,14 @@ function creerComposeurPdf(doc, options){
       const lNote = note ? lignes_(note, largeurContenu) : [];
       const hNote = lNote.length ? lNote.length * hLigne(ptNote) + 2 * k : 0;
 
+      // Le chapeau, mesuré comme la note : la carte doit connaître sa hauteur.
+      const ptChapeau = 8 * k;
+      doc.setFont('Host', 'normal'); doc.setFontSize(ptChapeau);
+      const lChapeau = r.chapeau ? lignes_(r.chapeau, largeurContenu) : [];
+      const hChapeau = lChapeau.length ? lChapeau.length * hLigne(ptChapeau) + 2.2 * k : 0;
+
       const hTitre = hLigne(ptTitre);
-      const hEnTete = hTitre + 1.8 * k + hLigne(ptEntete) + 1.4 * k + 2.2 * k;
+      const hEnTete = hTitre + 1.8 * k + hChapeau + hLigne(ptEntete) + 1.4 * k + 2.2 * k;
       const hCorps = mesures.reduce((s, m)=> s + m.h + 2 * k, 0);
       const hCarte = padCarte + hEnTete + hCorps + (r.carte ? hNote : 0) + padCarte * 0.6;
 
@@ -719,6 +730,15 @@ function creerComposeurPdf(doc, options){
         doc.setCharSpace(0);
       }
       y += hTitre + 1.8 * k;
+
+      if(lChapeau.length){
+        if(dessiner){
+          doc.setFont('Host', 'normal'); doc.setFontSize(ptChapeau);
+          encre(PDF_CHARTE.noir);
+          doc.text(lChapeau, x0, y, { baseline:'top' });
+        }
+        y += hChapeau;
+      }
 
       // La légende : sans elle, la ligne de valeurs reste une énigme.
       doc.setFont('Host', 'bold'); doc.setFontSize(ptEntete);
@@ -786,7 +806,8 @@ function creerComposeurPdf(doc, options){
      calendrier le fait, le tableau non — et c'est déjà la forme que les gens
      ont sous les yeux dans leur espace personnel. On la rejoue donc à
      l'identique : mêmes couleurs, même grille lundi-dimanche, même point sous
-     le chiffre pour dire « tu joues », même légende sur le côté.
+     le chiffre pour dire « tu joues », même légende — en bandeau au-dessus,
+     la page étant deux fois moins large qu'un écran.
 
      Ce que la section reçoit ne parle que de calendrier, jamais de tournée :
      le composeur ignore ce qu'est une date de concert, et doit continuer de
@@ -815,9 +836,12 @@ function creerComposeurPdf(doc, options){
        calendrier : le composeur ne sait couper qu'entre deux sections. Une
        saison de huit mois formant un bloc unique déborderait de la feuille
        sans que rien ne puisse l'en empêcher. */
-    const gapLeg = 5;
-    const largeurLegende = legende.length ? Math.min(38, utile * 0.24) : 0;
-    const largeurCal = utile - (largeurLegende ? largeurLegende + gapLeg : 0);
+    /* La légende en BANDEAU, au-dessus des grilles, et non plus en colonne à
+       droite. En colonne elle mangeait un quart de la largeur sur toute la
+       hauteur du calendrier — quatre lignes de texte payées par cinq mois de
+       grilles rétrécies — et laissait un vide sous elle dès la deuxième
+       rangée. En bandeau elle coûte une ligne, une fois, et rend aux mois la
+       page entière : les cases gagnent près de moitié. */
     const gapMois = 4;
     /* La largeur d'un mois ne dépend PAS du nombre de mois. Un projet qui n'en
        compte qu'un se voyait sinon dessiner une grille de quatorze centimètres
@@ -826,8 +850,8 @@ function creerComposeurPdf(doc, options){
        grille garde donc sa taille, et une saison courte laisse simplement de
        la place à droite. */
     let cols = r.colonnesMax;
-    while(cols > 1 && (largeurCal - gapMois * (cols - 1)) / cols < CAL_MOIS_MIN) cols--;
-    const largeurMois = (largeurCal - gapMois * (cols - 1)) / cols;
+    while(cols > 1 && (utile - gapMois * (cols - 1)) / cols < CAL_MOIS_MIN) cols--;
+    const largeurMois = (utile - gapMois * (cols - 1)) / cols;
     cols = Math.min(cols, grilles.length);
 
     const rangees = [];
@@ -846,6 +870,27 @@ function creerComposeurPdf(doc, options){
            court autorisait le corps à grandir : « 28 » mordait sur « 27 ».
            Le corps du quantième se déduit de la case, pas de k. */
         const ptTitre = 8 * k, ptNote = 7 * k;
+
+        // Géométrie d'une grille : un cadre, sept colonnes, des cases carrées.
+        // Tout en millimètres, rien à l'échelle du texte.
+        const padGrille = 2.2;
+        const gapCase = 0.9;
+        const largeurCase = (largeurMois - padGrille * 2 - gapCase * 6) / 7;
+        const hauteurCase = largeurCase;
+        // Le quantième occupe un peu plus de la moitié de sa case : deux
+        // chiffres y tiennent avec leur air autour, à toute largeur de grille.
+        const ptJour = (largeurCase / 0.3528) * 0.52;
+        const ptNom = ptJour * 0.80;
+        const ptMois = ptJour * 1.05;
+        /* La légende suit la GRILLE, pas le texte de la page. Réglée sur k,
+           elle rapetissait avec les tableaux pendant que les cases, elles,
+           gardaient leur taille : on obtenait un calendrier généreux surmonté
+           d'une légende en pattes de mouche, illisible et sans rapport avec ce
+           qu'elle explique. */
+        const ptLeg = ptJour * 0.95;
+        const hauteurNoms = hLigne(ptNom) + 1;
+        const hEnTeteMois = hLigne(ptMois) + 1.6;
+
         let y = yDepart;
 
         // Le bandeau de section, dans l'idiome des tableaux : le document doit
@@ -864,20 +909,56 @@ function creerComposeurPdf(doc, options){
           y += hTitre + 2.4 * k;
         }
 
-        // Géométrie d'une grille : un cadre, sept colonnes, des cases carrées.
-        // Tout en millimètres, rien à l'échelle du texte.
-        const padGrille = 2.2;
-        const gapCase = 0.9;
-        const largeurCase = (largeurMois - padGrille * 2 - gapCase * 6) / 7;
-        const hauteurCase = largeurCase;
-        // Le quantième occupe un peu plus de la moitié de sa case : deux
-        // chiffres y tiennent avec leur air autour, à toute largeur de grille.
-        const ptJour = (largeurCase / 0.3528) * 0.52;
-        const ptNom = ptJour * 0.80;
-        const ptMois = ptJour * 1.05;
-        const ptLeg = 7 * k;
-        const hauteurNoms = hLigne(ptNom) + 1;
-        const hEnTeteMois = hLigne(ptMois) + 1.6;
+        /* Le bandeau de légende, une fois, en tête. Les postes se posent bout à
+           bout et repassent à la ligne s'ils débordent — le calcul est le même
+           à la mesure et au dessin, sans quoi la hauteur mentirait. */
+        if(legende.length && premiere){
+          const padLeg = 2.6;
+          const cote = ptLeg * 0.3528 * 0.95;
+          const ecart = 1.9;        // entre la pastille et son mot
+          const entre = 6;          // entre deux postes
+          doc.setFont('Host', 'normal'); doc.setFontSize(ptLeg);
+          const postes = legende.map(l=> ({ l, w: cote + ecart + doc.getTextWidth(String(l.mot)) }));
+          const dispoLeg = utile - padLeg * 2;
+          let ligneLeg = 0, xLeg = 0;
+          postes.forEach(p=>{
+            if(xLeg > 0 && xLeg + p.w > dispoLeg){ ligneLeg++; xLeg = 0; }
+            p.ligne = ligneLeg; p.x = xLeg;
+            xLeg += p.w + entre;
+          });
+          const hPoste = Math.max(hLigne(ptLeg), cote + 1.4);
+          const hBande = padLeg * 2 + (ligneLeg + 1) * hPoste;
+          // Le bandeau s'arrête à son contenu : une barre blanche de dix-huit
+          // centimètres pour trois mots se lit comme un cadre resté vide.
+          const largeurBande = Math.min(utile,
+            padLeg * 2 + postes.reduce((m, p)=> Math.max(m, p.x + p.w), 0));
+
+          if(dessiner){
+            fond(PDF_CHARTE.carte); trait(PDF_CHARTE.bord); doc.setLineWidth(0.2);
+            doc.roundedRect(o.marge, y, largeurBande, hBande, hBande / 2, hBande / 2, 'FD');
+            postes.forEach(p=>{
+              const xP = o.marge + padLeg + p.x;
+              const cy = y + padLeg + p.ligne * hPoste + hPoste / 2;
+              if(p.l.point){
+                fond(PDF_CHARTE.noir);
+                doc.circle(xP + cote / 2, cy, cote * 0.3, 'F');
+              } else {
+                const st = PDF_CHARTE.statuts[p.l.statut] || { fond: PDF_CHARTE.bord };
+                fond(st.fond);
+                if(st.bord){
+                  trait(st.bord); doc.setLineWidth(0.2);
+                  doc.roundedRect(xP, cy - cote / 2, cote, cote, 0.7, 0.7, 'FD');
+                } else {
+                  doc.roundedRect(xP, cy - cote / 2, cote, cote, 0.7, 0.7, 'F');
+                }
+              }
+              doc.setFont('Host', 'normal'); doc.setFontSize(ptLeg);
+              encre(PDF_CHARTE.muted);
+              doc.text(String(p.l.mot), xP + cote + ecart, cy, { baseline:'middle' });
+            });
+          }
+          y += hBande + 3;
+        }
 
         const semainesDe = (m)=>{
           const decalage = (new Date(Date.UTC(m.annee, m.mois - 1, 1)).getUTCDay() + 6) % 7;
@@ -950,44 +1031,7 @@ function creerComposeurPdf(doc, options){
 
         const hRangee = Math.max(...rangee.map(hauteurMois));
         if(dessiner) rangee.forEach((m, j)=> dessinerMois(m, o.marge + j * (largeurMois + gapMois), y));
-
-        /* La légende, dans son cadre, en face de la première rangée — comme la
-           colonne de légende à l'écran. Les rangées suivantes lui laissent sa
-           largeur pour que toutes les grilles restent alignées. */
-        let hLegende = 0;
-        if(legende.length && premiere){
-          const padLeg = 2.6 * k;
-          const hEntree = Math.max(hLigne(ptLeg), 3.2 * k);
-          const gapEntree = 1.6 * k;
-          hLegende = padLeg * 2 + legende.length * hEntree + (legende.length - 1) * gapEntree;
-          if(dessiner){
-            const xL = o.marge + largeurCal + gapLeg;
-            fond(PDF_CHARTE.carte); trait(PDF_CHARTE.bord); doc.setLineWidth(0.2);
-            doc.roundedRect(xL, y, largeurLegende, hLegende, 1.6 * k, 1.6 * k, 'FD');
-            doc.setFont('Host', 'normal'); doc.setFontSize(ptLeg);
-            legende.forEach((l, i)=>{
-              const yE = y + padLeg + i * (hEntree + gapEntree);
-              const cote = 2.4 * k;
-              if(l.point){
-                fond(PDF_CHARTE.noir);
-                doc.circle(xL + padLeg + cote / 2, yE + hEntree / 2, 0.8 * k, 'F');
-              } else {
-                const st = PDF_CHARTE.statuts[l.statut] || { fond: PDF_CHARTE.bord };
-                fond(st.fond);
-                if(st.bord){
-                  trait(st.bord); doc.setLineWidth(0.2);
-                  doc.roundedRect(xL + padLeg, yE + (hEntree - cote) / 2, cote, cote, 0.7 * k, 0.7 * k, 'FD');
-                } else {
-                  doc.roundedRect(xL + padLeg, yE + (hEntree - cote) / 2, cote, cote, 0.7 * k, 0.7 * k, 'F');
-                }
-              }
-              encre(PDF_CHARTE.muted);
-              doc.text(String(l.mot), xL + padLeg + cote + 2 * k, yE + hEntree / 2, { baseline:'middle' });
-            });
-          }
-        }
-
-        y += Math.max(hRangee, hLegende);
+        y += hRangee;
 
         if(r.note && derniere){
           doc.setFont('Host', 'normal'); doc.setFontSize(ptNote);

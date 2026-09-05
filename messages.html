@@ -808,13 +808,23 @@ function moisPourCalendrier(paires){
    colonne « statut » aurait tenu sur moins de place, mais on lit alors ligne à
    ligne au lieu de voir d'un coup ce qui est acquis et ce qui ne l'est pas — et
    c'est précisément ce que le document doit transmettre. */
-// Trois groupes, et pas quatre : les dates à l'étude n'entrent pas dans le
-// document (voir datesDuDocument). Leur laisser un groupe ici en ferait une
-// section qui ne se remplit jamais.
+/* Trois groupes, et pas quatre : les dates à l'étude n'entrent pas dans le
+   document (voir datesDuDocument). Leur laisser un groupe ici en ferait une
+   section qui ne se remplit jamais.
+
+   Chaque groupe ANNONCE ce qu'il est, au-dessus de sa liste. La phrase était
+   auparavant sous le tableau, en petit gris : « la salle tient la date, rien
+   n'est signé » se lisait après coup, quand la personne avait déjà parcouru
+   les dates en se demandant ce qu'elle devait en faire. Et une phrase qui
+   annonce — « on pose officiellement les options suivantes » — ne peut de
+   toute façon pas se lire après la liste qu'elle annonce. */
 const GROUPES_DOC = [
-  { cle:'validee',  titre:'Dates validées', un:'validée', plusieurs:'validées', note:"c'est signé." },
-  { cle:'option',   titre:'Options',        un:'option',  plusieurs:'options',  note:"la salle tient la date, rien n'est signé." },
-  { cle:'annulee',  titre:'Dates annulées', un:'annulée', plusieurs:'annulées', note:"ces dates ne se feront pas." },
+  { cle:'validee', titre:'Dates validées', un:'validée', plusieurs:'validées',
+    chapeau: "Ces dates sont validées : c'est signé, elles sont fermes." },
+  { cle:'option',  titre:'Options',        un:'option',  plusieurs:'options',
+    chapeau: "On pose officiellement les options suivantes : la salle tient la date pour nous, et rien n'est signé. À garder sans s'engager ailleurs, jusqu'à confirmation ou libération." },
+  { cle:'annulee', titre:'Dates annulées', un:'annulée', plusieurs:'annulées',
+    chapeau: "Ces dates ne se feront pas. Les journées sont à libérer." },
 ];
 
 /* La couleur d'un statut, une seule fois pour tout le document : la case du
@@ -907,6 +917,14 @@ function construireDocument(paires, o, meta){
     // On l'autorise à grandir : c'est aussi ce qui le rend lisible de loin,
     // punaisé dans une loge.
     echelleMax: 1.35,
+    /* Et un PLANCHER. Le calendrier occupe désormais toute la largeur, donc
+       plus de hauteur : la dichotomie compensait en rétrécissant les tableaux,
+       et on obtenait un calendrier généreux au-dessus de listes en pattes de
+       mouche — l'inverse de ce qu'on cherche. Sous ce corps-là, le texte cesse
+       d'être lisible ; le document prend alors une seconde feuille, ce qui est
+       le moindre mal (voir api.rendre, qui compose à taille naturelle dès
+       qu'aucune échelle ne fait tenir la page). */
+    echelleMin: 0.85,
     // Le filigrane ne sert que lorsqu'il porte une information qu'aucune autre
     // ligne ne porte : « ANNULÉ ». « INFORMATIF » barrait la page en travers,
     // passait par-dessus le texte, et disait ce que le paragraphe de pied dit
@@ -965,6 +983,7 @@ function construireDocument(paires, o, meta){
       if(o.parPersonne) legende.push({ point:true, mot:'tu joues' });
       page.calendrier(meta.titreCalendrier || 'Le calendrier', mois, {
         legende,
+        colonnesMax: 4,
         /* Rien sous la vue d'ensemble : la légende dit déjà ce que la couleur
            veut dire, et le cas rare — deux projets le même jour — ne se
            commente pas sur toutes les grilles. Le document personnel garde sa
@@ -997,7 +1016,7 @@ function construireDocument(paires, o, meta){
         // lui, deux options se suivent sans qu'on sache de quoi elles parlent.
         if(meta.plusieursProjets) base.push(t.nom || 'Projet');
         return base;
-      }), g.note, { couleur: couleurStatut(g.cle), carte:true, zebre:true });
+      }), '', { couleur: couleurStatut(g.cle), carte:true, zebre:true, chapeau: g.chapeau });
     });
   }
 
