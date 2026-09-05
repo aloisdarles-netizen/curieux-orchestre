@@ -22,7 +22,13 @@
      — on dit pourquoi ça compte (« pour boucler l'équipe »), jamais seulement
        ce qu'on attend ;
      — on remercie en toutes lettres, et on s'excuse quand on dérange. Un
-       « Merci ! » sec coûte moins qu'il ne rapporte.
+       « Merci ! » sec coûte moins qu'il ne rapporte ;
+     — on ne PROMET rien qu'on ne tienne. Ni « on se rattrape à la prochaine »,
+       ni « on te reprend sur le prochain projet » : la distribution d'un
+       projet à venir ne se décide pas dans un message d'annulation, et une
+       promesse faite à quarante personnes à la fois est une promesse qu'on
+       manquera devant trente-neuf. On s'engage seulement à tenir au courant,
+       ce que le lien permet de faire sans rien promettre.
 
    Le module ne connaît ni Supabase ni les pages : on lui donne un contexte
    (prénom, projet, lien, dates), il rend un texte et ouvre le bon canal.
@@ -262,7 +268,12 @@ const CurieuxMessages = (function(){
           salut(ctx) + ',',
           '',
           ouverture,
-          `Tu peux libérer ${pluriel ? 'ces journées' : 'cette journée'}. Merci de ${pluriel ? 'les ' : "l'"}avoir gardée${pluriel ? 's' : ''}, et désolé pour le contretemps — on se rattrape à la prochaine.`,
+          /* Pas de « on se rattrape à la prochaine » : c'est une promesse
+             d'engagement futur, et un message qui part à quarante personnes ne
+             peut en porter aucune. On s'excuse, on remercie, on s'arrête là —
+             la seule chose qu'on s'autorise à promettre, c'est de tenir au
+             courant, et c'est le rôle du lien. */
+          `Tu peux libérer ${pluriel ? 'ces journées' : 'cette journée'}. Merci de ${pluriel ? 'les ' : "l'"}avoir gardée${pluriel ? 's' : ''}, et désolé pour le contretemps.`,
           '',
           `${tout ? 'Tes autres dates sont ici' : 'Le reste de tes dates est ici'} :`,
           ctx.lien,
