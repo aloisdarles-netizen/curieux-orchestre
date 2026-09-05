@@ -17,7 +17,7 @@
         validée   → c'est signé, tu peux compter dessus ;
         option    → la salle nous tient la date, rien n'est signé : garde-la
                     sans t'engager ailleurs ;
-        recherche → rien n'est posé, ne bloque rien ;
+        à l'étude → rien n'est posé, on demande juste ta dispo ;
         annulée   → libère ta journée.
       Le mot est porté par l'en-tête de sa colonne, qui reste collé en haut
       pendant qu'on descend : à la vingtième ligne comme à la première, on sait
@@ -79,7 +79,7 @@ const CurieuxMesDates = (function(){
     return `Mis à jour le ${jour} à ${heure}`;
   }
 
-  const STATUT_MOT = { validee:'Validée', option:'Option', recherche:'Recherche', annulee:'Annulée' };
+  const STATUT_MOT = { validee:'Validée', option:'Option', recherche:"À l'étude", annulee:'Annulée' };
   const RANG_STATUT = { validee:0, option:1, recherche:2, annulee:3 };
   const LIBELLE_DISPO = { indispo:"tu t'es dit indispo", incertain:'tu as répondu « à confirmer »' };
 
@@ -90,8 +90,8 @@ const CurieuxMesDates = (function(){
       vide:"Rien de signé pour l'instant." },
     { cle:'option',    titre:'Option',    dit:"La salle nous tient la date, rien n'est signé. Garde-la sans t'engager ailleurs.",
       vide:'Aucune option en cours.' },
-    { cle:'recherche', titre:'Recherche', dit:"Rien n'est posé : on regarde qui serait là. Ne bloque rien.",
-      vide:'Aucune recherche en cours.' },
+    { cle:'recherche', titre:"À l'étude", dit:"Rien n'est posé : on te demande juste ta dispo. Ne bloque pas ta journée.",
+      vide:"Aucune date à l'étude." },
     { cle:'annulee',   titre:'Annulée',   dit:'Ces dates ne se feront pas. Tu peux libérer ces journées.',
       vide:'', siVide:'masquer' },
     // Le cinquième cas, qu'il fallait bien nommer : la date est confirmée, on
@@ -216,7 +216,7 @@ const CurieuxMesDates = (function(){
       <div class="cal-legende">
         <span><i class="cal-puce validee"></i> validée</span>
         <span><i class="cal-puce option"></i> option</span>
-        <span><i class="cal-puce recherche"></i> recherche</span>
+        <span><i class="cal-puce recherche"></i> à l'étude</span>
         <span><i class="cal-puce annulee"></i> annulée</span>
         <span><i class="cal-puce moi"></i> le point : tu joues</span>
       </div>

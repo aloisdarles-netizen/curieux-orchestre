@@ -797,10 +797,12 @@ function moisPourCalendrier(paires){
    ligne au lieu de voir d'un coup ce qui est acquis et ce qui ne l'est pas — et
    c'est précisément ce que le document doit transmettre. */
 const GROUPES_DOC = [
-  { cle:'validee',   titre:'Dates validées', mot:'validées',  note:"c'est signé." },
-  { cle:'option',    titre:'Options',        mot:'options',   note:"la salle tient la date, rien n'est signé." },
-  { cle:'recherche', titre:'Recherches',     mot:'recherches',note:"hypothèses de travail, rien n'est posé." },
-  { cle:'annulee',   titre:'Dates annulées', mot:'annulées',  note:"ces dates ne se feront pas." },
+  { cle:'validee',   titre:'Dates validées',  un:'validée',   plusieurs:'validées',  note:"c'est signé." },
+  { cle:'option',    titre:'Options',         un:'option',    plusieurs:'options',   note:"la salle tient la date, rien n'est signé." },
+  // « à l'étude » est invariable : d'où les deux formes plutôt qu'un « s »
+  // ajouté au vol, qui aurait écrit « 2 à l'études ».
+  { cle:'recherche', titre:"Dates à l'étude", un:"à l'étude", plusieurs:"à l'étude", note:"rien n'est posé — on collecte seulement les disponibilités." },
+  { cle:'annulee',   titre:'Dates annulées',  un:'annulée',   plusieurs:'annulées',  note:"ces dates ne se feront pas." },
 ];
 
 /* La couleur d'un statut, une seule fois pour tout le document : la case du
@@ -923,7 +925,7 @@ function construireDocument(paires, o, meta){
     .map(g=> ({ g, n: paires.filter(({ d })=> statutDate(d) === g.cle).length }))
     .filter(x=> x.n)
     .map(({ g, n })=> ({
-      texte: `${n} ${n > 1 ? g.mot : g.mot.replace(/s$/, '')}`,
+      texte: `${n} ${n > 1 ? g.plusieurs : g.un}`,
       // La pastille prend la couleur de la CASE, pas celle de l'intitulé :
       // c'est un aplat, comme dans la grille juste en dessous.
       fond: (PDF_CHARTE.statuts[g.cle] || {}).fond || PDF_CHARTE.prune,
@@ -944,7 +946,7 @@ function construireDocument(paires, o, meta){
       const legende = [
         { statut:'validee',   mot:'validée' },
         { statut:'option',    mot:'option' },
-        { statut:'recherche', mot:'recherche' },
+        { statut:'recherche', mot:"à l'étude" },
         { statut:'annulee',   mot:'annulée' },
       ].filter(l=> presents.has(l.statut));
       // Le point ne veut dire quelque chose que dans le document de quelqu'un.

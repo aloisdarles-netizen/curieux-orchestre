@@ -1885,13 +1885,13 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
         `);
         // Une seule pastille qui tourne au clic. La cible suivante est portée
         // par l'attribut, et le titre l'annonce pour qu'on sache où l'on va
-        // avant de cliquer. Quatre états depuis qu'une recherche de dispo n'est
+        // avant de cliquer. Quatre états depuis qu'une date à l'étude n'est
         // plus obligée de se déguiser en option (voir assets/statuts-date.js).
         const suivant = statutSuivant(statut);
         const statutGroup = `
           <button type="button" class="statut-pastille ${statut}"
             data-set-statut="${escapeAttr(d.id)}" data-statut-value="${suivant}"
-            title="Statut : ${escapeAttr(libelleStatut(statut))}. Clique pour passer à « ${escapeAttr(libelleStatut(suivant))} » (recherche → option → validée → annulée)"
+            title="Statut : ${escapeAttr(libelleStatut(statut))}. Clique pour passer à « ${escapeAttr(libelleStatut(suivant))} » (à l'étude → option → validée → annulée)"
             aria-label="Statut ${escapeAttr(libelleStatut(statut))} — changer pour ${escapeAttr(libelleStatut(suivant))}">${escapeHtml(courtStatut(statut))}</button>
         `;
         const hasNext = dIdx < dates.length - 1;
@@ -2004,7 +2004,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             `${dates.length} ${EST_RECORDING ? 'séance' : 'date'}${dates.length>1?'s':''}`,
             dates.filter(d=> estValidee(d)).length ? `${dates.filter(d=> estValidee(d)).length} validée${dates.filter(d=> estValidee(d)).length>1?'s':''}` : '',
             dates.filter(d=> statutDate(d)==='option').length ? `${dates.filter(d=> statutDate(d)==='option').length} option${dates.filter(d=> statutDate(d)==='option').length>1?'s':''}` : '',
-            dates.filter(d=> statutDate(d)==='recherche').length ? `${dates.filter(d=> statutDate(d)==='recherche').length} en recherche` : '',
+            dates.filter(d=> statutDate(d)==='recherche').length ? `${dates.filter(d=> statutDate(d)==='recherche').length} à l'étude` : '',
             ].filter(Boolean).join(' · ')}</span>
             <button type="button" class="outils-toggle" data-toggle-outils="${escapeAttr(t.id)}"
               aria-expanded="${outilsOuverts.has(t.id) ? 'true' : 'false'}" title="Cachet et effectif attendu">
@@ -2355,9 +2355,9 @@ function exportTourneePdf(tourneeId){
     [`${dates.length} ${EST_RECORDING ? (dates.length>1?'séances':'séance') : (dates.length>1?'dates':'date')}`,
      `${counts.validee} validée${counts.validee>1?'s':''}`,
      `${counts.option} en option`,
-     // Une recherche de dispo n'est pas une option : elle ne se compte que
+     // Une date à l'étude n'est pas une option : elle ne se compte que
      // quand il y en a, pour ne pas alourdir le résumé des tournées calées.
-     counts.recherche ? `${counts.recherche} en recherche` : '',
+     counts.recherche ? `${counts.recherche} à l'étude` : '',
      `${counts.annulee} annulée${counts.annulee>1?'s':''}`].filter(Boolean).join('  ·  '),
     10, 24
   );

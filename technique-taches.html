@@ -233,7 +233,7 @@ function sallesAVenir(){
       premier: g.dates[0].date || '',
       dernier: g.dates[g.dates.length - 1].date || '',
       // Une série est une option si AUCUNE de ses dates n'est signée.
-      // Une recherche de dispo comme une option : dans les deux cas rien n'est
+      // Une date à l'étude comme une option : dans les deux cas rien n'est
       // signé, et le montage ne se prépare pas pour de bon.
       hypothese: g.dates.every(d=> estHypothese(d)),
       recherche: g.dates.every(d=> statutDate(d) === 'recherche'),
@@ -279,7 +279,7 @@ function alertesDe(s){
   // encore, c'est du travail qu'on refera.
   if(s.hypothese){
     pousser('option',
-      s.recherche ? 'Toujours en recherche de dispo' : 'Toujours en option',
+      s.recherche ? "Toujours à l'étude" : 'Toujours en option',
       s.recherche
         ? `à ${r} jours, il faut poser une option ou passer à autre chose`
         : `à ${r} jours, il faut signer ou libérer la salle`);
@@ -621,7 +621,7 @@ function rendre(){
           return `<a class="co-card co-pad salle-carte" href="technique-date.html?t=${encodeURIComponent(t.id)}&d=${encodeURIComponent(s.id)}" style="text-decoration:none; color:inherit; display:block;">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <b style="font-size:14.5px;">${escapeHtml(s.ville)}</b>
-            ${s.hypothese ? `<span class="co-pill ${s.recherche ? '' : 'att'}">${escapeHtml(s.recherche ? 'Recherche' : 'Option')}</span>` : ''}
+            ${s.hypothese ? `<span class="co-pill ${s.recherche ? '' : 'att'}">${escapeHtml(s.recherche ? "À l'étude" : 'Option')}</span>` : ''}
             <span style="margin-left:auto; font-size:12px; font-weight:800; color:${r != null && r <= 14 ? 'var(--ko)' : 'var(--muted)'};">${r == null ? '' : escapeHtml(libelleJ(r))}</span>
           </div>
           <div style="font-size:12.5px; color:var(--muted); margin-top:2px;">${escapeHtml(s.dates.length > 1 ? joli(s.premier) + ' → ' + joli(s.dernier) : joli(s.premier, true))}${s.lieu ? ' · ' + escapeHtml(s.lieu) : ''} · <b>${regles} / ${postes.length} réglés</b></div>
