@@ -4,12 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Curieux orchestre — Messages</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
 <script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/statuts-date.js"></script>
 <script src="assets/dispo-statuts.js"></script>
+<script src="assets/pdf-charte.js"></script>
 <script src="assets/messages-dispo.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
@@ -104,6 +106,13 @@
     width:100%; margin-top:9px; padding:8px 10px; border:1px solid var(--border);
     border-radius:8px; background:var(--card); color:var(--text); font:inherit; font-size:13px;
   }
+  .doc-choix{display:flex; flex-direction:column; gap:8px; margin-bottom:11px;}
+  .doc-case{display:flex; align-items:center; gap:9px; font-size:13px; cursor:pointer;}
+  .doc-case input{width:17px; height:17px; accent-color:var(--accent);}
+  .doc-avert{
+    background:var(--maybe-tint); color:var(--maybe); border-radius:8px; padding:9px 11px;
+    font-size:12.5px; line-height:1.5; margin:0 0 11px; font-weight:600;
+  }
   .avert{
     background:var(--maybe-tint); color:var(--maybe); border-radius:8px; padding:9px 11px;
     font-size:12.5px; line-height:1.5; margin-top:10px; font-weight:600;
@@ -142,6 +151,18 @@
         <p class="etape-titre"><em id="numDest">4.</em> Les destinataires <button type="button" class="mini" id="gensTous">Tout cocher</button> <button type="button" class="mini" id="gensAucun">Aucun</button></p>
         <p class="etape-aide" id="gensAide"></p>
         <div id="gens"></div>
+      </section>
+
+      <section class="etape">
+        <p class="etape-titre"><em id="numDoc">5.</em> Le document</p>
+        <p class="etape-aide">Un récapitulatif en PDF, à joindre au message ou à imprimer. Il reprend le projet et ses dates, groupées par statut — jamais les coordonnées de qui que ce soit : un document circule, et on ne sait pas jusqu'où.</p>
+        <div class="doc-choix">
+          <label class="doc-case"><input type="checkbox" id="docPerimetre"> Seulement les dates cochées ci-dessus</label>
+          <label class="doc-case"><input type="checkbox" id="docAnnulees"> Inclure les dates annulées</label>
+          <label class="doc-case"><input type="checkbox" id="docDistribution"> Dire qui joue sur chaque date</label>
+        </div>
+        <p class="doc-avert" id="docAvert" hidden></p>
+        <button type="button" class="co-btn primary md" id="docGenerer">Générer le PDF</button>
       </section>
     </div>
 
@@ -293,6 +314,21 @@ function lienPour(type, id){
   return lienPublic(estInfo(motif) ? 'mes-dates.html' : 'mon-espace.html', 'token=' + encodeURIComponent(jeton));
 }
 
+/* Le projet entier est-il annulé ?
+   ---------------------------------------------------------------------------
+   On regarde le PROJET, pas ce qui est coché : si toutes ses dates à venir
+   portent le statut « annulée », la tournée est annulée, et le message doit le
+   dire ainsi. Annoncer « ces dates ne se feront pas » quand il n'en reste
+   aucune laisse croire qu'il en reste : la personne rappelle pour savoir ce qui
+   subsiste, c'est-à-dire exactement le message qu'on croyait avoir envoyé.
+
+   Le test porte sur les dates à venir, jamais sur l'historique : une tournée de
+   l'an dernier, jouée puis close, n'est pas une tournée annulée. */
+function projetEntierAnnule(){
+  const dates = datesDuProjet();
+  return dates.length > 0 && dates.every(d=> statutDate(d) === 'annulee');
+}
+
 function contexteDe(type, id){
   const fiche = (type === 'musicien' ? musiciensCache : techniciensCache).find(x=> x.id === id);
   if(!fiche) return null;
@@ -303,6 +339,7 @@ function contexteDe(type, id){
     projet: (t && t.nom) || '', lien: lienPour(type, id),
     manquantes: d.manquantes, toutes: d.toutes,
     butoir: (document.getElementById('butoir') || {}).value || '',
+    projetEntier: projetEntierAnnule(),
     canal,
     sujet: estInfo(motif) ? `${(t && t.nom) || 'Projet'} — tes dates` : undefined,
   };
@@ -458,6 +495,142 @@ function rendre(){
   rendreDates();
   rendreGens();
   rendreApercu();
+  // Le document se numérote après les dates, qui n'apparaissent que sur une
+  // annonce ; et la case « seulement les dates cochées » se coche d'office
+  // quand il y a justement des dates cochées à dire.
+  document.getElementById('numDoc').textContent = estInfo(motif) ? '5.' : '4.';
+  const perimetre = document.getElementById('docPerimetre');
+  perimetre.disabled = !estInfo(motif);
+  if(!estInfo(motif)) perimetre.checked = false;
+  majAvertDocument();
+}
+
+/* ============================================================================
+   Le document
+   ============================================================================
+   Un message se lit sur un téléphone, dans un couloir, et se perd. Un
+   récapitulatif se joint, s'imprime, se punaise dans une loge et se transmet à
+   quelqu'un qui n'était pas dans la boucle. Les deux ne servent pas à la même
+   chose, et la page devait savoir faire les deux.
+
+   Ce que le document ne contient JAMAIS : ni téléphone, ni adresse, ni courriel.
+   Un document circule — on ne sait pas jusqu'où, et une liste de coordonnées qui
+   sort de l'équipe ne revient pas. La distribution, elle, reste optionnelle : la
+   dire à l'intérieur de l'orchestre va de soi, l'écrire dans un PDF qui partira
+   peut-être chez un partenaire, beaucoup moins.
+
+   Le périmètre suit le motif. Une annonce parle des dates qu'on a cochées ; une
+   demande de dispo parle du projet entier. Les cases permettent de trancher
+   autrement, et l'avertissement dit ce qui va sortir avant qu'on clique. */
+
+const MOIS_DOC = ['janvier','février','mars','avril','mai','juin',
+                  'juillet','août','septembre','octobre','novembre','décembre'];
+const JOURS_DOC = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+
+// Découpage de la chaîne ISO, jamais new Date() sur une date nue : selon le
+// fuseau, minuit recule d'un jour, et une date de concert fausse d'un jour dans
+// un document imprimé est une erreur qu'on ne rattrape plus.
+function jourDoc(iso){
+  const [a, m, j] = String(iso || '').split('-').map(n=> parseInt(n, 10));
+  if(!j) return '';
+  const sem = JOURS_DOC[(new Date(Date.UTC(a, m - 1, j)).getUTCDay() + 6) % 7];
+  // « 1er » et non « 1 » : le document s'imprime et se relit.
+  return `${sem} ${j === 1 ? '1er' : j} ${MOIS_DOC[m - 1] || ''}`;
+}
+
+// Les dates que le document reprendra, dans l'ordre.
+function datesDuDocument(){
+  const cochees = document.getElementById('docPerimetre').checked;
+  const avecAnnulees = document.getElementById('docAnnulees').checked;
+  return datesDuProjet()
+    .filter(d=> !cochees || datesChoisies.has(d.id))
+    .filter(d=> avecAnnulees || statutDate(d) !== 'annulee');
+}
+
+function nomsSurLaDate(d){
+  const noms = [];
+  (d.musiciensAssignes || []).forEach(id=>{
+    const p = musiciensCache.find(x=> x.id === id);
+    if(p) noms.push(fullName(p));
+  });
+  (d.techniciensAssignes || []).forEach(id=>{
+    const p = techniciensCache.find(x=> x.id === id);
+    if(p) noms.push(fullName(p));
+  });
+  return noms;
+}
+
+function majAvertDocument(){
+  const zone = document.getElementById('docAvert');
+  const n = datesDuDocument().length;
+  const avecNoms = document.getElementById('docDistribution').checked;
+  if(!projetId){ zone.hidden = true; return; }
+  const morceaux = [`${n} date${n > 1 ? 's' : ''} dans le document`];
+  if(avecNoms) morceaux.push('avec les noms des personnes distribuées');
+  zone.hidden = n > 0 && !avecNoms;
+  zone.textContent = n === 0
+    ? "Aucune date ne correspond : le document serait vide."
+    : morceaux.join(' — ') + '. Vérifie à qui il va partir.';
+}
+
+function genererDocument(){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée."); return; }
+  const t = projet();
+  if(!t){ alert('Choisis un projet.'); return; }
+  const dates = datesDuDocument();
+  if(!dates.length){ alert("Aucune date à mettre dans le document."); return; }
+
+  const avecNoms = document.getElementById('docDistribution').checked;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  registerHostFont(doc);
+
+  const edite = new Date().toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+  // Une tournée dont toutes les dates tombent s'annonce en tête du document, et
+  // non ligne à ligne : personne ne lit un tableau pour en déduire une annulation.
+  const toutAnnule = projetEntierAnnule();
+  const page = creerComposeurPdf(doc, {
+    echelleMax: 1.15,
+    filigrane: toutAnnule ? 'ANNULÉ' : 'INFORMATIF',
+  }).entete({
+    titre: (t.nom || 'Projet') + (toutAnnule ? ' — ANNULÉ' : ''),
+    sousTitre: toutAnnule
+      ? `Toutes les dates de ce projet sont annulées · édité le ${edite}`
+      : `Récapitulatif des dates — ${dates.length} date${dates.length > 1 ? 's' : ''} · édité le ${edite}`,
+    mention: 'Curieux orchestre',
+  });
+
+  /* Un tableau par statut, dans l'ordre où ils engagent. Les mêler et poser une
+     colonne « statut » aurait tenu sur moins de place, mais on lit alors ligne
+     à ligne au lieu de voir d'un coup ce qui est acquis et ce qui ne l'est pas —
+     et c'est précisément ce que le document doit transmettre. */
+  const GROUPES_DOC = [
+    { cle:'validee',   titre:'Dates validées',   note:"Ces dates sont confirmées." },
+    { cle:'option',    titre:'Options',          note:"La salle tient la date ; rien n'est signé. À libérer ou à confirmer avant l'échéance." },
+    { cle:'recherche', titre:'Recherches',       note:"Hypothèses de travail : rien n'est posé." },
+    { cle:'annulee',   titre:'Dates annulées',   note:"Ces dates ne se feront pas." },
+  ];
+
+  const colonnes = [{ titre:'Date', largeur: avecNoms ? 1.5 : 1.6 },
+                    { titre:'Ville', largeur:1 },
+                    { titre:'Lieu', largeur:1.3 }]
+    .concat(avecNoms ? [{ titre:'Sur la date', largeur:2.4 }] : []);
+
+  GROUPES_DOC.forEach(g=>{
+    const duGroupe = dates.filter(d=> statutDate(d) === g.cle);
+    if(!duGroupe.length) return;
+    page.tableau(g.titre, colonnes, duGroupe.map(d=>{
+      const base = [jourDoc(d.date), d.ville || '—', d.lieu || '—'];
+      if(!avecNoms) return base;
+      const noms = nomsSurLaDate(d);
+      return base.concat([noms.length ? noms.join(', ') : 'à distribuer']);
+    }), `${duGroupe.length} date${duGroupe.length > 1 ? 's' : ''} — ${g.note}`);
+  });
+
+  page.paragraphe("Ce document est informatif et suit le projet au jour le jour : les options peuvent tomber, les dates validées peuvent bouger. Seul le contrat d'engagement vaut engagement. Merci de ne pas le diffuser en dehors des personnes concernées.");
+
+  const nom = (t.nom || 'projet').trim().replace(/[^a-z0-9]+/gi, '_');
+  page.rendre(`Dates_${nom}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 // --- Envoi ------------------------------------------------------------------
@@ -538,6 +711,9 @@ document.getElementById('gensAucun').addEventListener('click', ()=>{
   gensChoisis = new Set(); rendreGens(); rendreApercu();
 });
 document.getElementById('butoir').addEventListener('input', rendreApercu);
+['docPerimetre', 'docAnnulees', 'docDistribution'].forEach(id=>
+  document.getElementById(id).addEventListener('change', majAvertDocument));
+document.getElementById('docGenerer').addEventListener('click', genererDocument);
 document.getElementById('canalChoix').addEventListener('click', (e)=>{
   const b = e.target.closest('[data-canal]');
   if(!b) return;

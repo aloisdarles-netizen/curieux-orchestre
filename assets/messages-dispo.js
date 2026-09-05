@@ -31,10 +31,17 @@ const CurieuxMessages = (function(){
 
   const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
                 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  // Le premier du mois s'écrit « 1er » — « le 1 septembre » se lit comme une
+  // faute dans un message qu'on relit, et ces messages sont relus.
+  // Le quantième seul : « 1er », puis « 2 », « 3 »…
+  function quantieme(iso){
+    const n = parseInt(String(iso || '').split('-')[2], 10);
+    return isFinite(n) ? (n === 1 ? '1er' : String(n)) : '';
+  }
   function jour(iso){
     const [, m, d] = String(iso || '').split('-');
     if(!d) return '';
-    return parseInt(d, 10) + ' ' + (MOIS[parseInt(m, 10) - 1] || '');
+    return quantieme(iso) + ' ' + (MOIS[parseInt(m, 10) - 1] || '');
   }
 
   // Au-delà de ce nombre, on résume au lieu d'énumérer.
@@ -64,7 +71,7 @@ const CurieuxMessages = (function(){
       const mois = iso=> String(iso).slice(0, 7);
       const parts = l.map((iso, i)=>
         (i === l.length - 1 || mois(l[i + 1]) !== mois(iso))
-          ? jour(iso) : String(parseInt(iso.split('-')[2], 10)));
+          ? jour(iso) : quantieme(iso));
       return 'les ' + joindre(parts);
     }
     return `${l.length} ${nom || 'dates'}, entre le ${jour(l[0])} et le ${jour(l[l.length - 1])}`;
@@ -235,16 +242,29 @@ const CurieuxMessages = (function(){
         const l = propres(enJeu(ctx));
         const d = listeOuResume(l);
         const pluriel = l.length > 1;
+
+        /* Quand TOUTES les dates d'un projet tombent, ce n'est pas « des dates
+           annulées » : c'est le projet qui est annulé, et l'annoncer autrement
+           laisse croire qu'il en reste. La personne appelle alors pour savoir
+           ce qui subsiste — ce qui est exactement le message qu'on croyait
+           avoir envoyé. La page passe le drapeau ; le modèle change de phrase,
+           pas de ton. */
+        const tout = !!ctx.projetEntier;
+        const ouverture = tout
+          // « Tout est annulé sur X » plutôt que « X est annulé » : le nom d'un
+          // projet est tantôt une tournée (féminin), tantôt un recording
+          // (masculin), et rien dans la donnée ne dit lequel. On écrit donc une
+          // phrase qui n'a pas d'accord à porter.
+          ? ponctuer(`Tout est annulé sur ${nomProjet(ctx)} — ${pluriel ? 'toutes les dates tombent' : 'la seule date prévue tombe'}${d ? ' : ' + d : ''}`)
+          : ponctuer(`Ce qui était posé sur ${nomProjet(ctx)} ne se fera finalement pas${d ? ' — ' + d : ''}`);
+
         return [
           salut(ctx) + ',',
           '',
-          // « Ce qui était posé » plutôt que la liste en sujet : la phrase reste
-          // au singulier quel que soit le nombre de dates, et la liste retrouve
-          // sa place, à la fin.
-          ponctuer(`Ce qui était posé sur ${nomProjet(ctx)} ne se fera finalement pas${d ? ' — ' + d : ''}`),
+          ouverture,
           `Tu peux libérer ${pluriel ? 'ces journées' : 'cette journée'}. Merci de ${pluriel ? 'les ' : "l'"}avoir gardée${pluriel ? 's' : ''}, et désolé pour le contretemps — on se rattrape à la prochaine.`,
           '',
-          `Le reste de tes dates est ici :`,
+          `${tout ? 'Tes autres dates sont ici' : 'Le reste de tes dates est ici'} :`,
           ctx.lien,
         ].join('\n');
       },
