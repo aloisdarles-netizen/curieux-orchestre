@@ -5760,6 +5760,9 @@ alter table messages_envoyes add column if not exists texte text not null defaul
 -- place. Les valeurs existantes (1, 2…) se lisent telles quelles.
 --
 -- Rejouable : sur une colonne déjà en text, le cast est un cast de text vers
--- text, et Postgres ne fait rien.
+-- text, et Postgres ne fait rien. Et sur une base qui n'aurait jamais eu la
+-- colonne, la ligne d'ajout la crée directement au bon type — sans quoi le
+-- « alter column » échouerait sur une colonne absente.
 -- ============================================================================
+alter table musiciens add column if not exists rang text;
 alter table musiciens alter column rang type text using rang::text;
