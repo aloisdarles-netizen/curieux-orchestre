@@ -94,7 +94,14 @@
 // (db.js : jetonsPermanentsPour), ui-helpers.js connaît les villes où
 // l'orchestre est chez lui, et base.css élargit bandeau et sous-menu au format
 // des pages de travail.
-const VERSION = 'curieux-v100';
+// v101 : gros lot de septembre — deux actifs neufs (assets/selection-projets.js,
+// assets/nouveautes.js) et quatre modifiés (db.js, ui-helpers.js, brand-assets.js,
+// mes-dates-vue.js, devis-commun.js). Les actifs étant servis depuis le cache
+// avant d'être rafraîchis, sans cet incrément un navigateur déjà venu
+// continuerait de charger l'ancien mes-dates-vue.js — et l'espace des
+// musicien·nes resterait tel qu'il était sur les téléphones, qui sont
+// justement le public visé par le changement.
+const VERSION = 'curieux-v101';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
