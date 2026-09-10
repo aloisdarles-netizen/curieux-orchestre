@@ -66,8 +66,8 @@ autre poste — pas besoin de recharger la page.
 ## Accès admin par compte (toutes les pages internes)
 
 Toutes les pages admin (accueil, annuaire, technicien·nes, tournées,
-disponibilités, suivi, récap, newsletter, feuilles de route, infos sociales,
-tableau de bord admin...) sont protégées par un **vrai compte** Supabase Auth
+disponibilités, suivi, récap, messages, documents, newsletter, feuilles de route,
+infos sociales, tableau de bord admin...) sont protégées par un **vrai compte** Supabase Auth
 (email + mot de passe) — l'ancien mot de passe partagé "admin" en clair n'existe
 plus. Avoir un compte ne suffit pas : il faut en plus figurer dans la liste
 blanche `infos_sociales_admins` pour accéder aux pages. Deux rôles :
