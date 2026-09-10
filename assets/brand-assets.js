@@ -213,6 +213,18 @@ function hideCurieuxPageUntilAuth(){
   document.head.appendChild(style);
 }
 
+// La fenêtre « Ce qui a changé » (assets/nouveautes.js) se branche ici, une
+// fois la page révélée : c'est le seul moment où l'on sait qu'une personne de
+// l'équipe est bien là, et les pages à lien personnel, qui n'appellent pas
+// ces gardes, ne la verront jamais. Le script est optionnel — une page qui ne
+// le charge pas ne doit rien y perdre — et rien de ce qu'il fait ne peut
+// faire échouer la garde.
+function signalerNouveautes(){
+  try{
+    if(typeof afficherNouveautesSiBesoin === 'function') afficherNouveautesSiBesoin();
+  }catch(e){}
+}
+
 // Appelé une fois <body> chargé : vérifie session + appartenance (tout rôle)
 // à infos_sociales_admins, révèle la page si tout est bon, sinon redirige.
 // Utilisé par les pages admin courantes (annuaires, tournées, dispos...).
@@ -223,6 +235,7 @@ async function requireAdminAuth(){
       const hideStyle = document.getElementById('curieux-lock-hide');
       if(hideStyle) hideStyle.remove();
       try{ injectAdminLogoutButton(session.user.email); }catch(e){}
+      signalerNouveautes();
       return;
     }
   }catch(e){ console.warn('[requireAdminAuth]', e); }
@@ -274,6 +287,7 @@ async function requireSuperAdminAuth(){
       const hideStyle = document.getElementById('curieux-lock-hide');
       if(hideStyle) hideStyle.remove();
       try{ injectAdminLogoutButton(session.user.email); }catch(e){}
+      signalerNouveautes();
       return;
     }
     // Connecté·e, mais sans le rôle : le renvoyer à l'écran de connexion
