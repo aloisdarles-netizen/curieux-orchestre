@@ -108,7 +108,10 @@
 // mes-dates-vue.js dont l'aperçu pose désormais sa propre feuille de style.
 // Sans cet incrément, un téléphone déjà venu garderait l'ancien mes-dates-vue.js
 // et l'aperçu de l'accueil s'afficherait sans mise en forme.
-const VERSION = 'curieux-v105';
+// v106 : la coque grandit son logo, contraste ses onglets et déclare
+// viewport-fit=cover (app-musicien.js) ; le calendrier passe à un mois à la
+// fois, avec flèches, et une journée touchée se nomme (mes-dates-vue.js).
+const VERSION = 'curieux-v106';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

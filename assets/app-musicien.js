@@ -142,8 +142,10 @@ const CurieuxAppMusicien = (function(){
       /* La coque prend la main sur la mise en page des cinq pages : elles
          gardent leur contenu, la coque leur donne leurs marges. */
       body.app-musicien{
-        padding-top:calc(56px + env(safe-area-inset-top, 0px));
-        padding-bottom:calc(66px + env(safe-area-inset-bottom, 0px));
+        padding-top:calc(62px + env(safe-area-inset-top, 0px));
+        /* 72 px de barre, plus le retrait du bas de l'écran, plus le talon de
+           10 px que la barre s'ajoute quand ce retrait vaut zéro. */
+        padding-bottom:calc(82px + max(10px, env(safe-area-inset-bottom, 0px)));
         /* Le rebond élastique laissait apparaître un liseré blanc sous la barre
            d'onglets en mode application : c'est le détail qui trahit une page
            web déguisée. */
@@ -163,11 +165,11 @@ const CurieuxAppMusicien = (function(){
          dernier champ au-dessus des deux barres. */
       body.app-musicien .save-bar{
         z-index:45;
-        bottom:calc(65px + env(safe-area-inset-bottom, 0px));
+        bottom:calc(72px + max(10px, env(safe-area-inset-bottom, 0px)));
         padding-bottom:12px;
       }
       body.app-musicien:has(.save-bar.visible){
-        padding-bottom:calc(140px + env(safe-area-inset-bottom, 0px));
+        padding-bottom:calc(154px + max(10px, env(safe-area-inset-bottom, 0px)));
       }
 
       /* Le titre de l'écran est dans la barre : celui que la page répétait
@@ -181,15 +183,20 @@ const CurieuxAppMusicien = (function(){
 
       .app-barre{
         position:fixed; top:0; left:0; right:0; z-index:40;
-        height:calc(56px + env(safe-area-inset-top, 0px));
+        height:calc(62px + env(safe-area-inset-top, 0px));
         padding-top:env(safe-area-inset-top, 0px);
-        display:flex; align-items:center; gap:10px; padding-left:14px; padding-right:14px;
+        display:flex; align-items:center; gap:11px;
+        /* Les coins arrondis d'un téléphone rognent les extrémités : les
+           retraits latéraux s'ajoutent au rembourrage, ils ne le remplacent
+           pas. */
+        padding-left:calc(15px + env(safe-area-inset-left, 0px));
+        padding-right:calc(15px + env(safe-area-inset-right, 0px));
         background:var(--card); border-bottom:1px solid transparent;
         transition:border-color .18s, box-shadow .18s;
       }
       .app-barre.pose{border-bottom-color:var(--border); box-shadow:0 2px 12px rgba(20,15,10,.05);}
       .app-barre-titre{
-        flex:1; min-width:0; font-family:var(--font-display); font-size:17px; font-weight:500;
+        flex:1; min-width:0; font-family:var(--font-display); font-size:16.5px; font-weight:500;
         color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0;
       }
       .app-retour{
@@ -198,8 +205,12 @@ const CurieuxAppMusicien = (function(){
         cursor:pointer; text-decoration:none; -webkit-tap-highlight-color:transparent;
       }
       .app-retour:active{background:var(--border);}
+      /* La marque, à la taille où on la reconnaît. À 19 px elle se lisait comme
+         une mention légale en tête d'un site ; c'est ici l'en-tête d'une
+         application, et c'est la première chose que voit quelqu'un qui ouvre
+         l'icône posée sur son écran d'accueil. */
       .app-marque{
-        flex:0 0 auto; height:19px; width:auto; display:block;
+        flex:0 0 auto; height:27px; width:auto; display:block;
       }
       /* Le prénom en bout de barre : sur un téléphone partagé, ou quand deux
          liens traînent dans l'historique, c'est la seule chose qui dit de qui
@@ -209,22 +220,46 @@ const CurieuxAppMusicien = (function(){
         max-width:38vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       }
 
+      /* ----------------------------------------------------------------------
+         La barre d'onglets, et les bords d'un téléphone.
+
+         Elle était collée en bas de fenêtre avec, pour seul dégagement, le retrait
+         bas du système. Deux choses la rognaient. D'abord ce retrait vaut ZÉRO
+         tant que la page ne déclare pas « viewport-fit=cover » — ce que la coque
+         fait maintenant elle-même sur les cinq pages ; sans lui, aucune des
+         valeurs de retrait n'existe et la barre se posait sur l'indicateur
+         d'accueil. Ensuite les coins arrondis mangent les extrémités : le
+         premier et le dernier onglet perdaient un bout de leur libellé.
+
+         D'où : les retraits latéraux ajoutés au rembourrage, un talon de 10 px
+         quand le retrait bas est nul (téléphone à bord droit, navigateur de
+         bureau), et un onglet dont la zone tactile ne dépend plus de l'écran.
+         ---------------------------------------------------------------------- */
       .app-onglets{
         position:fixed; left:0; right:0; bottom:0; z-index:40;
         display:flex; align-items:stretch;
-        padding-bottom:env(safe-area-inset-bottom, 0px);
+        padding-bottom:max(10px, env(safe-area-inset-bottom, 0px));
+        padding-left:env(safe-area-inset-left, 0px);
+        padding-right:env(safe-area-inset-right, 0px);
         background:var(--card); border-top:1px solid var(--border);
+        box-shadow:0 -8px 24px rgba(20,15,10,.07);
       }
       .app-onglet{
         flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center;
-        justify-content:center; gap:3px; padding:9px 2px 8px; text-decoration:none;
-        color:var(--muted); font-size:10.5px; font-weight:700; letter-spacing:.01em;
+        justify-content:center; gap:4px; padding:11px 3px 10px; text-decoration:none;
+        /* L'encre du texte à 72 % plutôt que le gris des mentions secondaires :
+           un onglet est une commande, pas une note de bas de page. Le contraste
+           passe d'environ 4:1 à 6:1, et l'accord se fait tout seul en thème
+           sombre, où --text est déjà clair. */
+        color:var(--text); opacity:.72;
+        font-size:11px; font-weight:800; letter-spacing:.01em;
         position:relative; -webkit-tap-highlight-color:transparent;
       }
       .app-onglet span{max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
       .app-onglet:active .app-onglet-icone{transform:scale(.9);}
       .app-onglet-icone{transition:transform .12s;}
-      .app-onglet.actif{color:var(--accent-dark);}
+      .app-onglet.actif{color:var(--accent-dark); opacity:1;}
+      .app-onglet.actif .app-onglet-icone{stroke-width:2.05;}
       /* Le trait sous l'onglet actif, plutôt qu'un fond : la barre reste claire,
          et l'œil retrouve sa position d'un écran à l'autre sans la chercher. */
       .app-onglet.actif::before{
@@ -310,6 +345,17 @@ const CurieuxAppMusicien = (function(){
     if(!onglet) return null;              // page qui n'appartient pas à l'espace
     if(!jeton()) return null;             // lien incomplet : la page dira quoi faire
     if(document.getElementById('curieuxAppBarre')) return api;
+
+    /* Les retraits d'écran n'existent qu'à cette condition.
+       -----------------------------------------------------------------------
+       Sur iPhone, env(safe-area-inset-*) vaut ZÉRO tant que la page ne demande
+       pas à occuper l'écran jusqu'aux bords. Toute la géométrie de la coque en
+       dépend : sans cette ligne, la barre du bas se pose sur l'indicateur
+       d'accueil et les coins arrondis rognent le premier et le dernier onglet.
+       On corrige la balise plutôt que de la réécrire dans cinq pages — c'est
+       un réglage de la coque, il vit avec elle. */
+    const vp = document.querySelector('meta[name="viewport"]');
+    if(vp && !/viewport-fit/.test(vp.content)) vp.content += ', viewport-fit=cover';
 
     poserStyle();
     document.body.classList.add('app-musicien', 'app-ecran-' + onglet);

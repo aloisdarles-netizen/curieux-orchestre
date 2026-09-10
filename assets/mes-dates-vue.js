@@ -219,21 +219,69 @@ const CurieuxMesDates = (function(){
       const st = dus.map(groupeDe).sort((x, y)=> RANG_STATUT[x] - RANG_STATUT[y])[0];
       const moi = dus.some(x=> x.affecte);
       const titre = dus.map(x=> `${x.tourneeNom || 'Projet'} — ${GROUPE_MOT[groupeDe(x)]}${x.ville ? ' · ' + x.ville : ''}`).join(' / ');
-      cases.push(`<span class="cal-case pleine ${escapeAttr(st)}${moi ? ' moi' : ''}" title="${escapeAttr(titre)}">${j}</span>`);
+      /* Une case pleine se touche.
+         ---------------------------------------------------------------------
+         Le calendrier disait la COULEUR d'une journée, jamais son nom. On y
+         voyait un carré vert le 12 mars sans pouvoir apprendre de quel projet
+         il s'agissait : l'infobulle du titre n'existe pas au doigt, et c'est
+         au doigt que cette page se lit. La case devient donc un bouton, et le
+         détail s'écrit sous la grille — projet, ville, salle, statut, et le
+         chemin vers ses dispos quand une demande est en cours. */
+      cases.push(`<button type="button" class="cal-case pleine ${escapeAttr(st)}${moi ? ' moi' : ''}"
+        data-jour="${escapeAttr(dus[0].date)}" title="${escapeAttr(titre)}"
+        aria-label="${escapeAttr(jourLong(dus[0].date) + ' — ' + titre)}">${j}</button>`);
     }
     return `<div class="cal-grille">${cases.join('')}</div>`;
   }
 
-  function vueCalendrier(dates){
-    const mois = [...new Set(dates.map(d=> moisDe(d.date)))].sort();
+  /* Le détail d'une journée, sous la grille.
+     -------------------------------------------------------------------------
+     `lienDispo` est fourni par la page : elle seule connaît les demandes de
+     dispo en cours et leurs jetons. Quand il rend une adresse, on propose d'y
+     aller ; sinon on se contente de nommer le projet, ce qui était déjà tout
+     ce qui manquait. */
+  function detailJour(dates, iso, lienDispo){
+    const dus = dates.filter(d=> d.date === iso);
+    if(!dus.length) return '';
+    const lignes = dus.map(d=>{
+      const g = groupeDe(d);
+      const ou = [d.ville, d.lieu].filter(Boolean).join(' · ');
+      const href = typeof lienDispo === 'function' ? (lienDispo(d) || '') : '';
+      return `<div class="cal-detail-ligne">
+        <span class="cal-detail-projet">${escapeHtml(d.tourneeNom || 'Projet')}</span>
+        <span class="apercu-statut ${escapeAttr(g)}">${escapeHtml(GROUPE_MOT[g])}</span>
+        ${ou ? `<span class="cal-detail-ou">${escapeHtml(ou)}</span>` : ''}
+        ${href ? `<a class="cal-detail-lien" href="${escapeAttr(href)}">Modifier ma dispo →</a>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="cal-detail-jour">${escapeHtml(jourSemaine(iso))} ${escapeHtml(jourLong(iso))}</div>${lignes}`;
+  }
+
+  /* Le calendrier, un mois à la fois.
+     -------------------------------------------------------------------------
+     Les mois étaient dessinés à la suite : une saison de quatre mois faisait
+     trois écrans de haut sur un téléphone, et il fallait faire défiler pour
+     savoir si l'on avait quelque chose en juin. Or on ne lit jamais deux mois
+     en même temps — on cherche une journée, dans un mois.
+
+     Un seul mois donc, nommé en toutes lettres, et deux flèches. Les points
+     sous la grille disent combien de mois portent des dates : c'est ce que la
+     pile disait gratuitement, et qu'un affichage page par page perd s'il ne
+     le dit pas. Les mois sans aucune date ne comptent pas — passer par un
+     mois vide, c'est croire qu'on s'est trompé de flèche.
+     ------------------------------------------------------------------------- */
+  function moisDisponibles(dates){
+    return [...new Set(dates.map(d=> moisDe(d.date)))].sort();
+  }
+
+  function vueCalendrier(dates, idx){
+    const mois = moisDisponibles(dates);
     if(!mois.length) return '';
-    // Les mois sans aucune date ne sont pas dessinés : une saison de trois mois
-    // actifs étalée sur huit ne doit pas faire défiler cinq grilles vides.
-    const corps = mois.map(cle=>`
-      <div>
-        <div class="mois">${escapeHtml(moisAnnee(cle))}</div>
-        ${grilleMois(cle, dates.filter(d=> moisDe(d.date) === cle))}
-      </div>`).join('');
+    const i = Math.min(Math.max(0, idx | 0), mois.length - 1);
+    const cle = mois[i];
+    const points = mois.map((m, k)=>
+      `<i class="cal-point${k === i ? ' on' : ''}"></i>`).join('');
+
     /* La légende sur le côté, en colonne : sous le calendrier, elle tombait
        hors de l'écran dès qu'il y avait plus de deux mois, c'est-à-dire
        toujours. À côté, elle reste sous les yeux pendant qu'on lit la grille —
@@ -241,7 +289,26 @@ const CurieuxMesDates = (function(){
        repasse dessous, en ligne — par la media query qui FERME la feuille de
        style, pas par celle du milieu (voir poserStyle). */
     return `<div class="cal-zone">
-      <div class="cal">${corps}</div>
+      <div class="cal">
+        <div class="cal-nav">
+          <button type="button" class="cal-fleche" data-cal-prec${i === 0 ? ' disabled' : ''}
+            aria-label="Mois précédent">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5 8 12l6.5 7"/></svg>
+          </button>
+          <div class="cal-mois-titre" aria-live="polite">${escapeHtml(moisAnnee(cle))}</div>
+          <button type="button" class="cal-fleche" data-cal-suiv${i === mois.length - 1 ? ' disabled' : ''}
+            aria-label="Mois suivant">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 5 16 12l-6.5 7"/></svg>
+          </button>
+        </div>
+        <div class="cal-mois-bloc">
+          ${grilleMois(cle, dates.filter(d=> moisDe(d.date) === cle))}
+          <div class="cal-detail" id="calDetail" hidden aria-live="polite"></div>
+        </div>
+        ${mois.length > 1 ? `<div class="cal-points">${points}</div>` : ''}
+      </div>
       <div class="cal-legende">
         <span><i class="cal-puce validee"></i> tu joues, c'est signé</span>
         <span><i class="cal-puce option"></i> option</span>
@@ -270,20 +337,28 @@ const CurieuxMesDates = (function(){
     return dates.filter(d=>{ const g = groupeDe(d); return g !== 'annulee' && g !== 'libre'; });
   }
 
-  /* L'aperçu : les n prochaines dates en une ligne chacune, et le compte de
-     toutes celles à venir. C'est ce que l'espace personnel montre sur
-     téléphone quand le bloc complet est replié : la question « quand est-ce
-     que je joue ensuite ? » a sa réponse sans rien déplier, et le bloc entier
-     reste derrière pour « sur quoi puis-je compter ? ». Le millésime n'est
-     écrit que s'il diffère de l'année en cours — « 12 mars » en septembre
-     se lirait comme un mois passé. */
+  /* L'aperçu : les n prochaines dates en une ligne chacune, et leur compte.
+     C'est ce que l'espace personnel montre en tête — la question « quand
+     est-ce que je joue ensuite ? » a sa réponse sans rien ouvrir, et l'écran
+     Mes dates reste derrière pour « sur quoi puis-je compter ? ». Le millésime
+     n'est écrit que s'il diffère de l'année en cours — « 12 mars » en
+     septembre se lirait comme un mois passé.
+
+     UNE DATE À L'ÉTUDE N'EST PAS UNE PROCHAINE DATE. Rien n'est réservé : on
+     regarde seulement si la journée est jouable, et il arrive qu'on n'y donne
+     aucune suite. L'annoncer comme la prochaine date, c'est faire bloquer un
+     jour qui ne sera peut-être jamais demandé — et c'est aussi repousser hors
+     de l'aperçu une option ou une date validée, qui, elles, engagent. Elles
+     restent visibles sur l'écran Mes dates, dans leur colonne, qui est
+     exactement là pour les dire sans les promettre. */
   function apercu(charge, n){
     // L'aperçu se sert aussi tout seul — l'espace personnel n'affiche plus que
     // lui, la vue complète ayant son propre écran. Il lui faut donc sa feuille
     // de style sans passer par monter().
     poserStyle();
     const dates = enJeu((Array.isArray(charge && charge.dates) ? charge.dates : [])
-      .slice().sort((a, b)=> String(a.date).localeCompare(String(b.date))));
+      .slice().sort((a, b)=> String(a.date).localeCompare(String(b.date))))
+      .filter(d=> groupeDe(d) !== 'recherche');
     const anneeCourante = new Date().getFullYear();
     const lignes = dates.slice(0, n || 3).map(d=>{
       const st = groupeDe(d);
@@ -454,7 +529,34 @@ const CurieuxMesDates = (function(){
          on la remonte à peine, sinon le filigrane n'existe tout simplement pas. */
       html[data-theme="dark"] .cal-zone::before{filter:invert(1); opacity:.07;}
       .cal-zone > *{position:relative; z-index:1;}
-      .cal{display:grid; grid-template-columns:repeat(auto-fill, minmax(232px, 1fr)); gap:14px;}
+      /* Un seul mois à l'écran : la colonne se plafonne plutôt que de s'étirer
+         sur 900 px, où les cases deviendraient des pavés. */
+      .cal{max-width:420px;}
+      .cal-nav{
+        display:flex; align-items:center; justify-content:space-between; gap:10px;
+        margin:2px 0 9px;
+      }
+      .cal-mois-titre{
+        flex:1; text-align:center; font-family:var(--font-display); font-size:17px;
+        font-weight:500; color:var(--accent-dark); text-transform:capitalize;
+      }
+      .cal-fleche{
+        flex:0 0 auto; width:40px; height:40px; border-radius:12px; cursor:pointer;
+        border:1px solid var(--border); background:var(--card); color:var(--accent-dark);
+        display:grid; place-items:center; font:inherit; -webkit-tap-highlight-color:transparent;
+      }
+      .cal-fleche:hover:not(:disabled){border-color:var(--accent);}
+      .cal-fleche:active:not(:disabled){transform:scale(.94);}
+      /* Désactivée et non masquée : une flèche qui disparaît au premier mois
+         fait sauter le titre d'un cran, et on croit avoir cliqué à côté. */
+      .cal-fleche:disabled{opacity:.3; cursor:default;}
+      /* Combien de mois portent des dates — ce que la pile de grilles disait
+         gratuitement, et qu'un affichage page par page doit redire. */
+      .cal-points{display:flex; justify-content:center; gap:6px; margin-top:11px;}
+      .cal-point{
+        width:6px; height:6px; border-radius:50%; background:var(--border); display:block;
+      }
+      .cal-point.on{background:var(--accent); width:18px; border-radius:99px;}
       .cal-grille{
         display:grid; grid-template-columns:repeat(7, 1fr); gap:3px;
         background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:8px;
@@ -468,7 +570,41 @@ const CurieuxMesDates = (function(){
       /* La couleur dit le statut, le point sous le chiffre dit qu'on y joue.
          Deux informations, deux signes — les confondre ferait croire qu'une
          date validée est forcément la sienne. */
-      .cal-case.pleine{font-weight:800; position:relative;}
+      /* Une case pleine est un bouton : elle en prend les attributs qu'un
+         <button> apporte et qu'un <span> n'avait pas, et perd ceux dont un
+         calendrier ne veut pas (bordure, fond gris du navigateur). */
+      .cal-case.pleine{
+        font-weight:800; position:relative; font-family:inherit; font-size:inherit;
+        border:none; cursor:pointer; -webkit-tap-highlight-color:transparent;
+      }
+      .cal-case.pleine:active{transform:scale(.9);}
+      .cal-case.pleine.choisie{box-shadow:0 0 0 2.5px var(--accent); z-index:1;}
+
+      /* Le détail de la journée touchée. Il vit sous la grille et non en
+         surimpression : une bulle qui recouvre le calendrier cache justement
+         les jours qu'on est en train de comparer. */
+      .cal-detail{
+        /* Le détail voyage : il se range sous la grille du mois qu'on vient
+           de toucher (voir brancherCalendrier), pas en pied de calendrier. */
+        background:var(--bg); border:1px solid var(--border);
+        border-radius:12px; padding:12px 14px; margin-top:10px;
+      }
+      .cal-detail-jour{
+        font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+        color:var(--muted); margin-bottom:8px;
+      }
+      .cal-detail-ligne{
+        display:flex; align-items:center; gap:9px; flex-wrap:wrap; padding:6px 0;
+        border-top:1px solid var(--border); font-size:13px;
+      }
+      .cal-detail-ligne:first-of-type{border-top:none; padding-top:0;}
+      .cal-detail-projet{font-weight:800;}
+      .cal-detail-ou{color:var(--muted); font-size:12.5px;}
+      .cal-detail-lien{
+        margin-left:auto; font-size:12.5px; font-weight:800; color:var(--accent-dark);
+        text-decoration:none; white-space:nowrap;
+      }
+      .cal-detail-lien:hover{text-decoration:underline;}
       .cal-case.pleine.validee{background:var(--ok); color:var(--sur-statut);}
       .cal-case.pleine.option{background:var(--maybe); color:var(--sur-statut);}
       .cal-case.pleine.recherche{background:var(--border); color:var(--text);}
@@ -553,6 +689,7 @@ const CurieuxMesDates = (function(){
     poserStyle();
     const opts = options || {};
     const CLE_VUE = 'curieuxMesDatesVue';
+    let moisActif = 0;
     const dates = (Array.isArray(charge && charge.dates) ? charge.dates : [])
       .slice().sort((a, b)=> String(a.date).localeCompare(String(b.date)));
 
@@ -651,6 +788,41 @@ const CurieuxMesDates = (function(){
       });
     }
 
+    /* Le clic sur une journée : elle se nomme, sous la grille.
+       -----------------------------------------------------------------------
+       Un seul jour ouvert à la fois — deux détails empilés feraient sauter la
+       grille, et on perdrait la case qu'on vient de toucher. Reclique sur la
+       même journée : elle se referme. */
+    function brancherCalendrier(){
+      const prec = conteneur.querySelector('[data-cal-prec]');
+      const suiv = conteneur.querySelector('[data-cal-suiv]');
+      const nbMois = moisDisponibles(dates).length;
+      // Changer de mois refait la grille : le détail d'une journée de mars n'a
+      // rien à faire sous avril.
+      const aller = (sens)=>{
+        moisActif = Math.min(Math.max(0, moisActif + sens), nbMois - 1);
+        rendre();
+      };
+      if(prec) prec.addEventListener('click', ()=> aller(-1));
+      if(suiv) suiv.addEventListener('click', ()=> aller(1));
+
+      const boite = conteneur.querySelector('#calDetail');
+      if(!boite) return;
+      let ouvert = '';
+      conteneur.querySelectorAll('.cal-case.pleine[data-jour]').forEach(c=>{
+        c.addEventListener('click', ()=>{
+          const iso = c.dataset.jour;
+          const memeJour = ouvert === iso;
+          conteneur.querySelectorAll('.cal-case.choisie').forEach(x=> x.classList.remove('choisie'));
+          if(memeJour){ ouvert = ''; boite.hidden = true; boite.innerHTML = ''; return; }
+          ouvert = iso;
+          c.classList.add('choisie');
+          boite.innerHTML = detailJour(dates, iso, opts.lienDispo);
+          boite.hidden = false;
+        });
+      });
+    }
+
     function brancherGlissement(){
       const piste = conteneur.querySelector('[data-colonnes]');
       const points = conteneur.querySelector('[data-col-points]');
@@ -687,7 +859,7 @@ const CurieuxMesDates = (function(){
             <button type="button" data-vue="calendrier" class="${VUE === 'calendrier' ? 'on' : ''}">Calendrier</button>
             <button type="button" data-vue="colonnes" class="${VUE === 'colonnes' ? 'on' : ''}">Par statut</button>
           </div>
-        </div>` + (VUE === 'calendrier' ? vueCalendrier(dates) : vueColonnes());
+        </div>` + (VUE === 'calendrier' ? vueCalendrier(dates, moisActif) : vueColonnes());
 
       conteneur.querySelectorAll('[data-vue]').forEach(b=> b.addEventListener('click', ()=>{
         VUE = b.dataset.vue;
@@ -695,6 +867,7 @@ const CurieuxMesDates = (function(){
         if(!media.matches){ try{ localStorage.setItem(CLE_VUE, VUE); }catch(e){} }
         rendre();
       }));
+      if(VUE === 'calendrier') brancherCalendrier();
       if(VUE === 'colonnes'){ brancherGlissement(); poserTroncatures(); }
     }
 

@@ -32,6 +32,47 @@
   }
   .fraicheur::before{content:''; width:6px; height:6px; border-radius:50%; background:var(--ok);}
 
+  /* ------------------------------------------------------------------------
+     Mettre ses dates dans son agenda.
+
+     Deux chemins, et l'un vaut mieux que l'autre — donc l'un est un bouton et
+     l'autre une ligne de texte. S'abonner installe une source que le téléphone
+     relit tout seul : les dates ajoutées apparaissent, les salles corrigées se
+     corrigent, les annulations disparaissent, et il ne peut jamais y avoir de
+     doublon puisqu'il n'y a jamais eu qu'une liste. Télécharger pose une copie
+     figée, qu'il faudra reprendre à chaque changement.
+     ------------------------------------------------------------------------ */
+  .agenda{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:16px 17px; margin-top:22px;
+  }
+  .agenda-titre{
+    display:flex; align-items:center; gap:9px; font-size:14.5px; font-weight:800;
+    margin:0 0 6px;
+  }
+  .agenda-intro{color:var(--muted); font-size:13px; line-height:1.55; margin:0 0 13px;}
+  .agenda-btn{
+    display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+    background:var(--accent-solid); color:#fff; border:none; border-radius:999px;
+    font-family:inherit; font-size:15px; font-weight:700; padding:13px 16px;
+    text-decoration:none; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  .agenda-btn:hover{background:var(--accent-dark);}
+  .agenda-btn:active{transform:scale(.99);}
+  .agenda-btn[hidden]{display:none;}
+  .agenda-sinon{
+    font-size:12.5px; color:var(--muted); line-height:1.55; margin:12px 0 0; text-align:center;
+  }
+  .agenda-sinon button{
+    background:none; border:none; padding:0; font:inherit; font-weight:700;
+    color:var(--accent-dark); text-decoration:underline; cursor:pointer;
+  }
+  .agenda-note{
+    font-size:12px; color:var(--muted); line-height:1.55; margin:11px 0 0;
+    padding-top:11px; border-top:1px solid var(--border);
+  }
+  .agenda-note b{color:var(--text);}
+
   .pied{
     margin-top:28px; padding-top:16px; border-top:1px solid var(--border);
     font-size:12px; color:var(--muted); line-height:1.6;
@@ -47,6 +88,7 @@
     <p class="sous" id="sousTitre">Chargement…</p>
   </div>
   <div id="contenu"></div>
+  <div id="agenda"></div>
   <div id="pied"></div>
 </div>
 
@@ -73,6 +115,84 @@ function etat(html){
   document.getElementById('contenu').innerHTML = `<div class="co-card co-pad etat-boite">${html}</div>`;
 }
 
+/* ---------------------------------------------------------------------------
+   L'agenda du téléphone
+   ---------------------------------------------------------------------------
+   La demande était : « ajouter les dates validées à l'agenda, et vérifier
+   qu'elles n'y sont pas déjà ». Aucune page web ne peut LIRE l'agenda de
+   quelqu'un — le navigateur ne le permet à personne, et c'est heureux. Un
+   fichier téléchargé ne peut donc rien vérifier du tout.
+
+   L'abonnement répond autrement, et mieux : ce n'est pas une copie qu'on
+   importe, c'est une source que le téléphone relit tout seul, plusieurs fois
+   par jour. Une date ajoutée apparaît, une salle corrigée se corrige, une
+   annulation disparaît — et le doublon devient impossible, puisqu'il n'y a
+   jamais eu qu'une liste. C'est donc lui le bouton, et le téléchargement une
+   ligne de texte en dessous.
+
+   webcal:// n'est pas un protocole réseau : c'est le même https, avec un
+   préfixe que les systèmes reconnaissent pour ouvrir le calendrier au lieu du
+   navigateur. Sur les appareils qui ne le connaissent pas, le lien https rend
+   le même fichier — d'où le repli, qui n'est pas une dégradation.
+--------------------------------------------------------------------------- */
+function poserAgenda(charge){
+  const validees = (charge.dates || []).filter(d=> d && d.statut === 'validee' && d.affecte === true);
+  const hote = document.getElementById('agenda');
+  // Rien de validé, rien à proposer : un bouton qui poserait un agenda vide
+  // ferait douter de tout le reste.
+  if(!validees.length){ hote.innerHTML = ''; return; }
+
+  const adresse = `${location.origin}/api/agenda?jeton=${encodeURIComponent(TOKEN)}`;
+  const webcal = adresse.replace(/^https?:/, 'webcal:');
+  const n = validees.length;
+
+  hote.innerHTML = `
+    <section class="agenda">
+      <h2 class="agenda-titre">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3.5" y="5" width="17" height="15.5" rx="2.2"></rect>
+          <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3"></path><path d="M8.5 13.8 10.7 16l4.3-4.3"></path>
+        </svg>
+        Dans mon agenda
+      </h2>
+      <p class="agenda-intro">Tes <b>${n} date${n > 1 ? 's' : ''} validée${n > 1 ? 's' : ''}</b> se posent dans
+        l'agenda de ton téléphone, et s'y tiennent à jour toutes seules : une date qui s'ajoute apparaît,
+        une salle qui change se corrige, une date annulée disparaît.</p>
+      <a class="agenda-btn" href="${escapeAttr(webcal)}">Ajouter à mon agenda</a>
+      <p class="agenda-sinon">Ça ne s'ouvre pas ?
+        <button type="button" id="agendaFichier">Télécharger le fichier</button> à ouvrir à la main.</p>
+      <p class="agenda-note">Seules les dates <b>validées où tu joues</b> y sont : ni les options,
+        ni les dates à l'étude. Un agenda dit « je ne suis pas libre » — il ne doit contenir
+        que ce qui est sûr.</p>
+    </section>`;
+
+  /* Le fichier, pour qui préfère. Ses événements portent le même identifiant
+     stable que ceux de l'abonnement : réimporter le fichier met à jour les
+     événements déjà posés au lieu d'en créer de nouveaux, dans tous les
+     calendriers qui respectent la norme. C'est le mieux qu'un fichier puisse
+     faire — d'où l'abonnement mis devant. */
+  document.getElementById('agendaFichier').addEventListener('click', async ()=>{
+    try{
+      const rep = await fetch(adresse);
+      if(!rep.ok) throw new Error(rep.status);
+      const texte = await rep.text();
+      const url = URL.createObjectURL(new Blob([texte], { type:'text/calendar;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'curieux-mes-dates.ics';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=> URL.revokeObjectURL(url), 30000);
+    }catch(e){
+      // Sans le fichier, le lien direct reste ouvrable : mieux vaut renvoyer
+      // là-dessus qu'un message d'échec sans issue.
+      location.href = adresse;
+    }
+  });
+}
+
 async function init(){
   if(!window.supabase){ etat("La page n'a pas pu se charger. Réessaie dans un instant."); return; }
   if(!TOKEN){
@@ -81,7 +201,14 @@ async function init(){
     return;
   }
 
-  const moi = await CurieuxDB.mesDates(TOKEN);
+  /* Deux lectures en parallèle. Les dates d'un côté ; de l'autre les demandes
+     de dispo en cours, dont on ne garde qu'une chose : le jeton qui ouvre la
+     page de réponse. C'est lui qui permet, en touchant une journée du
+     calendrier, de filer modifier sa dispo sur ce projet-là. */
+  const [moi, mesDemandes] = await Promise.all([
+    CurieuxDB.mesDates(TOKEN),
+    CurieuxDB.mesDemandesDispo(TOKEN).catch(()=> null),
+  ]);
 
   // La migration n'est pas jouée sur cette base. Sans ce cas dit en toutes
   // lettres, la page afficherait « aucune date », qui se lit « on ne t'a rien
@@ -107,7 +234,29 @@ async function init(){
   document.getElementById('sousTitre').innerHTML =
     `Ce qui est confirmé, ce qui est encore en option.${stamp ? `<br><span class="fraicheur">${escapeHtml(stamp)}</span>` : ''}`;
 
-  CurieuxMesDates.monter(document.getElementById('contenu'), moi, { vueParDefaut: 'colonnes' });
+  /* Le chemin d'une journée vers sa demande de dispo.
+     -------------------------------------------------------------------------
+     mes_demandes_dispo rend le NOM du projet, pas son identifiant : on
+     rapproche donc par le nom. Ce n'est pas une approximation — les deux
+     viennent de la même colonne tournees.nom — mais deux projets homonymes
+     enverraient vers le mauvais. On ne propose donc le lien que lorsqu'une
+     SEULE demande porte ce nom : dans le doute, la journée se contente de se
+     nommer, ce qui était déjà tout ce qui manquait. */
+  const parNom = new Map();
+  ((mesDemandes && mesDemandes.demandes) || []).forEach(d=>{
+    const nom = (d.tourneeNom || '').trim();
+    if(!nom) return;
+    parNom.set(nom, parNom.has(nom) ? null : d.token);
+  });
+  const lienDispo = (d)=>{
+    const jeton = parNom.get((d.tourneeNom || '').trim());
+    return jeton ? `dispo-titulaire.html?token=${encodeURIComponent(jeton)}` : '';
+  };
+
+  CurieuxMesDates.monter(document.getElementById('contenu'), moi,
+    { vueParDefaut: 'colonnes', lienDispo });
+
+  poserAgenda(moi);
 
   document.getElementById('pied').innerHTML = `<div class="pied">
     <p>Ces dates sont <strong>strictement confidentielles</strong> — merci de ne pas les diffuser en dehors de l'équipe.</p>

@@ -335,12 +335,18 @@ async function init(){
      écran et demi sur téléphone, alors que c'est pour RÉPONDRE à une demande
      qu'on arrive ici. On l'avait repliée sous un en-tête cliquable ; depuis que
      « Mes dates » est un onglet de la barre du bas, la question ne se pose
-     plus : quatre lignes suffisent ici, le reste est à un doigt. */
+     plus : quatre lignes suffisent ici, le reste est à un doigt.
+
+     L'aperçu ne retient ni les dates annulées, ni celles à l'étude : rien
+     n'y est réservé, et une carte qui annoncerait « ta prochaine date » sur
+     une journée qu'on regarde à peine ferait bloquer un jour pour rien. Le
+     compte peut donc tomber à zéro alors que la personne a des dates — la
+     carte disparaît, l'onglet Mes dates les montre toutes. */
   if(mesDates && !mesDates.migrationAbsente && (mesDates.dates || []).length){
     const stamp = CurieuxMesDates.fraicheur(mesDates.genereLe);
     const resume = CurieuxMesDates.apercu(mesDates, 4);
     const reste = Math.max(0, resume.nb - 4);
-    document.getElementById('mesDates').innerHTML =
+    if(resume.nb) document.getElementById('mesDates').innerHTML =
       `<a class="co-card co-pad bloc-dates" href="mes-dates.html?token=${jeton}">
          <span class="bloc-dates-tete">
            <span class="section-titre">Mes prochaines dates</span>
@@ -348,7 +354,9 @@ async function init(){
          </span>
          ${resume.html}
          <span class="bloc-dates-plus">
-           ${reste ? `Voir les ${reste} autres` : 'Voir le détail et le calendrier'}
+           ${reste > 1 ? `Voir les ${reste} autres`
+             : reste === 1 ? 'Voir la dernière'
+             : 'Voir le détail et le calendrier'}
            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
            ${stamp ? `<span class="bloc-dates-quand">${escapeHtml(stamp)}</span>` : ''}

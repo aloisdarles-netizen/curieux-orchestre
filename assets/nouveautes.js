@@ -33,6 +33,18 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-10-4',
+    titre: 'Les dates dans l’agenda, et un calendrier qui se feuillette',
+    points: [
+      "Sur « Mes dates », un bouton pose les dates validées dans l'agenda du téléphone — et les y tient à jour toutes seules : une date qui s'ajoute apparaît, une salle qui change se corrige, une annulation disparaît. C'est un abonnement, pas une copie : il ne peut pas y avoir de doublon.",
+      "Seules les dates validées où la personne joue y vont : ni les options, ni les dates à l'étude. Un agenda dit « je ne suis pas libre ».",
+      "Le calendrier montre un mois à la fois, avec deux flèches, au lieu d'empiler quatre grilles sur trois écrans.",
+      "Toucher une journée du calendrier dit enfin de quel projet il s'agit — et mène droit à ses dispos quand une demande est en cours.",
+      "Les dates à l'étude ne sont plus annoncées comme « prochaines dates » sur l'accueil : rien n'y est réservé, et personne ne doit bloquer une journée pour une date qu'on regarde à peine.",
+      "Sur la page des dispos, les deux liens vers les infos et les remplaçant·es sont retirés : les onglets du bas y mènent depuis n'importe quel écran.",
+    ],
+  },
+  {
     version: '2026-09-10-3',
     titre: 'L’espace des musicien·nes devient une application',
     points: [
