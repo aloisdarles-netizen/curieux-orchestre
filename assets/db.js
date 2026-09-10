@@ -1121,13 +1121,6 @@ const CurieuxDB = (()=>{
   // L'espace comm suit le même patron que la direction technique : les admins
   // y entrent d'office, les autres via le drapeau « comm » de leur compte
   // (voir has_comm_access() dans migrations.sql).
-  async function hasCommAccess(){
-    if(!supabaseClient) return false;
-    const { data, error } = await supabaseClient.rpc('has_comm_access');
-    if(error){ console.warn('[CurieuxDB] hasCommAccess', error.message); return false; }
-    return data === true;
-  }
-
   async function hasDirectionTechniqueAccess(){
     if(!supabaseClient) return false;
     const { data, error } = await supabaseClient.rpc('has_direction_technique_access');
@@ -1159,13 +1152,6 @@ const CurieuxDB = (()=>{
     const { error } = await supabaseClient
       .from('infos_sociales_admins').update({ direction_technique: !!actif }).eq('email', email);
     if(error) console.warn('[CurieuxDB] setDirectionTechniqueAccess', error.message);
-    return { error };
-  }
-  async function setCommAccess(email, actif){
-    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    const { error } = await supabaseClient
-      .from('infos_sociales_admins').update({ comm: !!actif }).eq('email', email);
-    if(error) console.warn('[CurieuxDB] setCommAccess', error.message);
     return { error };
   }
   async function removeAccount(email){
@@ -1643,16 +1629,6 @@ const CurieuxDB = (()=>{
     return { error };
   }
 
-  // Les tâches types que l'espace comm PROPOSE sur une date validée sans
-  // tâche : [{libelle, j}] — jamais imposées, un clic les crée, modifiables.
-  async function setCommTachesTypes(types){
-    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    const { error } = await supabaseClient.from('reglages')
-      .update({ comm_taches_types: types || [] }).eq('id', 1);
-    if(error) console.warn('[CurieuxDB] setCommTachesTypes', error.message);
-    return { error };
-  }
-
   // Les seuils d'alerte du tableau de bord technique, réglés depuis l'écran :
   // { planScene:[45,21], … } — [orange, rouge] en jours avant la date.
   async function setTechniqueSeuils(seuils){
@@ -1660,16 +1636,6 @@ const CurieuxDB = (()=>{
     const { error } = await supabaseClient.from('reglages')
       .update({ technique_seuils: seuils || {} }).eq('id', 1);
     if(error) console.warn('[CurieuxDB] setTechniqueSeuils', error.message);
-    return { error };
-  }
-
-  // Le jour du mois où la newsletter doit partir (1 à 28) — l'échéance des
-  // tâches mensuelles auto-créées s'aligne dessus.
-  async function setCommNewsletterJour(jour){
-    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
-    const { error } = await supabaseClient.from('reglages')
-      .update({ comm_newsletter_jour: jour }).eq('id', 1);
-    if(error) console.warn('[CurieuxDB] setCommNewsletterJour', error.message);
     return { error };
   }
 
@@ -1923,7 +1889,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, fetchOne, tableManquante, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
-    fetchReglages, setPhaseTest, setVillesBase, setCommTachesTypes, setCommNewsletterJour, setTechniqueSeuils, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
+    fetchReglages, setPhaseTest, setVillesBase, setTechniqueSeuils, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
@@ -1932,8 +1898,8 @@ const CurieuxDB = (()=>{
     deposerPlanSalle, urlPubliquePlanSalle,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,
-    getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess, hasCommAccess,
-    listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess, setCommAccess,
+    getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,
+    listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
     mesDemandesDispo, mesDates, resolvePersonToken, creerCompteEquipeSansEmail,
     fetchCorbeille, restaurerDepuisCorbeille,

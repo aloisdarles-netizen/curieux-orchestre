@@ -75,38 +75,48 @@ const CURIEUX_SECTIONS = [
     { libelle:'Partage', href:'partage.html', pages:['partage.html','technique-partage.html'] },
     { libelle:'Page salle', href:'page-salle.html', pages:['page-salle.html'] },
   ]},
-  { libelle:'Comm', href:'comm.html', pages:['comm.html'] },
   // Deux façons de lire la même donnée : le tableau croisé pour décider qui
   // joue quoi, et la feuille par date pour le dire à quelqu'un d'extérieur.
   { libelle:"Vue d'ensemble", href:'recap.html', entrees:[
     { libelle:'Le tableau', href:'recap.html', pages:['recap.html'] },
     { libelle:'Plateau par date', href:'plateau.html', pages:['plateau.html'] },
   ]},
+  // Le budget sort de l'administration : chiffrer un projet est un travail de
+  // production, pas un réglage de l'outil, et le ranger sous « Admin » le
+  // faisait chercher à trois clics. Il garde en revanche la même porte — les
+  // comptes 'admin' seulement (voir requireSuperAdminAuth sur chaque page) :
+  // les cachets et les marges ne se montrent pas à toute l'équipe.
+  { libelle:'Budget', href:'budget.html', admin:true, entrees:[
+    { libelle:'Tableau de bord', href:'budget.html', pages:['budget.html'] },
+    { libelle:'Devis et budgets', href:'devis.html', pages:['devis.html','devis-editeur.html'] },
+    { libelle:'Clients', href:'devis-clients.html', pages:['devis-clients.html'] },
+  ]},
   // Réservée aux comptes 'admin' : elle n'entre dans le bandeau qu'après
-  // vérification (voir ajouterEntreeAdmin), pour éviter d'afficher à toute
+  // vérification (voir ajouterEntreesAdmin), pour éviter d'afficher à toute
   // l'équipe une porte qui lui serait refusée.
   { libelle:'Admin', href:'admin-dashboard.html', admin:true, entrees:[
     { libelle:'Tableau de bord', href:'admin-dashboard.html', pages:['admin-dashboard.html'] },
-    { libelle:'Devis', href:'devis.html', pages:['devis.html','devis-editeur.html'] },
-    { libelle:'Clients', href:'devis-clients.html', pages:['devis-clients.html'] },
   ]},
 ];
 
-/* L'entrée « Admin » du bandeau, ajoutée après coup.
+/* Les entrées réservées du bandeau (Budget, Admin), ajoutées après coup.
  *
  * Le rôle se lit côté base (isSuperAdmin), donc de façon asynchrone : attendre
  * cette réponse avant de dessiner le bandeau ferait clignoter toute la
- * navigation à chaque page. On dessine donc sans l'entrée, et on l'ajoute si le
+ * navigation à chaque page. On dessine donc sans elles, et on les ajoute si le
  * compte y a droit — ce qui évite au passage de montrer aux comptes 'user' une
  * porte qui leur serait refusée.
  *
  * Sans réponse (page publique à jeton, session absente, base injoignable),
- * l'entrée reste absente : c'est le comportement prudent. Elle ne remplace
- * évidemment pas le garde de chaque page admin, qui reste seul à protéger.
+ * elles restent absentes : c'est le comportement prudent. Elles ne remplacent
+ * évidemment pas le garde de chaque page réservée, qui reste seul à protéger.
+ *
+ * Toutes les sections marquées admin:true sont traitées, dans l'ordre du
+ * modèle — la section courante est déjà dessinée par le bandeau, on la saute.
  */
-async function ajouterEntreeAdmin(topbar, sectionCourante){
-  const secAdmin = CURIEUX_SECTIONS.find(s => s.admin);
-  if(!secAdmin || secAdmin === sectionCourante) return;   // déjà présente
+async function ajouterEntreesAdmin(topbar, sectionCourante){
+  const reservees = CURIEUX_SECTIONS.filter(s => s.admin && s !== sectionCourante);
+  if(!reservees.length) return;
   const nav = topbar.querySelector('.co-topnav');
   if(!nav || typeof CurieuxDB === 'undefined') return;
 
@@ -115,11 +125,22 @@ async function ajouterEntreeAdmin(topbar, sectionCourante){
   catch(e){ return; }
   if(!autorise || nav.querySelector('[data-entree-admin]')) return;
 
-  const lien = document.createElement('a');
-  lien.href = secAdmin.href;
-  lien.textContent = secAdmin.libelle;
-  lien.setAttribute('data-entree-admin', '1');
-  nav.appendChild(lien);
+  /* Chaque entrée se place à SA position du modèle, pas en bout de bandeau :
+     « Budget » vient avant « Admin » quel que soit l'écran d'où l'on vient. La
+     section courante, elle, est déjà dans le bandeau — on insère avant le
+     premier lien qui, dans le modèle, la suit. */
+  reservees.forEach(sec => {
+    const lien = document.createElement('a');
+    lien.href = sec.href;
+    lien.textContent = sec.libelle;
+    lien.setAttribute('data-entree-admin', '1');
+    const rang = CURIEUX_SECTIONS.indexOf(sec);
+    const suivant = Array.from(nav.querySelectorAll('a')).find(a => {
+      const s = CURIEUX_SECTIONS.find(x => x.href === a.getAttribute('href'));
+      return s && CURIEUX_SECTIONS.indexOf(s) > rang;
+    });
+    nav.insertBefore(lien, suivant || null);
+  });
 }
 
 // La clé d'une page, telle que les sections la déclarent. C'est le nom de
@@ -197,7 +218,7 @@ function initCurieuxTopbar(){
   document.querySelectorAll('.brand-header').forEach(el => el.remove());
   document.querySelectorAll('nav.page-nav[data-curieux-nav]').forEach(el => el.remove());
 
-  ajouterEntreeAdmin(topbar, section);
+  ajouterEntreesAdmin(topbar, section);
   initCurieuxThemeToggle();
   initCurieuxAvatar();
   try{ if(typeof initGlobalSearch === 'function') initGlobalSearch(topbar.querySelector('.co-topbar-actions')); }catch(e){}

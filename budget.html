@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Budget</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/devis-commun.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:min(1200px, 97vw); margin:0 auto;}
+
+  /* Les chiffres de tête : quatre tuiles, une par question qu'on se pose en
+     ouvrant la section — combien de projets sont chiffrés, combien de devis
+     attendent une réponse, combien sont signés, et pour combien. */
+  .chiffres{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; margin-bottom:22px;}
+  .chiffre{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 18px;
+  }
+  .chiffre b{display:block; font-family:var(--font-display); font-size:30px; font-weight:500; color:var(--accent); line-height:1.1;}
+  .chiffre span{font-size:12.5px; color:var(--muted); font-weight:600;}
+  .chiffre.ok b{color:var(--ok);}
+  .chiffre.att b{color:var(--maybe);}
+
+  .deux{display:grid; grid-template-columns:minmax(0, 1.5fr) minmax(0, 1fr); gap:18px; align-items:start;}
+  @media (max-width:900px){ .deux{grid-template-columns:minmax(0, 1fr);} }
+
+  .bloc{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px;}
+  .bloc h2{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+    font-weight:800; margin:0 0 10px;
+  }
+
+  /* La liste des documents en cours : une ligne par devis, le statut en
+     pastille, le total à droite — la même lecture que sur la page Devis. */
+  .ligne{
+    display:grid; grid-template-columns:minmax(0, 1fr) auto auto; gap:10px; align-items:center;
+    padding:9px 0; border-bottom:1px solid var(--border); text-decoration:none; color:inherit;
+  }
+  .ligne:last-child{border-bottom:none;}
+  .ligne:hover .l-titre{color:var(--accent);}
+  .l-titre{font-weight:700; font-size:13.5px;}
+  .l-sous{display:block; font-size:12px; color:var(--muted); font-weight:400; margin-top:1px;}
+  .l-total{font-size:13px; font-weight:800; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .statut-badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap;}
+  .statut-brouillon{background:var(--bg); color:var(--muted); border:1px solid var(--border);}
+  .statut-envoye{background:var(--secondary-tint, #CEE1F4); color:#3d5876;}
+  .statut-accepte{background:#dcf2e5; color:#2f8f5b;}
+  .statut-refuse{background:#fbe2db; color:#b03a14;}
+  .statut-budget{background:var(--accent-tint); color:var(--accent-dark);}
+  :root[data-theme="dark"] .statut-accepte{background:#1d3a2a; color:#7fd6a4;}
+  :root[data-theme="dark"] .statut-refuse{background:#42201a; color:#f0967a;}
+  :root[data-theme="dark"] .statut-envoye{background:#2a3f52; color:#CEE1F4;}
+  .vide{font-size:13px; color:var(--muted); padding:10px 0; line-height:1.6;}
+
+  /* Les portes de la section. */
+  .portes{display:flex; flex-direction:column; gap:10px;}
+  .porte{
+    display:block; text-decoration:none; color:inherit;
+    background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:13px 15px;
+  }
+  .porte:hover{border-color:var(--accent);}
+  .porte b{display:block; font-size:14px; color:var(--accent-dark);}
+  .porte span{font-size:12.5px; color:var(--muted); line-height:1.5;}
+
+  /* Ce qui reste à faire : un projet chiffré sans devis client, un devis
+     envoyé depuis longtemps sans réponse. */
+  .alerte{
+    display:flex; gap:9px; align-items:flex-start; font-size:12.5px; line-height:1.5;
+    padding:8px 0; border-bottom:1px solid var(--border);
+  }
+  .alerte:last-child{border-bottom:none;}
+  .alerte i{flex:none; width:8px; height:8px; border-radius:50%; background:var(--maybe); margin-top:6px;}
+  .alerte a{color:var(--accent-dark); font-weight:700; text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head">
+    <div>
+      <h1 class="co-h1">Budget</h1>
+      <p class="co-sub">Où en sont les chiffrages : ce qui est en cours, ce qui attend une réponse, ce qui est signé.</p>
+    </div>
+    <div class="co-page-actions">
+      <a class="co-btn primary md" href="devis.html">Ouvrir les devis</a>
+    </div>
+  </div>
+
+  <div class="chiffres" id="chiffres"></div>
+
+  <div class="deux">
+    <div>
+      <section class="bloc">
+        <h2>En cours</h2>
+        <div id="enCours"></div>
+      </section>
+      <section class="bloc" style="margin-top:14px;">
+        <h2>À ne pas laisser traîner</h2>
+        <div id="alertes"></div>
+      </section>
+    </div>
+    <aside class="portes">
+      <a class="porte" href="devis.html"><b>Devis et budgets</b><span>Chiffrer un projet, décliner des variantes, envoyer un devis au client.</span></a>
+      <a class="porte" href="devis-clients.html"><b>Clients</b><span>Les structures qui achètent : coordonnées, SIRET, contacts de facturation.</span></a>
+      <a class="porte" href="admin-dashboard.html#sauvegardes"><b>Sauvegardes</b><span>L'export nocturne des devis, dans le tableau de bord d'administration.</span></a>
+    </aside>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   Budget — la porte de la section.
+   ============================================================================
+   Le chiffrage vivait sous « Admin », entre la gestion des comptes et les
+   sauvegardes : on l'y cherchait à trois clics, et il passait pour un réglage
+   de l'outil alors que c'est un travail de production quotidien. Cette page
+   lui donne une entrée à lui, et répond d'un coup d'œil aux trois questions
+   qu'on se pose en l'ouvrant — qu'est-ce qui est en cours, qu'est-ce qui
+   attend une réponse, qu'est-ce qui est signé.
+
+   Elle ne modifie rien : tout se fait sur les pages Devis et Clients. Elle
+   garde la porte des comptes 'admin' (requireSuperAdminAuth) : cachets et
+   marges ne se montrent pas à toute l'équipe.
+============================================================================ */
+
+let devisCache = [], clientsCache = [], tourneesCache = [];
+
+function nomClient(id){
+  const c = clientsCache.find(x=> x.id === id);
+  return c ? (c.nom || c.raisonSociale || '') : '';
+}
+function projetDe(id){ return tourneesCache.find(t=> t.id === id) || null; }
+
+function fmtDate(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d)) return '';
+  return d.toLocaleDateString('fr-FR', { day:'numeric', month:'short' });
+}
+function joursDepuis(iso){
+  if(!iso) return null;
+  const j = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  return isFinite(j) ? j : null;
+}
+
+function rendre(){
+  const budgets = devisCache.filter(d=> typeDocDe(d) === 'budget');
+  const devis = devisCache.filter(d=> typeDocDe(d) === 'devis');
+  const envoyes = devis.filter(d=> d.statut === 'envoye');
+  const acceptes = devis.filter(d=> d.statut === 'accepte');
+  const projets = new Set(devisCache.map(d=> d.projetId || d.id));
+  const totalAccepte = acceptes.reduce((s, d)=> s + (calculerDevis(d).totalHT || 0), 0);
+
+  document.getElementById('chiffres').innerHTML = [
+    { n: projets.size, l: `projet${projets.size > 1 ? 's' : ''} chiffré${projets.size > 1 ? 's' : ''}` },
+    { n: envoyes.length, l: `devis en attente de réponse`, cls:'att' },
+    { n: acceptes.length, l: `devis accepté${acceptes.length > 1 ? 's' : ''}`, cls:'ok' },
+    { n: fmtEurosDevis(totalAccepte) + ' HT', l: 'signé cette saison', cls:'ok' },
+  ].map(c=> `<div class="chiffre ${c.cls || ''}"><b>${escapeHtml(String(c.n))}</b><span>${escapeHtml(c.l)}</span></div>`).join('');
+
+  // En cours : tout ce qui n'est pas terminé, le plus récemment touché en tête.
+  const enCours = devisCache
+    .filter(d=> typeDocDe(d) === 'budget' || d.statut === 'brouillon' || d.statut === 'envoye')
+    .sort((a, b)=> String(b._updatedAt || '').localeCompare(String(a._updatedAt || '')))
+    .slice(0, 12);
+  const zone = document.getElementById('enCours');
+  zone.innerHTML = enCours.length ? enCours.map(d=>{
+    const estBudget = typeDocDe(d) === 'budget';
+    const projet = projetDe(d.tourneeId);
+    const client = nomClient(d.clientId);
+    const sous = [projet ? (projet.nom || '') : '', client, d.numero || '', d._updatedAt ? 'modifié le ' + fmtDate(d._updatedAt) : '']
+      .filter(Boolean).join(' · ');
+    const badge = estBudget
+      ? '<span class="statut-badge statut-budget">Budget</span>'
+      : `<span class="statut-badge statut-${escapeAttr(d.statut || 'brouillon')}">${escapeHtml(DEVIS_STATUTS[d.statut] || 'Brouillon')}</span>`;
+    return `<a class="ligne" href="devis-editeur.html?id=${encodeURIComponent(d.id)}">
+      <span><span class="l-titre">${escapeHtml(d.titre || 'Sans titre')}${d.variante ? ' — ' + escapeHtml(d.variante) : ''}</span><span class="l-sous">${escapeHtml(sous)}</span></span>
+      ${badge}
+      <span class="l-total">${fmtEurosDevis(calculerDevis(d).totalHT)} HT</span>
+    </a>`;
+  }).join('') : `<p class="vide">Rien en cours. <a href="devis.html">Chiffrer un projet</a>.</p>`;
+
+  /* Les alertes : ce que la page Devis ne dit pas d'elle-même.
+     Un devis envoyé il y a plus de trois semaines sans réponse, c'est un
+     client à relancer. Un projet qui n'a qu'un budget interne et aucun devis
+     client, c'est un chiffrage qui n'est pas parti. Un devis accepté sur un
+     projet qui n'a pas de date validée, c'est un contrat sans calendrier. */
+  const alertes = [];
+  envoyes.forEach(d=>{
+    const j = joursDepuis(d._updatedAt);
+    if(j != null && j >= 21) alertes.push(`Devis <a href="devis-editeur.html?id=${encodeURIComponent(d.id)}">${escapeHtml(d.titre || d.numero || 'sans titre')}</a> envoyé il y a ${j} jours, sans réponse enregistrée.`);
+  });
+  const parProjet = new Map();
+  devisCache.forEach(d=>{ const k = d.projetId || d.id; if(!parProjet.has(k)) parProjet.set(k, []); parProjet.get(k).push(d); });
+  parProjet.forEach(docs=>{
+    const b = docs.filter(d=> typeDocDe(d) === 'budget');
+    const c = docs.filter(d=> typeDocDe(d) === 'devis');
+    if(b.length && !c.length){
+      const ref = b.find(x=> x.retenue) || b[0];
+      alertes.push(`<a href="devis-editeur.html?id=${encodeURIComponent(ref.id)}">${escapeHtml(ref.titre || 'Projet sans titre')}</a> a un budget mais aucun devis client.`);
+    }
+  });
+  acceptes.forEach(d=>{
+    const p = projetDe(d.tourneeId);
+    if(p && !(p.dates || []).some(x=> x.statut === 'validee')){
+      alertes.push(`Devis accepté sur <a href="tournees.html${p.type === 'recording' ? '?type=recording' : ''}#tournee-${encodeURIComponent(p.id)}">${escapeHtml(p.nom || 'projet')}</a>, mais aucune date n'y est validée.`);
+    }
+  });
+  document.getElementById('alertes').innerHTML = alertes.length
+    ? alertes.map(a=> `<div class="alerte"><i></i><span>${a}</span></div>`).join('')
+    : `<p class="vide">Rien à signaler.</p>`;
+}
+
+async function demarrer(){
+  [devisCache, clientsCache, tourneesCache] = await Promise.all([
+    CurieuxDB.fetchAll('devis').catch(()=> []),
+    CurieuxDB.fetchAll('devis_clients').catch(()=> []),
+    CurieuxDB.fetchAll('tournees').catch(()=> []),
+  ]);
+  rendre();
+}
+demarrer();
+</script>
+</body>
+</html>

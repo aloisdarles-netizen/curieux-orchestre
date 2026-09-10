@@ -71,7 +71,8 @@ tableau de bord admin...) sont protégées par un **vrai compte** Supabase Auth
 (email + mot de passe) — l'ancien mot de passe partagé "admin" en clair n'existe
 plus. Avoir un compte ne suffit pas : il faut en plus figurer dans la liste
 blanche `infos_sociales_admins` pour accéder aux pages. Deux rôles :
-- **admin** — accès à tout, y compris `infos-sociales.html` et
+- **admin** — accès à tout, y compris `infos-sociales.html`, la section Budget
+  ([budget.html](budget.html), devis, clients) et
   [admin-dashboard.html](admin-dashboard.html) (gestion des comptes + historique).
 - **user** — accès aux pages admin courantes (annuaires, tournées, dispos,
   feuilles de route...) mais PAS à infos sociales ni au tableau de bord.

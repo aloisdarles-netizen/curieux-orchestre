@@ -216,7 +216,7 @@
     <div class="card">
       <div class="table-scroll">
         <table id="accountsTable">
-          <thead><tr><th>Email</th><th>Rôle</th><th>Direction technique</th><th>Comm</th><th></th></tr></thead>
+          <thead><tr><th>Email</th><th>Rôle</th><th>Direction technique</th><th></th></tr></thead>
           <tbody id="accountsBody"></tbody>
         </table>
       </div>
@@ -586,13 +586,6 @@ function renderAccounts(){
           ${a.role==='admin' ? 'Déjà inclus (admin)' : 'Accès accordé'}
         </label>
       </td>
-      <td data-label="Comm">
-        <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:400; color:var(--muted);">
-          <input type="checkbox" class="comm-check" data-email="${escapeHtml(a.email)}"
-            ${a.comm ? 'checked' : ''} ${a.role==='admin' ? 'disabled' : ''}>
-          ${a.role==='admin' ? 'Déjà inclus (admin)' : 'Accès accordé'}
-        </label>
-      </td>
       <td><button type="button" class="co-btn danger sm remove-account-btn" data-email="${escapeHtml(a.email)}">Retirer</button></td>
     </tr>
   `).join('');
@@ -619,18 +612,6 @@ function renderAccounts(){
       if(error){ alert('Erreur : ' + translateAuthError(error.message)); cb.checked = !cb.checked; return; }
       const acc = accountsCache.find(a=> a.email === email);
       if(acc) acc.direction_technique = cb.checked;
-    });
-  });
-
-  body.querySelectorAll('.comm-check').forEach(cb=>{
-    cb.addEventListener('change', async ()=>{
-      const email = cb.dataset.email;
-      cb.disabled = true;
-      const { error } = await CurieuxDB.setCommAccess(email, cb.checked);
-      cb.disabled = false;
-      if(error){ alert('Erreur : ' + translateAuthError(error.message)); cb.checked = !cb.checked; return; }
-      const acc = accountsCache.find(a=> a.email === email);
-      if(acc) acc.comm = cb.checked;
     });
   });
 
