@@ -210,7 +210,8 @@ const CurieuxMesDates = (function(){
        hors de l'écran dès qu'il y avait plus de deux mois, c'est-à-dire
        toujours. À côté, elle reste sous les yeux pendant qu'on lit la grille —
        et c'est là qu'on en a besoin. Sur téléphone, la place manque : elle
-       repasse dessous, en ligne. */
+       repasse dessous, en ligne — par la media query qui FERME la feuille de
+       style, pas par celle du milieu (voir poserStyle). */
     return `<div class="cal-zone">
       <div class="cal">${corps}</div>
       <div class="cal-legende">
@@ -221,6 +222,48 @@ const CurieuxMesDates = (function(){
         <span><i class="cal-puce moi"></i> le point : tu joues</span>
       </div>
     </div>`;
+  }
+
+  /* Le seuil du téléphone, le même que base.css. Un seul endroit pour le
+     poser : la page qui monte la vue a besoin de la même réponse que le
+     module, et deux seuils qui divergent d'un pixel donnent une page où le
+     bloc est replié mais la vue en colonnes larges, ou l'inverse. */
+  function mediaPetitEcran(){
+    if(typeof matchMedia !== 'function') return { matches:false, addEventListener(){}, addListener(){} };
+    return matchMedia('(max-width: 760px)');
+  }
+
+  /* Les dates qui comptent : celles où l'on compte sur la personne. Ni les
+     annulées (à libérer), ni les « sans toi » (validées où elle n'est pas
+     distribuée) — les colonnes les montrent pour dire de libérer la journée,
+     mais « 12 à venir » doit compter ce qu'on joue, ou ce qu'on tient. */
+  function enJeu(dates){
+    return dates.filter(d=>{ const g = groupeDe(d); return g !== 'annulee' && g !== 'sans-toi'; });
+  }
+
+  /* L'aperçu : les n prochaines dates en une ligne chacune, et le compte de
+     toutes celles à venir. C'est ce que l'espace personnel montre sur
+     téléphone quand le bloc complet est replié : la question « quand est-ce
+     que je joue ensuite ? » a sa réponse sans rien déplier, et le bloc entier
+     reste derrière pour « sur quoi puis-je compter ? ». Le millésime n'est
+     écrit que s'il diffère de l'année en cours — « 12 mars » en septembre
+     se lirait comme un mois passé. */
+  function apercu(charge, n){
+    const dates = enJeu((Array.isArray(charge && charge.dates) ? charge.dates : [])
+      .slice().sort((a, b)=> String(a.date).localeCompare(String(b.date))));
+    const anneeCourante = new Date().getFullYear();
+    const lignes = dates.slice(0, n || 3).map(d=>{
+      const st = statutDe(d);
+      const p = partsDe(d.date);
+      const quand = `${jourSemaine(d.date)} ${jourLong(d.date)}${p.a && p.a !== anneeCourante ? ' ' + p.a : ''}`;
+      const projet = d.tourneeNom || (d.tourneeType === 'recording' ? 'Recording' : 'Projet');
+      return `<span class="apercu-ligne" data-date="${escapeAttr(d.date)}">
+        <span class="apercu-jour">${escapeHtml(quand)}</span>
+        <span class="apercu-projet">${escapeHtml(projet)}</span>
+        <span class="apercu-statut ${escapeAttr(st)}">${escapeHtml(STATUT_MOT[st])}</span>
+      </span>`;
+    });
+    return { nb: dates.length, html: lignes.length ? `<span class="mdv-apercu">${lignes.join('')}</span>` : '' };
   }
 
   /* Quelle largeur pour un panneau ?
@@ -359,14 +402,6 @@ const CurieuxMesDates = (function(){
         .nav-points{display:flex; gap:6px;}
         .nav-points i{width:7px; height:7px; border-radius:50%; background:var(--border); display:block;}
         .nav-points i.on{background:var(--accent);}
-
-        /* La légende n'a plus la place d'être une colonne : elle repasse sous
-           le calendrier, en ligne, comme avant. */
-        .cal-zone{grid-template-columns:minmax(0, 1fr); gap:12px;}
-        .cal-legende{
-          position:static; flex-direction:row; flex-wrap:wrap; gap:12px;
-          background:transparent; border:none; padding:0;
-        }
       }
 
       /* Le filigrane. Posé sur la ZONE et non sur une grille : il traverse
@@ -420,6 +455,38 @@ const CurieuxMesDates = (function(){
       .cal-puce.validee{background:var(--ok);} .cal-puce.option{background:var(--maybe);}
       .cal-puce.recherche{background:var(--border);} .cal-puce.annulee{background:var(--ko-tint);}
       .cal-puce.moi{background:var(--text); border-radius:50%; width:7px; height:7px;}
+
+      /* Le résumé des prochaines dates (voir apercu) : trois lignes qui
+         tiennent dans un en-tête, là où les colonnes ou le calendrier ne
+         tiennent pas. La pastille reprend les couleurs des en-têtes de
+         colonne, pour que le mot se lise de la même façon aux deux endroits. */
+      .mdv-apercu{display:flex; flex-direction:column; gap:6px; margin-top:9px;}
+      .apercu-ligne{display:flex; align-items:center; gap:9px; min-width:0; font-size:12.5px;}
+      .apercu-jour{flex:0 0 auto; font-weight:800; font-variant-numeric:tabular-nums; color:var(--text);}
+      .apercu-projet{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted);}
+      .apercu-statut{
+        flex:0 0 auto; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
+        padding:3px 8px; border-radius:999px;
+      }
+      .apercu-statut.validee{background:var(--ok); color:var(--sur-statut);}
+      .apercu-statut.option{background:var(--maybe); color:var(--sur-statut);}
+      .apercu-statut.recherche{background:var(--border); color:var(--muted);}
+
+      /* Le calendrier sur téléphone — EN FIN DE FEUILLE, et il doit y rester.
+         Ces deux règles corrigent .cal-zone et .cal-legende ci-dessus, à
+         spécificité égale (une classe) : placées dans la media query du haut,
+         avant les règles de base, elles perdaient contre elles et n'avaient
+         jamais eu d'effet. La légende restait une colonne collante de
+         133 px à côté d'une grille de 232 px dans 314 px de large — elle
+         recouvrait le samedi et le dimanche de chaque mois. C'est la leçon
+         du repli mobile de base.css, qui finit lui aussi son fichier. */
+      @media (max-width:760px){
+        .cal-zone{grid-template-columns:minmax(0, 1fr); gap:12px;}
+        .cal-legende{
+          position:static; flex-direction:row; flex-wrap:wrap; gap:12px;
+          background:transparent; border:none; padding:0;
+        }
+      }
     `;
     document.head.appendChild(s);
   }
@@ -429,8 +496,12 @@ const CurieuxMesDates = (function(){
      `charge` est l'objet rendu par mes_dates. `options.vueParDefaut` décide de
      la forme quand la personne n'en a encore choisi aucune — l'espace personnel
      ouvre sur le calendrier, la page dédiée sur les colonnes. Le choix, lui,
-     est retenu pour tout le monde : c'est une préférence de lecture, pas un
-     réglage de page. */
+     est retenu pour toutes les pages : c'est une préférence de lecture, pas un
+     réglage de page. Mais c'est une préférence de GRAND écran, voir ci-dessous.
+
+     Rend { rendre, ajuster } : `ajuster` refait les mesures de troncature, à
+     appeler quand le conteneur devient visible s'il ne l'était pas au montage
+     — un corps caché mesure zéro, et rien n'y est tronqué. */
   function monter(conteneur, charge, options){
     poserStyle();
     const opts = options || {};
@@ -439,16 +510,35 @@ const CurieuxMesDates = (function(){
       .slice().sort((a, b)=> String(a.date).localeCompare(String(b.date)));
 
     /* Le calendrier par défaut sur un écran large — c'est la forme qui montre
-       une saison d'un coup d'œil. Sur téléphone, on garde les colonnes qui
-       glissent : une grille de sept colonnes y laisse quarante-cinq pixels par
-       case, de quoi poser un chiffre et rien d'autre. Le choix explicite de la
-       personne, lui, l'emporte partout. */
-    const petitEcran = typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
-    let VUE = (opts.vueParDefaut === 'calendrier' && !petitEcran) ? 'calendrier' : 'colonnes';
-    try{
-      const retenu = localStorage.getItem(CLE_VUE);
-      if(retenu === 'calendrier' || retenu === 'colonnes') VUE = retenu;
-    }catch(e){}
+       une saison d'un coup d'œil. Sur téléphone, ce sont toujours les colonnes
+       qui glissent : quatre à six grilles de sept colonnes font deux à trois
+       écrans de haut, et la réponse à « suis-je pris le 14 ? » s'y lit à peine
+       mieux que dans une liste. Le calendrier reste à un appui, pour la
+       session.
+
+       La préférence mémorisée ne vaut donc que pour le grand écran. Elle
+       était appliquée partout, et un seul appui sur « Calendrier » — sur
+       l'ordinateur, ou sur une autre page — rendait le calendrier définitif
+       sur le téléphone, avec sa légende par-dessus le week-end. Dans l'autre
+       sens, un choix fait au doigt n'est pas retenu non plus : il ne dit rien
+       de ce qu'on veut lire sur un écran large.
+
+       Et la largeur se réévalue : une rotation, une fenêtre qu'on étire,
+       traversent le seuil sans recharger la page. */
+    const media = mediaPetitEcran();
+    function vueInitiale(){
+      if(media.matches) return 'colonnes';
+      let v = opts.vueParDefaut === 'calendrier' ? 'calendrier' : 'colonnes';
+      try{
+        const retenu = localStorage.getItem(CLE_VUE);
+        if(retenu === 'calendrier' || retenu === 'colonnes') v = retenu;
+      }catch(e){}
+      return v;
+    }
+    let VUE = vueInitiale();
+    // Un choix fait à la main pendant cette visite survit au changement de
+    // largeur : on ne reprend pas à quelqu'un ce qu'il vient de demander.
+    let choisiIci = false;
 
     conteneur.classList.add('mdv');
 
@@ -554,11 +644,14 @@ const CurieuxMesDates = (function(){
 
       conteneur.querySelectorAll('[data-vue]').forEach(b=> b.addEventListener('click', ()=>{
         VUE = b.dataset.vue;
-        try{ localStorage.setItem(CLE_VUE, VUE); }catch(e){}
+        choisiIci = true;
+        if(!media.matches){ try{ localStorage.setItem(CLE_VUE, VUE); }catch(e){} }
         rendre();
       }));
       if(VUE === 'colonnes'){ brancherGlissement(); poserTroncatures(); }
     }
+
+    function ajuster(){ if(VUE === 'colonnes' && dates.length) poserTroncatures(); }
 
     /* La troncature dépend de la hauteur de la fenêtre et de la largeur, qui
        décide du nombre de sous-colonnes : une rotation de téléphone change les
@@ -566,14 +659,24 @@ const CurieuxMesDates = (function(){
     let minuteur = null;
     window.addEventListener('resize', ()=>{
       clearTimeout(minuteur);
-      minuteur = setTimeout(()=>{ if(VUE === 'colonnes' && dates.length) poserTroncatures(); }, 200);
+      minuteur = setTimeout(ajuster, 200);
     });
 
+    // Le seuil franchi dans un sens ou dans l'autre : la forme par défaut se
+    // rejoue, sauf si la personne en a choisi une pendant cette visite.
+    const surSeuil = ()=>{
+      if(choisiIci || !dates.length) return;
+      const v = vueInitiale();
+      if(v !== VUE){ VUE = v; rendre(); }
+    };
+    if(media.addEventListener) media.addEventListener('change', surSeuil);
+    else if(media.addListener) media.addListener(surSeuil);
+
     rendre();
-    return { rendre };
+    return { rendre, ajuster };
   }
 
-  return { monter, fraicheur, statutDe, groupeDe, STATUT_MOT };
+  return { monter, apercu, mediaPetitEcran, fraicheur, statutDe, groupeDe, STATUT_MOT };
 })();
 
 if(typeof window !== 'undefined') window.CurieuxMesDates = CurieuxMesDates;
