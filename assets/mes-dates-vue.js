@@ -28,8 +28,8 @@
    2. Le statut de la DATE et la présence de la PERSONNE sont deux choses
       différentes, et c'est leur croisement qui décide de la colonne (voir
       groupeDe). Une date validée où l'on ne joue pas a d'ailleurs sa colonne à
-      elle, « Sans toi », qui dit de libérer la journée là où « Validée » dirait
-      de compter dessus. Toutes les dates que la base renvoie entrent dans les
+      elle, « Tu es libre », qui rend la journée là où « Validée » dirait d'y
+      compter. Toutes les dates que la base renvoie entrent dans les
       colonnes, y compris celles où l'on nous a seulement demandé notre dispo :
       on nous a demandé de les tenir, nous devons apprendre ici qu'elles sont
       posées ou tombées — pas par un collègue.
@@ -80,7 +80,15 @@ const CurieuxMesDates = (function(){
   }
 
   const STATUT_MOT = { validee:'Validée', option:'Option', recherche:"À l'étude", annulee:'Annulée' };
-  const RANG_STATUT = { validee:0, option:1, recherche:2, annulee:3 };
+  /* Le mot des GROUPES, qui ne sont pas tout à fait les statuts : une date
+     validée où l'on ne joue pas n'est pas « validée » de notre point de vue,
+     c'est une journée rendue. */
+  const GROUPE_MOT = Object.assign({}, STATUT_MOT, { libre:'Tu es libre' });
+  /* Le rang décide de la couleur d'une journée qui porte deux projets. Il
+     répond à « suis-je pris ce jour-là ? », pas à « quel est le statut le plus
+     avancé ? » : une option où l'on joue passe donc devant une date validée où
+     l'on ne joue pas — la première peut m'occuper, la seconde jamais. */
+  const RANG_STATUT = { validee:0, option:1, recherche:2, annulee:3, libre:4 };
   const LIBELLE_DISPO = { indispo:"tu t'es dit indispo", incertain:'tu as répondu « à confirmer »' };
 
   function statutDe(d){ return STATUT_MOT[d.statut] ? d.statut : 'option'; }
@@ -94,11 +102,18 @@ const CurieuxMesDates = (function(){
       vide:"Aucune date à l'étude." },
     { cle:'annulee',   titre:'Annulée',   dit:'Ces dates ne se feront pas. Tu peux libérer ces journées.',
       vide:'', siVide:'masquer' },
-    // Le cinquième cas, qu'il fallait bien nommer : la date est confirmée, on
-    // t'avait demandé ta dispo, et tu n'es pas dessus. La ranger sous
-    // « Validée » aurait été un contresens ; la taire aurait été pire — la
-    // personne garde sa soirée pour rien.
-    { cle:'sans-toi',  titre:'Sans toi',  dit:"Ces dates sont confirmées, mais tu n'y es pas distribué·e. Tu peux libérer ces journées.",
+    /* Le cinquième cas, qu'il fallait bien nommer : la date est confirmée, on
+       t'avait demandé ta dispo, et tu n'es pas dessus. La ranger sous
+       « Validée » aurait été un contresens ; la taire aurait été pire — la
+       personne garde sa soirée pour rien.
+
+       Elle s'est d'abord appelée « Sans toi ». C'était court, exact, et ça
+       tombait comme un refus : la personne ouvre son espace, et une pastille
+       lui annonce qu'on s'est passé d'elle. Or ce n'est pas ce que la colonne
+       a à dire. Elle a à dire qu'une journée qu'on lui avait demandé de tenir
+       vient de se libérer — une bonne nouvelle, du point de vue de qui la
+       lit. Le titre parle donc d'elle, pas de son absence. */
+    { cle:'libre',     titre:'Tu es libre', dit:"Ces dates sont confirmées et ne te concernent pas : ces journées sont à toi.",
       vide:'', siVide:'masquer' },
   ];
 
@@ -108,7 +123,7 @@ const CurieuxMesDates = (function(){
      donc pas. */
   function groupeDe(d){
     const st = statutDe(d);
-    if(st === 'validee') return d.affecte ? 'validee' : 'sans-toi';
+    if(st === 'validee') return d.affecte ? 'validee' : 'libre';
     return st;
   }
 
@@ -186,11 +201,24 @@ const CurieuxMesDates = (function(){
     for(let j = 1; j <= nbJours; j++){
       const dus = parJour.get(j) || [];
       if(!dus.length){ cases.push(`<span class="cal-case">${j}</span>`); continue; }
-      // Deux projets le même jour : c'est le statut le plus engageant qui donne
-      // sa couleur. Le détail se lit au survol, et dans les colonnes.
-      const st = dus.map(statutDe).sort((x, y)=> RANG_STATUT[x] - RANG_STATUT[y])[0];
+      /* La couleur suit le GROUPE et non le statut brut.
+         ---------------------------------------------------------------------
+         La grille peignait la couleur du statut de la DATE, sans regarder si
+         l'on est dessus : une date validée où l'on ne joue pas était aussi
+         verte qu'une où l'on joue, à un point de quatre pixels près. On lisait
+         donc « je travaille » sur une journée qui était libre — l'erreur la
+         plus coûteuse que cette page puisse faire, et dans le mauvais sens :
+         on garde une soirée pour rien, ou on refuse autre chose.
+         Ces journées-là ont maintenant leur propre allure — le vert en
+         contour, pas en aplat — et leur mot dans la légende. Le point sous le
+         chiffre reste, pour les options et les recherches où l'on est
+         distribué·e : là, la nuance est réelle et la couleur ne la dit pas.
+
+         Deux projets le même jour : c'est le plus engageant qui gagne, au sens
+         de RANG_STATUT — celui qui risque de m'occuper. */
+      const st = dus.map(groupeDe).sort((x, y)=> RANG_STATUT[x] - RANG_STATUT[y])[0];
       const moi = dus.some(x=> x.affecte);
-      const titre = dus.map(x=> `${x.tourneeNom || 'Projet'} — ${STATUT_MOT[statutDe(x)]}${x.ville ? ' · ' + x.ville : ''}`).join(' / ');
+      const titre = dus.map(x=> `${x.tourneeNom || 'Projet'} — ${GROUPE_MOT[groupeDe(x)]}${x.ville ? ' · ' + x.ville : ''}`).join(' / ');
       cases.push(`<span class="cal-case pleine ${escapeAttr(st)}${moi ? ' moi' : ''}" title="${escapeAttr(titre)}">${j}</span>`);
     }
     return `<div class="cal-grille">${cases.join('')}</div>`;
@@ -215,11 +243,12 @@ const CurieuxMesDates = (function(){
     return `<div class="cal-zone">
       <div class="cal">${corps}</div>
       <div class="cal-legende">
-        <span><i class="cal-puce validee"></i> validée</span>
+        <span><i class="cal-puce validee"></i> tu joues, c'est signé</span>
         <span><i class="cal-puce option"></i> option</span>
         <span><i class="cal-puce recherche"></i> à l'étude</span>
+        <span><i class="cal-puce libre"></i> tu es libre</span>
         <span><i class="cal-puce annulee"></i> annulée</span>
-        <span><i class="cal-puce moi"></i> le point : tu joues</span>
+        <span><i class="cal-puce moi"></i> le point : tu es dessus</span>
       </div>
     </div>`;
   }
@@ -234,11 +263,11 @@ const CurieuxMesDates = (function(){
   }
 
   /* Les dates qui comptent : celles où l'on compte sur la personne. Ni les
-     annulées (à libérer), ni les « sans toi » (validées où elle n'est pas
+     annulées (à libérer), ni les « tu es libre » (validées où elle n'est pas
      distribuée) — les colonnes les montrent pour dire de libérer la journée,
      mais « 12 à venir » doit compter ce qu'on joue, ou ce qu'on tient. */
   function enJeu(dates){
-    return dates.filter(d=>{ const g = groupeDe(d); return g !== 'annulee' && g !== 'sans-toi'; });
+    return dates.filter(d=>{ const g = groupeDe(d); return g !== 'annulee' && g !== 'libre'; });
   }
 
   /* L'aperçu : les n prochaines dates en une ligne chacune, et le compte de
@@ -253,14 +282,14 @@ const CurieuxMesDates = (function(){
       .slice().sort((a, b)=> String(a.date).localeCompare(String(b.date))));
     const anneeCourante = new Date().getFullYear();
     const lignes = dates.slice(0, n || 3).map(d=>{
-      const st = statutDe(d);
+      const st = groupeDe(d);
       const p = partsDe(d.date);
       const quand = `${jourSemaine(d.date)} ${jourLong(d.date)}${p.a && p.a !== anneeCourante ? ' ' + p.a : ''}`;
       const projet = d.tourneeNom || (d.tourneeType === 'recording' ? 'Recording' : 'Projet');
       return `<span class="apercu-ligne" data-date="${escapeAttr(d.date)}">
         <span class="apercu-jour">${escapeHtml(quand)}</span>
         <span class="apercu-projet">${escapeHtml(projet)}</span>
-        <span class="apercu-statut ${escapeAttr(st)}">${escapeHtml(STATUT_MOT[st])}</span>
+        <span class="apercu-statut ${escapeAttr(st)}">${escapeHtml(GROUPE_MOT[st])}</span>
       </span>`;
     });
     return { nb: dates.length, html: lignes.length ? `<span class="mdv-apercu">${lignes.join('')}</span>` : '' };
@@ -326,7 +355,7 @@ const CurieuxMesDates = (function(){
       .col-option .col-mot{background:var(--maybe); color:var(--sur-statut);}
       .col-recherche .col-mot{background:var(--border); color:var(--muted);}
       .col-annulee .col-mot{background:var(--ko); color:var(--sur-statut);}
-      .col-sans-toi .col-mot{background:var(--accent-tint); color:var(--accent-dark);}
+      .col-libre .col-mot{background:var(--accent-tint); color:var(--accent-dark);}
       .col-nb{font-size:12px; font-weight:800; color:var(--muted); margin-left:7px;}
       .col-projet{font-size:12.5px; font-weight:700; color:var(--text); margin-left:9px;}
       .col-dit{display:block; font-size:12px; color:var(--muted); line-height:1.45; margin-top:6px;}
@@ -440,6 +469,13 @@ const CurieuxMesDates = (function(){
       .cal-case.pleine.option{background:var(--maybe); color:var(--sur-statut);}
       .cal-case.pleine.recherche{background:var(--border); color:var(--text);}
       .cal-case.pleine.annulee{background:var(--ko-tint); color:var(--ko); text-decoration:line-through;}
+      /* La journée rendue : le vert en contour, jamais en aplat. On voit qu'il
+         se passe quelque chose ce jour-là, on voit du premier coup d'œil que
+         ce n'est pas pour soi. */
+      .cal-case.pleine.libre{
+        background:transparent; color:var(--ok); font-weight:700;
+        box-shadow:inset 0 0 0 1.5px var(--ok);
+      }
       .cal-case.moi::after{
         content:''; position:absolute; bottom:3px; width:4px; height:4px; border-radius:50%;
         background:currentColor;
@@ -454,6 +490,7 @@ const CurieuxMesDates = (function(){
       .cal-puce{width:11px; height:11px; border-radius:4px; display:inline-block;}
       .cal-puce.validee{background:var(--ok);} .cal-puce.option{background:var(--maybe);}
       .cal-puce.recherche{background:var(--border);} .cal-puce.annulee{background:var(--ko-tint);}
+      .cal-puce.libre{background:transparent; box-shadow:inset 0 0 0 1.5px var(--ok);}
       .cal-puce.moi{background:var(--text); border-radius:50%; width:7px; height:7px;}
 
       /* Le résumé des prochaines dates (voir apercu) : trois lignes qui
@@ -471,6 +508,12 @@ const CurieuxMesDates = (function(){
       .apercu-statut.validee{background:var(--ok); color:var(--sur-statut);}
       .apercu-statut.option{background:var(--maybe); color:var(--sur-statut);}
       .apercu-statut.recherche{background:var(--border); color:var(--muted);}
+      /* L'aperçu ne montre que les dates qui comptent pour la personne (voir
+         aVenirPourMoi) : ni annulées, ni rendues. Les deux styles sont là
+         quand même — l'aperçu se rappelle par ailleurs, et un statut sans
+         style s'afficherait en pastille grise sans mot. */
+      .apercu-statut.libre{background:transparent; color:var(--ok); box-shadow:inset 0 0 0 1.5px var(--ok);}
+      .apercu-statut.annulee{background:var(--ko-tint); color:var(--ko);}
 
       /* Le calendrier sur téléphone — EN FIN DE FEUILLE, et il doit y rester.
          Ces deux règles corrigent .cal-zone et .cal-legende ci-dessus, à
