@@ -700,6 +700,15 @@
   <span class="quoi" id="lotQuoi"></span>
   <span class="sep" aria-hidden="true"></span>
   <span id="lotBoutons" style="display:flex; gap:6px; flex-wrap:wrap;"></span>
+  <!-- Le cachet des séances cochées — recordings seulement, où il se fixe
+       séance par séance. Les contrôles sont écrits ici en dur et non dans
+       #lotBoutons, que majBarreLot() reconstruit à chaque case cochée : un
+       montant tapé s'y effacerait à la case suivante. -->
+  <span class="sep lot-cachet" aria-hidden="true"></span>
+  <span class="quoi lot-cachet">cachet :</span>
+  <input type="text" class="lot-cachet" id="lotCachet" inputmode="decimal" placeholder="Montant"
+    style="width:96px; padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;">
+  <button type="button" class="co-btn secondary sm lot-cachet" id="lotCachetAppliquer">Fixer sur la sélection</button>
   <button type="button" class="co-btn ghost sm" id="lotVider">Désélectionner</button>
 </div>
 
@@ -1402,6 +1411,11 @@ document.addEventListener('click', (e)=>{
   if(!btn) return;
   const panneau = document.getElementById('outils-' + btn.dataset.toggleOutils);
   if(!panneau) return;
+  /* Le panneau vit dans le CORPS de la carte, que le repli cache en bloc
+     (.tournee-card[data-replie="1"] > .tournee-outils). Sur une carte repliée
+     — l'état par défaut dès cinq projets — le bouton basculait donc un
+     élément invisible : il avait l'air en panne. On déplie d'abord. */
+  deplierCarte(btn.closest('.tournee-card'));
   const ouvert = panneau.hasAttribute('hidden');
   panneau.toggleAttribute('hidden', !ouvert);
   btn.setAttribute('aria-expanded', String(ouvert));
@@ -2026,10 +2040,30 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
                tête de tournée qu'on consulte en même temps que les dates. -->
           <div class="tournee-outils" id="outils-${escapeAttr(t.id)}" ${outilsOuverts.has(t.id) ? '' : 'hidden'}>
             <div>
-${EST_RECORDING ? `
+${EST_RECORDING ? (()=>{
+                /* Le cachet d'un recording se fixe séance par séance (colonne
+                   Cachet du tableau) : une journée de prise et un soir de
+                   mixage ne se paient pas pareil. Mais trente séances au même
+                   tarif se saisissaient trente fois, et ce panneau — le seul
+                   endroit intitulé « Cachet » sur la carte — n'offrait qu'une
+                   phrase pour l'expliquer. Il pose maintenant un montant d'un
+                   coup : sur toutes les séances, ou seulement sur celles qui
+                   n'en ont pas encore, ce qui est le geste courant en cours de
+                   saison. Pour n'en toucher que quelques-unes, la sélection
+                   par cases et la barre du bas font le reste. */
+                const vides = dates.filter(d=> d.cachetSeance == null || d.cachetSeance === '').length;
+                return `
               <div class="outils-legend">Cachet</div>
-              <p style="font-size:12.5px; color:var(--muted); margin:0; line-height:1.5;">Le cachet se fixe <b>séance par séance</b>, dans la colonne Cachet du tableau : une journée de prise et un soir de mixage ne se paient pas pareil. Il n'y a donc pas de montant global ici.</p>
-              ` : `              <div class="outils-legend">Cachet</div>
+              <p style="font-size:12.5px; color:var(--muted); margin:0 0 8px; line-height:1.5;">Le cachet se fixe <b>séance par séance</b>, dans la colonne Cachet du tableau. Pour poser le même montant sur plusieurs séances d'un coup :</p>
+              <div class="cachet-row" style="margin:0;">
+                <input type="text" data-cachet-commun="${escapeAttr(t.id)}" placeholder="Montant" inputmode="decimal"
+                  style="width:110px; padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;">
+                <span class="cachet-unit">€ brut / séance</span>
+                <button type="button" class="co-btn tint sm" data-cachet-commun-appliquer="${escapeAttr(t.id)}" data-cible="toutes">Toutes les séances (${dates.length})</button>
+                <button type="button" class="co-btn ghost sm" data-cachet-commun-appliquer="${escapeAttr(t.id)}" data-cible="vides" ${vides ? '' : 'disabled'}>Seulement celles sans cachet (${vides})</button>
+              </div>
+              <p style="font-size:12px; color:var(--muted); margin:8px 0 0; line-height:1.5;">Pour n'en changer que quelques-unes : coche-les dans le tableau, la barre en bas de l'écran propose alors un cachet pour la sélection.</p>
+              `; })() : `              <div class="outils-legend">Cachet</div>
               <div class="cachet-row">
                 <select data-cachet-statut="${escapeAttr(t.id)}">
                   <option value="non_defini" ${t.cachetStatut !== 'defini' ? 'selected' : ''}>Non défini pour l'instant</option>
@@ -2300,6 +2334,64 @@ function appliquerLot(valeur){
   saveTournees(tournees);
   render();
 }
+
+/* Le montant commun, lu tel que tapé : virgule ou point, vide = rien. */
+function montantSaisi(input){
+  const brut = String(input && input.value != null ? input.value : '').trim().replace(',', '.');
+  if(brut === '') return null;
+  const n = parseFloat(brut);
+  return isNaN(n) || n < 0 ? NaN : n;
+}
+
+// Un même cachet sur toutes les séances d'un recording, ou sur celles qui n'en
+// ont pas encore. Délégué sur le document, comme le cartouche : la carte est
+// re-rendue à chaque sauvegarde.
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('[data-cachet-commun-appliquer]');
+  if(!btn) return;
+  const tourneeId = btn.dataset.cachetCommunAppliquer;
+  const input = document.querySelector(`[data-cachet-commun="${CSS.escape(tourneeId)}"]`);
+  const montant = montantSaisi(input);
+  if(montant === null){ alert('Indique d\'abord un montant.'); if(input) input.focus(); return; }
+  if(isNaN(montant)){ alert('Le montant doit être un nombre positif.'); if(input) input.focus(); return; }
+  const tournees = loadTournees();
+  const t = tournees.find(x=> x.id === tourneeId);
+  if(!t) return;
+  const cibles = (t.dates || []).filter(d=> btn.dataset.cible === 'vides'
+    ? (d.cachetSeance == null || d.cachetSeance === '')
+    : true);
+  if(!cibles.length) return;
+  const deja = cibles.filter(d=> d.cachetSeance != null && d.cachetSeance !== '' && d.cachetSeance !== montant).length;
+  const avert = deja ? `\n\n${deja} séance${deja > 1 ? 's ont' : ' a'} déjà un autre montant, qui sera remplacé.` : '';
+  if(!confirm(`Fixer ${montant} € brut sur ${cibles.length} séance${cibles.length > 1 ? 's' : ''} ?${avert}`)) return;
+  cibles.forEach(d=>{ d.cachetSeance = montant; });
+  saveTournees(tournees);
+  render();
+});
+
+// Le cachet des séances cochées, depuis la barre du bas.
+document.getElementById('lotCachetAppliquer').addEventListener('click', ()=>{
+  const p = lotPortee();
+  if(!p.dates) return;
+  const input = document.getElementById('lotCachet');
+  const montant = montantSaisi(input);
+  if(montant === null){ alert('Indique d\'abord un montant.'); input.focus(); return; }
+  if(isNaN(montant)){ alert('Le montant doit être un nombre positif.'); input.focus(); return; }
+  const ou = p.projets > 1 ? `, réparties sur ${p.projets} projets,` : '';
+  if(!confirm(`Fixer ${montant} € brut sur ${p.dates} séance${p.dates > 1 ? 's' : ''}${ou} ?`)) return;
+  const tournees = loadTournees();
+  lotSelection.forEach(id=>{
+    const t = tournees.find(x=> (x.dates || []).some(d=> d.id === id));
+    if(!t) return;
+    lotDatesDe(t, id).forEach(d=>{ d.cachetSeance = montant; });
+  });
+  lotSelection.clear();
+  input.value = '';
+  saveTournees(tournees);
+  render();
+});
+// Hors recording, le cachet ne se fixe pas par date : la barre ne le propose pas.
+document.querySelectorAll('.lot-cachet').forEach(el=>{ el.style.display = EST_RECORDING ? '' : 'none'; });
 
 document.getElementById('lotVider').addEventListener('click', ()=>{
   lotSelection.clear();
