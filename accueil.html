@@ -23,7 +23,7 @@
      l'autre. Deux choses changent ici :
 
        - tous les sous-liens sont visibles d'emblée, plus rien à déplier ;
-       - « Vue d'ensemble » passe en tête, en étiquette pleine largeur, avec ses
+       - le tableau de service passait en tête, en étiquette pleine largeur (retiré depuis), avec ses
          chiffres clés — c'est l'élément primaire demandé.
 
      La forme reprend le langage graphique de la charte Les Alfredines :
@@ -85,12 +85,13 @@
 // Une entrée par étiquette. « teinte » et « chip » viennent de la charte ; les
 // inclinaisons sont fixées à la main plutôt que tirées au hasard, pour que la
 // planche soit toujours composée de la même façon.
+/* L'étiquette de tête — le tableau de service pleine largeur, coiffé de sept
+   chiffres clés — a été retirée. Elle prenait le haut de l'accueil, se lisait
+   une fois à la première visite puis plus jamais (personne n'ouvre l'accueil
+   pour apprendre qu'il y a 42 dates à venir), et repoussait sous la ligne de
+   flottaison les portes qu'on vient réellement chercher. Le tableau de service
+   garde son entrée dans le bandeau et dans l'étiquette Disponibilités. */
 const HOME_SECTIONS = [
-  { titre:"Vue d'ensemble", wide:true, stats:true,
-    fond:'#791649', encre:'#FCF2F0', chip:'▦', chipFond:'#CEE1F4', chipEncre:'#791649',
-    chipTilt:'-6deg', tilt:'-.4deg', lienFond:'rgba(252,242,240,.16)', lienEncre:'#FCF2F0',
-    liens:[['Ouvrir le tableau croisé','recap.html']] },
-
   { titre:'Tournées',
     fond:'#CEE1F4', encre:'#791649', chip:'♩', chipFond:'#791649', chipEncre:'#FCF2F0',
     chipTilt:'-6deg', tilt:'-1.1deg', lienFond:'rgba(252,242,240,.65)', lienEncre:'#791649',
@@ -106,7 +107,7 @@ const HOME_SECTIONS = [
   { titre:'Disponibilités',
     fond:'#FEC9E0', encre:'#791649', chip:'✓', chipFond:'#EC4B15', chipEncre:'#FCF2F0',
     chipTilt:'5deg', tilt:'.9deg', lienFond:'rgba(252,242,240,.65)', lienEncre:'#791649',
-    liens:[['Demandes titulaires','suivi-dispo.html'],["Vue d'ensemble",'recap.html'],['Documents','documents.html']] },
+    liens:[['Demandes titulaires','suivi-dispo.html'],['Tableau de service','recap.html'],['Documents','documents.html']] },
 
   { titre:'Direction technique',
     fond:'#141617', encre:'#FCF2F0', chip:'⚙', chipFond:'#FCF2F0', chipEncre:'#141617',
@@ -145,34 +146,7 @@ const HOME_SOMBRE = {
 };
 
 // Inclinaisons des mini-tuiles de chiffres clés, dans l'ordre.
-const STAT_TILTS = ['-1.4deg','1deg','-.8deg','1.2deg','-1deg','.9deg','-1.1deg'];
-// Couleurs des chiffres clés. Sur l'étiquette prune, le premier passe en blanc
-// cassé : un aplat prune sur un fond prune ne se voit pas.
-const STAT_COULEURS = [
-  ['#FCF2F0','#791649'], ['#CEE1F4','#791649'], ['#141617','#FCF2F0'],
-  ['#FEC9E0','#791649'], ['#EC4B15','#FCF2F0'], ['#CEE1F4','#791649'],
-  ['#FEC9E0','#791649'],
-];
-
-let statsCourantes = null;
-
 function sombre(){ return document.documentElement.getAttribute('data-theme') === 'dark'; }
-
-function statsHtml(){
-  // Avant que les chiffres ne soient chargés, la tuile garde ses libellés et
-  // affiche « — » : la planche ne saute pas à l'arrivée des données.
-  const stats = statsCourantes || [
-    ['—','projets actifs'], ['—','dates à venir'], ['—','dates validées'],
-    ['—','options à confirmer'], ['—','musicien·nes titulaires'], ['—','technicien·nes'],
-    ['—','FDR à créer'],
-  ];
-  return `<div class="co-mini-stats">${stats.map(([num, label], i)=>{
-    const [fond, encre] = STAT_COULEURS[i % STAT_COULEURS.length];
-    return `<span class="co-mini-stat" style="--co-tilt:${STAT_TILTS[i % STAT_TILTS.length]}; background:${sombre() ? HOME_SOMBRE[fond] || fond : fond}; color:${sombre() ? '#FCF2F0' : encre};">
-      <b>${escapeHtml(String(num))}</b><span>${escapeHtml(label)}</span>
-    </span>`;
-  }).join('')}</div>`;
-}
 
 function stickerHtml(sec, nuit){
   const fond = nuit ? (HOME_SOMBRE[sec.fond] || sec.fond) : sec.fond;
@@ -186,7 +160,6 @@ function stickerHtml(sec, nuit){
       <span class="co-badge" style="--co-tilt:${sec.chipTilt}; background:${chipFond}; color:${chipEncre};" aria-hidden="true">${sec.chip}</span>
       <h2 class="co-sticker-title" style="color:${encre};">${escapeHtml(sec.titre)}</h2>
     </div>
-    ${sec.stats ? statsHtml() : ''}
     <div class="home-links">${sec.liens.map(([label, href])=>
       `<a href="${href}" style="background:${lienFond}; color:${lienEncre};">${escapeHtml(label)}</a>`
     ).join('')}</div>
@@ -199,52 +172,9 @@ function renderBoard(){
     HOME_SECTIONS.map(sec=> stickerHtml(sec, nuit)).join('');
 }
 
-// --- Chiffres clés ---------------------------------------------------------
-// Les mêmes chiffres que la vue d'ensemble, calculés ici pour que l'accueil
-// dise quelque chose de vrai plutôt que d'afficher des nombres figés.
-function iso(d){ return d.toISOString().slice(0, 10); }
-
-async function chargerStats(){
-  if(typeof CurieuxDB === 'undefined') return;
-  const [tournees, musiciens, techniciens, fdr] = await Promise.all([
-    CurieuxDB.fetchAll('tournees'),
-    CurieuxDB.fetchAll('musiciens'),
-    CurieuxDB.fetchAll('techniciens'),
-    CurieuxDB.fetchAll('feuilles_route'),
-  ]);
-  const aujourdhui = iso(new Date());
-  // Une date « à venir » est une date non annulée dont le jour n'est pas passé :
-  // les annulées polluaient les compteurs sans qu'on puisse les distinguer.
-  const aVenir = [];
-  tournees.forEach(t => (t.dates || []).forEach(d => {
-    if(d.date && d.date >= aujourdhui && d.statut !== 'annulee') aVenir.push(d);
-  }));
-  const tourneesActives = tournees.filter(t =>
-    (t.dates || []).some(d => d.date && d.date >= aujourdhui && d.statut !== 'annulee')).length;
-  const datesAvecFdr = new Set((fdr || []).map(f => f.eventDate).filter(Boolean));
-
-  // Accord au singulier quand il n'y en a qu'un·e : « 1 tournées actives » se
-  // lisait comme une coquille.
-  const pl = (n, un, plusieurs)=> n > 1 ? plusieurs : un;
-  const validees = aVenir.filter(d => estValidee(d)).length;
-  // Les recherches de dispo comptent avec les options : ce chiffre répond à
-  // « combien reste-t-il à caler », et une recherche est aussi à caler.
-  const options = aVenir.filter(d => estHypothese(d)).length;
-  const titulaires = musiciens.filter(m => m.statutPoste !== 'remplacant').length;
-  const fdrAcreer = aVenir.filter(d => !datesAvecFdr.has(d.date)).length;
-  statsCourantes = [
-    [tourneesActives, pl(tourneesActives, 'projet actif', 'projets actifs')],
-    [aVenir.length, pl(aVenir.length, 'date à venir', 'dates à venir')],
-    [validees, pl(validees, 'date validée', 'dates validées')],
-    [options, pl(options, 'option à confirmer', 'options à confirmer')],
-    [titulaires, pl(titulaires, 'musicien·ne titulaire', 'musicien·nes titulaires')],
-    [techniciens.length, pl(techniciens.length, 'technicien·ne', 'technicien·nes')],
-    [fdrAcreer, pl(fdrAcreer, 'FDR à créer', 'FDR à créer')],
-  ];
-  renderBoard();
-}
-
-// --- Salutation -----------------------------------------------------------
+// --- Bonjour ---------------------------------------------------------------
+// Le prénom de qui vient d'ouvrir la page, tiré de son adresse : la seule
+// chose que l'accueil sache dire de personnel, et la seule qui vaille.
 async function poserSalutation(){
   if(typeof CurieuxDB === 'undefined' || !CurieuxDB.getSession) return;
   try{
@@ -261,7 +191,6 @@ async function poserSalutation(){
 
 renderBoard();
 poserSalutation();
-chargerStats();
 // Le thème peut basculer après le rendu (bascule du bandeau, thème système) :
 // les aplats de la charte sont posés en style inline, il faut donc redessiner.
 new MutationObserver(renderBoard).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });

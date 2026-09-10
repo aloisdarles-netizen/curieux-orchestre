@@ -10,7 +10,7 @@
 //   - le bandeau prune est collant : les six sections restent visibles partout ;
 //   - la section courante déplie un sous-menu, lui aussi collant, qui donne
 //     accès en un clic à tous ses écrans — plus d'aller-retour par l'accueil ;
-//   - « Vue d'ensemble » est un élément primaire du menu, pas une sous-entrée.
+//   - « Tableau de service » est un élément primaire du menu, pas une sous-entrée.
 //
 // Un seul modèle (CURIEUX_SECTIONS) décrit la structure : ajouter un écran se
 // fait ici, pour les dix-neuf pages d'un coup.
@@ -47,16 +47,16 @@ const CURIEUX_SECTIONS = [
   // La « Grille interne » a disparu : elle montrait la même matrice que la Vue
   // d'ensemble, en sachant moins de choses (ni les projets, ni qui a été
   // sollicité, ni les précisions), et n'avait plus en propre que l'import de
-  // réponses collées — qui est passé sur la Vue d'ensemble. Deux écrans
+  // réponses collées — qui est passé sur le tableau de service. Deux écrans
   // suffisent : un pour demander et relancer, un pour voir et décider.
   //
-  // La Vue d'ensemble entre donc dans cette section, tout en gardant son entrée
+  // Le tableau de service entre donc dans cette section, tout en gardant son entrée
   // primaire dans le bandeau : c'est la page la plus ouverte de l'application,
   // la reléguer à deux clics aurait été un recul. Elle est bien une page de
   // disponibilités, elle se range ici aussi.
   { libelle:'Disponibilités', href:'suivi-dispo.html', entrees:[
     { libelle:'Demandes titulaires', href:'suivi-dispo.html', pages:['suivi-dispo.html'] },
-    { libelle:"Vue d'ensemble", href:'recap.html', pages:['recap.html'] },
+    { libelle:'Tableau de service', href:'recap.html', pages:['recap.html'] },
     // Tout ce qui part vers l'équipe passe par là : relancer une dispo,
     // annoncer une option, dire qu'une date est validée. C'était éparpillé sur
     // les boutons de chaque page, donc fait de mémoire et jamais tracé.
@@ -80,9 +80,15 @@ const CURIEUX_SECTIONS = [
     { libelle:'Partage', href:'partage.html', pages:['partage.html','technique-partage.html'] },
     { libelle:'Page salle', href:'page-salle.html', pages:['page-salle.html'] },
   ]},
-  // Deux façons de lire la même donnée : le tableau croisé pour décider qui
-  // joue quoi, et la feuille par date pour le dire à quelqu'un d'extérieur.
-  { libelle:"Vue d'ensemble", href:'recap.html', entrees:[
+  /* Deux façons de lire la même donnée : le tableau croisé pour décider qui
+     joue quoi, et la feuille par date pour le dire à quelqu'un d'extérieur.
+
+     « Vue d'ensemble » ne disait rien : toutes les pages de l'outil sont des
+     vues d'ensemble de quelque chose. « Tableau de service » est le nom que le
+     métier donne depuis toujours à ce document — la grille qui dit qui est
+     appelé sur quel service — et il s'entend sans explication d'un pupitre à
+     l'autre. */
+  { libelle:'Tableau de service', href:'recap.html', entrees:[
     { libelle:'Le tableau', href:'recap.html', pages:['recap.html'] },
     { libelle:'Plateau par date', href:'plateau.html', pages:['plateau.html'] },
   ]},

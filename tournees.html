@@ -2062,6 +2062,23 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <div class="row-actions">
               <button type="button" class="co-btn secondary sm" data-dispo-links="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:3px;"><path d="M11 6.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 11.5M13 17.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><line x1="9.3" y1="14.7" x2="14.7" y2="9.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line></svg>Demandes titulaires</button>
               <button type="button" class="co-btn secondary sm" data-export-tournee="${escapeAttr(t.id)}"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px; margin-right:2px;"><path d="M6 2.5h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.6"></path><line x1="12" y1="12" x2="12" y2="18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line><polyline points="9,16 12,19 15,16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></polyline></svg> Exporter en PDF</button>
+              ${(()=>{
+                /* Le ménage des hypothèses.
+                   ------------------------------------------------------------
+                   Une saison se cherche : on pose vingt dates à l'étude, on en
+                   garde trois. Les dix-sept autres restent, et se retrouvent
+                   dans le tableau de service, dans les liens envoyés aux
+                   musicien·nes, dans le compte de la carte — du bruit qu'il
+                   fallait retirer une par une, à la croix, en confirmant
+                   chaque fois. Un bouton les emporte d'un coup, et seulement
+                   celles-là : ni les options, ni les validées, ni les
+                   annulées, qui ont toutes une histoire. */
+                const aLEtude = dates.filter(d=> statutDate(d) === 'recherche');
+                return aLEtude.length
+                  ? `<button type="button" class="co-btn ghost sm sup-discret" data-purger-etude="${escapeAttr(t.id)}"
+                      title="Retirer les ${aLEtude.length} ${EST_RECORDING ? 'séances' : 'dates'} encore à l'étude — les options, les validées et les annulées ne bougent pas">Retirer les ${aLEtude.length} à l'étude</button>`
+                  : '';
+              })()}
               <button type="button" class="co-btn ghost sm sup-discret" data-del-tournee="${escapeAttr(t.id)}">Supprimer ${EST_RECORDING ? 'le recording' : 'la tournée'}</button>
             </div>
           </div>
@@ -3003,6 +3020,24 @@ function bindTourneeEvents(){
       }
     });
   });
+  document.querySelectorAll('[data-purger-etude]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const tournees = loadTournees();
+      const t = tournees.find(x=> x.id === btn.dataset.purgerEtude);
+      if(!t) return;
+      const aLEtude = (t.dates || []).filter(d=> statutDate(d) === 'recherche');
+      if(!aLEtude.length) return;
+      const mot = EST_RECORDING ? 'séance' : 'date';
+      // On nomme ce qui part : sur vingt lignes, « 17 dates » ne dit pas
+      // lesquelles, et l'annulation d'une hypothèse ne se rattrape pas.
+      const apercu = aLEtude.slice(0, 6).map(d=> fmtDateFR(d.date) + (d.ville ? ' · ' + d.ville : '')).join('\n');
+      const reste = aLEtude.length > 6 ? `\n… et ${aLEtude.length - 6} autres` : '';
+      if(!confirm(`Retirer ${aLEtude.length} ${mot}${aLEtude.length > 1 ? 's' : ''} à l'étude de « ${t.nom} » ?\n\n${apercu}${reste}\n\nLes options, les dates validées et les dates annulées ne bougent pas.`)) return;
+      t.dates = (t.dates || []).filter(d=> statutDate(d) !== 'recherche');
+      saveTournees(tournees);
+      render();
+    });
+  });
   document.querySelectorAll('[data-del-tournee]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const tournees = loadTournees();
@@ -3339,7 +3374,7 @@ async function initData(){
   ]);
   render();
   scrollToHash();
-  // Arrivée depuis la Vue d'ensemble : ?affecter=tourneeId:dateId ouvre le
+  // Arrivée depuis le tableau de service : ?affecter=tourneeId:dateId ouvre le
   // panneau d'affectation directement sur la bonne date.
   const affecter = new URLSearchParams(location.search).get('affecter');
   if(affecter){

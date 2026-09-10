@@ -619,7 +619,7 @@ const CurieuxDB = (()=>{
         lastRespondedAt: r.last_responded_at || undefined,
         dates: r.dates || [],
         // Quand la demande a été posée, et quand on a écrit pour la dernière
-        // fois. La Vue d'ensemble s'en sert pour dire, à côté de chaque nom,
+        // fois. Le tableau de service s'en sert pour dire, à côté de chaque nom,
         // quand on lui a demandé ses dispos pour la dernière fois.
         creeLe: r.created_at || undefined,
         lastReminderAt: r.last_reminder_at || undefined,

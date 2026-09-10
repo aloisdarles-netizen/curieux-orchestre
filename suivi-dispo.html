@@ -99,15 +99,31 @@
      « Par projet » répond à « où en est cette tournée ? » — les cartes, avec
      leur sommaire à gauche.
      ------------------------------------------------------------------------ */
-  .vue-bascule{ display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+  /* La bascule était deux petites pastilles perdues à gauche, sous une carte
+     de chiffres : on ne la voyait pas, et on ne savait donc pas que la page
+     avait deux visages. Elle passe au centre, en gros — c'est le premier
+     geste de la page, il doit se voir de l'autre bout du bureau. Deux
+     boutons collés dans un même cadre, à la façon d'un interrupteur : la
+     forme dit qu'il faut choisir l'un OU l'autre. */
+  .vue-bascule{ display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:20px; }
+  .vue-bascule-groupe{
+    display:inline-flex; background:var(--card); border:1px solid var(--border);
+    border-radius:999px; padding:4px; gap:4px;
+  }
   .vue-bascule button{
-    border:1px solid var(--border); background:transparent; color:var(--text);
-    border-radius:999px; padding:7px 15px; font-size:12.5px; font-weight:700;
+    border:none; background:transparent; color:var(--muted);
+    border-radius:999px; padding:12px 30px; font-size:15px; font-weight:800;
+    font-family:inherit; cursor:pointer; white-space:nowrap;
   }
+  .vue-bascule button:hover{ color:var(--accent); }
   .vue-bascule button[aria-pressed="true"]{
-    background:var(--accent-solid, var(--accent)); color:#fff; border-color:transparent;
+    background:var(--accent-solid, var(--accent)); color:#fff;
   }
-  .vue-bascule .vue-note{ font-size:11.5px; color:var(--muted); margin-left:4px; }
+  .vue-bascule .vue-note{ font-size:12px; color:var(--muted); text-align:center; }
+  @media (max-width:520px){
+    .vue-bascule-groupe{ width:100%; }
+    .vue-bascule button{ flex:1; padding:12px 10px; font-size:14px; }
+  }
 
   .perso-row{
     display:flex; align-items:center; gap:14px; flex-wrap:wrap;
@@ -293,12 +309,13 @@
     </div>
   </div>
 
-  <!-- Un pourcentage ne dit pas quoi faire : « 0 % » sur deux demandes reste
-       « 0 % » qu'il manque une réponse ou vingt. Ce qu'on vient chercher ici,
-       c'est combien de personnes sont encore en attente, et lesquelles n'ont
-       jamais ouvert leur lien — ce ne sont pas les mêmes relances. -->
+  <!-- Les quatre tuiles de chiffres — à relancer, sans réponse, partielles,
+       complètes — ont été retirées : elles occupaient le haut de la page, se
+       lisaient une fois puis plus jamais, et repoussaient sous la ligne de
+       flottaison la seule chose qu'on vient faire ici, choisir sa façon de
+       lire et agir. La phrase de détail les remplace : elle dit la même
+       chose en nommant les projets, ce qu'un chiffre nu ne fait pas. -->
   <div class="co-card co-pad-lg co-fade" id="resumeCard" style="margin-bottom:20px; display:none;">
-    <div class="co-stats co-stats-sm co-stats-charte" id="resumeChiffres" style="margin-bottom:14px;"></div>
     <div class="suivi-resume">
       <div class="jauge">
         <div class="detail" id="resumeDetail"></div>
@@ -308,12 +325,14 @@
   </div>
 
   <div class="vue-bascule co-fade" id="vueBascule">
-    <button type="button" data-vue="personne" aria-pressed="true">Par personne</button>
-    <button type="button" data-vue="projet" aria-pressed="false">Par projet</button>
+    <div class="vue-bascule-groupe" role="group" aria-label="Façon de lire la page">
+      <button type="button" data-vue="personne" aria-pressed="true">Par personne</button>
+      <button type="button" data-vue="projet" aria-pressed="false">Par projet</button>
+    </div>
     <span class="vue-note" id="vueNote"></span>
     <!-- Ne vaut que pour la vue par projet : la vue par personne n'a jamais
          écrit les précisions. Hors des cartes, donc branchée une seule fois. -->
-    <label class="projets-option" id="precisionsOption" style="display:none; margin-left:auto;"
+    <label class="projets-option" id="precisionsOption" style="display:none;"
       title="Écrire sous chaque nom ce que la personne a laissé sur les dates du projet, au lieu d'une simple bulle">
       <input type="checkbox" id="afficherPrecisions"> Afficher les précisions
     </label>
@@ -362,7 +381,7 @@
 
 <!-- Répondre à ce que quelqu'un a écrit, depuis la page où l'on décide de lui
      réécrire. La réponse s'affiche ensuite sur SA page de dispos : c'est la
-     même conversation que celle de la Vue d'ensemble, tenue d'ici. -->
+     même conversation que celle du tableau de service, tenue d'ici. -->
 <div class="modal-overlay" id="precisionsOverlay">
   <div class="modal" style="max-width:600px;">
     <h2 id="precisionsTitre">Ce qu'elle a écrit</h2>
@@ -743,7 +762,7 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
   // le calcul explicite du nombre de dates manquantes ci-dessous.
   // « Liste de dates vide = tout le projet » : la sentinelle vit maintenant
   // dans CurieuxDispos, une seule fois. Elle était recopiée sept fois côté
-  // client et une fois en SQL, et la Vue d'ensemble, elle, l'oubliait — d'où
+  // client et une fois en SQL, et le tableau de service, lui, l'oubliait — d'où
   // deux comptes d'attente qui se contredisaient à un clic l'un de l'autre.
   const relevantDates = CurieuxDispos.datesDeLaDemande(existing, answerableDates);
   const missingDates = existing ? relevantDates.filter(d=> !dispo[d.date]) : [];
@@ -761,7 +780,7 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
   /* Ce que la personne a écrit à côté de ses réponses.
    *
    * C'est ici qu'on décide de lui réécrire, et c'est la seule page qui ne
-   * savait rien de ses mots : elles ne se lisaient que sur la Vue d'ensemble,
+   * savait rien de ses mots : elles ne se lisaient que sur le tableau de service,
    * au survol d'une case. Pour comprendre POURQUOI quelqu'un est incertain
    * avant de le relancer — le cas exact où la relance doit être nuancée — il
    * fallait changer de page, retrouver la personne dans la matrice, survoler,
@@ -954,28 +973,31 @@ function renderResume(tournees){
   carte.style.display = '';
 
   const attente = total - completes;
-  const tuile = (nombre, libelle)=>
-    `<div class="co-stat"><div class="co-stat-num">${nombre}</div><div class="co-stat-label">${libelle}</div></div>`;
-  document.getElementById('resumeChiffres').innerHTML = [
-    tuile(attente, attente > 1 ? 'personnes à relancer' : 'personne à relancer'),
-    tuile(jamaisOuvertes, jamaisOuvertes > 1 ? 'sans aucune réponse' : 'sans aucune réponse'),
-    tuile(partielles, partielles > 1 ? 'réponses partielles' : 'réponse partielle'),
-    tuile(completes, completes > 1 ? 'réponses complètes' : 'réponse complète'),
-  ].join('');
 
+  /* Le compte, en une phrase plutôt qu'en quatre tuiles. « 6 personnes à
+     relancer, dont 2 qui n'ont jamais ouvert leur lien » se lit d'un trait et
+     dit ce qu'il faut faire ; quatre nombres alignés demandaient de les
+     rapprocher soi-même. */
   const detail = [];
+  if(attente > 0){
+    detail.push(`<b>${attente}</b> personne${attente > 1 ? 's' : ''} à relancer`
+      + (jamaisOuvertes ? `, dont <b>${jamaisOuvertes}</b> qui n'${jamaisOuvertes > 1 ? 'ont' : 'a'} jamais ouvert son lien` : '')
+      + `. <b>${completes}</b> réponse${completes > 1 ? 's' : ''} complète${completes > 1 ? 's' : ''} sur ${total}.`);
+  }
   if(attente === 0) detail.push('Tout le monde a répondu.');
   else {
     const noms = [...tourneesEnRetard.entries()]
       .sort((a, b)=> b[1] - a[1])
       .map(([id, n])=>{
         const t = tournees.find(x=> x.id === id);
-        return `${(t && t.nom) || 'Tournée'} (${n})`;
+        return `${escapeHtml((t && t.nom) || 'Tournée')} (${n})`;
       });
     detail.push('En attente sur : ' + noms.join(' · ') + '.');
     if(relancees) detail.push(`${relancees} déjà relancée${relancees > 1 ? 's' : ''} au moins une fois.`);
   }
-  document.getElementById('resumeDetail').textContent = detail.join(' ');
+  // innerHTML depuis que la phrase porte des nombres en gras : les noms de
+  // projet qui la traversent sont donc échappés au-dessus.
+  document.getElementById('resumeDetail').innerHTML = detail.join(' ');
 }
 
 // Une relance par PERSONNE, pas par demande : quelqu'un qui traîne sur trois
@@ -1047,11 +1069,11 @@ document.getElementById('relancerTousBtn').addEventListener('click', relancerRet
    Répondre aux précisions, depuis la page où l'on relance
    ---------------------------------------------------------------------------
    Quelqu'un écrit « ok mais je dois être à Nantes le lendemain ». Jusqu'ici on
-   pouvait le lire sur la Vue d'ensemble et y répondre là-bas ; ici, on décidait
+   pouvait le lire sur le tableau de service et y répondre là-bas ; ici, on décidait
    de relancer sans rien savoir de ce qui avait été dit. Or c'est le cas où la
    relance doit justement être nuancée — voire ne pas partir du tout.
 
-   Même écriture que sur la Vue d'ensemble : une réponse par personne et par
+   Même écriture que sur le tableau de service : une réponse par personne et par
    date, qui se réécrit et s'efface si l'on vide le champ. Pas un fil de
    discussion.
 --------------------------------------------------------------------------- */
@@ -1631,7 +1653,7 @@ function render(){
   }
 
   // L'ordre de l'orchestre plutôt que l'alphabet — le même comparateur que
-  // l'annuaire et la Vue d'ensemble (ui-helpers.js). Sur une carte de projet
+  // l'annuaire et le tableau de service (ui-helpers.js). Sur une carte de projet
   // qui aligne quarante personnes, chercher « les cordes » revenait sinon à
   // parcourir toute la liste en repérant les instruments un par un.
   const titulaireMusiciens = loadMusicians().filter(m=> (m.statutPoste||'titulaire') === 'titulaire')
