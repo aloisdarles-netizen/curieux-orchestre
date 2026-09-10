@@ -419,6 +419,50 @@
   /* Ce que la fenêtre de période laisse dehors. Une coupe silencieuse ferait
      croire que la tournée n'a que quatre dates. */
   .hors-fenetre{font-size:12px; color:var(--secondary); font-weight:700;}
+  /* Les projets masqués, nommés. Sur toute la largeur de la barre, avant les
+     puces : c'est la seule chose qu'il faut voir quand un projet « a
+     disparu ». */
+  .projets-masques{
+    flex:1 1 100%; display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    font-size:12.5px; color:var(--text); padding:7px 12px; border-radius:10px;
+    background:var(--accent-tint); border:1px solid var(--accent-dark);
+  }
+  .projets-masques b{color:var(--accent-dark);}
+  .projets-masques .lien-nu{color:var(--accent-dark); font-weight:700;}
+  .projets-masques .co-btn{margin-left:2px;}
+
+  /* Rien reçu n'est pas rien en base. */
+  .erreur-chargement{
+    margin:8px 0 12px; padding:10px 14px; border-radius:12px; font-size:13px; line-height:1.45;
+    background:var(--card); border:1.5px solid var(--ko); color:var(--text);
+  }
+  .erreur-chargement[hidden]{display:none;}
+  .erreur-chargement b{color:var(--ko);}
+
+  /* Le tri des lignes, et le mot d'explication de « Mon ordre ». */
+  .tri-indice{font-size:12px; color:var(--secondary); font-weight:700;}
+  .tri-indice[hidden]{display:none;}
+  .reinit-affichage{margin-left:auto; font-size:12px; color:var(--muted); white-space:nowrap;}
+  .reinit-affichage:hover{color:var(--accent-dark);}
+
+  /* Glisser une ligne. La poignée est la colonne des noms entière — c'est la
+     seule partie de la ligne qui ne soit pas une case cliquable — et le
+     pointillé à gauche dit qu'elle se tient. La ligne en vol s'estompe ; la
+     ligne survolée porte un trait, en haut ou en bas, là où l'autre tombera. */
+  .co-matrix-name.poignee{cursor:grab; padding-left:24px;}
+  .co-matrix-name.poignee::before{
+    content:'⋮⋮'; position:absolute; left:8px; top:calc(var(--row-pad) + 1px);
+    color:var(--muted); font-size:12px; letter-spacing:-2px; line-height:1.2;
+  }
+  .co-matrix-name.poignee:hover::before{color:var(--accent-dark);}
+  .co-matrix-row.en-vol{opacity:.4;}
+  .co-matrix-row.cible-avant{box-shadow:inset 0 3px 0 var(--accent);}
+  .co-matrix-row.cible-apres{box-shadow:inset 0 -3px 0 var(--accent);}
+  /* En liste sur téléphone, pas de glissement : la poignée s'efface. */
+  @media (max-width:760px){
+    .co-matrix-name.poignee{cursor:default; padding-left:14px;}
+    .co-matrix-name.poignee::before{display:none;}
+  }
 
   /* Les bandes de pupitre. Elles n'ont pas de cases : la rangée s'arrête à la
      colonne des noms, et la bande de couleur court sur toute la largeur pour
@@ -463,11 +507,23 @@
      de son texte, et une bande de deux colonnes au nom long décalerait tout
      l'alignement avec les dates du dessous. */
   .groupe-projet{
-    min-width:0; padding:6px; text-align:center; font-size:11px; font-weight:800;
-    color:var(--text); border-right:1px solid var(--border); cursor:pointer;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    min-width:0; padding:6px 4px; font-size:11px; font-weight:800;
+    color:var(--text); border-right:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; gap:3px;
   }
-  .groupe-projet:hover{filter:brightness(.95); text-decoration:line-through;}
+  .groupe-projet-nom{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  /* Masquer un projet demandait un clic sur la bande — 76 px sur toute la
+     largeur du projet, sans confirmation, et la bande est aussi ce qu'on vise
+     pour lire le nom d'un projet. Un clic parti à côté, et le projet
+     « disparaissait » pour des semaines. Le geste passe par une petite croix
+     qui ne se montre qu'au survol : on ne masque plus par mégarde. */
+  .masquer-projet{
+    flex-shrink:0; width:18px; height:18px; border-radius:50%; border:none; padding:0;
+    background:rgba(20,22,23,.12); color:var(--text); font:inherit; font-size:10px; font-weight:800;
+    cursor:pointer; opacity:0; transition:opacity .12s ease;
+  }
+  .groupe-projet:hover .masquer-projet, .masquer-projet:focus-visible{opacity:1;}
+  .masquer-projet:hover{background:var(--text); color:var(--card);}
   @media (max-width:760px){ .co-matrix-tete{display:none;} }
 
   /* Chercher quelqu'un et ne garder que sa ligne. La recherche passe outre le
@@ -640,9 +696,26 @@
       <button type="button" id="rechercheVider" title="Effacer la recherche" hidden>✕</button>
     </span>
     <span id="rechercheEtat" class="recherche-etat"></span>
+    <label for="triLignes" style="margin-left:8px;">Trier :</label>
+    <select id="triLignes"
+            title="L'ordre des lignes. « Mon ordre » se construit en glissant les noms, et n'appartient qu'à toi.">
+      <option value="orchestre" selected>Ordre de l'orchestre</option>
+      <option value="nom">Nom de famille</option>
+      <option value="instrument">Instrument et position</option>
+      <option value="dates">Nombre de dates affectées</option>
+      <option value="reponses">Taux de réponse</option>
+      <option value="perso">Mon ordre</option>
+    </select>
+    <span id="triIndice" class="tri-indice" hidden>Glisse un nom pour le déplacer — cet ordre n'est visible que par toi.</span>
     <button type="button" class="chip-precisions" id="chipPrecisions" hidden
             title="Aller à la prochaine précision qui attend une réponse"></button>
+    <button type="button" class="lien-nu reinit-affichage" id="reinitAffichage"
+            title="Réaffiche les projets masqués, ouvre la période en grand, remontre les dates à l'étude et déplie les pupitres. Le tri et ton ordre restent.">Réinitialiser l'affichage</button>
   </div>
+
+  <!-- Rien reçu n'est pas rien en base : quand une lecture échoue, on le dit
+       ici plutôt que de laisser croire à une saison vide. -->
+  <div class="erreur-chargement" id="erreurChargement" role="alert" hidden></div>
 
   <div class="projets-filtre co-fade" id="projetsFiltre"></div>
 
@@ -763,7 +836,8 @@ const CLE_GROUPES = 'curieuxRecapGroupesReplies';
 let groupesReplies = new Set();
 try{ groupesReplies = new Set(JSON.parse(localStorage.getItem(CLE_GROUPES) || '[]')); }catch(e){}
 function memoriserGroupes(){
-  try{ localStorage.setItem(CLE_GROUPES, JSON.stringify([...groupesReplies])); }catch(e){}
+  ecrireLocal(CLE_GROUPES, JSON.stringify([...groupesReplies]));
+  retenirPreference({ groupesReplies: [...groupesReplies] });
 }
 
 const CLE_FENETRE = 'curieuxRecapFenetre';
@@ -785,14 +859,167 @@ function finDeFenetre(){
   return d.toISOString().slice(0, 10);
 }
 
-// Projets masqués (par id). Rangé dans le navigateur : on ne change pas d'avis
-// à chaque rechargement, et ce n'est pas une donnée d'équipe — chacun regarde
-// la saison sous l'angle qui l'occupe.
+// Projets masqués (par id). On ne change pas d'avis à chaque rechargement, et
+// ce n'est pas une donnée d'équipe — chacun regarde la saison sous l'angle
+// qui l'occupe.
 const CLE_PROJETS_MASQUES = 'curieuxRecapProjetsMasques';
 let projetsMasques = new Set();
 try{ projetsMasques = new Set(JSON.parse(localStorage.getItem(CLE_PROJETS_MASQUES) || '[]')); }catch(e){}
 function memoriserMasques(){
-  try{ localStorage.setItem(CLE_PROJETS_MASQUES, JSON.stringify([...projetsMasques])); }catch(e){}
+  ecrireLocal(CLE_PROJETS_MASQUES, JSON.stringify([...projetsMasques]));
+  retenirPreference({ projetsMasques: [...projetsMasques] });
+}
+function memoriserFenetre(){
+  ecrireLocal(CLE_FENETRE, String(fenetreMois));
+  retenirPreference({ fenetreMois });
+}
+function memoriserRecherches(){
+  ecrireLocal(CLE_RECHERCHES, showDatesRecherche ? '1' : '0');
+  retenirPreference({ datesRecherche: showDatesRecherche });
+}
+
+/* Les préférences suivent le compte, pas le navigateur.
+ *
+ * Tout ce qui précède — dates à l'étude, fenêtre, pupitres repliés, projets
+ * masqués — n'était retenu que par localStorage : la même personne sur son
+ * téléphone ne retrouvait rien, et un projet masqué sur UN poste passait
+ * pour disparu sans que personne, côté équipe, ne puisse voir pourquoi. La
+ * table preferences_utilisateur (une ligne par compte et par page, voir
+ * db.js) prend le relais ; s'y ajoutent le tri des lignes et l'ordre
+ * personnel, qui n'ont jamais existé ailleurs.
+ *
+ * localStorage reste le repli, dans les deux sens. On le lit quand la table
+ * ne répond rien — migration pas encore jouée, hors ligne, premier passage
+ * sur ce compte — et l'on y écrit toujours en double : un réglage qui n'a
+ * pas pu partir n'est pas perdu pour autant. L'envoi au serveur est différé
+ * d'une demi-seconde : replier trois pupitres d'affilée, c'est une requête,
+ * pas trois. Pas de bandeau « Réessayer » si elle échoue — une façon de
+ * regarder ne mérite pas une alarme.
+ */
+const PREFS_PAGE = 'recap';
+const CLE_TRI = 'curieuxRecapTri';
+const CLE_ORDRE = 'curieuxRecapOrdre';
+const TRIS = ['orchestre', 'nom', 'instrument', 'dates', 'reponses', 'perso'];
+let triLignes = (()=>{
+  try{ const v = localStorage.getItem(CLE_TRI); return TRIS.includes(v) ? v : 'orchestre'; }
+  catch(e){ return 'orchestre'; }
+})();
+// { musicien: [ids], technicien: [ids] } — les inconnus ferment la marche
+// dans l'ordre de l'orchestre, voir comparateurCourant.
+function ordreNormalise(o){
+  const liste = x => Array.isArray(x) ? x.filter(id=> typeof id === 'string') : [];
+  return { musicien: liste(o && o.musicien), technicien: liste(o && o.technicien) };
+}
+let ordrePerso = ordreNormalise(null);
+try{ ordrePerso = ordreNormalise(JSON.parse(localStorage.getItem(CLE_ORDRE) || 'null')); }catch(e){}
+
+function ecrireLocal(cle, valeur){ try{ localStorage.setItem(cle, valeur); }catch(e){} }
+function memoriserTri(){
+  ecrireLocal(CLE_TRI, triLignes);
+  retenirPreference({ tri: triLignes });
+}
+function memoriserOrdre(){
+  ecrireLocal(CLE_ORDRE, JSON.stringify(ordrePerso));
+  retenirPreference({ ordre: ordrePerso });
+}
+
+// Tout ce que la page retient, tel quel. C'est l'instantané entier qui part à
+// chaque envoi, et non la seule clé qui vient de changer : savePreferences
+// relit avant d'écrire, et deux envois qui se chevauchent — un repli de
+// pupitre, puis l'onglet qui passe en arrière-plan — pourraient sinon se
+// faire perdre une clé l'un l'autre. Avec l'instantané, le dernier arrivé a
+// toujours raison, et il a raison sur tout.
+function instantanePreferences(){
+  return {
+    tri: triLignes, ordre: ordrePerso, projetsMasques: [...projetsMasques],
+    fenetreMois, datesRecherche: showDatesRecherche, groupesReplies: [...groupesReplies],
+  };
+}
+let aEnvoyer = false;
+let minuteurPrefs = null;
+function envoyerPreferences(){
+  clearTimeout(minuteurPrefs); minuteurPrefs = null;
+  if(!aEnvoyer) return;
+  aEnvoyer = false;
+  // Un db.js encore en cache (servi avant que les helpers n'existent) ne doit
+  // pas casser la page : sans eux, le localStorage fait tout le travail.
+  if(typeof CurieuxDB.savePreferences !== 'function') return;
+  try{ Promise.resolve(CurieuxDB.savePreferences(PREFS_PAGE, instantanePreferences())).catch(()=>{}); }catch(e){}
+}
+// L'argument dit ce qui vient de changer — pour la lecture du code, l'envoi
+// emporte tout de toute façon.
+function retenirPreference(_patch){
+  aEnvoyer = true;
+  clearTimeout(minuteurPrefs);
+  minuteurPrefs = setTimeout(envoyerPreferences, 500);
+}
+// L'onglet qui passe en arrière-plan ou se ferme n'attend pas le minuteur.
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) envoyerPreferences(); });
+
+// Ce que le serveur retient l'emporte sur le navigateur, clé par clé : une
+// clé absente laisse la valeur locale, c'est ce qui rend la table facultative.
+// Le localStorage est réaligné au passage, pour que le repli dise la même
+// chose que le compte.
+function appliquerPreferences(prefs){
+  if(!prefs || typeof prefs !== 'object') return;
+  if(Array.isArray(prefs.projetsMasques)){
+    projetsMasques = new Set(prefs.projetsMasques.filter(id=> typeof id === 'string'));
+    ecrireLocal(CLE_PROJETS_MASQUES, JSON.stringify([...projetsMasques]));
+  }
+  if(Array.isArray(prefs.groupesReplies)){
+    groupesReplies = new Set(prefs.groupesReplies.filter(g=> typeof g === 'string'));
+    ecrireLocal(CLE_GROUPES, JSON.stringify([...groupesReplies]));
+  }
+  if(typeof prefs.fenetreMois === 'number' && isFinite(prefs.fenetreMois)){
+    fenetreMois = prefs.fenetreMois;
+    ecrireLocal(CLE_FENETRE, String(fenetreMois));
+  }
+  if(typeof prefs.datesRecherche === 'boolean'){
+    showDatesRecherche = prefs.datesRecherche;
+    ecrireLocal(CLE_RECHERCHES, showDatesRecherche ? '1' : '0');
+  }
+  if(TRIS.includes(prefs.tri)){
+    triLignes = prefs.tri;
+    ecrireLocal(CLE_TRI, triLignes);
+  }
+  if(prefs.ordre && typeof prefs.ordre === 'object'){
+    ordrePerso = ordreNormalise(prefs.ordre);
+    ecrireLocal(CLE_ORDRE, JSON.stringify(ordrePerso));
+  }
+  // Les commandes suivent l'état, jamais l'inverse.
+  const cr = document.getElementById('showDatesRecherche'); if(cr) cr.checked = showDatesRecherche;
+  const cf = document.getElementById('fenetrePeriode'); if(cf) cf.value = String(fenetreMois);
+  const ct = document.getElementById('triLignes'); if(ct) ct.value = triLignes;
+  majIndiceTri();
+}
+
+// Tout ce qui peut rétrécir la vue, remis d'un coup à sa valeur de départ. Le
+// tri et l'ordre personnel restent : ils ne cachent rien, et l'ordre a coûté
+// des gestes. Les clés locales sont effacées et non réécrites vides, pour que
+// « réinitialiser » veuille dire ce qu'il dit jusque dans le navigateur.
+function reinitialiserAffichage(){
+  projetsMasques = new Set();
+  groupesReplies = new Set();
+  fenetreMois = 0;
+  showDatesRecherche = true;
+  [CLE_PROJETS_MASQUES, CLE_GROUPES, CLE_FENETRE, CLE_RECHERCHES].forEach(k=>{
+    try{ localStorage.removeItem(k); }catch(e){}
+  });
+  retenirPreference({ projetsMasques: [], groupesReplies: [], fenetreMois: 0, datesRecherche: true });
+  const cr = document.getElementById('showDatesRecherche'); if(cr) cr.checked = true;
+  const cf = document.getElementById('fenetrePeriode'); if(cf) cf.value = '0';
+  renderAll();
+}
+
+// Un masque qui ne désigne plus aucun projet — supprimé depuis — n'a plus de
+// sens et ne peut plus se rouvrir nulle part : on l'oublie. Seulement quand
+// la liste des projets a bien été reçue : purger sur une lecture en échec
+// effacerait tous les masques d'un coup.
+function purgerMasques(){
+  const connus = new Set(loadTournees().map(t=> t.id));
+  const avant = projetsMasques.size;
+  projetsMasques = new Set([...projetsMasques].filter(id=> connus.has(id)));
+  if(projetsMasques.size !== avant) memoriserMasques();
 }
 // Une couleur par projet, tirée du rang dans la liste complète : elle ne doit
 // pas bouger quand on en masque un, sinon le tableau change de sens à chaque
@@ -979,6 +1206,137 @@ function compareByStatutThenName(a, b){
   return curieuxComparePupitrePuisNom(a, b);
 }
 
+/* Ce qui se lit sous le nom : « Violon · 2 », « Remplaçant·e · Alto », « Son ».
+ *
+ * La position dans le pupitre (musiciens.rang, un texte court : « 2 »,
+ * « solo ») existait en base sans que cette page la montre — on lisait
+ * quatre violons à la suite sans savoir qui tient la première partie. Elle
+ * se lit maintenant avec l'instrument, comme dans l'annuaire, et pour tout le
+ * monde : un·e remplaçant·e disait seulement « Remplaçant·e », sans son
+ * instrument, alors que c'est la première chose qu'on veut savoir d'un
+ * renfort. Les champs peuvent manquer — une fiche créée depuis une liste de
+ * remplaçant·es n'a pas d'instrument — et le libellé s'en accommode. */
+function libelleMetier(m, ptype){
+  const rang = m.rang == null ? '' : String(m.rang).trim();
+  const position = ptype === 'musicien'
+    ? [m.instrument, rang].filter(Boolean).join(' · ')
+    : (m.poste || '');
+  return m.statutPoste === 'remplacant' ? ['Remplaçant·e', position].filter(Boolean).join(' · ') : position;
+}
+
+/* Les tris de la page.
+ *
+ * L'ordre de l'orchestre restait le seul possible, et il répond à une seule
+ * question — « où sont les cordes ». Il en existe d'autres : qui a le plus de
+ * dates, à qui manque-t-il encore des réponses, où en est le deuxième
+ * violon. Un comparateur par question, et un seul point où l'on choisit
+ * (comparateurCourant) : garderSelonFiltre triait quatre fois avec le même
+ * comparateur en dur, on l'y remplace, et tout ce qui repose sur lui — le
+ * panneau d'une date, l'export PDF — suit sans rien savoir.
+ *
+ * Le noyau reste devant les remplaçant·es dans chaque tri sauf « Mon
+ * ordre » : le menu « Tou·tes (titulaires en premier) » le promet, et un tri
+ * qui mêlerait les deux ferait mentir le libellé. Sous « Mon ordre », c'est
+ * la personne qui décide de tout.
+ */
+const OPTIONS_FR = { sensitivity: 'base' };
+const OPTIONS_FR_NUM = { numeric: true, sensitivity: 'base' };
+
+function compareNomDeFamille(a, b){
+  return (a.nom || '').localeCompare(b.nom || '', 'fr', OPTIONS_FR)
+    || (a.prenom || '').localeCompare(b.prenom || '', 'fr', OPTIONS_FR);
+}
+
+// « 1 » avant « 2 » avant « 10 » — et « solo » a sa place aussi, c'est un
+// texte. Sans position, on passe après celles et ceux qui en ont une.
+function compareRang(a, b){
+  const ra = a.rang == null ? '' : String(a.rang).trim();
+  const rb = b.rang == null ? '' : String(b.rang).trim();
+  if(!ra && !rb) return 0;
+  if(!ra) return 1;
+  if(!rb) return -1;
+  return ra.localeCompare(rb, 'fr', OPTIONS_FR_NUM);
+}
+
+// Le pupitre pour les musicien·nes, le pôle pour les technicien·nes : la
+// même règle que curieuxComparePupitrePuisNom, sans son dernier critère.
+function comparePupitreOuPole(a, b){
+  if((a.pupitre || '') || (b.pupitre || '')){
+    const d = curieuxRangPupitre(a) - curieuxRangPupitre(b);
+    if(d) return d;
+  }
+  return (a.pole || '').localeCompare(b.pole || '', 'fr');
+}
+
+// L'ordre d'une nomenclature : pupitre, instrument, position, nom.
+function compareInstrumentEtPosition(a, b){
+  return comparePupitreOuPole(a, b)
+    || (a.instrument || a.poste || '').localeCompare(b.instrument || b.poste || '', 'fr', OPTIONS_FR_NUM)
+    || compareRang(a, b)
+    || compareNomDeFamille(a, b);
+}
+
+/* Les deux chiffres qui servent aux tris « dates » et « réponses », sur les
+ * colonnes réellement à l'écran — mêmes projets, même période, mêmes masques.
+ * Le taux de réponse ne compte que les dates où la personne est sollicitée :
+ * on ne reproche pas un silence à qui l'on n'a rien demandé. Une affectation
+ * vaut réponse. Personne sollicitée nulle part → -1, en fin de liste. */
+function mesuresDesLignes(ptype){
+  const champ = ptype === 'musicien' ? 'musiciensAssignes' : 'techniciensAssignes';
+  const entries = allDateEntries(champ).filter(e=> !projetsMasques.has(e.tourneeId));
+  const cache = new Map();
+  return p=>{
+    if(cache.has(p.id)) return cache.get(p.id);
+    const dispo = p.disponibilites || {};
+    let dates = 0, sollicitees = 0, repondues = 0;
+    entries.forEach(e=>{
+      const affectee = (e.assignes || []).includes(p.id);
+      if(affectee) dates++;
+      if(estSollicite(p, ptype, e)){ sollicitees++; if(affectee || dispo[e.date]) repondues++; }
+    });
+    const m = { dates, taux: sollicitees ? repondues / sollicitees : -1 };
+    cache.set(p.id, m);
+    return m;
+  };
+}
+
+function comparateurCourant(ptype){
+  const rang = m => (m.statutPoste === 'remplacant' ? 1 : 0);
+  const noyauPuis = cmp => (a, b)=> (rang(a) - rang(b)) || cmp(a, b);
+  switch(triLignes){
+    case 'nom': return noyauPuis(compareNomDeFamille);
+    case 'instrument': return noyauPuis(compareInstrumentEtPosition);
+    case 'dates': {
+      const mesure = mesuresDesLignes(ptype);
+      return noyauPuis((a, b)=> (mesure(b).dates - mesure(a).dates) || compareByStatutThenName(a, b));
+    }
+    case 'reponses': {
+      // Les moins répondu·es d'abord : ce tri sert à relancer, pas à féliciter.
+      const mesure = mesuresDesLignes(ptype);
+      return noyauPuis((a, b)=>{
+        const ta = mesure(a).taux, tb = mesure(b).taux;
+        if(ta === tb) return compareByStatutThenName(a, b);
+        if(ta < 0) return 1;
+        if(tb < 0) return -1;
+        return ta - tb;
+      });
+    }
+    case 'perso': {
+      // Les lignes que l'ordre ne connaît pas encore — personne arrivée
+      // depuis, ou jamais déplacée — ferment la marche dans l'ordre de
+      // l'orchestre : on les retrouve là où on a l'habitude de les voir.
+      const index = new Map(ordrePerso[ptype].map((id, i)=> [id, i]));
+      return (a, b)=>{
+        const ca = index.has(a.id), cb = index.has(b.id);
+        if(ca && cb) return index.get(a.id) - index.get(b.id);
+        if(ca !== cb) return ca ? -1 : 1;
+        return compareByStatutThenName(a, b);
+      };
+    }
+    default: return compareByStatutThenName;
+  }
+}
+
 // Les puces de projets. Comptent les dates de la fenêtre en cours (à venir, ou
 // tout l'historique si la case est cochée) : c'est le nombre de colonnes que le
 // projet coûte, donc la seule information qui aide à décider de le masquer.
@@ -989,7 +1347,7 @@ function brancherOuvrirFenetre(holder){
   if(!b) return;
   b.addEventListener('click', ()=>{
     fenetreMois = 0;
-    try{ localStorage.setItem(CLE_FENETRE, '0'); }catch(e){}
+    memoriserFenetre();
     const sel = document.getElementById('fenetrePeriode');
     if(sel) sel.value = '0';
     renderAll();
@@ -1041,9 +1399,25 @@ function renderProjetsFiltre(){
         <button type="button" class="lien-nu" id="ouvrirFenetre">tout afficher</button></span>`
     : '';
 
-  if(avecDates.length < 2){ holder.innerHTML = noteFenetre; brancherOuvrirFenetre(holder); return; }
-  const nbMasques = avecDates.filter(x=> projetsMasques.has(x.t.id)).length;
-  holder.innerHTML = `
+  /* Les projets masqués se disent toujours, et tous.
+   *
+   * Les puces n'apparaissent qu'à partir de deux projets à l'écran, et un
+   * projet n'a de puce que s'il a des dates dans la fenêtre. Un projet masqué
+   * pouvait donc n'avoir aucun endroit où se rouvrir — seul projet de la
+   * saison, ou masqué avant qu'on lui pose ses dates — et le tableau disait
+   * « tous les projets sont masqués, rouvre-en un ci-dessus » devant une barre
+   * vide. C'est l'un des visages des « projets disparus », et le seul remède
+   * était de vider le localStorage à la main. Le bandeau, lui, ne dépend de
+   * rien : dès qu'un masque existe, il nomme le projet et l'ôte d'un clic. */
+  const masques = loadTournees().filter(t=> projetsMasques.has(t.id));
+  const bandeauMasques = !masques.length ? '' : `
+    <div class="projets-masques" role="status">
+      <b>${masques.length} projet${masques.length > 1 ? 's' : ''} masqué${masques.length > 1 ? 's' : ''}</b> :
+      ${masques.map(t=> `<button type="button" class="lien-nu" data-projet="${escapeAttr(t.id)}"
+        title="Réafficher « ${escapeAttr(t.nom || 'Sans nom')} »">${escapeHtml(t.nom || 'Sans nom')}${estRecording(t) ? ' (rec)' : ''}</button>`).join(', ')}
+      — <button type="button" class="co-btn ghost sm" id="projetsTout">Tout afficher</button>
+    </div>`;
+  const puces = avecDates.length < 2 ? '' : `
     <span class="projets-filtre-label">Colonnes affichées :</span>
     ${avecDates.map(({ t, n })=>{
       const off = projetsMasques.has(t.id);
@@ -1053,9 +1427,8 @@ function renderProjetsFiltre(){
         ${escapeHtml(t.nom || 'Sans nom')}${estRecording(t) ? ' <em>Rec</em>' : ''}
         <small>${n}</small>
       </button>`;
-    }).join('')}
-    ${nbMasques ? `<button type="button" class="co-btn ghost sm" id="projetsTout">Tout afficher</button>` : ''}
-    ${noteFenetre}`;
+    }).join('')}`;
+  holder.innerHTML = bandeauMasques + puces + noteFenetre;
   brancherOuvrirFenetre(holder);
   holder.querySelectorAll('[data-projet]').forEach(b=> b.addEventListener('click', ()=>{
     const id = b.dataset.projet;
@@ -1120,9 +1493,12 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     <div class="co-matrix-row co-matrix-groupes">
       <div class="co-matrix-name">Projet</div>
       ${bandes.map(b=> `
-        <div class="groupe-projet" data-bande="${escapeAttr(b.tourneeId)}" style="flex:${b.n} 0 ${b.n * 76}px; background:${colorByTournee.get(b.tourneeId) || 'transparent'};"
-          title="${escapeHtml(b.nom || 'Sans nom')}${b.reco ? ' — recording' : ''} · ${b.n} date${b.n > 1 ? 's' : ''} — cliquer pour masquer ce projet">
-          ${escapeHtml(b.nom || 'Sans nom')}${b.reco ? ' · Rec' : ''}
+        <div class="groupe-projet" style="flex:${b.n} 0 ${b.n * 76}px; background:${colorByTournee.get(b.tourneeId) || 'transparent'};"
+          title="${escapeHtml(b.nom || 'Sans nom')}${b.reco ? ' — recording' : ''} · ${b.n} date${b.n > 1 ? 's' : ''}">
+          <span class="groupe-projet-nom">${escapeHtml(b.nom || 'Sans nom')}${b.reco ? ' · Rec' : ''}</span>
+          <button type="button" class="masquer-projet" data-masquer="${escapeAttr(b.tourneeId)}"
+            title="Masquer « ${escapeAttr(b.nom || 'Sans nom')} » — il se rouvre depuis le bandeau au-dessus du tableau"
+            aria-label="Masquer ${escapeAttr(b.nom || 'Sans nom')}">✕</button>
         </div>`).join('')}
     </div>
   `;
@@ -1150,31 +1526,52 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
    * on les annonce, et on peut replier ceux qu'on ne travaille pas. Replier
    * les cordes quand on cherche un vent divise par trois la hauteur à balayer.
    *
-   * Le repli est retenu par le navigateur, comme le reste de ce qui relève de
-   * la façon de regarder. Il ne s'applique qu'aux vues triées par pupitre : en
-   * mode « titulaires + leurs remplaçant·es », chacun·e suit son ou sa
-   * titulaire et découper là-dedans casserait justement ce qu'on a voulu
-   * montrer.
+   * Le repli suit la personne, comme le reste de ce qui relève de la façon de
+   * regarder. Les bandes n'ont de sens que sous l'ordre de l'orchestre : un
+   * tri par nom ou par nombre de dates entremêle les pupitres, et les
+   * annoncer là-dedans mentirait.
+   *
+   * Le mode « titulaires + leurs remplaçant·es » les a longtemps refusées, au
+   * motif qu'on y range chacun·e sous son ou sa titulaire. Mais c'est
+   * justement là qu'on cherchait « les cordes » sans rien pour les trouver :
+   * la bande annonce le pupitre du ou de la titulaire, et les remplaçant·es
+   * indenté·es dessous en héritent — quel que soit leur propre pupitre, c'est
+   * le rattachement qui compte, la flèche le dit. Les sollicité·es sans
+   * titulaire, en fin de liste dans ce mode, ont leur propre bande plutôt que
+   * de passer pour les remplaçant·es du dernier pupitre.
    */
   const groupePar = p => (ptypeMatrice === 'musicien' ? (p.pupitre || 'Autre') : (p.pole || 'Autre'));
-  const avecGroupes = document.getElementById('musicienStatutFilter').value !== 'noyau_rempl'
-    && !termeRecherche();
+  const modeNoyau = document.getElementById('musicienStatutFilter').value === 'noyau_rempl';
+  const avecGroupes = triLignes === 'orchestre' && !termeRecherche();
+  const groupes = [];
+  sorted.forEach((m, i)=>{
+    const sous = sousRemplacants[ptypeMatrice].has(m.id);
+    if(sous && i > 0) groupes.push(groupes[i - 1]);
+    else if(modeNoyau && m.statutPoste === 'remplacant') groupes.push('Autres remplaçant·es sollicité·es');
+    else groupes.push(groupePar(m));
+  });
+  // Sous « Mon ordre », la colonne des noms devient une poignée. Pas pendant
+  // une recherche — déplacer une ligne dans une liste dont on ne voit que
+  // trois noms produirait un ordre qu'on ne comprendrait plus une fois le
+  // champ vidé — et pas pour un·e remplaçant·e rangé·e sous son ou sa
+  // titulaire : sa place vient de la liste de celui-ci ou celle-ci.
+  const glissable = triLignes === 'perso' && !termeRecherche();
 
   let groupePrecedent = null;
-  const rows = sorted.map(m=>{
+  const rows = sorted.map((m, i)=>{
     const dispo = m.disponibilites || {};
-    const metier = m.statutPoste === 'remplacant' ? 'Remplaçant·e' : (m.instrument || m.poste || '');
+    const metier = libelleMetier(m, ptypeMatrice);
     const demandeLe = demandeLeHtml(m, ptypeMatrice);
     const sous = sousRemplacants[ptypeMatrice].has(m.id);
 
     // La bande de groupe, posée avant la première personne de chaque pupitre.
     let bande = '';
-    const g = groupePar(m);
+    const g = groupes[i];
     if(avecGroupes && g !== groupePrecedent){
       groupePrecedent = g;
       const cleG = ptypeMatrice + ':' + g;
       const replie = groupesReplies.has(cleG);
-      const combien = sorted.filter(p=> groupePar(p) === g).length;
+      const combien = groupes.filter(x=> x === g).length;
       bande = `
         <div class="co-matrix-row bande-groupe${replie ? ' replie' : ''}">
           <div class="co-matrix-name">
@@ -1188,9 +1585,10 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     }
     if(avecGroupes && groupesReplies.has(ptypeMatrice + ':' + g)) return bande;
 
+    const poignee = glissable && !sous;
     return bande + `
-      <div class="co-matrix-row${sous ? ' sous-remplacant' : ''}">
-        <div class="co-matrix-name">${sous ? '<span class="fleche-sous" aria-hidden="true">↳</span>' : ''}<b>${escapeHtml(fullName(m))}</b><small>${escapeHtml(metier)}${
+      <div class="co-matrix-row${sous ? ' sous-remplacant' : ''}" data-ligne="${escapeAttr(m.id)}" data-ligne-type="${ptypeMatrice}">
+        <div class="co-matrix-name${poignee ? ' poignee' : ''}"${poignee ? ' draggable="true" title="Glisser pour déplacer cette ligne"' : ''}>${sous ? '<span class="fleche-sous" aria-hidden="true">↳</span>' : ''}<b>${escapeHtml(fullName(m))}</b><small>${escapeHtml(metier)}${
           demandeLe ? (metier ? ' · ' : '') + demandeLe : ''}</small></div>
         ${entries.map(e=>{
           const assigned = (e.assignes||[]).includes(m.id);
@@ -1467,15 +1865,17 @@ function prefsDe(personId, ptype){
  * sollicitées sans qu'elles soient sur aucune liste ferment la marche : on ne
  * les fait pas disparaître sous prétexte que personne ne les a nommées.
  */
-function ordreNoyauEtRemplacants(liste, ptype){
+function ordreNoyauEtRemplacants(liste, ptype, comparer){
   const vus = idsSollicites(ptype);
   const parId = new Map(liste.map(p=> [p.id, p]));
   const sous = sousRemplacants[ptype];
   sous.clear();
   const ordre = [];
   const place = new Set();
+  // Le tri choisi s'applique aux titulaires ; leurs remplaçant·es suivent,
+  // dans l'ordre de leur liste — c'est le regroupement qui fait ce mode.
   liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant')
-    .sort(curieuxComparePupitrePuisNom)
+    .sort(comparer)
     .forEach(t=>{
       ordre.push(t); place.add(t.id);
       prefsDe(t.id, ptype)
@@ -1489,7 +1889,7 @@ function ordreNoyauEtRemplacants(liste, ptype){
         });
     });
   liste.filter(p=> (p.statutPoste || 'titulaire') === 'remplacant' && vus.has(p.id) && !place.has(p.id))
-    .sort(curieuxComparePupitrePuisNom)
+    .sort(comparer)
     .forEach(p=>{ ordre.push(p); place.add(p.id); });
   return ordre;
 }
@@ -1497,15 +1897,16 @@ function ordreNoyauEtRemplacants(liste, ptype){
 function garderSelonFiltre(liste, ptype){
   sousRemplacants[ptype].clear();
   const terme = termeRecherche();
+  const comparer = comparateurCourant(ptype);
   // La recherche l'emporte sur le filtre de statut : sinon on chercherait un
   // remplaçant, il existerait, et la page dirait qu'il n'existe pas.
-  if(terme) return liste.filter(p=> correspondRecherche(p, terme)).sort(compareByStatutThenName);
+  if(terme) return liste.filter(p=> correspondRecherche(p, terme)).sort(comparer);
   const statutFilter = document.getElementById('musicienStatutFilter').value;
-  if(statutFilter === 'noyau_rempl') return ordreNoyauEtRemplacants(liste, ptype);
+  if(statutFilter === 'noyau_rempl') return ordreNoyauEtRemplacants(liste, ptype, comparer);
   if(statutFilter === 'sollicites'){
     const vus = idsSollicites(ptype);
     return liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant' || vus.has(p.id))
-      .sort(compareByStatutThenName);
+      .sort(comparer);
   }
   // Les remplaçant·es du répertoire se comptent par dizaines et ne sont
   // appelé·es qu'au cas par cas : les afficher toutes et tous donnait un mur
@@ -1514,10 +1915,10 @@ function garderSelonFiltre(liste, ptype){
   if(statutFilter === 'remplacant'){
     const vus = idsSollicites(ptype);
     return liste.filter(p=> (p.statutPoste || 'titulaire') === 'remplacant' && vus.has(p.id))
-      .sort(compareByStatutThenName);
+      .sort(comparer);
   }
   return liste.filter(p=> !statutFilter || (p.statutPoste || 'titulaire') === statutFilter)
-    .sort(compareByStatutThenName);
+    .sort(comparer);
 }
 
 function renderAll(){
@@ -1628,16 +2029,126 @@ const champRecherches = document.getElementById('showDatesRecherche');
 champRecherches.checked = showDatesRecherche;
 champRecherches.addEventListener('change', e=>{
   showDatesRecherche = e.target.checked;
-  try{ localStorage.setItem(CLE_RECHERCHES, showDatesRecherche ? '1' : '0'); }catch(err){}
+  memoriserRecherches();
   renderAll();
 });
 const champFenetre = document.getElementById('fenetrePeriode');
 champFenetre.value = String(fenetreMois);
 champFenetre.addEventListener('change', e=>{
   fenetreMois = parseInt(e.target.value, 10) || 0;
-  try{ localStorage.setItem(CLE_FENETRE, String(fenetreMois)); }catch(err){}
+  memoriserFenetre();
   renderAll();
 });
+
+// Le mot d'explication de « Mon ordre » ne s'affiche que sous ce tri : à
+// demeure, il serait une ligne de plus dans une barre qui en a déjà trois.
+function majIndiceTri(){
+  const indice = document.getElementById('triIndice');
+  if(indice) indice.hidden = triLignes !== 'perso';
+}
+const champTri = document.getElementById('triLignes');
+champTri.value = triLignes;
+majIndiceTri();
+champTri.addEventListener('change', e=>{
+  triLignes = TRIS.includes(e.target.value) ? e.target.value : 'orchestre';
+  memoriserTri();
+  majIndiceTri();
+  renderAll();
+});
+document.getElementById('reinitAffichage').addEventListener('click', reinitialiserAffichage);
+
+/* Glisser une ligne — « Mon ordre ».
+ *
+ * Le glisser-déposer natif du navigateur, délégué au document : les matrices
+ * sont reconstruites à chaque rendu, un écouteur posé sur une ligne ne
+ * survivrait pas. L'état du geste vit dans une variable et non dans
+ * dataTransfer, que certains navigateurs vident entre deux événements.
+ *
+ * Pendant le geste, le corps de page porte le même verrou que le panneau de
+ * réponse (data-panneau-ouvert, voir _curieuxOccupe dans ui-helpers.js) :
+ * sans lui, l'écriture d'un·e collègue reconstruirait le tableau au milieu du
+ * glissement et emporterait la ligne qu'on tient. Le rendu en attente est
+ * rejoué au dépôt.
+ *
+ * Reste connu : le glisser-déposer natif n'existe pas au doigt sur téléphone,
+ * où le tableau est de toute façon replié en liste.
+ */
+let glisser = null;   // { ptype, pid }
+
+// La ligne visée, et de quel côté : un·e remplaçant·e indenté·e n'est pas une
+// cible en soi — on tombe après son ou sa titulaire, sous son groupe.
+function cibleDeDepot(e){
+  let ligne = e.target.closest && e.target.closest('[data-ligne]');
+  if(!ligne || !glisser || ligne.dataset.ligneType !== glisser.ptype) return null;
+  const r = ligne.getBoundingClientRect();
+  let apres = e.clientY > r.top + r.height / 2;
+  while(ligne && ligne.classList.contains('sous-remplacant')){
+    ligne = ligne.previousElementSibling;
+    apres = true;
+  }
+  if(!ligne || !ligne.dataset.ligne) return null;
+  return { ligne, apres };
+}
+
+function finirGlisser(){
+  glisser = null;
+  document.querySelectorAll('.en-vol, .cible-avant, .cible-apres')
+    .forEach(l=> l.classList.remove('en-vol', 'cible-avant', 'cible-apres'));
+  if(document.body.getAttribute('data-panneau-ouvert') === 'glisser') document.body.removeAttribute('data-panneau-ouvert');
+  try{ _curieuxRejouerSiLibre(); }catch(e){}
+}
+
+// L'ordre complet : ce qu'on avait retenu, puis les lignes à l'écran qu'il ne
+// connaissait pas encore, dans l'ordre où elles s'affichent — c'est celui
+// que la personne a sous les yeux. Les lignes retenues mais absentes de la
+// vue (filtrées) gardent leur place : on ne perd pas un ordre en changeant
+// de filtre.
+function deplacerLigne(ptype, pid, cibleId, apres){
+  if(pid === cibleId) return;
+  const affichees = [...document.querySelectorAll(`[data-ligne][data-ligne-type="${ptype}"]:not(.sous-remplacant)`)]
+    .map(l=> l.dataset.ligne);
+  const liste = ordrePerso[ptype].slice();
+  affichees.forEach(id=>{ if(!liste.includes(id)) liste.push(id); });
+  const sans = liste.filter(id=> id !== pid);
+  const i = sans.indexOf(cibleId);
+  if(i === -1) sans.push(pid); else sans.splice(apres ? i + 1 : i, 0, pid);
+  ordrePerso = Object.assign({}, ordrePerso, { [ptype]: sans });
+  memoriserOrdre();
+  renderAll();
+}
+
+document.addEventListener('dragstart', (e)=>{
+  const poignee = e.target.closest && e.target.closest('.co-matrix-name.poignee');
+  if(!poignee) return;
+  const ligne = poignee.closest('[data-ligne]');
+  if(!ligne) return;
+  glisser = { ptype: ligne.dataset.ligneType, pid: ligne.dataset.ligne };
+  ligne.classList.add('en-vol');
+  document.body.setAttribute('data-panneau-ouvert', 'glisser');
+  // Firefox refuse de démarrer un glissement sans donnée : on en pose une.
+  try{ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', glisser.pid); }catch(err){}
+});
+document.addEventListener('dragover', (e)=>{
+  if(!glisser) return;
+  const cible = cibleDeDepot(e);
+  document.querySelectorAll('.cible-avant, .cible-apres').forEach(l=> l.classList.remove('cible-avant', 'cible-apres'));
+  if(!cible) return;
+  e.preventDefault();                       // sinon le dépôt est refusé
+  try{ e.dataTransfer.dropEffect = 'move'; }catch(err){}
+  cible.ligne.classList.add(cible.apres ? 'cible-apres' : 'cible-avant');
+});
+document.addEventListener('drop', (e)=>{
+  if(!glisser) return;
+  const cible = cibleDeDepot(e);
+  const { ptype, pid } = glisser;
+  // Le verrou tombe AVANT le rendu : dragend n'atteindra plus le document,
+  // sa ligne d'origine ayant été reconstruite entre-temps.
+  finirGlisser();
+  if(!cible) return;
+  e.preventDefault();
+  deplacerLigne(ptype, pid, cible.ligne.dataset.ligne, cible.apres);
+});
+document.addEventListener('dragend', ()=>{ if(glisser) finirGlisser(); });
 
 // La recherche : rendu immédiat, la liste est en mémoire. Le champ vit hors
 // des matrices, donc le re-rendu ne lui prend jamais le curseur.
@@ -1888,8 +2399,6 @@ document.addEventListener('click', (e)=>{
   }
   const cel = e.target.closest('[data-cellule]');
   if(cel) surClicCellule(cel);
-  // Un clic sur la bande d'un projet le retire du tableau : c'est là qu'on
-  // s'aperçoit qu'il prend douze colonnes, autant pouvoir le dire sur place.
   const marque = e.target.closest('[data-demande-le]');
   if(marque){
     const [ptype, pid] = marque.dataset.demandeLe.split(':');
@@ -1912,9 +2421,12 @@ document.addEventListener('click', (e)=>{
     renderAll();
     return;
   }
-  const bande = e.target.closest('[data-bande]');
-  if(bande){
-    projetsMasques.add(bande.dataset.bande);
+  // Masquer un projet depuis sa bande d'en-tête : c'est là qu'on s'aperçoit
+  // qu'il prend douze colonnes, autant pouvoir le dire sur place — mais par
+  // la croix, plus par un clic n'importe où sur la bande (voir le CSS).
+  const croix = e.target.closest('[data-masquer]');
+  if(croix){
+    projetsMasques.add(croix.dataset.masquer);
     memoriserMasques();
     renderAll();
   }
@@ -1953,14 +2465,68 @@ document.addEventListener('DOMContentLoaded', monterLaBarreDeModes);
 poserMode(mode);
 majOups();
 
+/* Rien reçu, ou rien en base ?
+ *
+ * fetchAll rend [] dans les deux cas — session expirée entre la garde et la
+ * requête, RLS qui refuse, réseau coupé — et la page disait alors « Aucune
+ * date pour l'instant » à quelqu'un dont la saison était pleine : l'autre
+ * visage des « projets disparus », et le plus trompeur, parce qu'il ressemble
+ * à une absence de données. db.js appartient à d'autres chantiers, on ne
+ * change pas fetchAll d'ici : pour les seules tables revenues vides, on
+ * demande à la base si elle répond — une requête sans ligne (head), et
+ * seulement quand il y a un doute.
+ */
+async function tablesEnEchec(resultats){
+  const vides = Object.keys(resultats).filter(t=> !resultats[t].length);
+  if(!vides.length || typeof supabaseClient === 'undefined' || !supabaseClient) return [];
+  const echecs = [];
+  await Promise.all(vides.map(async t=>{
+    try{
+      const { error } = await supabaseClient.from(t).select('id', { count: 'exact', head: true });
+      if(error) echecs.push(t);
+    }catch(e){ echecs.push(t); }
+  }));
+  return echecs;
+}
+
+function signalerEchecs(echecs){
+  const bandeau = document.getElementById('erreurChargement');
+  if(!bandeau) return;
+  bandeau.hidden = !echecs.length;
+  if(!echecs.length) return;
+  const noms = {
+    tournees: 'les projets', musiciens: 'les musicien·nes', techniciens: 'les technicien·nes',
+    dispo_demandes: 'les demandes de dispo', remplacant_prefs: 'les listes de remplaçant·es',
+  };
+  bandeau.innerHTML = `<b>Impossible de charger ${echecs.map(t=> noms[t] || t).join(', ')}.</b>
+    Le tableau ci-dessous est incomplet — ce n'est pas que la base est vide. La session a peut-être expiré :
+    <button type="button" class="lien-nu" id="rechargerPage">recharger la page</button>, et se reconnecter si elle le demande.`;
+  bandeau.querySelector('#rechargerPage').addEventListener('click', ()=> location.reload());
+}
+
 async function initData(){
-  [tourneesCache, musiciansCache, techniciansCache, dispoDemandesCache, remplacantPrefsCache] = await Promise.all([
+  // Les préférences partent avec les données, pas après : un tableau rendu
+  // deux fois — d'abord avec le localStorage, puis avec le compte — sauterait
+  // sous les yeux. Sans les helpers (db.js d'avant, encore en cache), {}.
+  const prefsPromise = typeof CurieuxDB.fetchPreferences === 'function'
+    ? Promise.resolve(CurieuxDB.fetchPreferences(PREFS_PAGE)).catch(()=> ({}))
+    : Promise.resolve({});
+  let prefs;
+  [prefs, tourneesCache, musiciansCache, techniciansCache, dispoDemandesCache, remplacantPrefsCache] = await Promise.all([
+    prefsPromise,
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('musiciens'),
     CurieuxDB.fetchAll('techniciens'),
     CurieuxDB.fetchAll('dispo_demandes'),
     CurieuxDB.fetchAll('remplacant_prefs'),
   ]);
+  appliquerPreferences(prefs);
+  const echecs = await tablesEnEchec({
+    tournees: tourneesCache, musiciens: musiciansCache, techniciens: techniciansCache,
+    dispo_demandes: dispoDemandesCache, remplacant_prefs: remplacantPrefsCache,
+  });
+  signalerEchecs(echecs);
+  if(!echecs.includes('tournees')) purgerMasques();
   renderAll();
 }
 CurieuxDB.subscribe('tournees', ()=>{ CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; curieuxRafraichir(renderAll); }); });
@@ -2515,9 +3081,9 @@ function pdfPrecisions(doc, y, notes, dessinerEntete){
 
 // Le nom en gras, l'instrument ou le poste dessous — la colonne de gauche de
 // l'écran, à l'identique.
-function pdfNomPersonne(doc, cell, personne, sous){
-  const metier = personne.statutPoste === 'remplacant'
-    ? 'Remplaçant·e' : (personne.instrument || personne.poste || '');
+function pdfNomPersonne(doc, cell, personne, sous, ptype){
+  // Le même libellé qu'à l'écran — position dans le pupitre comprise.
+  const metier = libelleMetier(personne, ptype);
   const x = cell.x + (sous ? 6.5 : 2);
   if(sous){
     doc.setFont('Host', 'bold'); doc.setFontSize(7); doc.setTextColor(236, 75, 21);
@@ -2655,7 +3221,7 @@ function buildMatrixTable(doc, startY, people, assignField, titre, entries, dess
       if(data.section !== 'body') return;
       const m = sorted[data.row.index];
       if(!m) return;
-      if(data.column.index === 0){ pdfNomPersonne(doc, data.cell, m, sousRemplacants[ptypeMatrice].has(m.id)); return; }
+      if(data.column.index === 0){ pdfNomPersonne(doc, data.cell, m, sousRemplacants[ptypeMatrice].has(m.id), ptypeMatrice); return; }
       const e = entries[data.column.index - 1];
       pdfCase(doc, data.cell, m, e, ptypeMatrice, data.cell.raw, numeroNote.get(m.id + '|' + e.date));
     },
