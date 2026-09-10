@@ -225,20 +225,30 @@
   .relance-quand{font-size:11px; font-weight:700; color:var(--muted);}
   .relance-quand.vieille{color:var(--secondary);}
 
-  /* Ce que la personne a écrit. Une seule ligne, coupée : la carte d'un projet
-     compte déjà des dizaines de personnes, et une précision de trois lignes
-     par nom rendrait la page impraticable. Le texte entier est dans
-     l'infobulle, et le clic ouvre de quoi répondre. */
+  /* Ce que la personne a écrit ne s'écrit plus sur la ligne. On l'y avait mis
+     en une ligne coupée, en pensant que c'était assez discret ; à l'usage, une
+     phrase en italique sous un nom sur trois, dans des cartes de quarante
+     personnes, et l'œil ne trouvait plus les statuts. Reste une bulle avec le
+     compte, posée à côté du nom — orange tant qu'on n'a pas répondu, prune
+     ensuite — et le texte entier au survol comme au clic. La case « Afficher
+     les précisions » remet la ligne d'avant, pour qui doit les lire toutes
+     avant une vague de relances. */
   .dispo-precision{
-    display:block; margin-top:3px; max-width:100%; text-align:left;
-    background:none; border:none; padding:0; font-family:inherit; cursor:pointer;
-    font-size:11.5px; font-style:italic; color:var(--secondary); line-height:1.35;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    display:inline-block; vertical-align:middle; max-width:100%; text-align:left;
+    background:none; border:none; padding:0 2px; font-family:inherit; cursor:pointer;
+    font-size:11.5px; font-weight:800; color:var(--secondary); line-height:1.35;
   }
   .dispo-precision:hover{text-decoration:underline;}
   .dispo-precision.repondue{color:var(--prune-ink);}
+  .dispo-precision .precision-texte{display:none;}
   .dispo-precision em{font-style:normal; font-weight:800; font-size:10px;}
   .dispo-precision em.ok{color:var(--prune-ink);}
+  #vueProjet.avec-precisions .dispo-precision{
+    display:block; font-weight:400; font-style:italic;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  #vueProjet.avec-precisions .dispo-precision .precision-compte{display:none;}
+  #vueProjet.avec-precisions .dispo-precision .precision-texte{display:inline;}
 
   /* La fenêtre où l'on répond. */
   .precision-bloc{border-left:3px solid var(--secondary); padding:2px 0 2px 12px; margin-bottom:16px;}
@@ -300,6 +310,12 @@
     <button type="button" data-vue="personne" aria-pressed="true">Par personne</button>
     <button type="button" data-vue="projet" aria-pressed="false">Par projet</button>
     <span class="vue-note" id="vueNote"></span>
+    <!-- Ne vaut que pour la vue par projet : la vue par personne n'a jamais
+         écrit les précisions. Hors des cartes, donc branchée une seule fois. -->
+    <label class="projets-option" id="precisionsOption" style="display:none; margin-left:auto;"
+      title="Écrire sous chaque nom ce que la personne a laissé sur les dates du projet, au lieu d'une simple bulle">
+      <input type="checkbox" id="afficherPrecisions"> Afficher les précisions
+    </label>
   </div>
 
   <div id="holderPersonnes" class="co-card co-clip co-fade" style="margin-bottom:20px;"></div>
@@ -752,22 +768,28 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
    *
    * Aucune donnée nouvelle : la page charge déjà les fiches entières, ces
    * champs étaient dans le cache, inutilisés. On se limite aux dates de ce
-   * projet, et à une ligne — les cartes dépliées comptent déjà des centaines
-   * de lignes.
+   * projet.
+   *
+   * Le texte ne se lit plus sur la ligne par défaut (voir la feuille de
+   * style) : la bulle et son compte suffisent à dire qu'il y a quelque chose,
+   * l'infobulle et la fenêtre de réponse disent quoi. Le texte reste rendu,
+   * masqué, pour que la case « Afficher les précisions » n'ait pas à relancer
+   * tout le rendu.
    */
   const precisions = relevantDates
     .map(d=> ({ date: d.date, texte: ((person.disponibilitesCommentaires || {})[d.date] || '').trim() }))
     .filter(x=> x.texte)
     .map(x=> ({ ...x, reponse: (((person.reponsesProd || {})[x.date] || {}).texte || '').trim() }));
   const sansReponse = precisions.filter(x=> !x.reponse).length;
-  const precisionsHtml = precisions.length ? `
+  const nbPrecisions = precisions.length;
+  const precisionsHtml = nbPrecisions ? `
     <button type="button" class="dispo-precision${sansReponse ? '' : ' repondue'}"
       data-precisions="${escapeAttr(personType + ':' + person.id)}"
-      title="${escapeAttr(precisions.map(x=> `${fmtDateFR(x.date)} : « ${x.texte} »` + (x.reponse ? ` → ${x.reponse}` : '')).join('\n'))}">
-      <span aria-hidden="true">💬</span> ${escapeHtml(fmtDateFR(precisions[0].date))} : « ${escapeHtml(precisions[0].texte)} »${
-        precisions.length > 1 ? ` <em>+${precisions.length - 1}</em>` : ''}${
-        sansReponse ? '' : ' <em class="ok">répondu</em>'}
-    </button>` : '';
+      aria-label="${escapeAttr(`${nbPrecisions} précision${nbPrecisions > 1 ? 's' : ''} laissée${nbPrecisions > 1 ? 's' : ''} sur les dates${
+        sansReponse ? `, ${sansReponse} sans réponse` : ', répondu'} — lire et répondre`)}"
+      title="${escapeAttr(precisions.map(x=> `${fmtDateFR(x.date)} : « ${x.texte} »` + (x.reponse ? ` → ${x.reponse}` : '')).join('\n'))}"><span aria-hidden="true">💬</span><span class="precision-compte">${nbPrecisions}</span><span class="precision-texte"> ${escapeHtml(fmtDateFR(precisions[0].date))} : « ${escapeHtml(precisions[0].texte)} »${
+        nbPrecisions > 1 ? ` <em>+${nbPrecisions - 1}</em>` : ''}${
+        sansReponse ? '' : ' <em class="ok">répondu</em>'}</span></button>` : '';
 
   const tourneeObj = loadTournees().find(t=> t.id === tourneeId);
   // Depuis quand attend-on ? La base le savait (lastReminderAt) et la Vue
@@ -817,10 +839,9 @@ function rowFor(tourneeId, person, personType, roleLabel, answerableDates){
     <div data-demande-wrap="${existing ? escapeAttr(existing.id) : ''}">
       <div class="dispo-row">
         <div style="flex:1; min-width:160px;">
-          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${roleChip} ${datesTag}</div>
+          <div style="font-weight:700; font-size:13px;">${escapeHtml(fullName(person))} ${roleChip} ${datesTag} ${precisionsHtml}</div>
           <div style="font-size:11.5px; color:var(--muted);">${escapeHtml(roleLabel)}${
             relanceQuand ? ' · ' + relanceQuand : ''}</div>
-          ${precisionsHtml}
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           ${statusHtml}
@@ -1322,10 +1343,35 @@ function appliquerVue(){
   if(note) note.textContent = parPersonne
     ? 'Un seul lien par personne — il ouvre tous ses projets.'
     : 'Avancement projet par projet.';
+  const optionPrecisions = document.getElementById('precisionsOption');
+  if(optionPrecisions) optionPrecisions.style.display = parPersonne ? 'none' : '';
+  appliquerPrecisions();
   if(parPersonne) filtrerPersonnes();
 }
 document.querySelectorAll('#vueBascule [data-vue]').forEach(b=>
   b.addEventListener('click', ()=> poserVue(b.dataset.vue)));
+
+/* Les précisions en clair, ou pas.
+ *
+ * Décochée d'office : c'est l'absence de texte qui rend la page lisible. Le
+ * choix se retient comme celui de la vue — quelqu'un qui relit tout avant une
+ * vague de relances ne veut pas recocher à chaque visite. Une classe sur le
+ * conteneur suffit : le texte est déjà dans chaque ligne, masqué, et le rendu
+ * n'a rien à refaire. Reposée à chaque rendu via appliquerVue, comme la vue
+ * elle-même. */
+const PRECISIONS_CLE = 'suiviDispoPrecisions';
+let precisionsEnClair = (()=>{ try{ return localStorage.getItem(PRECISIONS_CLE) === '1'; }catch(e){ return false; } })();
+function appliquerPrecisions(){
+  const vueProjet = document.getElementById('vueProjet');
+  if(vueProjet) vueProjet.classList.toggle('avec-precisions', precisionsEnClair);
+  const caseAfficher = document.getElementById('afficherPrecisions');
+  if(caseAfficher) caseAfficher.checked = precisionsEnClair;
+}
+document.getElementById('afficherPrecisions').addEventListener('change', (e)=>{
+  precisionsEnClair = !!e.target.checked;
+  try{ localStorage.setItem(PRECISIONS_CLE, precisionsEnClair ? '1' : '0'); }catch(e2){}
+  appliquerPrecisions();
+});
 
 /* Ce que la personne était en train de chercher.
  *
