@@ -61,6 +61,11 @@ const CURIEUX_SECTIONS = [
     // annoncer une option, dire qu'une date est validée. C'était éparpillé sur
     // les boutons de chaque page, donc fait de mémoire et jamais tracé.
     { libelle:'Messages', href:'messages.html', pages:['messages.html'] },
+    // Le récapitulatif des dates en PDF. Il vivait en dernière étape des
+    // messages, mais on le génère souvent sans écrire à personne — pour
+    // l'imprimer ou le passer à un partenaire — et il n'a besoin ni de lien
+    // personnel ni de trace d'envoi : il a sa page, à côté.
+    { libelle:'Documents', href:'documents.html', pages:['documents.html'] },
   ]},
   // Le tableau de bord passe en tête et devient la porte de l'espace : la page
   // Avancement dit l'état, le tableau de bord dit quoi faire — c'est par là
