@@ -52,17 +52,53 @@
   @media (max-width:980px){ .home-board{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   @media (max-width:640px){ .home-board{ grid-template-columns:1fr; } }
 
-  .home-sticker-head{ display:flex; gap:11px; align-items:center; margin-bottom:11px; }
-  .home-links{ display:flex; flex-wrap:wrap; gap:6px; }
+  .home-sticker-head{ display:flex; gap:11px; align-items:center; margin-bottom:12px; }
+
+  /* ------------------------------------------------------------------------
+     Les portes de chaque étiquette : de vrais boutons, tous de la même taille.
+
+     Elles étaient en ligne, à se suivre et à passer à la ligne quand la place
+     manquait. Le résultat dépendait de la longueur des mots : « Salles » et
+     « Matériel » côte à côte, « Véhicules & chauffeurs » seul en dessous,
+     « Page salle (vue publique) » encore en dessous — une bordure en dents de
+     scie, où l'œil ne peut plus deviner où sera la porte suivante.
+
+     Une grille de deux colonnes règle les deux problèmes d'un coup : toutes
+     les portes font la même largeur, et elles s'alignent. Une porte impaire en
+     fin de liste prend les deux colonnes plutôt que de laisser un trou.
+     ------------------------------------------------------------------------ */
+  .home-links{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:7px; }
   .home-links a{
-    display:inline-flex; align-items:center; cursor:pointer;
-    border:1px solid transparent; font-family:var(--font-body);
-    font-size:12.5px; font-weight:700; letter-spacing:.01em;
-    padding:8px 15px; border-radius:10px; text-decoration:none;
-    transition:transform .14s cubic-bezier(.34,1.5,.6,1), border-color .14s ease;
+    display:flex; align-items:center; justify-content:space-between; gap:9px;
+    min-height:44px; padding:9px 12px; border-radius:11px; cursor:pointer;
+    border:1px solid transparent; font-family:var(--font-body); text-decoration:none;
+    font-size:12px; font-weight:700; letter-spacing:0; line-height:1.25;
+    transition:transform .14s cubic-bezier(.34,1.5,.6,1), border-color .14s ease, filter .14s ease;
   }
-  .home-links a:hover{ transform:translateY(-1px); border-color:currentColor; }
-  @media (prefers-reduced-motion: reduce){ .home-links a:hover{ transform:none; } }
+  /* Seule, ou dernière d'un compte impair : elle occupe toute la largeur. */
+  .home-links a:last-child:nth-child(odd){ grid-column:1 / -1; }
+
+  /* Le chevron, dessiné en CSS : il fait la différence entre une étiquette et
+     un bouton sur lequel on peut appuyer, et il avance à l'approche. */
+  .home-links a::after{
+    content:''; flex:0 0 auto; width:6px; height:6px; margin-right:1px;
+    border-right:1.8px solid currentColor; border-top:1.8px solid currentColor;
+    transform:rotate(45deg); opacity:.45;
+    transition:transform .14s ease, opacity .14s ease;
+  }
+  .home-links a:hover{ transform:translateY(-1px); border-color:currentColor; filter:brightness(1.03); }
+  .home-links a:hover::after{ opacity:.95; transform:rotate(45deg) translate(1.5px, -1.5px); }
+  .home-links a:active{ transform:translateY(0) scale(.985); }
+  @media (prefers-reduced-motion: reduce){
+    .home-links a:hover, .home-links a:active{ transform:none; }
+    .home-links a:hover::after{ transform:rotate(45deg); }
+  }
+  /* Sur téléphone, l'étiquette occupe toute la colonne : deux portes par rangée
+     couperaient « Véhicules & chauffeurs » en deux lignes pour rien. */
+  @media (max-width:640px){
+    .home-links{ grid-template-columns:1fr; }
+    .home-links a{ min-height:46px; }
+  }
 
   .wrap{ max-width:1240px; margin:0 auto; }
 </style>
@@ -94,41 +130,41 @@
 const HOME_SECTIONS = [
   { titre:'Tournées',
     fond:'#CEE1F4', encre:'#791649', chip:'♩', chipFond:'#791649', chipEncre:'#FCF2F0',
-    chipTilt:'-6deg', tilt:'-1.1deg', lienFond:'rgba(252,242,240,.65)', lienEncre:'#791649',
+    chipTilt:'-6deg', tilt:'-1.1deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#791649',
     liens:[['Gérer les tournées','tournees.html'],['Feuilles de route','feuilles-de-route.html'],['Journal des changements','newsletter.html']] },
 
   // Le recording a sa propre liste de feuilles : ce sont des feuilles de
   // studio, elles n'ont rien à faire dans celle des tournées.
   { titre:'Recording',
     fond:'#f3ddd0', encre:'#791649', chip:'◉', chipFond:'#791649', chipEncre:'#FCF2F0',
-    chipTilt:'4deg', tilt:'.7deg', lienFond:'rgba(252,242,240,.65)', lienEncre:'#791649',
+    chipTilt:'4deg', tilt:'.7deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#791649',
     liens:[['Gérer les recordings','tournees.html?type=recording'],['Feuilles de studio','feuilles-de-route.html?type=recording']] },
 
   { titre:'Disponibilités',
     fond:'#FEC9E0', encre:'#791649', chip:'✓', chipFond:'#EC4B15', chipEncre:'#FCF2F0',
-    chipTilt:'5deg', tilt:'.9deg', lienFond:'rgba(252,242,240,.65)', lienEncre:'#791649',
+    chipTilt:'5deg', tilt:'.9deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#791649',
     liens:[['Demandes titulaires','suivi-dispo.html'],['Tableau de service','recap.html'],['Documents','documents.html']] },
 
   { titre:'Direction technique',
     fond:'#141617', encre:'#FCF2F0', chip:'⚙', chipFond:'#FCF2F0', chipEncre:'#141617',
-    chipTilt:'-5deg', tilt:'-.8deg', lienFond:'rgba(252,242,240,.16)', lienEncre:'#FCF2F0',
-    liens:[['Tableau de bord','technique-taches.html'],['Avancement par date','technique.html'],['Salles','salles.html'],['Matériel','materiel.html'],['Véhicules & chauffeurs','vehicules.html'],['Fiches techniques','fiches-techniques.html'],['Partage','partage.html'],['Page salle (vue publique)','page-salle.html']] },
+    chipTilt:'-5deg', tilt:'-.8deg', lienFond:'rgba(252,242,240,.19)', lienEncre:'#FCF2F0',
+    liens:[['Tableau de bord','technique-taches.html'],['Avancement par date','technique.html'],['Salles','salles.html'],['Matériel','materiel.html'],['Véhicules & chauffeurs','vehicules.html'],['Fiches techniques','fiches-techniques.html'],['Partage','partage.html'],['Page salle publique','page-salle.html']] },
 
   { titre:'Annuaires',
     fond:'#791649', encre:'#FCF2F0', chip:'☎', chipFond:'#FEC9E0', chipEncre:'#791649',
-    chipTilt:'5deg', tilt:'1deg', lienFond:'rgba(252,242,240,.16)', lienEncre:'#FCF2F0',
+    chipTilt:'5deg', tilt:'1deg', lienFond:'rgba(252,242,240,.19)', lienEncre:'#FCF2F0',
     liens:[['Musicien·nes','annuaire.html'],['Technicien·nes','techniciens.html'],['Remplacements','remplacements.html'],['Infos sociales','infos-sociales.html']] },
 
   // Le budget a sa tuile : chiffrer est un travail de production, pas un
   // réglage. La porte reste celle des comptes 'admin' (voir budget.html).
   { titre:'Budget',
     fond:'#CEE1F4', encre:'#3d5876', chip:'€', chipFond:'#3d5876', chipEncre:'#FCF2F0',
-    chipTilt:'4deg', tilt:'.6deg', lienFond:'rgba(252,242,240,.65)', lienEncre:'#3d5876',
+    chipTilt:'4deg', tilt:'.6deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#3d5876',
     liens:[['Tableau de bord','budget.html'],['Devis et budgets','devis.html'],['Clients','devis-clients.html']] },
 
   { titre:'Administration',
     fond:'#EC4B15', encre:'#FCF2F0', chip:'⚿', chipFond:'#FCF2F0', chipEncre:'#EC4B15',
-    chipTilt:'-5deg', tilt:'-.9deg', lienFond:'rgba(252,242,240,.2)', lienEncre:'#FCF2F0',
+    chipTilt:'-5deg', tilt:'-.9deg', lienFond:'rgba(252,242,240,.22)', lienEncre:'#FCF2F0',
     liens:[['Tableau de bord admin','admin-dashboard.html']] },
 ];
 
@@ -138,6 +174,10 @@ const HOME_SECTIONS = [
 const HOME_SOMBRE = {
   '#791649':'#4c0f2e', '#CEE1F4':'#26364a', '#FEC9E0':'#4e2a3c',
   '#EC4B15':'#7e2a0c', '#141617':'#101112',
+  // Le sable de l'étiquette Recording manquait à l'appel : la nuit, son aplat
+  // restait clair pendant que l'encre passait au blanc cassé — un titre blanc
+  // sur fond crème, illisible, et deux portes qui disparaissaient avec lui.
+  '#f3ddd0':'#3a2a22',
   // Le blanc cassé doit être traduit lui aussi : la nuit, toutes les encres
   // passent au blanc cassé, donc un aplat resté blanc donnait du blanc sur
   // blanc — c'est ce qui rendait invisibles la première tuile de chiffre clé et
@@ -151,7 +191,7 @@ function sombre(){ return document.documentElement.getAttribute('data-theme') ==
 function stickerHtml(sec, nuit){
   const fond = nuit ? (HOME_SOMBRE[sec.fond] || sec.fond) : sec.fond;
   const encre = nuit ? '#FCF2F0' : sec.encre;
-  const lienFond = nuit ? 'rgba(252,242,240,.13)' : sec.lienFond;
+  const lienFond = nuit ? 'rgba(252,242,240,.16)' : sec.lienFond;
   const lienEncre = nuit ? '#FCF2F0' : sec.lienEncre;
   const chipFond = nuit ? (HOME_SOMBRE[sec.chipFond] || sec.chipFond) : sec.chipFond;
   const chipEncre = nuit ? '#FCF2F0' : sec.chipEncre;

@@ -101,7 +101,14 @@
 // continuerait de charger l'ancien mes-dates-vue.js — et l'espace des
 // musicien·nes resterait tel qu'il était sur les téléphones, qui sont
 // justement le public visé par le changement.
-const VERSION = 'curieux-v104';
+// v104 : la page Messages devient une zone d'écriture (messages-dispo.js gagne
+// les variables et le rendu de gabarit).
+// v105 : l'espace des musicien·nes prend une coque d'application — un actif
+// neuf, assets/app-musicien.js, chargé par les cinq pages à lien personnel, et
+// mes-dates-vue.js dont l'aperçu pose désormais sa propre feuille de style.
+// Sans cet incrément, un téléphone déjà venu garderait l'ancien mes-dates-vue.js
+// et l'aperçu de l'accueil s'afficherait sans mise en forme.
+const VERSION = 'curieux-v105';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -33,6 +33,17 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-10-3',
+    titre: 'L’espace des musicien·nes devient une application',
+    points: [
+      "Les cinq pages ouvertes par un lien personnel — l'espace, les dates, les dispos, les infos, les remplaçant·es — partagent maintenant une barre d'onglets en bas de l'écran. Plus besoin de remonter chercher « ← Mon espace » pour changer de page.",
+      "Des pastilles signalent ce qui attend : le nombre de demandes de dispo à remplir, un point sur les infos incomplètes ou la liste de remplaçant·es vide.",
+      "L'accueil de leur espace ne porte plus la vue complète des dates mais leurs quatre prochaines, avec un lien vers le reste : sur téléphone, la demande de dispo est enfin visible sans faire défiler.",
+      "Tous les liens déjà envoyés restent valables — rien à renvoyer.",
+      "Sur l'accueil de production, les portes de chaque étiquette sont devenues de vrais boutons, alignés et de même taille. Au passage, l'étiquette Recording était illisible en thème sombre : c'est corrigé.",
+    ],
+  },
+  {
     version: '2026-09-10-2',
     titre: 'Les messages s’écrivent',
     points: [

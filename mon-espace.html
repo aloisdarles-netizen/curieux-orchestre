@@ -11,6 +11,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/app-musicien.js"></script>
 <script src="assets/mes-dates-vue.js"></script>
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -26,19 +27,14 @@
      les tuiles du menu, .co-btn pour les actions, .co-h1 pour le titre. Ces
      quatre-là existaient ici en double, redéfinis à la main.
      ========================================================================== */
-  /* La colonne etait etroite parce que la page n'etait qu'une pile de tuiles.
-     Elle accueille maintenant le calendrier de la saison en tete, qui a besoin
-     de largeur pour poser ses mois cote a cote ; les tuiles, elles, gardent la
-     leur et ne s'etirent pas. */
-  /* Une pile en flex, et non en blocs : c'est ce qui permet, sur téléphone, de
-     passer les dates DERRIÈRE le dossier et les disponibilités (order, plus
-     bas) sans toucher au DOM — l'ordre du document reste celui de l'écran
-     large, et une fenêtre qui traverse le seuil se réordonne d'elle-même. */
-  .wrap{max-width:1100px; margin:0 auto; padding:0 22px 90px; display:flex; flex-direction:column;}
-  .entete, .menu, .porte, .sans-date, #blocInstallation, #installation .section-titre, #contenu .section-titre{max-width:560px;}
-  .entete{padding:26px 0 20px;}
+  /* Une colonne unique, à la largeur d'un écran de téléphone même sur grand
+     écran : depuis que les dates ont leur propre onglet, plus rien ici ne
+     réclame de la largeur, et une pile de tuiles étirée sur 1 100 px se lit
+     moins bien qu'une colonne. */
+  .wrap{max-width:600px; margin:0 auto; padding:0 18px 34px;}
+  .entete{padding:18px 0 16px;}
   .entete img.brand-logo-img{height:30px; margin-bottom:18px; display:block;}
-  .sous{color:var(--muted); font-size:14px; margin:0;}
+  .sous{color:var(--muted); font-size:14px; margin:4px 0 0; line-height:1.5;}
 
   .etat-boite{
     padding:24px 22px; text-align:center; color:var(--muted); font-size:14.5px; line-height:1.6;
@@ -78,46 +74,36 @@
   #mesDates{margin-bottom:26px;}
 
   /* ------------------------------------------------------------------------
-     Le bloc Mes dates, sur les deux largeurs.
+     Les prochaines dates, en carte.
 
-     C'est un <details> partout, pour n'avoir qu'un seul DOM ; mais sur écran
-     large il n'en a ni l'air ni la fonction : le titre est celui d'une
-     section, sans marqueur, et ne replie rien (le script rouvre ce qu'un
-     clavier fermerait). Le compte et l'aperçu des prochaines dates n'y sont
-     pas montrés non plus — le calendrier est juste dessous, déplié, et il
-     dit tout cela mieux.
+     Cette page portait la vue complète des dates — calendrier ou colonnes —
+     dépliée en tête. Elle y prenait, sur téléphone, un écran et demi avant le
+     dossier et les demandes de dispo, alors que c'est précisément pour
+     RÉPONDRE à une demande qu'on arrive ici. On l'avait repliée sous un
+     en-tête ; depuis que « Mes dates » est un onglet à part entière, elle n'a
+     plus rien à faire sur l'accueil.
 
-     Sur téléphone, c'est l'inverse : la section entière est un en-tête
-     cliquable « Mes dates — N à venir », avec les trois prochaines dates
-     toujours lisibles, et les colonnes (ou le calendrier) derrière. Ce qui
-     se mesurait avant : le bloc déplié en tête poussait le dossier et les
-     demandes de dispo à 1 100-1 700 px, soit un écran et demi à deux — et
-     la personne qui ouvre son espace depuis un message de demande vient
-     précisément répondre à cette demande. Voir aussi l'ordre des blocs
-     dans la media query en fin de feuille.
+     Reste ce qu'on vient vraiment y chercher : les quatre prochaines dates, et
+     un chemin d'un doigt vers le reste. La carte entière est le lien — une
+     zone de 300 px de large se vise sans regarder.
      ------------------------------------------------------------------------ */
-  #mesDatesPli > summary{list-style:none; cursor:default;}
-  #mesDatesPli > summary::-webkit-details-marker{display:none;}
-  /* Un span, parce qu'un <summary> n'admet que du texte en ligne ; en bloc
-     pour garder les marges du titre de section. */
-  #mesDatesPli > summary .section-titre{display:block;}
-  .mesdates-nb, .mesdates-chevron, #mesDatesPli .mdv-apercu{display:none;}
-  @media (max-width:760px){
-    #mesDatesPli > summary{
-      cursor:pointer; background:var(--card); border:1px solid var(--border); border-radius:14px;
-      padding:13px 15px 14px; position:relative; -webkit-tap-highlight-color:transparent;
-    }
-    #mesDatesPli > summary .section-titre{margin:0; padding-right:28px;}
-    .mesdates-nb{display:inline; text-transform:none; letter-spacing:0; font-weight:700; color:var(--text);}
-    .mesdates-quand{display:block; margin:3px 0 0; font-size:11px;}
-    .mesdates-chevron{
-      display:block; position:absolute; right:15px; top:14px; width:18px; height:18px;
-      color:var(--muted); transition:transform .18s ease;
-    }
-    #mesDatesPli[open] > summary .mesdates-chevron{transform:rotate(180deg);}
-    #mesDatesPli[open] > summary{border-bottom-left-radius:0; border-bottom-right-radius:0;}
-    #mesDatesPli .mdv-apercu{display:flex;}
-    #mesDatesVue{margin-top:12px;}
+  .bloc-dates{
+    display:block; text-decoration:none; color:inherit; margin-bottom:22px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .bloc-dates:active{transform:scale(.995);}
+  .bloc-dates-tete{display:flex; align-items:baseline; justify-content:space-between; gap:10px;}
+  .bloc-dates-tete .section-titre{margin:0;}
+  .bloc-dates-nb{font-size:12px; font-weight:700; color:var(--accent-dark); white-space:nowrap;}
+  .bloc-dates .mdv-apercu{margin-top:11px;}
+  .bloc-dates-plus{
+    display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-top:13px; padding-top:11px;
+    border-top:1px solid var(--border); font-size:13px; font-weight:700; color:var(--accent-dark);
+  }
+  /* La date de fraîcheur passe à la ligne plutôt que d'écraser le lien : elle
+     dit quand la page a été arrêtée, ce qui est utile mais jamais urgent. */
+  .bloc-dates-quand{
+    flex-basis:100%; font-size:11.5px; color:var(--muted); font-weight:600; margin-top:3px;
   }
 
   /* ------------------------------------------------------------------------
@@ -196,18 +182,24 @@
     padding:14px 16px; font-size:13.5px;
   }
 
-  /* L'ordre des blocs sur téléphone : le dossier et les disponibilités
-     d'abord, les dates ensuite, le mode d'emploi d'installation toujours en
-     dernier. Sur écran large, l'ordre du document — les dates en tête — ne
-     bouge pas. En fin de feuille par principe (voir base.css) : ce sont des
-     surcharges à une seule classe ou un seul id, elles doivent venir après
-     ce qu'elles corrigent. */
-  @media (max-width:760px){
-    #contenu{order:1;}
-    #mesDates{order:2; margin:22px 0 4px;}
-    #mesDates:empty{display:none;}
-    #installation{order:3;}
+  /* Le mode d'emploi d'installation se replie. C'est une chose qu'on lit une
+     fois, et qui occupait un tiers de l'accueil à chaque visite ensuite. */
+  #installation details{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    overflow:hidden;
   }
+  #installation summary{
+    list-style:none; cursor:pointer; padding:13px 16px; font-size:13.5px; font-weight:700;
+    display:flex; align-items:center; gap:9px; -webkit-tap-highlight-color:transparent;
+  }
+  #installation summary::-webkit-details-marker{display:none;}
+  #installation summary::after{
+    content:'▾'; margin-left:auto; color:var(--muted); font-size:12px; transition:transform .18s;
+  }
+  #installation details[open] summary::after{transform:rotate(180deg);}
+  #installation details[open] summary{border-bottom:1px solid var(--border);}
+  #installation .app-install{border:none; border-radius:0;}
+  #installation .app-install-ok{border-radius:0;}
 </style>
 </head>
 <body>
@@ -218,12 +210,12 @@
     <p class="sous" id="sousTitre">Chargement…</p>
   </div>
 
-  <div id="mesDates"></div>
+  <!-- L'ordre est le même sur toutes les largeurs : ce qui reste à faire, puis
+       les prochaines dates, puis l'installation. Quand il n'y a plus rien à
+       faire, le premier bloc tient en une ligne verte et les dates remontent
+       d'elles-mêmes en tête — sans qu'aucune règle n'ait à les y pousser. -->
   <div id="contenu"></div>
-  <!-- Le mode d'emploi d'installation a son propre conteneur, hors de
-       #contenu : sur téléphone les dates viennent après le dossier et les
-       disponibilités, mais avant lui — il n'y a aucune raison de faire passer
-       ses trois prochaines dates sous « ajoute cette page à ton écran d'accueil ». -->
+  <div id="mesDates"></div>
   <div id="installation"></div>
 </div>
 
@@ -334,56 +326,35 @@ async function init(){
   document.getElementById('titre').textContent = prenom ? `Bonjour ${prenom}` : 'Mon espace';
   document.getElementById('sousTitre').textContent = 'Ton espace personnel — reviens-y quand tu veux.';
 
-  /* Les dates, et où elles se mettent.
+  const jeton = encodeURIComponent(TOKEN);
 
-     Sur écran large, d'abord : c'est la question qu'on se pose en ouvrant son
-     espace, et elle demandait jusqu'ici un clic de plus. Le calendrier par
-     défaut, déplié, la saison d'un coup d'œil.
+  /* Les prochaines dates, en carte, et rien de plus.
 
-     Sur téléphone, on a mesuré ce que ça donnait : le bloc déplié en tête —
-     colonnes ou calendrier — repoussait le dossier et la demande de dispo à
-     un écran et demi, voire deux et demi. Or c'est pour RÉPONDRE à une
-     demande que les messages envoient ici (messages.html envoie la page
-     dédiée pour les annonces de dates). Le bloc passe donc derrière le
-     dossier et les disponibilités (order, dans la feuille), replié sous un
-     en-tête qui dit combien de dates viennent et lesquelles sont les trois
-     prochaines : la question « quand est-ce que je joue ensuite ? » garde sa
-     réponse sur le premier écran, sans clic. Le module, lui, retombe sur les
-     colonnes sur petit écran quoi qu'il ait mémorisé. */
+     Cette page a longtemps porté la vue complète — calendrier ou colonnes —
+     dépliée en tête. Elle repoussait le dossier et les demandes de dispo à un
+     écran et demi sur téléphone, alors que c'est pour RÉPONDRE à une demande
+     qu'on arrive ici. On l'avait repliée sous un en-tête cliquable ; depuis que
+     « Mes dates » est un onglet de la barre du bas, la question ne se pose
+     plus : quatre lignes suffisent ici, le reste est à un doigt. */
   if(mesDates && !mesDates.migrationAbsente && (mesDates.dates || []).length){
     const stamp = CurieuxMesDates.fraicheur(mesDates.genereLe);
-    const petit = CurieuxMesDates.mediaPetitEcran();
-    const resume = CurieuxMesDates.apercu(mesDates, 3);
+    const resume = CurieuxMesDates.apercu(mesDates, 4);
+    const reste = Math.max(0, resume.nb - 4);
     document.getElementById('mesDates').innerHTML =
-      `<details id="mesDatesPli"${petit.matches ? '' : ' open'}>
-         <summary>
-           <span class="section-titre">Mes dates<span class="mesdates-nb"> — ${resume.nb} à venir</span>${
-             stamp ? ` <span class="mesdates-quand">${escapeHtml(stamp)}</span>` : ''}</span>
-           <svg class="mesdates-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6,9 12,15 18,9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>
-           ${resume.html}
-         </summary>
-         <div id="mesDatesVue"></div>
-       </details>`;
-    const vue = CurieuxMesDates.monter(document.getElementById('mesDatesVue'), mesDates, { vueParDefaut: 'calendrier' });
-
-    /* Le pli n'existe qu'au doigt. Sur écran large, le titre reste un titre :
-       un clavier qui le fermerait le rouvre aussitôt. Et quand la fenêtre
-       franchit le seuil vers le large — rotation d'une tablette, fenêtre
-       étirée — le bloc s'ouvre, puisqu'il n'y a plus rien pour le rouvrir.
-       Dans l'autre sens on ne referme pas : la personne est peut-être en
-       train de lire. Au dépliage, le module remesure ses colonnes — cachées
-       au montage, elles n'avaient pas pu être tronquées. */
-    const pli = document.getElementById('mesDatesPli');
-    pli.addEventListener('toggle', ()=>{
-      if(!pli.open && !petit.matches){ pli.open = true; return; }
-      if(pli.open) vue.ajuster();
-    });
-    const ouvrirSiLarge = ()=>{ if(!petit.matches && !pli.open) pli.open = true; };
-    if(petit.addEventListener) petit.addEventListener('change', ouvrirSiLarge);
-    else if(petit.addListener) petit.addListener(ouvrirSiLarge);
+      `<a class="co-card co-pad bloc-dates" href="mes-dates.html?token=${jeton}">
+         <span class="bloc-dates-tete">
+           <span class="section-titre">Mes prochaines dates</span>
+           <span class="bloc-dates-nb">${resume.nb} à venir</span>
+         </span>
+         ${resume.html}
+         <span class="bloc-dates-plus">
+           ${reste ? `Voir les ${reste} autres` : 'Voir le détail et le calendrier'}
+           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+           ${stamp ? `<span class="bloc-dates-quand">${escapeHtml(stamp)}</span>` : ''}
+         </span>
+       </a>`;
   }
-
-  const jeton = encodeURIComponent(TOKEN);
   const demandes = moi.demandes || [];
   const enAttente = demandes.filter(resteAFaire);
 
@@ -447,6 +418,17 @@ async function init(){
 
   const lienInfos = `mes-infos.html?token=${jeton}`;
   const lienRempla = `mes-remplacants.html?token=${jeton}`;
+
+  /* Ce que la coque a besoin de savoir pour peindre ses onglets — le prénom
+     dans la barre, l'onglet des remplaçant·es, les pastilles. C'est ici, et
+     nulle part ailleurs, qu'on le sait : les quatre autres écrans le liront
+     dans l'état de session plutôt que de refaire la requête. */
+  if(window.CurieuxAppMusicien) CurieuxAppMusicien.etat({
+    prenom, titulaire: estTitulaire,
+    disposAFaire: enAttente.length,
+    infosIncompletes: manquantes.length > 0,
+    remplaVides: remplaAFaire,
+  });
 
   const ligneDossier = (fait, texte, detail)=> `
     <div class="dossier-item">
@@ -522,9 +504,14 @@ async function init(){
         nbRemplacants ? `<span class="pastille faite">${nbRemplacants}</span>` : '<span class="pastille">À faire</span>') : ''}
     </div>
   `;
+  /* Le mode d'emploi d'installation, replié. C'est une chose qu'on lit une
+     fois : le laisser ouvert lui donnait, à chaque visite ensuite, la place
+     d'une section entière au bas de l'accueil. */
   document.getElementById('installation').innerHTML = `
-    <div class="section-titre">Sur mon téléphone</div>
-    <div id="blocInstallation"></div>
+    <details>
+      <summary>Garder Curieux sur mon téléphone</summary>
+      <div id="blocInstallation"></div>
+    </details>
   `;
 
   const plusTard = document.getElementById('plusTardBtn');

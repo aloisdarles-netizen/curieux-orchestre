@@ -12,6 +12,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/app-musicien.js"></script>
 <script src="assets/mes-dates-vue.js"></script>
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -98,6 +99,10 @@ async function init(){
 
   const prenom = (moi.prenom || '').trim();
   document.getElementById('titre').textContent = prenom ? `Les dates de ${prenom}` : 'Mes dates';
+  // La barre de l'application porte déjà « Mes dates » : ce titre-ci lui est
+  // masqué (voir app-musicien.js), et c'est le prénom en bout de barre qui
+  // dit de qui sont ces dates.
+  if(window.CurieuxAppMusicien) CurieuxAppMusicien.etat({ prenom });
   const stamp = CurieuxMesDates.fraicheur(moi.genereLe);
   document.getElementById('sousTitre').innerHTML =
     `Ce qui est confirmé, ce qui est encore en option.${stamp ? `<br><span class="fraicheur">${escapeHtml(stamp)}</span>` : ''}`;

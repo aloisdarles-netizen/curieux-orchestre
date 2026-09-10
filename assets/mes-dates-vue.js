@@ -278,6 +278,10 @@ const CurieuxMesDates = (function(){
      écrit que s'il diffère de l'année en cours — « 12 mars » en septembre
      se lirait comme un mois passé. */
   function apercu(charge, n){
+    // L'aperçu se sert aussi tout seul — l'espace personnel n'affiche plus que
+    // lui, la vue complète ayant son propre écran. Il lui faut donc sa feuille
+    // de style sans passer par monter().
+    poserStyle();
     const dates = enJeu((Array.isArray(charge && charge.dates) ? charge.dates : [])
       .slice().sort((a, b)=> String(a.date).localeCompare(String(b.date))));
     const anneeCourante = new Date().getFullYear();

@@ -8,6 +8,7 @@
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
+<script src="assets/app-musicien.js"></script>
 <script src="assets/statuts-date.js"></script>
 <script src="assets/dispo-statuts.js"></script>
 <!-- Page volontairement PUBLIQUE : pas de hideCurieuxPageUntilAuth()/requireAdminAuth()
@@ -361,6 +362,10 @@ async function init(){
   state.tournee = tourneeRes.data;
   state.personType = demande.person_type;
   state.person = personRes.data;
+  // Le prénom pour la barre de l'application : la coque l'affiche en bout de
+  // barre, et sans lui une arrivée directe sur cet écran ne dirait pas de qui
+  // est l'espace qu'on regarde.
+  if(window.CurieuxAppMusicien) CurieuxAppMusicien.etat({ prenom: (state.person && state.person.prenom) || '' });
   if(!state.person.disponibilites) state.person.disponibilites = {};
   if(!state.person.disponibilites_commentaires) state.person.disponibilites_commentaires = {};
   state.info = (await CurieuxDB.getInfosSocialesByToken(token)) || { extra: {} };
