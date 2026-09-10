@@ -111,7 +111,8 @@
 // v106 : la coque grandit son logo, contraste ses onglets et déclare
 // viewport-fit=cover (app-musicien.js) ; le calendrier passe à un mois à la
 // fois, avec flèches, et une journée touchée se nomme (mes-dates-vue.js).
-const VERSION = 'curieux-v106';
+// v107 : la marque passe à 34 px dans une barre de 70 px (app-musicien.js).
+const VERSION = 'curieux-v107';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -142,7 +142,7 @@ const CurieuxAppMusicien = (function(){
       /* La coque prend la main sur la mise en page des cinq pages : elles
          gardent leur contenu, la coque leur donne leurs marges. */
       body.app-musicien{
-        padding-top:calc(62px + env(safe-area-inset-top, 0px));
+        padding-top:calc(70px + env(safe-area-inset-top, 0px));
         /* 72 px de barre, plus le retrait du bas de l'écran, plus le talon de
            10 px que la barre s'ajoute quand ce retrait vaut zéro. */
         padding-bottom:calc(82px + max(10px, env(safe-area-inset-bottom, 0px)));
@@ -183,7 +183,7 @@ const CurieuxAppMusicien = (function(){
 
       .app-barre{
         position:fixed; top:0; left:0; right:0; z-index:40;
-        height:calc(62px + env(safe-area-inset-top, 0px));
+        height:calc(70px + env(safe-area-inset-top, 0px));
         padding-top:env(safe-area-inset-top, 0px);
         display:flex; align-items:center; gap:11px;
         /* Les coins arrondis d'un téléphone rognent les extrémités : les
@@ -210,15 +210,20 @@ const CurieuxAppMusicien = (function(){
          application, et c'est la première chose que voit quelqu'un qui ouvre
          l'icône posée sur son écran d'accueil. */
       .app-marque{
-        flex:0 0 auto; height:27px; width:auto; display:block;
+        flex:0 0 auto; height:34px; width:auto; display:block;
       }
       /* Le prénom en bout de barre : sur un téléphone partagé, ou quand deux
          liens traînent dans l'historique, c'est la seule chose qui dit de qui
          est l'espace qu'on regarde. */
       .app-qui{
         flex:0 0 auto; font-size:12.5px; font-weight:700; color:var(--muted);
-        max-width:38vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        max-width:30vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       }
+      /* Sous 420 px, la marque et le nom de l'écran prennent toute la barre :
+         le prénom s'efface plutôt que de rogner le titre. On sait de qui est
+         l'espace en touchant Accueil, où « Bonjour Camille » est écrit en
+         grand — et une barre d'onglets personnelle ne laisse guère de doute. */
+      @media (max-width:419px){ .app-qui{display:none;} }
 
       /* ----------------------------------------------------------------------
          La barre d'onglets, et les bords d'un téléphone.
@@ -278,14 +283,14 @@ const CurieuxAppMusicien = (function(){
          là. Les mêmes onglets remontent sous le titre, en une rangée de pilules
          centrée sur la colonne de contenu. */
       @media (min-width:761px){
-        body.app-musicien{padding-top:112px; padding-bottom:48px;}
+        body.app-musicien{padding-top:126px; padding-bottom:48px;}
         /* Les onglets sont remontés en haut : la barre d'enregistrement
            retrouve le bas de la fenêtre, où elle était. */
         body.app-musicien .save-bar{bottom:0; padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px));}
         body.app-musicien:has(.save-bar.visible){padding-bottom:96px;}
-        .app-barre{height:56px; padding-left:22px; padding-right:22px;}
+        .app-barre{height:70px; padding-left:22px; padding-right:22px;}
         .app-onglets{
-          top:56px; bottom:auto; border-top:none; border-bottom:1px solid var(--border);
+          top:70px; bottom:auto; border-top:none; border-bottom:1px solid var(--border);
           justify-content:center; gap:6px; padding:8px 16px;
         }
         .app-onglet{
