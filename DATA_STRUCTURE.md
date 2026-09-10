@@ -27,13 +27,15 @@ Tableau de musicien·nes. Un objet :
   "instrument": "Violon solo",
   "pupitre": "Cordes",
   "statutPoste": "titulaire",
+  "rang": "2",
   "telephone": "06 12 34 56 78",
   "email": "alice.martin@mail.com",
   "notes": "",
   "disponibilites": { "2026-10-15": "dispo", "2027-01-23": "indispo" }
 }
 ```
-- `pupitre` ∈ {Chef d'orchestre, Cordes, Bois, Cuivres, Percussions, Autre}
+- `pupitre` ∈ {Chef d'orchestre, Cordes, Bois, Cuivres, Percussions, Chant, Autre} — la liste de référence est `CURIEUX_PUPITRES` (assets/ui-helpers.js), dont dérivent tous les selects ; la colonne SQL est un texte libre, une valeur hors liste (« Piano ») est conservée telle quelle par les formulaires
+- `rang` : position dans le pupitre, texte court facultatif (« 1 », « 2 », « solo », « tutti ») — colonne SQL `text` (anciennement un entier de « rang de priorité » des remplaçant·es) ; tri numérique quand c'est un nombre, vide en dernier (`curieuxCompareRang`)
 - `statutPoste` ∈ {titulaire, remplacant}
 - `disponibilites` : map `date ISO → 'dispo'|'indispo'|'incertain'`
 - Lu/écrit par : `annuaire.html` (CRUD + import), `disponibilites.html` (édition du champ `disponibilites`), `tournees.html` (lecture pour affectation), `recap.html` (lecture pour le tableau croisé)
@@ -73,6 +75,7 @@ Tableau de tournées, chacune avec un tableau `dates[]` imbriqué (statuts, affe
 ```
 - `statut` ∈ {option, validee, annulee}
 - `linkedToNext` : bool, sert à former des "blocs" de dates consécutives (départ la veille / retour le lendemain)
+- `nomenclature` (colonne `tournees.nomenclature`, jsonb) : `[{ "pupitre": "Cordes", "nombre": 8 }, { "pupitre": "Chant", "nombre": 2, "cachet": 250 }]` — `cachet` facultatif, en € brut par date : le cachet propre du pupitre quand il n'est pas payé au cachet standard. Résolution par personne (exception individuelle > cachet du pupitre > cachet standard) : `curieuxCachetResolu` (assets/ui-helpers.js), lue par le devis, l'éditeur de devis et le lien personnel
 - Le tableau `dates` reste imbriqué (JSONB) plutôt que normalisé en table séparée : structure encore mouvante (blocs, statuts) et toujours manipulée comme un tout dans l'UI.
 - Lu/écrit par : `tournees.html` (CRUD complet), lu par `disponibilites.html`, `newsletter.html`, `recap.html`
 

@@ -181,14 +181,11 @@
 
   <div class="toolbar">
     <input type="text" id="searchInput" placeholder="Chercher un nom ou un instrument…">
+    <!-- Les pupitres se remplissent au chargement depuis CURIEUX_PUPITRES
+         (ui-helpers.js) : trois selects de cette page en portaient chacun une
+         copie, qu'il fallait penser à retoucher ensemble. -->
     <select id="pupitreFilter">
       <option value="">Tous les pupitres</option>
-      <option value="Chef d'orchestre">Chef d'orchestre</option>
-      <option value="Cordes">Cordes</option>
-      <option value="Bois">Bois</option>
-      <option value="Cuivres">Cuivres</option>
-      <option value="Percussions">Percussions</option>
-      <option value="Autre">Autre</option>
     </select>
     <select id="statutFilter" hidden>
       <option value="titulaire" selected>Titulaire</option>
@@ -205,12 +202,6 @@
     <div class="spacer"></div>
     <select id="bulkPupitre">
       <option value="">Changer le pupitre…</option>
-      <option value="Chef d'orchestre">Chef d'orchestre</option>
-      <option value="Cordes">Cordes</option>
-      <option value="Bois">Bois</option>
-      <option value="Cuivres">Cuivres</option>
-      <option value="Percussions">Percussions</option>
-      <option value="Autre">Autre</option>
     </select>
     <button type="button" class="co-btn secondary sm" id="bulkPupitreBtn">Appliquer</button>
     <select id="bulkStatut">
@@ -264,14 +255,7 @@
       <div class="field"><label for="fInstrument">Instrument</label><input type="text" id="fInstrument" placeholder="Ex: Violon solo"></div>
       <div class="field">
         <label for="fPupitre">Pupitre</label>
-        <select id="fPupitre">
-          <option value="Chef d'orchestre">Chef d'orchestre</option>
-          <option value="Cordes">Cordes</option>
-          <option value="Bois">Bois</option>
-          <option value="Cuivres">Cuivres</option>
-          <option value="Percussions">Percussions</option>
-          <option value="Autre">Autre</option>
-        </select>
+        <select id="fPupitre"></select>
       </div>
     </div>
     <div class="field-row">
@@ -282,9 +266,9 @@
           <option value="remplacant">Remplaçant·e</option>
         </select>
       </div>
-      <div class="field" id="fRangField" style="display:none;">
-        <label for="fRang">Rang de priorité</label>
-        <input type="number" id="fRang" min="1" step="1" placeholder="1 = à contacter en premier">
+      <div class="field">
+        <label for="fRang">Position dans le pupitre</label>
+        <input type="text" id="fRang" maxlength="12" placeholder="1, 2, solo, tutti…">
       </div>
     </div>
     <div class="field-row">
@@ -342,45 +326,57 @@ function normalizeWhatsappPhone(phone){
   return digits;
 }
 
-// Quand on affiche uniquement les remplaçant·es, on classe par instrument puis par rang
-// de priorité (1 = à contacter en premier) plutôt que par ordre alphabétique, pour que
-// le rang serve vraiment à savoir qui appeler en premier sur un instrument donné.
+// Quand on affiche uniquement les remplaçant·es, on classe par instrument puis
+// par position dans le pupitre, plutôt que par ordre alphabétique : sur un
+// instrument donné, on lit d'un coup qui tient quelle place.
 function compareForRemplacantRanking(a, b){
-  const ia = (a.instrument||'').localeCompare(b.instrument||'');
+  const ia = (a.instrument||'').localeCompare(b.instrument||'', 'fr', { numeric: true, sensitivity: 'base' });
   if(ia !== 0) return ia;
-  const ra = a.rang || Infinity, rb = b.rang || Infinity;
-  if(ra !== rb) return ra - rb;
+  const cr = curieuxCompareRang(a.rang, b.rang);
+  if(cr !== 0) return cr;
   return fullName(a).localeCompare(fullName(b));
 }
 
-// Pour les titulaires, on classe par pupitre (ordre de l'orchestre, pas alphabétique)
-// puis par nom — plus simple à parcourir qu'un ordre alphabétique pur.
-// L'ordre lui-même vit dans ui-helpers.js depuis que la Vue d'ensemble le suit
-// aussi : deux listes de pupitres qui auraient pu diverger n'en font plus qu'une.
+// Pour les titulaires, on classe par pupitre (ordre de l'orchestre, pas
+// alphabétique), puis instrument et position — l'ordre d'une nomenclature,
+// « Violon · 1, Violon · 2 », qui vit dans ui-helpers.js depuis que la Vue
+// d'ensemble le suit aussi : deux tris qui auraient pu diverger n'en font
+// plus qu'un.
 const PUPITRE_ORDER = CURIEUX_PUPITRES;
 function rangPupitre(personne){ return curieuxRangPupitre(personne); }
 function compareByPupitreThenName(a, b){
-  const ia = rangPupitre(a), ib = rangPupitre(b);
-  if(ia !== ib) return ia - ib;
-  return fullName(a).localeCompare(fullName(b));
+  return curieuxComparePupitrePuisNom(a, b);
 }
 
 // Vue « Toutes » : le classement par pupitre doit tenir, sinon l'annuaire
 // complet devient une liste alphabétique où les cordes croisent les cuivres.
-// On garde donc l'ordre de l'orchestre, puis l'instrument — c'est là que le
-// rang des remplaçant·es prend son sens : sous chaque instrument, le ou la
-// titulaire d'abord, puis celles et ceux qu'on appelle, dans l'ordre.
+// On garde donc l'ordre de l'orchestre, puis l'instrument : sous chaque
+// instrument, le ou la titulaire d'abord, puis les remplaçant·es, chacun·e à
+// sa position.
 function compareAnnuaireComplet(a, b){
   const ia = rangPupitre(a), ib = rangPupitre(b);
   if(ia !== ib) return ia - ib;
-  const inst = (a.instrument || '').localeCompare(b.instrument || '');
+  const inst = (a.instrument || '').localeCompare(b.instrument || '', 'fr', { numeric: true, sensitivity: 'base' });
   if(inst !== 0) return inst;
   const ta = (a.statutPoste || 'titulaire') === 'remplacant' ? 1 : 0;
   const tb = (b.statutPoste || 'titulaire') === 'remplacant' ? 1 : 0;
   if(ta !== tb) return ta - tb;
-  const ra = a.rang || Infinity, rb = b.rang || Infinity;
-  if(ra !== rb) return ra - rb;
+  const cr = curieuxCompareRang(a.rang, b.rang);
+  if(cr !== 0) return cr;
   return fullName(a).localeCompare(fullName(b));
+}
+
+// Les trois selects de pupitre de la page, remplis depuis la liste de
+// référence. Le premier <option> (« Tous les pupitres », « Changer le
+// pupitre… ») est posé dans le HTML et reste en tête.
+['pupitreFilter', 'bulkPupitre', 'fPupitre'].forEach(id=>{
+  document.getElementById(id).insertAdjacentHTML('beforeend', curieuxOptionsPupitreHtml(''));
+});
+// La fiche : on repose toutes les options à chaque ouverture, pour qu'une
+// valeur hors liste (« Piano », « Chef ») apparaisse sélectionnée plutôt que
+// d'être remplacée par la première option et réécrite à l'enregistrement.
+function poserPupitreFiche(valeur){
+  document.getElementById('fPupitre').innerHTML = curieuxOptionsPupitreHtml(valeur);
 }
 
 // Sélection multiple pour l'édition groupée (pupitre / statut uniquement) — persiste
@@ -406,6 +402,10 @@ const PUPITRE_COULEURS = {
   'Bois':             ['#FEC9E0', '#791649'],
   'Cuivres':          ['#EC4B15', '#FCF2F0'],
   'Percussions':      ['#791649', '#FCF2F0'],
+  // Le chant en orange pop sur fond clair : la seule paire de la charte encore
+  // libre qui ne se confonde ni avec les cuivres (orange plein) ni avec les
+  // bois (rose).
+  'Chant':            ['#FCE3D6', '#B8360A'],
   'Autre':            ['var(--border)', 'var(--muted)'],
 };
 function couleurPupitre(pupitre){
@@ -486,8 +486,10 @@ function render(){
         <input type="checkbox" class="m-select-checkbox" data-select="${m.id}" ${isSelected ? 'checked' : ''} aria-label="Sélectionner ${escapeHtml(fullName(m))}">
         <span class="m-avatar" aria-hidden="true" style="--co-tilt:${index % 2 ? '4deg' : '-5deg'}; background:${pupFond}; color:${pupEncre};">${escapeHtml(initialesDe(m))}</span>
         <span class="m-identite">
-          <span class="m-nom">${escapeHtml(fullName(m))}${m.statutPoste === 'remplacant' ? `<span class="remplacant-tag">Rempl.${m.rang ? ' ' + m.rang : ''}</span>` : ''}</span>
-          <span class="m-role">${escapeHtml(m.instrument || '—')}</span>
+          <span class="m-nom">${escapeHtml(fullName(m))}${m.statutPoste === 'remplacant' ? `<span class="remplacant-tag">Rempl.</span>` : ''}</span>
+          ${/* La position se lit avec l'instrument — « Violon · 2 » — pour
+                tout le monde, remplaçant·es compris. */''}
+          <span class="m-role">${escapeHtml(m.instrument || '—')}${m.rang ? ` · ${escapeHtml(m.rang)}` : ''}</span>
         </span>
         <span class="m-pupitre"><span class="pupitre-badge" style="background:${pupFond}; color:${pupEncre};">${escapeHtml(m.pupitre || 'Autre')}</span></span>
         <span class="m-tel">${escapeHtml(m.telephone || '')}</span>
@@ -546,11 +548,6 @@ function render(){
   updateBulkBar();
 }
 
-function updateRangFieldVisibility(){
-  document.getElementById('fRangField').style.display = document.getElementById('fStatutPoste').value === 'remplacant' ? 'flex' : 'none';
-}
-document.getElementById('fStatutPoste').addEventListener('change', updateRangFieldVisibility);
-
 function openModal(id){
   const overlay = document.getElementById('modalOverlay');
   document.getElementById('editId').value = id || '';
@@ -561,7 +558,7 @@ function openModal(id){
     document.getElementById('fPrenom').value = m.prenom || '';
     document.getElementById('fNom').value = m.nom || '';
     document.getElementById('fInstrument').value = m.instrument || '';
-    document.getElementById('fPupitre').value = m.pupitre || 'Cordes';
+    poserPupitreFiche(m.pupitre || 'Cordes');
     document.getElementById('fStatutPoste').value = m.statutPoste || 'titulaire';
     document.getElementById('fRang').value = m.rang || '';
     document.getElementById('fTelephone').value = m.telephone || '';
@@ -570,10 +567,9 @@ function openModal(id){
   } else {
     document.getElementById('modalTitle').textContent = "Ajouter un·e musicien·ne";
     ['fPrenom','fNom','fInstrument','fTelephone','fEmail','fNotes','fRang'].forEach(id=> document.getElementById(id).value = '');
-    document.getElementById('fPupitre').value = 'Cordes';
+    poserPupitreFiche('Cordes');
     document.getElementById('fStatutPoste').value = 'titulaire';
   }
-  updateRangFieldVisibility();
   overlay.classList.add('open');
   document.getElementById('fPrenom').focus();
 }
@@ -662,6 +658,9 @@ function pupitreForSection(section){
   if(/FLUTE|HAUTBOIS|CLARINETTE|BASSON|SAXOPHONE/.test(s)) return 'Bois';
   if(/\bCOR\b|TROMPETTE|TROMBONE|TUBA|SAXHORN/.test(s)) return 'Cuivres';
   if(/PERCUSSION|BATTERIE|TIMBALE/.test(s)) return 'Percussions';
+  // Ni ALTO (déjà pris par les cordes, testé avant) ni BASSE (contrebasse) :
+  // on ne reconnaît que les mots qui ne désignent qu'une voix.
+  if(/CHANT|CHOEUR|CHORISTE|SOPRANO|MEZZO|TENOR|BARYTON|VOIX/.test(s)) return 'Chant';
   return 'Autre';
 }
 
@@ -752,7 +751,7 @@ function parseContactsPaste(text){
   return { rows, rejected };
 }
 
-const PUPITRE_OPTIONS = ["Chef d'orchestre",'Cordes','Bois','Cuivres','Percussions','Autre'];
+const PUPITRE_OPTIONS = CURIEUX_PUPITRES;
 
 function renderContactPreview(){
   const text = document.getElementById('importTextarea').value;
@@ -965,10 +964,15 @@ function exportMusiciansPdf(onlySelection){
   // section (plus besoin d'une colonne dédiée), ce qui laisse de la place aux colonnes
   // utiles (statut en badge, téléphone, email) et rend le document plus lisible qu'avant.
   let y = 30;
-  PUPITRE_OPTIONS.forEach(section=>{
-    // Titulaires par ordre alphabétique, puis remplaçant·es classé·es par instrument et
-    // rang de priorité (1 = à contacter en premier) plutôt que par ordre alphabétique.
-    const sectionTitulaires = filtered.filter(m=>(m.pupitre || 'Autre') === section && (m.statutPoste||'titulaire') === 'titulaire');
+  // La liste de référence, puis les pupitres hors liste réellement portés par
+  // des fiches (« Piano », « Chef ») : une personne ne doit pas disparaître
+  // d'un export parce que son pupitre n'est pas dans le catalogue.
+  const sections = [...PUPITRE_OPTIONS];
+  filtered.forEach(m=>{ const p = m.pupitre || 'Autre'; if(!sections.includes(p)) sections.push(p); });
+  sections.forEach(section=>{
+    // Titulaires dans l'ordre de la nomenclature (instrument, position), puis
+    // remplaçant·es classé·es par instrument et position.
+    const sectionTitulaires = filtered.filter(m=>(m.pupitre || 'Autre') === section && (m.statutPoste||'titulaire') === 'titulaire').sort(compareByPupitreThenName);
     const sectionRemplacants = filtered.filter(m=>(m.pupitre || 'Autre') === section && m.statutPoste === 'remplacant').sort(compareForRemplacantRanking);
     const group = [...sectionTitulaires, ...sectionRemplacants];
     if(group.length === 0) return;
@@ -987,8 +991,8 @@ function exportMusiciansPdf(onlySelection){
       margin: { left: 12, right: 12 },
       head: [['Nom', 'Instrument', 'Statut', 'Téléphone', 'Email']],
       body: group.map(m=>[
-        fullName(m), m.instrument || '',
-        m.statutPoste === 'remplacant' ? `Remplaçant·e${m.rang ? ' · Rang ' + m.rang : ''}` : 'Titulaire',
+        fullName(m), `${m.instrument || ''}${m.rang ? ` · ${m.rang}` : ''}`,
+        m.statutPoste === 'remplacant' ? 'Remplaçant·e' : 'Titulaire',
         m.telephone || '', m.email || ''
       ]),
       styles: { font:'Host', fontSize:9, cellPadding:3, textColor:[20,22,23] },
@@ -1031,8 +1035,9 @@ document.getElementById('saveBtn').addEventListener('click', ()=>{
   }
 
   const statutPoste = document.getElementById('fStatutPoste').value;
+  // Un texte court, tel quel : « 2 » comme « solo ». Vide → absent.
   const rangRaw = document.getElementById('fRang').value.trim();
-  const rang = statutPoste === 'remplacant' && rangRaw ? parseInt(rangRaw, 10) : undefined;
+  const rang = rangRaw || undefined;
 
   const list = loadMusicians();
   let person;

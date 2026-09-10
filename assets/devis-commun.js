@@ -165,26 +165,54 @@ function gabaritSectionsDevis(typeProjet){
  * Les dates ANNULÉES ne comptent pas — un devis ne se chiffre pas dessus. Les
  * options non plus dans « validees », mais on rend les deux : au stade du
  * budget, on chiffre volontiers l'ensemble des dates envisagées.
+ *
+ * Un pupitre peut porter son propre cachet dans la nomenclature (le chant,
+ * payé à part de l'orchestre — voir curieuxCachetResolu). Il sort alors de
+ * l'effectif « standard » et fait sa propre ligne : « 5 journées × 2 chant ×
+ * 250 € » à côté de « 5 journées × 17 musiciens × 180 € ». Les fondre dans un
+ * seul effectif à un seul prix aurait faussé les deux nombres.
  */
 function chiffresDuProjet(tournee){
   if(!tournee) return null;
   const dates = (tournee.dates || []).filter(d=> d.statut !== 'annulee');
   const validees = dates.filter(d=> d.statut === 'validee');
-  const effectif = (tournee.nomenclature || []).reduce((n, r)=> n + (devisNombre(r.nombre, 0)), 0);
+  const nomenclature = tournee.nomenclature || [];
+  const aCachetPropre = r=> r && r.cachet != null && r.cachet !== '' && !isNaN(Number(r.cachet));
+  const effectif = nomenclature.filter(r=> !aCachetPropre(r)).reduce((n, r)=> n + (devisNombre(r.nombre, 0)), 0);
+  const estRecording = tournee.type === 'recording';
+  // Un recording n'a pas de cachet global : chaque séance porte le sien
+  // (dates[].cachetSeance). On rend null — pas de « cachet standard » à
+  // rappeler ni d'écart à signaler — et le drapeau qui permet à l'éditeur
+  // d'expliquer pourquoi.
+  const cachet = !estRecording && tournee.cachetStatut === 'defini' && tournee.cachetMontant != null
+    ? devisNombre(tournee.cachetMontant, 0) : null;
+  // Deux lignes du même pupitre à cachet propre se cumulent : la nomenclature
+  // n'interdit pas le doublon, le devis ne doit pas en perdre la moitié.
+  const pupitresCachet = [];
+  nomenclature.filter(aCachetPropre).forEach(r=>{
+    const prix = devisNombre(r.cachet, 0);
+    const existant = pupitresCachet.find(p=> p.pupitre === r.pupitre && p.prix === prix);
+    if(existant) existant.qte += devisNombre(r.nombre, 0);
+    else pupitresCachet.push({ pupitre: r.pupitre || 'Autre', qte: devisNombre(r.nombre, 0), prix });
+  });
+  // Ce que le devis devrait porter en lignes « Artiste au cachet » : l'effectif
+  // standard au cachet standard (prix null tant qu'il n'est pas défini), puis
+  // un pupitre par cachet propre.
+  const lignesCachet = [
+    ...(effectif > 0 ? [{ pupitre: null, regime: 'musicien', qte: effectif, prix: cachet }] : []),
+    ...pupitresCachet.map(p=> ({ pupitre: p.pupitre, regime: 'musicien', qte: p.qte, prix: p.prix })),
+  ];
   return {
     id: tournee.id,
     nom: tournee.nom || '',
-    estRecording: tournee.type === 'recording',
+    estRecording,
     dates: dates.length,
     datesValidees: validees.length,
     effectif,
-    // Un recording n'a pas de cachet global : chaque séance porte le sien
-    // (dates[].cachetSeance). On rend null — pas de « cachet standard » à
-    // rappeler ni d'écart à signaler — et le drapeau qui permet à l'éditeur
-    // d'expliquer pourquoi.
-    cachet: tournee.type !== 'recording' && tournee.cachetStatut === 'defini' && tournee.cachetMontant != null
-      ? devisNombre(tournee.cachetMontant, 0) : null,
-    cachetParSeance: tournee.type === 'recording',
+    cachet,
+    cachetParSeance: estRecording,
+    pupitresCachet,
+    lignesCachet,
   };
 }
 
@@ -251,6 +279,28 @@ function ecartsDevisProjet(d, chiffres){
   const attendu = chiffres.datesValidees || chiffres.dates;
   if(attendu && journees.length === 1 && journees[0] !== attendu){
     ecarts.push(`${fmtQteDevis(journees[0])} journée${journees[0] > 1 ? 's' : ''} chiffrée${journees[0] > 1 ? 's' : ''} pour ${attendu} date${attendu > 1 ? 's' : ''} au planning`);
+  }
+
+  // Dès qu'un pupitre a son propre cachet, le devis porte légitimement deux
+  // prix et deux quantités : la règle « une seule valeur distincte, sinon on
+  // se tait » se serait tue justement là où il y a le plus à vérifier. On
+  // compare alors pupitre par pupitre, en retrouvant chaque cachet attendu
+  // parmi les lignes du devis et en sommant leurs quantités.
+  if((chiffres.pupitresCachet || []).length){
+    (chiffres.lignesCachet || []).forEach(att=>{
+      if(att.prix == null) return;
+      const qui = att.pupitre ? att.pupitre.toLowerCase() : 'orchestre';
+      const memesPrix = lignes.filter(l=> devisNombre(l.prix, 0) === att.prix);
+      if(!memesPrix.length){
+        ecarts.push(`aucune ligne à ${fmtEurosDevis(att.prix)} par cachet ici, ${att.qte} attendue${att.qte > 1 ? 's' : ''} à ce prix sur le projet (${qui})`);
+        return;
+      }
+      const qte = memesPrix.reduce((s, l)=> s + devisNombre(l.qte, 1), 0);
+      if(qte !== att.qte){
+        ecarts.push(`${fmtQteDevis(qte)} personne${qte > 1 ? 's' : ''} chiffrée${qte > 1 ? 's' : ''} à ${fmtEurosDevis(att.prix)} pour ${att.qte} attendue${att.qte > 1 ? 's' : ''} à la nomenclature (${qui})`);
+      }
+    });
+    return ecarts;
   }
 
   const effectifs = [...new Set(lignes.map(l=> devisNombre(l.qte, 1)))];

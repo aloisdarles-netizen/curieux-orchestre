@@ -5686,3 +5686,19 @@ alter table messages_envoyes enable row level security;
 drop policy if exists "messages envoyes acces equipe" on messages_envoyes;
 create policy "messages envoyes acces equipe" on messages_envoyes for all to authenticated
   using (has_access()) with check (has_access());
+
+
+-- ============================================================================
+-- 2026-09 · La position dans le pupitre
+--
+-- musiciens.rang était un entier, « rang de priorité » des remplaçant·es — une
+-- idée d'avant les listes personnelles de remplaçant·es (remplacant_prefs),
+-- qui portent aujourd'hui cet ordre. La colonne devient la position dans le
+-- pupitre : « 1 », « 2 », « solo », « tutti ». Un texte court, pas un entier,
+-- parce que « solo » n'est pas un nombre et que c'est pourtant la première
+-- place. Les valeurs existantes (1, 2…) se lisent telles quelles.
+--
+-- Rejouable : sur une colonne déjà en text, le cast est un cast de text vers
+-- text, et Postgres ne fait rien.
+-- ============================================================================
+alter table musiciens alter column rang type text using rang::text;

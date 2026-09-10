@@ -792,27 +792,107 @@ if(typeof window !== 'undefined') window.addEventListener('load', reprendreFeuil
  * liste plutôt qu'en tête : une personne sans pupitre renseigné ne doit pas
  * ouvrir le tableau.
  */
-const CURIEUX_PUPITRES = ["Chef d'orchestre", 'Cordes', 'Bois', 'Cuivres', 'Percussions', 'Autre'];
+// « Chant » : des chanteur·euses s'engagent sur certaines tournées, à un cachet
+// qui n'est pas celui de l'orchestre. Le pupitre est facultatif par nature
+// (une nomenclature ne le porte que si on l'y ajoute) ; il se place avant
+// « Autre » pour que les voix ne se retrouvent pas dans le fourre-tout.
+//
+// Cette liste est LA référence : les selects de l'annuaire et de la
+// nomenclature en dérivent (voir curieuxOptionsPupitreHtml), après qu'on a
+// retrouvé cinq copies en dur qui ne se connaissaient pas.
+const CURIEUX_PUPITRES = ["Chef d'orchestre", 'Cordes', 'Bois', 'Cuivres', 'Percussions', 'Chant', 'Autre'];
 
 function curieuxRangPupitre(personne){
   const i = CURIEUX_PUPITRES.indexOf((personne && personne.pupitre) || 'Autre');
   return i === -1 ? 99 : i;
 }
 
-/* Pupitre, puis nom. Les technicien·nes n'ont pas de pupitre mais un pôle,
- * pour lequel aucun ordre de métier n'est établi : elles et ils restent donc
- * classé·es par pôle alphabétique, ce qui les regroupe déjà — c'est le seul
- * point où cette fonction ne fait pas ce que son nom promet, et c'est voulu. */
+/* Les <option> d'un select de pupitre, avec la valeur courante sélectionnée.
+ *
+ * Tolérant à une valeur hors liste : la base n'impose rien sur
+ * musiciens.pupitre, et le jeu de démo comme d'anciennes fiches portent
+ * « Piano » ou « Chef ». Un select qui ne connaît pas la valeur affiche sa
+ * première option, et la prochaine sauvegarde réécrit la fiche avec — c'est
+ * ainsi que des fiches se retrouvaient rétrogradées en « Autre » (ou en
+ * « Chef d'orchestre » dans une nomenclature) pour avoir été ouvertes. On
+ * ajoute donc une option ad hoc, sélectionnée, plutôt que de perdre la valeur.
+ */
+function curieuxOptionsPupitreHtml(valeur){
+  const v = valeur == null ? '' : String(valeur);
+  const liste = v && !CURIEUX_PUPITRES.includes(v) ? [...CURIEUX_PUPITRES, v] : CURIEUX_PUPITRES;
+  return liste.map(p=> `<option value="${escapeAttr(p)}"${p === v ? ' selected' : ''}>${escapeHtml(p)}</option>`).join('');
+}
+
+/* La position dans le pupitre (musiciens.rang) : « 1 », « 2 », « solo »,
+ * « tutti ». Un texte court, pas un entier — « solo » n'est pas un nombre et
+ * c'est pourtant la première place. Comparaison numérique quand les deux le
+ * sont (« 2 » avant « 10 »), et la position vide en dernier : qui n'en a pas
+ * ne doit pas ouvrir le pupitre. */
+function curieuxCompareRang(a, b){
+  const ra = a == null ? '' : String(a).trim(), rb = b == null ? '' : String(b).trim();
+  if(ra === rb) return 0;
+  if(!ra) return 1;
+  if(!rb) return -1;
+  return ra.localeCompare(rb, 'fr', { numeric: true, sensitivity: 'base' });
+}
+
+/* Pupitre, instrument, position, puis nom : l'ordre d'une nomenclature.
+ * Les technicien·nes n'ont pas de pupitre mais un pôle, pour lequel aucun
+ * ordre de métier n'est établi : elles et ils restent donc classé·es par pôle
+ * alphabétique, ce qui les regroupe déjà — c'est le seul point où cette
+ * fonction ne fait pas ce que son nom promet, et c'est voulu. */
 function curieuxComparePupitrePuisNom(a, b){
   // Seulement si l'un des deux a un pupitre : sinon (deux technicien·nes) ce
   // rang vaudrait « Autre » pour tout le monde et n'apprendrait rien.
   if(((a && a.pupitre) || '') || ((b && b.pupitre) || '')){
     const ia = curieuxRangPupitre(a), ib = curieuxRangPupitre(b);
     if(ia !== ib) return ia - ib;
+    // numeric : « Violon 2 » avant « Violon 10 », si l'instrument porte lui-même
+    // un numéro.
+    const instA = (a && a.instrument) || '', instB = (b && b.instrument) || '';
+    const ci = instA.localeCompare(instB, 'fr', { numeric: true, sensitivity: 'base' });
+    if(ci !== 0) return ci;
+    const cr = curieuxCompareRang(a && a.rang, b && b.rang);
+    if(cr !== 0) return cr;
   }
   const polA = (a && a.pole) || '', polB = (b && b.pole) || '';
   if(polA !== polB) return polA.localeCompare(polB, 'fr');
   return fullName(a).localeCompare(fullName(b), 'fr');
+}
+
+/* Le cachet d'une personne sur une tournée, et d'où il vient.
+ *
+ * Trois étages, du plus particulier au plus général :
+ *   1. l'exception individuelle (table cachet_overrides) ;
+ *   2. le cachet propre à sa ligne de nomenclature — {pupitre, nombre, cachet},
+ *      le champ cachet étant facultatif : c'est ainsi qu'une tournée paie ses
+ *      chanteur·euses à part sans une exception par personne ;
+ *   3. le cachet standard de la tournée (cachetStatut/cachetMontant).
+ *
+ * Écrit une seule fois, ici, parce que trois écrans le lisaient chacun à sa
+ * façon : le devis (qui ignorait tout sauf le standard), le rappel du projet
+ * dans l'éditeur, et le lien personnel — qui, lui, ne reçoit l'exception que
+ * par sa RPC à jeton et la passe en troisième argument.
+ *
+ * `tournee` est l'objet camelCase de l'adaptateur. Rend { montant, source }
+ * avec source ∈ 'individuel' | 'pupitre' | 'standard' | null (montant null).
+ */
+function curieuxCachetPupitre(tournee, pupitre){
+  const ligne = ((tournee && tournee.nomenclature) || []).find(r=>
+    r && r.pupitre === pupitre && r.cachet != null && r.cachet !== '' && Number.isFinite(Number(r.cachet)));
+  return ligne ? Number(ligne.cachet) : null;
+}
+function curieuxCachetResolu(tournee, pupitre, override){
+  if(override != null && override !== '' && Number.isFinite(Number(override))){
+    return { montant: Number(override), source: 'individuel' };
+  }
+  const duPupitre = curieuxCachetPupitre(tournee, pupitre);
+  if(duPupitre != null) return { montant: duPupitre, source: 'pupitre' };
+  if(tournee && tournee.cachetStatut === 'defini' && tournee.cachetMontant != null
+     && tournee.cachetMontant !== '' && Number.isFinite(Number(tournee.cachetMontant))){
+    return { montant: Number(tournee.cachetMontant), source: 'standard' };
+  }
+  return { montant: null, source: null };
 }
 
 const CURIEUX_VOCABULAIRE = {

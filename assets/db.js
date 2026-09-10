@@ -49,6 +49,13 @@ const CurieuxDB = (()=>{
     const n = Number(String(v).replace(',', '.'));
     return Number.isFinite(n) ? n : null;
   }
+  // Un texte court facultatif : '' comme null redeviennent NULL, un nombre
+  // (une base encore en integer) redevient sa chaîne.
+  function _texteOuNull(v){
+    if(v === null || v === undefined) return null;
+    const s = String(v).trim();
+    return s ? s : null;
+  }
 
   const ADAPTERS = {
     musiciens: {
@@ -57,7 +64,10 @@ const CurieuxDB = (()=>{
         prenom: m.prenom || '', nom: m.nom || '',
         instrument: m.instrument || '', pupitre: m.pupitre || 'Autre',
         statut_poste: m.statutPoste || 'titulaire',
-        rang: m.rang || null,
+        // Position dans le pupitre (« 1 », « 2 », « solo ») : un texte court,
+        // vide → NULL. La colonne était un entier de « rang de priorité » des
+        // remplaçant·es, jamais vraiment exploité ; voir migrations.sql.
+        rang: _texteOuNull(m.rang),
         telephone: m.telephone || '', email: m.email || '', notes: m.notes || '',
         disponibilites: m.disponibilites || {},
         disponibilites_commentaires: m.disponibilitesCommentaires || {},
@@ -69,7 +79,7 @@ const CurieuxDB = (()=>{
         id: r.id, prenom: r.prenom, nom: r.nom,
         instrument: r.instrument, pupitre: r.pupitre,
         statutPoste: r.statut_poste,
-        rang: r.rang || undefined,
+        rang: _texteOuNull(r.rang) || undefined,
         telephone: r.telephone, email: r.email, notes: r.notes,
         disponibilites: r.disponibilites || {},
         disponibilitesCommentaires: r.disponibilites_commentaires || {},
