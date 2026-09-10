@@ -5686,3 +5686,64 @@ alter table messages_envoyes enable row level security;
 drop policy if exists "messages envoyes acces equipe" on messages_envoyes;
 create policy "messages envoyes acces equipe" on messages_envoyes for all to authenticated
   using (has_access()) with check (has_access());
+
+
+-- ============================================================================
+-- 2026-09 · Des réglages qui suivent la personne, pas l'appareil
+--
+-- Tout ce qui relève de la « façon de regarder » — projets masqués sur la vue
+-- d'ensemble, fenêtre de mois, pupitres repliés, vue choisie dans le suivi des
+-- dispos — vivait dans le localStorage du navigateur. Ça tient jusqu'au jour
+-- où la même personne ouvre l'outil sur son téléphone, ou sur le poste du
+-- bureau : rien ne l'a suivie, et ce qu'elle avait masqué chez elle réapparaît
+-- ici. Pire : un projet masqué dans UN navigateur se signale comme « disparu »
+-- sans que personne, côté équipe, ne puisse voir pourquoi.
+--
+-- Rien en base ne pouvait accueillir ça. reglages est un singleton d'équipe —
+-- une ligne, id = 1, la même pour tout le monde. infos_sociales_admins est la
+-- liste des comptes, que seul is_admin() modifie : chacun·e ne peut pas y
+-- écrire son propre confort. D'où une table à part, une ligne par (compte,
+-- page), avec un document jsonb sur le modèle de feuilles_route et devis :
+-- ajouter une préférence ne demandera pas de migration.
+--
+-- Cette table est HORS audit, HORS corbeille et HORS purge d'essai : ce sont
+-- des réglages d'affichage, pas des données d'équipe. L'historique d'un tri
+-- n'intéresse personne, et une purge qui les emporterait ferait perdre à
+-- chacun·e sa façon de lire l'outil sans rien nettoyer d'utile.
+-- ============================================================================
+
+create table if not exists preferences_utilisateur (
+  -- Posé par la base : le client n'a pas à connaître son propre uid, et ne
+  -- peut pas en inventer un autre.
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  -- Le nom de la page sans extension : 'recap', 'suivi-dispo', 'tournees'…
+  page text not null,
+  data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, page)
+);
+drop trigger if exists trg_preferences_utilisateur_updated_at on preferences_utilisateur;
+create trigger trg_preferences_utilisateur_updated_at before update on preferences_utilisateur
+  for each row execute function set_updated_at();
+
+alter table preferences_utilisateur enable row level security;
+-- Chacun·e ne lit et n'écrit que les siennes. Et seuls les comptes de l'équipe
+-- en écrivent : un compte authentifié hors liste ne doit rien pouvoir y poser,
+-- même à son propre nom.
+drop policy if exists "preferences propres" on preferences_utilisateur;
+create policy "preferences propres" on preferences_utilisateur for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid() and has_access());
+
+
+-- ----------------------------------------------------------------------------
+-- messages_envoyes — le texte parti, pas seulement son motif.
+-- Jusqu'ici on traçait le motif et les dates : assez pour retrouver qu'on a
+-- « posé une option » à quelqu'un, pas pour relire ce qu'on lui a dit. Dès
+-- qu'un message est écrit à la main, le motif ne raconte plus rien et
+-- l'historique devient illisible. Sujet et corps s'enregistrent donc avec
+-- l'intention, tels qu'ils sont partis.
+-- ----------------------------------------------------------------------------
+alter table messages_envoyes add column if not exists sujet text not null default '';
+alter table messages_envoyes add column if not exists texte text not null default '';

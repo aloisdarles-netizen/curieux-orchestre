@@ -630,15 +630,20 @@ const CurieuxDB = (()=>{
        nous revient d'eux. C'est la même convention que le reste de l'app, et
        elle vaut d'être sue en lisant la colonne. */
     messages_envoyes: {
+      // sujet et texte : le message tel qu'il est parti. Le motif suffisait
+      // tant que tout venait d'un modèle ; dès qu'on écrit à la main, c'est
+      // le seul moyen de relire ce qu'on a dit à quelqu'un.
       toDb: (m)=> ({
         id: m.id, person_id: m.personId, person_type: m.personType,
         tournee_id: m.tourneeId || null, motif: m.motif || '',
-        dates: m.dates || [], canal: m.canal || '', par: m.par || ''
+        dates: m.dates || [], canal: m.canal || '', par: m.par || '',
+        sujet: m.sujet || '', texte: m.texte || ''
       }),
       fromDb: (r)=> ({
         id: r.id, personId: r.person_id, personType: r.person_type,
         tourneeId: r.tournee_id || '', motif: r.motif || '',
         dates: r.dates || [], canal: r.canal || '', par: r.par || '',
+        sujet: r.sujet || '', texte: r.texte || '',
         envoyeLe: r.envoye_le || undefined
       })
     },
@@ -1591,6 +1596,65 @@ const CurieuxDB = (()=>{
       absent: !data,
     };
   }
+
+  /* Préférences d'affichage du compte connecté, page par page.
+   *
+   * La « façon de regarder » — projets masqués, fenêtre de mois, vue choisie —
+   * vivait dans le localStorage : par navigateur, donc perdue d'un appareil à
+   * l'autre, et invisible pour qui cherche pourquoi un projet « a disparu »
+   * chez un·e collègue. Un document jsonb par (compte, page), voir
+   * preferences_utilisateur dans migrations.sql.
+   *
+   * Ni adaptateur ni _ecrire ici. La clé est composite (user_id, page) et
+   * upsertOne suppose une colonne id ; et un réglage d'affichage qui n'a pas
+   * pu partir ne mérite pas le bandeau « Réessayer » — la page garde son
+   * localStorage en repli. Pas d'abonnement realtime non plus : personne
+   * d'autre ne modifie nos préférences.
+   *
+   * L'user_id n'apparaît nulle part côté client : le RLS ne rend que sa
+   * ligne, et la base pose auth.uid() par défaut à l'insertion. Le filtrer
+   * ici obligerait à connaître l'uid, pour ne rien restreindre de plus. */
+
+  // Table pas encore migrée, ou en cours de l'être : on se tait, la page a
+  // ses défauts. Le code seul ne suffit pas — selon la couche qui répond,
+  // le nom de la table n'est que dans le message.
+  function _preferencesIndisponibles(error){
+    if(!error) return false;
+    return _tableAbsente(error) || /preferences_utilisateur/.test(error.message || '');
+  }
+
+  // Rend l'objet data, ou {} quoi qu'il arrive : session absente, table pas
+  // encore créée, hors ligne — la page part de ses défauts sans casser.
+  async function fetchPreferences(page){
+    if(!supabaseClient) return {};
+    try{
+      const { data, error } = await supabaseClient.from('preferences_utilisateur')
+        .select('data').eq('page', page).maybeSingle();
+      if(error){
+        if(!_preferencesIndisponibles(error)) console.warn('[CurieuxDB] fetchPreferences', error.message);
+        return {};
+      }
+      return (data && data.data && typeof data.data === 'object') ? data.data : {};
+    }catch(e){ return {}; }
+  }
+
+  // Fusionne un patch dans les préférences de la page, jamais d'écrasement en
+  // bloc : deux onglets peuvent régler deux clés différentes sans se défaire
+  // l'un l'autre. Rend { error, data } avec data = l'objet fusionné.
+  async function savePreferences(page, patch){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const existant = await fetchPreferences(page);
+    const data = { ...existant, ...(patch || {}) };
+    try{
+      const { error } = await supabaseClient.from('preferences_utilisateur')
+        .upsert({ page, data }, { onConflict: 'user_id,page' });
+      if(error && !_preferencesIndisponibles(error)) console.warn('[CurieuxDB] savePreferences', error.message);
+      return { error: error || null, data };
+    }catch(e){
+      return { error: { message: e && e.message ? e.message : String(e) }, data };
+    }
+  }
+
   // Les jetons permanents de tout un groupe, en une passe.
   //
   // Les liens envoyés portaient jusqu'ici le jeton d'une DEMANDE de dispo. Ce
@@ -1889,7 +1953,7 @@ const CurieuxDB = (()=>{
 
   return {
     fetchAll, fetchOne, tableManquante, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
-    fetchReglages, setPhaseTest, setVillesBase, setTechniqueSeuils, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
+    fetchReglages, fetchPreferences, savePreferences, setPhaseTest, setVillesBase, setTechniqueSeuils, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,

@@ -52,6 +52,12 @@ Carnet d'adresses auto-alimenté depuis les feuilles de route (régisseurs, cont
 ### `newsletter_snapshot`
 Une seule ligne (`id = 1`), remplacée à chaque "Marquer comme envoyé" dans la page Newsletter. Sert de référence pour calculer le diff (nouveau / changé / annulé) au prochain envoi.
 
+### `messages_envoyes`
+Ce qu'on a envoyé, à qui, et quand — l'*intention* au clic, pas la remise : WhatsApp et le client de messagerie ne nous répondent pas. Une ligne par personne et par projet concerné. Colonnes : `id`, `person_id`, `person_type`, `tournee_id` (sans clé étrangère : la trace survit à la suppression d'une fiche), `motif` (la clé du modèle employé), `dates` (jsonb, les dates ISO dont parlait le message), `canal`, `par` (l'email de qui a cliqué), `envoye_le`, et depuis septembre 2026 `sujet` et `texte` : le message tel qu'il est parti. Jusque-là on ne gardait que le motif et les dates — illisible dès qu'un message est écrit à la main.
+
+### `preferences_utilisateur`
+Une ligne par compte **et** par page, clé primaire `(user_id, page)`. `data` (jsonb) porte les réglages d'affichage de cette page pour ce compte — projets masqués, fenêtre de mois, tri… — sur le modèle « un document par ligne » des feuilles de route : ajouter une préférence ne demande pas de migration. `user_id` vaut `auth.uid()` par défaut, le client ne l'envoie jamais ; la RLS ne rend à chacun·e que ses lignes, et seuls les comptes de l'équipe (`has_access()`) en écrivent. C'est la première table *par utilisateur* : `reglages` est un singleton d'équipe, et le localStorage ne suit pas la personne d'un appareil à l'autre. Volontairement hors audit, hors corbeille et hors purge d'essai — ce sont des réglages d'affichage, pas des données d'équipe.
+
 ## Ce qui reste en localStorage (volontairement non migré)
 
 - `fdr-last-id` : mémorise juste la dernière feuille de route ouverte sur *ce* poste, pour la rouvrir si on arrive sur `feuille-de-route.html` sans paramètre `?id=`. C'est une préférence d'affichage locale, pas une donnée métier — pas besoin de la partager entre postes.
