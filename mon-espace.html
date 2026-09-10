@@ -30,8 +30,12 @@
      Elle accueille maintenant le calendrier de la saison en tete, qui a besoin
      de largeur pour poser ses mois cote a cote ; les tuiles, elles, gardent la
      leur et ne s'etirent pas. */
-  .wrap{max-width:1100px; margin:0 auto; padding:0 22px 90px;}
-  .entete, .menu, .porte, .sans-date, #blocInstallation, #contenu .section-titre{max-width:560px;}
+  /* Une pile en flex, et non en blocs : c'est ce qui permet, sur téléphone, de
+     passer les dates DERRIÈRE le dossier et les disponibilités (order, plus
+     bas) sans toucher au DOM — l'ordre du document reste celui de l'écran
+     large, et une fenêtre qui traverse le seuil se réordonne d'elle-même. */
+  .wrap{max-width:1100px; margin:0 auto; padding:0 22px 90px; display:flex; flex-direction:column;}
+  .entete, .menu, .porte, .sans-date, #blocInstallation, #installation .section-titre, #contenu .section-titre{max-width:560px;}
   .entete{padding:26px 0 20px;}
   .entete img.brand-logo-img{height:30px; margin-bottom:18px; display:block;}
   .sous{color:var(--muted); font-size:14px; margin:0;}
@@ -41,6 +45,10 @@
   }
 
   .menu{display:flex; flex-direction:column; gap:10px; margin-bottom:22px;}
+  /* La pile étant en flex, la marge du dernier menu ne fusionne plus avec
+     celle du titre qui suit dans le bloc d'après : sans ceci, vingt-deux
+     pixels de plus entre « Mon dossier » et « Sur mon téléphone ». */
+  #contenu > .menu:last-child{margin-bottom:0;}
   a.tuile{display:flex; align-items:center; gap:14px;}
   a.tuile:active{transform:scale(.995);}
   .tuile-icone{
@@ -70,13 +78,59 @@
   #mesDates{margin-bottom:26px;}
 
   /* ------------------------------------------------------------------------
+     Le bloc Mes dates, sur les deux largeurs.
+
+     C'est un <details> partout, pour n'avoir qu'un seul DOM ; mais sur écran
+     large il n'en a ni l'air ni la fonction : le titre est celui d'une
+     section, sans marqueur, et ne replie rien (le script rouvre ce qu'un
+     clavier fermerait). Le compte et l'aperçu des prochaines dates n'y sont
+     pas montrés non plus — le calendrier est juste dessous, déplié, et il
+     dit tout cela mieux.
+
+     Sur téléphone, c'est l'inverse : la section entière est un en-tête
+     cliquable « Mes dates — N à venir », avec les trois prochaines dates
+     toujours lisibles, et les colonnes (ou le calendrier) derrière. Ce qui
+     se mesurait avant : le bloc déplié en tête poussait le dossier et les
+     demandes de dispo à 1 100-1 700 px, soit un écran et demi à deux — et
+     la personne qui ouvre son espace depuis un message de demande vient
+     précisément répondre à cette demande. Voir aussi l'ordre des blocs
+     dans la media query en fin de feuille.
+     ------------------------------------------------------------------------ */
+  #mesDatesPli > summary{list-style:none; cursor:default;}
+  #mesDatesPli > summary::-webkit-details-marker{display:none;}
+  /* Un span, parce qu'un <summary> n'admet que du texte en ligne ; en bloc
+     pour garder les marges du titre de section. */
+  #mesDatesPli > summary .section-titre{display:block;}
+  .mesdates-nb, .mesdates-chevron, #mesDatesPli .mdv-apercu{display:none;}
+  @media (max-width:760px){
+    #mesDatesPli > summary{
+      cursor:pointer; background:var(--card); border:1px solid var(--border); border-radius:14px;
+      padding:13px 15px 14px; position:relative; -webkit-tap-highlight-color:transparent;
+    }
+    #mesDatesPli > summary .section-titre{margin:0; padding-right:28px;}
+    .mesdates-nb{display:inline; text-transform:none; letter-spacing:0; font-weight:700; color:var(--text);}
+    .mesdates-quand{display:block; margin:3px 0 0; font-size:11px;}
+    .mesdates-chevron{
+      display:block; position:absolute; right:15px; top:14px; width:18px; height:18px;
+      color:var(--muted); transition:transform .18s ease;
+    }
+    #mesDatesPli[open] > summary .mesdates-chevron{transform:rotate(180deg);}
+    #mesDatesPli[open] > summary{border-bottom-left-radius:0; border-bottom-right-radius:0;}
+    #mesDatesPli .mdv-apercu{display:flex;}
+    #mesDatesVue{margin-top:12px;}
+  }
+
+  /* ------------------------------------------------------------------------
      L'état du dossier, en arrivant.
 
      Deux choses se découvraient bien trop tard : une fiche sociale incomplète
      au moment de faire un contrat, et une liste de remplaçant·es vide le jour
      où l'on cherche quelqu'un en urgence. Elles se disent donc dès l'accueil,
      à chaque visite — et tant qu'aucun·e remplaçant·e n'est nommé·e, c'est par
-     là qu'on passe avant les disponibilités.
+     là qu'on passe avant les disponibilités. Sur téléphone, c'est aussi ce
+     qu'on voit en premier, avant les dates : le bloc Mes dates y passe
+     derrière, replié (voir plus bas). Sur écran large, les dates gardent la
+     tête et le dossier vient juste dessous — la place ne manque pas.
      ------------------------------------------------------------------------ */
   .dossier{
     border-radius:14px; padding:15px 17px; margin-bottom:20px;
@@ -141,6 +195,19 @@
     background:var(--ok-tint); color:var(--ok); border-radius:14px;
     padding:14px 16px; font-size:13.5px;
   }
+
+  /* L'ordre des blocs sur téléphone : le dossier et les disponibilités
+     d'abord, les dates ensuite, le mode d'emploi d'installation toujours en
+     dernier. Sur écran large, l'ordre du document — les dates en tête — ne
+     bouge pas. En fin de feuille par principe (voir base.css) : ce sont des
+     surcharges à une seule classe ou un seul id, elles doivent venir après
+     ce qu'elles corrigent. */
+  @media (max-width:760px){
+    #contenu{order:1;}
+    #mesDates{order:2; margin:22px 0 4px;}
+    #mesDates:empty{display:none;}
+    #installation{order:3;}
+  }
 </style>
 </head>
 <body>
@@ -153,6 +220,11 @@
 
   <div id="mesDates"></div>
   <div id="contenu"></div>
+  <!-- Le mode d'emploi d'installation a son propre conteneur, hors de
+       #contenu : sur téléphone les dates viennent après le dossier et les
+       disponibilités, mais avant lui — il n'y a aucune raison de faire passer
+       ses trois prochaines dates sous « ajoute cette page à ton écran d'accueil ». -->
+  <div id="installation"></div>
 </div>
 
 <script>
@@ -262,17 +334,53 @@ async function init(){
   document.getElementById('titre').textContent = prenom ? `Bonjour ${prenom}` : 'Mon espace';
   document.getElementById('sousTitre').textContent = 'Ton espace personnel — reviens-y quand tu veux.';
 
-  /* Les dates d'abord : c'est la question qu'on se pose en ouvrant son espace,
-     et elle demandait jusqu'ici un clic de plus. Le calendrier par defaut — sur
-     telephone le module retombe de lui-meme sur les colonnes, ou sept colonnes
-     de grille ne tiendraient pas. La tuile « Mes dates » reste plus bas : elle
-     mene a la page dediee, celle qu'on envoie par message. */
+  /* Les dates, et où elles se mettent.
+
+     Sur écran large, d'abord : c'est la question qu'on se pose en ouvrant son
+     espace, et elle demandait jusqu'ici un clic de plus. Le calendrier par
+     défaut, déplié, la saison d'un coup d'œil.
+
+     Sur téléphone, on a mesuré ce que ça donnait : le bloc déplié en tête —
+     colonnes ou calendrier — repoussait le dossier et la demande de dispo à
+     un écran et demi, voire deux et demi. Or c'est pour RÉPONDRE à une
+     demande que les messages envoient ici (messages.html envoie la page
+     dédiée pour les annonces de dates). Le bloc passe donc derrière le
+     dossier et les disponibilités (order, dans la feuille), replié sous un
+     en-tête qui dit combien de dates viennent et lesquelles sont les trois
+     prochaines : la question « quand est-ce que je joue ensuite ? » garde sa
+     réponse sur le premier écran, sans clic. Le module, lui, retombe sur les
+     colonnes sur petit écran quoi qu'il ait mémorisé. */
   if(mesDates && !mesDates.migrationAbsente && (mesDates.dates || []).length){
     const stamp = CurieuxMesDates.fraicheur(mesDates.genereLe);
+    const petit = CurieuxMesDates.mediaPetitEcran();
+    const resume = CurieuxMesDates.apercu(mesDates, 3);
     document.getElementById('mesDates').innerHTML =
-      `<div class="section-titre">Mes dates${stamp ? ` <span class="mesdates-quand">${escapeHtml(stamp)}</span>` : ''}</div>
-       <div id="mesDatesVue"></div>`;
-    CurieuxMesDates.monter(document.getElementById('mesDatesVue'), mesDates, { vueParDefaut: 'calendrier' });
+      `<details id="mesDatesPli"${petit.matches ? '' : ' open'}>
+         <summary>
+           <span class="section-titre">Mes dates<span class="mesdates-nb"> — ${resume.nb} à venir</span>${
+             stamp ? ` <span class="mesdates-quand">${escapeHtml(stamp)}</span>` : ''}</span>
+           <svg class="mesdates-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6,9 12,15 18,9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>
+           ${resume.html}
+         </summary>
+         <div id="mesDatesVue"></div>
+       </details>`;
+    const vue = CurieuxMesDates.monter(document.getElementById('mesDatesVue'), mesDates, { vueParDefaut: 'calendrier' });
+
+    /* Le pli n'existe qu'au doigt. Sur écran large, le titre reste un titre :
+       un clavier qui le fermerait le rouvre aussitôt. Et quand la fenêtre
+       franchit le seuil vers le large — rotation d'une tablette, fenêtre
+       étirée — le bloc s'ouvre, puisqu'il n'y a plus rien pour le rouvrir.
+       Dans l'autre sens on ne referme pas : la personne est peut-être en
+       train de lire. Au dépliage, le module remesure ses colonnes — cachées
+       au montage, elles n'avaient pas pu être tronquées. */
+    const pli = document.getElementById('mesDatesPli');
+    pli.addEventListener('toggle', ()=>{
+      if(!pli.open && !petit.matches){ pli.open = true; return; }
+      if(pli.open) vue.ajuster();
+    });
+    const ouvrirSiLarge = ()=>{ if(!petit.matches && !pli.open) pli.open = true; };
+    if(petit.addEventListener) petit.addEventListener('change', ouvrirSiLarge);
+    else if(petit.addListener) petit.addListener(ouvrirSiLarge);
   }
 
   const jeton = encodeURIComponent(TOKEN);
@@ -373,6 +481,11 @@ async function init(){
   // qu'on appelle, dans SON ordre. Sans elle, la production choisit à sa place.
   // La sortie « je le ferai juste après » reste ouverte — la question revient
   // simplement à la prochaine connexion.
+  //
+  // « On passe par là » avait cessé d'être vrai sur téléphone : la porte
+  // tombait à 1 200 px, sous six cents pixels de colonnes de dates. Elle est
+  // de nouveau la première chose sous le dossier — le bloc Mes dates vient
+  // après, replié.
   const barree = remplaAFaire && !reportRemplacants(moi.personId);
   const blocDisposOuPorte = !barree ? `
     <div class="section-titre">Mes disponibilités${enAttente.length ? ` — ${enAttente.length} à compléter` : ''}</div>
@@ -391,9 +504,11 @@ async function init(){
     </div>`;
 
   /* Il y avait ici une tuile « Mes dates » qui menait à la page dédiée. Elle
-     faisait doublon depuis que le calendrier s'affiche en tête de cette
-     page-ci : une tuile qui mène à ce qu'on vient de lire est une invitation à
-     douter d'avoir bien lu. La page dédiée existe toujours — c'est elle qu'on
+     faisait doublon depuis que les dates s'affichent sur cette page-ci : une
+     tuile qui mène à ce qu'on vient de lire est une invitation à douter
+     d'avoir bien lu. Sur téléphone, l'en-tête replié du bloc Mes dates joue
+     ce rôle d'entrée — mais il s'ouvre sur place, avec ses trois prochaines
+     dates déjà lisibles. La page dédiée existe toujours — c'est elle qu'on
      envoie par message — mais on n'y renvoie plus d'ici. */
   document.getElementById('contenu').innerHTML = `
     ${blocDossier}
@@ -406,7 +521,8 @@ async function init(){
       ${estTitulaire ? tuile(lienRempla, ICONES.remplacants, 'Mes remplaçant·es', 'Par ordre de préférence',
         nbRemplacants ? `<span class="pastille faite">${nbRemplacants}</span>` : '<span class="pastille">À faire</span>') : ''}
     </div>
-
+  `;
+  document.getElementById('installation').innerHTML = `
     <div class="section-titre">Sur mon téléphone</div>
     <div id="blocInstallation"></div>
   `;
