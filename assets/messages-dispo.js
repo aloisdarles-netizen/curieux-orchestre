@@ -7,11 +7,11 @@
    manquantes — sur une tournée de douze dates, le message faisait quinze
    lignes sur un téléphone, et personne ne le lisait jusqu'au lien.
 
-   Huit modèles aujourd'hui — cinq qui demandent une disponibilité, trois qui
-   annoncent — et une règle : au-delà de cinq dates on ne les énumère plus, on
-   dit combien et sur quelle période. Le lien personnel, lui, est dans tous les
-   modèles sans exception — c'est la seule chose que le message doit absolument
-   transmettre.
+   Dix modèles aujourd'hui — cinq qui demandent une disponibilité, quatre qui
+   annoncent, un qu'on écrit soi-même — et une règle : au-delà de cinq dates on
+   ne les énumère plus, on dit combien et sur quelle période. Le lien personnel,
+   lui, est dans tous les modèles sans exception — c'est la seule chose que le
+   message doit absolument transmettre.
 
    LE TON, enfin, qui n'est pas un détail : ces messages partent à des gens
    qu'on connaît, et qu'on va retrouver en tournée. Ni raides ni familiers.
@@ -70,6 +70,7 @@ const CurieuxMessages = (function(){
      « les 3 mai, 5 mai et 9 mai ». À cheval sur deux mois, chacun reprend le
      sien : « les 3, 5 mai et 2 juin ». */
   function listeOuResume(dates, nom){
+    if(gabarit) return '{dates}';
     const l = propres(dates);
     if(!l.length) return '';
     if(l.length === 1) return 'le ' + jour(l[0]);
@@ -88,6 +89,7 @@ const CurieuxMessages = (function(){
      répète un mot que le lecteur vient de lire, ce qui est la définition même
      d'une phrase mal écrite. */
   function periode(dates){
+    if(gabarit) return '{periode}';
     const l = propres(dates);
     if(!l.length) return '';
     if(l.length === 1) return 'le ' + jour(l[0]);
@@ -106,6 +108,81 @@ const CurieuxMessages = (function(){
 
   function nomProjet(ctx){ return ctx.projet ? `« ${ctx.projet} »` : 'le projet'; }
   function salut(ctx){ return `Bonjour ${(ctx.prenom || '').trim()}`.trim(); }
+
+  /* ==========================================================================
+     Le texte libre, et ses variables
+     ==========================================================================
+     Les neuf modèles ci-dessous couvrent ce qui revient chaque saison. Ils ne
+     couvrent pas le reste : un changement d'horaire, un covoiturage, une salle
+     qui déménage. Ces messages-là partaient d'ailleurs — du téléphone, un par
+     un, sans trace — parce que la page ne savait qu'appliquer des modèles.
+
+     D'où le dixième, qui n'est pas un modèle mais un gabarit : on écrit le
+     texte, et on y sème des variables que l'envoi remplace PERSONNE PAR
+     PERSONNE. C'est toute la difficulté d'un message à quarante destinataires :
+     s'il est vraiment le même pour tous, il ne peut contenir ni prénom ni lien
+     personnel, et sans lien personnel il ne sert à rien. {prenom} et {lien}
+     rendent le message unique sans le réécrire quarante fois.
+
+     Six variables, pas plus. Chacune correspond à ce qui change d'une personne
+     à l'autre dans les modèles existants — au-delà, on demanderait à l'écrivant
+     de connaître la forme des données, ce qui est exactement ce qu'un texte
+     libre doit lui épargner. Une accolade inconnue reste telle quelle : mieux
+     vaut un « {prénom} » visible dans l'aperçu, qu'on corrige, qu'un trou. */
+  const VARIABLES = [
+    { cle:'prenom',  aide:'son prénom' },
+    { cle:'projet',  aide:'le nom du projet' },
+    { cle:'dates',   aide:'ses dates, énumérées ou résumées' },
+    { cle:'periode', aide:'« du 3 mai au 19 juin »' },
+    { cle:'lien',    aide:'son lien personnel' },
+    { cle:'butoir',  aide:'la date butoir saisie plus haut' },
+  ];
+  const VALEURS = {
+    prenom:  ctx=> (ctx.prenom || '').trim(),
+    projet:  ctx=> ctx.projet || '',
+    dates:   ctx=> listeOuResume(enJeu(ctx)),
+    periode: ctx=> periode(enJeu(ctx)),
+    lien:    ctx=> ctx.lien || '',
+    butoir:  ctx=> (ctx.butoir || '').trim(),
+  };
+
+  // Une fonction de remplacement plutôt qu'une chaîne : un lien ou un prénom
+  // qui contiendrait « $& » ne doit pas se réinjecter dans le texte.
+  function substituer(texte, ctx){
+    const c = ctx || {};
+    return String(texte == null ? '' : texte)
+      .replace(/\{(prenom|projet|dates|periode|lien|butoir)\}/g, (tout, cle)=> VALEURS[cle](c));
+  }
+
+  /* Partir d'un modèle pour écrire le sien.
+     -------------------------------------------------------------------------
+     Écrire devant un cadre vide est le meilleur moyen d'oublier le lien. On
+     propose donc de partir d'un modèle — mais rendu AVEC les variables en
+     clair, sinon le texte porterait le prénom de la personne affichée dans
+     l'aperçu et partirait tel quel aux trente-neuf autres.
+
+     Prénom, projet, lien et butoir se remplacent par leur marque : il suffit de
+     les passer dans le contexte. Les dates, non — les modèles les mettent en
+     forme eux-mêmes (listeOuResume, periode), et aucune valeur de tableau ne
+     ressort en « {dates} ». On lève donc un drapeau le temps du rendu, et ce
+     sont les deux formateurs qui rendent la marque. Synchrone, dans un
+     try/finally : rien ne peut s'intercaler entre les deux. */
+  let gabarit = false;
+  const CTX_GABARIT = {
+    prenom:'{prenom}', projet:'{projet}', lien:'{lien}', butoir:'{butoir}',
+    // Deux dates fictives, jamais lues : les formateurs sont court-circuités.
+    // Elles ne servent qu'à ce que les modèles accordent au pluriel — « garde
+    // ces dates de côté » plutôt que « cette date », parce qu'on écrit rarement
+    // à toute une équipe pour une seule journée.
+    toutes:['2000-01-01', '2000-01-02'], manquantes:[],
+  };
+  function rendreGabarit(cle, ctx){
+    gabarit = true;
+    // Le contexte réel d'abord (rôle, type de projet, métier : c'est ce qui
+    // donne le ton), les marques par-dessus : elles ne se laissent pas écraser.
+    try{ return construire(cle, Object.assign({}, ctx || {}, CTX_GABARIT)); }
+    finally{ gabarit = false; }
+  }
 
   /* Ce que le message doit savoir de la personne à qui il s'adresse.
      -------------------------------------------------------------------------
@@ -426,6 +503,25 @@ const CurieuxMessages = (function(){
         ].join('\n');
       },
     },
+
+    /* ------------------------------------------------------------------------
+       Le texte libre, en dernier — et dans sa propre famille.
+       ------------------------------------------------------------------------
+       Son `contexte` n'est ni 'dispo' ni 'info' : le menu ▾ du suivi des dispos
+       et celui des tournées ne montrent qu'une famille à la fois, et proposer
+       « Message libre » là où l'on choisit une relance offrirait un champ vide
+       qu'aucun de ces menus ne sait afficher.
+
+       Il est en fin de tableau parce que modele() retombe sur MODELES[1] pour
+       toute clé inconnue : le déplacer changerait ce repli.
+    ------------------------------------------------------------------------ */
+    {
+      cle: 'libre',
+      libelle: 'Message libre',
+      aide: "À écrire soi-même — les variables se remplissent à l'envoi.",
+      contexte: 'libre',
+      texte(ctx){ return substituer(ctx.texteLibre, ctx); },
+    },
   ];
 
   // Le contexte d'un modèle : 'dispo' quand il va chercher une réponse (les
@@ -605,5 +701,8 @@ const CurieuxMessages = (function(){
   }
 
   return { MODELES, modelesDe, construire, listeOuResume, periode, joindre, numeroWhatsapp, envoyer,
-           ouvrirMenu, chevronHtml, fermerMenu: fermer };
+           ouvrirMenu, chevronHtml, fermerMenu: fermer,
+           // Le texte libre : les variables reconnues, leur remplacement, et le
+           // rendu d'un modèle avec les marques en clair pour servir de départ.
+           VARIABLES, substituer, rendreGabarit };
 })();

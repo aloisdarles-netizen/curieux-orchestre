@@ -33,6 +33,16 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-10-2',
+    titre: 'Les messages s’écrivent',
+    points: [
+      "Sur la page Messages, le texte est maintenant modifiable : on part d'un modèle — ou d'une page vide avec « Message libre » — et on écrit ce qu'on veut.",
+      "Les mots entre accolades ({prenom}, {projet}, {dates}, {periode}, {lien}, {butoir}) sont remplacés à l'envoi, personne par personne : un seul message écrit, et chacun·e reçoit le sien avec son prénom et son lien.",
+      "« Envoyer aux 12, un par un » fait défiler les destinataires : le texte exact, le canal, un bouton. On voit où on en est, et on peut s'arrêter puis reprendre.",
+      "Ce qui part est gardé avec sa date et son texte : un mois plus tard, on peut relire ce qu'on avait écrit à quelqu'un.",
+    ],
+  },
+  {
     version: '2026-09-10',
     titre: 'Cachets, récapitulatif, budget',
     points: [
@@ -41,12 +51,7 @@ const CURIEUX_NOUVEAUTES = [
       "Le statut « Recherche » d'une date s'appelle maintenant « À l'étude » : rien n'est réservé, on regarde seulement si la date est jouable.",
       "Le budget a sa propre section dans le bandeau — tableau de bord, devis et clients — au lieu de vivre sous Admin.",
       "L'espace Comm, qui ne servait pas, est retiré.",
-      // À CONFIRMER par le mainteneur avant déploiement : les trois points qui
-      // suivent décrivent des chantiers en cours (notes repliées sur la page
-      // dispo, espace musicien·ne sur téléphone, tris et ordre perso de la vue
-      // d'ensemble, page Documents, pupitre Chant). Retirer ceux qui ne
-      // partent pas avec cette livraison, préciser ceux qui partent.
-      "Sur la vue d'ensemble, les lignes se trient et se rangent à ta main, et tes réglages te suivent d'un appareil à l'autre.",
+      "La « vue d'ensemble » s'appelle désormais le tableau de service. Ses lignes se trient et se rangent à ta main, et tes réglages te suivent d'un appareil à l'autre.",
       "Sur téléphone, l'espace musicien·ne ouvre sur le dossier et les dispos ; les précisions se lisent d'un clic au lieu de s'étaler sous les noms.",
       "Une page Documents rassemble les récapitulatifs PDF, et le chant a son pupitre.",
     ],

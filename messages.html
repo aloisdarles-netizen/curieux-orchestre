@@ -19,35 +19,35 @@
 <link rel="stylesheet" href="assets/base.css">
 <style>
   .wrap{max-width:1280px; margin:0 auto;}
-  .deux{display:grid; grid-template-columns:minmax(0, 1fr) 372px; gap:20px; align-items:start;}
-  @media (max-width:1000px){ .deux{grid-template-columns:minmax(0, 1fr);} }
+  .deux{display:grid; grid-template-columns:minmax(0, 1fr) 380px; gap:20px; align-items:start;}
+  @media (max-width:1040px){ .deux{grid-template-columns:minmax(0, 1fr);} }
 
   .etape{
     background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-    padding:14px 16px; margin-bottom:12px;
+    padding:15px 17px; margin-bottom:14px;
   }
   .etape-titre{
     font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
     font-weight:800; margin:0 0 9px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;
   }
   .etape-titre em{font-style:normal; color:var(--accent-dark); font-weight:800;}
-  .etape-aide{font-size:12.5px; color:var(--muted); line-height:1.5; margin:0 0 10px;}
+  .etape-titre .grand{font-size:14px; text-transform:none; letter-spacing:0; color:var(--text);}
+  .etape-aide{font-size:12.5px; color:var(--muted); line-height:1.55; margin:0 0 11px;}
 
-  /* Le motif, en deux familles. Demander et informer ne sont pas le même
-     geste : les mêler dans une liste unique, c'est laisser choisir « Relance
-     courte » quand on voulait annoncer une validation. */
+  /* Les modèles, en trois familles. Demander, informer et écrire soi-même ne
+     sont pas le même geste : les mêler dans une liste unique, c'est laisser
+     choisir « Relance courte » quand on voulait annoncer une validation. */
   .famille{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
-    color:var(--muted); margin:10px 0 6px;}
+    color:var(--muted); margin:11px 0 6px;}
   .famille:first-child{margin-top:0;}
-  .motifs{display:flex; gap:7px; flex-wrap:wrap;}
+  .motifs{display:flex; gap:6px; flex-wrap:wrap;}
   .motif{
     border:1px solid var(--border); background:var(--bg); color:var(--text);
     font:inherit; font-size:12.5px; font-weight:700; border-radius:999px;
-    padding:7px 13px; cursor:pointer; text-align:left;
+    padding:6px 13px; cursor:pointer; text-align:left;
   }
   .motif:hover{border-color:var(--accent);}
   .motif.on{background:var(--accent); border-color:var(--accent); color:#fff;}
-  .motif small{display:block; font-weight:600; font-size:11px; opacity:.75;}
 
   .puces{display:flex; gap:6px; flex-wrap:wrap;}
   .puce-date{
@@ -58,17 +58,14 @@
   .puce-date small{font-weight:600; color:var(--muted); margin-left:5px;}
   .puce-date.on{background:var(--accent-tint); border-color:var(--accent-dark); color:var(--accent-dark);}
   .puce-date.on small{color:var(--accent-dark);}
-  /* Les projets : mêmes puces que les dates, en un peu plus large — un nom de
-     projet est plus long qu'un quantième. */
   .puce-projet{
     border:1px solid var(--border); background:var(--bg); color:var(--text);
-    font:inherit; font-size:12.5px; font-weight:700; border-radius:999px;
-    padding:6px 13px; cursor:pointer; text-align:left;
+    font:inherit; font-size:13px; font-weight:700; border-radius:999px;
+    padding:7px 14px; cursor:pointer; text-align:left;
   }
   .puce-projet:hover{border-color:var(--accent);}
   .puce-projet.on{background:var(--accent); border-color:var(--accent); color:#fff;}
   .puce-projet small{font-weight:600; opacity:.75; margin-left:6px;}
-  /* Le nom du projet en tête d'un paquet de dates, quand il y en a plusieurs. */
   .dates-projet{
     font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
     color:var(--muted); margin:10px 0 5px; width:100%;
@@ -81,23 +78,52 @@
   }
   .mini:hover{border-color:var(--accent); color:var(--accent);}
 
-  /* Les destinataires. Une ligne par personne, et sur chaque ligne les trois
-     choses qui décident : par où on la joint, quand on lui a écrit pour la
-     dernière fois, et le bouton. */
+  /* --- Le texte, qui s'écrit --------------------------------------------- */
+  .etat-message{
+    font-size:12.5px; line-height:1.55; margin:12px 0 8px; color:var(--muted);
+    display:flex; align-items:baseline; gap:9px; flex-wrap:wrap;
+  }
+  .etat-message b{color:var(--text);}
+  .etat-message.perso{color:var(--accent-dark);}
+  .champ{
+    width:100%; padding:9px 11px; border:1px solid var(--border);
+    border-radius:9px; background:var(--bg); color:var(--text); font:inherit; font-size:13px;
+  }
+  .champ:focus{outline:none; border-color:var(--accent);}
+  .champ-etiquette{
+    display:block; font-size:11px; font-weight:800; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--muted); margin:0 0 5px;
+  }
+  .zone-texte{
+    width:100%; min-height:210px; padding:12px 13px; border:1px solid var(--border);
+    border-radius:10px; background:var(--bg); color:var(--text);
+    font:inherit; font-size:13.5px; line-height:1.65; resize:vertical;
+  }
+  .zone-texte:focus{outline:none; border-color:var(--accent);}
+  .vars{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:9px;}
+  .vars-aide{font-size:12px; color:var(--muted); width:100%; line-height:1.5; margin:0 0 2px;}
+  .var{
+    border:1px dashed var(--accent); background:var(--accent-tint); color:var(--accent-dark);
+    font:inherit; font-size:12px; font-weight:700; border-radius:7px;
+    padding:4px 9px; cursor:pointer; font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .var:hover{background:var(--accent); color:#fff; border-style:solid;}
+
+  /* --- Les destinataires ------------------------------------------------- */
   .gens{width:100%; border-collapse:collapse;}
   .gens th{
     text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
     color:var(--muted); font-weight:800; padding:0 8px 7px; border-bottom:1px solid var(--border);
   }
-  .gens td{padding:7px 8px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle;}
+  .gens td{padding:8px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle;}
   .gens tr:last-child td{border-bottom:none;}
   .gens tr.parti td{background:var(--ok-tint);}
   .gens input[type=checkbox]{width:17px; height:17px; accent-color:var(--accent);}
   .g-nom{font-weight:700;}
   .g-metier{display:block; font-size:11.5px; color:var(--muted); font-weight:400;}
   /* Le rôle sur CE projet, sur la ligne : c'est lui qui décide du message qui
-     part, et le lire ici évite d'envoyer au noyau le ton qu'on réserve à
-     quelqu'un qu'on appelle en renfort. */
+     part quand on s'en tient au modèle, et le lire ici évite d'envoyer au
+     noyau le ton qu'on réserve à quelqu'un qu'on appelle en renfort. */
   .g-role{
     font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
     padding:2px 7px; border-radius:999px; background:var(--border); color:var(--muted);
@@ -107,37 +133,62 @@
   .g-canal.aucun{color:var(--ko); font-weight:700;}
   .g-quand{font-size:11.5px; color:var(--muted); white-space:nowrap;}
   .g-envoi{
-    border:none; background:var(--accent); color:#fff; font:inherit; font-size:12px; font-weight:700;
-    border-radius:8px; padding:6px 12px; cursor:pointer; white-space:nowrap;
+    border:none; background:var(--card); color:var(--accent-dark); font:inherit; font-size:12px;
+    font-weight:700; border-radius:8px; padding:6px 11px; cursor:pointer; white-space:nowrap;
+    border:1px solid var(--border);
   }
-  .g-envoi:hover{background:var(--accent-dark);}
-  .g-envoi.refait{background:var(--card); color:var(--muted); border:1px solid var(--border);}
-  .vide{font-size:13px; color:var(--muted); padding:16px 4px; line-height:1.6;}
+  .g-envoi:hover{border-color:var(--accent);}
+  .vide{font-size:13px; color:var(--muted); padding:16px 4px; line-height:1.6; display:block;}
+  /* Sur téléphone, la date du dernier envoi passe à la ligne du métier : quatre
+     colonnes dans 380 px coupent les noms propres en deux, et un nom coupé est
+     un nom qu'on relit. */
+  @media (max-width:620px){
+    .gens th:nth-child(4), .gens td:nth-child(4){display:none;}
+    .gens td{padding:8px 5px;}
+    .g-quand-mobile{display:inline;}
+  }
+  .g-quand-mobile{display:none;}
 
-  /* L'aperçu, collé : on écrit rarement un message sans le relire, et le
-     relire trois écrans plus haut n'est pas le relire. */
-  .apercu{position:sticky; top:16px;}
+  /* --- La colonne de droite : envoyer, puis relire ------------------------ */
+  .colonne{position:sticky; top:16px;}
+  .compte{font-size:13px; color:var(--muted); margin:0 0 10px; line-height:1.5;}
+  .compte b{color:var(--text); font-size:15px;}
+  .canal-choix{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:11px;}
+  .gros{
+    width:100%; border:none; background:var(--accent); color:#fff; font:inherit;
+    font-size:15px; font-weight:800; border-radius:11px; padding:13px 16px; cursor:pointer;
+  }
+  .gros:hover{background:var(--accent-dark);}
+  .gros:disabled{background:var(--border); color:var(--muted); cursor:default;}
+
+  .file-rang{
+    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--muted); margin:0 0 3px;
+  }
+  .file-nom{font-size:16px; font-weight:800; margin:0 0 2px;}
+  .file-voie{font-size:12px; color:var(--muted); margin:0 0 10px;}
+  .file-boutons{display:grid; gap:7px; margin-top:11px;}
+  .file-secondaires{display:flex; gap:7px;}
+  .file-secondaires button{flex:1;}
+  .file-jauge{height:5px; border-radius:99px; background:var(--border); overflow:hidden; margin:0 0 11px;}
+  .file-jauge span{display:block; height:100%; background:var(--accent); transition:width .18s;}
+  .file-fini{font-size:13.5px; line-height:1.6; margin:0 0 11px;}
+  .file-fini b{font-size:15px;}
+
   .apercu-texte{
     background:var(--bg); border:1px solid var(--border); border-radius:10px;
     padding:12px 13px; font-size:13px; line-height:1.6; white-space:pre-wrap;
-    font-family:inherit; min-height:120px;
+    font-family:inherit; min-height:110px;
   }
-  .apercu-qui{font-size:11.5px; color:var(--muted); margin:0 0 8px;}
-  .canal-choix{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;}
-  .compte{font-size:12.5px; color:var(--muted); margin-top:10px; line-height:1.5;}
-  .compte b{color:var(--text);}
-  .champ-butoir{
-    width:100%; margin-top:9px; padding:8px 10px; border:1px solid var(--border);
-    border-radius:8px; background:var(--card); color:var(--text); font:inherit; font-size:13px;
-  }
-  /* Le récapitulatif se fabrique sur la page Documents : depuis le motif qui
-     l'accompagne, un lien y mène avec les mêmes projets — plutôt qu'un
-     bouton qui laisserait croire que le PDF sort d'ici. */
-  .vers-documents{font-size:12.5px; color:var(--muted); line-height:1.5; margin:10px 0 0;}
+  .apercu-choix{width:100%; margin-bottom:9px;}
+  /* Le récapitulatif se fabrique sur la page Documents : depuis le modèle qui
+     l'accompagne, un lien y mène avec les mêmes projets — plutôt qu'un bouton
+     qui laisserait croire que le PDF sort d'ici. */
+  .vers-documents{font-size:12.5px; color:var(--muted); line-height:1.55; margin:11px 0 0;}
   .vers-documents a{color:var(--accent-dark); font-weight:700;}
   .avert{
-    background:var(--maybe-tint); color:var(--maybe); border-radius:8px; padding:9px 11px;
-    font-size:12.5px; line-height:1.5; margin-top:10px; font-weight:600;
+    background:var(--maybe-tint); color:var(--maybe); border-radius:9px; padding:9px 11px;
+    font-size:12.5px; line-height:1.55; margin:11px 0 0; font-weight:600;
   }
 </style>
 </head>
@@ -146,45 +197,84 @@
   <div class="co-page-head">
     <div>
       <h1 class="co-h1">Messages</h1>
-      <p class="co-sub">Relancer une dispo, annoncer une option, dire qu'une date est validée — au même endroit, et sans oublier personne.</p>
+      <p class="co-sub">Un message, écrit une seule fois — chacun·e reçoit le sien, avec son prénom, ses dates et son lien.</p>
     </div>
   </div>
 
   <div class="deux">
     <div>
       <section class="etape">
-        <p class="etape-titre"><em>1.</em> Les projets <button type="button" class="mini" id="projetsAucun">Tout décocher</button></p>
-        <p class="etape-aide">Un seul projet pour un message ; plusieurs quand la même personne est concernée par tous — le récapitulatif d'une saison, lui, se fabrique sur la page Documents.</p>
+        <p class="etape-titre"><em>1.</em> <span class="grand">De quel projet parle-t-on&nbsp;?</span> <button type="button" class="mini" id="projetsAucun">Tout décocher</button></p>
+        <p class="etape-aide">Un projet suffit dans presque tous les cas. Coche-en plusieurs seulement si les mêmes personnes sont concernées par tous : le message les nommera tous.</p>
         <div class="puces" id="projets"></div>
       </section>
 
       <section class="etape">
-        <p class="etape-titre"><em>2.</em> Le motif</p>
+        <p class="etape-titre"><em>2.</em> <span class="grand">Le message</span></p>
+        <p class="etape-aide">Pars d'un modèle, puis écris ce que tu veux&nbsp;: le texte ci-dessous est modifiable. Les mots entre accolades sont remplacés à l'envoi, personne par personne.</p>
         <div id="motifs"></div>
-        <input type="text" class="champ-butoir" id="butoir" hidden>
-        <p class="vers-documents" id="versDocuments" hidden>Ce message annonce une pièce jointe : le document se génère sur la page Documents, avec les mêmes projets. <a id="lienDocuments" href="documents.html">Générer le document →</a></p>
+
+        <input type="text" class="champ" id="butoir" hidden style="margin-top:11px;">
+
+        <p class="etat-message" id="etatMessage"></p>
+
+        <label class="champ-etiquette" for="sujet">Objet <span style="font-weight:600; text-transform:none; letter-spacing:0;">(e-mail seulement)</span></label>
+        <input type="text" class="champ" id="sujet" style="margin-bottom:11px;">
+
+        <textarea class="zone-texte" id="zoneTexte" spellcheck="true"></textarea>
+
+        <div class="vars" id="vars"></div>
+
+        <p class="vers-documents" id="versDocuments" hidden>Ce message annonce une pièce jointe&nbsp;: le document se génère sur la page Documents, avec les mêmes projets. <a id="lienDocuments" href="documents.html">Générer le document →</a></p>
       </section>
 
       <section class="etape" id="etapeDates" hidden>
-        <p class="etape-titre"><em>3.</em> Les dates concernées <button type="button" class="mini" id="datesToutes">Tout cocher</button> <button type="button" class="mini" id="datesAucune">Aucune</button></p>
+        <p class="etape-titre"><em>3.</em> <span class="grand">Les dates concernées</span> <button type="button" class="mini" id="datesToutes">Tout cocher</button> <button type="button" class="mini" id="datesAucune">Aucune</button></p>
         <p class="etape-aide" id="datesAide"></p>
         <div class="puces" id="dates"></div>
       </section>
 
       <section class="etape">
-        <p class="etape-titre"><em id="numDest">4.</em> Les destinataires <button type="button" class="mini" id="gensTous">Tout cocher</button> <button type="button" class="mini" id="gensAucun">Aucun</button></p>
+        <p class="etape-titre"><em id="numDest">4.</em> <span class="grand">Les destinataires</span> <button type="button" class="mini" id="gensTous">Tout cocher</button> <button type="button" class="mini" id="gensAucun">Aucun</button></p>
         <p class="etape-aide" id="gensAide"></p>
         <div id="gens"></div>
       </section>
     </div>
 
-    <aside class="apercu">
+    <aside class="colonne">
       <section class="etape">
-        <p class="etape-titre">Le message</p>
-        <p class="apercu-qui" id="apercuQui"></p>
-        <div class="apercu-texte" id="apercuTexte">Choisis un projet et un motif.</div>
-        <div class="canal-choix" id="canalChoix"></div>
+        <p class="etape-titre">Envoyer</p>
         <p class="compte" id="compte"></p>
+        <div class="canal-choix" id="canalChoix"></div>
+        <button type="button" class="gros" id="lancer">Envoyer</button>
+
+        <div id="file" hidden>
+          <div class="file-jauge"><span id="fileJauge"></span></div>
+          <p class="file-rang" id="fileRang"></p>
+          <p class="file-nom" id="fileNom"></p>
+          <p class="file-voie" id="fileVoie"></p>
+          <div class="apercu-texte" id="fileTexte"></div>
+          <div class="file-boutons">
+            <button type="button" class="gros" id="fileEnvoyer">Envoyer et passer à la suivante</button>
+            <div class="file-secondaires">
+              <button type="button" class="mini" id="filePasser">Passer</button>
+              <button type="button" class="mini" id="fileArreter">Arrêter</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="fileFini" hidden>
+          <p class="file-fini" id="fileFiniTexte"></p>
+          <button type="button" class="mini" id="fileFermer">Fermer</button>
+        </div>
+
+        <p class="avert" id="avert" hidden></p>
+      </section>
+
+      <section class="etape" id="blocApercu">
+        <p class="etape-titre">Aperçu</p>
+        <select class="champ apercu-choix" id="apercuQui"></select>
+        <div class="apercu-texte" id="apercuTexte">Choisis un projet.</div>
       </section>
     </aside>
   </div>
@@ -199,34 +289,45 @@
    qu'elle tombe. Ces annonces se faisaient de mémoire, une par une, et se
    perdaient — quelqu'un apprenait l'annulation de sa date par un collègue.
 
-   Quatre principes tiennent cette page.
+   Cinq principes tiennent cette page.
 
-   1. Demander et informer ne sont pas le même geste, mais c'est la même
-      mécanique : mêmes personnes, mêmes liens, même règle des cinq dates. On
-      les réunit ici, en deux familles clairement séparées — les mêler dans une
-      liste unique, c'est laisser choisir « Relance courte » quand on voulait
-      annoncer une validation.
+   1. LE TEXTE S'ÉCRIT. Les modèles couvrent ce qui revient chaque saison ; ils
+      ne couvrent pas un changement d'horaire, un covoiturage, une salle qui
+      déménage. La page présentait une liste de modèles fermés, et laissait
+      croire qu'on pourrait les retoucher — on ne pouvait pas, et ces
+      messages-là repartaient du téléphone, un par un, sans trace. Le modèle
+      n'est donc plus qu'un point de départ : il remplit une zone de texte, et
+      cette zone s'écrit.
 
-   2. Le destinataire d'une annonce n'est pas celui d'une relance. On relance
+   2. UN SEUL MESSAGE, QUARANTE DESTINATAIRES. Un texte vraiment identique pour
+      tous ne peut porter ni prénom ni lien personnel — et sans lien personnel
+      il ne sert à rien. Les variables entre accolades ({prenom}, {lien}…) sont
+      remplacées À L'ENVOI, personne par personne : on écrit une fois, chacun·e
+      reçoit le sien. Tant qu'on n'a pas touché au texte, c'est le modèle qui
+      part, avec son adaptation au rôle et aux dates de chacun·e ; dès qu'on
+      écrit, c'est le texte tel quel, variables remplacées.
+
+   3. ON ENVOIE EN FILE, PAS EN RAFALE. Aucun navigateur n'ouvre quarante
+      onglets WhatsApp sur un seul clic — la règle est un geste, une fenêtre.
+      La file guidée fait donc défiler les destinataires un par un : le texte
+      exact, le canal, « Envoyer et passer à la suivante ». C'est le même
+      nombre de clics qu'à la main, mais sans jamais perdre le fil.
+
+   4. Le destinataire d'une annonce n'est pas celui d'une relance. On relance
       qui n'a pas répondu ; on informe qui est distribué sur les dates
-      concernées. La page présélectionne selon le motif, et on peut toujours
+      concernées. La page présélectionne selon le modèle, et on peut toujours
       corriger — mais le défaut ne doit jamais être « tout le monde », qui est
       la façon la plus sûre de faire lire les messages par personne.
 
-   3. Ce qui part se note. Sur quarante personnes prévenues une à une dans
-      WhatsApp, il suffit d'une interruption pour ne plus savoir où l'on s'était
-      arrêté. On enregistre l'INTENTION au clic, pas la remise : WhatsApp et le
-      client de messagerie s'ouvrent ailleurs et ne nous répondent pas. « Écrit
-      il y a 2 j » veut donc dire « on a cliqué », pas « la personne a lu ».
+   5. Ce qui part se note. On enregistre l'INTENTION au clic, pas la remise :
+      WhatsApp et le client de messagerie s'ouvrent ailleurs et ne nous
+      répondent pas. « Écrit il y a 2 j » veut donc dire « on a cliqué », pas
+      « la personne a lu ». Le texte envoyé est gardé avec la trace : un mois
+      plus tard, « qu'est-ce qu'on leur avait écrit » est une vraie question.
 
-   4. PLUSIEURS PROJETS À LA FOIS. Un message ne parle bien que d'un projet, ou
-      de deux quand la même personne est en retard sur les deux — c'est ainsi
-      que le suivi des dispos les cumulait déjà. Le choix du projet est donc
-      multiple, et tout ce qui suit — dates, destinataires, rôles, liens —
-      travaille sur l'union. Ce qui découle de ce choix (dates à venir,
-      personnes concernées, demandes) vit dans assets/selection-projets.js :
-      la page Documents, qui fabrique le récapitulatif en PDF, part du même
-      geste et doit lire la même chose.
+   Ce qui découle du choix des projets (dates à venir, personnes concernées,
+   demandes) vit dans assets/selection-projets.js : la page Documents, qui
+   fabrique le récapitulatif en PDF, part du même geste et lit la même chose.
 ============================================================================ */
 
 let tourneesCache = [], musiciensCache = [], techniciensCache = [];
@@ -236,21 +337,34 @@ let monEmail = '';
 
 // Ce qui est choisi à l'écran.
 let projetsChoisis = new Set();  // ids de tournée
-let motif = 'relance';
-let datesChoisies = new Set();   // ids de date, pour les motifs d'information
+let motif = 'relance';           // le modèle de départ
+let datesChoisies = new Set();   // ids de date, pour les modèles d'information
 let gensChoisis = new Set();     // 'type:id'
 let canal = '';                  // '' = auto (téléphone puis e-mail)
 let partis = new Set();          // ce qu'on a envoyé depuis l'ouverture de la page
+let apercuCle = '';              // la personne dont on relit le message
+
+/* Le texte tel qu'il partira. `modifie` sépare les deux régimes : au modèle,
+   chacun·e reçoit un texte adapté à son rôle et à ses dates ; à la main, tout
+   le monde reçoit CE texte, variables remplacées. Le mélange des deux serait
+   la seule chose vraiment trompeuse — on le dit donc à l'écran, en toutes
+   lettres, au-dessus de la zone d'écriture. */
+let texteEdite = '';
+let sujetEdite = '';
+let modifie = false;
 
 const params = new URLSearchParams(location.search);
 
-// Le motif qui accompagne un document plutôt qu'une annonce. Nommé, parce que
+// Le modèle qui accompagne un document plutôt qu'une annonce. Nommé, parce que
 // quatre endroits de la page s'en écartent — présélections, aide, contexte.
 const MOTIF_DOC = 'recap-doc';
+// Le modèle qui n'en est pas un : la page vide, où l'on écrit.
+const MOTIF_LIBRE = 'libre';
 
-function loadTournees(){ return tourneesCache; }
-function unSeulProjet(){ return projets().length === 1 ? projets()[0] : null; }
 function estInfo(cle){ return (CurieuxMessages.MODELES.find(m=> m.cle === cle) || {}).contexte === 'info'; }
+function estLibre(){ return motif === MOTIF_LIBRE; }
+// Le texte est-il de notre main ? « Message libre » l'est par construction.
+function aLaMain(){ return modifie || estLibre(); }
 
 /* Ce qui découle des projets cochés est partagé avec la page Documents
    (assets/selection-projets.js). Les enveloppes ci-dessous passent les caches
@@ -258,13 +372,17 @@ function estInfo(cle){ return (CurieuxMessages.MODELES.find(m=> m.cle === cle) |
    personnesConcernees() sans se soucier d'où ils viennent. */
 function projets(){ return CurieuxSelection.projetsChoisis(tourneesCache, projetsChoisis); }
 function datesDesProjets(){ return CurieuxSelection.datesDesProjets(projets()); }
-function dateParId(id){ return datesDesProjets().find(x=> x.d.id === id) || null; }
 function personnesConcernees(){ return CurieuxSelection.personnesConcernees(projets(), demandesCache, musiciensCache, techniciensCache); }
 function demandePour(type, id, tourneeId){ return CurieuxSelection.demandePour(demandesCache, type, id, tourneeId); }
 function concernePar(type, id, t){ return CurieuxSelection.concernePar(demandesCache, type, id, t); }
 function tousAnnules(){ return CurieuxSelection.tousAnnules(projets()); }
 const jourCourt = CurieuxSelection.jourCourt;
 const editeLe = CurieuxSelection.editeLe;
+
+// Les personnes cochées, dans l'ordre du tableau — c'est aussi l'ordre de la file.
+function gensCoches(){
+  return personnesConcernees().filter(({ p, type })=> gensChoisis.has(`${type}:${p.id}`));
+}
 
 function ilYA(iso){
   if(!iso) return '';
@@ -312,9 +430,14 @@ function datesPour(type, id){
   const fiche = (type === 'musicien' ? musiciensCache : techniciensCache).find(x=> x.id === id);
   const dispo = (fiche && fiche.disponibilites) || {};
 
-  if(estInfo(motif)){
-    const retenues = datesDesProjets()
-      .filter(({ d })=> datesChoisies.has(d.id) && (d[champ] || []).includes(id));
+  // « Message libre » ne sait pas de quoi il parle : on lui donne les dates
+  // cochées quand il y en a, sinon toutes celles où la personne est distribuée.
+  // {dates} doit dire quelque chose de vrai quel que soit le modèle de départ.
+  if(estInfo(motif) || estLibre()){
+    const filtre = datesChoisies.size
+      ? (({ d })=> datesChoisies.has(d.id) && (d[champ] || []).includes(id))
+      : (({ d })=> (d[champ] || []).includes(id));
+    const retenues = datesDesProjets().filter(filtre);
     return { toutes: retenues.map(x=> x.d.date), manquantes: retenues.map(x=> x.d.date) };
   }
 
@@ -345,6 +468,16 @@ function lienPour(type, id){
   return lienPublic(estInfo(motif) ? 'mes-dates.html' : 'mon-espace.html', 'token=' + encodeURIComponent(jeton));
 }
 
+function nomProjets(){ return CurieuxMessages.joindre(projets().map(t=> t.nom || 'projet')); }
+
+// L'objet par défaut d'un e-mail. Affiché en placeholder : on le voit sans
+// avoir à le retaper, et le laisser vide reste un choix valide.
+function sujetDefaut(){
+  const n = nomProjets();
+  return estInfo(motif) ? `${n || 'Projet'} — tes dates`
+                        : `Tes dispos${n ? ' — ' + n : ''}`;
+}
+
 function contexteDe(type, id){
   const fiche = (type === 'musicien' ? musiciensCache : techniciensCache).find(x=> x.id === id);
   if(!fiche) return null;
@@ -373,8 +506,27 @@ function contexteDe(type, id){
     // était d'aujourd'hui — et fait bloquer des journées déjà libérées.
     edite: editeLe(),
     canal,
-    sujet: estInfo(motif) ? `${CurieuxMessages.joindre(liste.map(t=> t.nom || 'projet')) || 'Projet'} — tes dates` : undefined,
+    texteLibre: texteEdite,
+    sujet: (sujetEdite || sujetDefaut()),
   };
+}
+
+/* Le texte qui partira à cette personne-là. Un seul endroit décide, et les
+   trois usages — l'aperçu, la file, l'envoi — passent par lui : c'est la seule
+   garantie que ce qu'on relit est bien ce qui part. */
+function texteFinal(ctx){
+  return aLaMain()
+    ? CurieuxMessages.substituer(texteEdite, ctx)
+    : CurieuxMessages.construire(motif, ctx);
+}
+
+/* Le modèle rendu avec ses variables en clair, pour servir de point de départ.
+   On le calcule sur le contexte d'une vraie personne — sans quoi les modèles
+   qui bifurquent selon le rôle rendraient toujours la version « titulaire ». */
+function gabaritCourant(){
+  const g = gensCoches();
+  const ctx = (g.length && contexteDe(g[0].type, g[0].p.id)) || { role:'titulaire', typeProjet:'tournee' };
+  return CurieuxMessages.rendreGabarit(motif, ctx);
 }
 
 function dernierEnvoi(type, id){
@@ -411,13 +563,12 @@ function presélectionnerGens(){
     // Le récapitulatif va à tout le monde : c'est ce qui en fait une lettre
     // d'information et non une annonce. Le limiter aux personnes distribuées
     // laisserait dehors celles dont on attend encore les dispos — c'est-à-dire
-    // exactement celles à qui le document sert le plus.
-    if(motif === MOTIF_DOC){
+    // exactement celles à qui le document sert le plus. Un texte libre, de
+    // même, n'a aucune raison d'exclure qui que ce soit d'office.
+    if(motif === MOTIF_DOC || estLibre() || motif === 'premiere' || motif === 'lien'){
       gensChoisis.add(`${type}:${p.id}`);
     } else if(estInfo(motif)){
       if(d.toutes.length) gensChoisis.add(`${type}:${p.id}`);
-    } else if(motif === 'premiere' || motif === 'lien'){
-      gensChoisis.add(`${type}:${p.id}`);
     } else if(d.manquantes.length){
       gensChoisis.add(`${type}:${p.id}`);
     }
@@ -434,7 +585,7 @@ function rendreProjets(){
     const n = (t.dates || []).filter(d=> d.date && d.date >= today).length;
     const on = projetsChoisis.has(t.id);
     return `<button type="button" class="puce-projet${on ? ' on' : ''}" data-projet="${escapeAttr(t.id)}" aria-pressed="${on}">
-      ${escapeHtml((t.nom || 'Projet') + suffixeProjetTexte(t))}<small>${n}</small>
+      ${escapeHtml((t.nom || 'Projet') + suffixeProjetTexte(t))}<small>${n} date${n > 1 ? 's' : ''}</small>
     </button>`;
   }).join('');
 }
@@ -443,13 +594,13 @@ function rendreMotifs(){
   const groupes = [
     { titre:'Demander une dispo', contexte:'dispo' },
     { titre:'Informer',           contexte:'info'  },
+    { titre:'Écrire soi-même',    contexte:'libre' },
   ];
   document.getElementById('motifs').innerHTML = groupes.map(g=> `
     <div class="famille">${escapeHtml(g.titre)}</div>
     <div class="motifs">${CurieuxMessages.modelesDe(g.contexte).map(m=>
-      `<button type="button" class="motif${m.cle === motif ? ' on' : ''}" data-motif="${escapeAttr(m.cle)}">
-        ${escapeHtml(m.libelle)}<small>${escapeHtml(m.aide)}</small>
-      </button>`).join('')}</div>`).join('');
+      `<button type="button" class="motif${m.cle === motif ? ' on' : ''}" data-motif="${escapeAttr(m.cle)}"
+         title="${escapeAttr(m.aide || '')}">${escapeHtml(m.libelle)}</button>`).join('')}</div>`).join('');
 
   const m = CurieuxMessages.MODELES.find(x=> x.cle === motif) || {};
   const champ = document.getElementById('butoir');
@@ -462,6 +613,50 @@ function rendreMotifs(){
   vers.hidden = motif !== MOTIF_DOC;
   document.getElementById('lienDocuments').href = 'documents.html'
     + (projetsChoisis.size ? '?projet=' + [...projetsChoisis].map(encodeURIComponent).join(',') : '');
+}
+
+/* La zone d'écriture, et la phrase qui dit ce qui partira.
+   Tant qu'on n'a pas écrit, la zone montre le modèle avec ses variables en
+   clair et se remet à jour toute seule ; dès qu'on écrit, on n'y touche plus —
+   rien n'est plus désagréable qu'un texte qu'on reprend sous les doigts. */
+function rendreMessage(){
+  const ta = document.getElementById('zoneTexte');
+  const etat = document.getElementById('etatMessage');
+  const m = CurieuxMessages.MODELES.find(x=> x.cle === motif) || {};
+
+  /* On ne réécrit la zone que quand son contenu ne vient pas des doigts de
+     quelqu'un : au modèle, elle suit le modèle ; à la main, on n'y touche
+     plus. Les deux comparaisons évitent de reposer une valeur identique, ce
+     qui replacerait le curseur en fin de texte à chaque frappe. */
+  if(estLibre()){
+    if(ta.value !== texteEdite) ta.value = texteEdite;
+  } else if(!modifie){
+    const g = gabaritCourant();
+    if(ta.value !== g) ta.value = g;
+    texteEdite = g;
+  }
+  ta.placeholder = estLibre()
+    ? "Bonjour {prenom},\n\nRépétition avancée à 18 h 30 mercredi, mêmes lieux.\nTes dates sont toujours là : {lien}\n\nMerci !"
+    : '';
+
+  const sujet = document.getElementById('sujet');
+  sujet.placeholder = sujetDefaut();
+  if(sujet.value !== sujetEdite) sujet.value = sujetEdite;
+
+  etat.className = 'etat-message' + (aLaMain() ? ' perso' : '');
+  if(estLibre()){
+    etat.innerHTML = `<span><b>Ton texte.</b> Il part tel quel, les accolades remplacées pour chacun·e.</span>`;
+  } else if(modifie){
+    etat.innerHTML = `<span><b>Ton texte</b>, parti du modèle «&nbsp;${escapeHtml(m.libelle || '')}&nbsp;». Il part tel quel, les accolades remplacées pour chacun·e.</span>
+      <button type="button" class="mini" id="revenirModele">Revenir au modèle</button>`;
+  } else {
+    etat.innerHTML = `<span><b>Modèle «&nbsp;${escapeHtml(m.libelle || '')}&nbsp;».</b> Il s'adapte au rôle et aux dates de chacun·e. Écris dedans pour le reprendre à ta main.</span>`;
+  }
+
+  document.getElementById('vars').innerHTML =
+    `<p class="vars-aide">À insérer dans le texte — remplacé à l'envoi&nbsp;:</p>` +
+    CurieuxMessages.VARIABLES.map(v=>
+      `<button type="button" class="var" data-var="${escapeAttr(v.cle)}" title="${escapeAttr(v.aide)}">{${escapeHtml(v.cle)}}</button>`).join('');
 }
 
 function rendreDates(){
@@ -499,13 +694,22 @@ function rendreDates(){
 
 function rendreGens(){
   const holder = document.getElementById('gens');
-  if(!projetsChoisis.size){ holder.innerHTML = `<p class="vide">Choisis d'abord un ou plusieurs projets.</p>`; return; }
+  const aide = document.getElementById('gensAide');
+  if(!projetsChoisis.size){
+    aide.textContent = '';
+    holder.innerHTML = `<p class="vide">Choisis d'abord un projet, en haut de la page.</p>`;
+    return;
+  }
 
   const gens = personnesConcernees();
-  if(!gens.length){ holder.innerHTML = `<p class="vide">Personne n'est encore sollicité ni distribué sur ces projets.</p>`; return; }
+  if(!gens.length){
+    aide.textContent = '';
+    holder.innerHTML = `<p class="vide">Personne n'est encore sollicité ni distribué sur ces projets.</p>`;
+    return;
+  }
 
-  document.getElementById('gensAide').textContent = motif === MOTIF_DOC
-    ? "Cochées d'office : tout le monde. Le récapitulatif s'adresse à l'équipe entière, sollicité·es comprises."
+  aide.textContent = (motif === MOTIF_DOC || estLibre())
+    ? "Cochées d'office : tout le monde. Décoche qui n'est pas concerné."
     : estInfo(motif)
     ? "Cochées d'office : les personnes distribuées sur au moins une des dates retenues."
     : "Cochées d'office : les personnes dont il manque encore une dispo.";
@@ -514,7 +718,7 @@ function rendreGens(){
     const cle = `${type}:${p.id}`;
     const role = roleDe(type, p);
     const d = datesPour(type, p.id);
-    const nb = estInfo(motif) ? d.toutes.length : d.manquantes.length;
+    const nb = (estInfo(motif) || estLibre()) ? d.toutes.length : d.manquantes.length;
     const tel = CurieuxMessages.numeroWhatsapp(p.telephone);
     const voie = tel ? 'WhatsApp' : (p.email ? 'e-mail' : 'aucun contact');
     const quand = ilYA(dernierEnvoi(type, p.id));
@@ -522,10 +726,10 @@ function rendreGens(){
     return `<tr class="${parti ? 'parti' : ''}">
       <td><input type="checkbox" data-gens="${escapeAttr(cle)}"${gensChoisis.has(cle) ? ' checked' : ''} aria-label="${escapeAttr(fullName(p))}"></td>
       <td><span class="g-nom">${escapeHtml(fullName(p))}${role === 'remplacant' ? '<span class="g-role">remplaçant·e</span>' : ''}</span>
-          <span class="g-metier">${escapeHtml(p.instrument || p.poste || '')}${nb ? ` · ${nb} date${nb > 1 ? 's' : ''}` : ''}</span></td>
+          <span class="g-metier">${escapeHtml(p.instrument || p.poste || '')}${nb ? ` · ${nb} date${nb > 1 ? 's' : ''}` : ''}<span class="g-quand-mobile">${parti ? ' · envoyé' : (quand ? ' · écrit ' + escapeHtml(quand) : '')}</span></span></td>
       <td><span class="g-canal${tel || p.email ? '' : ' aucun'}">${escapeHtml(voie)}</span></td>
       <td><span class="g-quand">${escapeHtml(parti ? 'envoyé' : (quand || '—'))}</span></td>
-      <td style="text-align:right;"><button type="button" class="g-envoi${parti ? ' refait' : ''}" data-envoi="${escapeAttr(cle)}">${parti ? 'Renvoyer' : 'Envoyer'}</button></td>
+      <td style="text-align:right;"><button type="button" class="g-envoi" data-envoi="${escapeAttr(cle)}">${parti ? 'Renvoyer' : 'Envoyer'}</button></td>
     </tr>`;
   }).join('');
 
@@ -536,38 +740,52 @@ function rendreGens(){
 
 function rendreApercu(){
   const zone = document.getElementById('apercuTexte');
-  const qui = document.getElementById('apercuQui');
-  const compte = document.getElementById('compte');
+  const choix = document.getElementById('apercuQui');
+  const gens = gensCoches();
+
+  // La personne relue reste la même d'un rendu à l'autre tant qu'elle est
+  // cochée : relire le message de quelqu'un d'autre parce qu'on vient de
+  // décocher une case au-dessus n'aide personne.
+  if(!gens.some(({ p, type })=> `${type}:${p.id}` === apercuCle)){
+    apercuCle = gens.length ? `${gens[0].type}:${gens[0].p.id}` : '';
+  }
+  choix.innerHTML = gens.map(({ p, type })=>{
+    const cle = `${type}:${p.id}`;
+    return `<option value="${escapeAttr(cle)}"${cle === apercuCle ? ' selected' : ''}>${escapeHtml(fullName(p))} — ${escapeHtml(libelleRoleProjet(roleDe(type, p)).toLowerCase())}</option>`;
+  }).join('');
+  choix.hidden = gens.length < 2;
+
+  if(!projetsChoisis.size){ zone.textContent = 'Choisis un projet.'; return; }
+  if(!gens.length){ zone.textContent = "Personne n'est coché : le message n'a pas de destinataire."; return; }
+
+  const [type, id] = apercuCle.split(':');
+  const ctx = contexteDe(type, id);
+  zone.textContent = ctx ? (texteFinal(ctx) || '(message vide)') : '';
+}
+
+function rendreEnvoi(){
+  const gens = gensCoches();
 
   document.getElementById('canalChoix').innerHTML =
     [['', 'Automatique'], ['whatsapp', 'WhatsApp'], ['mail', 'E-mail']].map(([v, l])=>
       `<button type="button" class="motif${canal === v ? ' on' : ''}" data-canal="${v}" style="font-size:12px; padding:5px 11px;">${l}</button>`).join('');
 
-  const gens = personnesConcernees().filter(({ p, type })=> gensChoisis.has(`${type}:${p.id}`));
-  compte.innerHTML = `<b>${gens.length}</b> destinataire${gens.length > 1 ? 's' : ''} coché${gens.length > 1 ? 's' : ''}` +
+  document.getElementById('compte').innerHTML =
+    `<b>${gens.length}</b> destinataire${gens.length > 1 ? 's' : ''} coché${gens.length > 1 ? 's' : ''}` +
     (partis.size ? ` · <b>${partis.size}</b> envoyé${partis.size > 1 ? 's' : ''} depuis l'ouverture de la page.` : '.');
 
-  const vieux = document.querySelector('.avert');
-  if(vieux) vieux.remove();
+  const lancer = document.getElementById('lancer');
+  lancer.textContent = gens.length > 1 ? `Envoyer aux ${gens.length}, un par un →` : 'Envoyer →';
+  lancer.disabled = !gens.length || !!file;
+  lancer.hidden = !!file || !!fini;
 
-  if(!projetsChoisis.size || !gens.length){
-    qui.textContent = '';
-    zone.textContent = projetsChoisis.size ? "Personne n'est coché : le message n'a pas de destinataire." : 'Choisis un projet et un motif.';
-    return;
-  }
-  const { p, type } = gens[0];
-  const ctx = contexteDe(type, p.id);
-  const roleApercu = roleDe(type, p);
-  // « adapté au rôle » et non « le même » : deux personnes de rôles différents
-  // ne reçoivent pas le même texte, et le croire serait le pire des malentendus
-  // sur cette page.
-  qui.textContent = `Aperçu pour ${fullName(p)} (${libelleRoleProjet(roleApercu).toLowerCase()})`
-    + (gens.length > 1 ? ` — les ${gens.length - 1} autres reçoivent le leur, adapté à leur rôle et à leurs dates.` : '');
-  zone.textContent = CurieuxMessages.construire(motif, ctx);
-
+  // Ce qui peut mal se passer, dit avant le premier clic et non après le
+  // quarantième.
   const sansLien = gens.filter(({ p, type })=> !lienPour(type, p.id)).length;
   const sansContact = gens.filter(({ p })=> !CurieuxMessages.numeroWhatsapp(p.telephone) && !p.email).length;
   const avert = [];
+  if(aLaMain() && !texteEdite.trim()) avert.push("Le message est vide : écris-le avant d'envoyer.");
+  if(aLaMain() && texteEdite && !/\{lien\}/.test(texteEdite) && !estLibre()) avert.push("Le texte ne contient plus {lien} : personne ne recevra son lien personnel.");
   if(sansContact) avert.push(`${sansContact} personne${sansContact > 1 ? 's' : ''} sans téléphone ni e-mail : le message sera copié dans le presse-papiers.`);
   if(sansLien) avert.push(`${sansLien} personne${sansLien > 1 ? 's' : ''} sans lien personnel.`);
   if(projets().length > 1) avert.push("Plusieurs projets sont choisis : le message les nommera tous. Pour n'en annoncer qu'un, n'en coche qu'un.");
@@ -576,39 +794,127 @@ function rendreApercu(){
      le dire ici, c'est laisser partir quarante messages qui parlent d'un
      document que personne ne recevra. */
   if(motif === MOTIF_DOC) avert.push("Ce message annonce une pièce jointe : génère le PDF sur la page Documents, puis joins-le à la main dans WhatsApp ou dans ton client de messagerie.");
-  if(avert.length) compte.insertAdjacentHTML('afterend', `<p class="avert">${escapeHtml(avert.join(' '))}</p>`);
+  const boite = document.getElementById('avert');
+  boite.hidden = !avert.length;
+  boite.textContent = avert.join(' ');
 }
 
 function rendre(){
   rendreProjets();
   rendreMotifs();
+  rendreMessage();
   rendreDates();
   rendreGens();
   rendreApercu();
+  rendreEnvoi();
+  rendreFile();
+}
+
+/* ============================================================================
+   La file guidée
+   ============================================================================
+   Un navigateur n'ouvre qu'UNE fenêtre par geste de l'utilisateur : une boucle
+   qui enverrait quarante WhatsApp d'un seul clic serait bloquée dès le second,
+   sans rien dire. On fait donc défiler les destinataires, un clic chacun — le
+   même nombre de gestes qu'à la main, mais la page tient le compte, montre le
+   texte exact avant qu'il parte, et note ce qui est passé. */
+let file = null;   // { liste:[cle], i:0, envoyes:0 }
+let fini = null;   // { envoyes, total }
+
+function lancerFile(){
+  const gens = gensCoches();
+  if(!gens.length) return;
+  fini = null;
+  file = { liste: gens.map(({ p, type })=> `${type}:${p.id}`), i: 0, envoyes: 0 };
+  rendreFile(); rendreEnvoi();
+}
+
+function arreterFile(){
+  if(file && file.envoyes) fini = { envoyes: file.envoyes, total: file.liste.length };
+  file = null;
+  rendreFile(); rendreEnvoi();
+}
+
+function avancerFile(){
+  if(!file) return;
+  file.i++;
+  if(file.i >= file.liste.length){
+    fini = { envoyes: file.envoyes, total: file.liste.length };
+    file = null;
+  }
+  rendreFile(); rendreEnvoi();
+}
+
+function rendreFile(){
+  const bloc = document.getElementById('file');
+  const blocFini = document.getElementById('fileFini');
+  const apercu = document.getElementById('blocApercu');
+
+  blocFini.hidden = !fini;
+  if(fini){
+    document.getElementById('fileFiniTexte').innerHTML =
+      `<b>${fini.envoyes} message${fini.envoyes > 1 ? 's' : ''} envoyé${fini.envoyes > 1 ? 's' : ''}</b> sur ${fini.total}.` +
+      (fini.envoyes < fini.total ? ` ${fini.total - fini.envoyes} passé${fini.total - fini.envoyes > 1 ? 's' : ''}.` : '');
+  }
+
+  bloc.hidden = !file;
+  // Pendant la file, l'aperçu ferait doublon : le texte qui part est affiché
+  // dans la file elle-même, et deux textes côte à côte se confondent.
+  apercu.hidden = !!file;
+  if(!file) return;
+
+  const [type, id] = file.liste[file.i].split(':');
+  const p = (type === 'musicien' ? musiciensCache : techniciensCache).find(x=> x.id === id);
+  const ctx = contexteDe(type, id);
+  const tel = p ? CurieuxMessages.numeroWhatsapp(p.telephone) : '';
+  const voie = (canal === 'mail' && p && p.email) ? 'par e-mail'
+             : (canal === 'whatsapp' && tel) ? 'par WhatsApp'
+             : tel ? 'par WhatsApp'
+             : (p && p.email) ? 'par e-mail'
+             : 'aucun contact — le texte sera copié';
+
+  document.getElementById('fileJauge').style.width = Math.round(file.i / file.liste.length * 100) + '%';
+  document.getElementById('fileRang').textContent = `${file.i + 1} / ${file.liste.length}`;
+  document.getElementById('fileNom').textContent = p ? fullName(p) : '—';
+  document.getElementById('fileVoie').textContent = voie;
+  document.getElementById('fileTexte').textContent = ctx ? (texteFinal(ctx) || '(message vide)') : '';
 }
 
 // --- Envoi ------------------------------------------------------------------
+/* L'ouverture de WhatsApp doit rester DANS le geste de l'utilisateur : rien
+   n'est attendu avant l'appel à envoyer(), et les écritures en base viennent
+   après. Un await placé plus haut ferait bloquer la fenêtre par le navigateur. */
 async function envoyerA(cle){
   const [type, id] = cle.split(':');
   const ctx = contexteDe(type, id);
   if(!ctx) return;
-  const texte = CurieuxMessages.construire(motif, ctx);
+  const texte = texteFinal(ctx);
   const voie = await CurieuxMessages.envoyer(ctx, texte);
   partis.add(cle);
 
   /* La trace, un enregistrement par projet concerné : « quand a-t-on écrit à
      cette personne à propos de CE projet » est la question qu'on se pose, et
-     une seule ligne portant deux projets n'y répondrait pas. */
+     une seule ligne portant deux projets n'y répondrait pas. On garde le texte
+     tel qu'il est parti : un mois plus tard, savoir ce qu'on avait écrit vaut
+     mieux que savoir qu'on avait écrit. */
   const concernes = projets().filter(t=> concernePar(type, id, t));
   for(const t of (concernes.length ? concernes : projets())){
-    await CurieuxDB.upsertOne('messages_envoyes', {
+    const trace = {
       id: 'msg' + Math.random().toString(36).slice(2, 12),
       personId: id, personType: type, tourneeId: t.id,
       motif, dates: ctx.manquantes.length ? ctx.manquantes : ctx.toutes,
       canal: voie, par: monEmail,
-    });
+      sujet: ctx.sujet || '', texte,
+      envoyeLe: new Date().toISOString(),
+    };
+    /* La liste en mémoire d'abord : « Dernier envoi » doit dire vrai tout de
+       suite. L'écriture en base, elle, ne peut plus rien empêcher — WhatsApp
+       est déjà ouvert — et une erreur de trace ne doit surtout pas arrêter la
+       file au douzième destinataire sur quarante. */
+    envoisCache.push(trace);
+    await CurieuxDB.upsertOne('messages_envoyes', trace).catch(()=>{});
   }
-  if(!estInfo(motif) && motif !== 'lien'){
+  if(!estInfo(motif) && motif !== 'lien' && !estLibre()){
     for(const t of projets()){
       const dem = demandePour(type, id, t.id);
       if(!dem) continue;
@@ -616,8 +922,6 @@ async function envoyerA(cle){
       await CurieuxDB.upsertOne('dispo_demandes', dem);
     }
   }
-  rendreGens();
-  rendreApercu();
 }
 
 /* Un lien pour tout le monde, pas seulement pour qui a une demande de dispo.
@@ -631,7 +935,7 @@ async function assurerJetons(){
   if(!gens.length) return;
   const avant = jetonsPermanents.size;
   jetonsPermanents = await CurieuxDB.jetonsPermanentsPour(gens);
-  if(jetonsPermanents.size !== avant){ rendreGens(); rendreApercu(); }
+  if(jetonsPermanents.size !== avant){ rendreGens(); rendreMessage(); rendreApercu(); rendreFile(); }
 }
 
 // --- Branchements -----------------------------------------------------------
@@ -642,7 +946,7 @@ document.getElementById('projets').addEventListener('click', async (e)=>{
   if(projetsChoisis.has(id)) projetsChoisis.delete(id); else projetsChoisis.add(id);
   presélectionnerDates();
   presélectionnerGens();
-  partis = new Set();
+  partis = new Set(); file = null; fini = null;
   rendre();
   await assurerJetons();
 });
@@ -650,16 +954,64 @@ document.getElementById('projetsAucun').addEventListener('click', ()=>{
   projetsChoisis = new Set();
   datesChoisies = new Set();
   gensChoisis = new Set();
+  file = null; fini = null;
   rendre();
 });
 
 document.getElementById('motifs').addEventListener('click', (e)=>{
   const b = e.target.closest('[data-motif]');
-  if(!b) return;
+  if(!b || b.dataset.motif === motif) return;
   motif = b.dataset.motif;
+  /* Changer de modèle remet le texte au modèle : garder sous les yeux le texte
+     du modèle précédent après en avoir choisi un autre serait le plus sûr
+     moyen d'envoyer une relance en croyant annoncer une validation. Le texte
+     libre part d'une page vide — c'est ce qu'on lui demande. */
+  modifie = false;
+  texteEdite = estLibre() ? '' : texteEdite;
   presélectionnerDates();
   presélectionnerGens();
+  file = null; fini = null;
   rendre();
+});
+
+// Le texte : on ne repasse jamais au modèle tout seul. « Revenir au modèle »
+// est un geste, pas un effet de bord d'une frappe qui retombe par hasard sur
+// le texte d'origine.
+function prendreTexte(){
+  const ta = document.getElementById('zoneTexte');
+  texteEdite = ta.value;
+  if(!estLibre() && texteEdite !== gabaritCourant()) modifie = true;
+  rendreMessage();
+  rendreApercu();
+  rendreEnvoi();
+  rendreFile();
+}
+document.getElementById('zoneTexte').addEventListener('input', prendreTexte);
+document.getElementById('sujet').addEventListener('input', (e)=>{
+  sujetEdite = e.target.value;
+  rendreApercu(); rendreFile();
+});
+
+document.getElementById('etatMessage').addEventListener('click', (e)=>{
+  if(!e.target.closest('#revenirModele')) return;
+  modifie = false;
+  texteEdite = '';
+  rendreMessage(); rendreApercu(); rendreEnvoi(); rendreFile();
+});
+
+/* Une variable s'insère là où est le curseur, pas en bout de texte : on écrit
+   « Bonjour  , » puis on clique {prenom} entre les deux. */
+document.getElementById('vars').addEventListener('click', (e)=>{
+  const b = e.target.closest('[data-var]');
+  if(!b) return;
+  const ta = document.getElementById('zoneTexte');
+  const marque = `{${b.dataset.var}}`;
+  const d = ta.selectionStart ?? ta.value.length;
+  const f = ta.selectionEnd ?? ta.value.length;
+  ta.value = ta.value.slice(0, d) + marque + ta.value.slice(f);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = d + marque.length;
+  prendreTexte();
 });
 
 document.getElementById('dates').addEventListener('click', (e)=>{
@@ -681,25 +1033,49 @@ document.getElementById('gens').addEventListener('change', (e)=>{
   const c = e.target.closest('[data-gens]');
   if(!c) return;
   if(c.checked) gensChoisis.add(c.dataset.gens); else gensChoisis.delete(c.dataset.gens);
-  rendreApercu();
+  rendreMessage(); rendreApercu(); rendreEnvoi();
 });
-document.getElementById('gens').addEventListener('click', (e)=>{
+document.getElementById('gens').addEventListener('click', async (e)=>{
   const b = e.target.closest('[data-envoi]');
-  if(b) envoyerA(b.dataset.envoi);
+  if(!b) return;
+  await envoyerA(b.dataset.envoi);
+  rendreGens(); rendreEnvoi();
 });
 document.getElementById('gensTous').addEventListener('click', ()=>{
   personnesConcernees().forEach(({ p, type })=> gensChoisis.add(`${type}:${p.id}`));
-  rendreGens(); rendreApercu();
+  rendreGens(); rendreMessage(); rendreApercu(); rendreEnvoi();
 });
 document.getElementById('gensAucun').addEventListener('click', ()=>{
-  gensChoisis = new Set(); rendreGens(); rendreApercu();
+  gensChoisis = new Set(); rendreGens(); rendreApercu(); rendreEnvoi();
 });
-document.getElementById('butoir').addEventListener('input', rendreApercu);
+document.getElementById('butoir').addEventListener('input', ()=>{
+  rendreMessage(); rendreApercu(); rendreFile();
+});
 document.getElementById('canalChoix').addEventListener('click', (e)=>{
   const b = e.target.closest('[data-canal]');
   if(!b) return;
   canal = b.dataset.canal;
+  rendreEnvoi(); rendreFile();
+});
+document.getElementById('apercuQui').addEventListener('change', (e)=>{
+  apercuCle = e.target.value;
   rendreApercu();
+});
+
+document.getElementById('lancer').addEventListener('click', lancerFile);
+document.getElementById('fileEnvoyer').addEventListener('click', async ()=>{
+  if(!file) return;
+  const cle = file.liste[file.i];
+  await envoyerA(cle);
+  if(!file) return;                 // la file a pu être arrêtée entre-temps
+  file.envoyes++;
+  avancerFile();
+  rendreGens();
+});
+document.getElementById('filePasser').addEventListener('click', avancerFile);
+document.getElementById('fileArreter').addEventListener('click', arreterFile);
+document.getElementById('fileFermer').addEventListener('click', ()=>{
+  fini = null; rendreFile(); rendreEnvoi();
 });
 
 // --- Démarrage --------------------------------------------------------------
@@ -730,15 +1106,24 @@ async function demarrer(){
   const motifVoulu = params.get('motif') || '';
   if(motifVoulu && CurieuxMessages.MODELES.some(m=> m.cle === motifVoulu)) motif = motifVoulu;
 
+  /* Arrivé pour QUELQU'UN sans qu'on nous dise sur quel projet, on retrouve
+     nous-mêmes les projets qui la concernent : sans projet coché, la page
+     n'affiche personne, et le lien ne mènerait nulle part. */
+  const personneVoulue = params.get('personne') || '';
+  if(personneVoulue && !projetsChoisis.size){
+    const [type, id] = personneVoulue.split(':');
+    tourneesCache.forEach(t=>{ if(concernePar(type, id, t)) projetsChoisis.add(t.id); });
+  }
+
   presélectionnerDates();
   presélectionnerGens();
 
-  /* Arrivé depuis le suivi des dispos, on vient pour QUELQU'UN. On ne coche
-     alors que cette personne : la présélection par défaut — tous ceux dont il
-     manque une dispo — ferait partir vingt messages là où on en voulait un. */
-  const personneVoulue = params.get('personne') || '';
+  /* Arrivé depuis le suivi des dispos, on vient pour cette personne-là. On ne
+     coche alors qu'elle : la présélection par défaut — tous ceux dont il manque
+     une dispo — ferait partir vingt messages là où on en voulait un. */
   if(personneVoulue && personnesConcernees().some(({ p, type })=> `${type}:${p.id}` === personneVoulue)){
     gensChoisis = new Set([personneVoulue]);
+    apercuCle = personneVoulue;
   }
   rendre();
   await assurerJetons();
