@@ -144,6 +144,14 @@ compte au-delà d'une précision, et le repère orange/prune selon qu'on a répo
 *Attention.* Les cartes dépliées comptent déjà des centaines de lignes : clamper
 à une ligne et se limiter aux dates du projet courant.
 
+*Ce qu'on a retenu après usage.* Même clampée, la ligne de texte sous un nom
+sur trois rendait les cartes illisibles : l'œil ne trouvait plus les statuts.
+La page n'écrit donc plus le texte : une bulle `💬 N` à côté du nom (orange
+sans réponse, prune sinon), le texte entier au survol et au clic (la fenêtre
+de réponse de MT-5, inchangée). Une case « Afficher les précisions », décochée
+d'office et retenue en `localStorage`, remet la ligne d'avant pour qui relit
+tout avant une vague de relances.
+
 ### CT-9 · La Grille interne récupère les acquis de la Vue d'ensemble
 **Effort : moyen — aucune dépendance**
 
