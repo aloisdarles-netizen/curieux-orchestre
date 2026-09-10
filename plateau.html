@@ -210,7 +210,10 @@ function datesFiltrees(){
 // L'ordre du plateau : les pupitres de la partition, pas l'alphabet. Un
 // violoncelle avant un hautbois, c'est une liste qui ne ressemble à aucune
 // feuille de distribution ; l'ordre ci-dessous est celui d'une nomenclature.
-const ORDRE_PUPITRE = ['Cordes', 'Bois', 'Cuivres', 'Percussions', 'Claviers', 'Harpe'];
+// Il diverge sciemment de CURIEUX_PUPITRES (ordre de l'annuaire) : ici on
+// range une équipe sur un plateau. Le chant ferme la liste, comme sur une
+// partition d'orchestre où les voix s'écrivent sous les instruments.
+const ORDRE_PUPITRE = ['Cordes', 'Bois', 'Cuivres', 'Percussions', 'Claviers', 'Harpe', 'Chant'];
 const ORDRE_POLE = ['Son', 'Lumière', 'Plateau', 'Backline', 'Vidéo', 'Rigg', 'Régie'];
 // Et à l'intérieur d'un pupitre, l'ordre de la partition — pas l'alphabet, qui
 // mettait l'alto avant le violon solo. Ce qui n'y figure pas se range à la fin,
@@ -233,9 +236,11 @@ function equipeDe(entree, ptype){
   const ids = entree.d[champ] || [];
   const liste = gens.filter(p=> ids.includes(p.id));
   if(ptype === 'musicien'){
+    // Puis la position dans le pupitre (violon 1 avant violon 2) avant le nom.
     liste.sort((a, b)=> rang(ORDRE_PUPITRE, a.pupitre) - rang(ORDRE_PUPITRE, b.pupitre)
       || rang(ORDRE_INSTRUMENT, a.instrument) - rang(ORDRE_INSTRUMENT, b.instrument)
       || (a.instrument || '').localeCompare(b.instrument || '', 'fr')
+      || curieuxCompareRang(a.rang, b.rang)
       || fullName(a).localeCompare(fullName(b), 'fr'));
   } else {
     liste.sort((a, b)=> rang(ORDRE_POLE, a.pole) - rang(ORDRE_POLE, b.pole)

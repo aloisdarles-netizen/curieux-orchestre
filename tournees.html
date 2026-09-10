@@ -242,6 +242,20 @@
   .nomen-nombre:focus{border-color:var(--accent); background:var(--card);}
   .nomen-retirer{opacity:0; transition:opacity .15s;}
   .nomenclature-item:hover .nomen-retirer, .nomen-retirer:focus{opacity:1;}
+  /* Le cachet propre du pupitre : même discrétion que le nombre — un champ
+     sans cadre tant qu'il est vide, et l'unité en gris. Une valeur saisie se
+     lit en gras : c'est une exception au cachet standard, elle doit se voir. */
+  .nomen-cachet{display:inline-flex; align-items:baseline; gap:4px; white-space:nowrap; font-size:12px; color:var(--muted);}
+  .nomen-cachet input{
+    width:70px !important; border:1px solid transparent !important; background:transparent !important;
+    color:inherit; font:inherit; text-align:right; padding:2px 4px !important; border-radius:6px;
+    -moz-appearance:textfield; appearance:textfield;
+  }
+  .nomen-cachet input::-webkit-outer-spin-button, .nomen-cachet input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+  .nomen-cachet input:hover{background:var(--card) !important;}
+  .nomen-cachet input:focus{border-color:var(--accent) !important; background:var(--card) !important;}
+  .nomen-cachet.propre{color:var(--text);}
+  .nomen-cachet.propre input{font-weight:700;}
 
   .nomenclature-panel{min-width:0;}
   .cachet-row{display:flex; align-items:center; gap:8px; margin:-6px 0 14px; flex-wrap:wrap;}
@@ -785,22 +799,28 @@ function cachetOverridesForTournee(tourneeId){
 
 // Affiche une ligne du panneau "Cachet différent" si elle correspond à la recherche en
 // cours, ou si elle a déjà une valeur saisie (même une fois la recherche vidée).
+// La case « affectées sur ce projet » montre d'un coup les personnes qui
+// comptent — celles qu'on va payer — sans avoir à les chercher une à une dans
+// tout l'annuaire ; cochée, la recherche ne fouille plus qu'elles.
 function applyCachetOverrideFilter(tourneeId){
   const searchInp = document.querySelector(`[data-cachet-override-search="${CSS.escape(tourneeId)}"]`);
   const rowsHolder = document.querySelector(`[data-cachet-override-rows="${CSS.escape(tourneeId)}"]`);
   if(!searchInp || !rowsHolder) return;
   const search = searchInp.value.trim().toLowerCase();
+  const caseAffectees = document.querySelector(`[data-cachet-override-affectees="${CSS.escape(tourneeId)}"]`);
+  const affecteesSeules = !!(caseAffectees && caseAffectees.checked);
   let visibleCount = 0;
   rowsHolder.querySelectorAll('.cachet-override-row').forEach(row=>{
     const input = row.querySelector('[data-cachet-override-person]');
     const hasValue = input && input.value.trim() !== '';
-    const matches = search && row.dataset.personName.includes(search);
-    const visible = hasValue || matches;
+    const affectee = row.dataset.affectee === '1';
+    const matches = search && row.dataset.personName.includes(search) && (!affecteesSeules || affectee);
+    const visible = hasValue || matches || (affecteesSeules && !search && affectee);
     row.style.display = visible ? 'flex' : 'none';
     if(visible) visibleCount++;
   });
   const emptyHint = document.querySelector(`[data-cachet-override-empty="${CSS.escape(tourneeId)}"]`);
-  if(emptyHint) emptyHint.style.display = (search && visibleCount === 0) ? 'block' : 'none';
+  if(emptyHint) emptyHint.style.display = ((search || affecteesSeules) && visibleCount === 0) ? 'block' : 'none';
 }
 
 function loadFdrCollection(){ return fdrsCache; }
@@ -1527,9 +1547,13 @@ document.getElementById('assignSave').addEventListener('click', ()=>{
 // de saisie forcée. Une date peut la surcharger via d.nomenclature (même
 // forme), mais cette surcharge se règle pour l'instant directement en base :
 // aucun éditeur dédié par date dans cette version.
+//
+// Une ligne est {pupitre, nombre, cachet} — cachet facultatif, en € brut par
+// date : quand un pupitre n'est pas payé au cachet standard (le chant), on le
+// dit ici une fois, pour tout le pupitre, plutôt qu'une exception par
+// personne dans le panneau « Cachet différent ». La résolution par personne
+// (exception > pupitre > standard) est curieuxCachetResolu, dans ui-helpers.js.
 // ============================================================================
-const PUPITRE_ORDER = ["Chef d'orchestre", 'Cordes', 'Bois', 'Cuivres', 'Percussions', 'Autre'];
-
 function nomenclatureActive(t, d){
   return (d && d.nomenclature && d.nomenclature.length) ? d.nomenclature : (t.nomenclature || []);
 }
@@ -1599,16 +1623,27 @@ function renderNomenclatureRowsHtml(t){
     // problème là où il n'y a qu'un travail pas encore commencé. Le gris dit
     // « à faire », l'orange « commencé mais incomplet », le vert « complet ».
     const etat = complet ? 'ok' : affecte === 0 ? 'vide' : 'manque';
+    // Le cachet propre du pupitre se saisit dans la ligne, discret tant qu'il
+    // est vide (« standard ») : c'est un réglage rare, il ne doit pas
+    // alourdir les lignes qui n'en ont pas besoin. Pas sur un recording, où
+    // le cachet se fixe séance par séance.
+    const aCachet = row.cachet != null && row.cachet !== '';
     return `
     <div class="nomenclature-item" data-nomenclature-tournee="${escapeAttr(t.id)}" data-nomenclature-index="${i}">
       <select data-nomenclature-field="pupitre" class="nomen-pupitre">
-        ${PUPITRE_ORDER.map(p=>`<option value="${escapeAttr(p)}" ${row.pupitre===p?'selected':''}>${escapeHtml(p)}</option>`).join('')}
+        ${curieuxOptionsPupitreHtml(row.pupitre)}
       </select>
       <span class="nomen-etat ${etat}">
         <input type="number" min="0" step="1" data-nomenclature-field="nombre" class="nomen-nombre"
           value="${row.nombre != null ? escapeAttr(String(row.nombre)) : ''}" title="Effectif attendu pour ce pupitre">
         <b>${affecte}/${attendu}</b> affecté·es
       </span>
+      ${EST_RECORDING ? '' : `
+      <span class="nomen-cachet${aCachet ? ' propre' : ''}" title="Cachet propre à ce pupitre — vide : le cachet standard de la tournée">
+        <input type="number" min="0" step="0.01" data-nomenclature-field="cachet" placeholder="standard"
+          value="${aCachet ? escapeAttr(String(row.cachet)) : ''}" aria-label="Cachet propre à ce pupitre, en euros brut par date">
+        <span class="cachet-unit">€ brut / date</span>
+      </span>`}
       <button type="button" class="co-btn danger sm nomen-retirer" data-remove-nomenclature-row>Retirer</button>
     </div>
   `;}).join('');
@@ -1641,7 +1676,16 @@ document.addEventListener('change', (e)=>{
   const idx = Number(item.dataset.nomenclatureIndex);
   const t = loadTournees().find(x=>x.id === tourneeId);
   if(!t || !t.nomenclature || !t.nomenclature[idx]) return;
-  if(e.target.dataset.nomenclatureField === 'pupitre') t.nomenclature[idx].pupitre = e.target.value;
+  const champ = e.target.dataset.nomenclatureField;
+  if(champ === 'pupitre') t.nomenclature[idx].pupitre = e.target.value;
+  else if(champ === 'cachet'){
+    // Vide → on retire la clé, la ligne redevient {pupitre, nombre} : « pas de
+    // cachet propre » n'est pas « cachet à zéro ».
+    const v = parseFloat(e.target.value.replace(',', '.'));
+    if(e.target.value.trim() === '' || !Number.isFinite(v) || v < 0) delete t.nomenclature[idx].cachet;
+    else t.nomenclature[idx].cachet = v;
+    e.target.closest('.nomen-cachet').classList.toggle('propre', t.nomenclature[idx].cachet != null);
+  }
   else t.nomenclature[idx].nombre = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0);
   saveTournees(loadTournees());
   updateManqueBadges(tourneeId);
@@ -1795,12 +1839,19 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
       // Tout le répertoire (pas seulement les personnes déjà affectées à une date) — un
       // cachet différent peut se décider avant l'affectation. La recherche ci-dessous
       // permet de retrouver n'importe qui sans dérouler toute la liste.
+      // Le pupitre sert à proposer, en filigrane, le cachet que la personne
+      // aurait sans exception (celui de son pupitre ou le standard) ; « affectée »
+      // marque celles qui sont sur au moins une date, pour le filtre du panneau.
+      const affectees = new Set();
+      dates.forEach(d=> [...(d.musiciensAssignes || []), ...(d.techniciensAssignes || [])].forEach(id=> affectees.add(id)));
       const rosterPeople = [
-        ...Array.from(musicianById.values()).map(m=>({ id: m.id, type: 'musicien', name: fullName(m) })),
-        ...Array.from(technicianById.values()).map(m=>({ id: m.id, type: 'technicien', name: fullName(m) })),
+        ...Array.from(musicianById.values()).map(m=>({ id: m.id, type: 'musicien', name: fullName(m), pupitre: m.pupitre || 'Autre', affectee: affectees.has(m.id) })),
+        ...Array.from(technicianById.values()).map(m=>({ id: m.id, type: 'technicien', name: fullName(m), pupitre: null, affectee: affectees.has(m.id) })),
       ].sort((a,b)=> a.name.localeCompare(b.name));
       const cachetOverrides = cachetOverridesForTournee(t.id);
       const overrideCount = rosterPeople.filter(p => cachetOverrides[p.id] != null).length;
+      // Ce que dit la nomenclature en plus du cachet standard : « Chant 250 € ».
+      const pupitresACachet = (t.nomenclature || []).filter(r=> r.cachet != null && r.cachet !== '');
       const rows = dates.map((d, dIdx)=>{
         const blocInfo = blocMap.get(d.id);
         const fdr = fdrs.find(f=>f.eventDate === d.date);
@@ -2027,6 +2078,7 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
                   ? (()=>{ const avec = dates.filter(d=> d.cachetSeance != null && d.cachetSeance !== '').length;
                            return avec ? `cachets fixés : ${avec}/${dates.length} séances` : 'cachets à fixer par séance'; })()
                   : (t.cachetStatut === 'defini' && t.cachetMontant != null ? `${t.cachetMontant} € / date` : 'cachet à définir'),
+                EST_RECORDING ? '' : pupitresACachet.map(r=> `${r.pupitre} ${r.cachet} €`).join(' · '),
                 EST_RECORDING ? '' : (overrideCount ? `${overrideCount} exception${overrideCount>1?'s':''}` : ''),
                 (t.nomenclature||[]).length ? `${(t.nomenclature||[]).reduce((n,r)=>n+(Number(r.nombre)||0),0)} attendu·es` : '',
               ].filter(Boolean).join(' · ')}</span>
@@ -2075,25 +2127,39 @@ ${EST_RECORDING ? (()=>{
                   <span class="cachet-unit">€ brut / ${EST_RECORDING ? 'séance' : 'date'}</span>
                 </span>
               </div>
+              ${/* Accessible même sans cachet standard : une tournée peut ne
+                    payer à part que quelques personnes (le chant, un·e
+                    soliste) et laisser le reste « à définir ». Le bouton
+                    était masqué tant que le montant global n'était pas posé,
+                    ce qui obligeait à inventer un standard pour saisir une
+                    exception. */''}
               <button type="button" class="co-btn ghost sm" data-toggle-cachet-overrides="${escapeAttr(t.id)}"
-                style="${t.cachetStatut === 'defini' ? 'margin-top:8px; padding-left:0;' : 'display:none;'}">Cachet différent pour certaines personnes${overrideCount ? ` (${overrideCount})` : ''}</button>
+                style="margin-top:8px; padding-left:0;">Cachet différent pour certaines personnes${overrideCount ? ` (${overrideCount})` : ''}</button>
           <div class="cachet-overrides" id="cachet-overrides-${escapeAttr(t.id)}" style="display:none;">
             ${rosterPeople.length === 0
               ? `<div style="font-size:12.5px; color:var(--muted);">Le répertoire est vide.</div>`
               : `
+                <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; margin-bottom:6px; cursor:pointer;">
+                  <input type="checkbox" data-cachet-override-affectees="${escapeAttr(t.id)}" ${affectees.size ? '' : 'disabled'}>
+                  Personnes affectées sur ce projet${affectees.size ? ` (${affectees.size})` : ' — aucune pour l’instant'}
+                </label>
                 <input type="text" placeholder="Chercher une personne à ajouter…" data-cachet-override-search="${escapeAttr(t.id)}"
                   style="width:100%; max-width:320px; margin-bottom:8px; padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;">
                 <div data-cachet-override-rows="${escapeAttr(t.id)}">
-                  ${rosterPeople.map(p => `
-                    <div class="cachet-override-row" data-person-name="${escapeAttr(p.name.toLowerCase())}" style="display:${cachetOverrides[p.id] != null ? 'flex' : 'none'}; align-items:center; gap:8px; margin-bottom:6px;">
-                      <span style="font-size:12.5px; width:220px;">${escapeHtml(p.name)}</span>
-                      <input type="number" min="0" step="0.01" placeholder="${t.cachetMontant != null ? escapeAttr(String(t.cachetMontant)) : 'Montant'}"
+                  ${rosterPeople.map(p => {
+                    // En filigrane : ce que la personne touche sans exception
+                    // (le cachet de son pupitre, sinon le standard).
+                    const sansException = curieuxCachetResolu(t, p.pupitre, null);
+                    return `
+                    <div class="cachet-override-row" data-person-name="${escapeAttr(p.name.toLowerCase())}" data-affectee="${p.affectee ? '1' : '0'}" style="display:${cachetOverrides[p.id] != null ? 'flex' : 'none'}; align-items:center; gap:8px; margin-bottom:6px;">
+                      <span style="font-size:12.5px; width:220px;">${escapeHtml(p.name)}${p.pupitre ? `<span style="color:var(--muted);"> · ${escapeHtml(p.pupitre)}</span>` : ''}</span>
+                      <input type="number" min="0" step="0.01" placeholder="${sansException.montant != null ? escapeAttr(String(sansException.montant)) : 'Montant'}"
                         data-cachet-override-tournee="${escapeAttr(t.id)}" data-cachet-override-person="${escapeAttr(p.id)}" data-cachet-override-type="${escapeAttr(p.type)}"
                         value="${cachetOverrides[p.id] != null ? escapeAttr(String(cachetOverrides[p.id])) : ''}"
                         style="width:110px; padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;">
-                      <span style="font-size:12.5px; color:var(--muted);">€ brut — laisser vide pour le cachet standard</span>
+                      <span style="font-size:12.5px; color:var(--muted);">€ brut — laisser vide pour le cachet ${sansException.source === 'pupitre' ? 'du pupitre' : 'standard'}</span>
                     </div>
-                  `).join('')}
+                  `;}).join('')}
                 </div>
                 <div class="empty-hint" data-cachet-override-empty="${escapeAttr(t.id)}" style="display:none; font-size:12.5px; padding:4px 0;">Aucune personne trouvée.</div>
               `}
@@ -2876,23 +2942,17 @@ function bindTourneeEvents(){
       t.cachetStatut = sel.value;
       if(sel.value !== 'defini') t.cachetMontant = null;
       saveTournees(tournees);
-      if(sel.value !== 'defini'){
-        // Un cachet différent n'a de sens que par rapport à un cachet standard défini —
-        // on efface les exceptions plutôt que de les laisser orphelines et invisibles.
-        cachetOverridesCache = cachetOverridesCache.filter(o => o.tourneeId !== tourneeId);
-        CurieuxDB.removeCachetOverridesForTournee(tourneeId);
-      }
+      // Les exceptions individuelles survivent au retour à « non défini » :
+      // elles ne dépendent plus d'un cachet standard (une tournée peut ne payer
+      // à part que le chant). On les purgeait ici, sans confirmation — c'était
+      // perdre des montants négociés pour avoir touché un select.
       const montantInput = document.querySelector(`[data-cachet-montant="${CSS.escape(tourneeId)}"]`);
       const unit = sel.parentElement.querySelector('.cachet-unit');
-      const overridesToggle = document.querySelector(`[data-toggle-cachet-overrides="${CSS.escape(tourneeId)}"]`);
-      const overridesPanel = document.getElementById(`cachet-overrides-${tourneeId}`);
       if(montantInput){
         montantInput.style.display = sel.value === 'defini' ? '' : 'none';
         if(sel.value === 'defini') montantInput.focus();
       }
       if(unit) unit.style.display = sel.value === 'defini' ? '' : 'none';
-      if(overridesToggle) overridesToggle.style.display = sel.value === 'defini' ? '' : 'none';
-      if(overridesPanel && sel.value !== 'defini') overridesPanel.style.display = 'none';
     });
   });
   document.querySelectorAll('[data-cachet-montant]').forEach(inp=>{
@@ -2918,6 +2978,9 @@ function bindTourneeEvents(){
   // et une ligne qu'on vient de remplir reste visible même une fois la recherche vidée.
   document.querySelectorAll('[data-cachet-override-search]').forEach(searchInp=>{
     searchInp.addEventListener('input', ()=> applyCachetOverrideFilter(searchInp.dataset.cachetOverrideSearch));
+  });
+  document.querySelectorAll('[data-cachet-override-affectees]').forEach(cb=>{
+    cb.addEventListener('change', ()=> applyCachetOverrideFilter(cb.dataset.cachetOverrideAffectees));
   });
   document.querySelectorAll('[data-cachet-override-tournee]').forEach(inp=>{
     inp.addEventListener('input', ()=> applyCachetOverrideFilter(inp.dataset.cachetOverrideTournee));

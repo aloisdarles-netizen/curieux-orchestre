@@ -545,21 +545,27 @@ function render(){
   // Une personne peut avoir un cachet différent du cachet standard de la tournée
   // (voir cachet_overrides dans migrations.sql) — elle ne voit jamais le montant des
   // autres, seulement le sien (state.cachetOverride, chargé via token dans init()).
+  // Entre les deux, le cachet propre à son pupitre dans la nomenclature (le
+  // chant, payé à part) : la résolution vit dans curieuxCachetResolu, la même
+  // que celle du devis. La tournée arrive ici telle que la RPC la rend (en
+  // snake_case, sans passer par l'adaptateur) : on lui présente les trois
+  // champs sous les noms qu'elle attend.
   // Sur un recording, il n'y a pas de cachet global : chaque séance porte le
   // sien (voir tournees.html). Le bandeau renvoie donc aux dates, et chaque
   // carte de date affiche son montant quand il est fixé.
   const estRecordingProjet = state.tournee.type === 'recording';
+  const cachetResolu = curieuxCachetResolu({
+    cachetStatut: state.tournee.cachet_statut,
+    cachetMontant: state.tournee.cachet_montant,
+    nomenclature: state.tournee.nomenclature || [],
+  }, state.person.pupitre, state.cachetOverride);
   const cachetLine = estRecordingProjet
     ? ((state.tournee.dates || []).some(x=> x.cachetSeance != null && x.cachetSeance !== '')
         ? `Cachet brut : <strong>par séance</strong> — indiqué sous chaque date`
         : `Cachet brut : par séance, pas encore fixé`)
-    : (state.tournee.cachet_statut === 'defini'
-      ? (state.cachetOverride != null
-          ? `Cachet brut : <strong>${escapeHtml(String(state.cachetOverride))} € brut</strong>`
-          : (state.tournee.cachet_montant != null
-              ? `Cachet brut : <strong>${escapeHtml(String(state.tournee.cachet_montant))} € brut</strong>`
-              : `Cachet brut : non défini pour l'instant`))
-      : `Cachet brut : non défini pour l'instant`);
+    : (cachetResolu.montant != null
+        ? `Cachet brut : <strong>${escapeHtml(String(cachetResolu.montant))} € brut</strong>`
+        : `Cachet brut : non défini pour l'instant`);
 
   let html = `
     <h1>Tes disponibilités</h1>
