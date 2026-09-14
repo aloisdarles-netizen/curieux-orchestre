@@ -112,7 +112,11 @@
 // viewport-fit=cover (app-musicien.js) ; le calendrier passe à un mois à la
 // fois, avec flèches, et une journée touchée se nomme (mes-dates-vue.js).
 // v107 : la marque passe à 34 px dans une barre de 70 px (app-musicien.js).
-const VERSION = 'curieux-v107';
+// v108 : aucun actif modifié — l'en-tête du tableau de service porte sa
+// pastille de statut dans recap.html, qui est une PAGE (servie réseau
+// d'abord). L'incrément reste posé par principe : la note de la v3 veut qu'on
+// ne laisse jamais un doute sur ce qui a bougé.
+const VERSION = 'curieux-v108';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -33,6 +33,15 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-14',
+    titre: 'Où en est chaque date, sur le tableau de service',
+    points: [
+      "Chaque colonne du tableau de service porte une pastille de couleur à côté de la date : vert c'est signé, ambre c'est une option, contour gris c'est à l'étude, rouge c'est annulé. La couleur de fond reste celle du projet.",
+      "Une légende sous le tableau rappelle les couleurs — et n'énumère que les statuts réellement présents.",
+      "Le point d'interrogation qui marquait les dates à l'étude disparaît : la pastille le dit mieux, et deux signes pour la même chose au même endroit, c'était un de trop.",
+    ],
+  },
+  {
     version: '2026-09-10-4',
     titre: 'Les dates dans l’agenda, et un calendrier qui se feuillette',
     points: [

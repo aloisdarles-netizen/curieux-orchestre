@@ -206,7 +206,46 @@
      sous l'en-tête dit que rien n'est posé. Les cases, elles, restent pleines —
      c'est justement sur ces dates-là qu'on collecte les dispos. */
   .co-matrix-date.date-recherche{border-bottom:2px dashed var(--muted);}
-  .co-matrix-date .marque-rech{font-size:10px; font-weight:800; color:var(--muted); margin-left:2px;}
+
+  /* ------------------------------------------------------------------------
+     Où en est la date, dit sur la date elle-même.
+
+     La colonne portait la couleur du PROJET — c'est ce qui permet de voir d'un
+     coup quelles dates vont ensemble — mais rien ne disait où en était chacune
+     d'elles. On lisait « 12 mars, Lyon » sans savoir si c'était signé ou si la
+     salle nous tenait encore la date : la réponse était dans la page des
+     tournées, deux écrans plus loin, et c'est pourtant ce qui décide si l'on
+     engage un camion ou si l'on relance une équipe.
+
+     Une pastille de 8 px, la même que celle du calendrier des musicien·nes —
+     vert signé, ambre en option, contour gris à l'étude, rouge annulée. Le
+     contour plutôt qu'un aplat pour « à l'étude » n'est pas un hasard : rien
+     n'est engagé, donc rien à remplir. Le point d'interrogation qui tenait ce
+     rôle disparaît : deux signes pour la même chose au même endroit, c'est un
+     de trop.
+     ------------------------------------------------------------------------ */
+  .pastille-statut{
+    display:inline-block; width:8px; height:8px; border-radius:50%;
+    margin-right:4px; vertical-align:1px; flex:0 0 auto;
+  }
+  .pastille-statut.validee{background:var(--ok);}
+  .pastille-statut.option{background:var(--maybe);}
+  .pastille-statut.recherche{background:transparent; box-shadow:inset 0 0 0 2px var(--muted);}
+  .pastille-statut.annulee{background:var(--ko);}
+  /* Dans l'en-tête seulement : la colonne porte l'aplat du projet, et un
+     liseré clair détache la pastille d'un fond qui peut être proche de sa
+     couleur. Dans la légende, posée sur le fond de page, il ferait une auréole
+     blanche pour rien. */
+  .co-matrix-date .pastille-statut{box-shadow:0 0 0 1.5px var(--card);}
+  .co-matrix-date .pastille-statut.recherche{box-shadow:0 0 0 1.5px var(--card), inset 0 0 0 2px var(--muted);}
+
+  /* La légende, sous le tableau : six mots qui évitent d'avoir à deviner. */
+  .legende-statuts{
+    display:flex; gap:16px; flex-wrap:wrap; align-items:center;
+    margin:12px 2px 0; font-size:11.5px; color:var(--muted);
+  }
+  .legende-statuts span{display:inline-flex; align-items:center;}
+  .legende-statuts b{font-weight:800; color:var(--text);}
 
   /* Une précision laissée par la personne (« ok mais je pars à 22h ») : point
      orange au coin de la case, texte complet au survol. */
@@ -1510,8 +1549,8 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
       ${entries.map(e=>`
         <div class="co-matrix-date${e.estRecording ? ' colonne-reco' : ''}${e.statut === 'annulee' ? ' date-annulee' : ''}${statutDate(e) === 'recherche' ? ' date-recherche' : ''}" style="background:${colorFor(e)};"
           data-ouvrir-date="${escapeAttr(e.tourneeId + '|' + e.dateId)}" role="button" tabindex="0"
-          title="${e.statut === 'annulee' ? 'Date annulée — ' : ''}${statutDate(e) === 'recherche' ? 'Recherche de date, rien n\u2019est posé — ' : ''}${escapeHtml(e.tourneeNom || '')}${e.estRecording ? ' (recording)' : ''} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}&#10;&#10;Cliquer pour voir cette date en entier : qui joue, qui est libre, qui manque.">
-          ${escapeHtml(fmtDateFRShort(e.date))}${statutDate(e) === 'recherche' ? '<span class="marque-rech" aria-hidden="true">?</span>' : ''}
+          title="${escapeHtml(courtStatut(e))} — ${escapeHtml(e.tourneeNom || '')}${e.estRecording ? ' (recording)' : ''} — ${escapeHtml([e.ville, e.lieu].filter(Boolean).join(' · '))}&#10;&#10;Cliquer pour voir cette date en entier : qui joue, qui est libre, qui manque.">
+          <span class="pastille-statut ${escapeAttr(statutDate(e))}" aria-hidden="true"></span>${escapeHtml(fmtDateFRShort(e.date))}
           <small>${escapeHtml((e.ville || '').split(' (')[0] || '—')}</small>
         </div>
       `).join('')}
@@ -1662,10 +1701,22 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
   // La bande de couleurs qui listait ici les projets a disparu : le bandeau
   // écrit leur nom à même les colonnes, à quarante pixels de là. Deux fois la
   // même chose, dont une en devinettes.
+  /* La légende n'énumère que les statuts PRÉSENTS : sur un tableau qui n'a que
+     des dates validées, cinq entrées dont quatre sans objet donneraient à
+     chercher ce qui n'existe pas. */
+  const presents = STATUTS_DATE.filter(st=> entries.some(e=> statutDate(e) === st.cle));
+  const legende = presents.length > 1 ? `
+    <div class="legende-statuts">
+      <b>Où en est la date :</b>
+      ${presents.map(st=>
+        `<span><i class="pastille-statut ${escapeAttr(st.cle)}"></i>${escapeHtml(st.court.toLowerCase())}</span>`).join('')}
+    </div>` : '';
+
   holder.innerHTML = `
     <div class="co-matrix">
       <div class="co-matrix-in"><div class="co-matrix-tete">${bandeau}${head}</div>${rows}${totaux}</div>
     </div>
+    ${legende}
   `;
 }
 
