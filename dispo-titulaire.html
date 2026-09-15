@@ -564,13 +564,22 @@ function render(){
     cachetMontant: state.tournee.cachet_montant,
     nomenclature: state.tournee.nomenclature || [],
   }, state.person.pupitre, state.cachetOverride);
-  const cachetLine = estRecordingProjet
-    ? ((state.tournee.dates || []).some(x=> x.cachetSeance != null && x.cachetSeance !== '')
-        ? `Cachet brut : <strong>par séance</strong> — indiqué sous chaque date`
-        : `Cachet brut : par séance, pas encore fixé`)
+  /* Ce que le bandeau peut honnêtement annoncer.
+     -----------------------------------------------------------------------
+     Une seule phrase pour trois situations. Dès qu'une date porte son propre
+     montant — une répétition payée autrement qu'un concert —, le bandeau ne
+     peut plus annoncer un chiffre unique : il renvoie aux dates, où chacune
+     porte le sien. Annoncer le standard du projet là-dedans serait dire un
+     prix qui ne sera pas celui de la moitié des services. */
+  const MOT_SEANCE = estRecordingProjet ? 'séance' : 'date';
+  const datesAvecCachet = (state.tournee.dates || []).filter(x=> curieuxCachetDate(x) != null).length;
+  const cachetLine = datesAvecCachet
+    ? `Cachet brut : <strong>selon la ${MOT_SEANCE}</strong> — indiqué sous chacune`
     : (cachetResolu.montant != null
         ? `Cachet brut : <strong>${escapeHtml(String(cachetResolu.montant))} € brut</strong>`
-        : `Cachet brut : non défini pour l'instant`);
+        : (estRecordingProjet
+            ? `Cachet brut : par séance, pas encore fixé`
+            : `Cachet brut : non défini pour l'instant`));
 
   let html = `
     <h1>Tes disponibilités</h1>
@@ -660,7 +669,20 @@ function render(){
                on demande la dispo de quelqu'un sur un soir qui n'existe pas
                encore, et il vaut mieux qu'il le sache en répondant. */
             statutDate(d) === 'recherche' ? '<span class="recherche-tag">À l\'étude</span>' : ''}</div>
-          <div class="date-place">${escapeHtml([d.ville, d.lieu].filter(Boolean).join(' · ') || '—')}${state.tournee.type === 'recording' && d.cachetSeance != null && d.cachetSeance !== '' ? `<span class="cachet-seance-tag">${escapeHtml(String(d.cachetSeance))} € brut</span>` : ''}</div>
+          <div class="date-place">${escapeHtml([d.ville, d.lieu].filter(Boolean).join(' · ') || '—')}${(()=>{
+            // La pastille ne s'affiche que si les dates ne se paient pas
+            // toutes pareil : sinon elle répéterait le bandeau sur chaque
+            // ligne. Le montant est celui qui s'applique à CETTE personne —
+            // son exception nominative ou celle de son pupitre l'emportent.
+            if(!datesAvecCachet) return '';
+            const r = curieuxCachetResolu({
+              cachetStatut: state.tournee.cachet_statut,
+              cachetMontant: state.tournee.cachet_montant,
+              nomenclature: state.tournee.nomenclature || [],
+            }, state.person.pupitre, state.cachetOverride, d);
+            if(r.montant == null) return '';
+            return `<span class="cachet-seance-tag" title="${escapeAttr(libelleTypeDate(state.tournee.type, d.type))}">${escapeHtml(String(r.montant))} € brut</span>`;
+          })()}</div>
         </div>
         <div class="state-toggle">
           <button type="button" class="state-btn dispo ${current==='dispo'?'active':''}" data-date="${escapeAttr(d.date)}" data-state="dispo">${CurieuxDispos.libelle('dispo')}</button>

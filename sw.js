@@ -116,7 +116,11 @@
 // pastille de statut dans recap.html, qui est une PAGE (servie réseau
 // d'abord). L'incrément reste posé par principe : la note de la v3 veut qu'on
 // ne laisse jamais un doute sur ce qui a bougé.
-const VERSION = 'curieux-v108';
+// v109 : ui-helpers.js apprend le cachet PAR DATE (curieuxCachetDate, et un
+// quatrième niveau dans curieuxCachetResolu). Sans cet incrément, un
+// navigateur déjà venu garderait l'ancien fichier — les montants par
+// répétition existeraient en base et ne s'afficheraient nulle part.
+const VERSION = 'curieux-v109';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

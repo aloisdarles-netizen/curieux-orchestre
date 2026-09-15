@@ -259,6 +259,12 @@
   .nomen-cachet.propre input{font-weight:700;}
 
   .nomenclature-panel{min-width:0;}
+  .cachet-aide{font-size:12.5px; color:var(--muted); margin:8px 0; line-height:1.5;}
+  .cachet-aide:first-of-type{margin-top:0;}
+  /* Les cibles sur leur propre rangée : quatre boutons à la suite du champ de
+     saisie passaient à la ligne n'importe où, et on ne savait plus lequel
+     visait quoi. */
+  .cachet-cibles{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
   .cachet-row{display:flex; align-items:center; gap:8px; margin:-6px 0 14px; flex-wrap:wrap;}
   .cachet-row label{font-size:12.5px; color:var(--muted); font-weight:600;}
   .cachet-row select{padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;}
@@ -291,8 +297,8 @@
      ------------------------------------------------------------------------ */
   .dates-rows{ overflow-x:auto; }
   .date-row{
-    display:grid; align-items:center; gap:9px; min-width:1006px;
-    grid-template-columns:26px 92px 88px minmax(190px,1fr) 106px 104px 88px minmax(178px,auto) 84px 40px;
+    display:grid; align-items:center; gap:9px; min-width:1089px;
+    grid-template-columns:26px 92px 88px minmax(190px,1fr) 106px 104px 74px 88px minmax(178px,auto) 84px 40px;
     flex-wrap:nowrap;
   }
   /* Une case par UNITÉ DE STATUT, et non par ligne : un bloc de trois soirs
@@ -1828,7 +1834,22 @@ function chiffrageHtml(t){
   // cause. Le dire suffit.
   const vendu = cachetVendu(c);
   const porte = t.cachetStatut === 'defini' && t.cachetMontant != null ? devisNombre(t.cachetMontant, 0) : null;
-  const ecart = (vendu != null && porte !== vendu)
+  /* Dès que des dates portent leur propre montant, le projet n'a plus UN
+     cachet à comparer au devis : comparer le standard reviendrait à dire un
+     prix qui ne vaut que pour une partie des services. On le dit, et on donne
+     l'étendue — c'est ce qu'on veut savoir en regardant un chiffrage. */
+  const montantsPropres = [...new Set((t.dates || []).map(d=> curieuxCachetDate(d)).filter(x=> x != null))].sort((a, b)=> a - b);
+  const toutesPropres = montantsPropres.length && (t.dates || []).every(d=> curieuxCachetDate(d) != null);
+  const varie = montantsPropres.length > 1 || (montantsPropres.length === 1 && !toutesPropres && porte != null && montantsPropres[0] !== porte);
+  const etendue = varie
+    ? (()=>{ const bas = montantsPropres[0];
+             const haut = toutesPropres ? montantsPropres[montantsPropres.length - 1]
+                                        : Math.max(montantsPropres[montantsPropres.length - 1], porte != null ? porte : -Infinity);
+             return `de ${fmtEurosDevis(bas)} à ${fmtEurosDevis(haut)}`; })()
+    : '';
+  const ecart = varie
+    ? `<span class="chiffrage-ecart">Le devis accepté prévoit ${vendu != null ? fmtEurosDevis(vendu) + ' par cachet' : 'un cachet'} ; les ${EST_RECORDING ? 'séances' : 'dates'} en portent des montants propres, ${etendue}.</span>`
+    : (vendu != null && porte !== vendu)
     ? `<span class="chiffrage-ecart">Le devis accepté prévoit ${fmtEurosDevis(vendu)} par cachet${porte != null ? `, la ${EST_RECORDING ? 'séance' : 'date'} en porte ${fmtEurosDevis(porte)}` : ''}.</span>`
     : '';
   return `<div class="chiffrage-ligne">${morceaux.join('<span class="sep">·</span>')}${ecart}</div>`;
@@ -1892,15 +1913,30 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             ${VOC.typesDate.map(([val, lib]) => `<option value="${val}" ${type===val?'selected':''}>${lib}</option>`).join('')}
           </select>
         `;
-        // Cachet de LA séance : un enregistrement se négocie séance par
-        // séance — une journée de prise et un soir de mixage ne se paient pas
-        // pareil. Le cachet global de tournée n'a donc pas de sens ici, et le
-        // bloc « Cachet » de l'encart d'outils est remplacé par cette colonne.
-        const cachetCell = !EST_RECORDING ? '' : `
+        /* Le cachet de CETTE journée-là.
+           -------------------------------------------------------------------
+           La colonne était réservée aux recordings, où le besoin est évident :
+           une journée de prise et un soir de mixage ne se paient pas pareil.
+           Une tournée a exactement le même besoin — une répétition n'est pas
+           un concert — et n'avait que deux mauvaises réponses : un seul
+           montant pour tout, ou découper le projet en deux, ce qui aurait
+           dédoublé l'équipe, la nomenclature, les demandes de dispo et les
+           liens envoyés aux musicien·nes pour une question d'argent.
+
+           Vide n'est pas zéro : la date prend alors le cachet standard du
+           projet (voir curieuxCachetResolu). Le repère gris rappelle donc ce
+           montant-là plutôt qu'un tiret, pour qu'on voie ce qui s'applique
+           sans avoir à le déduire. */
+        const cachetDefaut = (t.cachetStatut === 'defini' && t.cachetMontant != null && t.cachetMontant !== '')
+          ? String(t.cachetMontant) : '';
+        const cachetCell = `
           <span class="col-cachet">
             <input type="text" inputmode="decimal" class="saisie-cachet" data-field="cachetSeance" data-date-id="${escapeAttr(d.id)}"
               value="${d.cachetSeance != null && d.cachetSeance !== '' ? escapeAttr(String(d.cachetSeance)) : ''}"
-              placeholder="— €" title="Cachet brut de cette séance, par musicien·ne. Vide : pas encore fixé.">
+              placeholder="${cachetDefaut ? escapeAttr(cachetDefaut + ' €') : '— €'}"
+              title="${escapeAttr('Cachet brut de cette ' + (EST_RECORDING ? 'séance' : 'date') + ', par musicien·ne.'
+                + (cachetDefaut ? ` Laissé vide : le cachet standard du projet s'applique (${cachetDefaut} €).`
+                                : ' Vide : pas encore fixé.'))}">
           </span>
         `;
         // Séance de studio : purement indicatif. L'équipe est affectée à la
@@ -2024,8 +2060,8 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             </span>
             <span class="col-type"><span class="col-icone" title="Nature de la date">${iconeTypeDate(PROJET_TYPE, type)}</span>${typeSelect}</span>
             ${seanceSelect}
-            ${cachetCell}
             ${travelCell}
+            ${cachetCell}
             <span class="col-statut">${showStatut ? statutGroup : ''}</span>
             <span class="col-equipe" title="${escapeAttr(summaryText)}">
               <!-- Le compteur EST le bouton qui déplie l'équipe : « Voir »
@@ -2092,10 +2128,22 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             <button type="button" class="outils-toggle" data-toggle-outils="${escapeAttr(t.id)}"
               aria-expanded="${outilsOuverts.has(t.id) ? 'true' : 'false'}" title="Cachet et effectif attendu">
               <span class="outils-resume">${[
-                EST_RECORDING
-                  ? (()=>{ const avec = dates.filter(d=> d.cachetSeance != null && d.cachetSeance !== '').length;
-                           return avec ? `cachets fixés : ${avec}/${dates.length} séances` : 'cachets à fixer par séance'; })()
-                  : (t.cachetStatut === 'defini' && t.cachetMontant != null ? `${t.cachetMontant} € / date` : 'cachet à définir'),
+                /* Le résumé du cachet, replié. Une tournée dont toutes les dates
+                   se paient pareil dit son montant ; dès qu'une date porte le
+                   sien, elle dit combien en portent un — c'est le chiffre qui
+                   décide s'il reste du travail. Sans cela, une tournée où les
+                   répétitions sont payées à part annonçait tranquillement le
+                   seul montant des concerts. */
+                (()=>{
+                  const MOT = EST_RECORDING ? 'séance' : 'date';
+                  const avec = dates.filter(d=> curieuxCachetDate(d) != null).length;
+                  const standard = (t.cachetStatut === 'defini' && t.cachetMontant != null && t.cachetMontant !== '')
+                    ? `${t.cachetMontant} € / ${MOT}` : '';
+                  if(avec && avec === dates.length && dates.length) return `cachets fixés sur les ${dates.length} ${MOT}s`;
+                  if(avec) return `${avec}/${dates.length} ${MOT}s à cachet propre${standard ? ` · ${standard} sinon` : ''}`;
+                  if(standard) return standard;
+                  return EST_RECORDING ? `cachets à fixer par séance` : 'cachet à définir';
+                })(),
                 EST_RECORDING ? '' : pupitresACachet.map(r=> `${r.pupitre} ${r.cachet} €`).join(' · '),
                 EST_RECORDING ? '' : (overrideCount ? `${overrideCount} exception${overrideCount>1?'s':''}` : ''),
                 (t.nomenclature||[]).length ? `${(t.nomenclature||[]).reduce((n,r)=>n+(Number(r.nombre)||0),0)} attendu·es` : '',
@@ -2110,30 +2158,42 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
                tête de tournée qu'on consulte en même temps que les dates. -->
           <div class="tournee-outils" id="outils-${escapeAttr(t.id)}" ${outilsOuverts.has(t.id) ? '' : 'hidden'}>
             <div>
-${EST_RECORDING ? (()=>{
-                /* Le cachet d'un recording se fixe séance par séance (colonne
-                   Cachet du tableau) : une journée de prise et un soir de
-                   mixage ne se paient pas pareil. Mais trente séances au même
-                   tarif se saisissaient trente fois, et ce panneau — le seul
-                   endroit intitulé « Cachet » sur la carte — n'offrait qu'une
-                   phrase pour l'expliquer. Il pose maintenant un montant d'un
-                   coup : sur toutes les séances, ou seulement sur celles qui
-                   n'en ont pas encore, ce qui est le geste courant en cours de
-                   saison. Pour n'en toucher que quelques-unes, la sélection
-                   par cases et la barre du bas font le reste. */
-                const vides = dates.filter(d=> d.cachetSeance == null || d.cachetSeance === '').length;
+${(()=>{
+                /* ==========================================================
+                   Le cachet, du plus général au plus précis.
+                   ==========================================================
+                   Ce panneau ne proposait qu'un montant unique pour tout le
+                   projet (une tournée) ou rien du tout (un recording, où
+                   chaque séance porte le sien). Les deux étaient trop
+                   grossiers : une répétition et un concert du même projet ne
+                   se paient pas pareil, et la seule issue était de couper le
+                   projet en deux — ce qui aurait dédoublé l'équipe, la
+                   nomenclature, les demandes de dispo et les liens envoyés
+                   aux musicien·nes, pour une question d'argent.
+
+                   La nature de chaque date existait déjà dans le tableau
+                   (concert, répétition, résidence ; prise, mixage…). Il ne
+                   manquait que de pouvoir poser un montant PAR NATURE, d'un
+                   geste : c'est ce que font les boutons ci-dessous. Ils
+                   écrivent le montant sur chaque date concernée — donc ce qui
+                   est affiché dans la colonne Cachet est exactement ce qui
+                   s'appliquera, sans règle cachée à reconstituer six mois
+                   plus tard.
+                   ========================================================== */
+                const MOT = EST_RECORDING ? 'séance' : 'date';
+                const vides = dates.filter(d=> curieuxCachetDate(d) == null).length;
+                // Une nature ne se propose que si le projet en contient : sur
+                // une tournée sans aucune répétition, le bouton n'aurait rien
+                // à faire et ferait douter de ce qu'il vise.
+                const parNature = VOC.typesDate
+                  .map(([val, lib])=> ({ val, lib, n: dates.filter(d=> typeDateValide(PROJET_TYPE, d.type) === val).length }))
+                  .filter(x=> x.n > 0);
+                // Deux natures au moins : avec une seule, « toutes » dit déjà
+                // la même chose.
+                const utileParNature = parNature.length > 1;
                 return `
               <div class="outils-legend">Cachet</div>
-              <p style="font-size:12.5px; color:var(--muted); margin:0 0 8px; line-height:1.5;">Le cachet se fixe <b>séance par séance</b>, dans la colonne Cachet du tableau. Pour poser le même montant sur plusieurs séances d'un coup :</p>
-              <div class="cachet-row" style="margin:0;">
-                <input type="text" data-cachet-commun="${escapeAttr(t.id)}" placeholder="Montant" inputmode="decimal"
-                  style="width:110px; padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;">
-                <span class="cachet-unit">€ brut / séance</span>
-                <button type="button" class="co-btn tint sm" data-cachet-commun-appliquer="${escapeAttr(t.id)}" data-cible="toutes">Toutes les séances (${dates.length})</button>
-                <button type="button" class="co-btn ghost sm" data-cachet-commun-appliquer="${escapeAttr(t.id)}" data-cible="vides" ${vides ? '' : 'disabled'}>Seulement celles sans cachet (${vides})</button>
-              </div>
-              <p style="font-size:12px; color:var(--muted); margin:8px 0 0; line-height:1.5;">Pour n'en changer que quelques-unes : coche-les dans le tableau, la barre en bas de l'écran propose alors un cachet pour la sélection.</p>
-              `; })() : `              <div class="outils-legend">Cachet</div>
+              ${EST_RECORDING ? '' : `
               <div class="cachet-row">
                 <select data-cachet-statut="${escapeAttr(t.id)}">
                   <option value="non_defini" ${t.cachetStatut !== 'defini' ? 'selected' : ''}>Non défini pour l'instant</option>
@@ -2142,15 +2202,35 @@ ${EST_RECORDING ? (()=>{
                 <span class="cachet-montant" style="${t.cachetStatut === 'defini' ? '' : 'display:none;'}">
                   <input type="number" data-cachet-montant="${escapeAttr(t.id)}" placeholder="Montant" min="0" step="0.01"
                     value="${t.cachetMontant != null ? escapeAttr(String(t.cachetMontant)) : ''}">
-                  <span class="cachet-unit">€ brut / ${EST_RECORDING ? 'séance' : 'date'}</span>
+                  <span class="cachet-unit">€ brut / date</span>
                 </span>
+              </div>`}
+              <p class="cachet-aide">${EST_RECORDING
+                ? `Le cachet se fixe <b>séance par séance</b>, dans la colonne Cachet du tableau. Pour poser le même montant sur plusieurs séances d'un coup :`
+                : `Ce montant vaut pour toute date qui n'en porte pas d'autre. Pour payer les répétitions autrement que les concerts, pose un montant <b>sur les dates d'une nature</b> :`}</p>
+              <div class="cachet-row" style="margin:0;">
+                <input type="text" data-cachet-commun="${escapeAttr(t.id)}" placeholder="Montant" inputmode="decimal"
+                  style="width:110px; padding:6px 9px; font-size:12.5px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); font-family:inherit;">
+                <span class="cachet-unit">€ brut / ${MOT}</span>
               </div>
-              ${/* Accessible même sans cachet standard : une tournée peut ne
-                    payer à part que quelques personnes (le chant, un·e
-                    soliste) et laisser le reste « à définir ». Le bouton
-                    était masqué tant que le montant global n'était pas posé,
-                    ce qui obligeait à inventer un standard pour saisir une
-                    exception. */''}
+              <div class="cachet-cibles">
+                ${utileParNature ? parNature.map(x=>
+                  `<button type="button" class="co-btn tint sm" data-cachet-commun-appliquer="${escapeAttr(t.id)}"
+                     data-cible="nature:${escapeAttr(x.val)}">${escapeHtml(x.lib)}${x.n > 1 ? 's' : ''} (${x.n})</button>`).join('') : ''}
+                <button type="button" class="co-btn ${utileParNature ? 'ghost' : 'tint'} sm" data-cachet-commun-appliquer="${escapeAttr(t.id)}" data-cible="toutes">Toutes les ${MOT}s (${dates.length})</button>
+                <button type="button" class="co-btn ghost sm" data-cachet-commun-appliquer="${escapeAttr(t.id)}" data-cible="vides" ${vides ? '' : 'disabled'}>Sans cachet (${vides})</button>
+                ${dates.length - vides ? `<button type="button" class="co-btn ghost sm" data-cachet-vider="${escapeAttr(t.id)}">Tout effacer</button>` : ''}
+              </div>
+              <p class="cachet-aide">Pour n'en changer que quelques-unes : coche-les dans le tableau, la barre en bas de l'écran propose alors un cachet pour la sélection.</p>
+              `; })()}
+              ${/* Les exceptions par personne restent réservées aux tournées, comme
+                    avant : un recording se paie séance par séance, et une
+                    exception nominative par-dessus n'a jamais été demandée.
+                    Ce bloc vivait dans la branche « tournée » d'un ternaire
+                    dont le panneau ci-dessus était l'autre branche ; le
+                    panneau étant désormais commun, la condition redevient
+                    explicite. */''}
+              ${EST_RECORDING ? '' : `
               <button type="button" class="co-btn ghost sm" data-toggle-cachet-overrides="${escapeAttr(t.id)}"
                 style="margin-top:8px; padding-left:0;">Cachet différent pour certaines personnes${overrideCount ? ` (${overrideCount})` : ''}</button>
           <div class="cachet-overrides" id="cachet-overrides-${escapeAttr(t.id)}" style="display:none;">
@@ -2182,7 +2262,8 @@ ${EST_RECORDING ? (()=>{
                 <div class="empty-hint" data-cachet-override-empty="${escapeAttr(t.id)}" style="display:none; font-size:12.5px; padding:4px 0;">Aucune personne trouvée.</div>
               `}
           </div>
-`}            </div>
+`}
+            </div>
             <div class="nomenclature-panel" id="nomenclature-${escapeAttr(t.id)}">
               <div class="outils-legend">Effectif attendu (nomenclature)</div>
               <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
@@ -2222,7 +2303,8 @@ ${EST_RECORDING ? (()=>{
                 <span class="col-bloc">${EST_RECORDING ? 'Session' : 'Bloc'}</span>
                 <span class="col-lieu co-row-name">${VOC.colonneLieu}</span>
                 <span class="col-type">Nature</span>
-                ${EST_RECORDING ? '<span class="col-seance">Séance</span><span class="col-cachet">Cachet</span>' : '<span class="col-voyage">Voyage</span>'}
+                ${EST_RECORDING ? '<span class="col-seance">Séance</span>' : '<span class="col-voyage">Voyage</span>'}
+                <span class="col-cachet">Cachet</span>
                 <span class="col-statut">Statut</span>
                 <span class="col-equipe">Équipe</span>
                 <span class="col-fdr">${EST_RECORDING ? 'Feuille' : 'FDR'}</span>
@@ -2427,9 +2509,9 @@ function montantSaisi(input){
   return isNaN(n) || n < 0 ? NaN : n;
 }
 
-// Un même cachet sur toutes les séances d'un recording, ou sur celles qui n'en
-// ont pas encore. Délégué sur le document, comme le cartouche : la carte est
-// re-rendue à chaque sauvegarde.
+/* Un même montant sur un lot de dates : toutes, celles qui n'ont rien, ou
+   celles d'une NATURE — « toutes les répétitions à 120 € ». Délégué sur le
+   document, comme le cartouche : la carte est re-rendue à chaque sauvegarde. */
 document.addEventListener('click', (e)=>{
   const btn = e.target.closest('[data-cachet-commun-appliquer]');
   if(!btn) return;
@@ -2441,19 +2523,45 @@ document.addEventListener('click', (e)=>{
   const tournees = loadTournees();
   const t = tournees.find(x=> x.id === tourneeId);
   if(!t) return;
-  const cibles = (t.dates || []).filter(d=> btn.dataset.cible === 'vides'
-    ? (d.cachetSeance == null || d.cachetSeance === '')
+  const cible = btn.dataset.cible || 'toutes';
+  const nature = cible.startsWith('nature:') ? cible.slice(7) : '';
+  const cibles = (t.dates || []).filter(d=>
+    nature ? typeDateValide(PROJET_TYPE, d.type) === nature
+    : cible === 'vides' ? curieuxCachetDate(d) == null
     : true);
   if(!cibles.length) return;
-  const deja = cibles.filter(d=> d.cachetSeance != null && d.cachetSeance !== '' && d.cachetSeance !== montant).length;
-  const avert = deja ? `\n\n${deja} séance${deja > 1 ? 's ont' : ' a'} déjà un autre montant, qui sera remplacé.` : '';
-  if(!confirm(`Fixer ${montant} € brut sur ${cibles.length} séance${cibles.length > 1 ? 's' : ''} ?${avert}`)) return;
+  const MOT = EST_RECORDING ? 'séance' : 'date';
+  const quoi = nature ? libelleTypeDate(PROJET_TYPE, nature).toLowerCase() : MOT;
+  const deja = cibles.filter(d=> curieuxCachetDate(d) != null && Number(d.cachetSeance) !== montant).length;
+  const avert = deja ? `\n\n${deja} ${MOT}${deja > 1 ? 's portent' : ' porte'} déjà un autre montant, qui sera remplacé.` : '';
+  if(!confirm(`Fixer ${montant} € brut sur ${cibles.length} ${quoi}${cibles.length > 1 ? 's' : ''} ?${avert}`)) return;
   cibles.forEach(d=>{ d.cachetSeance = montant; });
   saveTournees(tournees);
   render();
 });
 
-// Le cachet des séances cochées, depuis la barre du bas.
+/* « Tout effacer » : les dates reprennent le cachet standard du projet. Sans
+   ce bouton, revenir à un montant unique demandait de vider vingt champs à la
+   main — et un champ oublié payait une date au mauvais tarif. */
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('[data-cachet-vider]');
+  if(!btn) return;
+  const tournees = loadTournees();
+  const t = tournees.find(x=> x.id === btn.dataset.cachetVider);
+  if(!t) return;
+  const porteurs = (t.dates || []).filter(d=> curieuxCachetDate(d) != null);
+  if(!porteurs.length) return;
+  const MOT = EST_RECORDING ? 'séance' : 'date';
+  const suite = (t.cachetStatut === 'defini' && t.cachetMontant != null && t.cachetMontant !== '')
+    ? `\n\nElles reprendront le cachet standard du projet (${t.cachetMontant} €).`
+    : `\n\nAucun cachet standard n'est défini : ces ${MOT}s n'auront plus de montant.`;
+  if(!confirm(`Effacer le cachet propre de ${porteurs.length} ${MOT}${porteurs.length > 1 ? 's' : ''} ?${suite}`)) return;
+  porteurs.forEach(d=>{ delete d.cachetSeance; });
+  saveTournees(tournees);
+  render();
+});
+
+// Le cachet des dates cochées, depuis la barre du bas.
 document.getElementById('lotCachetAppliquer').addEventListener('click', ()=>{
   const p = lotPortee();
   if(!p.dates) return;
@@ -2462,7 +2570,8 @@ document.getElementById('lotCachetAppliquer').addEventListener('click', ()=>{
   if(montant === null){ alert('Indique d\'abord un montant.'); input.focus(); return; }
   if(isNaN(montant)){ alert('Le montant doit être un nombre positif.'); input.focus(); return; }
   const ou = p.projets > 1 ? `, réparties sur ${p.projets} projets,` : '';
-  if(!confirm(`Fixer ${montant} € brut sur ${p.dates} séance${p.dates > 1 ? 's' : ''}${ou} ?`)) return;
+  const mot = EST_RECORDING ? 'séance' : 'date';
+  if(!confirm(`Fixer ${montant} € brut sur ${p.dates} ${mot}${p.dates > 1 ? 's' : ''}${ou} ?`)) return;
   const tournees = loadTournees();
   lotSelection.forEach(id=>{
     const t = tournees.find(x=> (x.dates || []).some(d=> d.id === id));
@@ -2474,8 +2583,6 @@ document.getElementById('lotCachetAppliquer').addEventListener('click', ()=>{
   saveTournees(tournees);
   render();
 });
-// Hors recording, le cachet ne se fixe pas par date : la barre ne le propose pas.
-document.querySelectorAll('.lot-cachet').forEach(el=>{ el.style.display = EST_RECORDING ? '' : 'none'; });
 
 document.getElementById('lotVider').addEventListener('click', ()=>{
   lotSelection.clear();

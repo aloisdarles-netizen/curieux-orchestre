@@ -33,6 +33,17 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-15',
+    titre: 'Un cachet par date : les répétitions ne se paient plus comme les concerts',
+    points: [
+      "Sur une tournée, chaque date porte maintenant son propre cachet, dans une colonne « Cachet » du tableau — comme les séances d'un recording depuis toujours.",
+      "Le panneau Cachet pose un montant sur toutes les dates d'une nature d'un seul geste : « Répétitions (3) », « Concerts (5) », « Résidence (1) ». Plus besoin de découper un projet en deux pour payer les répétitions autrement.",
+      "Laissée vide, une date reprend le cachet standard du projet — le repère gris du champ rappelle lequel. « Tout effacer » remet tout le projet au standard.",
+      "Les musicien·nes voient le montant sous chacune de leurs dates. Leur exception nominative, si elle existe, l'emporte toujours : « toi, c'est tant » ne cesse pas d'être vrai un jour de répétition.",
+      "Le chiffrage d'un projet ne compare plus le devis au seul cachet standard quand les dates portent des montants différents : il annonce l'étendue réelle.",
+    ],
+  },
+  {
     version: '2026-09-14',
     titre: 'Où en est chaque date, sur le tableau de service',
     points: [
