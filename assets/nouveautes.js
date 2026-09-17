@@ -33,6 +33,18 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-17-5',
+    titre: 'Mes remplaçant·es : trois rangs, et on classe au doigt',
+    points: [
+      "La page ouvrait dix cadres vides d'entrée. Sur un téléphone, il fallait passer sept encadrés « Ajouter un·e remplaçant·e » pour atteindre le bas. Elle en montre maintenant trois, et un de plus que le dernier rempli — il y a toujours une place libre, sans jamais dérouler dans le vide. La limite de dix ne change pas.",
+      "Changer l'ordre ne demandait plus qu'un effacement et une ressaisie : il fallait retirer la personne, la remettre au bon rang, recommencer pour les suivantes. On glisse désormais la pastille du rang pour la déplacer, au doigt sur téléphone comme à la souris.",
+      "Deux flèches doublent le glisser sur chaque ligne : sur un écran étroit, une main occupée ou un lecteur d'écran, le classement ne doit pas dépendre d'un geste précis.",
+      "Un rang est une position, pas une étiquette : passer le troisième en premier décale les deux autres au lieu d'échanger deux noms. Les listes anciennes à trous (un rang 1 et un rang 5) se renumérotent au premier déplacement.",
+      "Une personne peut enfin venir du répertoire du téléphone. Sur Android, le navigateur propose directement de choisir un contact ; partout ailleurs — iPhone compris —, on partage la fiche depuis Contacts (« Enregistrer dans Fichiers ») et on la dépose ici. Dans les deux cas l'import remplit seulement le formulaire : rien n'est ajouté avant validation, et un doublon avec le répertoire est signalé sur le champ.",
+      "Comme avant, rien n'est enregistré sans un clic sur « Enregistrer ma liste ».",
+    ],
+  },
+  {
     version: '2026-09-17-4',
     titre: 'Le cachet des technicien·nes',
     points: [
