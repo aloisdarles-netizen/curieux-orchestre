@@ -262,7 +262,12 @@
 let tourneesCache = [];
 let invitationsCache = [];
 
-let vue = 'saisie';
+/* On arrive sur le RÉCAPITULATIF. C'est la vue qui répond à la question qu'on
+   se pose en ouvrant la page — où en est ce projet, quelle date reste à
+   remplir, qu'est-ce qui déborde — alors que la saisie suppose qu'on sache
+   déjà sur quelle date on va travailler. Un clic mène à la saisie, et le
+   bouton « Saisir » de chaque ligne y mène directement sur la bonne date. */
+let vue = 'recap';
 let projetChoisi = '';
 let dateChoisie = '';
 let toutesJournees = false;
@@ -763,7 +768,10 @@ function htmlRecap(t){
       ${miniStat(Object.values(totalCat).reduce((s, n)=> s + n, 0), 'places accordées', 'var(--accent-tint)', 'var(--tint-ink)')}
       ${(()=>{
         const aFixer = dates.filter(d=> !cats.some(c=> quotaDate(d, c.cle) != null)).length;
-        if(aFixer) return miniStat('—', `contingent à fixer sur ${aFixer} date${aFixer > 1 ? 's' : ''}`, 'var(--border)', 'var(--muted)');
+        // « Sans contingent », et non « à fixer » : il se peut qu'il n'y en ait
+        // simplement pas. Le chiffre reste utile — sur ces dates, aucune place
+        // ne peut être donnée —, mais il ne se présente plus comme un oubli.
+        if(aFixer) return miniStat(aFixer, `date${aFixer > 1 ? 's' : ''} sans contingent`, 'var(--border)', 'var(--muted)');
         const reste = Object.values(totalQuota).reduce((s, n)=> s + n, 0) - Object.values(totalCat).reduce((s, n)=> s + n, 0);
         return miniStat(reste, reste < 0 ? 'places en trop' : 'places restantes',
           reste < 0 ? 'var(--ko-tint)' : 'var(--ok-tint)', reste < 0 ? 'var(--ko)' : 'var(--ok)');
@@ -1206,7 +1214,7 @@ function majUrl(){
   try{
     const p = new URLSearchParams();
     if(projetChoisi) p.set('projet', projetChoisi);
-    if(vue !== 'saisie') p.set('vue', vue);
+    if(vue !== 'recap') p.set('vue', vue);
     if(dateChoisie && vue === 'saisie') p.set('date', dateChoisie);
     history.replaceState(null, '', 'invitations.html' + (p.toString() ? '?' + p : ''));
   }catch(e){}
@@ -1497,7 +1505,10 @@ async function initData(){
   const invitables = projetsInvitables();
   const voulu = p.get('projet') || '';
   projetChoisi = invitables.some(t=> t.id === voulu) ? voulu : ((invitables[0] || {}).id || '');
-  if(p.get('vue') === 'recap') vue = 'recap';
+  if(p.get('vue') === 'saisie') vue = 'saisie';
+  // Un lien qui désigne une date précise vise la saisie : c'est là qu'on la
+  // remplit, et non le tableau de toutes les dates.
+  if(p.get('date')) vue = 'saisie';
   dateChoisie = p.get('date') || '';
   poserDateParDefaut();
 

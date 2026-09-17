@@ -36,7 +36,7 @@ const CURIEUX_NOUVEAUTES = [
     version: '2026-09-17',
     titre: 'Les invitations sortent du tableur',
     points: [
-      "Une section « Invitations » dans le bandeau. Deux écrans : la Saisie, une date à la fois, où l'on tape un nom et valide à Entrée ; le Récapitulatif, toutes les dates d'un coup avec ce qui reste et ce qui n'est pas encore parti à la salle.",
+      "Une section « Invitations » dans le bandeau. Deux écrans : le Récapitulatif, sur lequel on arrive — toutes les dates d'un coup, ce qui est consommé, ce qui reste, ce qui est à compléter — et la Saisie, une date à la fois, où l'on tape un nom et valide à Entrée. Le bouton « Saisir » de chaque ligne du récapitulatif mène droit à la bonne date.",
       "Seules les dates VALIDÉES ont une liste : une option n'est pas tenue, une date à l'étude n'existe pas encore, et promettre des places dessus revient à les reprendre. Une case ouvre le reste pour qui prépare en avance.",
       "À activer projet par projet — panneau « Invitations » d'une tournée. Une préparation ou une résidence n'a pas de public : rien ne s'affiche tant que la case n'est pas cochée.",
       "Le contingent est propre à chaque tournée : celui d'EXPEDITION 33 n'est pas celui de la suivante. On le saisit une fois dans le panneau du projet, un bouton le pose sur ses concerts validés, et il se corrige date par date depuis la saisie. Une catégorie laissée vide veut dire qu'il n'y en a pas dans cette salle — elle n'est simplement pas proposée.",
