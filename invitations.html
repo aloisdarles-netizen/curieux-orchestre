@@ -79,14 +79,14 @@
      avant la douzième invitation. */
   .inv-jauge.plein{background:var(--maybe-tint); border-color:var(--maybe);}
   .inv-jauge.trop{background:var(--ko-tint); border-color:var(--ko);}
-  .inv-jauge.afixer{border-style:dashed;}
+  .inv-jauge.afixer{opacity:.62;}
   .inv-jauge-etat{
     display:inline-block; margin-top:6px; font-size:9.5px; font-weight:800;
     text-transform:uppercase; letter-spacing:.05em; padding:2px 7px; border-radius:999px;
   }
   .inv-jauge-etat.plein{background:var(--maybe); color:#fff;}
   .inv-jauge-etat.trop{background:var(--ko); color:#fff;}
-  .inv-jauge-etat.afixer{background:var(--border); color:var(--muted);}
+  .inv-jauge-etat.afixer{background:transparent; color:var(--muted); padding-left:0;}
   .inv-jauge-pied{display:flex; align-items:center; gap:5px; margin-top:5px; font-size:10.5px; color:var(--muted);}
   .inv-jauge-pied input{
     width:44px; padding:2px 5px; font-size:11.5px; text-align:right; font-weight:800;
@@ -120,13 +120,27 @@
   .inv-saisie .num{text-align:right; font-weight:800; font-variant-numeric:tabular-nums;}
   .inv-saisie button{white-space:nowrap;}
   .inv-mot{font-size:11.5px; font-weight:700; color:var(--ko); margin-top:6px; min-height:14px;}
-  /* Une case, pas un nombre : on est à l'aftershow ou on n'y est pas. */
+  /* Une case, pas un nombre : on est à l'aftershow ou on n'y est pas.
+     Elle est dessinée à la main plutôt que laissée au navigateur : une case
+     native est blanche sur fond blanc, et elle disparaissait purement et
+     simplement dans le rose de la ligne de saisie. */
   .inv-case{
     display:flex; align-items:center; justify-content:center;
-    background:var(--card); border-radius:8px; padding:8px 0; cursor:pointer;
+    border-radius:8px; padding:7px 0; cursor:pointer;
   }
-  .inv-ligne .inv-case{background:var(--bg);}
-  .inv-case input{width:17px; height:17px; accent-color:#791649; cursor:pointer; margin:0;}
+  .inv-case input{
+    appearance:none; -webkit-appearance:none; margin:0; cursor:pointer;
+    width:20px; height:20px; border-radius:6px;
+    border:1.5px solid var(--prune); background:var(--card);
+    display:grid; place-content:center;
+  }
+  .inv-case input::before{
+    content:'✓'; font-size:13px; font-weight:800; line-height:1;
+    color:transparent; transition:color .1s;
+  }
+  .inv-case input:checked{background:var(--prune); border-color:var(--prune);}
+  .inv-case input:checked::before{color:var(--blanc);}
+  .inv-case input:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
   /* Une catégorie épuisée ou sans contingent reste visible mais inchoisissable :
      la masquer laisserait croire qu'elle n'existe pas sur cette salle. */
   .inv-saisie select option[disabled], .inv-ligne select option[disabled]{color:var(--muted);}
@@ -152,13 +166,13 @@
   }
   .inv-tete .num{text-align:right;}
   .inv-ligne{border-top:1px solid var(--border); padding:4px 0;}
-  .inv-ligne input, .inv-ligne select{
+  .inv-ligne input:not([type="checkbox"]), .inv-ligne select{
     width:100%; box-sizing:border-box; padding:6px 7px;
     border:1px solid transparent; border-radius:7px; font-size:12.5px;
     background:var(--bg); color:var(--text); font-family:inherit; outline:none;
   }
-  .inv-ligne input:hover, .inv-ligne select:hover{border-color:var(--border);}
-  .inv-ligne input:focus, .inv-ligne select:focus{border-color:var(--accent); background:var(--card);}
+  .inv-ligne input:not([type="checkbox"]):hover, .inv-ligne select:hover{border-color:var(--border);}
+  .inv-ligne input:not([type="checkbox"]):focus, .inv-ligne select:focus{border-color:var(--accent); background:var(--card);}
   .inv-ligne .num{text-align:right; font-weight:800; font-variant-numeric:tabular-nums;}
   .inv-ligne input[data-champ="nom"]{font-weight:700;}
   .inv-ligne select{cursor:pointer; font-weight:700;}
@@ -252,12 +266,24 @@ let vue = 'saisie';
 let projetChoisi = '';
 let dateChoisie = '';
 let toutesJournees = false;
+// Le demandeur pré-rempli : le prénom du compte connecté, s'il est de la
+// liste (voir DEMANDEURS dans assets/invitations.js). Sinon rien — le champ
+// est obligatoire, on préfère le faire choisir qu'attribuer à tort.
 let MOI = '';
 
-function nomDuCompte(email){
-  const local = String(email || '').split('@')[0] || '';
-  return local.split(/[._-]+/).filter(Boolean)
-    .map(m=> m.charAt(0).toUpperCase() + m.slice(1)).join(' ');
+/* Les lignes écrites avant la liste fermée portent un texte libre — « Alois
+   Darles », « alois ». On le rapproche du prénom de la liste quand c'est
+   manifestement la même personne, en mémoire seulement : la correction part en
+   base à la première modification de la ligne, sans réécrire d'autorité ce
+   qu'on n'a pas relu. Ce qui ne se rapproche de rien est laissé tel quel et
+   s'affiche « hors liste » — à corriger à la main, en connaissance de cause. */
+function rapprocherDemandeur(inv){
+  const v = String((inv && inv.demandePar) || '').trim();
+  if(!v || DEMANDEURS.includes(v)) return;
+  const nu = (s)=> String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const premier = nu(v.split(/\s+/)[0]);
+  const trouve = DEMANDEURS.find(d=> nu(d) === premier);
+  if(trouve) inv.demandePar = trouve;
 }
 
 // --- Lectures ---------------------------------------------------------------
@@ -445,10 +471,7 @@ function htmlSaisie(t){
           <input data-neuf="prenom" placeholder="Prénom">
           <input data-neuf="email" type="email" placeholder="E-mail">
           <input class="num" data-neuf="places" inputmode="numeric" placeholder="Pl.">
-          <select data-neuf="categorie">
-            <option value="">— cat. —</option>
-            ${optionsCategories(t, d, null, categorieProposee(t, d), true)}
-          </select>
+          <select data-neuf="categorie">${optionsSaisieCategorie(t, d, 1, categorieProposee(t, d, 1))}</select>
           <label class="inv-case" title="À l'aftershow, ou pas. C'est une liste de noms : qui vient accompagné prend sa propre ligne.">
             <input type="checkbox" data-neuf="aftershow">
           </label>
@@ -456,7 +479,7 @@ function htmlSaisie(t){
             <option value="">— type —</option>
             ${INVITATION_TYPES.map(x=> `<option value="${x.cle}">${escapeHtml(x.libelle)}</option>`).join('')}
           </select>
-          <input data-neuf="demandePar" value="${escapeAttr(MOI)}" placeholder="Qui invite">
+          <select data-neuf="demandePar">${optionsDemandeurs(MOI)}</select>
           <button type="submit" class="co-btn primary sm">+ Ajouter</button>
         </div>
         <div class="inv-mot" id="motSaisie"></div>
@@ -484,41 +507,100 @@ function htmlSaisie(t){
     </div>`;
 }
 
-/* La catégorie que la ligne de saisie propose : la première qui a encore de la
-   place. Sur une tournée à dix Carré Or et dix CAT 1, on remplit les Carré Or
-   puis on bascule — le champ le fait tout seul, et se corrige d'un clic.
-   Aucune libre : on ne présélectionne rien plutôt que de proposer une
-   catégorie épuisée qu'il faudrait ensuite refuser. */
-function categorieProposee(t, d){
-  const libre = placesDuProjet(t).find(c=> (restantPlaces(d, invitationsCache, c.cle) || 0) > 0);
+/* La catégorie que la ligne de saisie propose : la première qui peut ACCUEILLIR
+   CE QU'ON DEMANDE. Sur une tournée à dix Carré Or et dix CAT 1, on remplit les
+   Carré Or puis on bascule — le champ le fait tout seul. Demander onze places
+   quand il en reste neuf le fait basculer aussi, au lieu de laisser choisir une
+   catégorie qui refusera ensuite.
+   Aucune ne convient : on ne présélectionne rien plutôt que de proposer une
+   catégorie qu'il faudrait refuser. */
+function categorieProposee(t, d, besoin){
+  const veut = Math.max(1, besoin || 1);
+  const libre = placesDuProjet(t).find(c=>{
+    const r = restantPlaces(d, invitationsCache, c.cle);
+    return r != null && r >= veut;
+  });
   return libre ? libre.cle : '';
+}
+
+/* Le menu Catégorie de la ligne de saisie, entièrement reconstruit.
+   ---------------------------------------------------------------------------
+   Il dépend de deux choses qui bougent sans cesse : ce qui reste sur la date
+   (chaque invitation ajoutée le réduit) et le nombre de places qu'on est en
+   train de taper. Il se recalcule donc à la frappe, et l'intitulé du choix vide
+   dit pourquoi il n'y a rien à choisir quand c'est le cas — un menu vide sans
+   explication laisse croire à une panne. */
+function optionsSaisieCategorie(t, d, besoin, selection){
+  const veut = Math.max(1, besoin || 1);
+  const options = optionsCategories(t, d, null, selection, true, veut);
+  const possible = /<option (?![^>]*disabled)[^>]*value="[^"]+"/.test(options);
+  const vide = possible
+    ? '— cat. —'
+    : (veut > 1 ? `aucune n'a ${veut} places libres` : 'aucune place disponible');
+  return `<option value="">${escapeHtml(vide)}</option>` + options;
+}
+
+function majMenuSaisie(){
+  const menu = document.querySelector('[data-neuf="categorie"]');
+  if(!menu || menu === document.activeElement) return;
+  const t = projetCourant();
+  const d = dateCourante();
+  if(!t || !d) return;
+  const champ = document.querySelector('[data-neuf="places"]');
+  const besoin = champ ? nombreInvit(champ.value) : 0;
+  const garde = menu.value;
+  menu.innerHTML = optionsSaisieCategorie(t, d, besoin, garde);
+  /* La catégorie retenue a pu se fermer entre-temps — c'est le cas normal : la
+     douzième invitation vient de finir le Carré Or, ou on vient de passer de
+     deux places à onze. On bascule sur la première qui convient. Un menu peut
+     rester posé sur une option désactivée : on regarde l'option, pas la valeur. */
+  const choisie = menu.selectedOptions[0];
+  if(!garde || !choisie || choisie.disabled) menu.value = categorieProposee(t, d, besoin);
 }
 
 /* Les options du menu Catégorie.
    ---------------------------------------------------------------------------
-   Une catégorie ÉPUISÉE ou SANS CONTINGENT n'est pas choisissable : on ne donne
-   pas une place qu'on n'a pas. Elle reste affichée, grisée et motivée — la
-   masquer laisserait croire qu'elle n'existe pas dans cette salle, et on
-   chercherait pourquoi.
+   Une catégorie SANS CONTINGENT n'apparaît pas : il n'y en a pas dans cette
+   salle, ce n'est pas un réglage oublié. Une catégorie ÉPUISÉE, ou TROP PETITE
+   pour ce qu'on demande, reste affichée mais grisée et motivée — la masquer
+   laisserait croire qu'elle n'existe pas, et on la chercherait.
+
+   `besoin` est le nombre de places qu'on veut placer : c'est lui qui rend le
+   menu dynamique. Demander onze places ferme une catégorie qui n'en a que
+   neuf, alors qu'en demander une la laisse ouverte.
 
    Exception : la catégorie que la ligne porte DÉJÀ reste choisissable, sans
    quoi une ligne saisie avant que le contingent ne change deviendrait
-   impossible à rouvrir — on ne peut plus ni la corriger ni la relire. */
-function optionsCategories(t, d, inv, selection, avecReste){
+   impossible à rouvrir — on ne pourrait plus ni la corriger ni la relire. */
+function optionsCategories(t, d, inv, selection, avecReste, besoin){
+  const veut = Math.max(1, besoin || 1);
   return placesDuProjet(t).map(c=>{
     const q = quotaDate(d, c.cle);
-    const reste = restantPlaces(d, invitationsCache, c.cle, inv);
     const sienne = inv && inv.categorie === c.cle;
-    const bloque = !sienne && (q == null || reste <= 0);
+    if(q == null && !sienne) return '';
+    const reste = restantPlaces(d, invitationsCache, c.cle, inv);
+    const bloque = !sienne && (reste == null || reste < veut);
     /* Dans la ligne de SAISIE, le menu annonce ce qu'il reste : c'est là qu'on
        décide combien on donne. Sur une ligne déjà écrite, ce serait du bruit —
-       on n'y garde que la raison d'un blocage, en court, pour que le grisé ne
-       reste pas inexpliqué. */
+       on n'y garde que la raison d'un blocage, en court. */
     const suffixe = avecReste
-      ? (q == null ? ' — contingent à fixer' : reste <= 0 ? ' — complet' : ` — ${reste} libre${reste > 1 ? 's' : ''}`)
-      : (bloque ? (q == null ? ' (à fixer)' : ' (complet)') : '');
+      ? (reste == null ? ' — aucune' : reste <= 0 ? ' — complet' : ` — ${reste} libre${reste > 1 ? 's' : ''}`)
+      : (bloque ? (reste == null ? ' (aucune)' : reste <= 0 ? ' (complet)' : ` (${reste} libre${reste > 1 ? 's' : ''})`) : '');
     return `<option value="${escapeAttr(c.cle)}" ${bloque ? 'disabled' : ''} ${selection === c.cle ? 'selected' : ''}>${escapeHtml(c.libelle + suffixe)}</option>`;
   }).join('');
+}
+
+/* Les options du menu « Qui invite ». Une valeur arrivée d'ailleurs n'est
+   jamais effacée en silence : elle s'ajoute, marquée hors liste. */
+function optionsDemandeurs(valeur){
+  const v = String(valeur || '').trim();
+  const liste = DEMANDEURS.includes(v) || !v ? DEMANDEURS : DEMANDEURS.concat([v]);
+  // Sans ce choix vide, le menu se poserait tout seul sur le premier prénom de
+  // la liste, et toutes les invitations d'un compte inconnu seraient attribuées
+  // à Aloïs sans que personne ne l'ait dit.
+  return (v ? '' : '<option value="">— qui invite —</option>') + liste.map(n=>
+    `<option value="${escapeAttr(n)}" ${n === v ? 'selected' : ''}>${escapeHtml(n + (DEMANDEURS.includes(n) ? '' : ' (hors liste)'))}</option>`
+  ).join('');
 }
 
 /* Le bandeau qui arrête la main. Il ne remplace pas les jauges : elles disent
@@ -529,9 +611,9 @@ function htmlAlertePlein(contingentees, ouvertes){
   if(ouvertes.length) return '';
   if(!contingentees.length){
     return `<div class="co-note inv-bandeau-plein">
-      <b>Aucun contingent fixé sur cette date.</b> Tant que la salle ne nous a rien alloué,
-      aucune place ne peut être accordée — seul l'aftershow reste possible.
-      Pose le contingent dans les champs ci-dessus.
+      <b>Aucune place allouée sur cette date.</b> Aucune invitation avec place n'est possible —
+      seul l'aftershow l'est. Si la salle nous a donné un contingent, indique-le
+      dans les champs ci-dessus.
     </div>`;
   }
   return `<div class="co-note inv-bandeau-plein" style="background:var(--ko-tint); color:var(--ko);">
@@ -551,7 +633,10 @@ function etatJauge(d, cle, n){
   if(n === q) return 'plein';
   return '';
 }
-const MOT_ETAT = { afixer:'contingent à fixer', plein:'complet', trop:'dépassé' };
+/* « afixer » ne dit pas un oubli mais une absence : toutes les salles n'ont pas
+   de CAT 2. La carte reste donc discrète — pas d'ambre, pas d'alarme — et la
+   catégorie disparaît simplement du menu de saisie. */
+const MOT_ETAT = { afixer:'pas de contingent', plein:'complet', trop:'dépassé' };
 
 function htmlJauge(d, c, conso){
   const q = quotaDate(d, c.cle);
@@ -587,7 +672,7 @@ function htmlLigne(t, inv){
       <input class="num" data-champ="places" inputmode="numeric" value="${nombreInvit(inv.places) || ''}" placeholder="0">
       <select data-champ="categorie">
         <option value="">—</option>
-        ${d ? optionsCategories(t, d, inv, inv.categorie) : ''}
+        ${d ? optionsCategories(t, d, inv, inv.categorie, false, nombreInvit(inv.places)) : ''}
       </select>
       <label class="inv-case" title="À l'aftershow, ou pas.">
         <input type="checkbox" data-champ="aftershow" ${aAftershow(inv) ? 'checked' : ''}>
@@ -596,7 +681,7 @@ function htmlLigne(t, inv){
         <option value="">— type —</option>
         ${INVITATION_TYPES.map(x=> `<option value="${x.cle}" ${inv.type === x.cle ? 'selected' : ''}>${escapeHtml(x.libelle)}</option>`).join('')}
       </select>
-      <input data-champ="demandePar" value="${escapeAttr(inv.demandePar || '')}" placeholder="Qui invite">
+      <select data-champ="demandePar">${optionsDemandeurs(inv.demandePar)}</select>
       <button type="button" class="inv-sup" data-supprimer="${escapeAttr(inv.id)}" title="Retirer cette invitation" aria-label="Retirer cette invitation">×</button>
     </div>
     <div class="inv-alerte" data-alerte>${escapeHtml(alerteDe(inv))}</div>
@@ -621,7 +706,9 @@ function alerteDe(inv){
     if(d && reste == null) manques.push(`${libellePlace(t, inv.categorie)} sans contingent`);
     else if(reste != null && n > reste) manques.push(`${n} places demandées, ${Math.max(0, reste)} disponible${reste > 1 ? 's' : ''} en ${libellePlace(t, inv.categorie)}`);
   }
-  if(!String(inv.nom || '').trim() && !String(inv.prenom || '').trim()) manques.push('sans nom');
+  if(!String(inv.nom || '').trim()) manques.push('nom manquant');
+  if(!String(inv.prenom || '').trim()) manques.push('prénom manquant');
+  if(!String(inv.demandePar || '').trim()) manques.push('qui invite ?');
   if(!inv.type) manques.push('type à préciser');
   return manques.length ? '⚠ ' + manques.join(' · ') : '';
 }
@@ -790,19 +877,9 @@ function majDate(dateId){
     if(sel === document.activeElement) return;
     const inv = invitationDe(sel);
     if(!inv) return;
-    sel.innerHTML = '<option value="">—</option>' + optionsCategories(t, d, inv, inv.categorie);
+    sel.innerHTML = '<option value="">—</option>' + optionsCategories(t, d, inv, inv.categorie, false, nombreInvit(inv.places));
   });
-  const neuf = document.querySelector('[data-neuf="categorie"]');
-  if(neuf && neuf !== document.activeElement){
-    const garde = neuf.value;
-    neuf.innerHTML = '<option value="">— cat. —</option>' + optionsCategories(t, d, null, garde, true);
-    /* La catégorie retenue a pu se fermer entre-temps — c'est même le cas
-       normal : la douzième invitation vient de finir le Carré Or. On bascule
-       sur la première encore ouverte. Un menu peut rester posé sur une option
-       désactivée, il faut donc regarder l'option, pas la valeur. */
-    const choisie = neuf.selectedOptions[0];
-    if(!garde || !choisie || choisie.disabled) neuf.value = categorieProposee(t, d);
-  }
+  majMenuSaisie();
 }
 
 function majLigne(invId){
@@ -843,6 +920,9 @@ document.addEventListener('input', (e)=>{
     majDate(d.id);
     return;
   }
+
+  // Le nombre de places qu'on tape décide de ce que le menu Catégorie propose.
+  if(e.target.matches('[data-neuf="places"]')){ majMenuSaisie(); return; }
 
   const champ = e.target.closest('input[data-champ]');
   if(!champ || champ.type === 'checkbox') return;
@@ -973,9 +1053,24 @@ document.addEventListener('submit', async (e)=>{
   const aftershow = caseAfter && caseAfter.checked ? 1 : 0;
   const nom = lire('nom').trim(), prenom = lire('prenom').trim();
 
-  if(!nom && !prenom){
-    signaler('Il faut au moins un nom : c\'est ce que la salle lira à l\'entrée.');
+  /* Nom, prénom et demandeur : les trois sont exigés. Le nom et le prénom
+     parce que c'est ce que la salle lit à l'entrée, et qu'une liste de « M.
+     Durand » sans prénom se fait refuser quand deux Durand se présentent. Le
+     demandeur parce que c'est la colonne que le tableur n'a jamais réussi à
+     faire remplir, et sans elle le bilan de tournée ne dit rien. */
+  if(!nom){
+    signaler('Le nom est obligatoire : c\'est ce que la salle lira à l\'entrée.');
     form.querySelector('[data-neuf="nom"]').focus();
+    return;
+  }
+  if(!prenom){
+    signaler('Le prénom est obligatoire : deux homonymes se présentent, et la salle ne sait plus qui entre.');
+    form.querySelector('[data-neuf="prenom"]').focus();
+    return;
+  }
+  if(!lire('demandePar').trim()){
+    signaler('Indique qui invite — c\'est ce qui permet de savoir, en fin de tournée, où sont parties les places.');
+    form.querySelector('[data-neuf="demandePar"]').focus();
     return;
   }
   if(!places && !aftershow){
@@ -1386,13 +1481,14 @@ setInterval(applyAutoTheme, 5 * 60 * 1000);
 async function initData(){
   try{
     const s = await CurieuxDB.getSession();
-    MOI = nomDuCompte(s && s.user && s.user.email);
+    MOI = demandeurDuCompte(s && s.user && s.user.email);
   }catch(e){}
 
   [tourneesCache, invitationsCache] = await Promise.all([
     CurieuxDB.fetchAll('tournees'),
     CurieuxDB.fetchAll('invitations'),
   ]);
+  invitationsCache.forEach(rapprocherDemandeur);
 
   // ?projet=… &date=… &vue=… : c'est ainsi qu'on arrive depuis le panneau
   // Invitations d'une tournée, et qu'un rechargement retombe sur ses pieds.
@@ -1409,7 +1505,11 @@ async function initData(){
 }
 
 CurieuxDB.subscribe('invitations', ()=>{
-  CurieuxDB.fetchAll('invitations').then(list=>{ invitationsCache = list; curieuxRafraichir(renderCorps); });
+  CurieuxDB.fetchAll('invitations').then(list=>{
+    list.forEach(rapprocherDemandeur);
+    invitationsCache = list;
+    curieuxRafraichir(renderCorps);
+  });
 });
 CurieuxDB.subscribe('tournees', ()=>{
   CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; curieuxRafraichir(render); });

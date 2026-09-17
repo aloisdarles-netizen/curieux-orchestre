@@ -26,8 +26,9 @@
    tableur — on ajoute vite un nom, on ne revient jamais qualifier.
 
    Ici, ce ne sont pas des colonnes à remplir après coup : ce sont les champs
-   du formulaire. On ne peut pas demander une place sans dire pour qui elle
-   est, et le demandeur s'inscrit tout seul — c'est le compte connecté.
+   du formulaire, et ils sont obligatoires. On ne peut pas demander une place
+   sans dire pour qui elle est ni qui l'accorde — le demandeur est d'ailleurs
+   pré-rempli par le compte connecté, et choisi dans une liste fermée.
 ============================================================================ */
 
 /* Les types, dans l'ordre où ils apparaissent à l'écran. Repris tels quels du
@@ -49,6 +50,27 @@ const INVITATION_TYPES = [
 ];
 const INVITATION_TYPE = Object.fromEntries(INVITATION_TYPES.map(t=> [t.cle, t]));
 
+/* QUI INVITE. Une liste fermée, et non un champ libre : ce sont les cinq
+   personnes de la production qui accordent des invitations. Un champ libre
+   donnait « Alois », « aloïs », « AD », « prod » pour une seule et même
+   personne — et le bilan de fin de tournée ne savait plus qui avait invité
+   qui, ce qui est précisément la question qu'on lui pose.
+
+   Une valeur arrivée d'ailleurs (un import, une ligne d'avant cette liste)
+   n'est jamais effacée : elle s'ajoute au menu, marquée hors liste, jusqu'à ce
+   qu'on la corrige. */
+const DEMANDEURS = ['Aloïs', 'Julie', 'Daniel', 'Gwen', 'Jeanne'];
+
+// Le demandeur d'un compte connecté, par son prénom — accents et casse mis de
+// côté, « alois.darles@… » retrouve « Aloïs ». Rien si le compte n'est pas de
+// la liste : on préfère un champ vide à un nom faux.
+function demandeurDuCompte(email){
+  const local = String(email || '').split('@')[0] || '';
+  const prenom = local.split(/[._-]+/)[0] || '';
+  const nu = (s)=> String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return DEMANDEURS.find(d=> nu(d) === nu(prenom)) || '';
+}
+
 /* Les catégories de place par DÉFAUT. Elles ne sont pas figées : chaque projet
    porte sa propre liste (tournee.categoriesPlaces), parce qu'une salle parle
    de Carré Or et la suivante d'Orchestre et de Balcon. Le tableur de la saison
@@ -69,6 +91,7 @@ const PLACES_DEFAUT = [
    La colonne `etat` reste en base avec son défaut 'accordee' : la retirer
    coûterait une migration destructive pour ne rien changer à ce qu'on lit.
    Rien dans l'application ne l'écrit ni ne la lit plus. */
+
 /* Le contingent habituel D'UNE TOURNÉE — pas des Soudaines. Il n'y a pas de
    valeur usuelle : le producteur d'une tournée nous donne dix Carré Or, celui
    de la suivante quatre CAT 1 et rien d'autre. Un chiffre pré-rempli
@@ -95,10 +118,11 @@ function libellePlace(tournee, cle){
   return c ? c.libelle : (cle || '');
 }
 
-/* Le quota d'une date pour une catégorie. Rend null quand rien n'est fixé —
-   et null n'est PAS zéro : la salle confirme souvent son contingent tard, et
-   un champ vide lu comme « aucune place » ferait refuser des demandes à tort.
-   Même règle que le cachet d'une date. */
+/* Le quota d'une date pour une catégorie. Rend null quand rien n'est saisi —
+   ce qui veut dire QU'IL N'Y EN A PAS sur cette date : toutes les salles n'ont
+   pas de CAT 2, et laisser croire à un réglage oublié faisait chercher une
+   information qui n'existe pas. Une catégorie sans contingent n'est donc pas
+   proposée à la saisie ; elle le redevient dès qu'on lui pose un nombre. */
 function quotaDate(date, clePlace){
   if(!date || !date.quotas) return null;
   const v = date.quotas[clePlace];
@@ -143,10 +167,10 @@ function consommeSurDate(invitations, dateId){
 
 /* Ce qu'il reste à donner dans une catégorie, sur une date.
    ---------------------------------------------------------------------------
-   Rend un nombre, ou null quand le contingent n'est pas encore fixé — et null
-   n'est pas zéro : « la salle ne nous a rien dit » et « la salle ne nous donne
-   rien » appellent deux gestes différents. Dans les deux cas on ne peut pas
-   accorder de place, mais seul le premier se règle en posant un contingent.
+   Rend un nombre, ou null quand la catégorie n'a pas de contingent sur cette
+   date — c'est-à-dire qu'elle n'y existe pas. Dans les deux cas on ne peut
+   rien y accorder ; la différence est qu'un zéro se lit « tout est donné » et
+   un null « il n'y en a pas ici ».
 
    `saufInv` exclut une invitation du calcul : quand on MODIFIE une ligne, ses
    propres places ne doivent pas se compter contre elle — sans quoi passer une
@@ -155,7 +179,7 @@ function consommeSurDate(invitations, dateId){
 */
 function restantPlaces(date, invitations, clePlace, saufInv){
   const q = quotaDate(date, clePlace);
-  if(q == null) return null;
+  if(q == null) return null;   // pas de contingent : rien à donner ici
   const dateId = date && date.id;
   const pris = (invitations || [])
     .filter(i=> i && i.dateId === dateId
@@ -182,6 +206,8 @@ if(typeof window !== 'undefined'){
   window.INVITATION_TYPES = INVITATION_TYPES;
   window.INVITATION_TYPE = INVITATION_TYPE;
   window.PLACES_DEFAUT = PLACES_DEFAUT;
+  window.DEMANDEURS = DEMANDEURS;
+  window.demandeurDuCompte = demandeurDuCompte;
   window.contingentUsuel = contingentUsuel;
   window.placesDuProjet = placesDuProjet;
   window.libellePlace = libellePlace;
