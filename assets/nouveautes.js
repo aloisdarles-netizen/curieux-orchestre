@@ -34,7 +34,7 @@
 const CURIEUX_NOUVEAUTES = [
   {
     version: '2026-09-17-2',
-    titre: 'Les récapitulatifs de dates ne perdaient plus la moitié des dates',
+    titre: 'Les récapitulatifs ne perdent plus la moitié de leurs dates',
     points: [
       "Un tableau plus long qu'une feuille était dessiné d'un bloc : tout ce qui dépassait le bas de la page était perdu. Un récapitulatif annonçait « 25 dates validées » et n'en imprimait que sept. Les tableaux longs se coupent maintenant proprement, et rappellent leur intitulé et leurs colonnes en haut de chaque nouvelle feuille. Cela vaut pour tous les PDF : récapitulatifs de dates, plateau par date, pages salle.",
       "La distribution passe sous la ligne de la date, sur toute la largeur, au lieu d'être tassée dans une colonne : vingt-deux noms tenaient sur huit lignes illisibles, ils en prennent trois. Deux fois plus de dates par feuille.",
