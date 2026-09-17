@@ -669,9 +669,11 @@ const CurieuxDB = (()=>{
     /* Les invitations d'une tournée. Deux axes à ne pas confondre : `type` dit
        pour QUI (partenaire, pro, perso — il ne consomme rien), `categorie` dit
        OÙ l'on s'assoit (Carré Or, CAT 1 — c'est elle qui porte le quota).
-       `aftershow` est un nombre à part, pas une case à cocher : on peut y être
-       sans assister au concert, donc 0 place et 2 aftershow est une ligne
-       valide. Voir assets/invitations.js. */
+       `aftershow` est un oui/non stocké en 0/1 : on peut y être sans assister
+       au concert, donc 0 place et l'aftershow coché est une ligne valide.
+       `etat` n'est plus utilisée (voir migrations.sql) : on continue de poser
+       son défaut pour satisfaire la contrainte NOT NULL de la colonne.
+       Voir assets/invitations.js. */
     invitations: {
       toDb: (i)=> ({
         id: i.id, tournee_id: i.tourneeId, date_id: i.dateId,

@@ -13,8 +13,9 @@
    Un troisième objet vit à côté, l'AFTERSHOW. Il n'est pas un attribut de
    l'invitation mais une seconde chose qu'on accorde : on peut être à
    l'aftershow sans assister au concert (un partenaire qui a son billet, une
-   équipe qui arrive après). Il se compte, il ne se plafonne pas — le traiteur
-   et la sécurité ont besoin du chiffre, la salle n'impose pas de jauge.
+   équipe qui arrive après). C'est un OUI/NON — on y est ou on n'y est pas —
+   et il ne se plafonne pas : le traiteur et la sécurité ont besoin du nombre
+   de noms, la salle n'impose pas de jauge.
 
    POURQUOI CE FICHIER EXISTE
 
@@ -59,15 +60,15 @@ const PLACES_DEFAUT = [
   { cle:'cat-2',    libelle:'CAT 2' },
 ];
 
-/* Les états d'une invitation.
+/* PAS D'ÉTAT SUR UNE INVITATION. Il y en a eu un — accordée / transmise /
+   annulée —, repris de la zone grisée du tableur. Il a été retiré : il n'y a
+   pas d'étape d'approbation (on saisit, c'est accordé), une invitation retirée
+   se supprime, et « transmise » demandait un geste de plus à chaque export
+   pour une information que personne ne relisait.
 
-   Il n'y a pas d'étape d'approbation : on saisit, c'est accordé. Les passes de
-   vérification se font en relisant et en corrigeant, pas en validant une file
-   d'attente — c'est pourquoi chaque ligne reste modifiable.
-
-   « Transmise » est la zone grisée du tableur : la ligne est partie à la
-   salle. Sans cet état, on ne sait plus ce qui reste à envoyer, et on envoie
-   deux fois. */
+   La colonne `etat` reste en base avec son défaut 'accordee' : la retirer
+   coûterait une migration destructive pour ne rien changer à ce qu'on lit.
+   Rien dans l'application ne l'écrit ni ne la lit plus. */
 /* Le contingent habituel D'UNE TOURNÉE — pas des Soudaines. Il n'y a pas de
    valeur usuelle : le producteur d'une tournée nous donne dix Carré Or, celui
    de la suivante quatre CAT 1 et rien d'autre. Un chiffre pré-rempli
@@ -79,20 +80,6 @@ const PLACES_DEFAUT = [
 function contingentUsuel(tournee){
   const c = tournee && tournee.contingentUsuel;
   return c && typeof c === 'object' ? c : {};
-}
-
-const INVITATION_ETATS = [
-  { cle:'accordee',  libelle:'Accordée',  court:'Accordée',  pill:'ok'  },
-  { cle:'transmise', libelle:'Transmise à la salle', court:'Transmise', pill:'' },
-  { cle:'annulee',   libelle:'Annulée',   court:'Annulée',   pill:'ko'  },
-];
-const INVITATION_ETAT = Object.fromEntries(INVITATION_ETATS.map(e=> [e.cle, e]));
-
-// Toute valeur inconnue retombe sur « accordée » : c'est l'état de création, et
-// une ligne mal typée ne doit pas disparaître du décompte.
-function etatInvitation(i){
-  const v = i && typeof i === 'object' ? i.etat : i;
-  return INVITATION_ETAT[v] ? v : 'accordee';
 }
 
 /* Les catégories de place d'un projet, sa liste propre ou celle par défaut.
@@ -119,33 +106,68 @@ function quotaDate(date, clePlace){
   return Number(v);
 }
 
-// Un nombre de places ou d'aftershow : jamais NaN, jamais négatif.
+// Un nombre de places : jamais NaN, jamais négatif.
 function nombreInvit(v){
   const n = Number(String(v == null ? '' : v).trim().replace(',', '.'));
   return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
 }
 
-/* Ce qui est consommé sur une date, par catégorie de place, et le total
-   d'aftershow. Les lignes annulées ne comptent pas — c'est tout leur objet.
+/* L'AFTERSHOW EST UN OUI/NON, pas un nombre. On y est ou on n'y est pas : la
+   liste que lisent la sécurité et le traiteur est une liste de NOMS, et un nom
+   passe une fois. Quelqu'un qui vient accompagné prend sa propre ligne, où il
+   a un nom — ce qu'un « 2 » dans une case ne donne pas au vigile.
+
+   La colonne reste un entier en base (0 ou 1) : la changer en booléen aurait
+   coûté une migration pour ne rien changer à ce qu'on lit. */
+function aAftershow(i){
+  return nombreInvit(i && i.aftershow) > 0;
+}
+
+/* Ce qui est consommé sur une date, par catégorie de place, et le nombre de
+   personnes à l'aftershow. Les lignes annulées ne comptent pas — c'est tout
+   leur objet.
 
    Rend { places: { <cle>: n }, aftershow: n, lignes: n }.
 */
 function consommeSurDate(invitations, dateId){
-  const pour = (invitations || []).filter(i=> i && i.dateId === dateId && etatInvitation(i) !== 'annulee');
+  const pour = (invitations || []).filter(i=> i && i.dateId === dateId);
   const places = {};
   let aftershow = 0;
   pour.forEach(i=>{
     const n = nombreInvit(i.places);
     if(n && i.categorie) places[i.categorie] = (places[i.categorie] || 0) + n;
-    aftershow += nombreInvit(i.aftershow);
+    if(aAftershow(i)) aftershow++;
   });
   return { places, aftershow, lignes: pour.length };
+}
+
+/* Ce qu'il reste à donner dans une catégorie, sur une date.
+   ---------------------------------------------------------------------------
+   Rend un nombre, ou null quand le contingent n'est pas encore fixé — et null
+   n'est pas zéro : « la salle ne nous a rien dit » et « la salle ne nous donne
+   rien » appellent deux gestes différents. Dans les deux cas on ne peut pas
+   accorder de place, mais seul le premier se règle en posant un contingent.
+
+   `saufInv` exclut une invitation du calcul : quand on MODIFIE une ligne, ses
+   propres places ne doivent pas se compter contre elle — sans quoi passer une
+   ligne de 4 à 5 sur un contingent de 10 déjà rempli à 10 serait refusé alors
+   qu'il reste de la place.
+*/
+function restantPlaces(date, invitations, clePlace, saufInv){
+  const q = quotaDate(date, clePlace);
+  if(q == null) return null;
+  const dateId = date && date.id;
+  const pris = (invitations || [])
+    .filter(i=> i && i.dateId === dateId
+             && i.categorie === clePlace && (!saufInv || i.id !== saufInv.id))
+    .reduce((s, i)=> s + nombreInvit(i.places), 0);
+  return q - pris;
 }
 
 /* Une ligne qui n'accorde rien ne veut rien dire. C'est la seule règle de
    validité : ni place, ni aftershow, il n'y a pas d'invitation. */
 function invitationVide(i){
-  return nombreInvit(i && i.places) === 0 && nombreInvit(i && i.aftershow) === 0;
+  return nombreInvit(i && i.places) === 0 && !aAftershow(i);
 }
 
 // Le nom affiché d'un·e invité·e. « NOM Prénom », comme dans le tableur, parce
@@ -161,13 +183,12 @@ if(typeof window !== 'undefined'){
   window.INVITATION_TYPE = INVITATION_TYPE;
   window.PLACES_DEFAUT = PLACES_DEFAUT;
   window.contingentUsuel = contingentUsuel;
-  window.INVITATION_ETATS = INVITATION_ETATS;
-  window.INVITATION_ETAT = INVITATION_ETAT;
-  window.etatInvitation = etatInvitation;
   window.placesDuProjet = placesDuProjet;
   window.libellePlace = libellePlace;
   window.quotaDate = quotaDate;
   window.nombreInvit = nombreInvit;
+  window.aAftershow = aAftershow;
+  window.restantPlaces = restantPlaces;
   window.consommeSurDate = consommeSurDate;
   window.invitationVide = invitationVide;
   window.nomInvite = nomInvite;

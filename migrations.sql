@@ -5784,9 +5784,9 @@ alter table musiciens alter column rang type text using rang::text;
 -- que la salle nous alloue.
 --
 -- L'AFTERSHOW N'EST PAS UN ATTRIBUT DE L'INVITATION mais une seconde chose
--- qu'on accorde : on peut y être sans assister au concert. D'où un nombre à
--- part, qui peut valoir 2 quand les places valent 0. Il se compte et ne se
--- plafonne jamais.
+-- qu'on accorde : on peut y être sans assister au concert. C'est un oui/non,
+-- et il ne se plafonne jamais — zéro place et l'aftershow coché est une ligne
+-- valide.
 --
 -- Ce qui n'est PAS ici : l'activation du projet et ses catégories de place
 -- (deux colonnes de tournees, plus bas), et le quota de chaque date, qui vit
@@ -5814,14 +5814,20 @@ create table if not exists invitations (
   places integer not null default 0 check (places >= 0),
   -- Clé de catégorie de place ; vide quand la ligne ne donne aucune place.
   categorie text not null default '',
+  -- L'aftershow est un OUI/NON : 0 ou 1. Entier plutôt que booléen parce que
+  -- la colonne existait déjà en entier ; la liste que lisent la sécurité et le
+  -- traiteur est une liste de noms, et un nom passe une fois.
   aftershow integer not null default 0 check (aftershow >= 0),
   -- Clé de type : 'partenaire-lcs', 'perso'… Voir assets/invitations.js.
   type text not null default '',
   -- Qui a demandé : l'e-mail du compte, écrit sans que personne ait à y penser.
   demande_par text not null default '',
-  -- 'accordee' à la création — il n'y a pas d'étape d'approbation, on saisit
-  -- et c'est accordé. 'transmise' est la zone grisée du tableur : la ligne est
-  -- partie à la salle, et sans cet état on l'envoie deux fois.
+  -- PLUS UTILISÉE. L'application n'écrit ni ne lit cette colonne : il n'y a
+  -- pas d'étape d'approbation (on saisit, c'est accordé), une invitation
+  -- retirée se supprime, et « transmise » demandait un geste de plus à chaque
+  -- export pour une information que personne ne relisait. La colonne reste
+  -- avec son défaut — la retirer coûterait une migration destructive pour ne
+  -- rien changer à ce qu'on lit.
   etat text not null default 'accordee' check (etat in ('accordee','transmise','annulee')),
   note text not null default '',
   -- created_at, et non cree_le : fetchAll() trie toute collection sur cette
