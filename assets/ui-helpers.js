@@ -890,7 +890,9 @@ function curieuxCachetPupitre(tournee, pupitre){
      1. individuel — négocié avec UNE personne (cachet_overrides). Il porte sur
         le service, quel qu'il soit : « toi, c'est tant » ne cesse pas d'être
         vrai un jour de répétition.
-     2. pupitre    — le chant, un·e soliste : une exception de poste.
+     2. pupitre    — le chant, un·e soliste : une exception de poste. Ne
+        concerne que l'orchestre : un·e technicien·ne n'a pas de pupitre, ce
+        niveau est sauté pour elle ou lui.
      3. LA DATE    — le montant propre à cette journée-là (`cachetSeance`).
         C'est le niveau qui manquait aux tournées : une répétition et un
         concert du même projet ne se paient pas pareil, et il fallait jusqu'ici
@@ -898,21 +900,29 @@ function curieuxCachetPupitre(tournee, pupitre){
         qui aurait dédoublé l'équipe, la nomenclature, les demandes de dispo et
         les liens envoyés aux musicien·nes, pour une question d'argent.
      4. standard   — le montant du projet, pour les dates qui n'ont rien dit.
+        IL Y EN A DEUX : celui de l'orchestre et celui du pôle technique. Un
+        régisseur n'est pas payé au cachet d'un violon, et lui servir le
+        montant des musicien·nes — ce que faisait cette fonction — annonçait un
+        prix faux à trente-huit personnes.
 
    `date` est facultatif : les appels qui ne parlent pas d'une date précise —
    un bandeau de projet, un devis — gardent exactement le comportement d'avant.
+   `pourTechnicien` l'est aussi : sans lui, c'est l'orchestre, comme avant.
 --------------------------------------------------------------------------- */
-function curieuxCachetResolu(tournee, pupitre, override, date){
+function curieuxCachetResolu(tournee, pupitre, override, date, pourTechnicien){
   if(override != null && override !== '' && Number.isFinite(Number(override))){
     return { montant: Number(override), source: 'individuel' };
   }
-  const duPupitre = curieuxCachetPupitre(tournee, pupitre);
-  if(duPupitre != null) return { montant: duPupitre, source: 'pupitre' };
+  if(!pourTechnicien){
+    const duPupitre = curieuxCachetPupitre(tournee, pupitre);
+    if(duPupitre != null) return { montant: duPupitre, source: 'pupitre' };
+  }
   const deLaDate = curieuxCachetDate(date);
   if(deLaDate != null) return { montant: deLaDate, source: 'date' };
-  if(tournee && tournee.cachetStatut === 'defini' && tournee.cachetMontant != null
-     && tournee.cachetMontant !== '' && Number.isFinite(Number(tournee.cachetMontant))){
-    return { montant: Number(tournee.cachetMontant), source: 'standard' };
+  const statut = pourTechnicien ? (tournee && tournee.cachetTechnicienStatut) : (tournee && tournee.cachetStatut);
+  const montant = pourTechnicien ? (tournee && tournee.cachetTechnicienMontant) : (tournee && tournee.cachetMontant);
+  if(statut === 'defini' && montant != null && montant !== '' && Number.isFinite(Number(montant))){
+    return { montant: Number(montant), source: 'standard' };
   }
   return { montant: null, source: null };
 }

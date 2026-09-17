@@ -33,6 +33,16 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-17-4',
+    titre: 'Le cachet des technicien·nes',
+    points: [
+      "Une tournée ne portait qu'un cachet standard, pensé pour l'orchestre. Sur leur page de disponibilités, les technicien·nes lisaient donc soit le montant des musicien·nes — faux —, soit « non défini ».",
+      "Le panneau Réglages d'une tournée porte maintenant deux montants côte à côte : celui de l'orchestre et celui du pôle technique. Chacun ne voit que le sien.",
+      "Les autres niveaux ne changent pas et valent pour tout le monde : une exception nominative passe devant, et le montant propre à une date (une répétition payée autrement) passe devant le standard. Le niveau « pupitre » ne concerne que l'orchestre.",
+      "Sans montant technique renseigné, rien ne s'affiche — on n'invente pas un prix.",
+    ],
+  },
+  {
     version: '2026-09-17-3',
     titre: 'Revenir en arrière, sur n’importe quelle action',
     points: [

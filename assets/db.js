@@ -123,6 +123,11 @@ const CurieuxDB = (()=>{
         recording: t.recording || {},
         cachet_statut: t.cachetStatut === 'defini' ? 'defini' : 'non_defini',
         cachet_montant: t.cachetStatut === 'defini' ? (t.cachetMontant != null ? t.cachetMontant : null) : null,
+        /* Le standard du pôle TECHNIQUE, distinct de celui de l'orchestre : un
+           régisseur n'est pas payé au cachet d'un violon. Voir
+           curieuxCachetResolu, qui choisit l'un ou l'autre selon la personne. */
+        cachet_technicien_statut: t.cachetTechnicienStatut === 'defini' ? 'defini' : 'non_defini',
+        cachet_technicien_montant: t.cachetTechnicienStatut === 'defini' ? (t.cachetTechnicienMontant != null ? t.cachetTechnicienMontant : null) : null,
         nomenclature: t.nomenclature || [],
         // [{id, label, couleur}, ...] — équipes road nommées, réutilisées comme
         // base de répartition sur chaque vacation roadies.
@@ -143,7 +148,7 @@ const CurieuxDB = (()=>{
         // alloue ce qu'il veut.
         contingent_usuel: t.contingentUsuel || {},
       }),
-      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], type: r.type === 'recording' ? 'recording' : 'tournee', recording: r.recording || {}, cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [], equipesRoad: r.equipes_road || [], techniqueTournee: r.technique_tournee || {}, sollicitationExclus: r.sollicitation_exclus || [], invitationsActives: !!r.invitations_actives, categoriesPlaces: r.categories_places || [], contingentUsuel: r.contingent_usuel || {} })
+      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], type: r.type === 'recording' ? 'recording' : 'tournee', recording: r.recording || {}, cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, cachetTechnicienStatut: r.cachet_technicien_statut || 'non_defini', cachetTechnicienMontant: r.cachet_technicien_montant, nomenclature: r.nomenclature || [], equipesRoad: r.equipes_road || [], techniqueTournee: r.technique_tournee || {}, sollicitationExclus: r.sollicitation_exclus || [], invitationsActives: !!r.invitations_actives, categoriesPlaces: r.categories_places || [], contingentUsuel: r.contingent_usuel || {} })
     },
     // ——— Outils de direction technique (août 2026) ———
     // Ce que la salle fournit, date par date (B2). "id" = `${tourneeId}::${dateId}`,

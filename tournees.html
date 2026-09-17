@@ -2282,6 +2282,18 @@ ${(()=>{
                     value="${t.cachetMontant != null ? escapeAttr(String(t.cachetMontant)) : ''}">
                   <span class="cachet-unit">€ brut / date</span>
                 </span>
+              </div>
+              <p class="cachet-aide" style="margin-top:2px;">Cachet de l'orchestre. Les technicien·nes ne sont pas payé·es au même tarif :</p>
+              <div class="cachet-row">
+                <select data-cachet-tech-statut="${escapeAttr(t.id)}">
+                  <option value="non_defini" ${t.cachetTechnicienStatut !== 'defini' ? 'selected' : ''}>Technique : non défini</option>
+                  <option value="defini" ${t.cachetTechnicienStatut === 'defini' ? 'selected' : ''}>Technique : montant défini</option>
+                </select>
+                <span class="cachet-montant" style="${t.cachetTechnicienStatut === 'defini' ? '' : 'display:none;'}">
+                  <input type="number" data-cachet-tech-montant="${escapeAttr(t.id)}" placeholder="Montant" min="0" step="0.01"
+                    value="${t.cachetTechnicienMontant != null ? escapeAttr(String(t.cachetTechnicienMontant)) : ''}">
+                  <span class="cachet-unit">€ brut / date</span>
+                </span>
               </div>`}
               <p class="cachet-aide">${EST_RECORDING
                 ? `Le cachet se fixe <b>séance par séance</b>, dans la colonne Cachet du tableau. Pour poser le même montant sur plusieurs séances d'un coup :`
@@ -2325,7 +2337,7 @@ ${(()=>{
                   ${rosterPeople.map(p => {
                     // En filigrane : ce que la personne touche sans exception
                     // (le cachet de son pupitre, sinon le standard).
-                    const sansException = curieuxCachetResolu(t, p.pupitre, null);
+                    const sansException = curieuxCachetResolu(t, p.pupitre, null, null, p.type === 'technicien');
                     return `
                     <div class="cachet-override-row" data-person-name="${escapeAttr(p.name.toLowerCase())}" data-affectee="${p.affectee ? '1' : '0'}" style="display:${cachetOverrides[p.id] != null ? 'flex' : 'none'}; align-items:center; gap:8px; margin-bottom:6px;">
                       <span style="font-size:12.5px; width:220px;">${escapeHtml(p.name)}${p.pupitre ? `<span style="color:var(--muted);"> · ${escapeHtml(p.pupitre)}</span>` : ''}</span>
@@ -3345,6 +3357,35 @@ function bindTourneeEvents(){
       if(!t) return;
       const val = inp.value.trim();
       t.cachetMontant = val ? parseFloat(val) : null;
+      saveTournees(tournees);
+    });
+  });
+  /* Le standard du pôle technique. Même mécanique que celui de l'orchestre,
+     et volontairement à côté de lui : les deux se décident en même temps, au
+     moment de chiffrer le projet. */
+  document.querySelectorAll('[data-cachet-tech-statut]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const tournees = loadTournees();
+      const t = tournees.find(x=> x.id === sel.dataset.cachetTechStatut);
+      if(!t) return;
+      t.cachetTechnicienStatut = sel.value;
+      if(sel.value !== 'defini') t.cachetTechnicienMontant = null;
+      saveTournees(tournees);
+      const bloc = sel.parentElement.querySelector('.cachet-montant');
+      if(bloc){
+        bloc.style.display = sel.value === 'defini' ? '' : 'none';
+        const inp = bloc.querySelector('input');
+        if(sel.value === 'defini' && inp) inp.focus();
+      }
+    });
+  });
+  document.querySelectorAll('[data-cachet-tech-montant]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const tournees = loadTournees();
+      const t = tournees.find(x=> x.id === inp.dataset.cachetTechMontant);
+      if(!t) return;
+      const val = inp.value.trim();
+      t.cachetTechnicienMontant = val ? parseFloat(val) : null;
       saveTournees(tournees);
     });
   });

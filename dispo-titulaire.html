@@ -559,11 +559,19 @@ function render(){
   // sien (voir tournees.html). Le bandeau renvoie donc aux dates, et chaque
   // carte de date affiche son montant quand il est fixé.
   const estRecordingProjet = state.tournee.type === 'recording';
-  const cachetResolu = curieuxCachetResolu({
+  /* Le pôle décide du standard qui s'applique : un·e technicien·ne n'est pas
+     payé·e au cachet de l'orchestre, et lui servir le montant des musicien·nes
+     annonçait un prix faux. Son exception nominative, si elle existe, passe
+     devant comme pour tout le monde. */
+  const estTechnicien = state.personType === 'technicien';
+  const projetPourCachet = {
     cachetStatut: state.tournee.cachet_statut,
     cachetMontant: state.tournee.cachet_montant,
+    cachetTechnicienStatut: state.tournee.cachet_technicien_statut,
+    cachetTechnicienMontant: state.tournee.cachet_technicien_montant,
     nomenclature: state.tournee.nomenclature || [],
-  }, state.person.pupitre, state.cachetOverride);
+  };
+  const cachetResolu = curieuxCachetResolu(projetPourCachet, state.person.pupitre, state.cachetOverride, null, estTechnicien);
   /* Ce que le bandeau peut honnêtement annoncer.
      -----------------------------------------------------------------------
      Une seule phrase pour trois situations. Dès qu'une date porte son propre
@@ -675,11 +683,7 @@ function render(){
             // ligne. Le montant est celui qui s'applique à CETTE personne —
             // son exception nominative ou celle de son pupitre l'emportent.
             if(!datesAvecCachet) return '';
-            const r = curieuxCachetResolu({
-              cachetStatut: state.tournee.cachet_statut,
-              cachetMontant: state.tournee.cachet_montant,
-              nomenclature: state.tournee.nomenclature || [],
-            }, state.person.pupitre, state.cachetOverride, d);
+            const r = curieuxCachetResolu(projetPourCachet, state.person.pupitre, state.cachetOverride, d, estTechnicien);
             if(r.montant == null) return '';
             return `<span class="cachet-seance-tag" title="${escapeAttr(libelleTypeDate(state.tournee.type, d.type))}">${escapeHtml(String(r.montant))} € brut</span>`;
           })()}</div>

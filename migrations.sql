@@ -5935,3 +5935,25 @@ end $$;
 -- d'avant — et au-delà personne ne revient. À purger à la main tant qu'aucune
 -- tâche planifiée ne tourne :
 --   delete from audit_log where changed_at < now() - interval '24 months';
+
+
+-- ============================================================================
+-- 2026-09 · Le cachet des technicien·nes
+--
+-- Une tournée ne portait qu'UN cachet standard, pensé pour l'orchestre. Les
+-- technicien·nes ne sont pas payé·es au même tarif : sur leur page de
+-- disponibilités, ils lisaient donc soit le montant des musicien·nes — faux —,
+-- soit « non défini ». Trente-huit demandes de dispo technicien·nes, et aucun
+-- moyen de leur annoncer leur cachet autrement qu'une exception nominative,
+-- personne par personne.
+--
+-- D'où un second standard, propre au pôle technique. Les trois autres niveaux
+-- de résolution ne changent pas et continuent de s'appliquer à tout le monde :
+-- l'exception nominative (cachet_overrides, qui accepte déjà person_type =
+-- 'technicien'), le montant propre à une date (dates[].cachetSeance), puis ce
+-- standard-ci. Le niveau « pupitre » ne concerne que l'orchestre et est sauté
+-- pour un·e technicien·ne, qui n'en a pas.
+-- ============================================================================
+alter table tournees add column if not exists cachet_technicien_statut text not null default 'non_defini'
+  check (cachet_technicien_statut in ('non_defini','defini'));
+alter table tournees add column if not exists cachet_technicien_montant numeric;
