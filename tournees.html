@@ -170,6 +170,19 @@
   .outils-toggle[aria-expanded="true"]{background:var(--accent-tint); color:var(--tint-ink); border-color:transparent;}
   .outils-caret{font-size:9px; transition:transform .2s;}
   .outils-toggle[aria-expanded="true"] .outils-caret{transform:rotate(180deg);}
+  /* Le bouton dit d'abord CE QU'IL OUVRE, puis où en sont les trois réglages.
+     Le nom est en encre pleine, le résumé en gris : on lit le nom, on ne lit le
+     résumé que si on le cherche. */
+  .outils-nom{color:var(--text); font-weight:800;}
+  .outils-toggle[aria-expanded="true"] .outils-nom{color:inherit;}
+  .outils-resume{font-weight:700;}
+  .outils-resume::before{content:'·'; margin-right:7px; opacity:.5;}
+  /* Ce qui n'est pas réglé se voit : un cachet non défini ou un contingent
+     manquant est un oubli, pas un état. */
+  .outils-manque{color:var(--maybe); font-weight:800;}
+  /* Sur un écran étroit, le résumé passe à la ligne et pousse le tableau : on
+     ne garde que le nom, le panneau dit le reste. */
+  @media (max-width:900px){ .outils-resume{display:none;} }
 
   /* Les deux colonnes s'alignent en haut : la gauche grandit en dépliant les
      exceptions, et sans cela la droite se centrait sur du vide. */
@@ -2141,37 +2154,80 @@ function renderTourneeCard(t, fdrs, musicianById, technicianById){
             dates.filter(d=> statutDate(d)==='option').length ? `${dates.filter(d=> statutDate(d)==='option').length} option${dates.filter(d=> statutDate(d)==='option').length>1?'s':''}` : '',
             dates.filter(d=> statutDate(d)==='recherche').length ? `${dates.filter(d=> statutDate(d)==='recherche').length} à l'étude` : '',
             ].filter(Boolean).join(' · ')}</span>
+            ${(()=>{
+              /* ==========================================================
+                 Le bouton des réglages de tête de projet.
+                 ==========================================================
+                 Il ne portait aucun nom : seulement le résumé de son
+                 contenu — « cachets fixés sur les 26 dates · 4 exceptions ·
+                 19 attendu·es ». On lisait donc un état sans savoir ce
+                 qu'on ouvrirait en cliquant, et le panneau en dessous
+                 groupe trois réglages, pas un.
+
+                 Il dit maintenant CE QU'IL OUVRE d'abord — les réglages de
+                 la tournée — puis où en est chacun des trois, en gris, dans
+                 l'ordre du panneau : cachet, effectif, invitations. Ce qui
+                 n'est pas réglé passe en ambre : un cachet non défini ou un
+                 contingent manquant est un oubli, pas un état. */
+              const MOT = EST_RECORDING ? 'séance' : 'date';
+              const bouts = [];
+
+              /* Le cachet. Une tournée dont toutes les dates se paient pareil
+                 dit son montant ; dès qu'une date porte le sien, elle dit
+                 combien en portent un — c'est le chiffre qui décide s'il reste
+                 du travail. Sans cela, une tournée où les répétitions sont
+                 payées à part annonçait tranquillement le seul montant des
+                 concerts. */
+              const avec = dates.filter(d=> curieuxCachetDate(d) != null).length;
+              const standard = (t.cachetStatut === 'defini' && t.cachetMontant != null && t.cachetMontant !== '')
+                ? `${t.cachetMontant} €/${MOT}` : '';
+              if(avec && avec === dates.length && dates.length) bouts.push(`cachets fixés (${dates.length} ${MOT}s)`);
+              else if(avec) bouts.push(`cachet propre sur ${avec}/${dates.length} ${MOT}s${standard ? `, ${standard} sinon` : ''}`);
+              else if(standard) bouts.push(`cachet ${standard}`);
+              else bouts.push(`<span class="outils-manque">cachet à définir</span>`);
+              /* Les pupitres payés à part et les exceptions nominatives se
+                 comptent, ne s'énumèrent plus : « Cordes 250 € · Chant 400 € »
+                 allongeait le bouton d'autant que le projet avait de pupitres
+                 particuliers, et le détail est dans le panneau, à deux lignes
+                 de là. */
+              if(!EST_RECORDING && pupitresACachet.length)
+                bouts.push(`${pupitresACachet.length} pupitre${pupitresACachet.length > 1 ? 's' : ''} à part`);
+              if(!EST_RECORDING && overrideCount) bouts.push(`${overrideCount} exception${overrideCount > 1 ? 's' : ''}`);
+
+              // L'effectif attendu.
+              const attendus = (t.nomenclature || []).reduce((n, r)=> n + (Number(r.nombre) || 0), 0);
+              bouts.push(attendus
+                ? `${attendus} attendu·es`
+                : `<span class="outils-manque">effectif à poser</span>`);
+
+              // Les invitations — seulement si le projet en gère : sur une
+              // préparation, en parler serait du bruit.
+              if(!EST_RECORDING && t.invitationsActives){
+                const places = placesDuProjet(t);
+                const validesConcerts = dates.filter(d=> typeDateValide(PROJET_TYPE, d.type) === 'concert' && estValidee(d) && !estAnnulee(d));
+                const sansContingent = validesConcerts.filter(d=> !places.some(c=> quotaDate(d, c.cle) != null)).length;
+                const parDate = Object.values(contingentUsuel(t)).reduce((n, x)=> n + (Number(x) || 0), 0);
+                bouts.push(sansContingent
+                  ? `<span class="outils-manque">${sansContingent} ${MOT}${sansContingent > 1 ? 's' : ''} sans contingent</span>`
+                  : (parDate ? `invitations ${parDate}/${MOT}` : 'invitations'));
+              }
+
+              return `
             <button type="button" class="outils-toggle" data-toggle-outils="${escapeAttr(t.id)}"
-              aria-expanded="${outilsOuverts.has(t.id) ? 'true' : 'false'}" title="Cachet et effectif attendu">
-              <span class="outils-resume">${[
-                /* Le résumé du cachet, replié. Une tournée dont toutes les dates
-                   se paient pareil dit son montant ; dès qu'une date porte le
-                   sien, elle dit combien en portent un — c'est le chiffre qui
-                   décide s'il reste du travail. Sans cela, une tournée où les
-                   répétitions sont payées à part annonçait tranquillement le
-                   seul montant des concerts. */
-                (()=>{
-                  const MOT = EST_RECORDING ? 'séance' : 'date';
-                  const avec = dates.filter(d=> curieuxCachetDate(d) != null).length;
-                  const standard = (t.cachetStatut === 'defini' && t.cachetMontant != null && t.cachetMontant !== '')
-                    ? `${t.cachetMontant} € / ${MOT}` : '';
-                  if(avec && avec === dates.length && dates.length) return `cachets fixés sur les ${dates.length} ${MOT}s`;
-                  if(avec) return `${avec}/${dates.length} ${MOT}s à cachet propre${standard ? ` · ${standard} sinon` : ''}`;
-                  if(standard) return standard;
-                  return EST_RECORDING ? `cachets à fixer par séance` : 'cachet à définir';
-                })(),
-                EST_RECORDING ? '' : pupitresACachet.map(r=> `${r.pupitre} ${r.cachet} €`).join(' · '),
-                EST_RECORDING ? '' : (overrideCount ? `${overrideCount} exception${overrideCount>1?'s':''}` : ''),
-                (t.nomenclature||[]).length ? `${(t.nomenclature||[]).reduce((n,r)=>n+(Number(r.nombre)||0),0)} attendu·es` : '',
-              ].filter(Boolean).join(' · ')}</span>
+              aria-expanded="${outilsOuverts.has(t.id) ? 'true' : 'false'}"
+              title="Cachet, effectif attendu${EST_RECORDING ? '' : ' et invitations'} — les réglages qui valent pour tout le projet">
+              <span class="outils-nom">Réglages ${EST_RECORDING ? 'du recording' : 'de la tournée'}</span>
+              <span class="outils-resume">${bouts.join(' · ')}</span>
               <span class="outils-caret">▾</span>
-            </button>
+            </button>`; })()}
             ${chiffrageHtml(t)}
             ${resteAFaireHtml(t, fdrs, musicianById)}
           </div>
-          <!-- Cachet et effectif attendu sont désormais toujours affichés côte à
-               côte, et non repliés derrière un bouton : ce sont deux réglages de
-               tête de tournée qu'on consulte en même temps que les dates. -->
+          <!-- Les trois réglages de tête de projet — cachet, effectif attendu,
+               invitations — côte à côte derrière le bouton « Réglages ». Ils se
+               posent une fois en début de projet et se consultent ensuite : ils
+               ne doivent pas occuper en permanence la place du tableau des
+               dates, qui est ce qu'on vient voir. -->
           <div class="tournee-outils" id="outils-${escapeAttr(t.id)}" ${outilsOuverts.has(t.id) ? '' : 'hidden'}>
             <div>
 ${(()=>{
