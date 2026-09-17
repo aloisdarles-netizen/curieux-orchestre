@@ -1391,6 +1391,48 @@ const CurieuxDB = (()=>{
     });
   }
 
+  /* REVENIR À L'ÉTAT D'AVANT UNE MODIFICATION, quelle qu'elle soit.
+     ---------------------------------------------------------------------------
+     La corbeille ne rattrapait que les suppressions. Or le journal conserve
+     aussi l'état d'avant chaque MODIFICATION (old_data) et l'état d'après
+     chaque CRÉATION (new_data) : de quoi défaire n'importe quel geste, sur
+     n'importe quelle table journalisée, et pas seulement le dernier.
+
+     Les trois actions se défont différemment :
+       UPDATE — on réécrit la ligne telle qu'elle était ;
+       DELETE — on la réinsère ;
+       INSERT — on la retire, puisqu'elle n'existait pas avant.
+
+     old_data et new_data sont au format des COLONNES SQL : on n'applique donc
+     pas les adaptateurs, qui traduisent depuis le format JavaScript.
+
+     Ce geste est lui-même journalisé : revenir en arrière laisse une trace, et
+     se défait comme le reste. On ne perd donc jamais la main.
+
+     infos_sociales reste dehors : son journal ne retient que le NOM des champs
+     modifiés, jamais leurs valeurs — il n'y a rien à réécrire, et c'est voulu. */
+  async function revenirA(entree){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    if(!entree || !entree.table_name || entree.table_name === 'infos_sociales'){
+      return { error: { message: "Cette modification ne peut pas être défaite : le journal n'en garde pas le détail." } };
+    }
+    const table = entree.table_name;
+
+    if(entree.action === 'INSERT'){
+      const id = (entree.new_data && entree.new_data.id != null) ? entree.new_data.id : entree.row_id;
+      if(id == null) return { error: { message: 'Ligne introuvable' } };
+      return _ecrire(`revenirA(${table})`, () => supabaseClient.from(table).delete().eq('id', id));
+    }
+
+    if(!entree.old_data || entree.old_data.id == null){
+      return { error: { message: "L'état d'avant n'a pas été conservé pour cette ligne." } };
+    }
+    // upsert et non insert : sur un UPDATE la ligne existe encore, sur un
+    // DELETE elle a disparu. Un seul appel couvre les deux.
+    return _ecrire(`revenirA(${table})`,
+      () => supabaseClient.from(table).upsert(entree.old_data, { onConflict: 'id' }));
+  }
+
   // Réinsère la ligne telle qu'elle était. old_data est déjà au format des
   // colonnes SQL : on n'applique donc PAS les adaptateurs, qui traduisent
   // depuis le format JavaScript.
@@ -2017,7 +2059,7 @@ const CurieuxDB = (()=>{
     listAccounts, setAccountRole, removeAccount, setDirectionTechniqueAccess,
     createAccountWithPassword, sendMagicLinkInvite, fetchAuditLog,
     mesDemandesDispo, mesDates, resolvePersonToken, creerCompteEquipeSansEmail,
-    fetchCorbeille, restaurerDepuisCorbeille,
+    fetchCorbeille, restaurerDepuisCorbeille, revenirA,
     getInfosSocialesByToken, upsertInfosSocialesByToken,
     getDispoDemandeByToken, markDispoRespondedByToken,
     updateOwnContactByToken, updateOwnDisponibilitesByToken, updateOwnPrenomUsageByToken,

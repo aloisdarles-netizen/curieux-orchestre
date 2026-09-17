@@ -94,6 +94,9 @@
   .bug-type.amelioration{background:var(--accent-tint); color:var(--accent-dark);}
   .bug-type.incoherence{background:var(--maybe-tint); color:var(--maybe);}
   .log-detail{margin-top:6px; font-size:12px; color:var(--text);}
+  /* Le geste qui défait, discret : on vient d'abord lire le journal, on ne
+     revient en arrière qu'ensuite. */
+  .log-actions{margin-top:8px;}
   .log-detail summary{cursor:pointer; color:var(--muted);}
   .log-detail pre{white-space:pre-wrap; word-break:break-word; background:var(--bg); border-radius:6px; padding:8px; margin-top:6px; font-size:11px;}
 
@@ -329,6 +332,20 @@
             <option value="infos_sociales">Infos sociales</option>
             <option value="remplacant_prefs">Remplaçant·es (liste titulaire)</option>
             <option value="cachet_overrides">Cachet individualisé</option>
+            <option value="invitations">Invitations</option>
+            <option value="salles">Salles</option>
+            <option value="fiches_techniques">Fiches techniques</option>
+            <option value="moyens_salle">Moyens de la salle</option>
+            <option value="lots_materiel">Lots de matériel</option>
+            <option value="vehicules">Véhicules</option>
+            <option value="chauffeurs">Chauffeurs</option>
+            <option value="prestataires">Prestataires</option>
+            <option value="affectations_transport">Affectations transport</option>
+            <option value="remarques">Remarques</option>
+            <option value="comm_taches">Tâches</option>
+            <option value="devis">Devis et budgets</option>
+            <option value="devis_clients">Clients</option>
+            <option value="reglages">Réglages</option>
           </select>
         </div>
         <div class="field" style="flex:1 1 200px;">
@@ -401,6 +418,17 @@ const TABLE_LABELS = {
   newsletter_snapshot: 'Journal des changements', dispo_demandes: 'Demandes de dispo',
   infos_sociales: 'Infos sociales', remplacant_prefs: 'Remplaçant·es (liste titulaire)',
   cachet_overrides: 'Cachet individualisé',
+  // Ajoutées quand le journal a cessé de ne couvrir que l'annuaire et les
+  // tournées (voir migrations.sql, « Revenir en arrière sur n'importe quelle
+  // action »).
+  invitations: 'Invitations', salles: 'Salles', fiches_techniques: 'Fiches techniques',
+  moyens_salle: 'Moyens de la salle', lots_materiel: 'Lots de matériel',
+  vehicules: 'Véhicules', chauffeurs: 'Chauffeurs', carnets_ata: 'Carnets ATA',
+  acces_logistique: 'Accès logistique', prestataires: 'Prestataires',
+  affectations_transport: 'Affectations transport', remarques: 'Remarques',
+  echanges: 'Échanges', devis: 'Devis et budgets', devis_clients: 'Clients',
+  devis_postes: 'Postes de devis', devis_reglages: 'Réglages de devis',
+  comm_taches: 'Tâches', saisons: 'Saisons', reglages: 'Réglages',
 };
 
 
@@ -851,10 +879,58 @@ function renderLog(){
           <span>· ${escapeHtml(when)}</span>
         </div>
         <div class="log-detail">${escapeHtml(logSummary(e))}</div>
+        ${defaisable(e) ? `<div class="log-actions">
+          <button type="button" class="co-btn ghost sm" data-revenir="${e.id}">${escapeHtml(motDefaire(e))}</button>
+        </div>` : ''}
       </div>
     `;
   }).join('');
 }
+
+/* Ce qu'on peut défaire, et comment on le dit.
+   ---------------------------------------------------------------------------
+   Une CRÉATION se défait en retirant la ligne, une MODIFICATION en réécrivant
+   l'état d'avant, une SUPPRESSION en la réinsérant. Trois gestes, trois mots
+   différents : « annuler la création » et « restaurer » ne veulent pas dire la
+   même chose, et se tromper de bouton sur un journal se paie cher.
+
+   infos_sociales est absente : son journal ne retient que le nom des champs
+   modifiés, jamais leurs valeurs — il n'y a rien à réécrire. */
+function defaisable(e){
+  if(!e || e.table_name === 'infos_sociales') return false;
+  if(e.action === 'INSERT') return !!(e.new_data && e.new_data.id != null) || !!e.row_id;
+  return !!(e.old_data && e.old_data.id != null);
+}
+function motDefaire(e){
+  return e.action === 'INSERT' ? 'Annuler la création'
+    : e.action === 'DELETE' ? 'Restaurer'
+    : "Revenir à l'état d'avant";
+}
+
+/* Revenir en arrière est lui-même journalisé : on relit donc la liste après
+   coup, et la nouvelle entrée apparaît en tête. Le geste se défait comme un
+   autre — on ne se retrouve jamais coincé. */
+document.getElementById('logList').addEventListener('click', async (ev)=>{
+  const btn = ev.target.closest('[data-revenir]');
+  if(!btn) return;
+  const entree = logCache.find(x=> String(x.id) === btn.dataset.revenir);
+  if(!entree) return;
+  const quoi = TABLE_LABELS[entree.table_name] || entree.table_name;
+  const qui = logRowLabel(entree) || entree.row_id;
+  const quand = new Date(entree.changed_at).toLocaleString('fr-FR');
+  if(!confirm(`${motDefaire(entree)} ?\n\n${quoi} — ${qui}\nModification du ${quand}\n\nCe retour en arrière est lui-même enregistré : il se défait comme le reste.`)) return;
+  btn.disabled = true;
+  btn.textContent = 'En cours…';
+  const res = await CurieuxDB.revenirA(entree);
+  if(res && res.error){
+    alert("Le retour en arrière a échoué : " + (res.error.message || 'raison inconnue'));
+    btn.disabled = false;
+    btn.textContent = motDefaire(entree);
+    return;
+  }
+  await loadLog();
+  await loadCorbeille();
+});
 
 // Volontairement limité aux dernières entrées (pas de pagination) : l'historique sert à
 // vérifier ce qui vient de se passer, pas d'archive à parcourir en profondeur.

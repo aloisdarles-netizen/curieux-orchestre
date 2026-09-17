@@ -5882,3 +5882,56 @@ alter table invitations replica identity full;
 -- qu'aucune tâche planifiée ne tourne :
 --   delete from invitations
 --    where created_at < now() - interval '12 months';
+
+
+-- ============================================================================
+-- 2026-09 · Revenir en arrière sur n'importe quelle action
+--
+-- Le journal d'audit ne couvrait que neuf tables — celles de l'annuaire et des
+-- tournées. Tout le reste changeait sans trace : une fiche technique de salle,
+-- un devis, une invitation, un véhicule, un réglage. « Qui a changé ça ? » n'y
+-- avait pas de réponse, et « remets-le comme avant » encore moins.
+--
+-- Le déclencheur est le même pour toutes : il enregistre l'état complet
+-- d'avant (old_data) et d'après (new_data). C'est ce old_data qui permet de
+-- revenir en arrière (voir revenirA dans assets/db.js).
+--
+-- CE QUI RESTE VOLONTAIREMENT DEHORS :
+--   audit_log                  — il se journaliserait lui-même, sans fin.
+--   bug_reports, relances,
+--   messages_envoyes           — ce sont déjà des journaux : ils ne se
+--                                modifient pas, ils s'ajoutent.
+--   fiches_techniques_versions — déjà versionnée par construction.
+--   disponibilites             — une projection maintenue par déclencheur
+--                                depuis les jsonb des fiches : on journaliserait
+--                                deux fois le même geste.
+--   acces_personnels           — des jetons ; les recopier dans un journal
+--                                moins cloisonné serait les affaiblir.
+--   preferences_utilisateur,
+--   infos_sociales_admins      — pas de colonne id, et rien à restaurer.
+--   infos_sociales             — garde son déclencheur dédié, qui ne retient
+--                                que le NOM des champs modifiés, jamais leurs
+--                                valeurs (n° de sécurité sociale, IBAN).
+-- ============================================================================
+do $$
+declare tbl text;
+begin
+  foreach tbl in array array[
+    'invitations','salles','fiches_techniques','moyens_salle','lots_materiel',
+    'vehicules','chauffeurs','carnets_ata','acces_logistique','prestataires',
+    'affectations_transport','remarques','echanges',
+    'devis','devis_clients','devis_postes','devis_reglages',
+    'comm_taches','saisons','reglages'
+  ]
+  loop
+    execute format('drop trigger if exists trg_audit_%1$s on %1$I', tbl);
+    execute format('create trigger trg_audit_%1$s after insert or update or delete on %1$I for each row execute function audit_trigger_func()', tbl);
+  end loop;
+end $$;
+
+-- CONSERVATION. Le journal porte l'état complet des lignes : il grossit vite,
+-- et un devis ou une feuille de route pèsent lourd en jsonb. Vingt-quatre mois
+-- couvrent deux saisons — de quoi retrouver ce qui s'est passé sur la tournée
+-- d'avant — et au-delà personne ne revient. À purger à la main tant qu'aucune
+-- tâche planifiée ne tourne :
+--   delete from audit_log where changed_at < now() - interval '24 months';

@@ -34,8 +34,11 @@
 const CURIEUX_NOUVEAUTES = [
   {
     version: '2026-09-17-3',
-    titre: 'Revenir en arrière après une suppression',
+    titre: 'Revenir en arrière, sur n’importe quelle action',
     points: [
+      "Tout ce qu'on fait dans l'outil est désormais réversible. Deux filets : le ruban « Annuler » sur le moment, et l'historique de l'administration pour tout le reste.",
+      "Le journal ne couvrait que l'annuaire et les tournées : une fiche technique, un devis, une invitation, un véhicule, un réglage changeaient sans laisser de trace. Vingt tables de plus y entrent, et chaque entrée porte maintenant son bouton — « Revenir à l'état d'avant » sur une modification, « Restaurer » sur une suppression, « Annuler la création » sur une création.",
+      "Ce retour en arrière est lui-même enregistré : il se défait comme le reste, on ne se retrouve jamais coincé.",
       "Sur Tournées et Recording, une suppression pose maintenant un « Annuler » pendant quinze secondes, dans la colonne de gauche. Supprimer une date, retirer les dates à l'étude, supprimer un projet entier, poser un cachet ou un contingent en lot : tout se défait d'un clic.",
       "Ce qui est vraiment irréversible attend la fin de ces quinze secondes. Supprimer une date emporte avec elle sa fiche technique, ses remarques, ses affectations de transport et ses invitations : rien n'est touché tant qu'on peut se raviser, sans quoi la date reviendrait sans ce qui lui était attaché.",
       "Supprimer un projet ne supprime plus rien tout de suite : il disparaît de l'écran, et la ligne ne part qu'une fois la fenêtre refermée. Annuler le fait revenir intact, invitations comprises.",
