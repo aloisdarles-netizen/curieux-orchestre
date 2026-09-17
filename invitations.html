@@ -13,6 +13,7 @@
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/statuts-date.js"></script>
 <script src="assets/invitations.js"></script>
+<script src="assets/annuler.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
@@ -1191,12 +1192,21 @@ document.addEventListener('click', async (e)=>{
     if(!inv) return;
     /* Une confirmation, parce que c'est irréversible et que la ligne rend ses
        places au contingent : on ne saura plus qu'elle a existé. */
-    if(!confirm(`Retirer l'invitation de « ${nomInvite(inv)} » ?\n\nSes places reviennent au contingent. C'est définitif.`)) return;
+    if(!confirm(`Retirer l'invitation de « ${nomInvite(inv)} » ?\n\nSes places reviennent au contingent.`)) return;
+    const copie = Object.assign({}, inv);
     invitationsCache = invitationsCache.filter(i=> i.id !== inv.id);
     await CurieuxDB.removeOne('invitations', inv.id);
     const el = document.querySelector(`[data-ligne="${CSS.escape(inv.id)}"]`);
     if(el) el.remove();
     majDate(inv.dateId);
+    CurieuxAnnuler.proposer({
+      texte: `Invitation de ${nomInvite(copie)} retirée.`,
+      retablir: async ()=>{
+        invitationsCache.push(copie);
+        await CurieuxDB.upsertOne('invitations', copie);
+        renderCorps();
+      },
+    });
     return;
   }
 

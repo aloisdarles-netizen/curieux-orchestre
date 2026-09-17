@@ -13,6 +13,7 @@
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/statuts-date.js"></script>
 <script src="assets/invitations.js"></script>
+<script src="assets/annuler.js"></script>
 <script src="assets/echeances.js"></script>
 <script src="assets/messages-dispo.js"></script>
 <!-- Le moteur de calcul des devis, pour afficher le budget d'un projet sans
@@ -652,7 +653,7 @@
   </div>
 
   <div class="tournees-colonnes">
-    <aside class="projets-menu co-fade" id="projetsMenu" hidden>
+    <aside class="projets-menu co-fade" id="projetsMenu" data-annuler-ancre hidden>
       <p class="projets-menu-titre" id="projetsMenuTitre">Tournées</p>
       <div class="projets-liste" id="projetsListe"></div>
       <div class="projets-menu-pied">
@@ -864,7 +865,12 @@ function saveFdrCollection(list){
   fdrsCache = list;
   return CurieuxDB.syncCollection('feuilles_route', list);
 }
-function loadTournees(){ return tourneesCache; }
+/* Les projets dont la suppression attend la fin de la fenêtre d'annulation.
+   Ils ne sont plus à l'écran mais existent encore en base : sans cette liste,
+   la première mise à jour temps réel venue d'ailleurs les ferait réapparaître
+   le temps que le nettoyage parte. */
+const suppressionsEnCours = new Set();
+function loadTournees(){ return tourneesCache.filter(t=> !suppressionsEnCours.has(t.id)); }
 function saveTournees(list){
   tourneesCache = list;
   CurieuxDB.syncCollection('tournees', list);
@@ -2675,9 +2681,25 @@ document.addEventListener('click', (e)=>{
   const deja = cibles.filter(d=> curieuxCachetDate(d) != null && Number(d.cachetSeance) !== montant).length;
   const avert = deja ? `\n\n${deja} ${MOT}${deja > 1 ? 's portent' : ' porte'} déjà un autre montant, qui sera remplacé.` : '';
   if(!confirm(`Fixer ${montant} € brut sur ${cibles.length} ${quoi}${cibles.length > 1 ? 's' : ''} ?${avert}`)) return;
+  const avant = cibles.map(d=> [d.id, d.cachetSeance]);
   cibles.forEach(d=>{ d.cachetSeance = montant; });
   saveTournees(tournees);
   render();
+  CurieuxAnnuler.proposer({
+    texte: `${montant} € posés sur ${cibles.length} ${quoi}${cibles.length > 1 ? 's' : ''} de « ${t.nom} ».`,
+    retablir: ()=>{
+      const l = loadTournees();
+      const p = l.find(x=> x.id === t.id);
+      if(!p) return;
+      const parId = Object.fromEntries(avant);
+      (p.dates || []).forEach(d=>{
+        if(!(d.id in parId)) return;
+        if(parId[d.id] == null) delete d.cachetSeance; else d.cachetSeance = parId[d.id];
+      });
+      saveTournees(l);
+      render();
+    },
+  });
 });
 
 /* ---------------------------------------------------------------------------
@@ -2752,11 +2774,27 @@ document.addEventListener('click', (e)=>{
   const detail = Object.entries(saisis).map(([cle, n])=> `${libellePlace(t, cle)} : ${n}`).join(', ');
   if(!confirm(`Poser ce contingent sur ${cibles.length} ${quoi} ?\n\n${detail}`)) return;
 
+  const avantQuotas = cibles.map(d=> [d.id, d.quotas ? Object.assign({}, d.quotas) : null]);
   cibles.forEach(d=>{
     d.quotas = Object.assign({}, d.quotas || {}, saisis);
   });
   saveTournees(tournees);
   render();
+  CurieuxAnnuler.proposer({
+    texte: `Contingent posé sur ${cibles.length} ${quoi} de « ${t.nom} ».`,
+    retablir: ()=>{
+      const l = loadTournees();
+      const p = l.find(x=> x.id === t.id);
+      if(!p) return;
+      const parId = Object.fromEntries(avantQuotas);
+      (p.dates || []).forEach(d=>{
+        if(!(d.id in parId)) return;
+        if(parId[d.id] == null) delete d.quotas; else d.quotas = parId[d.id];
+      });
+      saveTournees(l);
+      render();
+    },
+  });
 });
 
 /* « Tout effacer » : les dates reprennent le cachet standard du projet. Sans
@@ -3359,9 +3397,22 @@ function bindTourneeEvents(){
       const apercu = aLEtude.slice(0, 6).map(d=> fmtDateFR(d.date) + (d.ville ? ' · ' + d.ville : '')).join('\n');
       const reste = aLEtude.length > 6 ? `\n… et ${aLEtude.length - 6} autres` : '';
       if(!confirm(`Retirer ${aLEtude.length} ${mot}${aLEtude.length > 1 ? 's' : ''} à l'étude de « ${t.nom} » ?\n\n${apercu}${reste}\n\nLes options, les dates validées et les dates annulées ne bougent pas.`)) return;
+      // L'état d'avant, copié : c'est lui qu'on remettra si on se ravise.
+      const avant = (t.dates || []).slice();
       t.dates = (t.dates || []).filter(d=> statutDate(d) !== 'recherche');
       saveTournees(tournees);
       render();
+      CurieuxAnnuler.proposer({
+        texte: `${aLEtude.length} ${mot}${aLEtude.length > 1 ? 's' : ''} à l'étude retirée${aLEtude.length > 1 ? 's' : ''} de « ${t.nom} ».`,
+        retablir: ()=>{
+          const l = loadTournees();
+          const p = l.find(x=> x.id === t.id);
+          if(!p) return;
+          p.dates = avant;
+          saveTournees(l);
+          render();
+        },
+      });
     });
   });
   document.querySelectorAll('[data-del-tournee]').forEach(btn=>{
@@ -3369,9 +3420,25 @@ function bindTourneeEvents(){
       const tournees = loadTournees();
       const t = tournees.find(x=>x.id === btn.dataset.delTournee);
       if(t && confirm(`Supprimer ${EST_RECORDING ? 'le recording' : 'la tournée'} "${t.nom}" et toutes ses ${EST_RECORDING ? 'séances' : 'dates'} ?`)){
-        tourneesCache = tournees.filter(x=>x.id !== btn.dataset.delTournee);
-        CurieuxDB.removeOne('tournees', btn.dataset.delTournee);
+        /* Le projet part de l'écran tout de suite, mais la ligne n'est
+           supprimée qu'à la fermeture de la fenêtre d'annulation : sa
+           suppression emporte en cascade ses invitations, et les faire
+           revenir n'est pas en notre pouvoir. Tant qu'on peut se raviser, on
+           ne casse rien. */
+        const id = btn.dataset.delTournee;
+        suppressionsEnCours.add(id);
         render();
+        CurieuxAnnuler.proposer({
+          texte: `« ${t.nom} » ${EST_RECORDING ? 'supprimé' : 'supprimée'}.`,
+          /* On relit la base plutôt que de se fier au cache : une sauvegarde
+             partie entre-temps a pu en retirer le projet, qui existe pourtant
+             toujours puisque le nettoyage n'a pas eu lieu. */
+          retablir: ()=>{
+            suppressionsEnCours.delete(id);
+            return CurieuxDB.fetchAll('tournees').then(l=>{ tourneesCache = l; render(); });
+          },
+          purger: ()=>{ CurieuxDB.removeOne('tournees', id); },
+        });
       }
     });
   });
@@ -3456,13 +3523,29 @@ function bindTourneeEvents(){
       if(!d) return;
       const label = fmtDateFR(d.date);
       if(!confirm(`Supprimer DÉFINITIVEMENT la date du ${label} ?\n\nElle disparaîtra complètement, y compris du récap newsletter (pas de trace d'annulation). Si tu veux garder une trace visible qu'elle est annulée, utilise plutôt le bouton "Annulée" à côté du statut.`)) return;
+      const avant = (t.dates||[]).slice();
       t.dates = (t.dates||[]).filter(x=>x.id !== btn.dataset.delDate);
       saveTournees(tournees);
-      // La promesse « elle disparaîtra complètement » était fausse : les dates
-      // vivant en jsonb, sans clé étrangère, sa fiche technique, ses remarques,
-      // ses affectations de transport et ses tâches lui survivaient, invisibles.
-      await CurieuxDB.supprimerRattachesDate(tourneeId, btn.dataset.delDate);
       render();
+      /* La promesse « elle disparaîtra complètement » était fausse : les dates
+         vivant en jsonb, sans clé étrangère, sa fiche technique, ses remarques,
+         ses affectations de transport et ses tâches lui survivaient, invisibles.
+         Ce nettoyage est irréversible — il attend donc la fermeture de la
+         fenêtre d'annulation, sans quoi la date reviendrait sans rien de ce qui
+         lui était attaché. */
+      const dateId = btn.dataset.delDate;
+      CurieuxAnnuler.proposer({
+        texte: `Date du ${label} supprimée de « ${t.nom} ».`,
+        retablir: ()=>{
+          const l = loadTournees();
+          const p = l.find(x=> x.id === tourneeId);
+          if(!p) return;
+          p.dates = avant;
+          saveTournees(l);
+          render();
+        },
+        purger: ()=> CurieuxDB.supprimerRattachesDate(tourneeId, dateId),
+      });
     });
   });
   // Les cases de sélection. Elles sont recréées à chaque redessin, d'où le

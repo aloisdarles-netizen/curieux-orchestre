@@ -1010,3 +1010,52 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
 }
 .co-matrix::-webkit-scrollbar-thumb:hover{ background:var(--accent); }
 .co-matrix::-webkit-scrollbar-corner{ background:transparent; }
+
+/* --- Ruban « Annuler » ----------------------------------------------------
+   Posé en bas de l'écran après une action destructive (voir assets/annuler.js).
+   Au centre et non dans un coin : c'est un geste de rattrapage, il doit se
+   voir. Au-dessus de tout le reste, mais sous les fenêtres modales — une
+   confirmation en cours passe avant. */
+.co-annuler{
+  position:fixed; left:50%; bottom:22px; transform:translate(-50%, 16px);
+  /* La croix de fermeture s'y ancre en version colonne. */
+  z-index:60; display:flex; align-items:center; gap:12px;
+  max-width:min(620px, calc(100vw - 32px));
+  padding:11px 12px 11px 18px; border-radius:999px;
+  background:var(--prune); color:var(--blanc);
+  box-shadow:0 6px 24px rgba(20,22,23,.28);
+  font-size:13.5px; font-weight:600;
+  opacity:0; pointer-events:none; transition:opacity .18s, transform .18s;
+}
+.co-annuler.vu{ opacity:1; transform:translate(-50%, 0); pointer-events:auto; }
+.co-annuler-texte{ min-width:0; }
+.co-annuler-btn{
+  flex:0 0 auto; cursor:pointer; font-family:inherit; font-size:12.5px; font-weight:800;
+  padding:7px 16px; border-radius:999px; border:none;
+  background:var(--blanc); color:var(--prune); white-space:nowrap;
+}
+.co-annuler-btn:hover{ filter:brightness(.94); }
+.co-annuler-fermer{
+  flex:0 0 auto; cursor:pointer; font-family:inherit; font-size:17px; line-height:1;
+  padding:2px 6px; border:none; background:transparent; color:rgba(252,242,240,.7);
+}
+.co-annuler-fermer:hover{ color:var(--blanc); }
+/* Posé dans une colonne libre (voir data-annuler-ancre) : il devient une
+   carte, alignée sur cette colonne, et ne recouvre plus le contenu. */
+.co-annuler.en-colonne{
+  transform:translateY(16px); border-radius:14px;
+  flex-direction:column; align-items:stretch; gap:10px;
+  padding:14px 14px 13px; max-width:none; line-height:1.45;
+}
+.co-annuler.en-colonne.vu{ transform:translateY(0); }
+.co-annuler.en-colonne .co-annuler-btn{ width:100%; padding:9px 12px; font-size:13px; }
+.co-annuler.en-colonne .co-annuler-fermer{ position:absolute; top:6px; right:9px; }
+.co-annuler.en-colonne .co-annuler-texte{ padding-right:14px; }
+
+@media (max-width:560px){
+  .co-annuler, .co-annuler.en-colonne{
+    left:16px !important; right:16px; width:auto !important; bottom:16px;
+    transform:translateY(16px); max-width:none;
+  }
+  .co-annuler.vu, .co-annuler.en-colonne.vu{ transform:translateY(0); }
+}
