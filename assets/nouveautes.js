@@ -33,6 +33,16 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-17-2',
+    titre: 'Les récapitulatifs de dates ne perdaient plus la moitié des dates',
+    points: [
+      "Un tableau plus long qu'une feuille était dessiné d'un bloc : tout ce qui dépassait le bas de la page était perdu. Un récapitulatif annonçait « 25 dates validées » et n'en imprimait que sept. Les tableaux longs se coupent maintenant proprement, et rappellent leur intitulé et leurs colonnes en haut de chaque nouvelle feuille. Cela vaut pour tous les PDF : récapitulatifs de dates, plateau par date, pages salle.",
+      "La distribution passe sous la ligne de la date, sur toute la largeur, au lieu d'être tassée dans une colonne : vingt-deux noms tenaient sur huit lignes illisibles, ils en prennent trois. Deux fois plus de dates par feuille.",
+      "Une date annulée n'affiche plus sa distribution : la journée est libérée, personne n'y joue. Y laisser les noms revenait à imprimer une convocation à un concert qui n'aura pas lieu.",
+      "L'avertissement de fin ne parle plus que de ce que le document contient : il annonçait « les options peuvent tomber » à la fin d'un document qui n'en portait aucune.",
+    ],
+  },
+  {
     version: '2026-09-17',
     titre: 'Les invitations sortent du tableur',
     points: [

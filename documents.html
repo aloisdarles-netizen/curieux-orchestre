@@ -617,30 +617,52 @@ function construireDocument(paires, o, meta){
   }
 
   if(o.liste){
-    const colonnes = [{ titre:'Date', largeur: o.avecNoms ? 1.5 : 1.6 },
+    /* La distribution ne tient PAS dans une colonne.
+       ---------------------------------------------------------------------
+       Vingt-deux noms dans sept centimètres, c'est huit lignes de bouillie et
+       trois dates par feuille. Les mêmes noms sur la largeur de la page en
+       prennent trois, et se lisent. Ils passent donc sous la ligne de la date
+       (`sousLigne`) plutôt que dans une quatrième colonne, et les trois
+       colonnes qui restent — date, ville, lieu — respirent enfin. */
+    const colonnes = [{ titre:'Date', largeur:1.6 },
                       { titre:'Ville', largeur:1 },
                       { titre:'Lieu', largeur:1.3 }]
-      .concat(o.avecNoms ? [{ titre:'Sur la date', largeur:2.4 }] : [])
       .concat(meta.plusieursProjets ? [{ titre:'Projet', largeur:1.4 }] : []);
 
     GROUPES_DOC.forEach(g=>{
       const duGroupe = paires.filter(({ d })=> statutDate(d) === g.cle);
       if(!duGroupe.length) return;
       page.tableau(`${g.titre} (${duGroupe.length})`, colonnes, duGroupe.map(({ d, t })=>{
-        const base = [jourDoc(d.date), d.ville || '—', d.lieu || '—'];
-        if(o.avecNoms){
-          const noms = nomsSurLaDate(d);
-          base.push(noms.length ? noms.join(', ') : 'à distribuer');
-        }
+        const cellules = [jourDoc(d.date), d.ville || '—', d.lieu || '—'];
         // Le nom du projet en dernière colonne quand il y en a plusieurs : sans
         // lui, deux options se suivent sans qu'on sache de quoi elles parlent.
-        if(meta.plusieursProjets) base.push(t.nom || 'Projet');
-        return base;
+        if(meta.plusieursProjets) cellules.push(t.nom || 'Projet');
+        /* Une date ANNULÉE n'a plus de distribution : la journée est libérée,
+           personne n'y joue. Y laisser les vingt-deux noms de la veille de
+           l'annulation, c'est écrire noir sur blanc une convocation à un
+           concert qui n'aura pas lieu. */
+        if(!o.avecNoms || g.cle === 'annulee') return { cellules };
+        const noms = nomsSurLaDate(d);
+        return { cellules, sousLigne: noms.length ? noms.join(' · ') : 'Distribution à faire.' };
       }), '', { couleur: couleurStatut(g.cle), carte:true, zebre:true, chapeau: g.chapeau });
     });
   }
 
-  page.encadre("Ce document est informatif et suit le projet au jour le jour : les options peuvent tomber, les dates validées peuvent bouger. Seul le contrat d'engagement vaut engagement. Merci de ne pas le diffuser en dehors des personnes concernées.",
+  /* L'avertissement de fin ne parle que de ce que le document contient.
+     -----------------------------------------------------------------------
+     Il annonçait « les options peuvent tomber » à la fin d'un document qui
+     n'en portait aucune : une phrase qui ne correspond à rien de ce qu'on
+     vient de lire fait douter du reste. */
+  const statuts = new Set(paires.map(({ d })=> statutDate(d)));
+  const reserves = [
+    statuts.has('option') ? 'les options peuvent tomber' : '',
+    statuts.has('validee') ? 'les dates validées peuvent bouger' : '',
+  ].filter(Boolean);
+  page.encadre(
+    (reserves.length
+      ? `Ce document est informatif et suit le projet au jour le jour : ${CurieuxSelection.joindre(reserves)}. Seul le contrat d'engagement vaut engagement.`
+      : 'Ce document est informatif et suit le projet au jour le jour.')
+    + ' Merci de ne pas le diffuser en dehors des personnes concernées.',
     { fond: PDF_CHARTE.carte });
   page.rendre(meta.fichier);
 }

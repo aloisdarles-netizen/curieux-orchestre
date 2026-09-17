@@ -667,6 +667,26 @@ function creerComposeurPdf(doc, options){
     const r = Object.assign({ couleur:null, carte:false, zebre:false, chapeau:'' }, reglages || {});
     const teinte = r.couleur || PDF_CHARTE.prune;
 
+    /* UN TABLEAU LONG SE COUPE, UN TABLEAU COURT NON.
+       -----------------------------------------------------------------------
+       Le rendu place les sections l'une après l'autre et passe à la feuille
+       suivante quand la PROCHAINE ne tient plus. Une section, elle, est posée
+       d'un bloc à partir de son y : tout ce qui dépassait le bas de la feuille
+       était simplement dessiné dans le vide et perdu. Un récapitulatif de
+       vingt-cinq dates annonçait donc « DATES VALIDÉES (25) » et n'en
+       imprimait que sept.
+
+       Au-delà du seuil, le tableau passe donc en FLUX : son intitulé est une
+       section, chaque ligne en est une autre, et le rendu sait couper entre
+       deux lignes. Les en-têtes de colonnes se redessinent en haut de chaque
+       nouvelle feuille (voir `.reprise`).
+
+       En dessous du seuil, rien ne change : les feuilles de route, les pages
+       salle et les devis gardent exactement la composition qu'ils avaient —
+       carte blanche comprise, qu'un tableau à cheval sur deux feuilles ne
+       saurait de toute façon pas dessiner. */
+    if(corps.length > 10){ tableauEnFlux(titre, cols, corps, note, r, teinte); return api; }
+
     sections.push((k, dessiner, yDepart)=>{
       const ptTitre = 8 * k, ptEntete = 6.6 * k, ptTexte = 8.6 * k, ptNote = 7 * k;
       const padCarte = r.carte ? 3.2 * k : 0;
@@ -795,6 +815,143 @@ function creerComposeurPdf(doc, options){
     });
     return api;
   };
+  /* Le tableau en flux : une section par ligne, que le rendu sait couper.
+     -------------------------------------------------------------------------
+     La géométrie dépend de l'échelle `k`, qui n'est connue qu'au rendu : elle
+     se recalcule donc dans chaque section plutôt que de se mémoriser. C'est
+     quelques multiplications par ligne — rien, au regard d'une pagination
+     juste.
+
+     Une ligne peut porter une SOUS-LIGNE (`{ cellules, sousLigne }`) : un
+     paragraphe posé sous elle, sur toute la largeur. C'est ce qui rend lisible
+     une distribution de vingt-deux noms — dans une colonne de sept
+     centimètres elle tenait sur huit lignes, sur la largeur de la feuille elle
+     en prend trois. */
+  function tableauEnFlux(titre, cols, corps, note, r, teinte){
+    const geo = (k)=>{
+      const parts = cols.map(c=> c.largeur || 1);
+      const total = parts.reduce((a, b)=> a + b, 0);
+      const gap = 2.5 * k;
+      const largeurs = parts.map(p=> (utile - gap * (cols.length - 1)) * (p / total));
+      return {
+        ptTitre: 8 * k, ptEntete: 6.6 * k, ptTexte: 8.6 * k, ptNote: 7 * k, ptSous: 7.8 * k,
+        largeurs, xDe: (i)=> o.marge + largeurs.slice(0, i).reduce((a, b)=> a + b, 0) + gap * i,
+      };
+    };
+
+    // Les en-têtes de colonnes et leur filet : dessinés sous l'intitulé, et
+    // redessinés en haut de chaque feuille où le tableau se poursuit.
+    const enTetesColonnes = (k, y, dessiner, suite)=>{
+      const g = geo(k);
+      let h = 0;
+      if(suite){
+        doc.setFont('Host', 'bold'); doc.setFontSize(g.ptTitre);
+        if(dessiner){
+          fond(teinte);
+          doc.rect(o.marge, y + hLigne(g.ptTitre) * 0.12, 1.4 * k, hLigne(g.ptTitre) * 0.78, 'F');
+          encre(teinte);
+          doc.setCharSpace(0.1 * k);
+          doc.text(String(titre || '').toUpperCase() + ' (SUITE)', o.marge + 3.6 * k, y, { baseline:'top' });
+          doc.setCharSpace(0);
+        }
+        h += hLigne(g.ptTitre) + 1.8 * k;
+      }
+      doc.setFont('Host', 'bold'); doc.setFontSize(g.ptEntete);
+      if(dessiner){
+        encre(PDF_CHARTE.muted);
+        doc.setCharSpace(0.08 * k);
+        cols.forEach((c, i)=> doc.text(String(c.titre || '').toUpperCase(), g.xDe(i), y + h, { baseline:'top' }));
+        doc.setCharSpace(0);
+      }
+      h += hLigne(g.ptEntete) + 1.4 * k;
+      if(dessiner){
+        trait(teinte); doc.setLineWidth(0.3);
+        doc.line(o.marge, y + h, o.marge + utile, y + h);
+      }
+      return h + 2.2 * k;
+    };
+
+    // L'intitulé, le chapeau, puis les en-têtes.
+    sections.push((k, dessiner, yDepart)=>{
+      const g = geo(k);
+      let y = yDepart;
+      doc.setFont('Host', 'bold'); doc.setFontSize(g.ptTitre);
+      if(dessiner){
+        fond(teinte);
+        doc.rect(o.marge, y + hLigne(g.ptTitre) * 0.12, 1.4 * k, hLigne(g.ptTitre) * 0.78, 'F');
+        encre(teinte);
+        doc.setCharSpace(0.1 * k);
+        doc.text(String(titre || '').toUpperCase(), o.marge + 3.6 * k, y, { baseline:'top' });
+        doc.setCharSpace(0);
+      }
+      y += hLigne(g.ptTitre) + 1.8 * k;
+      if(r.chapeau){
+        doc.setFont('Host', 'normal'); doc.setFontSize(g.ptTitre);
+        const l = lignes_(r.chapeau, utile);
+        if(dessiner){ encre(PDF_CHARTE.noir); doc.text(l, o.marge, y, { baseline:'top' }); }
+        y += l.length * hLigne(g.ptTitre) + 2.2 * k;
+      }
+      y += enTetesColonnes(k, y, dessiner, false);
+      return y - yDepart;
+    });
+
+    corps.forEach((ligne, rang)=>{
+      const fn = (k, dessiner, yDepart)=>{
+        const g = geo(k);
+        const cellules = cellulesDe(ligne);
+        const accent = !Array.isArray(ligne) && !!ligne.accent;
+        const sous = (!Array.isArray(ligne) && ligne.sousLigne) || '';
+
+        doc.setFont('Host', 'normal'); doc.setFontSize(g.ptTexte);
+        const decoupes = cols.map((c, i)=> lignes_(cellules[i], g.largeurs[i]));
+        const hCellules = Math.max(...decoupes.map(d=> d.length)) * hLigne(g.ptTexte);
+
+        doc.setFont('Host', 'normal'); doc.setFontSize(g.ptSous);
+        const lSous = sous ? lignes_(sous, utile) : [];
+        const hSous = lSous.length ? lSous.length * hLigne(g.ptSous) + 1.2 * k : 0;
+        const h = hCellules + hSous;
+
+        if(dessiner){
+          if(accent || (r.zebre && rang % 2 === 1)){
+            fond(accent ? PDF_CHARTE.accent : PDF_CHARTE.fond);
+            doc.rect(o.marge - 1 * k, yDepart - 1.2 * k, utile + 2 * k, h + 2.4 * k, 'F');
+          }
+          doc.setFontSize(g.ptTexte);
+          decoupes.forEach((d, i)=>{
+            doc.setFont('Host', i === 0 ? 'bold' : 'normal');
+            encre(accent ? PDF_CHARTE.accentEncre : PDF_CHARTE.noir);
+            doc.text(d, g.xDe(i), yDepart, { baseline:'top' });
+          });
+          if(lSous.length){
+            doc.setFont('Host', 'normal'); doc.setFontSize(g.ptSous);
+            encre(PDF_CHARTE.muted);
+            doc.text(lSous, o.marge, yDepart + hCellules + 1.2 * k, { baseline:'top' });
+          }
+          if(!r.zebre){
+            trait(PDF_CHARTE.bord); doc.setLineWidth(0.15);
+            doc.line(o.marge, yDepart + h + 1 * k, o.marge + utile, yDepart + h + 1 * k);
+          }
+        }
+        return h + 2 * k;
+      };
+      // Au sommet d'une nouvelle feuille, la ligne rappelle de quel tableau
+      // elle vient et ce que valent ses colonnes. Sans cela, une deuxième
+      // feuille commence par quatre colonnes anonymes.
+      fn.reprise = (k, y)=> enTetesColonnes(k, y, true, true);
+      sections.push(fn);
+    });
+
+    if(note){
+      sections.push((k, dessiner, yDepart)=>{
+        const g = geo(k);
+        doc.setFont('Host', 'normal'); doc.setFontSize(g.ptNote);
+        const l = lignes_(note, utile);
+        if(dessiner){ encre(PDF_CHARTE.muted); doc.text(l, o.marge, yDepart + 1 * k, { baseline:'top' }); }
+        return l.length * hLigne(g.ptNote) + 3 * k;
+      });
+    }
+  }
+
   // Alias interne : `lignes` est déjà pris par le découpeur de texte.
   const lignes_ = (texte, largeur)=> lignes(texte == null ? '' : texte, largeur);
 
@@ -1151,6 +1308,10 @@ function creerComposeurPdf(doc, options){
         poserFond();
         poserFiligrane();
         y = o.marge;
+        // Une ligne de tableau en flux emporte avec elle de quoi rappeler, en
+        // haut de la feuille suivante, à quel tableau elle appartient : sans
+        // cela, la deuxième page commence par quatre colonnes anonymes.
+        if(s.reprise) y += s.reprise(k, y);
       }
       s(k, true, y);
       y += h;
