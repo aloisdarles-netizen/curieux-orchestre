@@ -1,0 +1,1164 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Invitations</title>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
+<script src="assets/vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/nouveautes.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/statuts-date.js"></script>
+<script src="assets/invitations.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:min(1320px, 97vw); margin:0 auto;}
+
+  /* --- La barre du haut : projet, date, et les deux vues ------------------ */
+  .inv-barre{display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin-bottom:14px;}
+  .inv-barre .co-select{min-width:200px;}
+  .inv-barre .inv-date-select{min-width:330px; font-weight:700;}
+  .inv-spacer{flex:1 1 auto;}
+  .inv-onglets{display:inline-flex; background:var(--card); border:1px solid var(--border); border-radius:999px; padding:3px;}
+  .inv-onglets button{
+    border:none; background:transparent; cursor:pointer; font-family:inherit;
+    font-size:12.5px; font-weight:800; color:var(--muted); padding:7px 16px; border-radius:999px;
+  }
+  .inv-onglets button[aria-current]{background:var(--prune); color:var(--blanc);}
+
+  /* --- Le bandeau de contingent ------------------------------------------ */
+  /* Toujours au même endroit, toujours visible : c'est le seul chiffre qu'on
+     consulte à chaque ligne saisie. Il ne défile pas avec la liste. */
+  .inv-jauges{
+    position:sticky; top:104px; z-index:18;
+    display:flex; flex-wrap:wrap; gap:9px; align-items:stretch;
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:10px 11px; margin-bottom:14px;
+  }
+  .inv-jauge{
+    flex:1 1 150px; min-width:142px; max-width:230px;
+    background:var(--bg); border:1px solid var(--border); border-radius:9px;
+    padding:7px 10px 8px;
+  }
+  .inv-jauge-tete{display:flex; align-items:baseline; gap:6px;}
+  .inv-jauge-nom{font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
+  .inv-jauge-chiffre{margin-left:auto; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums;}
+  .inv-jauge-chiffre.plein{color:var(--maybe);}
+  .inv-jauge-chiffre.trop{color:var(--ko);}
+  .inv-jauge .co-progress{margin-top:5px;}
+  .inv-jauge-pied{display:flex; align-items:center; gap:5px; margin-top:5px; font-size:10.5px; color:var(--muted);}
+  .inv-jauge-pied input{
+    width:44px; padding:2px 5px; font-size:11.5px; text-align:right; font-weight:800;
+    border:1px solid var(--border); border-radius:6px; background:var(--bg);
+    color:var(--text); font-family:inherit; font-variant-numeric:tabular-nums;
+  }
+  .inv-jauge-pied input:focus{border-color:var(--accent); outline:none;}
+  .inv-jauge.after{background:var(--accent-tint); border-color:transparent; flex:1 1 190px; max-width:250px;}
+  .inv-jauge.after .inv-jauge-nom, .inv-jauge.after .inv-jauge-pied{color:var(--tint-ink); opacity:.9;}
+  .inv-jauge.after .inv-jauge-chiffre{color:var(--tint-ink);}
+
+  /* --- La ligne de saisie ------------------------------------------------- */
+  /* Elle est en haut, elle est colorée, elle ne bouge jamais : on tape, on
+     valide à Entrée, le curseur revient dans « Nom ». C'est le geste qu'on
+     répète quarante fois. */
+  .inv-saisie{
+    background:var(--rose); border-radius:12px; padding:11px 12px 12px; margin-bottom:6px;
+  }
+  :root[data-theme="dark"] .inv-saisie{background:var(--secondary-tint);}
+  .inv-saisie-titre{
+    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--prune); margin-bottom:7px;
+  }
+  :root[data-theme="dark"] .inv-saisie-titre{color:var(--blanc);}
+  .inv-saisie input, .inv-saisie select{
+    width:100%; box-sizing:border-box; padding:8px 9px; font-size:13px;
+    border:1px solid transparent; border-radius:8px; background:var(--card);
+    color:var(--text); font-family:inherit; outline:none;
+  }
+  .inv-saisie input:focus, .inv-saisie select:focus{border-color:var(--prune);}
+  .inv-saisie .num{text-align:right; font-weight:800; font-variant-numeric:tabular-nums;}
+  .inv-saisie button{white-space:nowrap;}
+  .inv-mot{font-size:11.5px; font-weight:700; color:var(--ko); margin-top:6px; min-height:14px;}
+
+  /* --- La liste ----------------------------------------------------------- */
+  .inv-cells{
+    display:grid;
+    grid-template-columns:
+      minmax(112px,1.1fr) minmax(100px,1fr) minmax(158px,1.4fr)
+      58px 106px 62px 142px minmax(96px,.8fr) 116px 30px;
+    gap:6px; align-items:center;
+  }
+  .inv-table{overflow-x:auto;}
+  .inv-tete, .inv-corps, .inv-saisie > .inv-cells{min-width:1060px;}
+  .inv-tete{
+    font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); padding:10px 0 5px;
+  }
+  .inv-tete .num{text-align:right;}
+  .inv-ligne{border-top:1px solid var(--border); padding:4px 0;}
+  .inv-ligne.annulee input, .inv-ligne.annulee select{opacity:.5;}
+  .inv-ligne.annulee input[data-champ="nom"]{text-decoration:line-through;}
+  .inv-ligne input, .inv-ligne select{
+    width:100%; box-sizing:border-box; padding:6px 7px;
+    border:1px solid transparent; border-radius:7px; font-size:12.5px;
+    background:var(--bg); color:var(--text); font-family:inherit; outline:none;
+  }
+  .inv-ligne input:hover, .inv-ligne select:hover{border-color:var(--border);}
+  .inv-ligne input:focus, .inv-ligne select:focus{border-color:var(--accent); background:var(--card);}
+  .inv-ligne .num{text-align:right; font-weight:800; font-variant-numeric:tabular-nums;}
+  .inv-ligne input[data-champ="nom"]{font-weight:700;}
+  .inv-ligne select{cursor:pointer; font-weight:700;}
+  .inv-sup{
+    border:none; background:transparent; color:var(--muted); cursor:pointer;
+    font-size:15px; line-height:1; padding:4px; border-radius:6px;
+  }
+  .inv-sup:hover{color:var(--ko); background:var(--ko-tint);}
+  .inv-alerte{font-size:11px; color:var(--maybe); font-weight:700; padding:0 0 3px 4px;}
+  .inv-alerte:empty{display:none;}
+  .inv-pied{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:12px; font-size:12px; color:var(--muted);}
+
+  /* --- Le récapitulatif ---------------------------------------------------- */
+  .inv-recap-table{width:100%; border-collapse:collapse; font-size:13px;}
+  .inv-recap-table th{
+    text-align:left; font-size:9.5px; font-weight:800; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--muted); padding:0 8px 7px; white-space:nowrap;
+  }
+  .inv-recap-table th.num, .inv-recap-table td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .inv-recap-table td{padding:9px 8px; border-top:1px solid var(--border);}
+  .inv-recap-table tbody tr:hover{background:var(--row-alt);}
+  .inv-recap-table .quand{font-weight:800; white-space:nowrap;}
+  .inv-recap-table .ou{color:var(--muted); font-size:12px;}
+  .inv-recap-table .trop{color:var(--ko); font-weight:800;}
+  .inv-recap-table .plein{color:var(--maybe); font-weight:800;}
+  .inv-recap-table tfoot td{
+    border-top:2px solid var(--prune); font-weight:800; padding-top:10px;
+  }
+  .inv-recap-actions{display:flex; gap:5px; justify-content:flex-end;}
+  .inv-types{display:flex; flex-wrap:wrap; gap:7px; margin-top:6px;}
+  .inv-type-part{
+    display:inline-flex; align-items:baseline; gap:7px; border-radius:999px;
+    padding:5px 13px; font-size:12.5px; font-weight:700;
+  }
+  .inv-type-part b{font-size:14px; font-weight:800;}
+
+  @media (max-width:820px){
+    .inv-jauges{position:static;}
+    .inv-barre .inv-date-select{min-width:0; width:100%;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1>Invitations</h1>
+      <p class="subtitle">Écran interne. Les musicien·nes n'y ont pas accès.</p>
+    </div>
+  </div>
+
+  <div class="inv-barre" id="barre"></div>
+  <div id="holder"><div class="empty-hint">Chargement…</div></div>
+</div>
+
+<script>
+/* ============================================================================
+   Les invitations
+   ============================================================================
+   C'EST UN OUTIL DE SAISIE, pas un tableau de bord. Le geste qu'on répète
+   quarante fois, c'est « ajouter un nom sur une date » — tout le reste vient
+   après. D'où deux écrans plutôt qu'un :
+
+     SAISIE — une date à la fois. Le contingent en haut, collant ; la ligne de
+              saisie juste dessous, qui se valide à Entrée et rend la main dans
+              « Nom » ; la liste de la date en dessous, modifiable sur place.
+              Rien d'autre à l'écran : pas de projet voisin, pas de date
+              suivante, rien à faire défiler pour retrouver son champ.
+
+     RÉCAP  — toutes les dates d'un coup, une ligne chacune, avec ce qui est
+              consommé, ce qui reste, ce qui n'est pas encore parti à la salle,
+              et où sont allées les places par type. C'est l'écran qu'on
+              regarde une fois par semaine, pas toutes les deux minutes.
+
+   QUELLES DATES. Seules les dates VALIDÉES ont une liste : une option n'est
+   pas tenue, une date à l'étude n'existe pas encore, et promettre des places
+   sur l'une ou l'autre revient à les reprendre. Une date qui perd sa
+   validation après coup garde sa liste — on ne fait pas disparaître des noms
+   déjà donnés — et le dit en clair.
+
+   LE CONTINGENT est propre à CHAQUE TOURNÉE, et non aux Soudaines : un
+   producteur nous donne dix Carré Or, le suivant quatre CAT 1. Il se saisit
+   une fois dans le panneau Invitations du projet, se pose d'un clic sur ses
+   dates, et se corrige ici date par date.
+============================================================================ */
+
+let tourneesCache = [];
+let invitationsCache = [];
+
+let vue = 'saisie';
+let projetChoisi = '';
+let dateChoisie = '';
+let toutesJournees = false;
+let MOI = '';
+
+function nomDuCompte(email){
+  const local = String(email || '').split('@')[0] || '';
+  return local.split(/[._-]+/).filter(Boolean)
+    .map(m=> m.charAt(0).toUpperCase() + m.slice(1)).join(' ');
+}
+
+// --- Lectures ---------------------------------------------------------------
+
+function projetsInvitables(){
+  return tourneesCache.filter(t=> t.type !== 'recording' && t.invitationsActives);
+}
+function projetCourant(){ return tourneesCache.find(t=> t.id === projetChoisi) || null; }
+function invitationsDe(dateId){ return invitationsCache.filter(i=> i.dateId === dateId); }
+function dateDe(t, dateId){ return (t.dates || []).find(d=> d.id === dateId) || null; }
+
+/* Les dates qui ont une liste. Un concert validé, point. Les exceptions ne
+   sont pas des réglages mais des faits : une date qui porte déjà des noms
+   reste là quoi qu'il arrive (on ne perd pas une promesse faite), et la case
+   « toutes les journées » ouvre le reste pour qui prépare en avance. */
+function datesInvitables(t){
+  return (t.dates || []).filter(d=>{
+    if(invitationsDe(d.id).length) return true;
+    if(toutesJournees) return !estAnnulee(d);
+    return typeDateValide(t, d.type) === 'concert' && estValidee(d);
+  }).sort((a, b)=> String(a.date || '').localeCompare(String(b.date || '')));
+}
+function dateCourante(){
+  const t = projetCourant();
+  return t ? dateDe(t, dateChoisie) : null;
+}
+
+function fmtDateFR(iso){
+  if(!iso) return '';
+  const [y, m, d] = String(iso).split('-');
+  const mois = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${parseInt(d, 10)} ${mois[parseInt(m, 10) - 1]} ${y}`;
+}
+function jourSemaine(iso){
+  const [a, m, j] = String(iso || '').split('-').map(n=> parseInt(n, 10));
+  if(!j) return '';
+  const jours = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+  return jours[(new Date(Date.UTC(a, m - 1, j)).getUTCDay() + 6) % 7];
+}
+// « 28052026 » : le nom que portaient les feuilles du tableur. Les fichiers
+// exportés le gardent — c'est ainsi que la salle les reconnaît.
+function clefFichier(iso){
+  const [y, m, d] = String(iso || '').split('-');
+  return `${d || ''}${m || ''}${y || ''}`;
+}
+function libelleDate(t, d){
+  const lieu = [d.ville, d.lieu].filter(Boolean).join(' · ');
+  const alerte = estValidee(d) ? '' : `  ⚠ ${courtStatut(d).toLowerCase()}`;
+  return `${jourSemaine(d.date)} ${fmtDateFR(d.date)}${lieu ? '  —  ' + lieu : ''}${alerte}`;
+}
+
+// --- Écritures --------------------------------------------------------------
+
+const timersInvit = {};
+function sauverInvitation(id){
+  clearTimeout(timersInvit[id]);
+  timersInvit[id] = setTimeout(()=>{
+    const inv = invitationsCache.find(i=> i.id === id);
+    if(inv) CurieuxDB.upsertOne('invitations', inv);
+  }, 500);
+}
+let timerTournees = null;
+function sauverTournees(){
+  clearTimeout(timerTournees);
+  timerTournees = setTimeout(()=> CurieuxDB.syncCollection('tournees', tourneesCache), 600);
+}
+
+// --- La barre du haut -------------------------------------------------------
+
+function renderBarre(){
+  const barre = document.getElementById('barre');
+  const projets = projetsInvitables();
+  if(!projets.length){ barre.innerHTML = ''; return; }
+  const t = projetCourant();
+  const dates = t ? datesInvitables(t) : [];
+  barre.innerHTML = `
+    <div class="co-field">
+      <label class="co-label" for="selProjet">Projet</label>
+      <select class="co-select" id="selProjet">
+        ${projets.map(p=> `<option value="${escapeAttr(p.id)}" ${p.id === projetChoisi ? 'selected' : ''}>${escapeHtml(p.nom || 'Tournée sans nom')}</option>`).join('')}
+      </select>
+    </div>
+    ${vue === 'saisie' ? `
+    <div class="co-field">
+      <label class="co-label" for="selDate">Date</label>
+      <select class="co-select inv-date-select" id="selDate" ${dates.length ? '' : 'disabled'}>
+        ${dates.length
+          ? dates.map(d=> `<option value="${escapeAttr(d.id)}" ${d.id === dateChoisie ? 'selected' : ''}>${escapeHtml(libelleDate(t, d))}</option>`).join('')
+          : '<option>Aucune date validée</option>'}
+      </select>
+    </div>` : ''}
+    <div class="inv-spacer"></div>
+    <label class="co-check" style="padding-bottom:8px;" title="Par défaut, seuls les concerts validés ont une liste d'invitations.">
+      <input type="checkbox" id="chkToutes" ${toutesJournees ? 'checked' : ''}>
+      <span>Options et répétitions</span>
+    </label>
+    <div class="inv-onglets" style="margin-bottom:1px;">
+      <button type="button" data-vue="saisie" ${vue === 'saisie' ? 'aria-current="page"' : ''}>Saisie</button>
+      <button type="button" data-vue="recap" ${vue === 'recap' ? 'aria-current="page"' : ''}>Récapitulatif</button>
+    </div>`;
+}
+
+function render(){ renderBarre(); renderCorps(); }
+
+function renderCorps(){
+  const holder = document.getElementById('holder');
+  if(!projetsInvitables().length){
+    holder.innerHTML = `<div class="empty-hint">
+      Aucun projet ne gère d'invitations pour l'instant.<br>
+      Ouvre <a href="tournees.html">Tournées</a>, déplie le projet, et coche « Gérer les invitations » dans le panneau Invitations.
+    </div>`;
+    return;
+  }
+  const t = projetCourant();
+  if(!t){ holder.innerHTML = `<div class="empty-hint">Choisis un projet.</div>`; return; }
+  holder.innerHTML = vue === 'saisie' ? htmlSaisie(t) : htmlRecap(t);
+  if(vue === 'saisie'){
+    const champ = document.querySelector('#saisieNom');
+    if(champ && !document.querySelector('[data-garder-focus]')) champ.focus();
+  }
+}
+
+// --- Écran de saisie --------------------------------------------------------
+
+function htmlSaisie(t){
+  const dates = datesInvitables(t);
+  if(!dates.length){
+    return `<div class="empty-hint">
+      Aucune date validée sur ce projet.<br>
+      Une option ou une date à l'étude n'a pas de liste d'invitations : rien n'est tenu tant que la date n'est pas signée.<br>
+      <span style="font-size:12.5px;">Coche « Options et répétitions » si tu prépares en avance.</span>
+    </div>`;
+  }
+  const d = dateCourante() || dates[0];
+  const cats = placesDuProjet(t);
+  const conso = consommeSurDate(invitationsCache, d.id);
+  const lignes = invitationsDe(d.id);
+
+  return `
+    ${estValidee(d) ? '' : `<div class="co-note" style="margin-bottom:12px;">
+      Cette date est <b>${escapeHtml(courtStatut(d).toLowerCase())}</b>, pas validée. ${lignes.length
+        ? 'Les noms déjà saisis restent, mais rien ne doit partir à la salle tant que la date n\'est pas signée.'
+        : 'Rien n\'est tenu : évite de promettre des places dessus.'}
+    </div>`}
+
+    <div class="inv-jauges" data-jauges="${escapeAttr(d.id)}">
+      ${cats.map(c=> htmlJauge(d, c, conso)).join('')}
+      <div class="inv-jauge after">
+        <div class="inv-jauge-tete">
+          <span class="inv-jauge-nom">Aftershow</span>
+          <span class="inv-jauge-chiffre" data-after-total>${conso.aftershow}</span>
+        </div>
+        <div class="inv-jauge-pied">Sans quota — le chiffre est pour le traiteur et la sécurité.</div>
+      </div>
+    </div>
+
+    <div class="inv-table">
+      <form class="inv-saisie" id="formSaisie" autocomplete="off">
+        <div class="inv-saisie-titre">Ajouter une invitation — Entrée pour valider</div>
+        <div class="inv-cells">
+          <input id="saisieNom" data-neuf="nom" placeholder="Nom">
+          <input data-neuf="prenom" placeholder="Prénom">
+          <input data-neuf="email" type="email" placeholder="E-mail">
+          <input class="num" data-neuf="places" inputmode="numeric" placeholder="Pl.">
+          <select data-neuf="categorie">
+            <option value="">— cat. —</option>
+            ${cats.map(c=> `<option value="${escapeAttr(c.cle)}" ${c.cle === categorieProposee(t, d, conso) ? 'selected' : ''}>${escapeHtml(c.libelle)}</option>`).join('')}
+          </select>
+          <input class="num" data-neuf="aftershow" inputmode="numeric" placeholder="After">
+          <select data-neuf="type">
+            <option value="">— type —</option>
+            ${INVITATION_TYPES.map(x=> `<option value="${x.cle}">${escapeHtml(x.libelle)}</option>`).join('')}
+          </select>
+          <input data-neuf="demandePar" value="${escapeAttr(MOI)}" placeholder="Qui invite">
+          <button type="submit" class="co-btn primary sm" style="grid-column:span 2;">+ Ajouter</button>
+        </div>
+        <div class="inv-mot" id="motSaisie"></div>
+      </form>
+
+      <div class="inv-tete">
+        <div class="inv-cells">
+          <span>Nom</span><span>Prénom</span><span>E-mail</span>
+          <span class="num">Pl.</span><span>Catégorie</span><span class="num">After</span>
+          <span>Type</span><span>Qui invite</span><span>État</span><span></span>
+        </div>
+      </div>
+      <div class="inv-corps" data-lignes="${escapeAttr(d.id)}">
+        ${lignes.length ? lignes.map(i=> htmlLigne(t, i)).join('')
+          : `<div class="empty-hint" style="padding:22px 4px;">Aucune invitation sur cette date. La première se tape juste au-dessus.</div>`}
+      </div>
+    </div>
+
+    <div class="inv-pied">
+      <span data-compte="${escapeAttr(d.id)}">${phraseCompte(conso)}</span>
+      <div class="inv-spacer"></div>
+      <button type="button" class="co-btn tint sm" data-pdf-date="${escapeAttr(d.id)}">PDF de la date</button>
+      <button type="button" class="co-btn ghost sm" data-export-salle="${escapeAttr(d.id)}">CSV salle</button>
+      <button type="button" class="co-btn ghost sm" data-export-after="${escapeAttr(d.id)}">CSV aftershow</button>
+    </div>`;
+}
+
+/* La catégorie que la ligne de saisie propose : la première qui a encore de la
+   place. Sur une tournée à dix Carré Or et dix CAT 1, on remplit les Carré Or
+   puis on bascule — le champ le fait tout seul, et se corrige d'un clic. */
+function categorieProposee(t, d, conso){
+  const cats = placesDuProjet(t);
+  const libre = cats.find(c=>{
+    const q = quotaDate(d, c.cle);
+    return q != null && (conso.places[c.cle] || 0) < q;
+  });
+  return libre ? libre.cle : (cats[0] || {}).cle || '';
+}
+
+function htmlJauge(d, c, conso){
+  const q = quotaDate(d, c.cle);
+  const n = conso.places[c.cle] || 0;
+  const etat = q == null ? '' : (n > q ? 'trop' : (n === q ? 'plein' : ''));
+  const couleur = etat === 'trop' ? 'var(--ko)' : etat === 'plein' ? 'var(--maybe)' : 'var(--ok)';
+  return `
+    <div class="inv-jauge" data-jauge="${escapeAttr(c.cle)}">
+      <div class="inv-jauge-tete">
+        <span class="inv-jauge-nom">${escapeHtml(c.libelle)}</span>
+        <span class="inv-jauge-chiffre ${etat}" data-chiffre>${n} / ${q == null ? '—' : q}</span>
+      </div>
+      <div class="co-progress co-progress-thin"><i data-barre style="width:${q ? Math.min(100, Math.round(n / q * 100)) : 0}%; background:${couleur};"></i></div>
+      <div class="inv-jauge-pied">
+        <span>Contingent</span>
+        <input type="text" inputmode="numeric" data-quota="${escapeAttr(c.cle)}"
+          value="${q == null ? '' : q}" placeholder="—"
+          title="Ce que la salle alloue sur cette date. Vide : pas encore fixé — ce n'est pas zéro.">
+      </div>
+    </div>`;
+}
+
+function htmlLigne(t, inv){
+  const cats = placesDuProjet(t);
+  const e = etatInvitation(inv);
+  const ty = INVITATION_TYPE[inv.type];
+  return `
+  <div class="inv-ligne${e === 'annulee' ? ' annulee' : ''}" data-ligne="${escapeAttr(inv.id)}">
+    <div class="inv-cells">
+      <input data-champ="nom" value="${escapeAttr(inv.nom || '')}" placeholder="Nom">
+      <input data-champ="prenom" value="${escapeAttr(inv.prenom || '')}" placeholder="Prénom">
+      <input data-champ="email" type="email" value="${escapeAttr(inv.email || '')}" placeholder="E-mail">
+      <input class="num" data-champ="places" inputmode="numeric" value="${nombreInvit(inv.places) || ''}" placeholder="0">
+      <select data-champ="categorie">
+        <option value="">—</option>
+        ${cats.map(c=> `<option value="${escapeAttr(c.cle)}" ${inv.categorie === c.cle ? 'selected' : ''}>${escapeHtml(c.libelle)}</option>`).join('')}
+      </select>
+      <input class="num" data-champ="aftershow" inputmode="numeric" value="${nombreInvit(inv.aftershow) || ''}" placeholder="0">
+      <select data-champ="type" style="${ty ? `background:${ty.fond}; color:${ty.encre};` : ''}">
+        <option value="">— type —</option>
+        ${INVITATION_TYPES.map(x=> `<option value="${x.cle}" ${inv.type === x.cle ? 'selected' : ''}>${escapeHtml(x.libelle)}</option>`).join('')}
+      </select>
+      <input data-champ="demandePar" value="${escapeAttr(inv.demandePar || '')}" placeholder="Qui invite">
+      <select data-champ="etat" style="${styleEtat(e)}">
+        ${INVITATION_ETATS.map(x=> `<option value="${x.cle}" ${e === x.cle ? 'selected' : ''}>${escapeHtml(x.court)}</option>`).join('')}
+      </select>
+      <button type="button" class="inv-sup" data-supprimer="${escapeAttr(inv.id)}" title="Supprimer la ligne" aria-label="Supprimer la ligne">×</button>
+    </div>
+    <div class="inv-alerte" data-alerte>${escapeHtml(alerteDe(inv))}</div>
+  </div>`;
+}
+
+function styleEtat(e){
+  return e === 'annulee' ? 'background:var(--ko-tint); color:var(--ko);'
+    : e === 'transmise' ? 'background:var(--ok-tint); color:var(--ok);'
+    : 'background:var(--maybe-tint); color:var(--maybe);';
+}
+
+/* Ce qui manque pour que la ligne parte à la salle. Jamais bloquant : c'est la
+   production qui décide, et une ligne incomplète vaut mieux qu'un nom perdu. */
+function alerteDe(inv){
+  if(etatInvitation(inv) === 'annulee') return '';
+  const n = nombreInvit(inv.places), a = nombreInvit(inv.aftershow);
+  const manques = [];
+  if(n === 0 && a === 0) manques.push('ni place ni aftershow');
+  if(n > 0 && !inv.categorie) manques.push('catégorie de place à choisir');
+  if(!String(inv.nom || '').trim() && !String(inv.prenom || '').trim()) manques.push('sans nom');
+  if(!inv.type) manques.push('type à préciser');
+  return manques.length ? '⚠ ' + manques.join(' · ') : '';
+}
+
+function phraseCompte(conso){
+  const total = Object.values(conso.places).reduce((s, n)=> s + n, 0);
+  if(!conso.lignes) return 'Aucune ligne sur cette date.';
+  return `${conso.lignes} ligne${conso.lignes > 1 ? 's' : ''} · ${total} place${total > 1 ? 's' : ''} · ${conso.aftershow} à l'aftershow`;
+}
+
+// --- Écran récapitulatif ----------------------------------------------------
+
+function htmlRecap(t){
+  const dates = datesInvitables(t);
+  if(!dates.length) return `<div class="empty-hint">Aucune date validée sur ce projet.</div>`;
+  const cats = placesDuProjet(t);
+  const par = dates.map(d=> ({ d, conso: consommeSurDate(invitationsCache, d.id) }));
+
+  const totalCat = {};
+  let totalAfter = 0, totalLignes = 0, totalATransmettre = 0, totalQuota = {};
+  par.forEach(({ d, conso })=>{
+    cats.forEach(c=>{
+      totalCat[c.cle] = (totalCat[c.cle] || 0) + (conso.places[c.cle] || 0);
+      const q = quotaDate(d, c.cle);
+      if(q != null) totalQuota[c.cle] = (totalQuota[c.cle] || 0) + q;
+    });
+    totalAfter += conso.aftershow;
+    totalLignes += conso.lignes;
+    totalATransmettre += invitationsDe(d.id).filter(i=> etatInvitation(i) === 'accordee' && !invitationVide(i)).length;
+  });
+
+  const cellule = (d, c, conso)=>{
+    const q = quotaDate(d, c.cle);
+    const n = conso.places[c.cle] || 0;
+    const etat = q == null ? '' : (n > q ? 'trop' : (n === q ? 'plein' : ''));
+    return `<td class="num ${etat}">${n}${q == null ? '' : ` <span style="color:var(--muted); font-weight:600;">/ ${q}</span>`}</td>`;
+  };
+
+  /* Où sont parties les places. C'est la question à laquelle le tableur ne
+     répondait jamais : la colonne « TYPE INVITATIONS » y était remplie douze
+     fois sur quarante-neuf. Ici elle est un champ du formulaire, donc elle est
+     là, donc le bilan existe. */
+  const idsDates = new Set(dates.map(d=> d.id));
+  const vivantes = invitationsCache.filter(i=> idsDates.has(i.dateId) && etatInvitation(i) !== 'annulee');
+  const parType = INVITATION_TYPES.map(ty=> ({
+    ty, places: vivantes.filter(i=> i.type === ty.cle).reduce((s, i)=> s + nombreInvit(i.places), 0),
+  })).filter(x=> x.places > 0);
+  const sansType = vivantes.filter(i=> !INVITATION_TYPE[i.type]).reduce((s, i)=> s + nombreInvit(i.places), 0);
+
+  return `
+    <div class="co-mini-stats" style="margin-bottom:16px;">
+      ${miniStat(Object.values(totalCat).reduce((s, n)=> s + n, 0), 'places accordées', 'var(--accent-tint)', 'var(--tint-ink)')}
+      ${(()=>{
+        const aFixer = dates.filter(d=> !cats.some(c=> quotaDate(d, c.cle) != null)).length;
+        if(aFixer) return miniStat('—', `contingent à fixer sur ${aFixer} date${aFixer > 1 ? 's' : ''}`, 'var(--border)', 'var(--muted)');
+        const reste = Object.values(totalQuota).reduce((s, n)=> s + n, 0) - Object.values(totalCat).reduce((s, n)=> s + n, 0);
+        return miniStat(reste, reste < 0 ? 'places en trop' : 'places restantes',
+          reste < 0 ? 'var(--ko-tint)' : 'var(--ok-tint)', reste < 0 ? 'var(--ko)' : 'var(--ok)');
+      })()}
+      ${miniStat(totalAfter, "à l'aftershow", 'var(--accent-tint)', 'var(--tint-ink)')}
+      ${miniStat(totalATransmettre, 'à transmettre à la salle',
+        totalATransmettre ? 'var(--maybe-tint)' : 'var(--border)', totalATransmettre ? 'var(--maybe)' : 'var(--muted)')}
+    </div>
+
+    <div class="co-card" style="padding:14px 16px 16px; overflow-x:auto;">
+      <div class="co-legend">Date par date</div>
+      <table class="inv-recap-table">
+        <thead><tr>
+          <th>Date</th><th>Lieu</th>
+          ${cats.map(c=> `<th class="num">${escapeHtml(c.libelle)}</th>`).join('')}
+          <th class="num">After</th><th class="num">Lignes</th><th class="num">À transmettre</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${par.map(({ d, conso })=>{
+            const aTr = invitationsDe(d.id).filter(i=> etatInvitation(i) === 'accordee' && !invitationVide(i)).length;
+            return `<tr>
+              <td class="quand">${escapeHtml(fmtDateFR(d.date))}${estValidee(d) ? '' : ` <span class="co-pill ${pillStatut(d)}">${escapeHtml(courtStatut(d))}</span>`}</td>
+              <td class="ou">${escapeHtml([d.ville, d.lieu].filter(Boolean).join(' · ') || '—')}</td>
+              ${cats.map(c=> cellule(d, c, conso)).join('')}
+              <td class="num">${conso.aftershow || ''}</td>
+              <td class="num">${conso.lignes || ''}</td>
+              <td class="num">${aTr ? `<span class="co-pill att">${aTr}</span>` : ''}</td>
+              <td><div class="inv-recap-actions">
+                <button type="button" class="co-btn ghost sm" data-aller="${escapeAttr(d.id)}">Saisir</button>
+                <button type="button" class="co-btn tint sm" data-pdf-date="${escapeAttr(d.id)}">PDF</button>
+              </div></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot><tr>
+          <td>Total</td><td></td>
+          ${cats.map(c=> `<td class="num">${totalCat[c.cle] || 0}${totalQuota[c.cle] ? ` <span style="color:var(--muted); font-weight:600;">/ ${totalQuota[c.cle]}</span>` : ''}</td>`).join('')}
+          <td class="num">${totalAfter}</td><td class="num">${totalLignes}</td><td class="num">${totalATransmettre || ''}</td><td></td>
+        </tr></tfoot>
+      </table>
+    </div>
+
+    <div class="co-card" style="padding:14px 16px 16px; margin-top:14px;">
+      <div class="co-legend">Où sont parties les places</div>
+      ${parType.length || sansType ? `<div class="inv-types">
+        ${parType.map(x=> `<span class="inv-type-part" style="background:${x.ty.fond}; color:${x.ty.encre};"><b>${x.places}</b> ${escapeHtml(x.ty.libelle)}</span>`).join('')}
+        ${sansType ? `<span class="inv-type-part" style="background:var(--maybe-tint); color:var(--maybe);"><b>${sansType}</b> sans type — à qualifier</span>` : ''}
+      </div>` : `<p class="co-legend-hint" style="margin:0;">Aucune place accordée pour l'instant.</p>`}
+    </div>
+
+    <div class="co-actions" style="margin-top:16px;">
+      <button type="button" class="co-btn secondary md" id="btnPdfProjet">PDF — toutes les dates</button>
+      <button type="button" class="co-btn ghost md" id="btnExportProjet">CSV — tout le projet</button>
+    </div>`;
+}
+
+function miniStat(valeur, libelle, fond, encre){
+  return `<div class="co-mini-stat" style="background:${fond}; color:${encre};"><b>${valeur}</b><span>${libelle}</span></div>`;
+}
+
+// --- Mises à jour chirurgicales --------------------------------------------
+// Appelées à chaque frappe : elles ne touchent qu'aux chiffres, jamais au
+// champ qu'on est en train de remplir.
+
+function majDate(dateId){
+  const t = projetCourant();
+  const d = t && dateDe(t, dateId);
+  if(!d) return;
+  const conso = consommeSurDate(invitationsCache, dateId);
+  const bloc = document.querySelector(`[data-jauges="${CSS.escape(dateId)}"]`);
+  if(bloc){
+    placesDuProjet(t).forEach(c=>{
+      const el = bloc.querySelector(`[data-jauge="${CSS.escape(c.cle)}"]`);
+      if(!el) return;
+      const q = quotaDate(d, c.cle);
+      const n = conso.places[c.cle] || 0;
+      const etat = q == null ? '' : (n > q ? 'trop' : (n === q ? 'plein' : ''));
+      const chiffre = el.querySelector('[data-chiffre]');
+      if(chiffre){ chiffre.textContent = `${n} / ${q == null ? '—' : q}`; chiffre.className = 'inv-jauge-chiffre ' + etat; }
+      const barre = el.querySelector('[data-barre]');
+      if(barre){
+        barre.style.width = (q ? Math.min(100, Math.round(n / q * 100)) : 0) + '%';
+        barre.style.background = etat === 'trop' ? 'var(--ko)' : etat === 'plein' ? 'var(--maybe)' : 'var(--ok)';
+      }
+    });
+    const after = bloc.querySelector('[data-after-total]');
+    if(after) after.textContent = conso.aftershow;
+  }
+  const compte = document.querySelector(`[data-compte="${CSS.escape(dateId)}"]`);
+  if(compte) compte.textContent = phraseCompte(conso);
+}
+
+function majLigne(invId){
+  const inv = invitationsCache.find(i=> i.id === invId);
+  const el = document.querySelector(`[data-ligne="${CSS.escape(invId)}"]`);
+  if(!inv || !el) return;
+  const alerte = el.querySelector('[data-alerte]');
+  if(alerte) alerte.textContent = alerteDe(inv);
+  el.classList.toggle('annulee', etatInvitation(inv) === 'annulee');
+}
+
+// --- Saisie -----------------------------------------------------------------
+
+function invitationDe(el){
+  const ligne = el.closest('[data-ligne]');
+  if(!ligne) return null;
+  return invitationsCache.find(i=> i.id === ligne.dataset.ligne) || null;
+}
+
+document.addEventListener('input', (e)=>{
+  // Le contingent d'une date, corrigé ici parce qu'on voit en même temps ce
+  // qui est déjà consommé. Vidé, il redevient « pas encore fixé » — et non
+  // zéro, ce qui ferait refuser des demandes à tort.
+  const q = e.target.closest('[data-quota]');
+  if(q){
+    const t = projetCourant();
+    const bloc = q.closest('[data-jauges]');
+    const d = t && bloc && dateDe(t, bloc.dataset.jauges);
+    if(!d) return;
+    const brut = String(q.value || '').trim();
+    d.quotas = Object.assign({}, d.quotas || {});
+    if(brut === '') delete d.quotas[q.dataset.quota];
+    else {
+      const n = parseInt(brut, 10);
+      if(isNaN(n) || n < 0) return;
+      d.quotas[q.dataset.quota] = n;
+    }
+    sauverTournees();
+    majDate(d.id);
+    return;
+  }
+
+  const champ = e.target.closest('[data-champ]');
+  if(!champ) return;
+  const inv = invitationDe(champ);
+  if(!inv) return;
+  const nom = champ.dataset.champ;
+  inv[nom] = (nom === 'places' || nom === 'aftershow') ? nombreInvit(champ.value) : champ.value;
+  sauverInvitation(inv.id);
+  majLigne(inv.id);
+  if(nom === 'places' || nom === 'aftershow') majDate(inv.dateId);
+});
+
+document.addEventListener('change', (e)=>{
+  const champ = e.target.closest('select[data-champ]');
+  if(champ){
+    const inv = invitationDe(champ);
+    if(!inv) return;
+    const nom = champ.dataset.champ;
+    inv[nom] = champ.value;
+    sauverInvitation(inv.id);
+    // La couleur suit le choix : sur une liste de quarante lignes, le type et
+    // l'état se relisent d'un coup d'œil, ce qu'un libellé seul ne permet pas.
+    if(nom === 'type'){
+      const ty = INVITATION_TYPE[champ.value];
+      champ.style.background = ty ? ty.fond : '';
+      champ.style.color = ty ? ty.encre : '';
+    }
+    if(nom === 'etat') champ.style.cssText = styleEtat(etatInvitation(champ.value));
+    majLigne(inv.id);
+    if(nom === 'categorie' || nom === 'etat') majDate(inv.dateId);
+    return;
+  }
+  // La couleur de la catégorie proposée dans la ligne de saisie ne change pas,
+  // mais le type, si : même règle, pour que la ligne qu'on tape ressemble à
+  // celles qu'on relit.
+  const neuf = e.target.closest('select[data-neuf="type"]');
+  if(neuf){
+    const ty = INVITATION_TYPE[neuf.value];
+    neuf.style.background = ty ? ty.fond : '';
+    neuf.style.color = ty ? ty.encre : '';
+    return;
+  }
+
+  if(e.target.id === 'selProjet'){
+    projetChoisi = e.target.value;
+    dateChoisie = '';
+    poserDateParDefaut();
+    majUrl();
+    render();
+    return;
+  }
+  if(e.target.id === 'selDate'){ dateChoisie = e.target.value; majUrl(); renderCorps(); return; }
+  if(e.target.id === 'chkToutes'){
+    toutesJournees = e.target.checked;
+    if(!toutesJournees) poserDateParDefaut();
+    render();
+    return;
+  }
+});
+
+/* La ligne de saisie. Entrée valide — dans n'importe quel champ, parce qu'on
+   ne tape pas toujours l'e-mail, et qu'aller chercher le bouton à la souris
+   casse le rythme. Après quoi le formulaire se vide, garde le type et le
+   demandeur (on enchaîne souvent la même famille d'invitations), et rend la
+   main dans « Nom ». */
+document.addEventListener('submit', async (e)=>{
+  const form = e.target.closest('#formSaisie');
+  if(!form) return;
+  e.preventDefault();
+  const t = projetCourant();
+  const d = dateCourante() || (t && datesInvitables(t)[0]);
+  if(!t || !d) return;
+
+  const lire = (nom)=>{ const el = form.querySelector(`[data-neuf="${nom}"]`); return el ? el.value : ''; };
+  const mot = document.getElementById('motSaisie');
+  const places = nombreInvit(lire('places'));
+  const aftershow = nombreInvit(lire('aftershow'));
+  const nom = lire('nom').trim(), prenom = lire('prenom').trim();
+
+  if(!nom && !prenom){
+    mot.textContent = 'Il faut au moins un nom : c\'est ce que la salle lira à l\'entrée.';
+    form.querySelector('[data-neuf="nom"]').focus();
+    return;
+  }
+  if(!places && !aftershow){
+    mot.textContent = 'Ni place ni aftershow : indique au moins l\'un des deux.';
+    form.querySelector('[data-neuf="places"]').focus();
+    return;
+  }
+  mot.textContent = '';
+
+  const inv = {
+    id: genId('invit'), tourneeId: t.id, dateId: d.id,
+    nom, prenom, email: lire('email').trim(),
+    places, categorie: places ? lire('categorie') : '',
+    aftershow, type: lire('type'),
+    demandePar: lire('demandePar').trim(), etat:'accordee', note:'',
+  };
+  invitationsCache.push(inv);
+  CurieuxDB.upsertOne('invitations', inv);
+
+  const corps = document.querySelector(`[data-lignes="${CSS.escape(d.id)}"]`);
+  if(corps){
+    const vide = corps.querySelector('.empty-hint');
+    if(vide) vide.remove();
+    corps.insertAdjacentHTML('beforeend', htmlLigne(t, inv));
+  }
+  majDate(d.id);
+
+  ['nom','prenom','email','places','aftershow'].forEach(k=>{
+    const el = form.querySelector(`[data-neuf="${k}"]`);
+    if(el) el.value = '';
+  });
+  // La catégorie se repositionne sur la première qui a encore de la place :
+  // le basculement Carré Or → CAT 1 se fait tout seul quand la première est
+  // pleine, sans qu'on ait à y penser à la douzième ligne.
+  const selCat = form.querySelector('[data-neuf="categorie"]');
+  if(selCat) selCat.value = categorieProposee(t, d, consommeSurDate(invitationsCache, d.id));
+  form.querySelector('[data-neuf="nom"]').focus();
+});
+
+// Entrée valide depuis n'importe quel champ de la ligne de saisie, y compris
+// les listes déroulantes — où la touche ne soumet pas d'elle-même.
+document.addEventListener('keydown', (e)=>{
+  if(e.key !== 'Enter') return;
+  const form = e.target.closest('#formSaisie');
+  if(!form) return;
+  e.preventDefault();
+  form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable:true }));
+});
+
+document.addEventListener('click', async (e)=>{
+  const onglet = e.target.closest('[data-vue]');
+  if(onglet){ vue = onglet.dataset.vue; majUrl(); render(); return; }
+
+  const aller = e.target.closest('[data-aller]');
+  if(aller){ dateChoisie = aller.dataset.aller; vue = 'saisie'; majUrl(); render(); return; }
+
+  const sup = e.target.closest('[data-supprimer]');
+  if(sup){
+    const inv = invitationsCache.find(i=> i.id === sup.dataset.supprimer);
+    if(!inv) return;
+    /* Supprimer efface la trace ; « Annulée » la garde. On le dit, parce que
+       c'est le geste qu'on regrette : au moment de la liste d'entrée, savoir
+       qu'une place a été retirée vaut mieux que ne plus rien savoir. */
+    if(!confirm(`Supprimer la ligne « ${nomInvite(inv)} » ?\n\nPour retirer la place en gardant la trace, mets plutôt l'état sur « Annulée ».`)) return;
+    invitationsCache = invitationsCache.filter(i=> i.id !== inv.id);
+    await CurieuxDB.removeOne('invitations', inv.id);
+    const el = document.querySelector(`[data-ligne="${CSS.escape(inv.id)}"]`);
+    if(el) el.remove();
+    majDate(inv.dateId);
+    return;
+  }
+
+  const pdfD = e.target.closest('[data-pdf-date]');
+  if(pdfD){ pdfDate(pdfD.dataset.pdfDate); return; }
+  const expS = e.target.closest('[data-export-salle]');
+  if(expS){ exporterSalle(expS.dataset.exportSalle); return; }
+  const expA = e.target.closest('[data-export-after]');
+  if(expA){ exporterAftershow(expA.dataset.exportAfter); return; }
+  if(e.target.closest('#btnPdfProjet')){ pdfProjet(); return; }
+  if(e.target.closest('#btnExportProjet')){ exporterProjet(); return; }
+});
+
+function majUrl(){
+  try{
+    const p = new URLSearchParams();
+    if(projetChoisi) p.set('projet', projetChoisi);
+    if(vue !== 'saisie') p.set('vue', vue);
+    if(dateChoisie && vue === 'saisie') p.set('date', dateChoisie);
+    history.replaceState(null, '', 'invitations.html' + (p.toString() ? '?' + p : ''));
+  }catch(e){}
+}
+
+// La date de travail par défaut : la prochaine à venir. C'est celle qu'on
+// remplit — les places d'un concert se donnent dans les semaines qui précèdent.
+function poserDateParDefaut(){
+  const t = projetCourant();
+  const dates = t ? datesInvitables(t) : [];
+  if(dates.some(d=> d.id === dateChoisie)) return;
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const prochaine = dates.find(d=> d.date && d.date >= aujourdhui);
+  dateChoisie = (prochaine || dates[dates.length - 1] || {}).id || '';
+}
+
+// --- Exports CSV ------------------------------------------------------------
+/* Le point-virgule et le BOM : c'est ce qu'Excel en français ouvre sans
+   question. Une virgule lui fait tout mettre dans une seule colonne, et sans
+   BOM les accents partent en mojibake — deux ennuis qu'on ne veut pas faire
+   subir à la personne de la billetterie. */
+
+function csvEscape(v){
+  const s = v == null ? '' : String(v);
+  return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function telecharger(nomFichier, lignes){
+  const blob = new Blob(['﻿' + lignes.join('\r\n')], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nomFichier;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function slug(s){
+  return String(s || 'projet').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'projet';
+}
+
+// Les lignes prêtes à partir : ni annulées, ni vides. Triées par catégorie puis
+// par nom — l'ordre dans lequel la billetterie prépare ses enveloppes.
+function pourLaSalle(t, dateId){
+  const ordre = placesDuProjet(t).map(c=> c.cle);
+  return invitationsDe(dateId)
+    .filter(i=> etatInvitation(i) !== 'annulee' && nombreInvit(i.places) > 0)
+    .sort((a, b)=>{
+      const ca = ordre.indexOf(a.categorie), cb = ordre.indexOf(b.categorie);
+      if(ca !== cb) return (ca < 0 ? 99 : ca) - (cb < 0 ? 99 : cb);
+      return nomInvite(a).localeCompare(nomInvite(b), 'fr');
+    });
+}
+function pourAftershow(dateId){
+  return invitationsDe(dateId)
+    .filter(i=> etatInvitation(i) !== 'annulee' && nombreInvit(i.aftershow) > 0)
+    .sort((a, b)=> nomInvite(a).localeCompare(nomInvite(b), 'fr'));
+}
+
+function exporterSalle(dateId){
+  const t = projetCourant();
+  const d = t && dateDe(t, dateId);
+  if(!d) return;
+  const lignes = pourLaSalle(t, dateId);
+  if(!lignes.length){ alert('Aucune place à transmettre sur cette date.'); return; }
+  const sansCat = lignes.filter(i=> !i.categorie).length;
+  if(sansCat && !confirm(`${sansCat} ligne${sansCat > 1 ? 's' : ''} n'${sansCat > 1 ? 'ont' : 'a'} pas de catégorie de place : la colonne CAT partira vide.\n\nExporter quand même ?`)) return;
+  const out = ['NOM;PRÉNOM;EMAIL;NBR PLACE;CAT'];
+  lignes.forEach(i=> out.push([
+    String(i.nom || '').toUpperCase(), i.prenom || '', i.email || '',
+    nombreInvit(i.places), libellePlace(t, i.categorie),
+  ].map(csvEscape).join(';')));
+  telecharger(`invitations-${slug(t.nom)}-${clefFichier(d.date)}.csv`, out);
+  proposerTransmises([d]);
+}
+
+function exporterAftershow(dateId){
+  const t = projetCourant();
+  const d = t && dateDe(t, dateId);
+  if(!d) return;
+  const lignes = pourAftershow(dateId);
+  if(!lignes.length){ alert('Personne à l\'aftershow sur cette date.'); return; }
+  const out = ['NOM;PRÉNOM;EMAIL;NBR PERSONNES;TYPE;QUI INVITE'];
+  lignes.forEach(i=> out.push([
+    String(i.nom || '').toUpperCase(), i.prenom || '', i.email || '',
+    nombreInvit(i.aftershow), (INVITATION_TYPE[i.type] || {}).libelle || '', i.demandePar || '',
+  ].map(csvEscape).join(';')));
+  const total = lignes.reduce((s, i)=> s + nombreInvit(i.aftershow), 0);
+  telecharger(`aftershow-${slug(t.nom)}-${clefFichier(d.date)}.csv`, out);
+  alert(`${total} personne${total > 1 ? 's' : ''} à l'aftershow — pense à passer le chiffre au traiteur et à la sécurité.`);
+}
+
+// Tout le projet en un fichier : l'archive de fin de tournée, celle qui répond
+// à « qui avait invité qui ? » quand on refait la même salle l'an suivant.
+function exporterProjet(){
+  const t = projetCourant();
+  if(!t) return;
+  const out = ['DATE;VILLE;SALLE;NOM;PRÉNOM;EMAIL;NBR PLACE;CAT;AFTERSHOW;TYPE;QUI INVITE;ÉTAT'];
+  let n = 0;
+  datesInvitables(t).forEach(d=>{
+    invitationsDe(d.id)
+      .sort((a, b)=> nomInvite(a).localeCompare(nomInvite(b), 'fr'))
+      .forEach(i=>{
+        n++;
+        out.push([
+          d.date || '', d.ville || '', d.lieu || '',
+          String(i.nom || '').toUpperCase(), i.prenom || '', i.email || '',
+          nombreInvit(i.places), libellePlace(t, i.categorie), nombreInvit(i.aftershow),
+          (INVITATION_TYPE[i.type] || {}).libelle || '', i.demandePar || '',
+          (INVITATION_ETAT[etatInvitation(i)] || {}).libelle || '',
+        ].map(csvEscape).join(';'));
+      });
+  });
+  if(!n){ alert('Aucune invitation sur ce projet.'); return; }
+  telecharger(`invitations-${slug(t.nom)}-${new Date().toISOString().slice(0, 10)}.csv`, out);
+}
+
+/* ---------------------------------------------------------------------------
+   Le PDF — le document qu'on envoie
+   ---------------------------------------------------------------------------
+   Le CSV sert à une billetterie qui importe un fichier ; le PDF sert à une
+   personne qui doit lire, vérifier et poser des enveloppes sur une table. Ce
+   n'est pas le même objet, et le second est celui qu'on envoie à la prod.
+
+   Une page par date, jamais deux dates sur une même feuille : la liste circule
+   ensuite date par date, elle est imprimée et posée à l'entrée. Un document
+   qui mélange le 12 et le 13 mars se fait relire de travers un soir de
+   concert.
+
+   Les groupes suivent la CATÉGORIE DE PLACE, pas le type : c'est ainsi que la
+   salle travaille — un tas Carré Or, un tas CAT 1. Le type reste en colonne,
+   pour nous.
+--------------------------------------------------------------------------- */
+function pdfInvitations(t, dates, nomFichier){
+  if(!window.jspdf){ alert("La librairie PDF n'a pas pu être chargée. Vérifie la connexion, puis réessaie."); return null; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  registerHostFont(doc);
+  const L = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const cats = placesDuProjet(t);
+  const edite = new Date().toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+
+  const retenues = [];
+  let premiere = true;
+
+  dates.forEach(d=>{
+    const salle = pourLaSalle(t, d.id);
+    const after = pourAftershow(d.id);
+    if(!salle.length && !after.length) return;
+    retenues.push(d);
+
+    if(!premiere) doc.addPage();
+    premiere = false;
+    drawCurieuxPdfHeader(doc, L, 'INVITATIONS');
+
+    let y = 30;
+    doc.setFont('Host', 'bold'); doc.setFontSize(15); doc.setTextColor(121, 22, 73);
+    doc.text(String(t.nom || 'Tournée'), 12, y);
+    y += 6.5;
+    const lieu = [d.ville, d.lieu].filter(Boolean).join(' · ');
+    doc.setFont('Host', 'normal'); doc.setFontSize(11); doc.setTextColor(20, 22, 23);
+    doc.text(`${jourSemaine(d.date)} ${fmtDateFR(d.date)}${lieu ? '  ·  ' + lieu : ''}`, 12, y);
+    y += 5.5;
+
+    // Le décompte en clair : ce qui est donné sur ce qui est alloué. La salle
+    // vérifie ce chiffre avant de regarder un seul nom.
+    const conso = consommeSurDate(invitationsCache, d.id);
+    const bouts = cats
+      .filter(c=> (conso.places[c.cle] || 0) > 0 || quotaDate(d, c.cle) != null)
+      .map(c=>{
+        const q = quotaDate(d, c.cle);
+        return `${c.libelle} ${conso.places[c.cle] || 0}${q == null ? '' : ' / ' + q}`;
+      });
+    if(conso.aftershow) bouts.push(`Aftershow ${conso.aftershow} personne${conso.aftershow > 1 ? 's' : ''}`);
+    doc.setFontSize(9.5); doc.setTextColor(122, 102, 118);
+    doc.text(bouts.join('   ·   ') || 'Aucun contingent fixé', 12, y);
+    y += 7;
+
+    const bandeau = (titre)=>{
+      if(y > H - 40){ doc.addPage(); y = 16; }
+      doc.setFillColor(253, 227, 238);
+      doc.rect(12, y, L - 24, 7.5, 'F');
+      doc.setFont('Host', 'bold'); doc.setFontSize(10); doc.setTextColor(121, 22, 73);
+      doc.text(titre, 15, y + 5.3);
+      y += 10.5;
+    };
+    const COLS = { 0:{cellWidth:36, fontStyle:'bold'}, 1:{cellWidth:30}, 2:{cellWidth:54},
+                   3:{cellWidth:12, halign:'right', fontStyle:'bold'}, 4:{cellWidth:30}, 5:{cellWidth:24} };
+    const tableau = (entetes, corps)=>{
+      doc.autoTable({
+        startY: y, margin:{ left:12, right:12 },
+        head: [entetes], body: corps,
+        styles:{ font:'Host', fontSize:9, cellPadding:2.4, textColor:[20, 22, 23] },
+        columnStyles: COLS,
+        headStyles:{ fillColor:[121, 22, 73], textColor:255, fontStyle:'bold' },
+        alternateRowStyles:{ fillColor:[253, 248, 246] },
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    };
+
+    // Un groupe par catégorie, dans l'ordre du projet ; les lignes sans
+    // catégorie ferment la marche plutôt que de disparaître — c'est à la prod
+    // de trancher, pas à l'export de les perdre.
+    const groupes = cats.map(c=> ({ titre:c.libelle, quota:quotaDate(d, c.cle),
+                                    lignes: salle.filter(i=> i.categorie === c.cle) }))
+      .filter(g=> g.lignes.length);
+    const orphelines = salle.filter(i=> !cats.some(c=> c.cle === i.categorie));
+    if(orphelines.length) groupes.push({ titre:'Catégorie à préciser', quota:null, lignes:orphelines });
+
+    groupes.forEach(g=>{
+      const n = g.lignes.reduce((s, i)=> s + nombreInvit(i.places), 0);
+      bandeau(`${g.titre.toUpperCase()} — ${n} place${n > 1 ? 's' : ''}${g.quota != null ? ` sur ${g.quota} allouée${g.quota > 1 ? 's' : ''}` : ''}`);
+      tableau(['Nom', 'Prénom', 'E-mail', 'Pl.', 'Type', 'Qui invite'],
+        g.lignes.map(i=> [
+          String(i.nom || '').toUpperCase(), i.prenom || '', i.email || '',
+          nombreInvit(i.places), (INVITATION_TYPE[i.type] || {}).libelle || '', i.demandePar || '',
+        ]));
+    });
+
+    if(after.length){
+      const n = after.reduce((s, i)=> s + nombreInvit(i.aftershow), 0);
+      bandeau(`AFTERSHOW — ${n} personne${n > 1 ? 's' : ''}`);
+      tableau(['Nom', 'Prénom', 'E-mail', 'Pers.', 'Type', 'Qui invite'],
+        after.map(i=> [
+          String(i.nom || '').toUpperCase(), i.prenom || '', i.email || '',
+          nombreInvit(i.aftershow), (INVITATION_TYPE[i.type] || {}).libelle || '', i.demandePar || '',
+        ]));
+    }
+
+    if(!salle.length){
+      doc.setFont('Host', 'normal'); doc.setFontSize(9.5); doc.setTextColor(122, 102, 118);
+      doc.text("Aucune place sur cette date — seul l'aftershow est concerné.", 12, y);
+    }
+  });
+
+  if(!retenues.length){ alert('Rien à exporter : aucune invitation sur ces dates.'); return null; }
+
+  /* Le pied de page, sur toutes les feuilles. Une liste d'invitations circule
+     par mail, s'imprime, se photocopie : sans la date d'édition, personne ne
+     sait si la feuille posée à l'entrée est la dernière version. */
+  const total = doc.internal.getNumberOfPages();
+  for(let p = 1; p <= total; p++){
+    doc.setPage(p);
+    doc.setFont('Host', 'normal'); doc.setFontSize(8); doc.setTextColor(122, 102, 118);
+    doc.text(`Curieux orchestre · liste éditée le ${edite}`, 12, H - 8);
+    doc.text(`${p} / ${total}`, L - 12, H - 8, { align:'right' });
+  }
+
+  doc.save(nomFichier);
+  return retenues;
+}
+
+/* Les lignes accordées passent en « transmise » une fois la liste partie.
+   Sans ce geste, on ne sait plus ce qui reste à envoyer — et on envoie deux
+   fois, ce qui se paie en places doublées à l'entrée. */
+function proposerTransmises(dates){
+  const ids = new Set(dates.map(d=> d.id));
+  const aMarquer = invitationsCache.filter(i=> ids.has(i.dateId) && etatInvitation(i) === 'accordee' && !invitationVide(i));
+  if(!aMarquer.length) return;
+  if(!confirm(`Marquer ${aMarquer.length} ligne${aMarquer.length > 1 ? 's' : ''} comme transmise${aMarquer.length > 1 ? 's' : ''} à la salle ?`)) return;
+  aMarquer.forEach(i=>{ i.etat = 'transmise'; CurieuxDB.upsertOne('invitations', i); });
+  renderCorps();
+}
+
+function pdfDate(dateId){
+  const t = projetCourant();
+  const d = t && dateDe(t, dateId);
+  if(!d) return;
+  const faites = pdfInvitations(t, [d], `invitations-${slug(t.nom)}-${clefFichier(d.date)}.pdf`);
+  if(faites) proposerTransmises(faites);
+}
+function pdfProjet(){
+  const t = projetCourant();
+  if(!t) return;
+  const faites = pdfInvitations(t, datesInvitables(t), `invitations-${slug(t.nom)}-${new Date().toISOString().slice(0, 10)}.pdf`);
+  if(faites) proposerTransmises(faites);
+}
+
+// --- Démarrage --------------------------------------------------------------
+
+applyAutoTheme();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+async function initData(){
+  try{
+    const s = await CurieuxDB.getSession();
+    MOI = nomDuCompte(s && s.user && s.user.email);
+  }catch(e){}
+
+  [tourneesCache, invitationsCache] = await Promise.all([
+    CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('invitations'),
+  ]);
+
+  // ?projet=… &date=… &vue=… : c'est ainsi qu'on arrive depuis le panneau
+  // Invitations d'une tournée, et qu'un rechargement retombe sur ses pieds.
+  let p = new URLSearchParams();
+  try{ p = new URLSearchParams(location.search); }catch(e){}
+  const invitables = projetsInvitables();
+  const voulu = p.get('projet') || '';
+  projetChoisi = invitables.some(t=> t.id === voulu) ? voulu : ((invitables[0] || {}).id || '');
+  if(p.get('vue') === 'recap') vue = 'recap';
+  dateChoisie = p.get('date') || '';
+  poserDateParDefaut();
+
+  render();
+}
+
+CurieuxDB.subscribe('invitations', ()=>{
+  CurieuxDB.fetchAll('invitations').then(list=>{ invitationsCache = list; curieuxRafraichir(renderCorps); });
+});
+CurieuxDB.subscribe('tournees', ()=>{
+  CurieuxDB.fetchAll('tournees').then(list=>{ tourneesCache = list; curieuxRafraichir(render); });
+});
+initData();
+</script>
+</body>
+</html>

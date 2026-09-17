@@ -5766,3 +5766,113 @@ alter table messages_envoyes add column if not exists texte text not null defaul
 -- ============================================================================
 alter table musiciens add column if not exists rang text;
 alter table musiciens alter column rang type text using rang::text;
+
+
+-- ============================================================================
+-- 2026-09 · Les invitations d'une tournée
+--
+-- Le suivi vivait dans un tableur, une feuille par tournée, et ses colonnes
+-- les plus utiles étaient les moins remplies : sur 49 invité·es de la tournée
+-- internationale, « TYPE INVITATIONS » était renseigné 12 fois et « Qui
+-- invite ? » 13 fois. Une colonne facultative dans un tableur ne se remplit
+-- pas — on ajoute vite un nom, on ne revient jamais qualifier. Ici ce sont les
+-- champs d'un formulaire : on ne demande pas une place sans dire pour qui.
+--
+-- DEUX AXES QU'IL NE FAUT PAS CONFONDRE. Le TYPE dit pour qui (partenaire,
+-- pro, famille, perso) et ne consomme rien. La CATÉGORIE DE PLACE dit où l'on
+-- s'assoit (Carré Or, CAT 1, CAT 2) et porte le quota, parce que c'est elle
+-- que la salle nous alloue.
+--
+-- L'AFTERSHOW N'EST PAS UN ATTRIBUT DE L'INVITATION mais une seconde chose
+-- qu'on accorde : on peut y être sans assister au concert. D'où un nombre à
+-- part, qui peut valoir 2 quand les places valent 0. Il se compte et ne se
+-- plafonne jamais.
+--
+-- Ce qui n'est PAS ici : l'activation du projet et ses catégories de place
+-- (deux colonnes de tournees, plus bas), et le quota de chaque date, qui vit
+-- dans tournees.dates[].quotas. Le quota est une propriété de la DATE parce
+-- que c'est la salle qui alloue, et deux salles d'une même tournée n'allouent
+-- pas pareil.
+--
+-- Table interne : aucun lien public ne la lit, la clé anonyme n'y a rien.
+-- Les invité·es sont des personnes extérieures : voir la note de conservation
+-- en fin de bloc.
+-- ============================================================================
+create table if not exists invitations (
+  id text primary key default replace(gen_random_uuid()::text, '-', ''),
+  -- En cascade : supprimer un projet ne doit pas laisser derrière lui la liste
+  -- nominative de ses invité·es, invisible et inatteignable.
+  tournee_id text not null references tournees(id) on delete cascade,
+  -- L'identifiant de la date DANS le jsonb du projet, pas une clé étrangère :
+  -- les dates n'ont pas de table à elles.
+  date_id text not null,
+  nom text not null default '',
+  prenom text not null default '',
+  email text not null default '',
+  -- Zéro place et deux aftershow est une ligne valide. Zéro et zéro n'en est
+  -- pas une, et l'écran la refuse — la base, elle, ne juge pas.
+  places integer not null default 0 check (places >= 0),
+  -- Clé de catégorie de place ; vide quand la ligne ne donne aucune place.
+  categorie text not null default '',
+  aftershow integer not null default 0 check (aftershow >= 0),
+  -- Clé de type : 'partenaire-lcs', 'perso'… Voir assets/invitations.js.
+  type text not null default '',
+  -- Qui a demandé : l'e-mail du compte, écrit sans que personne ait à y penser.
+  demande_par text not null default '',
+  -- 'accordee' à la création — il n'y a pas d'étape d'approbation, on saisit
+  -- et c'est accordé. 'transmise' est la zone grisée du tableur : la ligne est
+  -- partie à la salle, et sans cet état on l'envoie deux fois.
+  etat text not null default 'accordee' check (etat in ('accordee','transmise','annulee')),
+  note text not null default '',
+  -- created_at, et non cree_le : fetchAll() trie toute collection sur cette
+  -- colonne. Une table qui ne la porte pas est lue vide, sans erreur visible.
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+-- Les deux réglages du PROJET. `invitations_actives` est faux par défaut :
+-- la plupart des projets — préparations, résidences — n'ont pas de public, et
+-- ne doivent pas porter un suivi qu'ils n'utiliseront jamais.
+-- `categories_places` reste vide tant qu'on se contente des trois usuelles
+-- (Carré Or, CAT 1, CAT 2) ; une salle qui parle d'Orchestre et de Balcon la
+-- remplit. Voir placesDuProjet() dans assets/invitations.js.
+alter table tournees add column if not exists invitations_actives boolean not null default false;
+alter table tournees add column if not exists categories_places jsonb not null default '[]'::jsonb;
+-- Le contingent habituel de CETTE tournée, { '<cle categorie>': n }. Il n'y a
+-- pas de valeur usuelle commune : un producteur donne dix Carré Or, le suivant
+-- quatre CAT 1. Saisi une fois dans le panneau du projet, il se recopie d'un
+-- clic sur ses dates — où le quota qui compte vit réellement.
+alter table tournees add column if not exists contingent_usuel jsonb not null default '{}'::jsonb;
+
+create index if not exists idx_invitations_tournee on invitations(tournee_id, date_id);
+create index if not exists idx_invitations_etat on invitations(etat);
+drop trigger if exists trg_invitations_updated_at on invitations;
+create trigger trg_invitations_updated_at before update on invitations
+  for each row execute function set_updated_at();
+
+alter table invitations enable row level security;
+drop policy if exists "invitations acces equipe" on invitations;
+create policy "invitations acces equipe" on invitations for all to authenticated
+  using (has_access()) with check (has_access());
+
+-- Le suivi se remplit souvent à deux — une personne saisit, une autre relit et
+-- transmet : la table entre dans la publication Realtime comme les autres, et
+-- l'écran de l'une se met à jour de ce que l'autre vient d'écrire.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'invitations'
+  ) then
+    alter publication supabase_realtime add table invitations;
+  end if;
+end $$;
+alter table invitations replica identity full;
+
+-- CONSERVATION. Une invitation porte le nom et l'e-mail de quelqu'un qui n'est
+-- ni salarié ni musicien : la finalité disparaît une fois le concert passé et
+-- la liste remise à la salle. À purger au-delà de douze mois — le délai laisse
+-- passer une saison entière, ce qui permet de retrouver « qui avait invité qui
+-- l'an dernier » au moment de refaire la tournée. À déclencher à la main tant
+-- qu'aucune tâche planifiée ne tourne :
+--   delete from invitations
+--    where created_at < now() - interval '12 months';

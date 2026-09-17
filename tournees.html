@@ -12,6 +12,7 @@
 <script src="assets/nouveautes.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/statuts-date.js"></script>
+<script src="assets/invitations.js"></script>
 <script src="assets/echeances.js"></script>
 <script src="assets/messages-dispo.js"></script>
 <!-- Le moteur de calcul des devis, pour afficher le budget d'un projet sans
@@ -257,6 +258,21 @@
   .nomen-cachet input:focus{border-color:var(--accent) !important; background:var(--card) !important;}
   .nomen-cachet.propre{color:var(--text);}
   .nomen-cachet.propre input{font-weight:700;}
+
+  /* Le panneau des invitations : même grammaire que ses deux voisins. */
+  .invit-panel{min-width:0;}
+  .invit-bascule{display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; cursor:pointer;}
+  .invit-bascule input{width:16px; height:16px; accent-color:var(--accent);}
+  .invit-aide{font-size:12px; color:var(--muted); line-height:1.5; margin:8px 0 0;}
+  .invit-aide a{color:var(--accent-dark); font-weight:700; white-space:nowrap;}
+  .invit-quotas{display:flex; flex-wrap:wrap; gap:8px; margin-top:9px;}
+  .invit-quota{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); font-weight:600;}
+  .invit-quota input{
+    width:56px; padding:5px 7px; font-size:12.5px; text-align:right; font-weight:700;
+    border:1px solid var(--border); border-radius:6px; background:var(--card);
+    color:var(--text); font-family:inherit;
+  }
+  .invit-quota input:focus{border-color:var(--accent); outline:none;}
 
   .nomenclature-panel{min-width:0;}
   .cachet-aide{font-size:12.5px; color:var(--muted); margin:8px 0; line-height:1.5;}
@@ -2269,6 +2285,74 @@ ${(()=>{
               <div data-nomenclature-rows="${escapeAttr(t.id)}">${renderNomenclatureRowsHtml(t)}</div>
               <button type="button" class="co-btn tint sm" style="margin-top:8px;" data-add-nomenclature-row="${escapeAttr(t.id)}">+ Ajouter un pupitre</button>
             </div>
+            ${EST_RECORDING ? '' : (()=>{
+              /* ==========================================================
+                 Les invitations du projet.
+                 ==========================================================
+                 Deux réglages seulement ici : est-ce qu'on en gère sur ce
+                 projet, et combien de places par catégorie. Une préparation
+                 ou une résidence n'a pas de public — d'où l'interrupteur,
+                 qui évite de faire porter à tous les projets un suivi que
+                 la plupart n'utiliseront pas.
+
+                 LE CONTINGENT EST PROPRE À CE PROJET, et non aux Soudaines :
+                 un producteur nous donne dix Carré Or, le suivant quatre
+                 CAT 1. Il n'y a donc aucune valeur « par défaut » à
+                 pré-remplir — elle serait fausse neuf fois sur dix, et un
+                 contingent faux fait promettre ou refuser des places à tort.
+                 On le saisit une fois ici, il reste attaché au projet
+                 (tournee.contingentUsuel), et un bouton le pose sur ses dates.
+
+                 Le quota vit ensuite PAR DATE, parce que deux salles d'une
+                 même tournée n'allouent pas pareil — mais on ne le saisit pas
+                 date par date : trois catégories sur douze dates feraient
+                 trente-six cases. On le pose d'un geste, et on corrige les
+                 exceptions depuis l'écran de saisie, où l'on voit en même
+                 temps ce qui est déjà consommé.
+
+                 Seules les dates VALIDÉES ont une liste d'invitations : une
+                 option n'est pas tenue. Les boutons visent donc les concerts
+                 validés en premier.
+
+                 Les recordings n'ont pas ce panneau : un studio n'a pas de
+                 salle, donc pas de contingent. */
+              const places = placesDuProjet(t);
+              const usuel = contingentUsuel(t);
+              const concerts = dates.filter(d=> typeDateValide(PROJET_TYPE, d.type) === 'concert' && !estAnnulee(d));
+              const valides = concerts.filter(d=> estValidee(d));
+              const sansContingent = valides.filter(d=> !places.some(c=> quotaDate(d, c.cle) != null));
+              return `
+            <div class="invit-panel">
+              <div class="outils-legend">Invitations</div>
+              <label class="invit-bascule">
+                <input type="checkbox" data-invit-actives="${escapeAttr(t.id)}" ${t.invitationsActives ? 'checked' : ''}>
+                <span>Gérer les invitations sur ce projet</span>
+              </label>
+              ${!t.invitationsActives ? `<p class="invit-aide">Une préparation ou une résidence n'a pas de public : laisse décoché, rien n'apparaîtra ailleurs.</p>` : `
+              <p class="invit-aide">Le contingent que le producteur nous donne <b>sur cette tournée</b>, par catégorie. Vide&nbsp;: <b>pas encore fixé</b> — ce n'est pas zéro.</p>
+              <div class="invit-quotas">
+                ${places.map(c=> `
+                <label class="invit-quota">
+                  <span>${escapeHtml(c.libelle)}</span>
+                  <input type="text" inputmode="numeric" data-invit-quota="${escapeAttr(t.id)}" data-place="${escapeAttr(c.cle)}"
+                    value="${usuel[c.cle] != null ? escapeAttr(usuel[c.cle]) : ''}" placeholder="—">
+                </label>`).join('')}
+              </div>
+              <div class="cachet-cibles">
+                <button type="button" class="co-btn tint sm" data-invit-appliquer="${escapeAttr(t.id)}" data-cible="valides" ${valides.length ? '' : 'disabled'}>Concerts validés (${valides.length})</button>
+                ${concerts.length > valides.length
+                  ? `<button type="button" class="co-btn ghost sm" data-invit-appliquer="${escapeAttr(t.id)}" data-cible="concerts">Tous les concerts (${concerts.length})</button>` : ''}
+                <button type="button" class="co-btn ghost sm" data-invit-appliquer="${escapeAttr(t.id)}" data-cible="toutes">Toutes les dates (${dates.length})</button>
+              </div>
+              <p class="invit-aide">
+                ${!valides.length
+                  ? 'Aucun concert validé pour l\'instant — une option n\'a pas de liste d\'invitations.'
+                  : sansContingent.length
+                    ? `<b style="color:var(--maybe);">${sansContingent.length} concert${sansContingent.length > 1 ? 's validés sont' : ' validé est'} sans contingent.</b>`
+                    : `Contingent posé sur ${valides.length === 1 ? 'le concert validé' : `les ${valides.length} concerts validés`}.`}
+                <a href="invitations.html?projet=${encodeURIComponent(t.id)}">Ouvrir la saisie →</a>
+              </p>`}
+            </div>`; })()}
           </div>
           <div class="add-date-row">
             <input type="date" data-new-date="${escapeAttr(t.id)}">
@@ -2536,6 +2620,85 @@ document.addEventListener('click', (e)=>{
   const avert = deja ? `\n\n${deja} ${MOT}${deja > 1 ? 's portent' : ' porte'} déjà un autre montant, qui sera remplacé.` : '';
   if(!confirm(`Fixer ${montant} € brut sur ${cibles.length} ${quoi}${cibles.length > 1 ? 's' : ''} ?${avert}`)) return;
   cibles.forEach(d=>{ d.cachetSeance = montant; });
+  saveTournees(tournees);
+  render();
+});
+
+/* ---------------------------------------------------------------------------
+   Les invitations : activer le projet, et poser son contingent.
+   ---------------------------------------------------------------------------
+   Le contingent saisi ici appartient AU PROJET (t.contingentUsuel) : chaque
+   tournée a le sien, parce que chaque producteur alloue ce qu'il veut. Il est
+   enregistré à la frappe, il survit donc au rechargement — au contraire du
+   champ « cachet commun » juste au-dessus, qui n'est qu'un presse-papiers.
+
+   Le bouton le RECOPIE ensuite dans chaque date visée (dates[].quotas) : c'est
+   là que vit le quota qui compte, parce que deux salles d'une même tournée
+   n'allouent pas pareil et que l'exception se corrige date par date.
+--------------------------------------------------------------------------- */
+document.addEventListener('change', (e)=>{
+  const c = e.target.closest('[data-invit-actives]');
+  if(!c) return;
+  const tournees = loadTournees();
+  const t = tournees.find(x=> x.id === c.dataset.invitActives);
+  if(!t) return;
+  t.invitationsActives = !!c.checked;
+  saveTournees(tournees);
+  render();
+});
+
+// Saisie du contingent du projet : enregistrée à la frappe, sans re-rendu —
+// reconstruire le panneau reprendrait le champ qu'on est en train de remplir.
+document.addEventListener('input', (e)=>{
+  const inp = e.target.closest('[data-invit-quota]');
+  if(!inp) return;
+  const tournees = loadTournees();
+  const t = tournees.find(x=> x.id === inp.dataset.invitQuota);
+  if(!t) return;
+  const brut = String(inp.value || '').trim();
+  t.contingentUsuel = Object.assign({}, t.contingentUsuel || {});
+  if(brut === '') delete t.contingentUsuel[inp.dataset.place];
+  else {
+    const n = parseInt(brut, 10);
+    if(isNaN(n) || n < 0) return;
+    t.contingentUsuel[inp.dataset.place] = n;
+  }
+  saveTournees(tournees);
+});
+
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('[data-invit-appliquer]');
+  if(!btn) return;
+  const tourneeId = btn.dataset.invitAppliquer;
+  const tournees = loadTournees();
+  const t = tournees.find(x=> x.id === tourneeId);
+  if(!t) return;
+
+  // Le contingent du projet, catégorie par catégorie. Une catégorie laissée
+  // vide n'efface rien : on n'a rien dit dessus, on n'y touche pas.
+  const saisis = {};
+  Object.entries(contingentUsuel(t)).forEach(([cle, n])=>{
+    if(Number.isFinite(Number(n)) && Number(n) >= 0) saisis[cle] = Number(n);
+  });
+  if(!Object.keys(saisis).length){ alert('Indique d\'abord un nombre de places dans au moins une catégorie.'); return; }
+
+  const cible = btn.dataset.cible || 'toutes';
+  const estConcert = (d)=> typeDateValide(PROJET_TYPE, d.type) === 'concert' && !estAnnulee(d);
+  const cibles = (t.dates || []).filter(d=>
+    cible === 'valides' ? (estConcert(d) && estValidee(d))
+    : cible === 'concerts' ? estConcert(d)
+    : !estAnnulee(d));
+  if(!cibles.length) return;
+
+  const quoi = cible === 'valides' ? `concert${cibles.length > 1 ? 's' : ''} validé${cibles.length > 1 ? 's' : ''}`
+    : cible === 'concerts' ? `concert${cibles.length > 1 ? 's' : ''}`
+    : `date${cibles.length > 1 ? 's' : ''}`;
+  const detail = Object.entries(saisis).map(([cle, n])=> `${libellePlace(t, cle)} : ${n}`).join(', ');
+  if(!confirm(`Poser ce contingent sur ${cibles.length} ${quoi} ?\n\n${detail}`)) return;
+
+  cibles.forEach(d=>{
+    d.quotas = Object.assign({}, d.quotas || {}, saisis);
+  });
   saveTournees(tournees);
   render();
 });

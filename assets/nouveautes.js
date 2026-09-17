@@ -33,6 +33,21 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-17',
+    titre: 'Les invitations sortent du tableur',
+    points: [
+      "Une section « Invitations » dans le bandeau. Deux écrans : la Saisie, une date à la fois, où l'on tape un nom et valide à Entrée ; le Récapitulatif, toutes les dates d'un coup avec ce qui reste et ce qui n'est pas encore parti à la salle.",
+      "Seules les dates VALIDÉES ont une liste : une option n'est pas tenue, une date à l'étude n'existe pas encore, et promettre des places dessus revient à les reprendre. Une case ouvre le reste pour qui prépare en avance.",
+      "À activer projet par projet — panneau « Invitations » d'une tournée. Une préparation ou une résidence n'a pas de public : rien ne s'affiche tant que la case n'est pas cochée.",
+      "Le contingent est propre à chaque tournée : celui d'EXPEDITION 33 n'est pas celui de la suivante. On le saisit une fois dans le panneau du projet, un bouton le pose sur ses concerts validés, et il se corrige date par date depuis la saisie. Un contingent vide veut dire « pas encore fixé », jamais « aucune place ».",
+      "Deux choses à ne plus confondre : le TYPE dit pour qui (partenaire, pro, famille, perso) et ne consomme rien ; la CATÉGORIE dit où l'on s'assoit et porte le quota. Le récapitulatif dit enfin où sont parties les places, par type.",
+      "L'aftershow se compte à part et ne se plafonne pas : on peut y inscrire quelqu'un sans lui donner de place, et l'inverse.",
+      "Trois exports par date : le PDF mis en page — celui qu'on envoie à la prod et à la salle, une feuille par date, groupée par catégorie —, le CSV pour une billetterie, et le CSV aftershow pour le traiteur et la sécurité. Le PDF existe aussi pour toute la tournée, une page par date.",
+      "Après l'envoi, les lignes passent en « transmise » : de quoi ne plus envoyer deux fois la même liste.",
+      "« Qui invite ? » se remplit tout seul avec le compte connecté, et la catégorie proposée bascule sur la suivante quand la première est pleine : ce sont les colonnes que personne ne remplissait à la main.",
+    ],
+  },
+  {
     version: '2026-09-15',
     titre: 'Un cachet par date : les répétitions ne se paient plus comme les concerts',
     points: [

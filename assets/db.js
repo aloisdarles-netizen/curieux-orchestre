@@ -133,8 +133,17 @@ const CurieuxDB = (()=>{
         // Qui a été retiré·e à la main de ce projet (« musicien:id ») : la
         // sollicitation d'office ne les repose pas (voir migrations.sql).
         sollicitation_exclus: t.sollicitationExclus || [],
+        // Gère-t-on des invitations sur ce projet, et avec quelles catégories
+        // de place ? Le quota, lui, vit dans chaque date (dates[].quotas) :
+        // c'est la salle qui alloue, et deux salles n'allouent pas pareil.
+        invitations_actives: !!t.invitationsActives,
+        categories_places: t.categoriesPlaces || [],
+        // Le contingent habituel DE CETTE TOURNÉE, recopié d'un clic sur ses
+        // dates. Il n'y a pas de valeur usuelle commune : chaque producteur
+        // alloue ce qu'il veut.
+        contingent_usuel: t.contingentUsuel || {},
       }),
-      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], type: r.type === 'recording' ? 'recording' : 'tournee', recording: r.recording || {}, cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [], equipesRoad: r.equipes_road || [], techniqueTournee: r.technique_tournee || {}, sollicitationExclus: r.sollicitation_exclus || [] })
+      fromDb: (r)=> ({ id: r.id, nom: r.nom, dates: r.dates || [], type: r.type === 'recording' ? 'recording' : 'tournee', recording: r.recording || {}, cachetStatut: r.cachet_statut || 'non_defini', cachetMontant: r.cachet_montant, nomenclature: r.nomenclature || [], equipesRoad: r.equipes_road || [], techniqueTournee: r.technique_tournee || {}, sollicitationExclus: r.sollicitation_exclus || [], invitationsActives: !!r.invitations_actives, categoriesPlaces: r.categories_places || [], contingentUsuel: r.contingent_usuel || {} })
     },
     // ——— Outils de direction technique (août 2026) ———
     // Ce que la salle fournit, date par date (B2). "id" = `${tourneeId}::${dateId}`,
@@ -657,6 +666,31 @@ const CurieuxDB = (()=>{
         envoyeLe: r.envoye_le || undefined
       })
     },
+    /* Les invitations d'une tournée. Deux axes à ne pas confondre : `type` dit
+       pour QUI (partenaire, pro, perso — il ne consomme rien), `categorie` dit
+       OÙ l'on s'assoit (Carré Or, CAT 1 — c'est elle qui porte le quota).
+       `aftershow` est un nombre à part, pas une case à cocher : on peut y être
+       sans assister au concert, donc 0 place et 2 aftershow est une ligne
+       valide. Voir assets/invitations.js. */
+    invitations: {
+      toDb: (i)=> ({
+        id: i.id, tournee_id: i.tourneeId, date_id: i.dateId,
+        nom: i.nom || '', prenom: i.prenom || '', email: i.email || '',
+        places: Number(i.places) || 0, categorie: i.categorie || '',
+        aftershow: Number(i.aftershow) || 0, type: i.type || '',
+        demande_par: i.demandePar || '', etat: i.etat || 'accordee',
+        note: i.note || '',
+      }),
+      fromDb: (r)=> ({
+        id: r.id, tourneeId: r.tournee_id || '', dateId: r.date_id || '',
+        nom: r.nom || '', prenom: r.prenom || '', email: r.email || '',
+        places: Number(r.places) || 0, categorie: r.categorie || '',
+        aftershow: Number(r.aftershow) || 0, type: r.type || '',
+        demandePar: r.demande_par || '', etat: r.etat || 'accordee',
+        note: r.note || '',
+        creeLe: r.created_at || undefined, majLe: r.updated_at || undefined,
+      })
+    },
     feuilles_route: {
       // La FDR entière (contacts, trajets, planning, lieu, hôtel...) tient dans "data".
       // _updatedAt (préfixé pour ne jamais entrer en collision avec un champ du
@@ -1032,6 +1066,11 @@ const CurieuxDB = (()=>{
       supabaseClient.from('remarques').delete().eq('tournee_id', tourneeId).eq('date_id', dateId),
       supabaseClient.from('affectations_transport').delete().eq('tournee_id', tourneeId).eq('date_id', dateId),
       supabaseClient.from('comm_taches').delete().eq('tournee_id', tourneeId).eq('date_id', dateId),
+      // Les invitations visent une date du jsonb : sans clé étrangère possible,
+      // c'est ici qu'on les emporte. Ce sont des noms et des adresses de
+      // personnes extérieures — les laisser orphelines serait les conserver
+      // sans finalité, donc sans droit.
+      supabaseClient.from('invitations').delete().eq('tournee_id', tourneeId).eq('date_id', dateId),
     ]);
   }
 
@@ -1315,7 +1354,7 @@ const CurieuxDB = (()=>{
   // rien à restaurer, et c'est délibéré.
   const TABLES_RESTAURABLES = [
     'musiciens', 'techniciens', 'tournees', 'feuilles_route', 'carnet_contacts',
-    'dispo_demandes', 'remplacant_prefs', 'cachet_overrides',
+    'dispo_demandes', 'remplacant_prefs', 'cachet_overrides', 'invitations',
   ];
 
   // Suppressions restaurables : celles dont la ligne n'a pas été recréée depuis.

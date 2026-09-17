@@ -27,6 +27,14 @@ const CURIEUX_SECTIONS = [
     { libelle:'Feuilles de route', href:'feuilles-de-route.html', pages:['feuilles-de-route.html','feuille-de-route.html'] },
     { libelle:'Journal des changements', href:'newsletter.html', pages:['newsletter.html'] },
   ]},
+  /* Les invitations sont une section à part entière, pas une entrée sous
+     Tournées : on y passe plusieurs fois par semaine en pleine tournée — pour
+     ajouter une demande, relire une liste, la transmettre à la salle — et une
+     page qu'on ouvre aussi souvent ne se cherche pas à deux clics.
+
+     Un seul écran, donc pas de sous-menu : le projet se choisit dans la page,
+     pas dans le bandeau, parce qu'on en change en cours de travail. */
+  { libelle:'Invitations', href:'invitations.html', pages:['invitations.html'] },
   // Les enregistrements en studio vivent dans les mêmes pages que les tournées,
   // filtrées par ?type=recording : mêmes dates, mêmes affectations, mêmes
   // feuilles, seul le vocabulaire change (voir CURIEUX_VOCABULAIRE).
