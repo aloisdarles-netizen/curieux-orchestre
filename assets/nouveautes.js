@@ -33,6 +33,16 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-18',
+    titre: 'Correction : le cachet affiché aux technicien·nes',
+    points: [
+      "Une date peut porter son propre montant — une répétition payée autrement qu'un concert. Ce montant se saisit dans la colonne des musicien·nes, en cachets : il n'a jamais concerné le pôle technique. Il lui était pourtant servi tel quel.",
+      "Sur EXPEDITION 33 — 2027, 26 dates portent un montant propre et des technicien·nes y sont affecté·es : 228 affectations personne × date annonçaient le prix d'un cachet de musicien·ne.",
+      "Le niveau « date » rejoint donc le niveau « pupitre » : tous deux appartiennent à l'orchestre, et le pôle technique les saute pour tomber sur son propre standard. Une exception nominative reste prioritaire, comme avant.",
+      "Sans standard technique renseigné sur la tournée, rien ne s'affiche — mieux vaut un blanc qu'un prix faux. Les trois tournées concernées attendent toujours leur montant.",
+    ],
+  },
+  {
     version: '2026-09-17-5',
     titre: 'Mes remplaçant·es : trois rangs, et on classe au doigt',
     points: [

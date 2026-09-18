@@ -899,6 +899,10 @@ function curieuxCachetPupitre(tournee, pupitre){
         soit un seul montant pour tout, soit découper le projet en deux — ce
         qui aurait dédoublé l'équipe, la nomenclature, les demandes de dispo et
         les liens envoyés aux musicien·nes, pour une question d'argent.
+        NIVEAU D'ORCHESTRE, comme le pupitre : le panneau de la tournée n'a
+        qu'un champ par date, saisi en cachets, à côté du seul standard des
+        musicien·nes. Le servir au pôle technique lui annonçait le prix d'un
+        cachet de répétition.
      4. standard   — le montant du projet, pour les dates qui n'ont rien dit.
         IL Y EN A DEUX : celui de l'orchestre et celui du pôle technique. Un
         régisseur n'est pas payé au cachet d'un violon, et lui servir le
@@ -913,12 +917,17 @@ function curieuxCachetResolu(tournee, pupitre, override, date, pourTechnicien){
   if(override != null && override !== '' && Number.isFinite(Number(override))){
     return { montant: Number(override), source: 'individuel' };
   }
+  // Les deux niveaux du milieu sont ceux de l'ORCHESTRE, et d'elle seule : le
+  // cachet d'un pupitre, comme le montant propre à une date, se saisissent
+  // dans la colonne des musicien·nes et valent en cachets. Un·e technicien·ne
+  // les saute tous les deux et tombe sur son propre standard — sans quoi une
+  // répétition payée 120 € aux musicien·nes annoncerait 120 € au régisseur.
   if(!pourTechnicien){
     const duPupitre = curieuxCachetPupitre(tournee, pupitre);
     if(duPupitre != null) return { montant: duPupitre, source: 'pupitre' };
+    const deLaDate = curieuxCachetDate(date);
+    if(deLaDate != null) return { montant: deLaDate, source: 'date' };
   }
-  const deLaDate = curieuxCachetDate(date);
-  if(deLaDate != null) return { montant: deLaDate, source: 'date' };
   const statut = pourTechnicien ? (tournee && tournee.cachetTechnicienStatut) : (tournee && tournee.cachetStatut);
   const montant = pourTechnicien ? (tournee && tournee.cachetTechnicienMontant) : (tournee && tournee.cachetMontant);
   if(statut === 'defini' && montant != null && montant !== '' && Number.isFinite(Number(montant))){
