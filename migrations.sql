@@ -6072,3 +6072,11 @@ end $$;
 -- physique — et le montant d'un cachet nominatif. Elle suit donc la même règle
 -- que les devis : on garde le temps de la vie comptable du projet et de son
 -- contrôle éventuel, pas au-delà. Voir mentions-legales.html.
+
+-- Compter, ou pas. Certaines dépenses se comptent — 330 repas à 20 €, 85 fiches
+-- de paie à 28 € — et d'autres arrivent en une facture globale. Les deux
+-- colonnes sont donc FACULTATIVES : renseignées, le montant HT en découle et
+-- n'est plus saisi à la main ; laissées vides, la dépense n'est qu'un montant.
+-- null et non 0 : « pas de détail » n'est pas « zéro unité ».
+alter table depenses add column if not exists quantite numeric;
+alter table depenses add column if not exists prix_unitaire numeric;

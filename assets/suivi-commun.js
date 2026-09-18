@@ -152,6 +152,9 @@ function figerSuivi(doc, options){
     // n'a rien à faire dans un suivi de dépenses. On la garde pour mémoire,
     // hors de tout total, pour que l'écart avec le devis s'explique.
     remiseEcartee: calc.remise,
+    // Le détail du devis, pour que la rangée puisse dire « 85 × 28,00 € » et
+    // que la saisie propose le même prix unitaire.
+    fichesPaie: { nb: devisNombre((doc.fichesPaie || {}).nb, 0), prix: devisNombre((doc.fichesPaie || {}).prix, 0) },
     totalPrevu: arbre.reduce((s, x)=> s + x.prevu, 0) + calcules.reduce((s, c)=> s + c.prevu, 0),
     optionsNonLevees: { nb: calc.options.length, montant: calc.optionsTotal },
     arbre, calcules,
@@ -341,19 +344,48 @@ function agregerSuivi(data, depenses){
   const totalReel = reelArbre + chargesReellesTotal + fp.reel + orphelines.reel;
 
   /* L'ATTERRISSAGE — où l'on finira si rien d'autre ne bouge.
-     Le groupe est l'unité : pour chacun, on garde le plus élevé du prévu et du
-     dépensé. Un groupe entamé à 30 % n'annonce pas 30 % de son budget, il
-     annonce son budget ; un groupe déjà dépassé annonce son dépassement. Un
-     groupe coché « soldé » annonce son réel, et lui seul.
-     C'est une addition de faits, pas une prévision : aucune extrapolation. */
+     Pour chaque poste, le plus élevé du prévu et du dépensé : un poste entamé
+     à 30 % n'annonce pas 30 % de son budget, il annonce son budget ; un poste
+     déjà dépassé annonce son dépassement. C'est une addition de faits, aucune
+     extrapolation.
+
+     SOLDÉ défait cette règle pour un nœud : il n'annonce plus que son réel.
+     C'est ce qui rend lisible un poste internalisé — le directeur technique
+     facturé 3 000 € au client et assuré en interne coûte 0 €, et l'écart de
+     −3 000 € est une marge, pas une dépense en retard. Sans « soldé », le
+     poste continuerait d'annoncer ses 3 000 € jusqu'à la clôture.
+
+     LA GRANULARITÉ SUIT CELLE DE LA SAISIE. Une ligne renseignée compte pour
+     elle-même ; mais dès qu'une dépense est rattachée AU GROUPE (une facture
+     qui couvre plusieurs lignes d'un coup), on ne peut plus additionner ligne
+     à ligne sans compter deux fois — on retombe alors au niveau du groupe. */
   const soldes = new Set(data.soldes || []);
   let aterArbre = 0;
   const assiettesAter = { auteur: 0, musicien: 0, production: 0 };
+  const atterrirNoeud = (prevu, id)=>{
+    const c = cumul.get(id) || vide();
+    return soldes.has(id) ? c.reel : Math.max(prevu, c.reel);
+  };
   (data.arbre || []).forEach(sec=>{
+    if(soldes.has(sec.id)){
+      aterArbre += (cumul.get(sec.id) || vide()).reel;
+      if(sec.remuneration){
+        (sec.groupes || []).forEach(grp=> (grp.lignes || []).forEach(l=>{
+          if(l.etat !== 'incluse' || DEVIS_REGIMES_CHARGES.indexOf(l.regime) < 0) return;
+          assiettesAter[l.regime] += (cumul.get(l.id) || vide()).reel;
+        }));
+      }
+      return;
+    }
     (sec.groupes || []).forEach(grp=>{
-      const c = cumul.get(grp.id) || vide();
-      const retenu = soldes.has(grp.id) ? c.reel : Math.max(grp.prevu, c.reel);
-      aterArbre += retenu;
+      const propreGrp = (propre.get(grp.id) || vide()).reel;
+      // Une facture posée sur le groupe couvre ses lignes : on ne descend plus.
+      const auGroupe = soldes.has(grp.id) || propreGrp !== 0;
+      if(auGroupe){
+        aterArbre += atterrirNoeud(grp.prevu, grp.id);
+      } else {
+        aterArbre += (grp.lignes || []).reduce((t, l)=> t + atterrirNoeud(l.prevu, l.id), 0);
+      }
       // L'assiette d'atterrissage suit la même logique, sinon les charges
       // d'atterrissage seraient calculées sur un réel encore incomplet.
       if(sec.remuneration){
@@ -361,8 +393,8 @@ function agregerSuivi(data, depenses){
           if(l.etat !== 'incluse') return;
           if(DEVIS_REGIMES_CHARGES.indexOf(l.regime) < 0) return;
           const cl = cumul.get(l.id) || vide();
-          const part = soldes.has(grp.id) ? cl.reel : Math.max(l.prevu, cl.reel);
-          assiettesAter[l.regime] += part;
+          assiettesAter[l.regime] += (soldes.has(grp.id) || soldes.has(l.id))
+            ? cl.reel : Math.max(l.prevu, cl.reel);
         });
       }
     });
@@ -435,6 +467,10 @@ function nouvelleDepense(suiviId_, noeudId, aujourdHui){
     id: suiviId('dep'), suiviId: suiviId_, noeudId: noeudId || '',
     sens: 'depense', libelle: '', fournisseur: '',
     dateDepense: aujourdHui || '', montantHt: 0, montantTva: 0,
+    // Facultatifs, et c'est le point : certaines dépenses se comptent
+    // (330 repas × 20 €, 85 fiches × 28 €), d'autres arrivent en une facture
+    // globale. Les deux doivent se saisir sans détour.
+    quantite: null, prixUnitaire: null,
     regime: '', statut: 'paye', justificatifUrl: '', note: '',
   };
 }

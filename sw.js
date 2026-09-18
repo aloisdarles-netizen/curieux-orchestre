@@ -124,7 +124,10 @@
 // deux tables. Sans cet incrément, un navigateur déjà venu garderait l'ancien
 // db.js : la page s'ouvrirait, les dépenses partiraient en base et n'en
 // reviendraient jamais — l'adaptateur manquant, elles seraient lues vides.
-const VERSION = 'curieux-v121';
+// v122 : le suivi prend la charte de la page Budget, la dépense apprend la
+// quantité et le prix unitaire (deux colonnes de plus dans l'adaptateur de
+// db.js) et le zéro euro devient une saisie valable.
+const VERSION = 'curieux-v122';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -17,198 +17,193 @@
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
+  /* ==========================================================================
+     LA CHARTE DE LA PAGE BUDGET, et pas une autre.
+     Un tableau à bandes colorées et en-tête collant se lit moins bien qu'une
+     suite de cartes blanches à lignes fines — c'est le constat fait sur la page
+     Budget, et il n'y a aucune raison que le suivi s'en écarte. Une section du
+     devis = une carte, son titre en petites capitales, ses postes en lignes
+     séparées d'un filet. Les classes reprennent celles de budget.html pour que
+     les deux pages bougent ensemble le jour où la charte bouge.
+     ========================================================================== */
   .wrap{max-width:min(1200px, 97vw); margin:0 auto;}
 
-  /* Les quatre chiffres de tête. L'atterrissage est le seul qui répond à la
-     question qu'on se pose vraiment en ouvrant la page. */
-  .su-chiffres{display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:16px;}
-  .su-chiffre{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px;}
-  .su-chiffre b{
-    display:block; font-family:var(--font-display); font-size:26px; font-weight:500; line-height:1.15;
-    color:var(--accent); font-variant-numeric:tabular-nums;
+  .chiffres{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; margin-bottom:22px;}
+  .chiffre{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px;}
+  .chiffre b{
+    display:block; font-family:var(--font-display); font-size:30px; font-weight:500; color:var(--accent);
+    line-height:1.1; font-variant-numeric:tabular-nums;
   }
-  .su-chiffre span{font-size:12px; color:var(--muted); font-weight:600;}
-  .su-chiffre small{display:block; font-size:11px; color:var(--muted); margin-top:3px; line-height:1.35;}
-  .su-chiffre.alerte b{color:var(--ko);}
+  .chiffre span{font-size:12.5px; color:var(--muted); font-weight:600;}
+  .chiffre small{display:block; font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.4;}
+  .chiffre.alerte b{color:var(--ko);}
 
-  .su-barre{
-    display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px;
+  .bloc{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px 6px;}
+  .bloc + .bloc{margin-top:14px;}
+  .bloc h2{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+    font-weight:800; margin:0 0 4px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
   }
-  .su-filtre{
-    background:var(--card); border:1px solid var(--border); border-radius:999px; padding:7px 13px;
-    font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; font-family:inherit;
-  }
-  .su-filtre[aria-pressed="true"]{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
-  .su-recherche{flex:1 1 180px; min-width:150px;}
+  .bloc h2 .h2-total{margin-left:auto; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:0;}
+  .bloc h2 .h2-total em{font-style:normal; color:var(--muted); font-weight:600;}
 
-  /* LE TABLEAU. Cinq colonnes : le poste, trois montants, le bouton d'ajout.
-     Une grille plutôt qu'un <table> : le repli en cartes sur téléphone se fait
-     alors sans reconstruire le balisage. */
-  /* « clip » et non « hidden » : overflow:hidden fait du tableau un conteneur
-     de défilement, et l'en-tête collant s'y accroche au lieu de s'accrocher à
-     la page — il défilait donc hors de l'écran avec le reste. overflow:clip
-     rogne les angles sans créer ce conteneur. Un très vieux Safari qui ne le
-     connaît pas ignore la déclaration : les angles redeviennent droits, le
-     collage reste juste. */
-  .su-table{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:clip;}
-  .su-tete, .su-rang{
-    display:grid; grid-template-columns:minmax(0,38fr) minmax(0,19fr) minmax(0,19fr) minmax(0,19fr) 46px;
-    gap:8px; align-items:center; padding:9px 14px; border-bottom:1px solid var(--border);
+  /* La grille des colonnes, identique de la barre d'en-tête à la dernière
+     ligne du pied : c'est elle qui fait que les montants s'alignent d'une carte
+     à l'autre alors que ce sont des cartes séparées. */
+  .su-tete, .ligne{
+    display:grid; grid-template-columns:minmax(0,1fr) 116px 116px 116px 40px;
+    gap:10px; align-items:center;
   }
-  /* L'en-tête de colonnes se colle SOUS les deux bandeaux du site : la barre
-     principale (56 px, top:0) et le sous-menu de section (sticky à top:56px).
-     Collé à 56 px, il passait derrière le sous-menu et masquait la première
-     section. La hauteur se lit dans la page, elle n'est pas devinée. */
   .su-tete{
     font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:800;
-    background:var(--bg); position:sticky; top:var(--su-colle, 112px); z-index:5;
-    box-shadow:0 1px 0 var(--border);
+    padding:0 18px 7px;
   }
-  .su-rang:last-child{border-bottom:none;}
-  .su-rang:hover{background:var(--row-alt, var(--bg));}
-  .su-nom{min-width:0; position:relative;}
-  .su-nom b{font-size:13.5px; font-weight:700; display:block;}
-  .su-nom small{display:block; font-size:11.5px; color:var(--muted); margin-top:1px; line-height:1.35;}
-  .su-section > .su-nom b{text-transform:uppercase; letter-spacing:.04em; font-size:12px; font-weight:800; color:var(--accent-dark);}
-  .su-section{background:var(--champagne);}
-  .su-groupe > .su-nom b{font-weight:800;}
-  .su-ligne > .su-nom{padding-left:30px;}
-  .su-ligne > .su-nom b{font-weight:500;}
-  .su-calcule{background:var(--bg);}
-  .su-calcule > .su-nom b{font-weight:700;}
+  .su-tete span:not(:first-child){text-align:right;}
+  .ligne{padding:9px 0; border-bottom:1px solid var(--border);}
+  .ligne:last-child{border-bottom:none;}
 
-  /* Le chevron est POSÉ dans la marge, pas dans le flux : l'intitulé étant un
-     bloc, un chevron en ligne le renvoyait à la ligne suivante et chaque
-     groupe occupait une rangée de trop. min-height:0 défait la cible tactile
-     de 44 px que base.css impose à tous les boutons sous 820 px — ici c'est
-     l'intitulé entier qui sert de cible. */
-  .su-chev{
-    position:absolute; left:0; top:0; width:20px; height:20px; min-height:0;
+  .l-nom{min-width:0; position:relative;}
+  .l-titre{font-weight:700; font-size:13.5px; display:block;}
+  .l-sous{display:block; font-size:12px; color:var(--muted); font-weight:400; margin-top:1px; line-height:1.4;}
+  .ligne.niv-groupe .l-titre{font-weight:800;}
+  .ligne.niv-ligne > .l-nom{padding-left:18px;}
+  .ligne.niv-ligne .l-titre{font-weight:500;}
+  .ligne.pliable > .l-nom{cursor:pointer;}
+
+  .l-chev{
+    position:absolute; left:0; top:1px; width:16px; height:16px; min-height:0; line-height:16px;
     background:none; border:none; padding:0; margin:0; cursor:pointer; color:var(--muted);
-    font-size:11px; font-family:inherit; text-align:left; line-height:20px;
+    font-size:10px; font-family:inherit; text-align:left;
   }
-  .su-groupe > .su-nom{padding-left:34px;}
-  .su-groupe.pliable > .su-nom{cursor:pointer;}
-  .su-num{text-align:right; font-variant-numeric:tabular-nums; font-size:13px; font-weight:800; white-space:nowrap;}
-  .su-num small{display:block; font-size:10.5px; font-weight:600; color:var(--muted); margin-top:1px;}
-  .su-num.vide{color:var(--muted); font-weight:500;}
-  .su-ecart.alerte{color:var(--ko);}
+  .ligne.niv-groupe > .l-nom{padding-left:20px;}
+
+  .l-num{text-align:right; font-variant-numeric:tabular-nums; font-size:13px; font-weight:800; white-space:nowrap;}
+  .l-num small{display:block; font-size:10.5px; font-weight:600; color:var(--muted); margin-top:1px;}
+  .l-num.vide{color:var(--muted); font-weight:500;}
+  .l-reel.cliquable{cursor:pointer; text-decoration:underline; text-decoration-style:dotted; text-underline-offset:3px;}
+  .l-ecart.alerte{color:var(--ko);}
+
   .su-plus{
-    width:34px; height:34px; border-radius:9px; border:1px solid var(--border); background:var(--card);
-    color:var(--accent-dark); font-size:18px; font-weight:700; cursor:pointer; font-family:inherit; line-height:1;
+    width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--bg);
+    color:var(--accent-dark); font-size:17px; font-weight:700; cursor:pointer; font-family:inherit; line-height:1;
   }
   .su-plus:hover{border-color:var(--accent); background:var(--champagne);}
 
-  .su-pastille{
-    display:inline-block; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em;
-    padding:1px 6px; border-radius:999px; margin-left:6px; vertical-align:middle;
-    background:var(--maybe-tint); color:#8a5a18;
+  .statut-badge{
+    display:inline-block; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:800;
+    text-transform:uppercase; letter-spacing:.03em; white-space:nowrap; margin-left:6px; vertical-align:middle;
   }
-  .su-pastille.ajout{background:var(--secondary-tint); color:#8c2c07;}
-  .su-pastille.calc{background:var(--accent-tint); color:#2f4a68;}
-  .su-pastille.solde{background:var(--ok-tint); color:var(--ok);}
+  .badge-option{background:var(--maybe-tint); color:#8a5a18;}
+  .badge-ajout{background:var(--secondary-tint); color:#8c2c07;}
+  .badge-calc{background:var(--accent-tint); color:#2f4a68;}
+  .badge-solde{background:#dcf2e5; color:#2f8f5b;}
+  :root[data-theme="dark"] .badge-solde{background:#1d3a2a; color:#7fd6a4;}
 
-  /* Le pied : quatre lignes, pas une de plus. */
-  .su-pied{background:var(--bg); border-top:2px solid var(--border);}
-  .su-pied .su-rang{border-bottom:1px dashed var(--border);}
-  .su-pied .su-rang:last-child{border-bottom:none;}
-  .su-pied .su-nom b{font-weight:800;}
-  .su-avert{
-    font-size:12px; color:var(--muted); line-height:1.5; padding:11px 14px; background:var(--bg);
-    border-top:1px solid var(--border);
+  .bloc.pied .ligne{border-bottom:1px dashed var(--border);}
+  .bloc.pied .l-titre{font-weight:800;}
+  .avert{font-size:12.5px; color:var(--muted); line-height:1.55; margin:12px 0 10px;}
+  .avert b{color:var(--text);}
+  .avert + .avert{margin-top:-4px;}
+
+  .barre{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px;}
+  .filtre{
+    background:var(--card); border:1px solid var(--border); border-radius:999px; padding:7px 13px;
+    font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; font-family:inherit;
   }
-  .su-avert b{color:var(--text);}
+  .filtre[aria-pressed="true"]{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
+  .recherche{flex:1 1 200px; min-width:150px; padding:8px 11px; border:1px solid var(--border);
+    border-radius:8px; font-size:13px; background:var(--card); color:var(--text); font-family:inherit;}
 
-  /* La carte de saisie : une fiche ancrée, pas une fenêtre modale plein écran.
-     On doit voir la rangée qu'on renseigne. */
-  .su-voile{position:fixed; inset:0; background:rgba(20,22,23,.42); z-index:60; display:flex;
-    align-items:flex-end; justify-content:center; padding:0;}
-  @media (min-width:761px){ .su-voile{align-items:center; padding:20px;} }
-  .su-fiche{
-    background:var(--card); border-radius:var(--radius) var(--radius) 0 0; width:min(560px, 100%);
+  /* La fiche de saisie : ancrée en bas sur téléphone, centrée sur écran. */
+  .voile{position:fixed; inset:0; background:rgba(20,22,23,.42); z-index:60; display:flex;
+    align-items:flex-end; justify-content:center;}
+  @media (min-width:761px){ .voile{align-items:center; padding:20px;} }
+  .fiche{
+    background:var(--card); border-radius:var(--radius) var(--radius) 0 0; width:min(580px, 100%);
     max-height:92vh; overflow-y:auto; padding:18px 18px calc(18px + env(safe-area-inset-bottom));
   }
-  @media (min-width:761px){ .su-fiche{border-radius:var(--radius);} }
-  .su-fiche h3{margin:0 0 3px; font-size:15px;}
-  .su-fiche .cible{font-size:12px; color:var(--muted); margin:0 0 13px; line-height:1.4;}
-  .su-champs{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-  .su-champs .large{grid-column:1 / -1;}
-  .su-champ label{display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:3px;}
-  .su-champ input, .su-champ select, .su-champ textarea{
+  @media (min-width:761px){ .fiche{border-radius:var(--radius);} }
+  .fiche h3{margin:0 0 3px; font-size:15px;}
+  .fiche .cible{font-size:12px; color:var(--muted); margin:0 0 13px; line-height:1.4;}
+  .champs{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .champs .large{grid-column:1 / -1;}
+  .champ label{display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:3px;}
+  .champ input, .champ select{
     width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:14px;
     background:var(--card); color:var(--text); font-family:inherit;
   }
-  .su-champ input:focus, .su-champ select:focus{outline:2px solid var(--accent); outline-offset:1px;}
-  .su-bascule{display:flex; gap:6px; margin-bottom:10px;}
-  .su-bascule button{
+  .champ input:disabled{background:var(--bg); color:var(--muted);}
+  .champ input:focus, .champ select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .bascule{display:flex; gap:6px; margin-bottom:10px;}
+  .bascule button{
     flex:1; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg);
     font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; font-family:inherit;
   }
-  .su-bascule button[aria-pressed="true"]{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
-  .su-garde{
+  .bascule button[aria-pressed="true"]{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
+  .garde{
     font-size:12px; line-height:1.45; background:var(--maybe-tint); color:#7a4e12; border-radius:8px;
     padding:9px 11px; margin-top:10px;
   }
-  .su-fiche-actions{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;}
+  .coche{
+    display:flex; gap:9px; align-items:flex-start; margin-top:12px; font-size:12.5px; line-height:1.45;
+    background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; cursor:pointer;
+  }
+  .coche input{width:18px; height:18px; flex:none; margin-top:1px; accent-color:var(--accent-solid);}
+  .coche b{display:block;}
+  .coche span{color:var(--muted);}
+  .fiche-actions{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; align-items:center;}
 
-  /* Le journal : ce qui a été saisi, dans l'ordre où ça s'est passé. */
-  .su-journal .su-jl{
-    display:grid; grid-template-columns:86px minmax(0,1fr) auto auto; gap:10px; align-items:center;
+  /* Le journal, et la liste des dépenses d'un poste : même forme. */
+  .jl{
+    display:grid; grid-template-columns:84px minmax(0,1fr) auto auto; gap:10px; align-items:center;
     padding:9px 0; border-bottom:1px solid var(--border); font-size:13px;
   }
-  .su-journal .su-jl:last-child{border-bottom:none;}
-  .su-jdate{font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums;}
-  .su-jnom b{font-weight:700;}
-  .su-jnom small{display:block; font-size:11px; color:var(--muted);}
-  .su-jact{display:flex; gap:5px;}
-  .su-mini{
+  .jl:last-child{border-bottom:none;}
+  .jdate{font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .jnom b{font-weight:700;}
+  .jnom small{display:block; font-size:11.5px; color:var(--muted);}
+  .jact{display:flex; gap:5px;}
+  .mini{
     background:none; border:1px solid var(--border); border-radius:7px; padding:5px 9px; font-size:11.5px;
     font-weight:600; color:var(--text); cursor:pointer; font-family:inherit; text-decoration:none;
   }
-  .su-mini:hover{border-color:var(--accent);}
-  .su-mini.danger{color:var(--danger); border-color:var(--danger-tint);}
+  .mini:hover{border-color:var(--accent);}
+  .mini.danger{color:var(--danger); border-color:var(--danger-tint);}
 
-  .su-vide{font-size:13px; color:var(--muted); padding:14px; line-height:1.6;}
-  .su-drive{display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:12.5px;}
-  .su-drive input{flex:1 1 240px; min-width:180px;}
-  .su-note-drive{font-size:11.5px; color:var(--muted); line-height:1.45; margin-top:6px;}
+  .vide{font-size:13px; color:var(--muted); padding:10px 0; line-height:1.6;}
+  .drive{display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:12.5px; margin-bottom:6px;}
+  .drive input{flex:1 1 240px; min-width:180px; padding:8px 11px; border:1px solid var(--border);
+    border-radius:8px; font-size:13px; background:var(--card); color:var(--text); font-family:inherit;}
+  .note-drive{font-size:11.5px; color:var(--muted); line-height:1.45; margin:0 0 12px;}
 
-  /* SUR TÉLÉPHONE, trois colonnes deviennent une phrase. Un tableau de montants
-     à 390 px de large est illisible ; une carte par poste ne l'est pas. */
+  /* SUR TÉLÉPHONE, trois colonnes deviennent deux lignes. */
   @media (max-width:760px){
     .su-tete{display:none;}
-    /* Deux lignes, jamais quatre : le nom et l'écart en tête, les deux
-       montants dessous avec leur étiquette. Une grille NOMMÉE plutôt qu'une
-       suite de grid-column : deux cellules ne peuvent pas partager la même
-       case, et « display:inline » sur un enfant de grille ne le remet pas
-       dans le flux — chaque montant repartait à la ligne. */
-    .su-rang{
+    .bloc{padding:13px 14px 4px;}
+    .ligne{
       grid-template-columns:minmax(0,1fr) auto 44px;
       grid-template-areas:"nom ecart plus" "prevu reel plus";
-      gap:3px 10px; padding:11px 13px;
+      gap:3px 10px;
     }
-    .su-nom{grid-area:nom;}
-    .su-num{text-align:left; font-size:12.5px; font-weight:700;}
-    .su-num small{display:inline; margin-left:4px;}
-    .su-prevu{grid-area:prevu;}
-    .su-reel{grid-area:reel; text-align:right;}
-    .su-prevu::after{content:' prévu'; font-weight:500; color:var(--muted); font-size:11px;}
-    .su-reel::after{content:' réel'; font-weight:500; color:var(--muted); font-size:11px;}
-    .su-ecart{
-      grid-area:ecart; align-self:start; font-size:13px; font-weight:800;
-      padding:2px 8px; border-radius:999px; background:var(--bg); text-align:right;
+    .l-nom{grid-area:nom;}
+    .l-num{text-align:left; font-size:12.5px; font-weight:700;}
+    .l-num small{display:inline; margin-left:4px;}
+    .l-prevu{grid-area:prevu;}
+    .l-reel{grid-area:reel; text-align:right;}
+    .l-prevu::after{content:' prévu'; font-weight:500; color:var(--muted); font-size:11px;}
+    .l-reel::after{content:' réel'; font-weight:500; color:var(--muted); font-size:11px;}
+    .l-ecart{
+      grid-area:ecart; align-self:start; font-size:13px; font-weight:800; text-align:right;
+      padding:2px 8px; border-radius:999px; background:var(--bg);
     }
-    .su-ecart::after{content:none;}
-    .su-ecart.alerte{background:var(--ko-tint);}
-    .su-rang > span:last-child{grid-area:plus; align-self:center; justify-self:end;}
+    .l-ecart.alerte{background:var(--ko-tint);}
+    .ligne > span:last-child{grid-area:plus; align-self:center; justify-self:end;}
     .su-plus{width:44px; height:44px; font-size:20px;}
-    .su-ligne > .su-nom{padding-left:16px;}
-    .su-groupe > .su-nom{padding-left:26px;}
-    .su-champs{grid-template-columns:1fr;}
-    .su-champs .demi{grid-column:auto;}
-    input, select, textarea{font-size:16px !important;}
-    .su-journal .su-jl{grid-template-columns:1fr auto; }
-    .su-jdate{grid-column:1; grid-row:2; }
+    .ligne.niv-ligne > .l-nom{padding-left:10px;}
+    .champs{grid-template-columns:1fr;}
+    input, select{font-size:16px !important;}
+    .jl{grid-template-columns:1fr auto;}
+    .jdate{grid-column:1; grid-row:2;}
   }
 </style>
 </head>
@@ -228,6 +223,10 @@
    DEUX ÉCRANS DANS UNE PAGE. Sans paramètre, la liste des suivis et des
    chiffrages qui attendent le leur. Avec ?id=, le suivi lui-même.
 
+   LA FORME SUIT CELLE DE LA PAGE BUDGET : une carte par section, des lignes
+   séparées d'un filet, les montants alignés d'une carte à l'autre. Un tableau
+   à bandes colorées et en-tête collant se lisait moins bien.
+
    CE QUE CETTE PAGE NE FAIT PAS, et qui est un bon refus :
    — aucune ventilation d'un poste vers un autre. L'écart est le seul signal de
      diagnostic du suivi ; le lisser le détruit ;
@@ -235,8 +234,7 @@
      Ce qui la consomme, ce sont les dépenses sans prévisionnel, comptées à
      part et déduites de la provision restante ;
    — aucune trace de la remise : c'est une réduction de PRODUIT ;
-   — aucun pré-remplissage automatique des montants. L'outil dit ce qu'il sait,
-     il ne remplit pas à ta place.
+   — aucun pré-remplissage automatique des montants.
 ============================================================================ */
 
 const AUJOURDHUI = new Date().toISOString().slice(0, 10);
@@ -244,18 +242,21 @@ const AUJOURDHUI = new Date().toISOString().slice(0, 10);
 let state = {
   suivis: [], depenses: [], devis: [], tournees: [],
   suivi: null,
-  ouverts: new Set(),      // ids de groupes dépliés sur leurs lignes
+  ouverts: null,           // null = pas encore décidé ; sinon un Set d'ids de groupes dépliés
   filtre: 'tout',
   recherche: '',
-  fiche: null,             // la dépense en cours d'édition
   vueJournal: false,
+  saisieTtc: true,
+  detail: null,            // l'id du nœud dont on liste les dépenses
 };
 
 function euros(n){ return fmtEurosDevis(n); }
 function signe(n){ return (n >= 0 ? '+' : '−') + fmtEurosDevis(Math.abs(n)); }
+function nb(v){ return devisNombre(v, 0); }
+function vide(){ return { reel: 0, engage: 0, nb: 0, nbJustif: 0, tva: 0 }; }
 
-/* Le seuil à partir duquel un écart se colore. En pourcentage OU en valeur
-   absolue, le plus permissif des deux : 5 % de 200 € ne mérite pas de rouge,
+/* Le seuil à partir duquel un écart se colore : en pourcentage OU en valeur
+   absolue, le plus permissif des deux. 5 % de 200 € ne mérite pas de rouge,
    200 € sur 100 000 € non plus. */
 function ecartAlerte(ecart, prevu){
   if(ecart <= 0) return false;
@@ -263,6 +264,13 @@ function ecartAlerte(ecart, prevu){
 }
 
 function projetDe(id){ return state.tournees.find(t=> t.id === id) || null; }
+function depensesDuSuivi(){
+  if(!state.suivi) return [];
+  return state.depenses.filter(d=> d.suiviId === state.suivi.id);
+}
+function depensesDuNoeud(id){
+  return depensesDuSuivi().filter(d=> (d.noeudId || '') === (id || ''));
+}
 
 // ---------------------------------------------------------------- chargement
 async function charger(){
@@ -279,15 +287,17 @@ async function charger(){
   state.suivi = id ? suivis.find(s=> s.id === id) || null : null;
   if(id && !state.suivi){
     document.getElementById('page').innerHTML =
-      `<div class="co-card co-pad su-vide">Ce suivi n'existe plus. <a href="suivi.html">Revenir à la liste</a>.</div>`;
+      `<div class="bloc"><p class="vide">Ce suivi n'existe plus. <a href="suivi.html">Revenir à la liste</a>.</p></div>`;
     return;
   }
+  // TOUT DÉPLIÉ D'EMBLÉE : on ouvre un suivi pour voir où va l'argent, pas pour
+  // cliquer quinze chevrons. Le bouton « Tout replier » est là pour qui veut la
+  // vue d'ensemble.
+  if(state.suivi && state.ouverts === null){
+    state.ouverts = new Set();
+    noeudsPlats(state.suivi.data || {}).forEach(n=> { if(n.niveau === 'groupe') state.ouverts.add(n.id); });
+  }
   rendre();
-}
-
-function depensesDuSuivi(){
-  if(!state.suivi) return [];
-  return state.depenses.filter(d=> d.suiviId === state.suivi.id);
 }
 
 async function enregistrerSuivi(){
@@ -301,8 +311,8 @@ async function enregistrerSuivi(){
    Le déclencheur n'est PAS « un devis client accepté » : un enregistrement
    autoproduit n'a ni client ni devis, et le budget interne est le seul
    document qui décrive ce que le projet coûte. On propose donc, par projet, le
-   document retenu — celui que tu as toi-même marqué d'une étoile —, et à
-   défaut le devis accepté, à défaut le premier budget. */
+   document retenu — celui qu'on a soi-même marqué d'une étoile —, à défaut le
+   devis accepté, à défaut le premier budget. */
 function chiffragesOuvrables(){
   const parProjet = new Map();
   state.devis.forEach(d=>{
@@ -330,12 +340,14 @@ function rendreListe(){
     const a = agregerSuivi(d, state.depenses.filter(x=> x.suiviId === s.id));
     const projet = projetDe((state.devis.find(x=> x.id === s.budgetId) || {}).tourneeId);
     const al = ecartAlerte(a.ecart, a.totalPrevu);
-    return `<a class="su-rang" href="suivi.html?id=${encodeURIComponent(s.id)}" style="text-decoration:none; color:inherit;">
-      <span class="su-nom"><b>${escapeHtml(d.titre || 'Sans titre')}</b>
-        <small>${escapeHtml([projet ? projet.nom : '', d.sourceNumero, d.figeLe ? 'arrêté le ' + d.figeLe : '', `${a.nbDepenses} dépense${a.nbDepenses > 1 ? 's' : ''}`].filter(Boolean).join(' · '))}</small></span>
-      <span class="su-num su-prevu">${euros(a.totalPrevu)}</span>
-      <span class="su-num su-reel">${a.totalReel ? euros(a.totalReel) : '—'}</span>
-      <span class="su-num su-ecart ${al ? 'alerte' : ''}">${a.totalReel ? signe(a.ecart) : '—'}</span>
+    return `<a class="ligne" href="suivi.html?id=${encodeURIComponent(s.id)}" style="text-decoration:none; color:inherit;">
+      <span class="l-nom"><span class="l-titre">${escapeHtml(d.titre || 'Sans titre')}</span>
+        <span class="l-sous">${escapeHtml([projet ? projet.nom : '', d.sourceNumero,
+          d.figeLe ? 'arrêté le ' + d.figeLe : '',
+          `${a.nbDepenses} dépense${a.nbDepenses > 1 ? 's' : ''}`].filter(Boolean).join(' · '))}</span></span>
+      <span class="l-num l-prevu">${euros(a.totalPrevu)}</span>
+      <span class="l-num l-reel">${a.nbDepenses ? euros(a.totalReel) : '<span class="vide">—</span>'}</span>
+      <span class="l-num l-ecart ${al ? 'alerte' : ''}">${a.nbDepenses ? signe(a.ecart) : '<span class="vide">—</span>'}</span>
       <span></span>
     </a>`;
   }).join('');
@@ -349,28 +361,26 @@ function rendreListe(){
       <div class="co-page-actions"><a class="co-btn secondary md" href="devis.html">Devis et budgets</a></div>
     </div>
 
-    <div class="su-table" style="margin-bottom:16px;">
-      <div class="su-tete"><span>Projet</span><span style="text-align:right;">Prévu</span>
-        <span style="text-align:right;">Réel</span><span style="text-align:right;">Différence</span><span></span></div>
-      ${lignes || `<div class="su-vide">Aucun suivi ouvert pour l'instant.</div>`}
-    </div>
+    ${state.suivis.length ? `<div class="su-tete"><span>Projet</span><span>Prévu</span><span>Réel</span><span>Différence</span><span></span></div>
+    <section class="bloc">${lignes}</section>` : ''}
 
-    <section class="co-card co-pad">
-      <h2 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:800; margin:0 0 10px;">
-        Ouvrir un suivi</h2>
+    <section class="bloc" style="margin-top:14px;">
+      <h2>Ouvrir un suivi</h2>
       ${ouvrables.length ? ouvrables.map(o=> `
-        <div class="su-jl" style="display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid var(--border);">
-          <span class="su-jnom"><b>${escapeHtml(o.doc.titre || 'Sans titre')}</b>
-            <small>${escapeHtml([o.doc.variante, o.doc.numero, typeDocDe(o.doc) === 'budget' ? 'budget interne' : (DEVIS_STATUTS[o.doc.statut] || ''), o.variantes > 1 ? `${o.variantes} variantes` : ''].filter(Boolean).join(' · '))}</small></span>
-          <span class="su-num">${euros(calculerDevis(o.doc).totalHT)}</span>
-          <button type="button" class="co-btn primary sm" data-ouvrir="${escapeAttr(o.doc.id)}">Suivre les dépenses</button>
+        <div class="jl">
+          <span class="jdate"></span>
+          <span class="jnom"><b>${escapeHtml(o.doc.titre || 'Sans titre')}</b>
+            <small>${escapeHtml([o.doc.variante, o.doc.numero,
+              typeDocDe(o.doc) === 'budget' ? 'budget interne' : (DEVIS_STATUTS[o.doc.statut] || ''),
+              o.variantes > 1 ? `${o.variantes} variantes` : ''].filter(Boolean).join(' · '))}</small></span>
+          <span class="l-num">${euros(calculerDevis(o.doc).totalHT)}</span>
+          <span class="jact"><button type="button" class="co-btn primary sm" data-ouvrir="${escapeAttr(o.doc.id)}">Suivre les dépenses</button></span>
         </div>`).join('')
-        : `<p class="su-vide" style="padding:2px 0;">Tous les chiffrages ont leur suivi. Un nouveau projet chiffré apparaîtra ici.</p>`}
-      <p class="su-note-drive">Le suivi copie l'arbre du document choisi et le fige : le prévisionnel ne bougera plus, même si le devis est retouché ensuite.</p>
+        : `<p class="vide">Tous les chiffrages ont leur suivi. Un nouveau projet chiffré apparaîtra ici.</p>`}
+      <p class="note-drive" style="margin-top:10px;">Le suivi copie l'arbre du document choisi et le fige : le prévisionnel ne bougera plus, même si le devis est retouché ensuite.</p>
     </section>
   `;
   document.querySelectorAll('[data-ouvrir]').forEach(b=> b.addEventListener('click', ()=> ouvrirSuivi(b.dataset.ouvrir, b)));
-  calerEnTete();
 }
 
 async function ouvrirSuivi(devisId, bouton){
@@ -378,8 +388,6 @@ async function ouvrirSuivi(devisId, bouton){
   if(!doc) return;
   bouton.disabled = true; bouton.textContent = 'Ouverture…';
   const data = figerSuivi(doc, { aujourdHui: AUJOURDHUI });
-  // Le devis client accepté du même projet, s'il existe : c'est lui qui porte
-  // la recette, et il datera la ligne de produit au lot 2.
   const accepte = state.devis.find(d=> d.projetId === doc.projetId && d.statut === 'accepte');
   const suivi = {
     id: genId('suivi'), projetId: doc.projetId || doc.id, budgetId: doc.id,
@@ -419,221 +427,295 @@ function rendre(){
       </div>
     </div>
 
-    <div class="su-chiffres">
-      <div class="su-chiffre"><b>${euros(a.totalPrevu)}</b><span>prévu</span>
+    <div class="chiffres">
+      <div class="chiffre"><b>${euros(a.totalPrevu)}</b><span>prévu</span>
         <small>hors frais généraux et imprévus</small></div>
-      <div class="su-chiffre"><b>${euros(a.totalReel)}</b><span>dépensé</span>
+      <div class="chiffre"><b>${euros(a.totalReel)}</b><span>dépensé</span>
         <small>${a.nbDepenses} dépense${a.nbDepenses > 1 ? 's' : ''} saisie${a.nbDepenses > 1 ? 's' : ''}</small></div>
-      <div class="su-chiffre ${alEcart ? 'alerte' : ''}"><b>${signe(a.ecart)}</b><span>différence</span>
+      <div class="chiffre ${alEcart ? 'alerte' : ''}"><b>${signe(a.ecart)}</b><span>différence</span>
         <small>${a.totalPrevu ? fmtQteDevis(Math.round(a.ecart / a.totalPrevu * 1000) / 10) + ' %' : '—'}</small></div>
-      <div class="su-chiffre ${alAtter ? 'alerte' : ''}"><b>${euros(a.atterrissage)}</b><span>atterrissage</span>
+      <div class="chiffre ${alAtter ? 'alerte' : ''}"><b>${euros(a.atterrissage)}</b><span>atterrissage</span>
         <small>où l'on finira si rien d'autre ne bouge</small></div>
     </div>
 
     ${state.vueJournal ? rendreJournal(deps, idx) : rendreTableau(d, a, idx)}
 
-    <section class="co-card co-pad" style="margin-top:14px;">
-      <h2 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:800; margin:0 0 9px;">
-        Justificatifs</h2>
-      <div class="su-drive">
+    <section class="bloc" style="margin-top:14px;">
+      <h2>Justificatifs</h2>
+      <div class="drive">
         <input type="url" id="driveUrl" placeholder="https://drive.google.com/drive/folders/…" value="${escapeAttr(d.driveUrl || '')}">
         ${d.driveUrl ? `<a class="co-btn primary sm" href="${escapeAttr(d.driveUrl)}" target="_blank" rel="noopener">Déposer un justificatif</a>` : ''}
       </div>
-      <p class="su-note-drive">Le dossier du projet, ouvert dans un onglet. Chaque dépense peut porter en plus le lien de sa pièce.
+      <p class="note-drive">Le dossier du projet, ouvert dans un onglet. Chaque dépense peut porter en plus le lien de sa pièce.
         <b>Partage-le nommément, jamais « à toute personne disposant du lien »</b> : une facture porte des IBAN, des salaires et des adresses personnelles.</p>
     </section>
   `;
-
   brancher(d, a, idx, deps);
-  calerEnTete();
+}
+
+/* Une rangée. Le même gabarit sert aux sections, aux groupes, aux lignes et
+   aux postes calculés : un nœud, trois montants, un bouton. */
+function rangHtml(n, a, d){
+  const c = a.cumul.get(n.id) || vide();
+  const soldes = new Set(d.soldes || []);
+  const ecart = c.reel - n.prevu;
+  const al = ecartAlerte(ecart, n.prevu);
+  const estCharge = n.niveau === 'calcule' && String(n.id).indexOf('calc-charges-') === 0;
+  const estImprevus = n.id === 'calc-imprevus';
+  const estFg = n.id === 'calc-fg';
+  const estFp = n.id === 'calc-fp';
+  const ouvrable = n.niveau === 'groupe' && n.nbLignes > 0;
+  const solde = soldes.has(n.id);
+  // Un nœud soldé, ou qui porte une dépense, a un réel — même à zéro.
+  const aUnReel = c.nb > 0 || estCharge || solde;
+
+  const badges = [];
+  if(n.etat === 'optionnelle') badges.push('<span class="statut-badge badge-option">Option</span>');
+  if(n.etat === 'hors_devis') badges.push('<span class="statut-badge badge-option">Hors devis</span>');
+  if(n.calcule) badges.push('<span class="statut-badge badge-calc">Calculé</span>');
+  if(solde) badges.push(`<span class="statut-badge badge-solde">${c.reel === 0 && n.prevu > 0 ? 'Internalisé' : 'Soldé'}</span>`);
+
+  let sous = '';
+  if(n.niveau === 'ligne') sous = [n.formule, n.noms].filter(Boolean).join(' · ');
+  else if(n.niveau === 'groupe') sous = `${n.nbLignes} ligne${n.nbLignes > 1 ? 's' : ''}${c.nb ? ` · ${c.nb} dépense${c.nb > 1 ? 's' : ''}` : ''}`;
+  else if(estCharge){
+    const ch = a.chargesLignes.find(x=> x.cle === n.cle);
+    sous = ch && ch.assiette
+      ? `recalculées sur les bruts réels — ${euros(ch.assiette)} × ${fmtQteDevis(ch.taux)} %`
+      : `${fmtQteDevis((d.taux || {})[n.cle] || 0)} % du brut réel — aucun brut saisi`;
+  }
+  else if(estImprevus) sous = `provision — ${euros(a.provisionRestante)} encore disponible, ${euros(a.orphelines.reel)} consommé par ${a.orphelines.nb} dépense${a.orphelines.nb > 1 ? 's' : ''} sans prévisionnel`;
+  else if(estFg) sous = 'quote-part de structure — sans facture, donc sans réel';
+  else if(estFp){
+    const fp = d.fichesPaie || {};
+    sous = fp.nb ? `${fmtQteDevis(fp.nb)} fiche${fp.nb > 1 ? 's' : ''} × ${euros(fp.prix)} au devis` : '';
+  }
+  else if(n.niveau === 'section' && c.nb) sous = `${c.nb} dépense${c.nb > 1 ? 's' : ''} posée${c.nb > 1 ? 's' : ''} sur la section`;
+
+  const saisissable = !n.calcule || n.saisissable;
+
+  return `<div class="ligne niv-${n.niveau}${ouvrable ? ' pliable' : ''}" data-noeud="${escapeAttr(n.id)}">
+    <span class="l-nom">
+      ${ouvrable ? `<button type="button" class="l-chev" data-plier="${escapeAttr(n.id)}" aria-label="Déplier">${state.ouverts && state.ouverts.has(n.id) ? '▾' : '▸'}</button>` : ''}
+      <span class="l-titre">${escapeHtml(n.titre)}${badges.join('')}</span>
+      ${sous ? `<span class="l-sous">${escapeHtml(sous)}</span>` : ''}
+    </span>
+    <span class="l-num l-prevu">${n.prevu ? euros(n.prevu) : '<span class="vide">—</span>'}${
+      n.memo ? `<small>${escapeHtml(euros(n.memo))} non retenu</small>` : ''}</span>
+    <span class="l-num l-reel ${aUnReel ? '' : 'vide'} ${c.nb ? 'cliquable' : ''}"
+      ${c.nb ? `data-detail="${escapeAttr(n.id)}" title="Voir les ${c.nb} dépense${c.nb > 1 ? 's' : ''}"` : ''}>${
+      aUnReel ? euros(c.reel) : '—'}${
+      c.engage ? `<small>dont ${euros(c.engage)} engagé</small>` : ''}${
+      c.nbJustif ? `<small>${c.nbJustif} justificatif${c.nbJustif > 1 ? 's' : ''}</small>` : ''}</span>
+    <span class="l-num l-ecart ${al ? 'alerte' : ''} ${aUnReel ? '' : 'vide'}">${
+      estImprevus || estFg ? '—' : (aUnReel ? signe(ecart) : '—')}${
+      aUnReel && n.prevu && !estImprevus && !estFg
+        ? `<small>${fmtQteDevis(Math.round(ecart / n.prevu * 1000) / 10)} %</small>` : ''}</span>
+    <span>${saisissable ? `<button type="button" class="su-plus" data-ajout="${escapeAttr(n.id)}" title="Ajouter une dépense ici">+</button>` : ''}</span>
+  </div>`;
 }
 
 function rendreTableau(d, a, idx){
-  const vide = { reel: 0, engage: 0, nb: 0, nbJustif: 0 };
-  const soldes = new Set(d.soldes || []);
   const q = state.recherche.trim().toLowerCase();
-
-  const rangs = noeudsPlats(d).filter(n=>{
-    // Les lignes ne se montrent que si leur groupe est déplié — sauf en
-    // recherche, où l'on cherche justement une ligne précise.
-    if(n.niveau === 'ligne' && !q && !state.ouverts.has(n.groupeId)) return false;
+  const garde = n=>{
+    if(n.niveau === 'ligne' && !q && !(state.ouverts && state.ouverts.has(n.groupeId))) return false;
     if(q){
       const foin = [n.titre, n.formule, n.noms].filter(Boolean).join(' ').toLowerCase();
-      if(n.niveau === 'ligne' && foin.indexOf(q) < 0) return false;
-      if(n.niveau !== 'ligne' && String(n.titre).toLowerCase().indexOf(q) < 0) return false;
+      if(foin.indexOf(q) < 0) return false;
     }
-    const c = a.cumul.get(n.id) || vide;
-    if(state.filtre === 'sansreel' && c.reel !== 0) return false;
+    const c = a.cumul.get(n.id) || vide();
+    if(state.filtre === 'sansreel' && c.nb !== 0) return false;
     if(state.filtre === 'ecart' && !(c.reel - n.prevu > 0)) return false;
     if(state.filtre === 'engage' && !c.engage) return false;
     return true;
+  };
+
+  const plats = noeudsPlats(d);
+  const cartes = [];
+
+  // Une carte par section : titre en petites capitales, total à droite.
+  (d.arbre || []).forEach(sec=>{
+    const dedans = plats.filter(n=> n.sectionId === sec.id && n.niveau !== 'section').filter(garde);
+    const tete = plats.find(n=> n.niveau === 'section' && n.id === sec.id);
+    if(!dedans.length && !garde(tete)) return;
+    const c = a.cumul.get(sec.id) || vide();
+    const ecart = c.reel - sec.prevu;
+    cartes.push(`<section class="bloc">
+      <h2>${escapeHtml(sec.titre)}
+        <span class="h2-total">${euros(sec.prevu)} <em>prévu</em>${c.nb || c.reel ? ` · ${euros(c.reel)} <em>réel</em> · ${signe(ecart)}` : ''}</span></h2>
+      ${dedans.map(n=> rangHtml(n, a, d)).join('') || '<p class="vide">Rien ne correspond au filtre dans cette section.</p>'}
+    </section>`);
   });
 
-  const corps = rangs.map(n=>{
-    const c = a.cumul.get(n.id) || vide;
-    const ecart = c.reel - n.prevu;
-    const al = ecartAlerte(ecart, n.prevu);
-    const estCharge = n.niveau === 'calcule' && String(n.id).indexOf('calc-charges-') === 0;
-    const estImprevus = n.id === 'calc-imprevus';
-    const estFg = n.id === 'calc-fg';
-    const ouvrable = n.niveau === 'groupe' && n.nbLignes > 0;
+  // Les postes calculés, à part : ils ne se saisissent pas comme les autres.
+  const calcules = plats.filter(n=> n.niveau === 'calcule').filter(garde);
+  if(calcules.length) cartes.push(`<section class="bloc">
+    <h2>Charges et coûts de production</h2>
+    ${calcules.map(n=> rangHtml(n, a, d)).join('')}
+  </section>`);
 
-    const pastilles = [];
-    if(n.etat === 'optionnelle') pastilles.push('<span class="su-pastille">Option</span>');
-    if(n.etat === 'hors_devis') pastilles.push('<span class="su-pastille">Hors devis</span>');
-    if(n.calcule) pastilles.push('<span class="su-pastille calc">Calculé</span>');
-    if(soldes.has(n.id)) pastilles.push('<span class="su-pastille solde">Soldé</span>');
-
-    let sous = '';
-    if(n.niveau === 'ligne') sous = [n.formule, n.noms].filter(Boolean).join(' · ');
-    else if(n.niveau === 'groupe') sous = `${n.nbLignes} ligne${n.nbLignes > 1 ? 's' : ''}${c.nb ? ` · ${c.nb} dépense${c.nb > 1 ? 's' : ''}` : ''}`;
-    else if(estCharge){
-      const ch = a.chargesLignes.find(x=> x.cle === n.cle);
-      sous = ch && ch.assiette
-        ? `recalculées sur les bruts réels — ${euros(ch.assiette)} × ${fmtQteDevis(ch.taux)} %`
-        : `${fmtQteDevis((d.taux || {})[n.cle] || 0)} % du brut réel — aucun brut saisi`;
-    }
-    else if(estImprevus) sous = `provision — ${euros(a.provisionRestante)} encore disponible, ${euros(a.orphelines.reel)} consommé par ${a.orphelines.nb} dépense${a.orphelines.nb > 1 ? 's' : ''} sans prévisionnel`;
-    else if(estFg) sous = 'quote-part de structure — sans facture, donc sans réel';
-
-    // Ni les charges ni les frais généraux ni les imprévus ne se saisissent.
-    const saisissable = !n.calcule || n.saisissable;
-
-    return `<div class="su-rang su-${n.niveau}${ouvrable ? ' pliable' : ''}" data-noeud="${escapeAttr(n.id)}">
-      <span class="su-nom">
-        ${ouvrable ? `<button type="button" class="su-chev" data-plier="${escapeAttr(n.id)}" aria-label="Déplier">${state.ouverts.has(n.id) ? '▾' : '▸'}</button>` : ''}
-        <b>${escapeHtml(n.titre)}${pastilles.join('')}</b>
-        ${sous ? `<small>${escapeHtml(sous)}</small>` : ''}
-      </span>
-      <span class="su-num su-prevu">${n.prevu ? euros(n.prevu) : '<span class="vide">—</span>'}${n.memo ? `<small>${escapeHtml(euros(n.memo))} non retenu</small>` : ''}</span>
-      <span class="su-num su-reel ${c.reel ? '' : 'vide'}">${c.reel || estCharge ? euros(c.reel) : '—'}${
-        c.engage ? `<small>dont ${euros(c.engage)} engagé</small>` : ''}${
-        c.nbJustif ? `<small>📎 ${c.nbJustif}</small>` : ''}</span>
-      <span class="su-num su-ecart ${al ? 'alerte' : ''} ${c.reel || estCharge ? '' : 'vide'}">${
-        estImprevus || estFg ? '—' : (c.reel || estCharge ? signe(ecart) : '—')}${
-        (c.reel || estCharge) && n.prevu && !estImprevus && !estFg
-          ? `<small>${fmtQteDevis(Math.round(ecart / n.prevu * 1000) / 10)} %</small>` : ''}</span>
-      <span>${saisissable ? `<button type="button" class="su-plus" data-ajout="${escapeAttr(n.id)}" title="Ajouter une dépense ici">+</button>` : ''}</span>
-    </div>`;
-  }).join('');
-
-  /* La rangée des dépenses sans poste obéit au filtre et à la recherche comme
-     les autres : chercher « studio » ne doit pas la laisser seule en bas de
-     l'écran, où elle passe pour un résultat. Elle reste sous « Dépassé » —
-     c'en est un — et sous « Engagé » si elle en porte. */
+  // Les dépenses sans poste. Elles obéissent au filtre et à la recherche comme
+  // les autres : chercher « studio » ne doit pas les laisser seules en bas.
   const orph = a.orphelines;
   const orphVisible = orph.nb
-    && (!q || 'dépenses sans prévisionnel ajoutées'.indexOf(q) >= 0)
+    && (!q || 'dépenses sans prévisionnel'.indexOf(q) >= 0)
     && (state.filtre === 'tout' || state.filtre === 'ecart' || (state.filtre === 'engage' && orph.engage));
-  const rangOrphelines = orphVisible ? `
-    <div class="su-rang su-calcule" data-noeud="">
-      <span class="su-nom"><b>Dépenses sans prévisionnel<span class="su-pastille ajout">Ajoutées</span></b>
-        <small>${orph.nb} dépense${orph.nb > 1 ? 's' : ''} rattachée${orph.nb > 1 ? 's' : ''} à aucun poste — c'est ce que consomme la provision d'imprévus</small></span>
-      <span class="su-num su-prevu"><span class="vide">—</span></span>
-      <span class="su-num su-reel">${euros(orph.reel)}${orph.engage ? `<small>dont ${euros(orph.engage)} engagé</small>` : ''}</span>
-      <span class="su-num su-ecart alerte">${signe(orph.reel)}</span>
+  if(orphVisible) cartes.push(`<section class="bloc">
+    <h2>Hors prévisionnel</h2>
+    <div class="ligne" data-noeud="">
+      <span class="l-nom"><span class="l-titre">Dépenses sans poste<span class="statut-badge badge-ajout">Ajoutées</span></span>
+        <span class="l-sous">${orph.nb} dépense${orph.nb > 1 ? 's' : ''} rattachée${orph.nb > 1 ? 's' : ''} à aucun poste — c'est ce qui consomme la provision d'imprévus</span></span>
+      <span class="l-num l-prevu"><span class="vide">—</span></span>
+      <span class="l-num l-reel cliquable" data-detail="">${euros(orph.reel)}${orph.engage ? `<small>dont ${euros(orph.engage)} engagé</small>` : ''}</span>
+      <span class="l-num l-ecart alerte">${signe(orph.reel)}</span>
       <span><button type="button" class="su-plus" data-ajout="" title="Ajouter une dépense sans poste">+</button></span>
-    </div>` : '';
+    </div>
+  </section>`);
 
   const alertes = [];
   if(a.horsAssiette.length){
     const somme = a.horsAssiette.reduce((s, x)=> s + x.montant, 0);
     alertes.push(`<b>${a.horsAssiette.length} dépense${a.horsAssiette.length > 1 ? 's' : ''} au régime chargeable (${euros(somme)}) est posée hors d'une section « rémunération »</b> : elle n'engendre aucune charge patronale, exactement comme au devis. Si c'est un salaire, rattache-la à une ligne de rémunération ; sinon, mets son régime à « sans charges ».`);
   }
-  if((d.optionsNonLevees || {}).nb) {
+  if((d.optionsNonLevees || {}).nb){
     alertes.push(`${d.optionsNonLevees.nb} ligne${d.optionsNonLevees.nb > 1 ? 's' : ''} optionnelle${d.optionsNonLevees.nb > 1 ? 's' : ''} (${euros(d.optionsNonLevees.montant)}) ${d.optionsNonLevees.nb > 1 ? 'sont' : 'est'} chiffrée${d.optionsNonLevees.nb > 1 ? 's' : ''} hors total. Une option levée coûte son montant <b>plus</b> ses charges et ses frais généraux.`);
   }
   if(d.remiseEcartee) alertes.push(`Une remise de ${euros(d.remiseEcartee)} figure au devis : c'est une réduction de prix consentie au client, elle n'entre pas dans un suivi de dépenses.`);
 
   return `
-    <div class="su-barre">
-      <button type="button" class="su-filtre" data-filtre="tout" aria-pressed="${state.filtre === 'tout'}">Tout</button>
-      <button type="button" class="su-filtre" data-filtre="sansreel" aria-pressed="${state.filtre === 'sansreel'}">Sans réel</button>
-      <button type="button" class="su-filtre" data-filtre="ecart" aria-pressed="${state.filtre === 'ecart'}">Dépassé</button>
-      <button type="button" class="su-filtre" data-filtre="engage" aria-pressed="${state.filtre === 'engage'}">Engagé</button>
-      <input type="search" class="su-recherche" id="rech" placeholder="Chercher un poste…" value="${escapeAttr(state.recherche)}">
-      <button type="button" class="su-filtre" id="btnTout">${state.ouverts.size ? 'Tout replier' : 'Tout déplier'}</button>
+    <div class="barre">
+      <button type="button" class="filtre" data-filtre="tout" aria-pressed="${state.filtre === 'tout'}">Tout</button>
+      <button type="button" class="filtre" data-filtre="sansreel" aria-pressed="${state.filtre === 'sansreel'}">Sans réel</button>
+      <button type="button" class="filtre" data-filtre="ecart" aria-pressed="${state.filtre === 'ecart'}">Dépassé</button>
+      <button type="button" class="filtre" data-filtre="engage" aria-pressed="${state.filtre === 'engage'}">Engagé</button>
+      <input type="search" class="recherche" id="rech" placeholder="Chercher un poste…" value="${escapeAttr(state.recherche)}">
+      <button type="button" class="filtre" id="btnTout">${state.ouverts && state.ouverts.size ? 'Tout replier' : 'Tout déplier'}</button>
     </div>
 
-    <div class="su-table">
-      <div class="su-tete"><span>Poste</span><span style="text-align:right;">Prévu</span>
-        <span style="text-align:right;">Réel</span><span style="text-align:right;">Différence</span><span></span></div>
-      ${corps || `<div class="su-vide">Aucun poste ne correspond à ce filtre.</div>`}
-      ${rangOrphelines}
-      <div class="su-pied">
-        <div class="su-rang">
-          <span class="su-nom"><b>Total</b><small>hors frais généraux et imprévus, remise exclue</small></span>
-          <span class="su-num su-prevu">${euros(a.totalPrevu)}</span>
-          <span class="su-num su-reel">${euros(a.totalReel)}</span>
-          <span class="su-num su-ecart ${ecartAlerte(a.ecart, a.totalPrevu) ? 'alerte' : ''}">${signe(a.ecart)}</span>
-          <span></span>
-        </div>
-        <div class="su-rang">
-          <span class="su-nom"><b>Atterrissage</b><small>pour chaque groupe, le plus élevé du prévu et du dépensé, plus les charges, les frais généraux, ce qui a été dépensé sans prévisionnel et ce qui reste de la provision</small></span>
-          <span class="su-num su-prevu">${euros(d.totalPrevu)}</span>
-          <span class="su-num su-reel">${euros(a.atterrissage)}</span>
-          <span class="su-num su-ecart ${a.atterrissage > d.totalPrevu + 200 ? 'alerte' : ''}">${signe(a.atterrissage - d.totalPrevu)}</span>
-          <span></span>
-        </div>
-        <div class="su-rang">
-          <span class="su-nom"><b>TVA payée</b><small>elle ne se compare pas au devis, qui calcule une TVA collectée sur une cession</small></span>
-          <span class="su-num su-prevu"><span class="vide">—</span></span>
-          <span class="su-num su-reel">${euros(a.tvaTotale)}</span>
-          <span class="su-num su-ecart"><span class="vide">—</span></span>
-          <span></span>
-        </div>
+    <div class="su-tete"><span>Poste</span><span>Prévu</span><span>Réel</span><span>Différence</span><span></span></div>
+    ${cartes.join('') || `<section class="bloc"><p class="vide">Aucun poste ne correspond à ce filtre.</p></section>`}
+
+    <section class="bloc pied">
+      <h2>Où en est le projet</h2>
+      <div class="ligne">
+        <span class="l-nom"><span class="l-titre">Total</span>
+          <span class="l-sous">hors frais généraux et imprévus, remise exclue</span></span>
+        <span class="l-num l-prevu">${euros(a.totalPrevu)}</span>
+        <span class="l-num l-reel">${euros(a.totalReel)}</span>
+        <span class="l-num l-ecart ${ecartAlerte(a.ecart, a.totalPrevu) ? 'alerte' : ''}">${signe(a.ecart)}</span>
+        <span></span>
       </div>
-      <div class="su-avert">
-        <b>Ce tableau ne suit que les dépenses.</b> Cession, subventions, coproductions et billetterie n'y sont pas :
-        l'écart affiché n'est donc pas le résultat du projet. Les recettes arrivent au prochain lot.
-        ${alertes.length ? '<br><br>' + alertes.join('<br><br>') : ''}
+      <div class="ligne">
+        <span class="l-nom"><span class="l-titre">Atterrissage</span>
+          <span class="l-sous">pour chaque poste, le plus élevé du prévu et du dépensé — un poste soldé n'annonce que son réel — plus les charges, les frais généraux, ce qui a été dépensé sans prévisionnel et ce qui reste de la provision</span></span>
+        <span class="l-num l-prevu">${euros(d.totalPrevu)}</span>
+        <span class="l-num l-reel">${euros(a.atterrissage)}</span>
+        <span class="l-num l-ecart ${a.atterrissage > d.totalPrevu + 200 ? 'alerte' : ''}">${signe(a.atterrissage - d.totalPrevu)}</span>
+        <span></span>
       </div>
-    </div>`;
+      <div class="ligne">
+        <span class="l-nom"><span class="l-titre">TVA payée</span>
+          <span class="l-sous">elle ne se compare pas au devis, qui calcule une TVA collectée sur une cession</span></span>
+        <span class="l-num l-prevu"><span class="vide">—</span></span>
+        <span class="l-num l-reel">${euros(a.tvaTotale)}</span>
+        <span class="l-num l-ecart"><span class="vide">—</span></span>
+        <span></span>
+      </div>
+      <p class="avert"><b>Ce tableau ne suit que les dépenses.</b> Cession, subventions, coproductions et billetterie n'y sont pas :
+        l'écart affiché n'est donc pas le résultat du projet. Les recettes arrivent au prochain lot.</p>
+      ${alertes.map(x=> `<p class="avert">${x}</p>`).join('')}
+    </section>`;
+}
+
+// ---------------------------------------------------------------- le journal
+function nomNoeud(idx, id){
+  const c = idx.get(id);
+  if(!c) return 'sans poste';
+  if(c.niveau === 'ligne') return c.ligne.intitule || 'ligne sans intitulé';
+  if(c.niveau === 'groupe') return c.groupe.titre || 'groupe sans titre';
+  if(c.niveau === 'calcule') return c.calcule.titre;
+  return c.section.titre;
+}
+
+function ligneJournal(dep, idx){
+  const detail = dep.quantite != null && dep.prixUnitaire != null
+    ? `${fmtQteDevis(dep.quantite)} × ${euros(dep.prixUnitaire)}` : '';
+  return `<div class="jl">
+    <span class="jdate">${escapeHtml(dep.dateDepense || '—')}</span>
+    <span class="jnom"><b>${escapeHtml(dep.libelle || 'Sans libellé')}</b>
+      <small>${escapeHtml([dep.fournisseur, nomNoeud(idx, dep.noeudId), detail,
+        dep.statut === 'engage' ? 'engagé' : ''].filter(Boolean).join(' · '))}</small></span>
+    <span class="l-num">${euros(dep.montantHt)}${dep.montantTva ? `<small>+ ${euros(dep.montantTva)} TVA</small>` : ''}</span>
+    <span class="jact">
+      ${dep.justificatifUrl ? `<a class="mini" href="${escapeAttr(dep.justificatifUrl)}" target="_blank" rel="noopener" title="Justificatif">Pièce</a>` : ''}
+      <button type="button" class="mini" data-modif="${escapeAttr(dep.id)}">Modifier</button>
+      <button type="button" class="mini danger" data-suppr="${escapeAttr(dep.id)}">Retirer</button>
+    </span>
+  </div>`;
 }
 
 function rendreJournal(deps, idx){
-  const nomNoeud = id=>{
-    const c = idx.get(id);
-    if(!c) return 'sans poste';
-    if(c.niveau === 'ligne') return c.ligne.intitule || 'ligne sans intitulé';
-    if(c.niveau === 'groupe') return c.groupe.titre || 'groupe sans titre';
-    if(c.niveau === 'calcule') return c.calcule.titre;
-    return c.section.titre;
-  };
+  const q = state.recherche.trim().toLowerCase();
   const tri = deps.slice().sort((a, b)=> String(b.dateDepense || '').localeCompare(String(a.dateDepense || ''))
     || String(b.id).localeCompare(String(a.id)));
-  return `<section class="co-card co-pad su-journal">
-    <input type="search" class="su-recherche" id="rechJ" placeholder="Chercher une dépense…" value="${escapeAttr(state.recherche)}" style="margin-bottom:10px; width:100%;">
-    ${tri.filter(dep=>{
-      const q = state.recherche.trim().toLowerCase();
-      if(!q) return true;
-      return [dep.libelle, dep.fournisseur, dep.note, nomNoeud(dep.noeudId)].filter(Boolean).join(' ').toLowerCase().indexOf(q) >= 0;
-    }).map(dep=> `
-      <div class="su-jl">
-        <span class="su-jdate">${escapeHtml(dep.dateDepense || '—')}</span>
-        <span class="su-jnom"><b>${escapeHtml(dep.libelle || 'Sans libellé')}</b>
-          <small>${escapeHtml([dep.fournisseur, nomNoeud(dep.noeudId), dep.statut === 'engage' ? 'engagé' : ''].filter(Boolean).join(' · '))}</small></span>
-        <span class="su-num">${euros(dep.montantHt)}${dep.montantTva ? `<small>+ ${euros(dep.montantTva)} TVA</small>` : ''}</span>
-        <span class="su-jact">
-          ${dep.justificatifUrl ? `<a class="su-mini" href="${escapeAttr(dep.justificatifUrl)}" target="_blank" rel="noopener">📎</a>` : ''}
-          <button type="button" class="su-mini" data-modif="${escapeAttr(dep.id)}">Modifier</button>
-          <button type="button" class="su-mini danger" data-suppr="${escapeAttr(dep.id)}">Retirer</button>
-        </span>
-      </div>`).join('') || `<p class="su-vide">Aucune dépense saisie.</p>`}
+  const gardes = tri.filter(dep=> !q
+    || [dep.libelle, dep.fournisseur, dep.note, nomNoeud(idx, dep.noeudId)].filter(Boolean).join(' ').toLowerCase().indexOf(q) >= 0);
+  return `<section class="bloc">
+    <h2>Journal des dépenses<span class="h2-total">${gardes.length} ligne${gardes.length > 1 ? 's' : ''}</span></h2>
+    <input type="search" class="recherche" id="rechJ" placeholder="Chercher une dépense…" value="${escapeAttr(state.recherche)}" style="width:100%; margin-bottom:8px;">
+    ${gardes.map(dep=> ligneJournal(dep, idx)).join('') || `<p class="vide">Aucune dépense saisie.</p>`}
   </section>`;
 }
 
+/* Les dépenses d'un poste, dépliées sous la ligne : c'est là qu'on corrige une
+   erreur de frappe ou qu'on retire une facture saisie deux fois. On y arrive
+   en cliquant le montant réel, qui est justement ce qu'on trouve suspect. */
+function ouvrirDetail(noeudId){
+  fermerDetail();
+  state.detail = noeudId;
+  const idx = indexerNoeuds(state.suivi.data || {});
+  const liste = depensesDuNoeud(noeudId);
+  const rang = document.querySelector(`.ligne[data-noeud="${CSS.escape(noeudId || '')}"]`);
+  if(!rang) return;
+  const boite = document.createElement('div');
+  boite.className = 'bloc';
+  boite.id = 'detailNoeud';
+  boite.style.cssText = 'margin:2px 0 10px; background:var(--bg);';
+  boite.innerHTML = `<h2>${escapeHtml(nomNoeud(idx, noeudId))}
+      <span class="h2-total">${liste.length} dépense${liste.length > 1 ? 's' : ''}</span></h2>
+    ${liste.map(dep=> ligneJournal(dep, idx)).join('')}
+    <div style="padding:8px 0 10px;"><button type="button" class="mini" id="fermerDetail">Fermer</button></div>`;
+  rang.insertAdjacentElement('afterend', boite);
+  boite.querySelectorAll('[data-modif]').forEach(b=> b.addEventListener('click', ()=>{
+    const dep = state.depenses.find(x=> x.id === b.dataset.modif);
+    if(dep) ouvrirFiche(Object.assign({}, dep));
+  }));
+  boite.querySelectorAll('[data-suppr]').forEach(b=> b.addEventListener('click', ()=> retirer(b.dataset.suppr)));
+  document.getElementById('fermerDetail').addEventListener('click', ()=>{ fermerDetail(); state.detail = null; });
+}
+function fermerDetail(){
+  const b = document.getElementById('detailNoeud');
+  if(b) b.remove();
+}
+
 // ---------------------------------------------------------------- la saisie
-/* La carte de saisie. Quatre gestes : viser le poste, taper le montant, taper
-   le libellé, valider. Tout le reste est facultatif et pré-rempli.
-   On saisit en TTC par défaut — c'est ce qui est écrit sur la facture qu'on a
-   dans la main — et la TVA se déduit du taux. Les deux nombres restent
-   modifiables séparément : une facture d'hôtel mêle 10 % et 20 %. */
-function fiche(dep, idx, data){
-  const cible = dep.noeudId ? idx.get(dep.noeudId) : null;
-  const nomCible = !cible ? 'Aucun poste — comptée dans les dépenses sans prévisionnel'
-    : cible.niveau === 'ligne' ? `${cible.section.titre} › ${cible.groupe.titre || 'sans titre'} › ${cible.ligne.intitule}`
-    : cible.niveau === 'groupe' ? `${cible.section.titre} › ${cible.groupe.titre || 'sans titre'}`
+/* La fiche. Deux façons de chiffrer une dépense, et il faut les deux :
+   — UNE FACTURE GLOBALE : un montant, point. C'est le cas le plus courant.
+   — UNE QUANTITÉ × UN PRIX UNITAIRE : 330 repas à 20 €, 85 fiches de paie à
+     28 €, 12 nuitées à 95 €. Le montant en découle et ne se tape pas.
+   Le mode se choisit d'un bouton, et la dépense garde le détail : le journal et
+   l'export le restituent, la compta le lit sans se demander d'où sort le total.
+
+   ZÉRO EURO EST UNE RÉPONSE VALABLE. Un poste facturé au client mais assuré en
+   interne coûte 0 € : il faut pouvoir l'écrire, avec un libellé qui le dit. La
+   case « rien de plus à dépenser ici » fait alors tomber l'atterrissage du
+   poste à son réel — sans elle, il continuerait d'annoncer son prévisionnel
+   jusqu'à la clôture. */
+function contexteNoeud(idx, noeudId){
+  const cible = noeudId ? idx.get(noeudId) : null;
+  const nom = !cible ? 'Aucun poste — comptée dans les dépenses sans prévisionnel'
+    : cible.niveau === 'ligne' ? `${cible.section.titre} › ${cible.groupe.titre || 'Autres lignes'} › ${cible.ligne.intitule}`
+    : cible.niveau === 'groupe' ? `${cible.section.titre} › ${cible.groupe.titre || 'Autres lignes'}`
     : cible.niveau === 'calcule' ? cible.calcule.titre
     : cible.section.titre;
   const prevu = !cible ? 0
@@ -641,55 +723,91 @@ function fiche(dep, idx, data){
     : cible.niveau === 'groupe' ? cible.groupe.prevu
     : cible.niveau === 'calcule' ? cible.calcule.prevu
     : cible.section.prevu;
+  return { cible, nom, prevu };
+}
+
+function ficheHtml(dep, idx, data){
+  const { cible, nom, prevu } = contexteNoeud(idx, dep.noeudId);
   const reg = regimeEffectif(dep, cible);
   const chargeable = DEVIS_REGIMES_CHARGES.indexOf(reg) >= 0;
-  const heriteRegime = !dep.regime && cible && cible.niveau === 'ligne';
+  const herite = !dep.regime && cible && cible.niveau === 'ligne';
+  const detaille = dep._mode === 'quantite' || (dep._mode == null && dep.quantite != null && dep.prixUnitaire != null);
+  const solde = new Set(data.soldes || []).has(dep.noeudId || '');
+  const ttc = state.saisieTtc !== false;
+  const valMontant = dep.montantHt || dep.montantTva
+    ? String(Math.round((ttc ? dep.montantHt + dep.montantTva : dep.montantHt) * 100) / 100).replace('.', ',') : '';
 
-  return `<div class="su-voile" id="voile">
-    <div class="su-fiche" role="dialog" aria-label="Saisir une dépense">
+  return `<div class="voile" id="voile">
+    <div class="fiche" role="dialog" aria-label="Saisir une dépense">
       <h3>${dep._neuve ? 'Nouvelle dépense' : 'Modifier la dépense'}</h3>
-      <p class="cible">${escapeHtml(nomCible)}${prevu ? ` — prévu ${euros(prevu)}` : ''}</p>
+      <p class="cible">${escapeHtml(nom)}${prevu ? ` — prévu ${euros(prevu)}` : ''}</p>
 
-      <div class="su-bascule">
-        <button type="button" data-saisie="ttc" aria-pressed="${state.saisieTtc !== false}">Je tape le TTC</button>
-        <button type="button" data-saisie="ht" aria-pressed="${state.saisieTtc === false}">Je tape le HT</button>
+      <div class="bascule">
+        <button type="button" data-mode="global" aria-pressed="${!detaille}">Facture globale</button>
+        <button type="button" data-mode="quantite" aria-pressed="${detaille}">Quantité × prix</button>
       </div>
 
-      <div class="su-champs">
-        <div class="su-champ"><label for="fMontant">${state.saisieTtc !== false ? 'Montant TTC' : 'Montant HT'}</label>
-          <input type="text" inputmode="decimal" id="fMontant" value="${dep.montantHt || dep.montantTva ? escapeAttr(String(state.saisieTtc !== false ? dep.montantHt + dep.montantTva : dep.montantHt).replace('.', ',')) : ''}" placeholder="0,00"></div>
-        <div class="su-champ"><label for="fTva">TVA (${fmtQteDevis(data.tvaDefaut)} % par défaut)</label>
-          <input type="text" inputmode="decimal" id="fTva" value="${dep.montantTva ? escapeAttr(String(dep.montantTva).replace('.', ',')) : ''}" placeholder="0,00"></div>
-        <div class="su-champ large"><label for="fLibelle">Libellé</label>
-          <input type="text" id="fLibelle" value="${escapeAttr(dep.libelle || '')}" list="listeLibelles" placeholder="Tourbus, hôtel, cachets J1…"></div>
-        <div class="su-champ"><label for="fFournisseur">Fournisseur</label>
+      ${detaille ? `
+        <div class="champs">
+          <div class="champ"><label for="fQte">Nombre</label>
+            <input type="text" inputmode="decimal" id="fQte" value="${dep.quantite != null ? escapeAttr(String(dep.quantite).replace('.', ',')) : ''}" placeholder="85"></div>
+          <div class="champ"><label for="fPu">Prix unitaire HT</label>
+            <input type="text" inputmode="decimal" id="fPu" value="${dep.prixUnitaire != null ? escapeAttr(String(dep.prixUnitaire).replace('.', ',')) : ''}" placeholder="28,00"></div>
+          <div class="champ"><label for="fMontant">Montant HT</label>
+            <input type="text" id="fMontant" value="${dep.montantHt ? escapeAttr(String(dep.montantHt).replace('.', ',')) : ''}" disabled></div>
+          <div class="champ"><label for="fTva">TVA (${fmtQteDevis(data.tvaDefaut)} % par défaut)</label>
+            <input type="text" inputmode="decimal" id="fTva" value="${dep.montantTva ? escapeAttr(String(dep.montantTva).replace('.', ',')) : ''}" placeholder="0,00"></div>
+        </div>` : `
+        <div class="bascule">
+          <button type="button" data-saisie="ttc" aria-pressed="${ttc}">Je tape le TTC</button>
+          <button type="button" data-saisie="ht" aria-pressed="${!ttc}">Je tape le HT</button>
+        </div>
+        <div class="champs">
+          <div class="champ"><label for="fMontant">${ttc ? 'Montant TTC' : 'Montant HT'}</label>
+            <input type="text" inputmode="decimal" id="fMontant" value="${valMontant}" placeholder="0,00"></div>
+          <div class="champ"><label for="fTva">TVA (${fmtQteDevis(data.tvaDefaut)} % par défaut)</label>
+            <input type="text" inputmode="decimal" id="fTva" value="${dep.montantTva ? escapeAttr(String(dep.montantTva).replace('.', ',')) : ''}" placeholder="0,00"></div>
+        </div>`}
+
+      <div class="champs" style="margin-top:10px;">
+        <div class="champ large"><label for="fLibelle">Libellé</label>
+          <input type="text" id="fLibelle" value="${escapeAttr(dep.libelle || '')}" list="listeLibelles" placeholder="Tourbus, hôtel, cachets J1, poste internalisé…"></div>
+        <div class="champ"><label for="fFournisseur">Fournisseur</label>
           <input type="text" id="fFournisseur" value="${escapeAttr(dep.fournisseur || '')}" list="listeFournisseurs"></div>
-        <div class="su-champ"><label for="fDate">Date</label>
+        <div class="champ"><label for="fDate">Date</label>
           <input type="date" id="fDate" value="${escapeAttr(dep.dateDepense || '')}"></div>
-        <div class="su-champ"><label for="fStatut">État</label>
+        <div class="champ"><label for="fStatut">État</label>
           <select id="fStatut">
             <option value="paye" ${dep.statut === 'paye' ? 'selected' : ''}>Payé</option>
             <option value="engage" ${dep.statut === 'engage' ? 'selected' : ''}>Engagé — contrat signé, pas encore payé</option>
           </select></div>
-        <div class="su-champ"><label for="fRegime">Régime de charges</label>
+        <div class="champ"><label for="fRegime">Régime de charges</label>
           <select id="fRegime">
-            <option value="">${heriteRegime ? `Celui de la ligne — ${escapeHtml((DEVIS_REGIMES.find(r=> r[0] === reg) || [,'sans charges'])[1])}` : 'Sans charges'}</option>
+            <option value="">${herite ? `Celui de la ligne — ${escapeHtml((DEVIS_REGIMES.find(r=> r[0] === reg) || [,'sans charges'])[1])}` : 'Sans charges'}</option>
             ${DEVIS_REGIMES.map(r=> `<option value="${r[0]}" ${dep.regime === r[0] ? 'selected' : ''}>${escapeHtml(r[1])}</option>`).join('')}
           </select></div>
-        <div class="su-champ large"><label for="fJustif">Lien du justificatif sur le Drive</label>
+        <div class="champ large"><label for="fJustif">Lien du justificatif sur le Drive</label>
           <input type="url" id="fJustif" value="${escapeAttr(dep.justificatifUrl || '')}" placeholder="https://drive.google.com/file/…"></div>
-        <div class="su-champ large"><label for="fNote">Note</label>
+        <div class="champ large"><label for="fNote">Note</label>
           <input type="text" id="fNote" value="${escapeAttr(dep.note || '')}"></div>
       </div>
 
-      ${chargeable ? `<div class="su-garde">Ce poste porte des charges patronales (${fmtQteDevis((data.taux || {})[reg] || 0)} %).
+      ${chargeable ? `<div class="garde">Ce poste porte des charges patronales (${fmtQteDevis((data.taux || {})[reg] || 0)} %).
         Saisis le <b>brut employeur</b> : les charges sont recalculées toutes seules et s'affichent sur leur propre rangée.</div>` : ''}
       <div id="fGarde"></div>
 
-      <div class="su-fiche-actions">
+      ${dep.noeudId ? `<label class="coche">
+        <input type="checkbox" id="fSolde" ${solde ? 'checked' : ''}>
+        <span><b>Rien de plus à dépenser sur ce poste</b>
+        Son atterrissage tombe à ce qui a été réellement dépensé. À cocher pour un poste terminé,
+        ou facturé au client et assuré en interne — il coûte alors 0 €, et l'écart est une marge.</span>
+      </label>` : ''}
+
+      <div class="fiche-actions">
         <button type="button" class="co-btn primary md" id="fValider">${dep._neuve ? 'Ajouter' : 'Enregistrer'}</button>
         <button type="button" class="co-btn ghost md" id="fAnnuler">Annuler</button>
-        ${!dep._neuve ? `<button type="button" class="su-mini" id="fNomFichier" style="margin-left:auto;">Copier le nom de fichier</button>` : ''}
+        ${!dep._neuve ? `<button type="button" class="mini" id="fNomFichier">Copier le nom de fichier</button>
+          <button type="button" class="mini danger" id="fRetirer" style="margin-left:auto;">Retirer cette dépense</button>` : ''}
       </div>
     </div>
     <datalist id="listeLibelles">${[...new Set(state.depenses.map(x=> x.libelle).filter(Boolean))].map(x=> `<option value="${escapeAttr(x)}">`).join('')}</datalist>
@@ -698,11 +816,17 @@ function fiche(dep, idx, data){
 }
 
 function ouvrirFiche(dep){
-  state.fiche = dep;
+  fermerFiche();
   const d = state.suivi.data || {};
   const idx = indexerNoeuds(d);
+  // Les fiches de paie se comptent : la fiche s'ouvre déjà en « quantité ×
+  // prix », avec le prix unitaire du devis.
+  if(dep.noeudId === 'calc-fp' && dep._neuve && dep.quantite == null){
+    dep._mode = 'quantite';
+    dep.prixUnitaire = (d.fichesPaie || {}).prix || null;
+  }
   const hote = document.createElement('div');
-  hote.innerHTML = fiche(dep, idx, d);
+  hote.innerHTML = ficheHtml(dep, idx, d);
   document.body.appendChild(hote.firstElementChild);
   brancherFiche(dep, idx, d);
 }
@@ -710,63 +834,55 @@ function ouvrirFiche(dep){
 function fermerFiche(){
   const v = document.getElementById('voile');
   if(v) v.remove();
-  state.fiche = null;
 }
 
-function nombreSaisi(v){ return devisNombre(v, 0); }
-
 function brancherFiche(dep, idx, data){
-  const cible = dep.noeudId ? idx.get(dep.noeudId) : null;
-  const prevu = !cible ? 0
-    : cible.niveau === 'ligne' ? cible.ligne.prevu
-    : cible.niveau === 'groupe' ? cible.groupe.prevu
-    : cible.niveau === 'calcule' ? cible.calcule.prevu
-    : cible.section.prevu;
-
+  const { cible, prevu } = contexteNoeud(idx, dep.noeudId);
+  const detaille = !!document.getElementById('fQte');
   const champMontant = document.getElementById('fMontant');
   const champTva = document.getElementById('fTva');
+  const champQte = document.getElementById('fQte');
+  const champPu = document.getElementById('fPu');
   const garde = document.getElementById('fGarde');
 
-  // La TVA se déduit du taux du devis tant qu'on ne l'a pas touchée à la main.
   let tvaTouchee = !!dep.montantTva;
   champTva.addEventListener('input', ()=> { tvaTouchee = true; });
 
   function ht(){
-    const saisi = nombreSaisi(champMontant.value);
-    if(state.saisieTtc === false) return saisi;
-    return saisi - nombreSaisi(champTva.value);
+    if(detaille) return Math.round(nb(champQte.value) * nb(champPu.value) * 100) / 100;
+    const saisi = nb(champMontant.value);
+    return state.saisieTtc === false ? saisi : saisi - nb(champTva.value);
   }
   function majTva(){
     if(tvaTouchee) return;
-    const saisi = nombreSaisi(champMontant.value);
-    if(!saisi){ champTva.value = ''; return; }
+    const base = detaille ? ht() : nb(champMontant.value);
+    if(!base){ champTva.value = ''; return; }
     const taux = devisNombre(data.tvaDefaut, 20);
-    const tva = state.saisieTtc === false ? saisi * taux / 100 : saisi - saisi / (1 + taux / 100);
+    const tva = (detaille || state.saisieTtc === false) ? base * taux / 100 : base - base / (1 + taux / 100);
     champTva.value = String(Math.round(tva * 100) / 100).replace('.', ',');
   }
   function majGarde(){
     const reg = document.getElementById('fRegime').value || regimeEffectif({ regime: '' }, cible);
     const msg = alerteBrutCharge(ht(), prevu, reg, data.taux);
-    garde.innerHTML = msg ? `<div class="su-garde">${escapeHtml(msg)}</div>` : '';
+    garde.innerHTML = msg ? `<div class="garde">${escapeHtml(msg)}</div>` : '';
   }
-  champMontant.addEventListener('input', ()=> { majTva(); majGarde(); });
+  function majCalcul(){
+    if(detaille) champMontant.value = String(ht()).replace('.', ',');
+    majTva(); majGarde();
+  }
+  [champMontant, champQte, champPu].forEach(c=> c && c.addEventListener('input', majCalcul));
   document.getElementById('fRegime').addEventListener('change', majGarde);
   majGarde();
 
-  document.querySelectorAll('[data-saisie]').forEach(b=> b.addEventListener('click', ()=>{
-    state.saisieTtc = b.dataset.saisie === 'ttc';
-    try{ localStorage.setItem('curieux-suivi-ttc', state.saisieTtc ? '1' : '0'); }catch(e){}
-    const courant = { ...lireFiche(dep), _neuve: dep._neuve };
-    fermerFiche(); ouvrirFiche(courant);
-  }));
-
-  function lireFiche(base){
+  function lire(base){
     return Object.assign({}, base, {
       libelle: document.getElementById('fLibelle').value.trim(),
       fournisseur: document.getElementById('fFournisseur').value.trim(),
       dateDepense: document.getElementById('fDate').value || '',
       montantHt: Math.round(ht() * 100) / 100,
-      montantTva: Math.round(nombreSaisi(champTva.value) * 100) / 100,
+      montantTva: Math.round(nb(champTva.value) * 100) / 100,
+      quantite: detaille && champQte.value.trim() !== '' ? nb(champQte.value) : null,
+      prixUnitaire: detaille && champPu.value.trim() !== '' ? nb(champPu.value) : null,
       regime: document.getElementById('fRegime').value,
       statut: document.getElementById('fStatut').value,
       justificatifUrl: document.getElementById('fJustif').value.trim(),
@@ -774,55 +890,98 @@ function brancherFiche(dep, idx, data){
     });
   }
 
+  // Changer de mode ne doit pas perdre ce qui est déjà tapé.
+  document.querySelectorAll('[data-mode]').forEach(b=> b.addEventListener('click', ()=>{
+    const courant = lire(dep);
+    courant._mode = b.dataset.mode;
+    courant._neuve = dep._neuve;
+    ouvrirFiche(courant);
+  }));
+  document.querySelectorAll('[data-saisie]').forEach(b=> b.addEventListener('click', ()=>{
+    state.saisieTtc = b.dataset.saisie === 'ttc';
+    try{ localStorage.setItem('curieux-suivi-ttc', state.saisieTtc ? '1' : '0'); }catch(e){}
+    const courant = lire(dep);
+    courant._neuve = dep._neuve;
+    ouvrirFiche(courant);
+  }));
+
+  async function majSolde(){
+    const coche = document.getElementById('fSolde');
+    if(!coche || !dep.noeudId) return false;
+    const soldes = new Set(state.suivi.data.soldes || []);
+    const avant = soldes.has(dep.noeudId);
+    if(coche.checked === avant) return false;
+    if(coche.checked) soldes.add(dep.noeudId); else soldes.delete(dep.noeudId);
+    state.suivi.data.soldes = [...soldes];
+    await enregistrerSuivi();
+    return true;
+  }
+
   async function valider(rouvrir){
-    const neuve = lireFiche(dep);
-    delete neuve._neuve;
-    if(!neuve.montantHt && !neuve.montantTva){ champMontant.focus(); return; }
+    const neuve = lire(dep);
+    delete neuve._neuve; delete neuve._mode;
+    // ZÉRO EST UNE RÉPONSE, à condition de dire laquelle : un montant nul sans
+    // libellé est une fiche ouverte par mégarde, pas un poste internalisé.
+    if(!neuve.montantHt && !neuve.montantTva && !neuve.libelle){
+      document.getElementById('fLibelle').focus();
+      garde.innerHTML = `<div class="garde">Un montant de 0 € demande un libellé — « poste internalisé », « pris en charge par le client »… — sans quoi on ne saura pas, dans six mois, si c'est une décision ou un oubli.</div>`;
+      return;
+    }
     const { error } = await CurieuxDB.upsertOne('depenses', neuve);
     if(error){ alert("La dépense n'a pas pu être enregistrée :\n\n" + error.message); return; }
     const i = state.depenses.findIndex(x=> x.id === neuve.id);
     if(i >= 0) state.depenses[i] = neuve; else state.depenses.push(neuve);
+    await majSolde();
     fermerFiche();
     rendre();
-    // Enchaîner : la carte se rouvre vide sur le même poste. C'est le geste
-    // qu'on répète trente fois avec une pile de factures.
     if(rouvrir) ouvrirFiche(Object.assign(nouvelleDepense(state.suivi.id, dep.noeudId, AUJOURDHUI), { _neuve: true }));
   }
 
   document.getElementById('fValider').addEventListener('click', ()=> valider(false));
-  document.getElementById('fAnnuler').addEventListener('click', fermerFiche);
+  document.getElementById('fAnnuler').addEventListener('click', async ()=>{
+    // La case « soldé » décrit le POSTE, pas la dépense : elle vaut même si
+    // l'on renonce à saisir quoi que ce soit.
+    if(await majSolde()){ fermerFiche(); rendre(); return; }
+    fermerFiche();
+  });
   document.getElementById('voile').addEventListener('click', e=>{ if(e.target.id === 'voile') fermerFiche(); });
-  document.querySelectorAll('.su-fiche input').forEach(i=> i.addEventListener('keydown', e=>{
+  document.querySelectorAll('.fiche input:not([type="checkbox"])').forEach(i=> i.addEventListener('keydown', e=>{
     if(e.key === 'Enter'){ e.preventDefault(); valider(dep._neuve); }
   }));
   const nomBtn = document.getElementById('fNomFichier');
   if(nomBtn) nomBtn.addEventListener('click', async ()=>{
-    const nom = nomFichierJustificatif(lireFiche(dep));
+    const nom = nomFichierJustificatif(lire(dep));
     try{ await navigator.clipboard.writeText(nom); nomBtn.textContent = 'Copié : ' + nom; }
     catch(e){ nomBtn.textContent = nom; }
   });
-  document.getElementById('fLibelle').focus();
+  const retirerBtn = document.getElementById('fRetirer');
+  if(retirerBtn) retirerBtn.addEventListener('click', ()=>{ fermerFiche(); retirer(dep.id); });
+  document.getElementById(detaille ? 'fQte' : 'fMontant').focus();
 }
 
 // ---------------------------------------------------------------- branchements
 function brancher(d, a, idx, deps){
-  // Le chevron ET l'intitulé déplient : au doigt, viser 20 px ne marche pas.
   const plier = id=>{
+    if(!state.ouverts) state.ouverts = new Set();
     if(state.ouverts.has(id)) state.ouverts.delete(id); else state.ouverts.add(id);
     rendre();
   };
   document.querySelectorAll('[data-plier]').forEach(b=> b.addEventListener('click', e=>{
     e.stopPropagation(); plier(b.dataset.plier);
   }));
-  document.querySelectorAll('.su-rang.pliable > .su-nom').forEach(el=>
+  document.querySelectorAll('.ligne.pliable > .l-nom').forEach(el=>
     el.addEventListener('click', ()=> plier(el.parentElement.dataset.noeud)));
+
   document.querySelectorAll('[data-filtre]').forEach(b=> b.addEventListener('click', ()=>{
     state.filtre = b.dataset.filtre; rendre();
   }));
   const btnTout = document.getElementById('btnTout');
   if(btnTout) btnTout.addEventListener('click', ()=>{
-    if(state.ouverts.size) state.ouverts.clear();
-    else noeudsPlats(d).forEach(n=> { if(n.niveau === 'groupe') state.ouverts.add(n.id); });
+    if(state.ouverts && state.ouverts.size) state.ouverts = new Set();
+    else {
+      state.ouverts = new Set();
+      noeudsPlats(d).forEach(n=> { if(n.niveau === 'groupe') state.ouverts.add(n.id); });
+    }
     rendre();
   });
   ['rech', 'rechJ'].forEach(id=>{
@@ -839,6 +998,11 @@ function brancher(d, a, idx, deps){
   document.querySelectorAll('[data-ajout]').forEach(b=> b.addEventListener('click', ()=>{
     ouvrirFiche(Object.assign(nouvelleDepense(state.suivi.id, b.dataset.ajout, AUJOURDHUI), { _neuve: true }));
   }));
+  document.querySelectorAll('[data-detail]').forEach(b=> b.addEventListener('click', ()=>{
+    const id = b.dataset.detail;
+    if(state.detail === id){ fermerDetail(); state.detail = null; }
+    else ouvrirDetail(id);
+  }));
   document.querySelectorAll('[data-modif]').forEach(b=> b.addEventListener('click', ()=>{
     const dep = state.depenses.find(x=> x.id === b.dataset.modif);
     if(dep) ouvrirFiche(Object.assign({}, dep));
@@ -846,7 +1010,7 @@ function brancher(d, a, idx, deps){
   document.querySelectorAll('[data-suppr]').forEach(b=> b.addEventListener('click', ()=> retirer(b.dataset.suppr)));
 
   const btnJ = document.getElementById('btnJournal');
-  if(btnJ) btnJ.addEventListener('click', ()=>{ state.vueJournal = !state.vueJournal; state.recherche = ''; rendre(); });
+  if(btnJ) btnJ.addEventListener('click', ()=>{ state.vueJournal = !state.vueJournal; state.recherche = ''; state.detail = null; rendre(); });
   const btnCsv = document.getElementById('btnCsv');
   if(btnCsv) btnCsv.addEventListener('click', ()=> exporterCsv(d, idx, deps));
 
@@ -855,6 +1019,9 @@ function brancher(d, a, idx, deps){
     state.suivi.data.driveUrl = drive.value.trim();
     if(await enregistrerSuivi()) rendre();
   });
+
+  // Le détail rouvert après un rendu : on ne perd pas la liste qu'on consultait.
+  if(state.detail !== null && !state.vueJournal) ouvrirDetail(state.detail);
 }
 
 /* Retirer une dépense. Quinze secondes pour se raviser : la suppression n'est
@@ -876,21 +1043,23 @@ function retirer(id){
    que reçoit la compta, et elle ne connaît pas nos identifiants. Point-virgule
    et BOM, pour qu'Excel français l'ouvre sans rien demander. */
 function exporterCsv(d, idx, deps){
-  const nomNoeud = id=>{
+  const chemin = id=>{
     const c = idx.get(id);
     if(!c) return '(sans poste)';
-    if(c.niveau === 'ligne') return `${c.section.titre} > ${c.groupe.titre || 'sans titre'} > ${c.ligne.intitule}`;
-    if(c.niveau === 'groupe') return `${c.section.titre} > ${c.groupe.titre || 'sans titre'}`;
+    if(c.niveau === 'ligne') return `${c.section.titre} > ${c.groupe.titre || 'Autres lignes'} > ${c.ligne.intitule}`;
+    if(c.niveau === 'groupe') return `${c.section.titre} > ${c.groupe.titre || 'Autres lignes'}`;
     if(c.niveau === 'calcule') return c.calcule.titre;
     return c.section.titre;
   };
   const q = v=> `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
-  const nb = n=> String(Math.round(devisNombre(n, 0) * 100) / 100).replace('.', ',');
-  const entetes = ['DATE', 'LIBELLE', 'FOURNISSEUR', 'POSTE', 'MONTANT HT', 'TVA', 'MONTANT TTC', 'REGIME', 'ETAT', 'JUSTIFICATIF', 'NOTE'];
+  const n2 = v=> v == null ? '' : String(Math.round(devisNombre(v, 0) * 100) / 100).replace('.', ',');
+  const entetes = ['DATE', 'LIBELLE', 'FOURNISSEUR', 'POSTE', 'QUANTITE', 'PRIX UNITAIRE',
+                   'MONTANT HT', 'TVA', 'MONTANT TTC', 'REGIME', 'ETAT', 'JUSTIFICATIF', 'NOTE'];
   const lignes = deps.slice()
     .sort((a, b)=> String(a.dateDepense || '').localeCompare(String(b.dateDepense || '')))
-    .map(x=> [x.dateDepense || '', x.libelle || '', x.fournisseur || '', nomNoeud(x.noeudId),
-              nb(x.montantHt), nb(x.montantTva), nb(x.montantHt + x.montantTva),
+    .map(x=> [x.dateDepense || '', x.libelle || '', x.fournisseur || '', chemin(x.noeudId),
+              n2(x.quantite), n2(x.prixUnitaire),
+              n2(x.montantHt), n2(x.montantTva), n2(x.montantHt + x.montantTva),
               (DEVIS_REGIMES.find(r=> r[0] === regimeEffectif(x, idx.get(x.noeudId))) || [,''])[1],
               SUIVI_STATUTS[x.statut] || x.statut, x.justificatifUrl || '', x.note || ''].map(q).join(';'));
   const csv = '﻿' + [entetes.map(q).join(';'), ...lignes].join('\r\n');
@@ -900,14 +1069,6 @@ function exporterCsv(d, idx, deps){
   a.click();
   setTimeout(()=> URL.revokeObjectURL(a.href), 2000);
 }
-
-function calerEnTete(){
-  const top = document.querySelector('.co-topbar');
-  const sous = document.querySelector('.co-subnav');
-  const h = (top ? top.getBoundingClientRect().height : 56) + (sous ? sous.getBoundingClientRect().height : 0);
-  document.documentElement.style.setProperty('--su-colle', Math.round(h) + 'px');
-}
-window.addEventListener('resize', calerEnTete);
 
 try{ state.saisieTtc = localStorage.getItem('curieux-suivi-ttc') !== '0'; }catch(e){ state.saisieTtc = true; }
 applyAutoTheme();

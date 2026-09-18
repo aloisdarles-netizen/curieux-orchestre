@@ -753,6 +753,9 @@ const CurieuxDB = (()=>{
         date_depense: d.dateDepense || null,
         montant_ht: Number(d.montantHt) || 0,
         montant_tva: Number(d.montantTva) || 0,
+        // null et non 0 : « pas de détail » n'est pas « zéro unité ».
+        quantite: d.quantite == null || d.quantite === '' ? null : Number(d.quantite),
+        prix_unitaire: d.prixUnitaire == null || d.prixUnitaire === '' ? null : Number(d.prixUnitaire),
         regime: d.regime || '',
         statut: d.statut || 'paye',
         justificatif_url: d.justificatifUrl || '',
@@ -763,6 +766,8 @@ const CurieuxDB = (()=>{
         sens: r.sens || 'depense', libelle: r.libelle || '', fournisseur: r.fournisseur || '',
         dateDepense: r.date_depense || '',
         montantHt: Number(r.montant_ht) || 0, montantTva: Number(r.montant_tva) || 0,
+        quantite: r.quantite == null ? null : Number(r.quantite),
+        prixUnitaire: r.prix_unitaire == null ? null : Number(r.prix_unitaire),
         regime: r.regime || '', statut: r.statut || 'paye',
         justificatifUrl: r.justificatif_url || '', note: r.note || '',
         _updatedAt: r.updated_at

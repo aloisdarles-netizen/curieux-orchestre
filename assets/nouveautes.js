@@ -33,6 +33,18 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-18-3',
+    titre: 'Suivi des dépenses : corriger, compter, internaliser',
+    points: [
+      "La page reprend la forme de la page Budget — une carte par section, des lignes fines, les montants alignés d'une carte à l'autre. Le tableau à bandes colorées se lisait moins bien.",
+      "Tout est déplié d'emblée : on ouvre un suivi pour voir où va l'argent, pas pour cliquer quinze chevrons. « Tout replier » reste là pour la vue d'ensemble.",
+      "Corriger une erreur : cliquer le montant réel d'un poste déplie ses dépenses, avec « Modifier » et « Retirer » sur chacune. La fiche d'une dépense porte aussi son bouton « Retirer ». Quinze secondes pour se raviser, comme ailleurs dans l'outil.",
+      "Deux façons de chiffrer une dépense, au choix sur chacune : une facture globale, ou une quantité et un prix unitaire — 330 repas à 20 €, 85 fiches de paie à 28 €, 12 nuitées à 95 €. Le montant en découle et ne se tape pas ; le détail est conservé, le journal et l'export le restituent. Les fiches de paie s'ouvrent directement en mode « quantité × prix », au tarif du devis.",
+      "Zéro euro est une réponse valable. Un poste facturé au client mais assuré en interne coûte 0 € : il se saisit, à condition de porter un libellé qui le dise. La case « rien de plus à dépenser sur ce poste » fait alors tomber son atterrissage à son réel, et la ligne porte la mention « internalisé ».",
+      "Et l'économie est comptée en entier : un poste de direction technique prévu 3 600 € et internalisé fait baisser l'atterrissage de 6 012 € — le salaire et ses 67 % de charges patronales, qui se recalculent toutes seules.",
+    ],
+  },
+  {
     version: '2026-09-18-2',
     titre: 'Le suivi des dépenses',
     points: [
