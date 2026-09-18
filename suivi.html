@@ -82,6 +82,14 @@
   .l-num.vide{color:var(--muted); font-weight:500;}
   .l-reel.cliquable{cursor:pointer; text-decoration:underline; text-decoration-style:dotted; text-underline-offset:3px;}
   .l-ecart.alerte{color:var(--ko);}
+  /* Le vert est réservé à la MARGE. Un écart de poste n'a pas à être célébré —
+     une économie peut cacher une prestation qui n'a pas eu lieu. Le résultat du
+     projet, lui, n'a qu'un sens : positif, on gagne de l'argent. */
+  .l-num.gain, .chiffre.gain b{color:var(--ok);}
+  .ligne.resultat .l-titre{font-weight:800;}
+  .ligne.resultat.total{border-top:2px solid var(--border); border-bottom:none; margin-top:2px; padding-top:11px;}
+  .ligne.resultat.total .l-titre{font-size:15px;}
+  .ligne.resultat.total .l-num{font-size:15px;}
 
   .su-plus{
     width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--bg);
@@ -339,15 +347,15 @@ function rendreListe(){
     const d = s.data || {};
     const a = agregerSuivi(d, state.depenses.filter(x=> x.suiviId === s.id));
     const projet = projetDe((state.devis.find(x=> x.id === s.budgetId) || {}).tourneeId);
-    const al = ecartAlerte(a.ecart, a.totalPrevu);
     return `<a class="ligne" href="suivi.html?id=${encodeURIComponent(s.id)}" style="text-decoration:none; color:inherit;">
       <span class="l-nom"><span class="l-titre">${escapeHtml(d.titre || 'Sans titre')}</span>
         <span class="l-sous">${escapeHtml([projet ? projet.nom : '', d.sourceNumero,
           d.figeLe ? 'arrêté le ' + d.figeLe : '',
           `${a.nbDepenses} dépense${a.nbDepenses > 1 ? 's' : ''}`].filter(Boolean).join(' · '))}</span></span>
-      <span class="l-num l-prevu">${euros(a.totalPrevu)}</span>
-      <span class="l-num l-reel">${a.nbDepenses ? euros(a.totalReel) : '<span class="vide">—</span>'}</span>
-      <span class="l-num l-ecart ${al ? 'alerte' : ''}">${a.nbDepenses ? signe(a.ecart) : '<span class="vide">—</span>'}</span>
+      <span class="l-num l-prevu">${a.recette ? euros(a.recette) : euros(a.totalPrevu)}</span>
+      <span class="l-num l-reel">${euros(a.atterrissage)}</span>
+      <span class="l-num l-ecart ${a.margeAtterrissage == null ? '' : (a.margeAtterrissage < 0 ? 'alerte' : 'gain')}">${
+        a.margeAtterrissage == null ? '<span class="vide">—</span>' : signe(a.margeAtterrissage)}</span>
       <span></span>
     </a>`;
   }).join('');
@@ -361,7 +369,7 @@ function rendreListe(){
       <div class="co-page-actions"><a class="co-btn secondary md" href="devis.html">Devis et budgets</a></div>
     </div>
 
-    ${state.suivis.length ? `<div class="su-tete"><span>Projet</span><span>Prévu</span><span>Réel</span><span>Différence</span><span></span></div>
+    ${state.suivis.length ? `<div class="su-tete"><span>Projet</span><span>Recette</span><span>Coût attendu</span><span>Marge</span><span></span></div>
     <section class="bloc">${lignes}</section>` : ''}
 
     <section class="bloc" style="margin-top:14px;">
@@ -387,8 +395,16 @@ async function ouvrirSuivi(devisId, bouton){
   const doc = state.devis.find(d=> d.id === devisId);
   if(!doc) return;
   bouton.disabled = true; bouton.textContent = 'Ouverture…';
-  const data = figerSuivi(doc, { aujourdHui: AUJOURDHUI });
+  // Le devis client accepté donne la recette : c'est ce que le client doit, et
+  // c'est lui qui fait du suivi un compte de résultat plutôt qu'un relevé de
+  // dépenses. Quand le document figé EST ce devis accepté, il est sa propre
+  // recette — la marge part de zéro et grandit de tout ce qu'on économise.
   const accepte = state.devis.find(d=> d.projetId === doc.projetId && d.statut === 'accepte');
+  const data = figerSuivi(doc, {
+    aujourdHui: AUJOURDHUI,
+    recette: accepte ? calculerDevis(accepte).totalHT : 0,
+    recetteSource: accepte ? (accepte.numero || 'accepté') : '',
+  });
   const suivi = {
     id: genId('suivi'), projetId: doc.projetId || doc.id, budgetId: doc.id,
     devisId: accepte ? accepte.id : '', data,
@@ -407,8 +423,14 @@ function rendre(){
   const idx = indexerNoeuds(d);
   const projet = projetDe((state.devis.find(x=> x.id === state.suivi.budgetId) || {}).tourneeId);
 
-  const alEcart = ecartAlerte(a.ecart, a.totalPrevu);
   const alAtter = a.atterrissage > d.totalPrevu + 200;
+  // Le devis client accepté du projet : de quoi proposer la recette en un clic
+  // plutôt que de la faire retaper. Jamais posée d'office — un avenant, une
+  // coproduction ou une cession partielle changent le montant, et c'est une
+  // décision, pas une déduction.
+  const accepte = state.devis.find(x=> x.projetId === state.suivi.projetId && x.statut === 'accepte');
+  const suggestion = accepte && !(d.recette || {}).montantHt
+    ? { total: calculerDevis(accepte).totalHT, numero: accepte.numero } : null;
 
   document.getElementById('page').innerHTML = `
     <div class="co-page-head">
@@ -428,17 +450,36 @@ function rendre(){
     </div>
 
     <div class="chiffres">
-      <div class="chiffre"><b>${euros(a.totalPrevu)}</b><span>prévu</span>
-        <small>hors frais généraux et imprévus</small></div>
-      <div class="chiffre"><b>${euros(a.totalReel)}</b><span>dépensé</span>
+      <div class="chiffre"><b>${a.recette ? euros(a.recette) : '—'}</b><span>recette contractuelle</span>
+        <small>${a.recette
+          ? escapeHtml(((d.recette || {}).source ? 'devis ' + d.recette.source : 'saisie à la main') + ' — HT')
+          : 'à renseigner en bas de page'}</small></div>
+      <div class="chiffre"><b>${euros(a.totalReel)}</b><span>dépensé à ce jour</span>
         <small>${a.nbDepenses} dépense${a.nbDepenses > 1 ? 's' : ''} saisie${a.nbDepenses > 1 ? 's' : ''}</small></div>
-      <div class="chiffre ${alEcart ? 'alerte' : ''}"><b>${signe(a.ecart)}</b><span>différence</span>
-        <small>${a.totalPrevu ? fmtQteDevis(Math.round(a.ecart / a.totalPrevu * 1000) / 10) + ' %' : '—'}</small></div>
-      <div class="chiffre ${alAtter ? 'alerte' : ''}"><b>${euros(a.atterrissage)}</b><span>atterrissage</span>
+      <div class="chiffre ${alAtter ? 'alerte' : ''}"><b>${euros(a.atterrissage)}</b><span>coût à l'atterrissage</span>
         <small>où l'on finira si rien d'autre ne bouge</small></div>
+      <div class="chiffre ${a.margeAtterrissage == null ? '' : (a.margeAtterrissage < 0 ? 'alerte' : 'gain')}">
+        <b>${a.margeAtterrissage == null ? '—' : signe(a.margeAtterrissage)}</b><span>marge attendue</span>
+        <small>${a.margeAtterrissage == null
+          ? 'sans recette, pas de marge'
+          : `recette − coût à l'atterrissage${a.recette ? ' · ' + fmtQteDevis(Math.round(a.margeAtterrissage / a.recette * 1000) / 10) + ' %' : ''}`}</small></div>
     </div>
 
     ${state.vueJournal ? rendreJournal(deps, idx) : rendreTableau(d, a, idx)}
+
+    <section class="bloc" style="margin-top:14px;">
+      <h2>Recette contractuelle</h2>
+      <div class="drive">
+        <input type="text" inputmode="decimal" id="recetteHt" placeholder="0,00"
+          value="${(d.recette || {}).montantHt ? escapeAttr(String(d.recette.montantHt).replace('.', ',')) : ''}" style="flex:0 0 160px;">
+        <span style="color:var(--muted);">€ HT</span>
+        <input type="text" id="recetteSource" placeholder="Devis, convention, contrat…"
+          value="${escapeAttr((d.recette || {}).source || '')}" style="flex:1 1 200px;">
+        ${suggestion ? `<button type="button" class="co-btn secondary sm" id="reprendreRecette">Reprendre ${euros(suggestion.total)} du devis ${escapeHtml(suggestion.numero || 'accepté')}</button>` : ''}
+      </div>
+      <p class="note-drive">Ce que le client doit, hors taxes. C'est ce montant qui transforme l'écart en résultat :
+        un devis signé est un prix, pas une enveloppe de dépenses — tout euro qu'on ne dépense pas est gagné.</p>
+    </section>
 
     <section class="bloc" style="margin-top:14px;">
       <h2>Justificatifs</h2>
@@ -621,8 +662,34 @@ function rendreTableau(d, a, idx){
         <span class="l-num l-ecart"><span class="vide">—</span></span>
         <span></span>
       </div>
-      <p class="avert"><b>Ce tableau ne suit que les dépenses.</b> Cession, subventions, coproductions et billetterie n'y sont pas :
-        l'écart affiché n'est donc pas le résultat du projet. Les recettes arrivent au prochain lot.</p>
+      ${a.recette ? `
+      <div class="ligne resultat">
+        <span class="l-nom"><span class="l-titre">Recette contractuelle</span>
+          <span class="l-sous">${escapeHtml((d.recette || {}).source ? 'devis ' + d.recette.source + ' — le client doit ce montant quoi qu\'il arrive' : 'saisie à la main')}</span></span>
+        <span class="l-num l-prevu">${euros(a.recette)}</span>
+        <span class="l-num l-reel"></span>
+        <span class="l-num l-ecart"></span>
+        <span></span>
+      </div>
+      <div class="ligne resultat">
+        <span class="l-nom"><span class="l-titre">Coût du projet</span>
+          <span class="l-sous">tout compris — dépenses, charges patronales, frais généraux, imprévus</span></span>
+        <span class="l-num l-prevu">${euros(a.coutPrevuComplet)}</span>
+        <span class="l-num l-reel">${euros(a.atterrissage)}</span>
+        <span class="l-num l-ecart ${a.atterrissage > a.coutPrevuComplet + 200 ? 'alerte' : ''}">${signe(a.atterrissage - a.coutPrevuComplet)}</span>
+        <span></span>
+      </div>
+      <div class="ligne resultat total">
+        <span class="l-nom"><span class="l-titre">Marge</span>
+          <span class="l-sous">recette moins coût. Chaque euro non dépensé en est un de gagné</span></span>
+        <span class="l-num l-prevu">${signe(a.margePrevue)}</span>
+        <span class="l-num l-reel ${a.margeAtterrissage < 0 ? 'alerte' : 'gain'}">${signe(a.margeAtterrissage)}</span>
+        <span class="l-num l-ecart ${a.margeAtterrissage - a.margePrevue < 0 ? 'alerte' : 'gain'}">${signe(a.margeAtterrissage - a.margePrevue)}</span>
+        <span></span>
+      </div>` : ''}
+      <p class="avert">${a.recette
+        ? `<b>La marge ne compte que la cession.</b> Subventions, coproductions, aides à l'emploi et billetterie ne sont pas encore suivies : si le projet en porte, le résultat réel est plus élevé que celui-ci.`
+        : `<b>Aucune recette renseignée.</b> Tant qu'elle manque, la colonne « différence » dit si le budget tient, mais rien ne dit si le projet gagne de l'argent — renseigne la cession en bas de page.`}</p>
       ${alertes.map(x=> `<p class="avert">${x}</p>`).join('')}
     </section>`;
 }
@@ -1013,6 +1080,25 @@ function brancher(d, a, idx, deps){
   if(btnJ) btnJ.addEventListener('click', ()=>{ state.vueJournal = !state.vueJournal; state.recherche = ''; state.detail = null; rendre(); });
   const btnCsv = document.getElementById('btnCsv');
   if(btnCsv) btnCsv.addEventListener('click', ()=> exporterCsv(d, idx, deps));
+
+  const majRecette = async ()=>{
+    state.suivi.data.recette = {
+      montantHt: devisNombre(document.getElementById('recetteHt').value, 0),
+      source: document.getElementById('recetteSource').value.trim(),
+    };
+    if(await enregistrerSuivi()) rendre();
+  };
+  ['recetteHt', 'recetteSource'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('change', majRecette);
+  });
+  const reprendre = document.getElementById('reprendreRecette');
+  if(reprendre) reprendre.addEventListener('click', async ()=>{
+    const x = state.devis.find(y=> y.projetId === state.suivi.projetId && y.statut === 'accepte');
+    if(!x) return;
+    state.suivi.data.recette = { montantHt: calculerDevis(x).totalHT, source: x.numero || 'accepté' };
+    if(await enregistrerSuivi()) rendre();
+  });
 
   const drive = document.getElementById('driveUrl');
   if(drive) drive.addEventListener('change', async ()=>{

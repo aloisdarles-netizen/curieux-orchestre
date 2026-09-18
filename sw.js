@@ -127,7 +127,8 @@
 // v122 : le suivi prend la charte de la page Budget, la dépense apprend la
 // quantité et le prix unitaire (deux colonnes de plus dans l'adaptateur de
 // db.js) et le zéro euro devient une saisie valable.
-const VERSION = 'curieux-v122';
+// v123 : le suivi apprend la recette contractuelle et la marge.
+const VERSION = 'curieux-v123';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

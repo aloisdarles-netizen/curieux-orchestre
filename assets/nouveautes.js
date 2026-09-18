@@ -33,6 +33,18 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-18-4',
+    titre: 'Le suivi dit maintenant si le projet gagne de l’argent',
+    points: [
+      "Un devis signé est un PRIX, pas une enveloppe de dépenses : le client doit ce montant quoi qu'il arrive. Chaque euro qu'on ne dépense pas est donc un euro gagné — et c'est ce que le suivi affichait le moins bien.",
+      "Le suivi porte désormais une recette contractuelle, reprise en un clic du devis client accepté et modifiable à la main (avenant, cession sans devis dans l'outil).",
+      "Les chiffres de tête deviennent : recette · dépensé à ce jour · coût à l'atterrissage · MARGE. Et le pied de page porte un vrai compte de résultat en trois lignes — recette, coût complet, marge — avec la marge prévue au devis à côté de la marge attendue.",
+      "Quand le suivi est ouvert sur le devis client lui-même, la marge part de zéro : le devis refacture le coût. Tout ce qu'on économise ensuite la creuse dans le bon sens.",
+      "Le vert est réservé à la marge. Un écart de poste n'a pas à être célébré — une économie peut cacher une prestation qui n'a pas eu lieu. Le résultat du projet, lui, n'a qu'un sens.",
+      "Réserve affichée en clair : la marge ne compte que la cession. Subventions, coproductions, aides à l'emploi et billetterie ne sont pas encore suivies.",
+    ],
+  },
+  {
     version: '2026-09-18-3',
     titre: 'Suivi des dépenses : corriger, compter, internaliser',
     points: [

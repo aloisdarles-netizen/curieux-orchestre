@@ -143,6 +143,18 @@ function figerSuivi(doc, options){
     sourceNumero: doc.numero || '',
     figeLe: opt.aujourdHui || '',
     driveUrl: '',
+    /* LA RECETTE CONTRACTUELLE — ce que le client doit, et qui ne bouge pas.
+       C'est elle qui donne son sens au suivi : le devis signé est un PRIX, pas
+       un budget de dépenses. Chaque euro qu'on ne dépense pas est un euro
+       gagné. Sans elle, l'écart se lit « on n'a encore rien dépensé » au lieu
+       de « voilà où en est la marge ».
+       Pré-remplie depuis le devis client accepté quand il en existe un,
+       toujours modifiable — un avenant, une cession sans devis dans l'outil,
+       une coproduction se saisissent à la main. */
+    recette: {
+      montantHt: devisNombre(opt.recette, 0),
+      source: opt.recetteSource || '',
+    },
     // Règle 2 : les taux du DOCUMENT, jamais ceux des réglages.
     taux: Object.assign({ auteur: 4, musicien: 60, production: 67 }, doc.taux || {}),
     tvaDefaut: devisNombre(doc.tvaDefaut, 20),
@@ -409,7 +421,22 @@ function agregerSuivi(data, depenses){
   const atterrissage = aterArbre + chargesAter + Math.max(fpPrevu, fp.reel)
     + orphelines.reel + provisionRestante + fgPrevu;
 
+  /* LA MARGE. Deux lectures, et deux seulement :
+     — la marge PRÉVUE, telle que le devis l'annonçait ;
+     — la marge à l'ATTERRISSAGE, celle qu'on aura si rien d'autre ne bouge.
+     Leur différence est le bénéfice gagné (ou perdu) en cours de production.
+
+     Le coût comparé est le coût COMPLET, frais généraux et imprévus inclus :
+     ce sont des charges du projet, même sans facture. La colonne d'écart, elle,
+     continue de les exclure — elle mesure la tenue du budget poste par poste,
+     pas le résultat. Les deux questions sont différentes. */
+  const recette = devisNombre((data.recette || {}).montantHt, 0);
+  const coutPrevuComplet = devisNombre(data.totalPrevu, 0);
+  const margePrevue = recette ? recette - coutPrevuComplet : null;
+  const margeAtterrissage = recette ? recette - atterrissage : null;
+
   return {
+    recette, coutPrevuComplet, margePrevue, margeAtterrissage,
     cumul, propre, orphelines, assiettes, chargesLignes, horsAssiette,
     prevuArbre, reelArbre, chargesPrevues, chargesReellesTotal,
     fgPrevu, imprevusPrevu, fpPrevu, fpReel: fp.reel,

@@ -617,7 +617,13 @@ function renderTete(){
     const suivi = {
       id: genId('suivi'), projetId: devis.projetId || devis.id, budgetId: devis.id,
       devisId: accepte ? accepte.id : '',
-      data: figerSuivi(devis, { aujourdHui: new Date().toISOString().slice(0, 10) }),
+      data: figerSuivi(devis, {
+        aujourdHui: new Date().toISOString().slice(0, 10),
+        // La recette : ce que le client doit. Sans elle, le suivi ne dit pas si
+        // le projet gagne de l'argent.
+        recette: accepte ? calculerDevis(accepte).totalHT : 0,
+        recetteSource: accepte ? (accepte.numero || 'accepté') : '',
+      }),
     };
     const { error } = await CurieuxDB.upsertOne('suivis_budget', suivi);
     if(error){ alert("Le suivi n'a pas pu être créé :\n\n" + error.message); suivreBtn.disabled = false; suivreBtn.textContent = 'Suivre les dépenses'; return; }
