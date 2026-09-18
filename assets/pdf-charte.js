@@ -660,6 +660,12 @@ function creerComposeurPdf(doc, options){
    *
    * Aucun des trois n'est le défaut : les feuilles de route, les pages salle et
    * les devis gardent exactement la composition qu'ils avaient. */
+  /* ALIGNER UNE COLONNE À DROITE. Une colonne de montants alignée à gauche se
+     lit chiffre par chiffre : « 1 350,00 € » et « 17 738,42 € » ne partagent
+     aucun repère vertical, et l'œil doit relire chaque ligne au lieu de
+     comparer les ordres de grandeur d'un coup. Une colonne porte donc
+     { titre, largeur, droite:true } — c'est le seul réglage de cellule, et il
+     ne change rien aux tableaux qui ne le demandent pas. */
   api.tableau = function(titre, colonnes, lignes, note, reglages){
     const cols = (colonnes || []).filter(Boolean);
     const corps = (lignes || []).filter(l=> l && cellulesDe(l).some(v=> v != null && v !== ''));
@@ -765,7 +771,8 @@ function creerComposeurPdf(doc, options){
       if(dessiner){
         encre(PDF_CHARTE.muted);
         doc.setCharSpace(0.08 * k);
-        cols.forEach((c, i)=> doc.text(String(c.titre || '').toUpperCase(), xDe(i), y, { baseline:'top' }));
+        cols.forEach((c, i)=> doc.text(String(c.titre || '').toUpperCase(),
+          c.droite ? xDe(i) + largeurs[i] : xDe(i), y, { baseline:'top', align: c.droite ? 'right' : 'left' }));
         doc.setCharSpace(0);
       }
       y += hLigne(ptEntete) + 1.4 * k;
@@ -793,7 +800,8 @@ function creerComposeurPdf(doc, options){
             doc.setFont('Host', i === 0 ? 'bold' : 'normal');
             doc.setFontSize(ptTexte);
             encre(m.accent ? PDF_CHARTE.accentEncre : PDF_CHARTE.noir);
-            doc.text(d, xDe(i), y, { baseline:'top' });
+            doc.text(d, cols[i] && cols[i].droite ? xDe(i) + largeurs[i] : xDe(i), y,
+              { baseline:'top', align: cols[i] && cols[i].droite ? 'right' : 'left' });
           });
         }
         y += m.h + 2 * k;
@@ -860,7 +868,9 @@ function creerComposeurPdf(doc, options){
       if(dessiner){
         encre(PDF_CHARTE.muted);
         doc.setCharSpace(0.08 * k);
-        cols.forEach((c, i)=> doc.text(String(c.titre || '').toUpperCase(), g.xDe(i), y + h, { baseline:'top' }));
+        cols.forEach((c, i)=> doc.text(String(c.titre || '').toUpperCase(),
+          c.droite ? g.xDe(i) + g.largeurs[i] : g.xDe(i), y + h,
+          { baseline:'top', align: c.droite ? 'right' : 'left' }));
         doc.setCharSpace(0);
       }
       h += hLigne(g.ptEntete) + 1.4 * k;
@@ -920,7 +930,8 @@ function creerComposeurPdf(doc, options){
           decoupes.forEach((d, i)=>{
             doc.setFont('Host', i === 0 ? 'bold' : 'normal');
             encre(accent ? PDF_CHARTE.accentEncre : PDF_CHARTE.noir);
-            doc.text(d, g.xDe(i), yDepart, { baseline:'top' });
+            doc.text(d, cols[i] && cols[i].droite ? g.xDe(i) + g.largeurs[i] : g.xDe(i), yDepart,
+              { baseline:'top', align: cols[i] && cols[i].droite ? 'right' : 'left' });
           });
           if(lSous.length){
             doc.setFont('Host', 'normal'); doc.setFontSize(g.ptSous);

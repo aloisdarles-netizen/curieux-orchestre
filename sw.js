@@ -128,7 +128,9 @@
 // quantité et le prix unitaire (deux colonnes de plus dans l'adaptateur de
 // db.js) et le zéro euro devient une saisie valable.
 // v123 : le suivi apprend la recette contractuelle et la marge.
-const VERSION = 'curieux-v123';
+// v124 : le bilan de projet — suivi-bilan.js, pdf-bilan.js —, et api.tableau
+// de pdf-charte.js sait aligner une colonne à droite.
+const VERSION = 'curieux-v124';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

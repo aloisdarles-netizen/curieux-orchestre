@@ -33,6 +33,20 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-18-5',
+    titre: 'Le bilan de projet',
+    points: [
+      "Une troisième vue dans le suivi, à côté du tableau et du journal : le bilan. Et un PDF d'une page, à la charte, pour l'envoyer au président, à un coproducteur ou à l'expert-comptable.",
+      "Il s'ouvre sur le résultat : recette, coût, marge — en vert ou en rouge, et en pourcentage de la recette. Puis un compte de résultat en trois lignes, avec la marge prévue au devis à côté de la marge attendue.",
+      "« Où est parti l'argent » : une ligne par section, avec sa part du coût réel en barre. La masse salariale — bruts et charges patronales — y est chiffrée à part, c'est le premier nombre qu'on cherche dans un budget de spectacle.",
+      "« Ce qui a dérapé » et « Ce qu'on a économisé » : les cinq plus gros de chaque côté, avec leur chemin dans le budget. Et les postes internalisés à part, chiffrés charges comprises — un poste de 2 100 € assuré en interne en rapporte 3 507.",
+      "Huit compteurs : dépenses, fournisseurs, dépense moyenne, postes renseignés sur postes prévus, reste à engager, engagé non payé, provision d'imprévus restante, période couverte.",
+      "Et un encadré « à savoir en lisant ce bilan » qui dit ce que le document NE sait pas : les recettes non suivies, les postes sans dépense — factures manquantes ou prestation qui n'a pas eu lieu, le bilan ne tranche pas —, l'engagé non payé, les dépenses sans justificatif. Un bilan qui tait ses trous se fait lire comme s'il savait tout.",
+      "Tant que le projet n'est pas clos, le PDF porte le filigrane « En cours » : il décrit une situation, pas un résultat.",
+      "Au passage, les tableaux de tous les PDF du site savent enfin aligner une colonne de montants à droite.",
+    ],
+  },
+  {
     version: '2026-09-18-4',
     titre: 'Le suivi dit maintenant si le projet gagne de l’argent',
     points: [

@@ -5,12 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Curieux orchestre — Suivi des dépenses</title>
 <script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/vendor/jspdf.umd.min.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
 <script src="assets/nouveautes.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/devis-commun.js"></script>
 <script src="assets/suivi-commun.js"></script>
+<script src="assets/suivi-bilan.js"></script>
+<script src="assets/pdf-charte.js"></script>
+<script src="assets/pdf-bilan.js"></script>
 <script src="assets/annuler.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
@@ -90,6 +94,19 @@
   .ligne.resultat.total{border-top:2px solid var(--border); border-bottom:none; margin-top:2px; padding-top:11px;}
   .ligne.resultat.total .l-titre{font-size:15px;}
   .ligne.resultat.total .l-num{font-size:15px;}
+
+  /* La part d'un poste dans le coût, en une barre. Un pourcentage se lit, une
+     barre se compare — et c'est la comparaison qu'on cherche. */
+  .barre-part{
+    display:inline-block; width:64px; height:6px; border-radius:3px; background:var(--border);
+    vertical-align:middle; margin-right:5px; position:relative; overflow:hidden;
+  }
+  .barre-part::after{content:''; position:absolute; inset:0 auto 0 0; width:var(--p); background:var(--t);}
+
+  .compteurs{display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; padding:4px 0 12px;}
+  .compteur{background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:10px 12px;}
+  .compteur b{display:block; font-size:17px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.2;}
+  .compteur span{font-size:11.5px; color:var(--muted); font-weight:600;}
 
   .su-plus{
     width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--bg);
@@ -253,7 +270,7 @@ let state = {
   ouverts: null,           // null = pas encore décidé ; sinon un Set d'ids de groupes dépliés
   filtre: 'tout',
   recherche: '',
-  vueJournal: false,
+  vue: 'tableau',          // 'tableau' | 'journal' | 'bilan'
   saisieTtc: true,
   detail: null,            // l'id du nœud dont on liste les dépenses
 };
@@ -282,14 +299,15 @@ function depensesDuNoeud(id){
 
 // ---------------------------------------------------------------- chargement
 async function charger(){
-  const [suivis, depenses, devis, tournees] = await Promise.all([
+  const [suivis, depenses, devis, tournees, reglages] = await Promise.all([
     CurieuxDB.fetchAll('suivis_budget').catch(()=> []),
     CurieuxDB.fetchAll('depenses').catch(()=> []),
     CurieuxDB.fetchAll('devis').catch(()=> []),
     CurieuxDB.fetchAll('tournees').catch(()=> []),
+    CurieuxDB.fetchDevisReglages().catch(()=> ({})),
   ]);
   state.suivis = suivis; state.depenses = depenses;
-  state.devis = devis; state.tournees = tournees;
+  state.devis = devis; state.tournees = tournees; state.reglages = reglages;
 
   const id = new URLSearchParams(location.search).get('id');
   state.suivi = id ? suivis.find(s=> s.id === id) || null : null;
@@ -402,7 +420,7 @@ async function ouvrirSuivi(devisId, bouton){
   const accepte = state.devis.find(d=> d.projetId === doc.projetId && d.statut === 'accepte');
   const data = figerSuivi(doc, {
     aujourdHui: AUJOURDHUI,
-    recette: accepte ? calculerDevis(accepte).totalHT : 0,
+    recette: accepte ? Math.round(calculerDevis(accepte).totalHT * 100) / 100 : 0,
     recetteSource: accepte ? (accepte.numero || 'accepté') : '',
   });
   const suivi = {
@@ -443,7 +461,9 @@ function rendre(){
         ].filter(Boolean).join(' · '))}</p>
       </div>
       <div class="co-page-actions">
-        <button type="button" class="co-btn ghost md" id="btnJournal">${state.vueJournal ? 'Voir le tableau' : `Journal (${deps.length})`}</button>
+        <button type="button" class="co-btn ghost md" data-vue="tableau" ${state.vue === 'tableau' ? 'disabled' : ''}>Tableau</button>
+        <button type="button" class="co-btn ghost md" data-vue="journal" ${state.vue === 'journal' ? 'disabled' : ''}>Journal (${deps.length})</button>
+        <button type="button" class="co-btn ghost md" data-vue="bilan" ${state.vue === 'bilan' ? 'disabled' : ''}>Bilan</button>
         <button type="button" class="co-btn secondary md" id="btnCsv">Export CSV</button>
         <a class="co-btn ghost md" href="suivi.html">Tous les suivis</a>
       </div>
@@ -465,7 +485,9 @@ function rendre(){
           : `recette − coût à l'atterrissage${a.recette ? ' · ' + fmtQteDevis(Math.round(a.margeAtterrissage / a.recette * 1000) / 10) + ' %' : ''}`}</small></div>
     </div>
 
-    ${state.vueJournal ? rendreJournal(deps, idx) : rendreTableau(d, a, idx)}
+    ${state.vue === 'journal' ? rendreJournal(deps, idx)
+      : state.vue === 'bilan' ? rendreBilan(d, deps, idx)
+      : rendreTableau(d, a, idx)}
 
     <section class="bloc" style="margin-top:14px;">
       <h2>Recette contractuelle</h2>
@@ -732,6 +754,118 @@ function rendreJournal(deps, idx){
     <input type="search" class="recherche" id="rechJ" placeholder="Chercher une dépense…" value="${escapeAttr(state.recherche)}" style="width:100%; margin-bottom:8px;">
     ${gardes.map(dep=> ligneJournal(dep, idx)).join('') || `<p class="vide">Aucune dépense saisie.</p>`}
   </section>`;
+}
+
+/* LE BILAN À L'ÉCRAN. Les mêmes chiffres que le PDF, au même endroit dans
+   l'ordre de lecture : le résultat, où est parti l'argent, ce qui explique
+   l'écart, ce qui reste en suspens. Rien n'est calculé ici — bilanDuSuivi() a
+   déjà tout fait, et c'est ce qui garantit que l'écran et le papier disent la
+   même chose. */
+function barre(part, teinte){
+  return `<span class="barre-part" style="--p:${Math.round(part * 1000) / 10}%; --t:${teinte};"></span>`;
+}
+
+function rendreBilan(d, deps, idx){
+  const b = bilanDuSuivi(d, deps);
+  const r = b.resultat;
+  const pc = x=> fmtQteDevis(Math.round(x * 1000) / 10) + ' %';
+  const cinq = (liste, teinte)=> liste.slice(0, 5).map(x=> `<div class="ligne">
+      <span class="l-nom"><span class="l-titre">${escapeHtml(x.titre)}</span>
+        <span class="l-sous">${escapeHtml(x.chemin)}</span></span>
+      <span class="l-num l-prevu">${euros(x.prevu)}</span>
+      <span class="l-num l-reel">${euros(x.reel)}</span>
+      <span class="l-num l-ecart ${teinte}">${signe(x.ecart)}</span>
+      <span></span>
+    </div>`).join('');
+
+  return `
+    <div class="barre" style="justify-content:flex-end;">
+      <button type="button" class="co-btn primary md" id="btnBilanPdf">PDF du bilan</button>
+    </div>
+
+    <section class="bloc">
+      <h2>Résultat${r.clos ? '' : ' — situation en cours'}</h2>
+      ${r.recette ? `
+      <div class="ligne resultat">
+        <span class="l-nom"><span class="l-titre">Recette contractuelle</span>
+          <span class="l-sous">${escapeHtml((d.recette || {}).source ? 'devis ' + d.recette.source : 'saisie à la main')}</span></span>
+        <span class="l-num l-prevu">${euros(r.recette)}</span>
+        <span class="l-num l-reel">${euros(r.recette)}</span>
+        <span class="l-num l-ecart"><span class="vide">—</span></span><span></span>
+      </div>
+      <div class="ligne resultat">
+        <span class="l-nom"><span class="l-titre">Coût du projet</span>
+          <span class="l-sous">charges patronales, frais généraux et imprévus compris</span></span>
+        <span class="l-num l-prevu">${euros(r.coutPrevu)}</span>
+        <span class="l-num l-reel">${euros(r.coutAtterrissage)}</span>
+        <span class="l-num l-ecart ${r.coutAtterrissage > r.coutPrevu ? 'alerte' : ''}">${signe(r.coutAtterrissage - r.coutPrevu)}</span><span></span>
+      </div>
+      <div class="ligne resultat total">
+        <span class="l-nom"><span class="l-titre">Marge</span>
+          <span class="l-sous">${r.gagneSurPlan >= 0 ? 'gagné' : 'perdu'} ${escapeHtml(euros(Math.abs(r.gagneSurPlan)))} par rapport au devis</span></span>
+        <span class="l-num l-prevu">${signe(r.margePrevue)}</span>
+        <span class="l-num l-reel ${r.margeAtterrissage < 0 ? 'alerte' : 'gain'}">${signe(r.margeAtterrissage)}</span>
+        <span class="l-num l-ecart ${r.margeAtterrissage < 0 ? 'alerte' : 'gain'}">${r.recette ? pc(r.margeAtterrissage / r.recette) : ''}</span><span></span>
+      </div>`
+      : `<p class="vide">Aucune recette renseignée : ce bilan dit ce que le projet a coûté, pas ce qu'il a rapporté.
+         Renseigne la cession en bas de page.</p>`}
+    </section>
+
+    <section class="bloc">
+      <h2>Où est parti l'argent<span class="h2-total">${euros(b.coutTotal)} <em>au total</em></span></h2>
+      ${b.parSection.map(x=> `<div class="ligne">
+        <span class="l-nom"><span class="l-titre">${escapeHtml(x.titre)}${x.quotePart ? '<span class="statut-badge badge-calc">Quote-part</span>' : ''}</span>
+          <span class="l-sous">${barre(x.part, x.calcule ? 'var(--muted)' : 'var(--accent)')} ${pc(x.part)}${x.nb ? ` · ${x.nb} dépense${x.nb > 1 ? 's' : ''}` : ''}</span></span>
+        <span class="l-num l-prevu">${euros(x.prevu)}</span>
+        <span class="l-num l-reel">${euros(x.reel)}</span>
+        <span class="l-num l-ecart ${x.prevu && x.reel > x.prevu ? 'alerte' : ''}">${x.prevu ? signe(x.reel - x.prevu) : '—'}</span>
+        <span></span>
+      </div>`).join('')}
+      <p class="avert">Masse salariale — bruts et charges patronales — <b>${euros(b.masseSalariale)}</b>,
+        soit ${pc(b.partMasseSalariale)} du coût réel. TVA payée ${euros(b.tva)}, hors de ces montants.</p>
+    </section>
+
+    ${b.derapages.length ? `<section class="bloc">
+      <h2>Ce qui a dérapé<span class="h2-total">${b.derapages.length} poste${b.derapages.length > 1 ? 's' : ''}</span></h2>
+      ${cinq(b.derapages, 'alerte')}
+    </section>` : ''}
+
+    ${b.economies.length ? `<section class="bloc">
+      <h2>Ce qu'on a économisé<span class="h2-total">${b.economies.length} poste${b.economies.length > 1 ? 's' : ''}</span></h2>
+      ${cinq(b.economies, 'gain')}
+    </section>` : ''}
+
+    ${b.internalises.length ? `<section class="bloc">
+      <h2>Postes internalisés<span class="h2-total">${euros(b.economieInternalisation)} <em>économisés</em></span></h2>
+      ${b.internalises.map(x=> `<div class="ligne">
+        <span class="l-nom"><span class="l-titre">${escapeHtml(x.titre)}</span>
+          <span class="l-sous">facturé au client, assuré en interne${x.taux ? ` — et ${fmtQteDevis(x.taux)} % de charges patronales évitées` : ''}</span></span>
+        <span class="l-num l-prevu">${euros(x.prevu)}</span>
+        <span class="l-num l-reel">${euros(0)}</span>
+        <span class="l-num l-ecart gain">${signe(x.economie)}</span><span></span>
+      </div>`).join('')}
+    </section>` : ''}
+
+    <section class="bloc">
+      <h2>Compteurs</h2>
+      <div class="compteurs">
+        ${[
+          ['Dépenses enregistrées', b.compteurs.depenses],
+          ['Fournisseurs distincts', b.compteurs.fournisseurs],
+          ['Dépense moyenne', euros(b.compteurs.montantMoyen)],
+          ['Postes renseignés', `${b.compteurs.postesTouches} / ${b.compteurs.postesPrevus}`],
+          ['Reste à engager', euros(b.resteAEngager)],
+          ['Engagé non payé', euros(b.compteurs.montantEngage)],
+          ['Provision d\'imprévus restante', euros(b.provisionRestante)],
+          ['Période couverte', b.compteurs.premiere ? `${b.compteurs.premiere} → ${b.compteurs.derniere}` : '—'],
+        ].map(([k, v])=> `<div class="compteur"><b>${escapeHtml(String(v))}</b><span>${escapeHtml(k)}</span></div>`).join('')}
+      </div>
+    </section>
+
+    <section class="bloc pied">
+      <h2>À savoir en lisant ce bilan</h2>
+      ${reservesBilan(b).map(x=> `<p class="avert">${escapeHtml(x)}</p>`).join('')}
+    </section>`;
 }
 
 /* Les dépenses d'un poste, dépliées sous la ligne : c'est là qu'on corrige une
@@ -1076,14 +1210,20 @@ function brancher(d, a, idx, deps){
   }));
   document.querySelectorAll('[data-suppr]').forEach(b=> b.addEventListener('click', ()=> retirer(b.dataset.suppr)));
 
-  const btnJ = document.getElementById('btnJournal');
-  if(btnJ) btnJ.addEventListener('click', ()=>{ state.vueJournal = !state.vueJournal; state.recherche = ''; state.detail = null; rendre(); });
+  document.querySelectorAll('[data-vue]').forEach(b=> b.addEventListener('click', ()=>{
+    state.vue = b.dataset.vue; state.recherche = ''; state.detail = null; rendre();
+  }));
+  const btnPdf = document.getElementById('btnBilanPdf');
+  if(btnPdf) btnPdf.addEventListener('click', ()=>{
+    try{ genererBilanPdf(Object.assign({}, state.suivi, { _depenses: deps }), projetDe((state.devis.find(x=> x.id === state.suivi.budgetId) || {}).tourneeId), state.reglages); }
+    catch(e){ alert("Le PDF n'a pas pu être généré :\n\n" + e.message); }
+  });
   const btnCsv = document.getElementById('btnCsv');
   if(btnCsv) btnCsv.addEventListener('click', ()=> exporterCsv(d, idx, deps));
 
   const majRecette = async ()=>{
     state.suivi.data.recette = {
-      montantHt: devisNombre(document.getElementById('recetteHt').value, 0),
+      montantHt: Math.round(devisNombre(document.getElementById('recetteHt').value, 0) * 100) / 100,
       source: document.getElementById('recetteSource').value.trim(),
     };
     if(await enregistrerSuivi()) rendre();
@@ -1096,7 +1236,7 @@ function brancher(d, a, idx, deps){
   if(reprendre) reprendre.addEventListener('click', async ()=>{
     const x = state.devis.find(y=> y.projetId === state.suivi.projetId && y.statut === 'accepte');
     if(!x) return;
-    state.suivi.data.recette = { montantHt: calculerDevis(x).totalHT, source: x.numero || 'accepté' };
+    state.suivi.data.recette = { montantHt: Math.round(calculerDevis(x).totalHT * 100) / 100, source: x.numero || 'accepté' };
     if(await enregistrerSuivi()) rendre();
   });
 
@@ -1107,7 +1247,7 @@ function brancher(d, a, idx, deps){
   });
 
   // Le détail rouvert après un rendu : on ne perd pas la liste qu'on consultait.
-  if(state.detail !== null && !state.vueJournal) ouvrirDetail(state.detail);
+  if(state.detail !== null && state.vue === 'tableau') ouvrirDetail(state.detail);
 }
 
 /* Retirer une dépense. Quinze secondes pour se raviser : la suppression n'est
