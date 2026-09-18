@@ -173,7 +173,11 @@ function rendre(){
   ].map(c=> `<div class="chiffre ${c.cls || ''}"><b>${escapeHtml(String(c.n))}</b><span>${escapeHtml(c.l)}</span></div>`).join('');
 
   // En cours : tout ce qui n'est pas terminé, le plus récemment touché en tête.
+  // Un budget qui a donné son devis n'est plus « en cours » : c'est son devis
+  // qui l'est. Le laisser ici affichait deux fois le même travail, et faisait
+  // croire qu'il restait quelque chose à chiffrer.
   const enCours = devisCache
+    .filter(d=> !estArchive(d, devisCache))
     .filter(d=> typeDocDe(d) === 'budget' || d.statut === 'brouillon' || d.statut === 'envoye')
     .sort((a, b)=> String(b._updatedAt || '').localeCompare(String(a._updatedAt || '')))
     .slice(0, 12);
