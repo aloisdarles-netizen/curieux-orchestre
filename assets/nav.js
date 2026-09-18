@@ -108,6 +108,7 @@ const CURIEUX_SECTIONS = [
   { libelle:'Budget', href:'budget.html', admin:true, entrees:[
     { libelle:'Tableau de bord', href:'budget.html', pages:['budget.html'] },
     { libelle:'Devis et budgets', href:'devis.html', pages:['devis.html','devis-editeur.html'] },
+    { libelle:'Suivi des dépenses', href:'suivi.html', pages:['suivi.html'] },
     { libelle:'Clients', href:'devis-clients.html', pages:['devis-clients.html'] },
   ]},
   // Réservée aux comptes 'admin' : elle n'entre dans le bandeau qu'après

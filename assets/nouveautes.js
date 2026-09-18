@@ -33,6 +33,21 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-18-2',
+    titre: 'Le suivi des dépenses',
+    points: [
+      "Le chiffrage s'arrêtait à la signature : une fois le devis accepté, ce qui était réellement dépensé vivait dans un tableur, et l'écart avec le prévu ne se lisait qu'à la clôture — trop tard pour décider quoi que ce soit.",
+      "Budget → Suivi des dépenses. Trois colonnes : prévu, réel, différence. Le prévisionnel est une COPIE du document arrêté, figée le jour où l'on ouvre le suivi : il ne bougera plus, même si le devis est retouché ensuite.",
+      "La nomenclature n'est pas à inventer : le suivi reprend l'arbre du devis — sections, groupes, lignes. Une dépense se rattache au niveau qu'on veut, et l'arbre additionne vers le haut. Quinze rangées suffisent à lire un budget de deux cent mille euros.",
+      "Les charges patronales ne se saisissent jamais : elles se recalculent sur les bruts réels, avec les taux du document et non ceux des réglages. Le champ prévient qu'il attend un BRUT employeur, et pose la question si le montant ressemble à un coût déjà chargé.",
+      "Frais généraux et imprévus restent hors du total d'écart : les premiers n'ont pas de facture, les seconds n'ont pas de réel. Laissés dedans, ils afficheraient 11 % d'économie du premier au dernier jour du projet.",
+      "Un quatrième chiffre en tête : l'atterrissage. Pour chaque groupe, le plus élevé du prévu et du dépensé — un poste entamé à 30 % annonce toujours son budget entier, un poste dépassé annonce son dépassement.",
+      "Saisie en quatre gestes, en TTC par défaut (c'est ce qui est écrit sur la facture), la TVA déduite toute seule et modifiable. Journal chronologique, recherche, export CSV pour la compta, et un lien vers le dossier Drive du projet avec un bouton qui copie le nom de fichier à donner au justificatif.",
+      "Tout est en HT dans les trois colonnes : le devis calcule une TVA collectée sur une cession, les factures portent une TVA déductible — deux grandeurs sans rapport.",
+      "Ce tableau ne suit que les dépenses. Cession, subventions, coproductions et billetterie arrivent au prochain lot ; d'ici là, la page le dit en toutes lettres.",
+    ],
+  },
+  {
     version: '2026-09-18',
     titre: 'Correction : le cachet affiché aux technicien·nes',
     points: [

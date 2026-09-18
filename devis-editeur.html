@@ -11,6 +11,7 @@
 <script src="assets/nouveautes.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/devis-commun.js"></script>
+<script src="assets/suivi-commun.js"></script>
 <script src="assets/pdf-charte.js"></script>
 <script src="assets/pdf-devis.js"></script>
 <script src="assets/nav.js"></script>
@@ -352,6 +353,9 @@ let clientsCache = [], postesCache = [], reglagesCache = {}, annuaireNoms = [];
 // Les tournées et recordings, pour le rattachement du chiffrage à son projet.
 // Lecture seule ici : on ne modifie jamais un projet depuis un devis.
 let tourneesCache = [];
+// Les suivis de dépenses ouverts : le bouton de tête doit savoir s'il ouvre le
+// suivi du projet ou s'il le crée.
+let suivisCache = [];
 let posteCibleGroupe = null; // groupe qui recevra le poste choisi dans la modale
 
 // --- Sauvegarde débouncée ---------------------------------------------------
@@ -461,7 +465,7 @@ window.addEventListener('beforeunload', ()=>{ if(timerSauvegarde){ clearTimeout(
 // --- Chargement -------------------------------------------------------------
 async function charger(){
   const id = new URLSearchParams(location.search).get('id');
-  const [tous, clients, postes, reglages, musiciens, techniciens, tournees] = await Promise.all([
+  const [tous, clients, postes, reglages, musiciens, techniciens, tournees, suivis] = await Promise.all([
     CurieuxDB.fetchAll('devis'),
     CurieuxDB.fetchAll('devis_clients'),
     CurieuxDB.fetchAll('devis_postes'),
@@ -469,9 +473,10 @@ async function charger(){
     CurieuxDB.fetchAll('musiciens'),
     CurieuxDB.fetchAll('techniciens'),
     CurieuxDB.fetchAll('tournees'),
+    CurieuxDB.fetchAll('suivis_budget').catch(()=> []),
   ]);
   tousDevis = tous; clientsCache = clients; postesCache = postes; reglagesCache = reglages;
-  tourneesCache = tournees;
+  tourneesCache = tournees; suivisCache = suivis;
   annuaireNoms = [...musiciens, ...techniciens].map(p=> [p.prenom, p.nom].filter(Boolean).join(' ')).filter(Boolean).sort();
   devis = tous.find(d=> d.id === id);
   if(!devis){
@@ -531,6 +536,16 @@ function renderTete(){
     actions.push('<button type="button" class="co-btn primary md" id="accepteBtn">Accepté ✓</button>');
     actions.push('<button type="button" class="co-btn ghost md" id="refuseBtn">Refusé</button>');
   }
+  // Le suivi des dépenses part du document RETENU du projet — celui marqué
+  // d'une étoile — ou, à défaut, d'un devis accepté. Pas de « devis client
+  // accepté » obligatoire : un enregistrement autoproduit n'a ni client ni
+  // devis, et son budget interne est le seul document qui dise ce qu'il coûte.
+  if(devis.retenue || devis.statut === 'accepte'){
+    const suivi = suivisCache.find(s=> s.projetId === devis.projetId);
+    actions.push(suivi
+      ? `<a class="co-btn secondary md" href="suivi.html?id=${encodeURIComponent(suivi.id)}">Suivi des dépenses</a>`
+      : '<button type="button" class="co-btn secondary md" id="suivreBtn">Suivre les dépenses</button>');
+  }
   actions.push('<button type="button" class="co-btn danger md" id="supprimerBtn">Supprimer</button>');
   document.getElementById('actionsHaut').innerHTML = actions.join('');
 
@@ -586,7 +601,27 @@ function renderTete(){
   const accepteBtn = document.getElementById('accepteBtn');
   if(accepteBtn) accepteBtn.addEventListener('click', async ()=>{
     devis.statut = 'accepte';
+    // La date d'acceptation n'était enregistrée nulle part : on savait quand un
+    // devis était parti (dateEnvoi), jamais quand il avait été signé. C'est
+    // pourtant elle qui date le début d'un suivi de dépenses.
+    devis.dateAcceptation = devis.dateAcceptation || new Date().toISOString().slice(0, 10);
     await sauvegarder(); renderTete();
+  });
+
+  // Ouvrir le suivi : on fige ici l'arbre du document, comme le ferait la page
+  // de suivi elle-même — c'est le même appel, au même moteur.
+  const suivreBtn = document.getElementById('suivreBtn');
+  if(suivreBtn) suivreBtn.addEventListener('click', async ()=>{
+    suivreBtn.disabled = true; suivreBtn.textContent = 'Ouverture…';
+    const accepte = tousDevis.find(d=> d.projetId === devis.projetId && d.statut === 'accepte');
+    const suivi = {
+      id: genId('suivi'), projetId: devis.projetId || devis.id, budgetId: devis.id,
+      devisId: accepte ? accepte.id : '',
+      data: figerSuivi(devis, { aujourdHui: new Date().toISOString().slice(0, 10) }),
+    };
+    const { error } = await CurieuxDB.upsertOne('suivis_budget', suivi);
+    if(error){ alert("Le suivi n'a pas pu être créé :\n\n" + error.message); suivreBtn.disabled = false; suivreBtn.textContent = 'Suivre les dépenses'; return; }
+    location.href = 'suivi.html?id=' + encodeURIComponent(suivi.id);
   });
   const refuseBtn = document.getElementById('refuseBtn');
   if(refuseBtn) refuseBtn.addEventListener('click', async ()=>{

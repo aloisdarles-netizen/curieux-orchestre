@@ -120,7 +120,11 @@
 // quatrième niveau dans curieuxCachetResolu). Sans cet incrément, un
 // navigateur déjà venu garderait l'ancien fichier — les montants par
 // répétition existeraient en base et ne s'afficheraient nulle part.
-const VERSION = 'curieux-v120';
+// v121 : suivi.html et suivi-commun.js entrent dans l'outil, et db.js apprend
+// deux tables. Sans cet incrément, un navigateur déjà venu garderait l'ancien
+// db.js : la page s'ouvrirait, les dépenses partiraient en base et n'en
+// reviendraient jamais — l'adaptateur manquant, elles seraient lues vides.
+const VERSION = 'curieux-v121';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

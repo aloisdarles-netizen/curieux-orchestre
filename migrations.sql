@@ -5957,3 +5957,118 @@ end $$;
 alter table tournees add column if not exists cachet_technicien_statut text not null default 'non_defini'
   check (cachet_technicien_statut in ('non_defini','defini'));
 alter table tournees add column if not exists cachet_technicien_montant numeric;
+
+
+-- ============================================================================
+-- 2026-09 · Suivi des dépenses (lot 1)
+--
+-- Le chiffrage s'arrêtait à la signature. Une fois le devis accepté, ce qui
+-- était réellement dépensé vivait dans un tableur, ailleurs, et l'écart entre
+-- le prévu et le réel ne se lisait nulle part avant la clôture — c'est-à-dire
+-- trop tard pour décider quoi que ce soit.
+--
+-- LE PRÉVISIONNEL EST UNE COPIE, JAMAIS UNE LECTURE À LA VOLÉE. Un budget
+-- n'est jamais figé (seul un devis client l'est au passage en « envoyé »), et
+-- « Caler sur un montant cible » réécrit le pourcentage d'imprévus à cinq
+-- décimales en un clic. Une colonne prévisionnelle vive bougerait sous la
+-- colonne réelle, et personne ne saurait lequel des deux a bougé. On copie
+-- donc l'arbre du document au moment de l'arrêté, avec SES taux de charges —
+-- jamais ceux des réglages, qui peuvent avoir changé depuis.
+--
+-- LA MAILLE EST LE NŒUD DE CET ARBRE : une section, un groupe ou une ligne.
+-- La nomenclature qu'on croyait devoir inventer est déjà écrite à la main dans
+-- les devis — « REC Musiciens », « Equipe technique - enregistrement »,
+-- « Post-production ». Une dépense se rattache au niveau qu'on veut, l'arbre
+-- additionne vers le haut : pas de dictionnaire, pas d'écran de rattachement.
+-- ============================================================================
+
+-- Un suivi par chiffrage. Document jsonb, sur le modèle de devis et
+-- feuilles_route : l'instantané du prévisionnel s'écrit d'un seul tenant et ne
+-- se requête jamais ligne à ligne.
+--
+-- PAS de clé étrangère vers devis : le prévisionnel est une copie, et le suivi
+-- doit survivre à la suppression de son document source. C'est tout l'intérêt
+-- de l'avoir copié.
+create table if not exists suivis_budget (
+  id text primary key,
+  projet_id text not null default '',   -- devis.projetId : ce qui groupe les variantes
+  budget_id text not null default '',   -- le document dont l'arbre a été copié
+  devis_id  text not null default '',   -- le devis client accepté, s'il en existe un
+  data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+-- Un seul suivi par chiffrage : deux suivis du même projet afficheraient deux
+-- réels concurrents sans que rien ne dise lequel fait foi.
+create unique index if not exists idx_suivis_budget_projet on suivis_budget(projet_id) where projet_id <> '';
+create index if not exists idx_suivis_budget_budget on suivis_budget(budget_id);
+drop trigger if exists trg_suivis_budget_updated_at on suivis_budget;
+create trigger trg_suivis_budget_updated_at before update on suivis_budget
+  for each row execute function set_updated_at();
+alter table suivis_budget enable row level security;
+drop policy if exists "suivis budget acces" on suivis_budget;
+create policy "suivis budget acces" on suivis_budget for all to authenticated
+  using (is_admin()) with check (is_admin());
+
+-- Une ligne par facture, par note de restaurant, par avoir. Table à colonnes
+-- et non document : on les filtre, on les trie, on les additionne et on les
+-- saisit une par une.
+create table if not exists depenses (
+  id text primary key,
+  suivi_id text not null references suivis_budget(id) on delete restrict,
+  -- L'id d'un nœud de l'arbre figé : section, groupe OU ligne. Vide = dépense
+  -- sans prévisionnel, ce qui est un fait à voir, pas une erreur à corriger.
+  noeud_id text not null default '',
+  -- Posée dès maintenant, remplie au lot 2 : ajouter une colonne à une table
+  -- déjà chargée de dépenses coûte une migration, la poser vide ne coûte rien.
+  sens text not null default 'depense' check (sens in ('depense','recette')),
+  libelle text not null default '',
+  fournisseur text not null default '',
+  date_depense date,
+  -- AUCUNE contrainte >= 0, et c'est délibéré : un avoir se saisit en négatif.
+  -- C'est le seul moyen de corriger une facture sans détruire une dépense dont
+  -- le justificatif est déjà nommé et déposé sur le Drive.
+  montant_ht numeric(12,2) not null default 0,
+  montant_tva numeric(12,2) not null default 0,
+  -- Vide = hérite du régime de la ligne rattachée. Ne se renseigne que pour
+  -- une dépense rattachée plus haut qu'une ligne : un cachet non prévu porte
+  -- +60 % de charges, un taxi n'en porte aucune.
+  regime text not null default '' check (regime in ('','auteur','musicien','production','facture','aucun')),
+  statut text not null default 'paye' check (statut in ('engage','paye')),
+  justificatif_url text not null default '',
+  note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_depenses_suivi on depenses(suivi_id, noeud_id);
+drop trigger if exists trg_depenses_updated_at on depenses;
+create trigger trg_depenses_updated_at before update on depenses
+  for each row execute function set_updated_at();
+alter table depenses enable row level security;
+drop policy if exists "depenses acces" on depenses;
+create policy "depenses acces" on depenses for all to authenticated
+  using (is_admin()) with check (is_admin());
+
+-- Pourquoi « on delete restrict » et non « cascade » : la restauration depuis
+-- la corbeille fait un insert brut de old_data (voir restaurerDepuisCorbeille
+-- dans assets/db.js). Une dépense effacée PAR une cascade échouerait à la
+-- restauration sur violation de clé étrangère, tout en s'affichant dans la
+-- corbeille comme récupérable. Une corbeille qui ment est pire qu'une absence
+-- de corbeille : on supprime avec confiance. La page supprime donc les
+-- dépenses une à une avant le suivi, et chacune reste restaurable.
+
+-- Le journal d'audit, comme pour les vingt tables de septembre.
+do $$
+declare tbl text;
+begin
+  foreach tbl in array array['suivis_budget','depenses']
+  loop
+    execute format('drop trigger if exists trg_audit_%1$s on %1$I', tbl);
+    execute format('create trigger trg_audit_%1$s after insert or update or delete on %1$I for each row execute function audit_trigger_func()', tbl);
+  end loop;
+end $$;
+
+-- CONSERVATION. Une dépense porte un nom de fournisseur — parfois une personne
+-- physique — et le montant d'un cachet nominatif. Elle suit donc la même règle
+-- que les devis : on garde le temps de la vie comptable du projet et de son
+-- contrôle éventuel, pas au-delà. Voir mentions-legales.html.

@@ -1,0 +1,917 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Suivi des dépenses</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/nouveautes.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/devis-commun.js"></script>
+<script src="assets/suivi-commun.js"></script>
+<script src="assets/annuler.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  .wrap{max-width:min(1200px, 97vw); margin:0 auto;}
+
+  /* Les quatre chiffres de tête. L'atterrissage est le seul qui répond à la
+     question qu'on se pose vraiment en ouvrant la page. */
+  .su-chiffres{display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:16px;}
+  .su-chiffre{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px;}
+  .su-chiffre b{
+    display:block; font-family:var(--font-display); font-size:26px; font-weight:500; line-height:1.15;
+    color:var(--accent); font-variant-numeric:tabular-nums;
+  }
+  .su-chiffre span{font-size:12px; color:var(--muted); font-weight:600;}
+  .su-chiffre small{display:block; font-size:11px; color:var(--muted); margin-top:3px; line-height:1.35;}
+  .su-chiffre.alerte b{color:var(--ko);}
+
+  .su-barre{
+    display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px;
+  }
+  .su-filtre{
+    background:var(--card); border:1px solid var(--border); border-radius:999px; padding:7px 13px;
+    font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; font-family:inherit;
+  }
+  .su-filtre[aria-pressed="true"]{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
+  .su-recherche{flex:1 1 180px; min-width:150px;}
+
+  /* LE TABLEAU. Cinq colonnes : le poste, trois montants, le bouton d'ajout.
+     Une grille plutôt qu'un <table> : le repli en cartes sur téléphone se fait
+     alors sans reconstruire le balisage. */
+  /* « clip » et non « hidden » : overflow:hidden fait du tableau un conteneur
+     de défilement, et l'en-tête collant s'y accroche au lieu de s'accrocher à
+     la page — il défilait donc hors de l'écran avec le reste. overflow:clip
+     rogne les angles sans créer ce conteneur. Un très vieux Safari qui ne le
+     connaît pas ignore la déclaration : les angles redeviennent droits, le
+     collage reste juste. */
+  .su-table{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:clip;}
+  .su-tete, .su-rang{
+    display:grid; grid-template-columns:minmax(0,38fr) minmax(0,19fr) minmax(0,19fr) minmax(0,19fr) 46px;
+    gap:8px; align-items:center; padding:9px 14px; border-bottom:1px solid var(--border);
+  }
+  /* L'en-tête de colonnes se colle SOUS les deux bandeaux du site : la barre
+     principale (56 px, top:0) et le sous-menu de section (sticky à top:56px).
+     Collé à 56 px, il passait derrière le sous-menu et masquait la première
+     section. La hauteur se lit dans la page, elle n'est pas devinée. */
+  .su-tete{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:800;
+    background:var(--bg); position:sticky; top:var(--su-colle, 112px); z-index:5;
+    box-shadow:0 1px 0 var(--border);
+  }
+  .su-rang:last-child{border-bottom:none;}
+  .su-rang:hover{background:var(--row-alt, var(--bg));}
+  .su-nom{min-width:0; position:relative;}
+  .su-nom b{font-size:13.5px; font-weight:700; display:block;}
+  .su-nom small{display:block; font-size:11.5px; color:var(--muted); margin-top:1px; line-height:1.35;}
+  .su-section > .su-nom b{text-transform:uppercase; letter-spacing:.04em; font-size:12px; font-weight:800; color:var(--accent-dark);}
+  .su-section{background:var(--champagne);}
+  .su-groupe > .su-nom b{font-weight:800;}
+  .su-ligne > .su-nom{padding-left:30px;}
+  .su-ligne > .su-nom b{font-weight:500;}
+  .su-calcule{background:var(--bg);}
+  .su-calcule > .su-nom b{font-weight:700;}
+
+  /* Le chevron est POSÉ dans la marge, pas dans le flux : l'intitulé étant un
+     bloc, un chevron en ligne le renvoyait à la ligne suivante et chaque
+     groupe occupait une rangée de trop. min-height:0 défait la cible tactile
+     de 44 px que base.css impose à tous les boutons sous 820 px — ici c'est
+     l'intitulé entier qui sert de cible. */
+  .su-chev{
+    position:absolute; left:0; top:0; width:20px; height:20px; min-height:0;
+    background:none; border:none; padding:0; margin:0; cursor:pointer; color:var(--muted);
+    font-size:11px; font-family:inherit; text-align:left; line-height:20px;
+  }
+  .su-groupe > .su-nom{padding-left:34px;}
+  .su-groupe.pliable > .su-nom{cursor:pointer;}
+  .su-num{text-align:right; font-variant-numeric:tabular-nums; font-size:13px; font-weight:800; white-space:nowrap;}
+  .su-num small{display:block; font-size:10.5px; font-weight:600; color:var(--muted); margin-top:1px;}
+  .su-num.vide{color:var(--muted); font-weight:500;}
+  .su-ecart.alerte{color:var(--ko);}
+  .su-plus{
+    width:34px; height:34px; border-radius:9px; border:1px solid var(--border); background:var(--card);
+    color:var(--accent-dark); font-size:18px; font-weight:700; cursor:pointer; font-family:inherit; line-height:1;
+  }
+  .su-plus:hover{border-color:var(--accent); background:var(--champagne);}
+
+  .su-pastille{
+    display:inline-block; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em;
+    padding:1px 6px; border-radius:999px; margin-left:6px; vertical-align:middle;
+    background:var(--maybe-tint); color:#8a5a18;
+  }
+  .su-pastille.ajout{background:var(--secondary-tint); color:#8c2c07;}
+  .su-pastille.calc{background:var(--accent-tint); color:#2f4a68;}
+  .su-pastille.solde{background:var(--ok-tint); color:var(--ok);}
+
+  /* Le pied : quatre lignes, pas une de plus. */
+  .su-pied{background:var(--bg); border-top:2px solid var(--border);}
+  .su-pied .su-rang{border-bottom:1px dashed var(--border);}
+  .su-pied .su-rang:last-child{border-bottom:none;}
+  .su-pied .su-nom b{font-weight:800;}
+  .su-avert{
+    font-size:12px; color:var(--muted); line-height:1.5; padding:11px 14px; background:var(--bg);
+    border-top:1px solid var(--border);
+  }
+  .su-avert b{color:var(--text);}
+
+  /* La carte de saisie : une fiche ancrée, pas une fenêtre modale plein écran.
+     On doit voir la rangée qu'on renseigne. */
+  .su-voile{position:fixed; inset:0; background:rgba(20,22,23,.42); z-index:60; display:flex;
+    align-items:flex-end; justify-content:center; padding:0;}
+  @media (min-width:761px){ .su-voile{align-items:center; padding:20px;} }
+  .su-fiche{
+    background:var(--card); border-radius:var(--radius) var(--radius) 0 0; width:min(560px, 100%);
+    max-height:92vh; overflow-y:auto; padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+  }
+  @media (min-width:761px){ .su-fiche{border-radius:var(--radius);} }
+  .su-fiche h3{margin:0 0 3px; font-size:15px;}
+  .su-fiche .cible{font-size:12px; color:var(--muted); margin:0 0 13px; line-height:1.4;}
+  .su-champs{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .su-champs .large{grid-column:1 / -1;}
+  .su-champ label{display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:3px;}
+  .su-champ input, .su-champ select, .su-champ textarea{
+    width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:14px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  .su-champ input:focus, .su-champ select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .su-bascule{display:flex; gap:6px; margin-bottom:10px;}
+  .su-bascule button{
+    flex:1; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg);
+    font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; font-family:inherit;
+  }
+  .su-bascule button[aria-pressed="true"]{background:var(--accent-solid); color:#fff; border-color:var(--accent-solid);}
+  .su-garde{
+    font-size:12px; line-height:1.45; background:var(--maybe-tint); color:#7a4e12; border-radius:8px;
+    padding:9px 11px; margin-top:10px;
+  }
+  .su-fiche-actions{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;}
+
+  /* Le journal : ce qui a été saisi, dans l'ordre où ça s'est passé. */
+  .su-journal .su-jl{
+    display:grid; grid-template-columns:86px minmax(0,1fr) auto auto; gap:10px; align-items:center;
+    padding:9px 0; border-bottom:1px solid var(--border); font-size:13px;
+  }
+  .su-journal .su-jl:last-child{border-bottom:none;}
+  .su-jdate{font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .su-jnom b{font-weight:700;}
+  .su-jnom small{display:block; font-size:11px; color:var(--muted);}
+  .su-jact{display:flex; gap:5px;}
+  .su-mini{
+    background:none; border:1px solid var(--border); border-radius:7px; padding:5px 9px; font-size:11.5px;
+    font-weight:600; color:var(--text); cursor:pointer; font-family:inherit; text-decoration:none;
+  }
+  .su-mini:hover{border-color:var(--accent);}
+  .su-mini.danger{color:var(--danger); border-color:var(--danger-tint);}
+
+  .su-vide{font-size:13px; color:var(--muted); padding:14px; line-height:1.6;}
+  .su-drive{display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:12.5px;}
+  .su-drive input{flex:1 1 240px; min-width:180px;}
+  .su-note-drive{font-size:11.5px; color:var(--muted); line-height:1.45; margin-top:6px;}
+
+  /* SUR TÉLÉPHONE, trois colonnes deviennent une phrase. Un tableau de montants
+     à 390 px de large est illisible ; une carte par poste ne l'est pas. */
+  @media (max-width:760px){
+    .su-tete{display:none;}
+    /* Deux lignes, jamais quatre : le nom et l'écart en tête, les deux
+       montants dessous avec leur étiquette. Une grille NOMMÉE plutôt qu'une
+       suite de grid-column : deux cellules ne peuvent pas partager la même
+       case, et « display:inline » sur un enfant de grille ne le remet pas
+       dans le flux — chaque montant repartait à la ligne. */
+    .su-rang{
+      grid-template-columns:minmax(0,1fr) auto 44px;
+      grid-template-areas:"nom ecart plus" "prevu reel plus";
+      gap:3px 10px; padding:11px 13px;
+    }
+    .su-nom{grid-area:nom;}
+    .su-num{text-align:left; font-size:12.5px; font-weight:700;}
+    .su-num small{display:inline; margin-left:4px;}
+    .su-prevu{grid-area:prevu;}
+    .su-reel{grid-area:reel; text-align:right;}
+    .su-prevu::after{content:' prévu'; font-weight:500; color:var(--muted); font-size:11px;}
+    .su-reel::after{content:' réel'; font-weight:500; color:var(--muted); font-size:11px;}
+    .su-ecart{
+      grid-area:ecart; align-self:start; font-size:13px; font-weight:800;
+      padding:2px 8px; border-radius:999px; background:var(--bg); text-align:right;
+    }
+    .su-ecart::after{content:none;}
+    .su-ecart.alerte{background:var(--ko-tint);}
+    .su-rang > span:last-child{grid-area:plus; align-self:center; justify-self:end;}
+    .su-plus{width:44px; height:44px; font-size:20px;}
+    .su-ligne > .su-nom{padding-left:16px;}
+    .su-groupe > .su-nom{padding-left:26px;}
+    .su-champs{grid-template-columns:1fr;}
+    .su-champs .demi{grid-column:auto;}
+    input, select, textarea{font-size:16px !important;}
+    .su-journal .su-jl{grid-template-columns:1fr auto; }
+    .su-jdate{grid-column:1; grid-row:2; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap" data-annuler-ancre>
+  <div id="page"><div class="co-card co-pad su-vide">Chargement…</div></div>
+</div>
+
+<script>
+/* ============================================================================
+   Suivi des dépenses — la page.
+   ============================================================================
+   Tout le calcul vit dans assets/suivi-commun.js : ici, on dessine et on
+   saisit. La règle de partage est simple — si une ligne de ce fichier fait une
+   addition d'euros, elle est au mauvais endroit.
+
+   DEUX ÉCRANS DANS UNE PAGE. Sans paramètre, la liste des suivis et des
+   chiffrages qui attendent le leur. Avec ?id=, le suivi lui-même.
+
+   CE QUE CETTE PAGE NE FAIT PAS, et qui est un bon refus :
+   — aucune ventilation d'un poste vers un autre. L'écart est le seul signal de
+     diagnostic du suivi ; le lisser le détruit ;
+   — aucun réel sur la rangée « Imprévus » : une provision n'a pas de facture.
+     Ce qui la consomme, ce sont les dépenses sans prévisionnel, comptées à
+     part et déduites de la provision restante ;
+   — aucune trace de la remise : c'est une réduction de PRODUIT ;
+   — aucun pré-remplissage automatique des montants. L'outil dit ce qu'il sait,
+     il ne remplit pas à ta place.
+============================================================================ */
+
+const AUJOURDHUI = new Date().toISOString().slice(0, 10);
+
+let state = {
+  suivis: [], depenses: [], devis: [], tournees: [],
+  suivi: null,
+  ouverts: new Set(),      // ids de groupes dépliés sur leurs lignes
+  filtre: 'tout',
+  recherche: '',
+  fiche: null,             // la dépense en cours d'édition
+  vueJournal: false,
+};
+
+function euros(n){ return fmtEurosDevis(n); }
+function signe(n){ return (n >= 0 ? '+' : '−') + fmtEurosDevis(Math.abs(n)); }
+
+/* Le seuil à partir duquel un écart se colore. En pourcentage OU en valeur
+   absolue, le plus permissif des deux : 5 % de 200 € ne mérite pas de rouge,
+   200 € sur 100 000 € non plus. */
+function ecartAlerte(ecart, prevu){
+  if(ecart <= 0) return false;
+  return ecart > 200 && (!prevu || ecart / prevu > 0.05);
+}
+
+function projetDe(id){ return state.tournees.find(t=> t.id === id) || null; }
+
+// ---------------------------------------------------------------- chargement
+async function charger(){
+  const [suivis, depenses, devis, tournees] = await Promise.all([
+    CurieuxDB.fetchAll('suivis_budget').catch(()=> []),
+    CurieuxDB.fetchAll('depenses').catch(()=> []),
+    CurieuxDB.fetchAll('devis').catch(()=> []),
+    CurieuxDB.fetchAll('tournees').catch(()=> []),
+  ]);
+  state.suivis = suivis; state.depenses = depenses;
+  state.devis = devis; state.tournees = tournees;
+
+  const id = new URLSearchParams(location.search).get('id');
+  state.suivi = id ? suivis.find(s=> s.id === id) || null : null;
+  if(id && !state.suivi){
+    document.getElementById('page').innerHTML =
+      `<div class="co-card co-pad su-vide">Ce suivi n'existe plus. <a href="suivi.html">Revenir à la liste</a>.</div>`;
+    return;
+  }
+  rendre();
+}
+
+function depensesDuSuivi(){
+  if(!state.suivi) return [];
+  return state.depenses.filter(d=> d.suiviId === state.suivi.id);
+}
+
+async function enregistrerSuivi(){
+  const { error } = await CurieuxDB.upsertOne('suivis_budget', state.suivi);
+  if(error) alert("Le suivi n'a pas pu être enregistré :\n\n" + error.message);
+  return !error;
+}
+
+// ---------------------------------------------------------------- la liste
+/* Quels documents peuvent ouvrir un suivi.
+   Le déclencheur n'est PAS « un devis client accepté » : un enregistrement
+   autoproduit n'a ni client ni devis, et le budget interne est le seul
+   document qui décrive ce que le projet coûte. On propose donc, par projet, le
+   document retenu — celui que tu as toi-même marqué d'une étoile —, et à
+   défaut le devis accepté, à défaut le premier budget. */
+function chiffragesOuvrables(){
+  const parProjet = new Map();
+  state.devis.forEach(d=>{
+    const cle = d.projetId || d.id;
+    if(!parProjet.has(cle)) parProjet.set(cle, []);
+    parProjet.get(cle).push(d);
+  });
+  const dejaSuivis = new Set(state.suivis.map(s=> s.projetId));
+  const out = [];
+  parProjet.forEach((docs, cle)=>{
+    if(dejaSuivis.has(cle)) return;
+    const choisi = docs.find(d=> d.retenue)
+      || docs.find(d=> d.statut === 'accepte')
+      || docs.find(d=> typeDocDe(d) === 'budget')
+      || docs[0];
+    if(choisi) out.push({ projetId: cle, doc: choisi, variantes: docs.length });
+  });
+  return out;
+}
+
+function rendreListe(){
+  const ouvrables = chiffragesOuvrables();
+  const lignes = state.suivis.map(s=>{
+    const d = s.data || {};
+    const a = agregerSuivi(d, state.depenses.filter(x=> x.suiviId === s.id));
+    const projet = projetDe((state.devis.find(x=> x.id === s.budgetId) || {}).tourneeId);
+    const al = ecartAlerte(a.ecart, a.totalPrevu);
+    return `<a class="su-rang" href="suivi.html?id=${encodeURIComponent(s.id)}" style="text-decoration:none; color:inherit;">
+      <span class="su-nom"><b>${escapeHtml(d.titre || 'Sans titre')}</b>
+        <small>${escapeHtml([projet ? projet.nom : '', d.sourceNumero, d.figeLe ? 'arrêté le ' + d.figeLe : '', `${a.nbDepenses} dépense${a.nbDepenses > 1 ? 's' : ''}`].filter(Boolean).join(' · '))}</small></span>
+      <span class="su-num su-prevu">${euros(a.totalPrevu)}</span>
+      <span class="su-num su-reel">${a.totalReel ? euros(a.totalReel) : '—'}</span>
+      <span class="su-num su-ecart ${al ? 'alerte' : ''}">${a.totalReel ? signe(a.ecart) : '—'}</span>
+      <span></span>
+    </a>`;
+  }).join('');
+
+  document.getElementById('page').innerHTML = `
+    <div class="co-page-head">
+      <div>
+        <h1 class="co-h1">Suivi des dépenses</h1>
+        <p class="co-sub">Ce qui était prévu, ce qui est dépensé, et l'écart — projet par projet.</p>
+      </div>
+      <div class="co-page-actions"><a class="co-btn secondary md" href="devis.html">Devis et budgets</a></div>
+    </div>
+
+    <div class="su-table" style="margin-bottom:16px;">
+      <div class="su-tete"><span>Projet</span><span style="text-align:right;">Prévu</span>
+        <span style="text-align:right;">Réel</span><span style="text-align:right;">Différence</span><span></span></div>
+      ${lignes || `<div class="su-vide">Aucun suivi ouvert pour l'instant.</div>`}
+    </div>
+
+    <section class="co-card co-pad">
+      <h2 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:800; margin:0 0 10px;">
+        Ouvrir un suivi</h2>
+      ${ouvrables.length ? ouvrables.map(o=> `
+        <div class="su-jl" style="display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid var(--border);">
+          <span class="su-jnom"><b>${escapeHtml(o.doc.titre || 'Sans titre')}</b>
+            <small>${escapeHtml([o.doc.variante, o.doc.numero, typeDocDe(o.doc) === 'budget' ? 'budget interne' : (DEVIS_STATUTS[o.doc.statut] || ''), o.variantes > 1 ? `${o.variantes} variantes` : ''].filter(Boolean).join(' · '))}</small></span>
+          <span class="su-num">${euros(calculerDevis(o.doc).totalHT)}</span>
+          <button type="button" class="co-btn primary sm" data-ouvrir="${escapeAttr(o.doc.id)}">Suivre les dépenses</button>
+        </div>`).join('')
+        : `<p class="su-vide" style="padding:2px 0;">Tous les chiffrages ont leur suivi. Un nouveau projet chiffré apparaîtra ici.</p>`}
+      <p class="su-note-drive">Le suivi copie l'arbre du document choisi et le fige : le prévisionnel ne bougera plus, même si le devis est retouché ensuite.</p>
+    </section>
+  `;
+  document.querySelectorAll('[data-ouvrir]').forEach(b=> b.addEventListener('click', ()=> ouvrirSuivi(b.dataset.ouvrir, b)));
+  calerEnTete();
+}
+
+async function ouvrirSuivi(devisId, bouton){
+  const doc = state.devis.find(d=> d.id === devisId);
+  if(!doc) return;
+  bouton.disabled = true; bouton.textContent = 'Ouverture…';
+  const data = figerSuivi(doc, { aujourdHui: AUJOURDHUI });
+  // Le devis client accepté du même projet, s'il existe : c'est lui qui porte
+  // la recette, et il datera la ligne de produit au lot 2.
+  const accepte = state.devis.find(d=> d.projetId === doc.projetId && d.statut === 'accepte');
+  const suivi = {
+    id: genId('suivi'), projetId: doc.projetId || doc.id, budgetId: doc.id,
+    devisId: accepte ? accepte.id : '', data,
+  };
+  const { error } = await CurieuxDB.upsertOne('suivis_budget', suivi);
+  if(error){ alert("Le suivi n'a pas pu être créé :\n\n" + error.message); bouton.disabled = false; bouton.textContent = 'Suivre les dépenses'; return; }
+  location.href = 'suivi.html?id=' + encodeURIComponent(suivi.id);
+}
+
+// ---------------------------------------------------------------- le suivi
+function rendre(){
+  if(!state.suivi){ rendreListe(); return; }
+  const d = state.suivi.data || {};
+  const deps = depensesDuSuivi();
+  const a = agregerSuivi(d, deps);
+  const idx = indexerNoeuds(d);
+  const projet = projetDe((state.devis.find(x=> x.id === state.suivi.budgetId) || {}).tourneeId);
+
+  const alEcart = ecartAlerte(a.ecart, a.totalPrevu);
+  const alAtter = a.atterrissage > d.totalPrevu + 200;
+
+  document.getElementById('page').innerHTML = `
+    <div class="co-page-head">
+      <div>
+        <h1 class="co-h1">${escapeHtml(d.titre || 'Suivi')}</h1>
+        <p class="co-sub">${escapeHtml([
+          d.sourceType === 'budget' ? 'budget interne' : 'devis client',
+          d.sourceNumero, projet ? projet.nom : '',
+          d.figeLe ? 'prévisionnel arrêté le ' + d.figeLe : ''
+        ].filter(Boolean).join(' · '))}</p>
+      </div>
+      <div class="co-page-actions">
+        <button type="button" class="co-btn ghost md" id="btnJournal">${state.vueJournal ? 'Voir le tableau' : `Journal (${deps.length})`}</button>
+        <button type="button" class="co-btn secondary md" id="btnCsv">Export CSV</button>
+        <a class="co-btn ghost md" href="suivi.html">Tous les suivis</a>
+      </div>
+    </div>
+
+    <div class="su-chiffres">
+      <div class="su-chiffre"><b>${euros(a.totalPrevu)}</b><span>prévu</span>
+        <small>hors frais généraux et imprévus</small></div>
+      <div class="su-chiffre"><b>${euros(a.totalReel)}</b><span>dépensé</span>
+        <small>${a.nbDepenses} dépense${a.nbDepenses > 1 ? 's' : ''} saisie${a.nbDepenses > 1 ? 's' : ''}</small></div>
+      <div class="su-chiffre ${alEcart ? 'alerte' : ''}"><b>${signe(a.ecart)}</b><span>différence</span>
+        <small>${a.totalPrevu ? fmtQteDevis(Math.round(a.ecart / a.totalPrevu * 1000) / 10) + ' %' : '—'}</small></div>
+      <div class="su-chiffre ${alAtter ? 'alerte' : ''}"><b>${euros(a.atterrissage)}</b><span>atterrissage</span>
+        <small>où l'on finira si rien d'autre ne bouge</small></div>
+    </div>
+
+    ${state.vueJournal ? rendreJournal(deps, idx) : rendreTableau(d, a, idx)}
+
+    <section class="co-card co-pad" style="margin-top:14px;">
+      <h2 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:800; margin:0 0 9px;">
+        Justificatifs</h2>
+      <div class="su-drive">
+        <input type="url" id="driveUrl" placeholder="https://drive.google.com/drive/folders/…" value="${escapeAttr(d.driveUrl || '')}">
+        ${d.driveUrl ? `<a class="co-btn primary sm" href="${escapeAttr(d.driveUrl)}" target="_blank" rel="noopener">Déposer un justificatif</a>` : ''}
+      </div>
+      <p class="su-note-drive">Le dossier du projet, ouvert dans un onglet. Chaque dépense peut porter en plus le lien de sa pièce.
+        <b>Partage-le nommément, jamais « à toute personne disposant du lien »</b> : une facture porte des IBAN, des salaires et des adresses personnelles.</p>
+    </section>
+  `;
+
+  brancher(d, a, idx, deps);
+  calerEnTete();
+}
+
+function rendreTableau(d, a, idx){
+  const vide = { reel: 0, engage: 0, nb: 0, nbJustif: 0 };
+  const soldes = new Set(d.soldes || []);
+  const q = state.recherche.trim().toLowerCase();
+
+  const rangs = noeudsPlats(d).filter(n=>{
+    // Les lignes ne se montrent que si leur groupe est déplié — sauf en
+    // recherche, où l'on cherche justement une ligne précise.
+    if(n.niveau === 'ligne' && !q && !state.ouverts.has(n.groupeId)) return false;
+    if(q){
+      const foin = [n.titre, n.formule, n.noms].filter(Boolean).join(' ').toLowerCase();
+      if(n.niveau === 'ligne' && foin.indexOf(q) < 0) return false;
+      if(n.niveau !== 'ligne' && String(n.titre).toLowerCase().indexOf(q) < 0) return false;
+    }
+    const c = a.cumul.get(n.id) || vide;
+    if(state.filtre === 'sansreel' && c.reel !== 0) return false;
+    if(state.filtre === 'ecart' && !(c.reel - n.prevu > 0)) return false;
+    if(state.filtre === 'engage' && !c.engage) return false;
+    return true;
+  });
+
+  const corps = rangs.map(n=>{
+    const c = a.cumul.get(n.id) || vide;
+    const ecart = c.reel - n.prevu;
+    const al = ecartAlerte(ecart, n.prevu);
+    const estCharge = n.niveau === 'calcule' && String(n.id).indexOf('calc-charges-') === 0;
+    const estImprevus = n.id === 'calc-imprevus';
+    const estFg = n.id === 'calc-fg';
+    const ouvrable = n.niveau === 'groupe' && n.nbLignes > 0;
+
+    const pastilles = [];
+    if(n.etat === 'optionnelle') pastilles.push('<span class="su-pastille">Option</span>');
+    if(n.etat === 'hors_devis') pastilles.push('<span class="su-pastille">Hors devis</span>');
+    if(n.calcule) pastilles.push('<span class="su-pastille calc">Calculé</span>');
+    if(soldes.has(n.id)) pastilles.push('<span class="su-pastille solde">Soldé</span>');
+
+    let sous = '';
+    if(n.niveau === 'ligne') sous = [n.formule, n.noms].filter(Boolean).join(' · ');
+    else if(n.niveau === 'groupe') sous = `${n.nbLignes} ligne${n.nbLignes > 1 ? 's' : ''}${c.nb ? ` · ${c.nb} dépense${c.nb > 1 ? 's' : ''}` : ''}`;
+    else if(estCharge){
+      const ch = a.chargesLignes.find(x=> x.cle === n.cle);
+      sous = ch && ch.assiette
+        ? `recalculées sur les bruts réels — ${euros(ch.assiette)} × ${fmtQteDevis(ch.taux)} %`
+        : `${fmtQteDevis((d.taux || {})[n.cle] || 0)} % du brut réel — aucun brut saisi`;
+    }
+    else if(estImprevus) sous = `provision — ${euros(a.provisionRestante)} encore disponible, ${euros(a.orphelines.reel)} consommé par ${a.orphelines.nb} dépense${a.orphelines.nb > 1 ? 's' : ''} sans prévisionnel`;
+    else if(estFg) sous = 'quote-part de structure — sans facture, donc sans réel';
+
+    // Ni les charges ni les frais généraux ni les imprévus ne se saisissent.
+    const saisissable = !n.calcule || n.saisissable;
+
+    return `<div class="su-rang su-${n.niveau}${ouvrable ? ' pliable' : ''}" data-noeud="${escapeAttr(n.id)}">
+      <span class="su-nom">
+        ${ouvrable ? `<button type="button" class="su-chev" data-plier="${escapeAttr(n.id)}" aria-label="Déplier">${state.ouverts.has(n.id) ? '▾' : '▸'}</button>` : ''}
+        <b>${escapeHtml(n.titre)}${pastilles.join('')}</b>
+        ${sous ? `<small>${escapeHtml(sous)}</small>` : ''}
+      </span>
+      <span class="su-num su-prevu">${n.prevu ? euros(n.prevu) : '<span class="vide">—</span>'}${n.memo ? `<small>${escapeHtml(euros(n.memo))} non retenu</small>` : ''}</span>
+      <span class="su-num su-reel ${c.reel ? '' : 'vide'}">${c.reel || estCharge ? euros(c.reel) : '—'}${
+        c.engage ? `<small>dont ${euros(c.engage)} engagé</small>` : ''}${
+        c.nbJustif ? `<small>📎 ${c.nbJustif}</small>` : ''}</span>
+      <span class="su-num su-ecart ${al ? 'alerte' : ''} ${c.reel || estCharge ? '' : 'vide'}">${
+        estImprevus || estFg ? '—' : (c.reel || estCharge ? signe(ecart) : '—')}${
+        (c.reel || estCharge) && n.prevu && !estImprevus && !estFg
+          ? `<small>${fmtQteDevis(Math.round(ecart / n.prevu * 1000) / 10)} %</small>` : ''}</span>
+      <span>${saisissable ? `<button type="button" class="su-plus" data-ajout="${escapeAttr(n.id)}" title="Ajouter une dépense ici">+</button>` : ''}</span>
+    </div>`;
+  }).join('');
+
+  /* La rangée des dépenses sans poste obéit au filtre et à la recherche comme
+     les autres : chercher « studio » ne doit pas la laisser seule en bas de
+     l'écran, où elle passe pour un résultat. Elle reste sous « Dépassé » —
+     c'en est un — et sous « Engagé » si elle en porte. */
+  const orph = a.orphelines;
+  const orphVisible = orph.nb
+    && (!q || 'dépenses sans prévisionnel ajoutées'.indexOf(q) >= 0)
+    && (state.filtre === 'tout' || state.filtre === 'ecart' || (state.filtre === 'engage' && orph.engage));
+  const rangOrphelines = orphVisible ? `
+    <div class="su-rang su-calcule" data-noeud="">
+      <span class="su-nom"><b>Dépenses sans prévisionnel<span class="su-pastille ajout">Ajoutées</span></b>
+        <small>${orph.nb} dépense${orph.nb > 1 ? 's' : ''} rattachée${orph.nb > 1 ? 's' : ''} à aucun poste — c'est ce que consomme la provision d'imprévus</small></span>
+      <span class="su-num su-prevu"><span class="vide">—</span></span>
+      <span class="su-num su-reel">${euros(orph.reel)}${orph.engage ? `<small>dont ${euros(orph.engage)} engagé</small>` : ''}</span>
+      <span class="su-num su-ecart alerte">${signe(orph.reel)}</span>
+      <span><button type="button" class="su-plus" data-ajout="" title="Ajouter une dépense sans poste">+</button></span>
+    </div>` : '';
+
+  const alertes = [];
+  if(a.horsAssiette.length){
+    const somme = a.horsAssiette.reduce((s, x)=> s + x.montant, 0);
+    alertes.push(`<b>${a.horsAssiette.length} dépense${a.horsAssiette.length > 1 ? 's' : ''} au régime chargeable (${euros(somme)}) est posée hors d'une section « rémunération »</b> : elle n'engendre aucune charge patronale, exactement comme au devis. Si c'est un salaire, rattache-la à une ligne de rémunération ; sinon, mets son régime à « sans charges ».`);
+  }
+  if((d.optionsNonLevees || {}).nb) {
+    alertes.push(`${d.optionsNonLevees.nb} ligne${d.optionsNonLevees.nb > 1 ? 's' : ''} optionnelle${d.optionsNonLevees.nb > 1 ? 's' : ''} (${euros(d.optionsNonLevees.montant)}) ${d.optionsNonLevees.nb > 1 ? 'sont' : 'est'} chiffrée${d.optionsNonLevees.nb > 1 ? 's' : ''} hors total. Une option levée coûte son montant <b>plus</b> ses charges et ses frais généraux.`);
+  }
+  if(d.remiseEcartee) alertes.push(`Une remise de ${euros(d.remiseEcartee)} figure au devis : c'est une réduction de prix consentie au client, elle n'entre pas dans un suivi de dépenses.`);
+
+  return `
+    <div class="su-barre">
+      <button type="button" class="su-filtre" data-filtre="tout" aria-pressed="${state.filtre === 'tout'}">Tout</button>
+      <button type="button" class="su-filtre" data-filtre="sansreel" aria-pressed="${state.filtre === 'sansreel'}">Sans réel</button>
+      <button type="button" class="su-filtre" data-filtre="ecart" aria-pressed="${state.filtre === 'ecart'}">Dépassé</button>
+      <button type="button" class="su-filtre" data-filtre="engage" aria-pressed="${state.filtre === 'engage'}">Engagé</button>
+      <input type="search" class="su-recherche" id="rech" placeholder="Chercher un poste…" value="${escapeAttr(state.recherche)}">
+      <button type="button" class="su-filtre" id="btnTout">${state.ouverts.size ? 'Tout replier' : 'Tout déplier'}</button>
+    </div>
+
+    <div class="su-table">
+      <div class="su-tete"><span>Poste</span><span style="text-align:right;">Prévu</span>
+        <span style="text-align:right;">Réel</span><span style="text-align:right;">Différence</span><span></span></div>
+      ${corps || `<div class="su-vide">Aucun poste ne correspond à ce filtre.</div>`}
+      ${rangOrphelines}
+      <div class="su-pied">
+        <div class="su-rang">
+          <span class="su-nom"><b>Total</b><small>hors frais généraux et imprévus, remise exclue</small></span>
+          <span class="su-num su-prevu">${euros(a.totalPrevu)}</span>
+          <span class="su-num su-reel">${euros(a.totalReel)}</span>
+          <span class="su-num su-ecart ${ecartAlerte(a.ecart, a.totalPrevu) ? 'alerte' : ''}">${signe(a.ecart)}</span>
+          <span></span>
+        </div>
+        <div class="su-rang">
+          <span class="su-nom"><b>Atterrissage</b><small>pour chaque groupe, le plus élevé du prévu et du dépensé, plus les charges, les frais généraux, ce qui a été dépensé sans prévisionnel et ce qui reste de la provision</small></span>
+          <span class="su-num su-prevu">${euros(d.totalPrevu)}</span>
+          <span class="su-num su-reel">${euros(a.atterrissage)}</span>
+          <span class="su-num su-ecart ${a.atterrissage > d.totalPrevu + 200 ? 'alerte' : ''}">${signe(a.atterrissage - d.totalPrevu)}</span>
+          <span></span>
+        </div>
+        <div class="su-rang">
+          <span class="su-nom"><b>TVA payée</b><small>elle ne se compare pas au devis, qui calcule une TVA collectée sur une cession</small></span>
+          <span class="su-num su-prevu"><span class="vide">—</span></span>
+          <span class="su-num su-reel">${euros(a.tvaTotale)}</span>
+          <span class="su-num su-ecart"><span class="vide">—</span></span>
+          <span></span>
+        </div>
+      </div>
+      <div class="su-avert">
+        <b>Ce tableau ne suit que les dépenses.</b> Cession, subventions, coproductions et billetterie n'y sont pas :
+        l'écart affiché n'est donc pas le résultat du projet. Les recettes arrivent au prochain lot.
+        ${alertes.length ? '<br><br>' + alertes.join('<br><br>') : ''}
+      </div>
+    </div>`;
+}
+
+function rendreJournal(deps, idx){
+  const nomNoeud = id=>{
+    const c = idx.get(id);
+    if(!c) return 'sans poste';
+    if(c.niveau === 'ligne') return c.ligne.intitule || 'ligne sans intitulé';
+    if(c.niveau === 'groupe') return c.groupe.titre || 'groupe sans titre';
+    if(c.niveau === 'calcule') return c.calcule.titre;
+    return c.section.titre;
+  };
+  const tri = deps.slice().sort((a, b)=> String(b.dateDepense || '').localeCompare(String(a.dateDepense || ''))
+    || String(b.id).localeCompare(String(a.id)));
+  return `<section class="co-card co-pad su-journal">
+    <input type="search" class="su-recherche" id="rechJ" placeholder="Chercher une dépense…" value="${escapeAttr(state.recherche)}" style="margin-bottom:10px; width:100%;">
+    ${tri.filter(dep=>{
+      const q = state.recherche.trim().toLowerCase();
+      if(!q) return true;
+      return [dep.libelle, dep.fournisseur, dep.note, nomNoeud(dep.noeudId)].filter(Boolean).join(' ').toLowerCase().indexOf(q) >= 0;
+    }).map(dep=> `
+      <div class="su-jl">
+        <span class="su-jdate">${escapeHtml(dep.dateDepense || '—')}</span>
+        <span class="su-jnom"><b>${escapeHtml(dep.libelle || 'Sans libellé')}</b>
+          <small>${escapeHtml([dep.fournisseur, nomNoeud(dep.noeudId), dep.statut === 'engage' ? 'engagé' : ''].filter(Boolean).join(' · '))}</small></span>
+        <span class="su-num">${euros(dep.montantHt)}${dep.montantTva ? `<small>+ ${euros(dep.montantTva)} TVA</small>` : ''}</span>
+        <span class="su-jact">
+          ${dep.justificatifUrl ? `<a class="su-mini" href="${escapeAttr(dep.justificatifUrl)}" target="_blank" rel="noopener">📎</a>` : ''}
+          <button type="button" class="su-mini" data-modif="${escapeAttr(dep.id)}">Modifier</button>
+          <button type="button" class="su-mini danger" data-suppr="${escapeAttr(dep.id)}">Retirer</button>
+        </span>
+      </div>`).join('') || `<p class="su-vide">Aucune dépense saisie.</p>`}
+  </section>`;
+}
+
+// ---------------------------------------------------------------- la saisie
+/* La carte de saisie. Quatre gestes : viser le poste, taper le montant, taper
+   le libellé, valider. Tout le reste est facultatif et pré-rempli.
+   On saisit en TTC par défaut — c'est ce qui est écrit sur la facture qu'on a
+   dans la main — et la TVA se déduit du taux. Les deux nombres restent
+   modifiables séparément : une facture d'hôtel mêle 10 % et 20 %. */
+function fiche(dep, idx, data){
+  const cible = dep.noeudId ? idx.get(dep.noeudId) : null;
+  const nomCible = !cible ? 'Aucun poste — comptée dans les dépenses sans prévisionnel'
+    : cible.niveau === 'ligne' ? `${cible.section.titre} › ${cible.groupe.titre || 'sans titre'} › ${cible.ligne.intitule}`
+    : cible.niveau === 'groupe' ? `${cible.section.titre} › ${cible.groupe.titre || 'sans titre'}`
+    : cible.niveau === 'calcule' ? cible.calcule.titre
+    : cible.section.titre;
+  const prevu = !cible ? 0
+    : cible.niveau === 'ligne' ? cible.ligne.prevu
+    : cible.niveau === 'groupe' ? cible.groupe.prevu
+    : cible.niveau === 'calcule' ? cible.calcule.prevu
+    : cible.section.prevu;
+  const reg = regimeEffectif(dep, cible);
+  const chargeable = DEVIS_REGIMES_CHARGES.indexOf(reg) >= 0;
+  const heriteRegime = !dep.regime && cible && cible.niveau === 'ligne';
+
+  return `<div class="su-voile" id="voile">
+    <div class="su-fiche" role="dialog" aria-label="Saisir une dépense">
+      <h3>${dep._neuve ? 'Nouvelle dépense' : 'Modifier la dépense'}</h3>
+      <p class="cible">${escapeHtml(nomCible)}${prevu ? ` — prévu ${euros(prevu)}` : ''}</p>
+
+      <div class="su-bascule">
+        <button type="button" data-saisie="ttc" aria-pressed="${state.saisieTtc !== false}">Je tape le TTC</button>
+        <button type="button" data-saisie="ht" aria-pressed="${state.saisieTtc === false}">Je tape le HT</button>
+      </div>
+
+      <div class="su-champs">
+        <div class="su-champ"><label for="fMontant">${state.saisieTtc !== false ? 'Montant TTC' : 'Montant HT'}</label>
+          <input type="text" inputmode="decimal" id="fMontant" value="${dep.montantHt || dep.montantTva ? escapeAttr(String(state.saisieTtc !== false ? dep.montantHt + dep.montantTva : dep.montantHt).replace('.', ',')) : ''}" placeholder="0,00"></div>
+        <div class="su-champ"><label for="fTva">TVA (${fmtQteDevis(data.tvaDefaut)} % par défaut)</label>
+          <input type="text" inputmode="decimal" id="fTva" value="${dep.montantTva ? escapeAttr(String(dep.montantTva).replace('.', ',')) : ''}" placeholder="0,00"></div>
+        <div class="su-champ large"><label for="fLibelle">Libellé</label>
+          <input type="text" id="fLibelle" value="${escapeAttr(dep.libelle || '')}" list="listeLibelles" placeholder="Tourbus, hôtel, cachets J1…"></div>
+        <div class="su-champ"><label for="fFournisseur">Fournisseur</label>
+          <input type="text" id="fFournisseur" value="${escapeAttr(dep.fournisseur || '')}" list="listeFournisseurs"></div>
+        <div class="su-champ"><label for="fDate">Date</label>
+          <input type="date" id="fDate" value="${escapeAttr(dep.dateDepense || '')}"></div>
+        <div class="su-champ"><label for="fStatut">État</label>
+          <select id="fStatut">
+            <option value="paye" ${dep.statut === 'paye' ? 'selected' : ''}>Payé</option>
+            <option value="engage" ${dep.statut === 'engage' ? 'selected' : ''}>Engagé — contrat signé, pas encore payé</option>
+          </select></div>
+        <div class="su-champ"><label for="fRegime">Régime de charges</label>
+          <select id="fRegime">
+            <option value="">${heriteRegime ? `Celui de la ligne — ${escapeHtml((DEVIS_REGIMES.find(r=> r[0] === reg) || [,'sans charges'])[1])}` : 'Sans charges'}</option>
+            ${DEVIS_REGIMES.map(r=> `<option value="${r[0]}" ${dep.regime === r[0] ? 'selected' : ''}>${escapeHtml(r[1])}</option>`).join('')}
+          </select></div>
+        <div class="su-champ large"><label for="fJustif">Lien du justificatif sur le Drive</label>
+          <input type="url" id="fJustif" value="${escapeAttr(dep.justificatifUrl || '')}" placeholder="https://drive.google.com/file/…"></div>
+        <div class="su-champ large"><label for="fNote">Note</label>
+          <input type="text" id="fNote" value="${escapeAttr(dep.note || '')}"></div>
+      </div>
+
+      ${chargeable ? `<div class="su-garde">Ce poste porte des charges patronales (${fmtQteDevis((data.taux || {})[reg] || 0)} %).
+        Saisis le <b>brut employeur</b> : les charges sont recalculées toutes seules et s'affichent sur leur propre rangée.</div>` : ''}
+      <div id="fGarde"></div>
+
+      <div class="su-fiche-actions">
+        <button type="button" class="co-btn primary md" id="fValider">${dep._neuve ? 'Ajouter' : 'Enregistrer'}</button>
+        <button type="button" class="co-btn ghost md" id="fAnnuler">Annuler</button>
+        ${!dep._neuve ? `<button type="button" class="su-mini" id="fNomFichier" style="margin-left:auto;">Copier le nom de fichier</button>` : ''}
+      </div>
+    </div>
+    <datalist id="listeLibelles">${[...new Set(state.depenses.map(x=> x.libelle).filter(Boolean))].map(x=> `<option value="${escapeAttr(x)}">`).join('')}</datalist>
+    <datalist id="listeFournisseurs">${[...new Set(state.depenses.map(x=> x.fournisseur).filter(Boolean))].map(x=> `<option value="${escapeAttr(x)}">`).join('')}</datalist>
+  </div>`;
+}
+
+function ouvrirFiche(dep){
+  state.fiche = dep;
+  const d = state.suivi.data || {};
+  const idx = indexerNoeuds(d);
+  const hote = document.createElement('div');
+  hote.innerHTML = fiche(dep, idx, d);
+  document.body.appendChild(hote.firstElementChild);
+  brancherFiche(dep, idx, d);
+}
+
+function fermerFiche(){
+  const v = document.getElementById('voile');
+  if(v) v.remove();
+  state.fiche = null;
+}
+
+function nombreSaisi(v){ return devisNombre(v, 0); }
+
+function brancherFiche(dep, idx, data){
+  const cible = dep.noeudId ? idx.get(dep.noeudId) : null;
+  const prevu = !cible ? 0
+    : cible.niveau === 'ligne' ? cible.ligne.prevu
+    : cible.niveau === 'groupe' ? cible.groupe.prevu
+    : cible.niveau === 'calcule' ? cible.calcule.prevu
+    : cible.section.prevu;
+
+  const champMontant = document.getElementById('fMontant');
+  const champTva = document.getElementById('fTva');
+  const garde = document.getElementById('fGarde');
+
+  // La TVA se déduit du taux du devis tant qu'on ne l'a pas touchée à la main.
+  let tvaTouchee = !!dep.montantTva;
+  champTva.addEventListener('input', ()=> { tvaTouchee = true; });
+
+  function ht(){
+    const saisi = nombreSaisi(champMontant.value);
+    if(state.saisieTtc === false) return saisi;
+    return saisi - nombreSaisi(champTva.value);
+  }
+  function majTva(){
+    if(tvaTouchee) return;
+    const saisi = nombreSaisi(champMontant.value);
+    if(!saisi){ champTva.value = ''; return; }
+    const taux = devisNombre(data.tvaDefaut, 20);
+    const tva = state.saisieTtc === false ? saisi * taux / 100 : saisi - saisi / (1 + taux / 100);
+    champTva.value = String(Math.round(tva * 100) / 100).replace('.', ',');
+  }
+  function majGarde(){
+    const reg = document.getElementById('fRegime').value || regimeEffectif({ regime: '' }, cible);
+    const msg = alerteBrutCharge(ht(), prevu, reg, data.taux);
+    garde.innerHTML = msg ? `<div class="su-garde">${escapeHtml(msg)}</div>` : '';
+  }
+  champMontant.addEventListener('input', ()=> { majTva(); majGarde(); });
+  document.getElementById('fRegime').addEventListener('change', majGarde);
+  majGarde();
+
+  document.querySelectorAll('[data-saisie]').forEach(b=> b.addEventListener('click', ()=>{
+    state.saisieTtc = b.dataset.saisie === 'ttc';
+    try{ localStorage.setItem('curieux-suivi-ttc', state.saisieTtc ? '1' : '0'); }catch(e){}
+    const courant = { ...lireFiche(dep), _neuve: dep._neuve };
+    fermerFiche(); ouvrirFiche(courant);
+  }));
+
+  function lireFiche(base){
+    return Object.assign({}, base, {
+      libelle: document.getElementById('fLibelle').value.trim(),
+      fournisseur: document.getElementById('fFournisseur').value.trim(),
+      dateDepense: document.getElementById('fDate').value || '',
+      montantHt: Math.round(ht() * 100) / 100,
+      montantTva: Math.round(nombreSaisi(champTva.value) * 100) / 100,
+      regime: document.getElementById('fRegime').value,
+      statut: document.getElementById('fStatut').value,
+      justificatifUrl: document.getElementById('fJustif').value.trim(),
+      note: document.getElementById('fNote').value.trim(),
+    });
+  }
+
+  async function valider(rouvrir){
+    const neuve = lireFiche(dep);
+    delete neuve._neuve;
+    if(!neuve.montantHt && !neuve.montantTva){ champMontant.focus(); return; }
+    const { error } = await CurieuxDB.upsertOne('depenses', neuve);
+    if(error){ alert("La dépense n'a pas pu être enregistrée :\n\n" + error.message); return; }
+    const i = state.depenses.findIndex(x=> x.id === neuve.id);
+    if(i >= 0) state.depenses[i] = neuve; else state.depenses.push(neuve);
+    fermerFiche();
+    rendre();
+    // Enchaîner : la carte se rouvre vide sur le même poste. C'est le geste
+    // qu'on répète trente fois avec une pile de factures.
+    if(rouvrir) ouvrirFiche(Object.assign(nouvelleDepense(state.suivi.id, dep.noeudId, AUJOURDHUI), { _neuve: true }));
+  }
+
+  document.getElementById('fValider').addEventListener('click', ()=> valider(false));
+  document.getElementById('fAnnuler').addEventListener('click', fermerFiche);
+  document.getElementById('voile').addEventListener('click', e=>{ if(e.target.id === 'voile') fermerFiche(); });
+  document.querySelectorAll('.su-fiche input').forEach(i=> i.addEventListener('keydown', e=>{
+    if(e.key === 'Enter'){ e.preventDefault(); valider(dep._neuve); }
+  }));
+  const nomBtn = document.getElementById('fNomFichier');
+  if(nomBtn) nomBtn.addEventListener('click', async ()=>{
+    const nom = nomFichierJustificatif(lireFiche(dep));
+    try{ await navigator.clipboard.writeText(nom); nomBtn.textContent = 'Copié : ' + nom; }
+    catch(e){ nomBtn.textContent = nom; }
+  });
+  document.getElementById('fLibelle').focus();
+}
+
+// ---------------------------------------------------------------- branchements
+function brancher(d, a, idx, deps){
+  // Le chevron ET l'intitulé déplient : au doigt, viser 20 px ne marche pas.
+  const plier = id=>{
+    if(state.ouverts.has(id)) state.ouverts.delete(id); else state.ouverts.add(id);
+    rendre();
+  };
+  document.querySelectorAll('[data-plier]').forEach(b=> b.addEventListener('click', e=>{
+    e.stopPropagation(); plier(b.dataset.plier);
+  }));
+  document.querySelectorAll('.su-rang.pliable > .su-nom').forEach(el=>
+    el.addEventListener('click', ()=> plier(el.parentElement.dataset.noeud)));
+  document.querySelectorAll('[data-filtre]').forEach(b=> b.addEventListener('click', ()=>{
+    state.filtre = b.dataset.filtre; rendre();
+  }));
+  const btnTout = document.getElementById('btnTout');
+  if(btnTout) btnTout.addEventListener('click', ()=>{
+    if(state.ouverts.size) state.ouverts.clear();
+    else noeudsPlats(d).forEach(n=> { if(n.niveau === 'groupe') state.ouverts.add(n.id); });
+    rendre();
+  });
+  ['rech', 'rechJ'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', ()=>{
+      state.recherche = el.value;
+      const pos = el.selectionStart;
+      rendre();
+      const neuf = document.getElementById(id);
+      if(neuf){ neuf.focus(); try{ neuf.setSelectionRange(pos, pos); }catch(e){} }
+    });
+  });
+  document.querySelectorAll('[data-ajout]').forEach(b=> b.addEventListener('click', ()=>{
+    ouvrirFiche(Object.assign(nouvelleDepense(state.suivi.id, b.dataset.ajout, AUJOURDHUI), { _neuve: true }));
+  }));
+  document.querySelectorAll('[data-modif]').forEach(b=> b.addEventListener('click', ()=>{
+    const dep = state.depenses.find(x=> x.id === b.dataset.modif);
+    if(dep) ouvrirFiche(Object.assign({}, dep));
+  }));
+  document.querySelectorAll('[data-suppr]').forEach(b=> b.addEventListener('click', ()=> retirer(b.dataset.suppr)));
+
+  const btnJ = document.getElementById('btnJournal');
+  if(btnJ) btnJ.addEventListener('click', ()=>{ state.vueJournal = !state.vueJournal; state.recherche = ''; rendre(); });
+  const btnCsv = document.getElementById('btnCsv');
+  if(btnCsv) btnCsv.addEventListener('click', ()=> exporterCsv(d, idx, deps));
+
+  const drive = document.getElementById('driveUrl');
+  if(drive) drive.addEventListener('change', async ()=>{
+    state.suivi.data.driveUrl = drive.value.trim();
+    if(await enregistrerSuivi()) rendre();
+  });
+}
+
+/* Retirer une dépense. Quinze secondes pour se raviser : la suppression n'est
+   envoyée qu'à la fermeture du ruban, sans quoi « Annuler » recréerait une
+   ligne d'un autre identifiant et l'historique raconterait deux gestes. */
+function retirer(id){
+  const dep = state.depenses.find(x=> x.id === id);
+  if(!dep) return;
+  state.depenses = state.depenses.filter(x=> x.id !== id);
+  rendre();
+  CurieuxAnnuler.proposer({
+    texte: `« ${dep.libelle || 'Dépense'} » retirée`,
+    retablir: ()=>{ state.depenses.push(dep); rendre(); },
+    purger: async ()=>{ await CurieuxDB.removeOne('depenses', id); },
+  });
+}
+
+/* L'export. Une ligne par dépense, avec son poste en clair : c'est ce fichier
+   que reçoit la compta, et elle ne connaît pas nos identifiants. Point-virgule
+   et BOM, pour qu'Excel français l'ouvre sans rien demander. */
+function exporterCsv(d, idx, deps){
+  const nomNoeud = id=>{
+    const c = idx.get(id);
+    if(!c) return '(sans poste)';
+    if(c.niveau === 'ligne') return `${c.section.titre} > ${c.groupe.titre || 'sans titre'} > ${c.ligne.intitule}`;
+    if(c.niveau === 'groupe') return `${c.section.titre} > ${c.groupe.titre || 'sans titre'}`;
+    if(c.niveau === 'calcule') return c.calcule.titre;
+    return c.section.titre;
+  };
+  const q = v=> `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const nb = n=> String(Math.round(devisNombre(n, 0) * 100) / 100).replace('.', ',');
+  const entetes = ['DATE', 'LIBELLE', 'FOURNISSEUR', 'POSTE', 'MONTANT HT', 'TVA', 'MONTANT TTC', 'REGIME', 'ETAT', 'JUSTIFICATIF', 'NOTE'];
+  const lignes = deps.slice()
+    .sort((a, b)=> String(a.dateDepense || '').localeCompare(String(b.dateDepense || '')))
+    .map(x=> [x.dateDepense || '', x.libelle || '', x.fournisseur || '', nomNoeud(x.noeudId),
+              nb(x.montantHt), nb(x.montantTva), nb(x.montantHt + x.montantTva),
+              (DEVIS_REGIMES.find(r=> r[0] === regimeEffectif(x, idx.get(x.noeudId))) || [,''])[1],
+              SUIVI_STATUTS[x.statut] || x.statut, x.justificatifUrl || '', x.note || ''].map(q).join(';'));
+  const csv = '﻿' + [entetes.map(q).join(';'), ...lignes].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = `Depenses_${(d.titre || 'suivi').replace(/[^\w\-]+/g, '_')}_${AUJOURDHUI}.csv`;
+  a.click();
+  setTimeout(()=> URL.revokeObjectURL(a.href), 2000);
+}
+
+function calerEnTete(){
+  const top = document.querySelector('.co-topbar');
+  const sous = document.querySelector('.co-subnav');
+  const h = (top ? top.getBoundingClientRect().height : 56) + (sous ? sous.getBoundingClientRect().height : 0);
+  document.documentElement.style.setProperty('--su-colle', Math.round(h) + 'px');
+}
+window.addEventListener('resize', calerEnTete);
+
+try{ state.saisieTtc = localStorage.getItem('curieux-suivi-ttc') !== '0'; }catch(e){ state.saisieTtc = true; }
+applyAutoTheme();
+charger();
+</script>
+</body>
+</html>

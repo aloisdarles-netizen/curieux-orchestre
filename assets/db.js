@@ -720,6 +720,54 @@ const CurieuxDB = (()=>{
       toDb: (p)=> { const { _updatedAt, ...data } = p; return { id: p.id, data }; },
       fromDb: (r)=> ({ ...(r.data || {}), id: r.id })
     },
+    /* Suivi des dépenses. Deux tables aux formes volontairement différentes :
+       le suivi est un DOCUMENT (l'instantané du prévisionnel s'écrit d'un seul
+       tenant et ne se requête jamais ligne à ligne), la dépense est une LIGNE
+       (on la filtre, on la trie, on l'additionne, on la saisit une par une).
+       Les colonnes étant en snake_case, l'adaptateur n'est pas un confort :
+       sans lui la valeur arriverait sous r.montant_ht et jamais sous
+       .montantHt, sans la moindre erreur. */
+    suivis_budget: {
+      toDb: (s)=> ({
+        id: s.id,
+        projet_id: s.projetId || '',
+        budget_id: s.budgetId || '',
+        devis_id: s.devisId || '',
+        data: s.data || {}
+      }),
+      fromDb: (r)=> ({
+        id: r.id, projetId: r.projet_id || '', budgetId: r.budget_id || '',
+        devisId: r.devis_id || '', data: r.data || {}, _updatedAt: r.updated_at
+      })
+    },
+    depenses: {
+      toDb: (d)=> ({
+        id: d.id,
+        suivi_id: d.suiviId,
+        noeud_id: d.noeudId || '',
+        sens: d.sens || 'depense',
+        libelle: d.libelle || '',
+        fournisseur: d.fournisseur || '',
+        // Une date vide doit partir en null : '' n'est pas une date pour
+        // Postgres, et la colonne refuserait la ligne entière.
+        date_depense: d.dateDepense || null,
+        montant_ht: Number(d.montantHt) || 0,
+        montant_tva: Number(d.montantTva) || 0,
+        regime: d.regime || '',
+        statut: d.statut || 'paye',
+        justificatif_url: d.justificatifUrl || '',
+        note: d.note || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, suiviId: r.suivi_id, noeudId: r.noeud_id || '',
+        sens: r.sens || 'depense', libelle: r.libelle || '', fournisseur: r.fournisseur || '',
+        dateDepense: r.date_depense || '',
+        montantHt: Number(r.montant_ht) || 0, montantTva: Number(r.montant_tva) || 0,
+        regime: r.regime || '', statut: r.statut || 'paye',
+        justificatifUrl: r.justificatif_url || '', note: r.note || '',
+        _updatedAt: r.updated_at
+      })
+    },
     carnet_contacts: {
       toDb: (c)=> ({
         id: c.id, role: c.role || '', nom: c.nom || '',
@@ -1362,6 +1410,7 @@ const CurieuxDB = (()=>{
   const TABLES_RESTAURABLES = [
     'musiciens', 'techniciens', 'tournees', 'feuilles_route', 'carnet_contacts',
     'dispo_demandes', 'remplacant_prefs', 'cachet_overrides', 'invitations',
+    'depenses', 'suivis_budget',
   ];
 
   // Suppressions restaurables : celles dont la ligne n'a pas été recréée depuis.

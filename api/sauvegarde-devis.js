@@ -23,7 +23,8 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_-QZnJ
 
 const BUCKET = 'sauvegardes';
 // Les tables de l'espace Devis, dans l'ordre où on les relit pour restaurer.
-const TABLES = ['devis', 'devis_clients', 'devis_postes', 'devis_reglages'];
+const TABLES = ['devis', 'devis_clients', 'devis_postes', 'devis_reglages',
+                'suivis_budget', 'depenses'];
 
 export const config = { maxDuration: 30 };
 
