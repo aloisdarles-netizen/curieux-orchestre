@@ -33,6 +33,18 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-19-3',
+    titre: 'Partitions : défaire une erreur de distribution',
+    points: [
+      "Sur l'écran d'affectation, chaque partie porte maintenant « Vider » — les lecteurs de CETTE partie, sur CETTE opération. Un pupitre affecté en bloc à la mauvaise partie se défaisait clic par clic, nom par nom.",
+      "Et « Tout vider » en tête de section : toute la distribution de l'opération d'un coup. C'est le rattrapage d'une reprise d'affectation faite sur la mauvaise opé — cinquante lignes posées en un clic ne se défaisaient pas en cinquante. Le matériel ne bouge pas, les autres opérations non plus, et le code d'accès est conservé.",
+      "Les fichiers d'une partie se lisent et se retirent depuis l'écran d'affectation, sans repasser par la bibliothèque : c'est en distribuant qu'on voit qu'un PDF est la mauvaise version. Et une partie affectée sans aucun fichier déposé le dit en rouge, en nommant les personnes qui n'auront rien à télécharger.",
+      "Un spectacle peut enfin être ARCHIVÉ (il sort de la liste courante et garde tout) ou supprimé — la case et le bouton sont dans ses réglages. Un spectacle créé en double n'avait aucune sortie.",
+      "Toute suppression demande confirmation, et la fenêtre ne dit pas « es-tu sûr » : elle dit ce qui part, combien de personnes le lisent et sur quelles opérations, en les nommant. Le ruban « Annuler » laisse ensuite quinze secondes, et rien n'est effacé du stockage avant. Passé ce délai, la corbeille de l'administration rend les lignes — pas les PDF, qui seraient à redéposer.",
+      "Retirer une personne d'une partie (la croix sur son nom) ne demande toujours rien : c'est le geste de réglage de l'écran, on en fait vingt en distribuant un orchestre. Le ruban nomme désormais la personne et la partie.",
+    ],
+  },
+  {
     version: '2026-09-19-2',
     titre: 'Les partitions ont leur onglet',
     points: [

@@ -103,12 +103,25 @@
 
   .sans-lecteur{color:var(--ko); font-weight:700;}
 
+  /* La ligne d'affectation : le nom, le choix, et les gestes qui effacent. Sa
+     grille était posée en style en ligne, donc hors d'atteinte du media query
+     plus bas — elle restait à trois colonnes sur un téléphone. */
+  .ligne.aff{grid-template-columns:minmax(0,1fr) 190px auto;}
+  .gestes{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; align-items:center;}
+  /* base.css écarte toute action destructrice de 18 px sous 760 px, pour
+     qu'elle ne se touche pas par erreur. Ici les gestes sont déjà groupés et
+     espacés : l'écart y creuserait un trou, sans rien protéger de plus. */
+  .gestes .co-btn{margin-left:0;}
+  .mini{padding:2px 9px; min-height:0; font-size:11.5px;}
+
   .barre{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px;}
   .barre select, .barre input{max-width:100%;}
 
   @media (max-width:760px){
     .bloc{padding:13px 14px;}
     .ligne{grid-template-columns:minmax(0,1fr) auto;}
+    .ligne.aff{grid-template-columns:minmax(0,1fr);}
+    .gestes{justify-content:flex-start;}
     .dep-ligne{grid-template-columns:minmax(0,1fr); gap:6px;}
     .dep-ligne.aRegler{margin:0 -14px; padding:9px 14px;}
     input, select{font-size:16px !important;}
@@ -158,6 +171,18 @@
       à trois semaines du concert se propage seul à tous ceux qui la lisent.
    4. LES LIENS PERSONNELS DÉJÀ ENVOYÉS RESTENT VALIDES. Le musicien voit ses
       partitions dans son espace existant ; on ne réémet aucun lien.
+   5. RIEN NE S'EFFACE SANS QU'ON SACHE CE QU'ON EFFACE. Trois portées de
+      suppression cohabitent sur cette page, et les confondre coûte cher :
+        « Vider »     — les lecteurs d'UNE partie, sur CETTE opération.
+        « Tout vider » — toute la distribution de CETTE opération.
+        « Supprimer » — la partie, le fichier ou le spectacle : c'est la
+                        bibliothèque qu'on touche, donc TOUTES les opérations
+                        qui la jouent.
+      Chacune demande confirmation, et la fenêtre ne dit pas « es-tu sûr » : elle
+      dit ce qui part, combien de personnes le lisent et sur combien d'opérations.
+      Puis le ruban « Annuler » laisse quinze secondes. Le stockage n'est touché
+      qu'à l'expiration de ce ruban — la corbeille de l'administration sait
+      réinsérer une ligne supprimée, elle ne sait pas rendre un PDF effacé.
 
    CE QUE CETTE PAGE NE FAIT PAS, et qui est un bon refus :
 
@@ -343,6 +368,9 @@ function vueBibliotheque(){
 
 function vueMateriel(spectacle){
   const parties = partiesDe(spectacle.id);
+  const idsParties = new Set(parties.map(p => p.id));
+  const nbFichiersSpectacle = state.fichiers.filter(f => idsParties.has(f.partieId)).length;
+  const nbAffSpectacle = state.affectations.filter(a => idsParties.has(a.partieId)).length;
   const lignes = parties.map(p => {
     const fs = fichiersDe(p.id);
     const poids = fs.reduce((s, f) => s + (f.octets || 0), 0);
@@ -357,7 +385,7 @@ function vueMateriel(spectacle){
           ${detail}
         </span>
         <span class="l-num">${escapeHtml(p.pupitre || '—')}${poids ? '<br><em style="font-weight:400">' + partitionsPoids(poids) + '</em>' : ''}</span>
-        <button type="button" class="co-btn ghost sm" data-retirer-partie="${escapeAttr(p.id)}">Retirer</button>
+        <button type="button" class="co-btn danger sm" data-retirer-partie="${escapeAttr(p.id)}" title="Supprimer cette partie, ses fichiers et ses affectations, sur toutes les opérations">Supprimer</button>
       </div>`;
   }).join('');
 
@@ -392,6 +420,24 @@ function vueMateriel(spectacle){
         </span>
         <span></span>
         <input class="co-input" id="inpDrive" style="width:260px" placeholder="https://drive.google.com/…" value="${escapeAttr(spectacle.lienDrive || '')}">
+      </div>
+      <div class="ligne">
+        <span class="l-nom">
+          <span class="l-titre">Archiver ce spectacle</span>
+          <span class="l-sous">Il passe en fin de liste et se lit « archivé », sans rien perdre : parties, fichiers et affectations restent en place. C'est ce qu'on veut dans neuf cas sur dix — un programme qui ne tourne plus se reprend deux saisons plus tard.</span>
+        </span>
+        <span></span>
+        <label class="co-check"><input type="checkbox" id="chkArchive" ${spectacle.archive ? 'checked' : ''}> <span>${spectacle.archive ? 'Archivé' : 'Actif'}</span></label>
+      </div>
+      <div class="ligne">
+        <span class="l-nom">
+          <span class="l-titre">Supprimer ce spectacle</span>
+          <span class="l-sous">${parties.length || nbFichiersSpectacle
+            ? `Partiront avec lui : ${parties.length} partie${parties.length > 1 ? 's' : ''}, ${nbFichiersSpectacle} fichier${nbFichiersSpectacle > 1 ? 's' : ''} (${partitionsPoids(poidsSpectacle(spectacle.id))}) et ${nbAffSpectacle} affectation${nbAffSpectacle > 1 ? 's' : ''}. Les PDF sont effacés du stockage : la corbeille rendrait les lignes, pas les fichiers.`
+            : 'Ce spectacle est vide : rien ne partira avec lui.'}</span>
+        </span>
+        <span></span>
+        <button type="button" class="co-btn danger sm" id="btnSupprimerSpectacle">Supprimer</button>
       </div>
     </section>`;
 }
@@ -492,23 +538,42 @@ function vueAffectation(){
   const sansPartie = effectif.filter(p => !affectes.has(p.personType + '|' + p.personId));
 
   const lignesParties = parties.map(p => {
-    const lecteurs = aff.filter(a => a.partieId === p.id).map(a => {
+    const sesAff = aff.filter(a => a.partieId === p.id);
+    const lecteurs = sesAff.map(a => {
       const personne = (a.personType === 'musicien' ? mus : tech).get(a.personId);
       const nom = personne ? [personne.prenom, personne.nom].filter(Boolean).join(' ') : 'Personne supprimée';
       const dansEffectif = effectif.some(e => e.personType === a.personType && e.personId === a.personId);
       return `<span class="lecteur${dansEffectif ? '' : ' absent'}" title="${dansEffectif ? '' : 'Cette personne n\'est affectée à aucune date de l\'opération'}">${escapeHtml(nom)}<button type="button" data-desaffecter="${escapeAttr(a.id)}" aria-label="Retirer">×</button></span>`;
     }).join('');
     const libres = effectif.filter(e => !aff.some(a => a.partieId === p.id && a.personId === e.personId && a.personType === e.personType));
+
+    /* LES FICHIERS SE LISENT ET SE RETIRENT ICI AUSSI, et pas seulement dans la
+       bibliothèque. C'est en distribuant qu'on voit qu'un PDF est le mauvais —
+       une version périmée, une partie déposée sous le mauvais nom — et renvoyer
+       la production sur un autre écran pour un geste de deux secondes, c'est
+       l'assurance qu'elle le remette à plus tard. Le geste reste celui de la
+       bibliothèque : il porte sur le matériel, donc sur toutes les opérations. */
+    const fs = fichiersDe(p.id);
+    const fichiers = fs.length
+      ? fs.map(f => `<span class="l-sous">— ${escapeHtml(f.titre || f.nomOrigine)} · ${partitionsPoids(f.octets)}${f.pages ? ' · ' + f.pages + ' p.' : ''}
+           <button type="button" class="co-btn ghost sm mini" data-retirer-fichier="${escapeAttr(f.id)}" title="Supprimer ce PDF du matériel du spectacle">retirer</button></span>`).join('')
+      : `<span class="l-sous sans-lecteur">Aucun fichier déposé${sesAff.length ? ` — ${sesAff.length > 1 ? `${sesAff.length} personnes l'ont affectée et n'auront` : "1 personne l'a affectée et n'aura"} rien à télécharger` : ''}</span>`;
+
     return `
-      <div class="ligne" style="grid-template-columns:minmax(0,1fr) 200px">
+      <div class="ligne aff">
         <span class="l-nom">
-          <span class="l-titre">${escapeHtml(p.nom)} <em style="font-weight:400;color:var(--muted);font-size:12px">${escapeHtml(p.pupitre || '')} · ${fichiersDe(p.id).length} fichier(s)</em></span>
+          <span class="l-titre">${escapeHtml(p.nom)} <em style="font-weight:400;color:var(--muted);font-size:12px">${escapeHtml(p.pupitre || '')} · ${fs.length} fichier(s)</em></span>
           ${lecteurs ? `<span class="lecteurs">${lecteurs}</span>` : '<span class="l-sous sans-lecteur">Personne ne lit cette partie</span>'}
+          ${fichiers}
         </span>
         <select class="co-select" data-affecter="${escapeAttr(p.id)}">
           <option value="">+ ajouter…</option>
           ${libres.map(e => `<option value="${escapeAttr(e.personType + '|' + e.personId)}">${escapeHtml(e.nom)} — ${escapeHtml(e.pupitre)}</option>`).join('')}
         </select>
+        <span class="gestes">
+          ${sesAff.length ? `<button type="button" class="co-btn ghost sm mini" data-vider-partie="${escapeAttr(p.id)}" title="Retirer les ${sesAff.length} lecteur(s) de cette partie — sur cette opération seulement">Vider</button>` : ''}
+          <button type="button" class="co-btn danger sm mini" data-retirer-partie="${escapeAttr(p.id)}" title="Supprimer la partie et ses fichiers du matériel du spectacle — sur toutes les opérations">Supprimer</button>
+        </span>
       </div>`;
   }).join('');
 
@@ -518,11 +583,11 @@ function vueAffectation(){
   return `
     ${selecteur}
     <div class="chiffres">
-      <div class="chiffre"><b>${effectif.length}</b><span>personnes sur l'opé</span>
+      <div class="chiffre"><b>${effectif.length}</b><span>personne${effectif.length > 1 ? 's' : ''} sur l'opé</span>
         <small>lues dans les dates, pas dans la nomenclature</small></div>
-      <div class="chiffre${sansLecteur.length ? ' alerte' : ''}"><b>${sansLecteur.length}</b><span>parties sans lecteur</span>
+      <div class="chiffre${sansLecteur.length ? ' alerte' : ''}"><b>${sansLecteur.length}</b><span>partie${sansLecteur.length > 1 ? 's' : ''} sans lecteur</span>
         <small>${sansLecteur.length ? escapeHtml(sansLecteur.slice(0, 4).map(p => p.nom).join(', ')) + (sansLecteur.length > 4 ? '…' : '') : 'Tout le matériel est distribué'}</small></div>
-      <div class="chiffre${sansPartie.length ? ' alerte' : ''}"><b>${sansPartie.length}</b><span>personnes sans partie</span>
+      <div class="chiffre${sansPartie.length ? ' alerte' : ''}"><b>${sansPartie.length}</b><span>personne${sansPartie.length > 1 ? 's' : ''} sans partie</span>
         <small>${sansPartie.length ? escapeHtml(sansPartie.slice(0, 4).map(p => p.nom).join(', ')) + (sansPartie.length > 4 ? '…' : '') : 'Tout le monde a de quoi jouer'}</small></div>
     </div>
 
@@ -552,6 +617,7 @@ function vueAffectation(){
             <option value="">Reprendre l'affectation de…</option>
             ${autres.map(t => `<option value="${escapeAttr(t.id)}">${escapeHtml(t.nom)} (${affectationsDe(t.id).length})</option>`).join('')}
           </select>` : ''}
+          ${aff.length ? `<button type="button" class="co-btn danger sm" id="btnViderOperation" title="Retirer les ${aff.length} affectation(s) de cette opération — le matériel ne bouge pas">Tout vider (${aff.length})</button>` : ''}
         </span>
       </h2>
       ${state.spectacleId ? (lignesParties || '<p class="vide">Ce spectacle n\'a aucune partie. Range d\'abord son matériel dans la bibliothèque.</p>')
@@ -589,7 +655,9 @@ function cablerVue(){
   if(q('btnReglagesSpectacle')) q('btnReglagesSpectacle').onclick = ()=> document.getElementById('chkChiffrer').scrollIntoView({ behavior: 'smooth', block: 'center' });
 
   if(q('chkChiffrer')) q('chkChiffrer').onchange = (e)=> majSpectacle({ chiffrer: e.target.checked });
+  if(q('chkArchive')) q('chkArchive').onchange = (e)=> majSpectacle({ archive: e.target.checked });
   if(q('inpDrive')) q('inpDrive').onchange = (e)=> majSpectacle({ lienDrive: e.target.value.trim() });
+  if(q('btnSupprimerSpectacle')) q('btnSupprimerSpectacle').onclick = retirerSpectacle;
 
   el.querySelectorAll('[data-retirer-partie]').forEach(b => b.onclick = ()=> retirerPartie(b.dataset.retirerPartie));
   el.querySelectorAll('[data-retirer-fichier]').forEach(b => b.onclick = ()=> retirerFichier(b.dataset.retirerFichier));
@@ -626,6 +694,8 @@ function cablerVue(){
     affecter(s.dataset.affecter, personType, personId);
   });
   el.querySelectorAll('[data-desaffecter]').forEach(b => b.onclick = ()=> desaffecter(b.dataset.desaffecter));
+  el.querySelectorAll('[data-vider-partie]').forEach(b => b.onclick = ()=> viderPartieSurOperation(b.dataset.viderPartie));
+  if(q('btnViderOperation')) q('btnViderOperation').onclick = viderOperation;
   if(q('inpCode')) q('inpCode').onchange = (e)=> majAcces({ code: e.target.value.trim().toUpperCase() });
   if(q('btnNouveauCode')) q('btnNouveauCode').onclick = ()=> majAcces({ code: partitionsNouveauCode() });
   if(q('inpOuvertLe')) q('inpOuvertLe').onchange = (e)=> majAcces({ ouvertLe: e.target.value });
@@ -664,6 +734,47 @@ function creerPartieLocale(nom){
   return p;
 }
 
+/* ---------------------------------------------------------------------------
+   SUPPRIMER — ET DIRE D'ABORD CE QU'ON SUPPRIME
+   ---------------------------------------------------------------------------
+   Le reste de l'application ne confirme presque rien : le ruban « Annuler »
+   protège mieux qu'une fenêtre qu'on valide sans la lire. Ici, trois raisons
+   justifient de demander quand même.
+
+   1. LA PORTÉE NE SE DEVINE PAS. Sur l'écran d'affectation, deux gestes se
+      ressemblent et n'ont rien à voir : « Vider » ne touche qu'à l'opération
+      affichée, « Supprimer » retire la partie du matériel du spectacle, donc
+      de toutes les opérations qui le jouent — y compris celles qu'on ne
+      regarde pas. Une fenêtre qui annonce « sur 3 opérations : EXP33-TOURNEE,
+      EXP33-REC, … » arrête le geste au bon moment.
+   2. LE STOCKAGE, LUI, NE REVIENT PAS. La corbeille de l'administration sait
+      réinsérer une ligne supprimée ; elle ne sait pas récupérer un PDF effacé
+      du bucket. Après quinze secondes, un fichier retiré est à redéposer.
+   3. LE VOLUME. « Tout vider » peut emporter cinquante affectations d'un coup,
+      et c'est précisément ce à quoi il sert après une reprise faite sur la
+      mauvaise opération. Un compte annoncé avant vaut mieux qu'un compte
+      découvert après.
+
+   Le ruban reste la vraie protection : rien n'est écrit en base ni effacé du
+   stockage avant son expiration. La fenêtre ne remplace pas le ruban, elle
+   informe le geste.
+   --------------------------------------------------------------------------- */
+
+function nomPersonne(personType, personId){
+  const liste = personType === 'technicien' ? state.techniciens : state.musiciens;
+  const p = liste.find(x => x.id === personId);
+  return p ? ([p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom') : 'Personne supprimée';
+}
+function nomOperation(tourneeId){
+  return (state.tournees.find(t => t.id === tourneeId) || {}).nom || tourneeId || 'opération inconnue';
+}
+/* Les noms, pas les comptes : « 3 opérations » ne dit pas si la tournée de
+   janvier en fait partie. On en cite quatre, et on abrège au-delà. */
+function citer(noms, max){
+  const liste = noms.slice(0, max || 4);
+  return liste.join(', ') + (noms.length > liste.length ? `, et ${noms.length - liste.length} autre(s)` : '');
+}
+
 /* Une partie retirée emporte ses fichiers, et ses fichiers sont dans le
    stockage. On ne touche au stockage que dans `purger` : tant que le ruban
    « Annuler » est là, rien n'est parti. */
@@ -672,18 +783,36 @@ function retirerPartie(id){
   if(!p) return;
   const fs = fichiersDe(id);
   const affs = state.affectations.filter(a => a.partieId === id);
+  const spectacle = state.spectacles.find(x => x.id === p.spectacleId);
+  const opes = [...new Set(affs.map(a => a.tourneeId))].map(nomOperation);
+  const poids = fs.reduce((t, f) => t + (f.octets || 0), 0);
+
+  const dit = [`Supprimer la partie « ${p.nom} »${spectacle ? ` du matériel de « ${spectacle.nom} »` : ''} ?`, ''];
+  if(fs.length) dit.push(`• ${fs.length} fichier${fs.length > 1 ? 's seront effacés' : ' sera effacé'} du stockage (${partitionsPoids(poids)}).`);
+  else dit.push('• Aucun fichier déposé : rien à effacer du stockage.');
+  if(affs.length) dit.push(`• ${affs.length} affectation${affs.length > 1 ? 's disparaîtront' : ' disparaîtra'}, sur ${opes.length} opération${opes.length > 1 ? 's' : ''} : ${citer(opes)}.`);
+  else dit.push('• Personne ne la lit : aucune affectation ne bouge.');
+  dit.push('', "La partie appartient au spectacle, pas à une opération : elle part pour TOUTES celles qui le jouent.");
+  dit.push('Quinze secondes pour annuler. Ensuite, la corbeille rendrait les lignes — pas les PDF, qui seraient à redéposer.');
+  if(!confirm(dit.join('\n'))) return;
+
   state.parties = state.parties.filter(x => x.id !== id);
   state.fichiers = state.fichiers.filter(f => f.partieId !== id);
   state.affectations = state.affectations.filter(a => a.partieId !== id);
   rendre();
   CurieuxAnnuler.proposer({
-    texte: `« ${p.nom} » retirée${fs.length ? ` (${fs.length} fichier${fs.length > 1 ? 's' : ''})` : ''}`,
+    texte: `« ${p.nom} » supprimée${fs.length ? ` (${fs.length} fichier${fs.length > 1 ? 's' : ''})` : ''}`,
     retablir: ()=>{
       state.parties.push(p); state.fichiers.push(...fs); state.affectations.push(...affs); rendre();
     },
+    /* L'ORDRE COMPTE : partitions_parties est référencée par les fichiers et
+       par les affectations en `on delete restrict`. Supprimer la partie en
+       premier échouerait, et l'échec serait muet — la page a déjà rendu la
+       ligne comme partie. Les enfants d'abord, donc, toujours. */
     purger: async ()=>{
-      for(const a of affs) await CurieuxDB.removeOne('partitions_affectations', a.id);
-      for(const f of fs){ await CurieuxDB.removeOne('partitions_fichiers', f.id); await CurieuxDB.retirerPartition(f.chemin); }
+      await CurieuxDB.removeMany('partitions_affectations', affs.map(a => a.id));
+      await CurieuxDB.removeMany('partitions_fichiers', fs.map(f => f.id));
+      for(const f of fs) await CurieuxDB.retirerPartition(f.chemin);
       await CurieuxDB.removeOne('partitions_parties', id);
     },
   });
@@ -692,12 +821,79 @@ function retirerPartie(id){
 function retirerFichier(id){
   const f = state.fichiers.find(x => x.id === id);
   if(!f) return;
+  const partie = state.parties.find(x => x.id === f.partieId);
+  const reste = fichiersDe(f.partieId).length - 1;
+  const lecteurs = state.affectations.filter(a => a.partieId === f.partieId);
+  const opes = [...new Set(lecteurs.map(a => a.tourneeId))].map(nomOperation);
+
+  const dit = [`Retirer « ${f.titre || f.nomOrigine} » (${partitionsPoids(f.octets)}) ?`, ''];
+  if(!reste && lecteurs.length){
+    const qui = lecteurs.length > 1
+      ? `${lecteurs.length} personnes l'ont affectée`
+      : "1 personne l'a affectée";
+    dit.push(`• C'est le DERNIER fichier de « ${partie ? partie.nom : 'cette partie'} » : ${qui} sur ${opes.length} opération${opes.length > 1 ? 's' : ''} (${citer(opes)}), et ${lecteurs.length > 1 ? "n'auront" : "n'aura"} plus rien à télécharger.`);
+  } else if(!reste){
+    dit.push(`• C'est le dernier fichier de « ${partie ? partie.nom : 'cette partie'} » : elle restera annoncée, sans rien à lire.`);
+  } else {
+    dit.push(`• Il reste ${reste} fichier${reste > 1 ? 's' : ''} sur cette partie.`);
+  }
+  dit.push('• Le fichier appartient au matériel du spectacle : il part pour toutes les opérations.');
+  dit.push('', 'Le PDF sera effacé du stockage passé quinze secondes. La corbeille rendrait la ligne, pas le fichier : il faudrait le redéposer.');
+  if(!confirm(dit.join('\n'))) return;
+
   state.fichiers = state.fichiers.filter(x => x.id !== id);
   rendre();
   CurieuxAnnuler.proposer({
     texte: `« ${f.titre || f.nomOrigine} » retiré`,
     retablir: ()=>{ state.fichiers.push(f); rendre(); },
     purger: async ()=>{ await CurieuxDB.removeOne('partitions_fichiers', id); await CurieuxDB.retirerPartition(f.chemin); },
+  });
+}
+
+/* Supprimer un spectacle entier. Le geste existe pour la fausse manœuvre — un
+   spectacle créé en double, un nom saisi de travers — et pour elle seule : un
+   programme qui ne tourne plus s'ARCHIVE, la case est juste au-dessus. Rien
+   n'oblige à vider un tiroir pour cesser de l'ouvrir. */
+function retirerSpectacle(){
+  const s = state.spectacles.find(x => x.id === state.spectacleId);
+  if(!s) return;
+  const ps = partiesDe(s.id);
+  const ids = new Set(ps.map(p => p.id));
+  const fs = state.fichiers.filter(f => ids.has(f.partieId));
+  const affs = state.affectations.filter(a => ids.has(a.partieId));
+  const opes = [...new Set(affs.map(a => a.tourneeId))].map(nomOperation);
+
+  const dit = [`Supprimer le spectacle « ${s.nom || 'sans nom'} » et tout son matériel ?`, ''];
+  if(!ps.length) dit.push('• Il est vide : aucune partie, aucun fichier.');
+  else if(!fs.length) dit.push(`• ${ps.length} partie${ps.length > 1 ? 's' : ''} annoncée${ps.length > 1 ? 's' : ''}, aucun fichier déposé : rien à effacer du stockage.`);
+  else dit.push(`• ${ps.length} partie${ps.length > 1 ? 's' : ''} et ${fs.length} fichier${fs.length > 1 ? 's' : ''} — ${partitionsPoids(poidsSpectacle(s.id))} effacé${fs.length > 1 ? 's' : ''} du stockage.`);
+  if(affs.length) dit.push(`• ${affs.length} affectation${affs.length > 1 ? 's' : ''} sur ${opes.length} opération${opes.length > 1 ? 's' : ''} : ${citer(opes)}. ${affs.length > 1 ? 'Ces personnes ne verront plus rien dans leur espace' : 'Cette personne ne verra plus rien dans son espace'}.`);
+  else dit.push("• Aucune affectation en cours : personne n'attend ce matériel.");
+  dit.push('', "Pour un programme qui ne tourne plus, ARCHIVE-le plutôt : il sort de la liste courante et garde tout.");
+  dit.push('Quinze secondes pour annuler. Ensuite, la corbeille rendrait les lignes — pas les PDF.');
+  if(!confirm(dit.join('\n'))) return;
+
+  state.spectacles = state.spectacles.filter(x => x.id !== s.id);
+  state.parties = state.parties.filter(p => !ids.has(p.id));
+  state.fichiers = state.fichiers.filter(f => !ids.has(f.partieId));
+  state.affectations = state.affectations.filter(a => !ids.has(a.partieId));
+  const precedent = state.spectacleId;
+  state.spectacleId = (state.spectacles[0] || {}).id || '';
+  rendre();
+  CurieuxAnnuler.proposer({
+    texte: `« ${s.nom || 'Sans nom'} » supprimé (${ps.length} partie${ps.length > 1 ? 's' : ''}, ${fs.length} fichier${fs.length > 1 ? 's' : ''})`,
+    retablir: ()=>{
+      state.spectacles.push(s); state.parties.push(...ps); state.fichiers.push(...fs); state.affectations.push(...affs);
+      state.spectacleId = precedent; rendre();
+    },
+    // Les enfants avant le parent : les trois clés étrangères sont en restrict.
+    purger: async ()=>{
+      await CurieuxDB.removeMany('partitions_affectations', affs.map(a => a.id));
+      await CurieuxDB.removeMany('partitions_fichiers', fs.map(f => f.id));
+      for(const f of fs) await CurieuxDB.retirerPartition(f.chemin);
+      await CurieuxDB.removeMany('partitions_parties', ps.map(p => p.id));
+      await CurieuxDB.removeOne('partitions_spectacles', s.id);
+    },
   });
 }
 
@@ -782,15 +978,91 @@ async function affecter(partieId, personType, personId){
   await CurieuxDB.upsertOne('partitions_affectations', a);
 }
 
+/* RETIRER UNE PERSONNE D'UNE PARTIE NE DEMANDE RIEN, et c'est délibéré. C'est
+   le geste de réglage de cet écran — on en fait vingt en distribuant un
+   orchestre, on corrige un pupitre, on déplace quelqu'un d'un rang à l'autre.
+   Le confirmer rendrait l'écran inutilisable, et il ne protège de rien : un
+   nom retiré se remet dans la seconde par le menu d'à côté, et le ruban est là.
+   Le ruban nomme la personne et la partie — c'est ce qui manquait pour relire
+   son geste avant de l'annuler. Ce sont les gestes EN NOMBRE qui confirment. */
 function desaffecter(id){
   const a = state.affectations.find(x => x.id === id);
   if(!a) return;
+  const partie = state.parties.find(p => p.id === a.partieId);
   state.affectations = state.affectations.filter(x => x.id !== id);
   rendre();
   CurieuxAnnuler.proposer({
-    texte: 'Affectation retirée',
+    texte: `${nomPersonne(a.personType, a.personId)} ne lit plus « ${partie ? partie.nom : 'cette partie'} »`,
     retablir: ()=>{ state.affectations.push(a); rendre(); },
     purger: async ()=>{ await CurieuxDB.removeOne('partitions_affectations', id); },
+  });
+}
+
+/* Vider une partie SUR CETTE OPÉRATION. Le matériel ne bouge pas : on défait
+   une distribution, on ne touche pas à la bibliothèque. C'est le rattrapage du
+   pupitre affecté en bloc à la mauvaise partie — huit noms posés d'affilée, et
+   huit clics pour les défaire un à un. */
+function viderPartieSurOperation(partieId){
+  const partie = state.parties.find(p => p.id === partieId);
+  const cibles = state.affectations.filter(a => a.tourneeId === state.tourneeId && a.partieId === partieId);
+  if(!partie || !cibles.length) return;
+  const noms = cibles.map(a => nomPersonne(a.personType, a.personId));
+
+  if(!confirm([
+    `Retirer ${cibles.length} lecteur${cibles.length > 1 ? 's' : ''} de « ${partie.nom} » sur « ${nomOperation(state.tourneeId)} » ?`,
+    '',
+    `• ${citer(noms, 8)}.`,
+    "• Le matériel ne bouge pas : la partie, ses fichiers et les autres opérations restent intacts.",
+    '',
+    'Quinze secondes pour annuler.',
+  ].join('\n'))) return;
+
+  const ids = new Set(cibles.map(a => a.id));
+  state.affectations = state.affectations.filter(a => !ids.has(a.id));
+  rendre();
+  CurieuxAnnuler.proposer({
+    texte: `« ${partie.nom} » vidée sur ${nomOperation(state.tourneeId)} (${cibles.length} lecteur${cibles.length > 1 ? 's' : ''})`,
+    retablir: ()=>{ state.affectations.push(...cibles); rendre(); },
+    purger: async ()=>{ await CurieuxDB.removeMany('partitions_affectations', [...ids]); },
+  });
+}
+
+/* Vider TOUTE la distribution d'une opération. C'est le geste d'après « j'ai
+   repris l'affectation sur la mauvaise opé » : cinquante lignes posées en un
+   clic ne se défont pas en cinquante.
+   Il emporte les affectations de TOUS les spectacles distribués sur cette
+   opération, pas seulement celui qui est affiché — une opération peut en porter
+   deux, et n'en vider qu'un laisserait croire que c'est fait. La fenêtre le dit.
+   Le code d'accès de l'opération, lui, reste : il n'a rien fait de mal, et le
+   ré-affecter le recréerait à l'identique. */
+function viderOperation(){
+  const cibles = affectationsDe(state.tourneeId);
+  if(!cibles.length) return;
+  const gens = new Set(cibles.map(a => a.personType + '|' + a.personId)).size;
+  const partiesTouchees = [...new Set(cibles.map(a => a.partieId))];
+  const spectaclesTouches = [...new Set(partiesTouchees
+    .map(pid => (state.parties.find(p => p.id === pid) || {}).spectacleId)
+    .filter(Boolean))]
+    .map(sid => (state.spectacles.find(x => x.id === sid) || {}).nom || 'spectacle supprimé');
+
+  if(!confirm([
+    `Vider toute l'affectation de « ${nomOperation(state.tourneeId)} » ?`,
+    '',
+    `• ${cibles.length} affectation${cibles.length > 1 ? 's' : ''}, ${gens} personne${gens > 1 ? 's' : ''}, ${partiesTouchees.length} partie${partiesTouchees.length > 1 ? 's' : ''}.`,
+    `• Matériel concerné : ${citer(spectaclesTouches)}${spectaclesTouches.length > 1 ? ' — tous, pas seulement celui affiché.' : '.'}`,
+    "• Le matériel lui-même ne bouge pas, et les autres opérations non plus : c'est la distribution de celle-ci qui repart de zéro.",
+    '• Le code d’accès de l’opération est conservé.',
+    '',
+    'Quinze secondes pour annuler.',
+  ].join('\n'))) return;
+
+  const ids = new Set(cibles.map(a => a.id));
+  state.affectations = state.affectations.filter(a => !ids.has(a.id));
+  rendre();
+  CurieuxAnnuler.proposer({
+    texte: `${cibles.length} affectation${cibles.length > 1 ? 's retirées' : ' retirée'} de ${nomOperation(state.tourneeId)}`,
+    retablir: ()=>{ state.affectations.push(...cibles); rendre(); },
+    purger: async ()=>{ await CurieuxDB.removeMany('partitions_affectations', [...ids]); },
   });
 }
 

@@ -145,7 +145,15 @@
 // change aussi : sans la nouvelle page dans sa liste blanche, l'écran des
 // partitions annoncerait le manifeste de l'ÉQUIPE, et l'icône posée depuis
 // cet écran ouvrirait la page de connexion.
-const VERSION = 'curieux-v126';
+// v127 : les suppressions de l'écran des partitions — vider une partie sur une
+// opération, vider toute la distribution d'une opération, retirer un fichier
+// depuis l'affectation, archiver ou supprimer un spectacle. Tout tient dans
+// partitions.html, qui est une PAGE (servie réseau d'abord, donc sans effet
+// ici) ; c'est nouveautes.js, fichier d'actif, qui impose l'incrément. Sans
+// lui, un navigateur déjà venu garderait l'ancienne liste : la page des
+// partitions aurait changé de gestes, et la fenêtre « Ce qui a changé » ne
+// l'annoncerait à personne.
+const VERSION = 'curieux-v127';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
