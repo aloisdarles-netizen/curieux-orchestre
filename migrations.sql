@@ -6800,6 +6800,16 @@ begin
     'nominatif',    e.nominatif,
     'actif',        e.actif,
     'ouvert',       v_ouvert,
+    -- POURQUOI LA BASE DIT AUSSI **POURQUOI** C'EST FERMÉ. La page ne peut pas
+    -- le recalculer : elle compare des dates avec l'horloge du NAVIGATEUR,
+    -- ici on compare avec current_date. Un bibliothécaire à New York le
+    -- 1er décembre au soir est déjà le 2 pour nous : la base ferme, la page
+    -- croit ouvert, et l'écran affichait un message sans date. Un seul juge,
+    -- et il dit son motif.
+    'etat', case when not e.actif then 'revoque'
+                 when e.expire_le is not null and e.expire_le < current_date then 'expire'
+                 when e.ouvert_le is not null and e.ouvert_le > current_date then 'attente'
+                 else 'ouvert' end,
     'ouvertLe',     e.ouvert_le,
     'expireLe',     e.expire_le,
     'note',         e.note,

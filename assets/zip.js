@@ -85,14 +85,20 @@ const CurieuxZip = (function(){
      une version corrigée rangée à côté de l'ancienne. Un doublon dans une
      archive s'extrait en écrasant silencieusement le premier : on numérote. */
   function deduplique(noms){
-    const vus = new Map();
-    return noms.map(n => {
-      const cle = n.toLowerCase();
-      if(!vus.has(cle)){ vus.set(cle, 1); return n; }
-      const rang = vus.get(cle) + 1;
-      vus.set(cle, rang);
+    const pris = new Set();
+    const numerote = (n, rang)=>{
       const point = n.lastIndexOf('.');
       return point > 0 ? `${n.slice(0, point)} (${rang})${n.slice(point)}` : `${n} (${rang})`;
+    };
+    return noms.map(n => {
+      /* On boucle jusqu'à un nom RÉELLEMENT libre, et on l'enregistre. Un
+         compteur par nom d'origine ne suffit pas : un lot portant « Violon 1 »
+         deux fois ET une partie déjà nommée « Violon 1 (2) » produisait deux
+         entrées identiques — précisément ce que cette fonction empêche. */
+      let candidat = n, rang = 1;
+      while(pris.has(candidat.toLowerCase())){ rang++; candidat = numerote(n, rang); }
+      pris.add(candidat.toLowerCase());
+      return candidat;
     });
   }
 

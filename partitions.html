@@ -1049,11 +1049,25 @@ function messageEnvoi(e, langue){
   // « le matériel de EXPEDITION 33 » se corrige tout seul : un titre qui
   // commence par une voyelle prend l'élision. Un détail, mais il se voit dans
   // la première ligne d'un mail à une maison qu'on ne connaît pas encore.
-  const de = /^[AEIOUYÀÂÉÈÊÎÔÛaeiouyàâéèêîôûh]/.test(spectacle) ? "d'" : 'de ';
+  const de = /^[aeiouœ]/.test(String(spectacle).normalize('NFD').replace(/[\u0300-\u036F]/g, '').toLowerCase())
+    ? "d'" : 'de ';
   /* Les lignes à null sont celles qui n'ont pas lieu d'être (pas de code, pas
      de date de fin) ; les chaînes vides sont des SAUTS DE PARAGRAPHE et
      doivent survivre au filtre. Les confondre donne un pavé de huit lignes
      collées, qu'on relit deux fois avant de trouver le code. */
+  /* Les lignes à null sont celles qui n'ont pas lieu d'être ; les chaînes
+     vides sont des SAUTS DE PARAGRAPHE et doivent survivre au filtre.
+
+     LE CODE N'EST PAS DANS CE MESSAGE, et c'est le point le plus important de
+     cette fonction. L'application affirme deux fois, des deux côtés, qu'il est
+     communiqué séparément du lien — c'est ce qui en fait un second facteur.
+     Le mettre dans le même mail rendait cette phrase fausse et le dispositif
+     décoratif : un mail transféré donnait alors tout. Le bouton « Copier le
+     code » reste là pour l'autre canal.
+
+     La fenêtre d'accès se dit EN ENTIER. Annoncer une date de fin sans dire
+     que le lot n'ouvre qu'en mars se lit « c'est ouvert maintenant », et le
+     destinataire appelle en trouvant porte close. */
   if(langue === 'en'){
     return [
       `Dear ${e.contactNom || 'colleague'},`,
@@ -1061,12 +1075,16 @@ function messageEnvoi(e, langue){
       `Please find below the orchestral material for ${spectacle}${operation ? ` (${operation})` : ''}, entrusted to ${e.destinataire} for your work.`,
       '',
       `Link:  ${lien}`,
-      e.code ? `Code:  ${e.code}` : null,
       '',
-      `The set contains ${nb} part${nb > 1 ? 's' : ''}. You can download everything as a single archive, or part by part.`,
+      e.nominatif
+        ? `The set contains ${nb} part${nb > 1 ? 's' : ''}. Parts are downloaded one at a time, each under the name of the player receiving it: the page asks for that name before every download.`
+        : `The set contains ${nb} part${nb > 1 ? 's' : ''}. You can download everything as a single archive, or part by part.`,
+      e.ouvertLe ? `The link opens on ${jourEnvoi(e.ouvertLe, 'en')}.` : null,
       e.expireLe ? `The link stays open until ${jourEnvoi(e.expireLe, 'en')}.` : null,
       '',
-      'Every copy downloaded carries your ensemble’s name and an invisible mark identifying the origin of any copy found in circulation. Please do not pass the material on beyond your ensemble.',
+      e.code ? 'I am sending you the access code separately — it is needed to download.' : null,
+      e.code ? '' : null,
+      'Every copy downloaded carries your ensemble\u2019s name and an invisible mark identifying the origin of any copy found in circulation. Please do not pass the material on beyond your ensemble.',
       '',
       'With best regards,',
     ].filter(l => l !== null).join('\n');
@@ -1077,11 +1095,15 @@ function messageEnvoi(e, langue){
     `Vous trouverez ci-dessous le matériel d'orchestre ${de}${spectacle}${operation ? ` (${operation})` : ''}, que nous confions à ${e.destinataire} pour votre travail.`,
     '',
     `Lien : ${lien}`,
-    e.code ? `Code : ${e.code}` : null,
     '',
-    `Le lot contient ${nb} partie${nb > 1 ? 's' : ''}. Tout se télécharge d'un bloc, ou partie par partie.`,
+    e.nominatif
+      ? `Le lot contient ${nb} partie${nb > 1 ? 's' : ''}. Elles se prennent une par une, chacune au nom du musicien à qui vous la remettez : la page vous demande ce nom avant chaque téléchargement.`
+      : `Le lot contient ${nb} partie${nb > 1 ? 's' : ''}. Tout se télécharge d'un bloc, ou partie par partie.`,
+    e.ouvertLe ? `Le lien s'ouvre le ${jourEnvoi(e.ouvertLe)}.` : null,
     e.expireLe ? `Le lien reste ouvert jusqu'au ${jourEnvoi(e.expireLe)}.` : null,
     '',
+    e.code ? "Je vous communique le code d'accès par un autre canal — il est nécessaire pour télécharger." : null,
+    e.code ? '' : null,
     "Chaque exemplaire téléchargé porte le nom de votre ensemble, ainsi qu'une marque invisible permettant d'identifier l'origine d'un exemplaire qui circulerait. Merci de ne pas rediffuser ce matériel au-delà de votre orchestre.",
     '',
     'Bien cordialement,',
@@ -1196,7 +1218,7 @@ function ligneEnvoi(e, options){
         </span>
       </span>
       <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-        ${et.cle === 'expire' ? `<button type="button" class="co-btn sm" data-prolonger="${escapeAttr(e.id)}">Prolonger</button>` : ''}
+        ${et.cle !== 'revoque' && e.expireLe ? `<button type="button" class="co-btn sm" data-prolonger="${escapeAttr(e.id)}">Prolonger</button>` : ''}
         <button type="button" class="co-btn sm" data-basculer="${escapeAttr(e.id)}">${e.actif ? 'Révoquer' : 'Réactiver'}</button>
         <button type="button" class="co-btn ghost sm" data-retirer-envoi="${escapeAttr(e.id)}">Retirer</button>
       </span>
@@ -1232,7 +1254,7 @@ function vueTransmissions(){
     <div class="chiffres">
       <div class="chiffre"><b>${ouverts.length}</b><span>lot${ouverts.length > 1 ? 's' : ''} ouvert${ouverts.length > 1 ? 's' : ''}</span>
         <small>${ouverts.length ? escapeHtml(ouverts.slice(0, 3).map(e => e.destinataire).join(', ')) + (ouverts.length > 3 ? '…' : '') : 'Aucun matériel confié à l\'extérieur en ce moment'}</small></div>
-      <div class="chiffre"><b>${prises === null ? '…' : prises}</b><span>exemplaires pris par des tiers</span>
+      <div class="chiffre"><b>${prises === null ? '…' : prises}</b><span>exemplaire${(prises || 0) > 1 ? 's' : ''} pris par des tiers</span>
         <small>sur ${state.envois.length} transmission${state.envois.length > 1 ? 's' : ''} au total, révoquées et expirées comprises — le journal, lui, ne s'efface pas</small></div>
       <div class="chiffre${sansDroits ? ' alerte' : ''}"><b>${sansDroits}</b><span>lot${sansDroits > 1 ? 's' : ''} sans vérification des droits</span>
         <small>${sansDroits ? 'Le matériel de location ne se retransmet pas : c\'est l\'éditeur qui loue au second ensemble.' : 'Droits vérifiés sur tous les lots confiés'}</small></div>
@@ -1274,8 +1296,8 @@ function blocTransmissions(s){
     </div>
     <div class="ligne" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
       <span class="l-nom">
-        <span class="l-titre">Personne qui en répond</span>
-        <input class="co-input" id="envContact" style="width:100%" maxlength="120" placeholder="Bibliothécaire, régisseur d'orchestre…">
+        <span class="l-titre">Personne qui en répond <em style="font-weight:400;color:var(--muted)">— bibliothécaire, régisseur d'orchestre</em></span>
+        <input class="co-input" id="envContact" style="width:100%" maxlength="120" placeholder="Prénom et nom">
       </span>
       <span class="l-nom">
         <span class="l-titre">Son adresse</span>
