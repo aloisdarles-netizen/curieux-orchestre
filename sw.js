@@ -145,14 +145,22 @@
 // change aussi : sans la nouvelle page dans sa liste blanche, l'écran des
 // partitions annoncerait le manifeste de l'ÉQUIPE, et l'icône posée depuis
 // cet écran ouvrirait la page de connexion.
-// v127 : la fusion des deux v126 — l'onglet des partitions (ci-dessus) et leur
-// refonte visuelle. base.css porte désormais les teintes de pupitre (--pup-*)
-// et deux pièces partagées (.co-pup, .co-seg), partitions-commun.js les met en
-// forme, mes-dates-vue.js redessine le bloc en tuiles, et mes-partitions.html
-// charge partitions-commun.js. Sans cet incrément, un navigateur déjà venu
-// garderait l'ancien base.css : les variables de teinte seraient introuvables,
-// donc les bandeaux de pupitre transparents.
-const VERSION = 'curieux-v127';
+// v127 : les partitions se travaillent dans l'ordre où la production décide —
+// on crée un spectacle, on dit sur quelle opération il se joue, puis on y lie
+// ses parties et ses musiciens. db.js apprend la table de liaison
+// partitions_programmations. Sans cet incrément, un navigateur déjà venu
+// garderait l'ancien db.js : partitions.html, elle rafraîchie (c'est une page,
+// servie réseau d'abord), lirait les programmations avec un adaptateur qui ne
+// les connaît pas — chaque spectacle s'afficherait comme rattaché à aucune
+// opération, et aucun rattachement ne s'enregistrerait.
+// v128 : la refonte visuelle des partitions, côté musicien. base.css porte les
+// teintes de pupitre (--pup-*) et deux pièces partagées (.co-pup, .co-seg),
+// partitions-commun.js les met en forme, mes-dates-vue.js redessine le bloc
+// « Mes partitions » en tuiles, et mes-partitions.html charge
+// partitions-commun.js. Sans cet incrément, un navigateur déjà venu garderait
+// l'ancien base.css : les variables de teinte seraient introuvables, donc les
+// bandeaux de pupitre transparents.
+const VERSION = 'curieux-v128';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
