@@ -501,8 +501,28 @@ async function leverExclusion(tourneeId, personType, personId){
   if(error){ t.sollicitationExclus = avant; console.warn('[suivi-dispo] leverExclusion', error.message); }
 }
 
+/* Poser les demandes manquantes.
+ *
+ * ON NE CRÉE JAMAIS SUR LA FOI D'UNE LISTE VIDE QU'ON N'A PAS PU VÉRIFIER.
+ * Le 18 septembre, cette fonction a recréé 85 demandes qui existaient déjà :
+ * elle travaillait sur le cache rempli au chargement, et ce chargement avait
+ * échoué — fetchAll rend [] sans distinguer « rien » de « je n'ai pas pu
+ * lire ». Le « manque » était donc total et imaginaire, et chaque demande
+ * recréée a pris un identifiant neuf : 85 lignes en double, une par titulaire
+ * et par projet, visibles dans tous les espaces personnels.
+ *
+ * D'où la relecture explicite ci-dessous : la comparaison part d'un inventaire
+ * frais et CONFIRMÉ. Sur échec de lecture, on ne fait rien du tout — les liens
+ * manquants se poseront à la visite suivante, ce qui ne coûte rien, alors
+ * qu'une création en masse à tort se paie en nettoyage de base. */
 async function assurerLiensTitulaires(tourneesAVenir){
-  const existantes = new Set(loadDispoDemandes().map(d=> `${d.tourneeId}:${d.personType}:${d.personId}`));
+  const { data: demandes, error: erreurLecture } = await CurieuxDB.fetchAllOuEchec('dispo_demandes');
+  if(erreurLecture){
+    console.warn('[suivi-dispo] inventaire des demandes illisible, aucune création', erreurLecture.message);
+    return 0;
+  }
+  dispoDemandesCache = demandes;
+  const existantes = new Set(demandes.map(d=> `${d.tourneeId}:${d.personType}:${d.personId}`));
   const aCreer = [];
   tourneesAVenir.forEach(t=>{
     if(!(t.dates || []).some(d=> d.date && d.statut !== 'annulee')) return;
