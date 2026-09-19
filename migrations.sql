@@ -1272,6 +1272,22 @@ $$;
 create index if not exists idx_dispo_demandes_person on dispo_demandes(person_id, person_type);
 create index if not exists idx_dispo_demandes_tournee on dispo_demandes(tournee_id);
 
+-- UNE SEULE DEMANDE DE DISPO PAR PROJET ET PAR PERSONNE.
+--
+-- Rattrapage : cette contrainte existait en base (migration
+-- unicite_dispo_demandes_par_projet_et_personne) et manquait ici, si bien
+-- qu'une base reconstruite à partir de ce fichier l'aurait perdue — et avec
+-- elle la garantie sur laquelle tout l'espace personnel s'appuie.
+--
+-- Ce n'est pas une optimisation, c'est une règle métier. Deux demandes sur le
+-- même projet pour la même personne donnent deux jetons vivants : la personne
+-- répond sur l'un, la production lit l'autre, et la date paraît sans réponse.
+-- mon-espace.html rapproche d'ailleurs les journées de leur demande PAR LE NOM
+-- du projet et refuse le lien dès que deux demandes portent le même nom — ce
+-- garde-fou n'a de sens que si les doublons sont impossibles en amont.
+create unique index if not exists dispo_demandes_unique_projet_personne
+  on dispo_demandes(tournee_id, person_type, person_id);
+
 -- Le journal conserve l'avant et l'après complets de chaque modification. Il
 -- rend la corbeille possible, mais sans limite il finirait par occuper
 -- l'essentiel de la base : deux ans de conservation, purge à la demande.
