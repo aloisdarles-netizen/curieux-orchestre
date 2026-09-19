@@ -1285,6 +1285,15 @@ create index if not exists idx_dispo_demandes_tournee on dispo_demandes(tournee_
 -- mon-espace.html rapproche d'ailleurs les journées de leur demande PAR LE NOM
 -- du projet et refuse le lien dès que deux demandes portent le même nom — ce
 -- garde-fou n'a de sens que si les doublons sont impossibles en amont.
+--
+-- D'OÙ VENAIT L'INCIDENT qui a motivé cet index, pour que la raison ne se
+-- perde pas : le 18 septembre à 18:39:27, « Suivi des dispos » a recréé 85
+-- demandes existantes, en une seconde. Elle pose les liens manquants en
+-- comparant les titulaires aux demandes qu'elle a en mémoire ; ce chargement
+-- avait échoué, et fetchAll rendait [] sans distinguer « la table est vide »
+-- de « je n'ai pas pu lire ». Le manque était donc total et imaginaire. Les
+-- doublons, tous vierges, ont été supprimés le 19 et la page corrigée — elle
+-- relit son inventaire et ne crée rien si la lecture échoue (fetchAllOuEchec).
 create unique index if not exists dispo_demandes_unique_projet_personne
   on dispo_demandes(tournee_id, person_type, person_id);
 
