@@ -792,6 +792,22 @@ const CurieuxDB = (()=>{
         _updatedAt: r.updated_at
       })
     },
+    /* La programmation : « ce spectacle se joue sur cette opération ». C'est la
+       ligne qui manquait — le lien se déduisait des affectations, donc il
+       n'apparaissait qu'une fois le travail fait. Déclaré à la création du
+       spectacle, il permet à la page de n'offrir que les opérations du
+       spectacle et que l'effectif de l'opération. L'id est composite
+       (`spectacleId::tourneeId`), comme ailleurs ici. */
+    partitions_programmations: {
+      toDb: (p)=> ({
+        id: p.id, spectacle_id: p.spectacleId, tournee_id: p.tourneeId || '',
+        note: p.note || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, spectacleId: r.spectacle_id, tourneeId: r.tournee_id || '',
+        note: r.note || '', _updatedAt: r.updated_at
+      })
+    },
     partitions_parties: {
       toDb: (p)=> ({
         id: p.id, spectacle_id: p.spectacleId, nom: p.nom || '',
@@ -840,6 +856,36 @@ const CurieuxDB = (()=>{
       fromDb: (r)=> ({
         id: r.id, code: r.code || '', actif: r.actif !== false,
         ouvertLe: r.ouvert_le || '', _updatedAt: r.updated_at
+      })
+    },
+    /* LE LOT CONFIÉ À UN ENSEMBLE TIERS. Un orchestre étranger qui reprend le
+       programme n'a pas de fiches dans l'annuaire, et il n'est pas question
+       d'en créer cinquante : on confie le matériel d'un spectacle à une
+       MAISON, représentée par une personne nommée, avec un lien et un code.
+       `toutesParties` se propage — une partie ajoutée après coup entre dans le
+       lot sans qu'on y retouche, comme l'affectation qui porte sur la partie
+       et non sur le fichier. */
+    partitions_envois: {
+      toDb: (e)=> ({
+        id: e.id, spectacle_id: e.spectacleId, tournee_id: e.tourneeId || '',
+        destinataire: e.destinataire || '', contact_nom: e.contactNom || '',
+        contact_email: e.contactEmail || '', jeton: e.jeton, code: e.code || '',
+        toutes_parties: e.toutesParties !== false,
+        parties: Array.isArray(e.parties) ? e.parties : [],
+        ouvert_le: e.ouvertLe || null, expire_le: e.expireLe || null,
+        actif: e.actif !== false, nominatif: !!e.nominatif,
+        droits_confirmes: !!e.droitsConfirmes, note: e.note || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, spectacleId: r.spectacle_id, tourneeId: r.tournee_id || '',
+        destinataire: r.destinataire || '', contactNom: r.contact_nom || '',
+        contactEmail: r.contact_email || '', jeton: r.jeton, code: r.code || '',
+        toutesParties: r.toutes_parties !== false,
+        parties: Array.isArray(r.parties) ? r.parties : [],
+        ouvertLe: r.ouvert_le || '', expireLe: r.expire_le || '',
+        actif: r.actif !== false, nominatif: !!r.nominatif,
+        droitsConfirmes: !!r.droits_confirmes, note: r.note || '',
+        createdAt: r.created_at, _updatedAt: r.updated_at
       })
     },
     // Lecture seule côté page : c'est /api/partition qui l'écrit, en même temps
@@ -1501,8 +1547,9 @@ const CurieuxDB = (()=>{
     // Les partitions : le matériel, ses parties, ses fichiers, ses affectations
     // et les codes d'opération. PAS partitions_telechargements — cette table EST
     // déjà un journal, et elle ne porte aucun déclencheur d'audit.
-    'partitions_spectacles', 'partitions_parties', 'partitions_fichiers',
-    'partitions_affectations', 'partitions_acces',
+    'partitions_spectacles', 'partitions_programmations', 'partitions_parties',
+    'partitions_fichiers', 'partitions_affectations', 'partitions_acces',
+    'partitions_envois',
   ];
 
   // Suppressions restaurables : celles dont la ligne n'a pas été recréée depuis.
@@ -2229,6 +2276,29 @@ const CurieuxDB = (()=>{
     return null;
   }
 
+  /* Ce que voit un ensemble tiers en ouvrant le lien qu'on lui a confié. Le
+     code n'est PAS demandé ici, pour la même raison que du côté des musiciens :
+     un bibliothécaire qui ouvre le lien doit voir ce qu'on lui confie — trente
+     parties, tant de mégaoctets — avant de chercher le code dans ses mails. */
+  async function envoiPartitions(jeton){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('envoi_partitions', { p_jeton: jeton });
+    if(!error) return data || null;
+    if(_fonctionAbsente(error)) return { migrationAbsente: true };
+    console.warn('[CurieuxDB] envoiPartitions', error.message);
+    return null;
+  }
+
+  /* Le jeton d'un lot confié. 32 caractères tirés de l'alphabet que
+     /api/partition accepte — [A-Za-z0-9_-] —, soit ~190 bits : un lien qui ne
+     se devine pas, et qui ne porte AUCUNE information sur ce qu'il ouvre. */
+  function nouveauJetonEnvoi(){
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const octets = new Uint8Array(32);
+    crypto.getRandomValues(octets);
+    return Array.from(octets, b => alphabet[b % alphabet.length]).join('');
+  }
+
   function _identifiant(){
     return (typeof crypto !== 'undefined' && crypto.randomUUID)
       ? crypto.randomUUID().replace(/-/g, '')
@@ -2244,7 +2314,7 @@ const CurieuxDB = (()=>{
     getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis, enregistrerHorairesJournee,
     ajouterRemarqueParJeton, getRemarquesParJeton, enregistrerPlanSalleParJeton, toucherAcces,
     deposerPlanSalle, urlPubliquePlanSalle,
-    deposerPartition, retirerPartition, mesPartitions,
+    deposerPartition, retirerPartition, mesPartitions, envoiPartitions, nouveauJetonEnvoi,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,
     getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,

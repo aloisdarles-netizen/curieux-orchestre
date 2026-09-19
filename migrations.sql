@@ -6573,3 +6573,357 @@ grant execute on function journaliser_telechargement_partition(text, text, text,
 -- de qui vient un exemplaire retrouvé en circulation. Elle n'a pas à survivre
 -- au spectacle. À purger avec le reste, comme le journal d'audit, et à
 -- mentionner dans mentions-legales.html.
+
+-- ============================================================================
+-- LA PROGRAMMATION D'UN SPECTACLE SUR UNE OPÉRATION — 19 septembre 2026
+-- ============================================================================
+-- CE QUI N'ALLAIT PAS
+-- ------------------
+-- Le lien entre un spectacle et l'opération qui le joue n'existait nulle part :
+-- il se déduisait des affectations, donc il n'apparaissait qu'une fois le
+-- travail fait. Conséquence, l'exploitation partait du mauvais bout — on
+-- déposait des fichiers dans une bibliothèque hors sol, puis on ouvrait un
+-- second écran pour recroiser à la main une opération et un spectacle, sans
+-- que rien ne dise lesquels vont ensemble. Deux écrans, deux sélecteurs, et
+-- un oubli invisible : un spectacle préparé que personne n'a distribué.
+--
+-- CE QUE CETTE TABLE CHANGE
+-- -------------------------
+-- Le spectacle est déclaré sur son opération À SA CRÉATION. C'est cette ligne,
+-- et non l'affectation, qui dit « EXPEDITION 33 se joue sur EXP33-REC ». La
+-- page peut donc, dès le premier geste, n'afficher que les opérations du
+-- spectacle et que l'effectif de l'opération — plus de recroisement à la main.
+--
+-- POURQUOI UNE TABLE DE LIAISON ET NON UNE COLONNE tournee_id
+-- -----------------------------------------------------------
+-- Parce que la règle d'origine reste juste : le matériel se range UNE FOIS.
+-- EXPEDITION 33 porte quatre opérations. Une colonne sur le spectacle
+-- obligerait à dupliquer le spectacle — donc les PDF — à chaque reprise, et le
+-- plan Supabase est à 1 Go. À la création on demande UNE opération (c'est le
+-- geste d'exploitation) ; on en ajoute d'autres ensuite d'un clic, sans
+-- redéposer un seul fichier.
+--
+-- PAS DE CLÉ ÉTRANGÈRE VERS tournees, pour la même raison qu'ailleurs dans ce
+-- bloc : elle ferait échouer la suppression d'une tournée depuis tournees.html.
+-- Une programmation orpheline se lit « opération supprimée » et se retire.
+-- ----------------------------------------------------------------------------
+create table if not exists partitions_programmations (
+  id text primary key,
+  spectacle_id text not null references partitions_spectacles(id) on delete restrict,
+  tournee_id text not null default '',
+  note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_partitions_prog_spectacle on partitions_programmations(spectacle_id);
+create index if not exists idx_partitions_prog_tournee on partitions_programmations(tournee_id);
+-- Un spectacle ne se programme qu'une fois sur une opération. L'id composite
+-- ('::', comme partout ici) le garantit déjà ; cet index le dit à la base, qui
+-- refusera un doublon arrivé par un autre chemin qu'upsertOne.
+create unique index if not exists idx_partitions_prog_unique on partitions_programmations(spectacle_id, tournee_id);
+drop trigger if exists trg_partitions_programmations_updated_at on partitions_programmations;
+create trigger trg_partitions_programmations_updated_at before update on partitions_programmations
+  for each row execute function set_updated_at();
+alter table partitions_programmations enable row level security;
+drop policy if exists "partitions_programmations acces" on partitions_programmations;
+create policy "partitions_programmations acces" on partitions_programmations for all to authenticated
+  using (has_access()) with check (has_access());
+drop trigger if exists trg_audit_partitions_programmations on partitions_programmations;
+create trigger trg_audit_partitions_programmations
+  after insert or update or delete on partitions_programmations
+  for each row execute function audit_trigger_func();
+
+-- REPRISE DE L'EXISTANT. Le lien existait déjà, en creux, dans les
+-- affectations : si quelqu'un lit une partie d'EXPEDITION 33 sur EXP33-REC,
+-- c'est que le spectacle y est programmé. On le remonte, une fois, pour que
+-- rien de ce qui a été distribué avant cette migration ne disparaisse de la
+-- page. Idempotent : on ne réécrit pas une ligne déjà là.
+insert into partitions_programmations (id, spectacle_id, tournee_id)
+select distinct pa.spectacle_id || '::' || af.tournee_id, pa.spectacle_id, af.tournee_id
+  from partitions_affectations af
+  join partitions_parties pa on pa.id = af.partie_id
+ where af.tournee_id <> ''
+-- `on conflict do nothing` sans cible, et non `on conflict (id)` : l'index
+-- unique sur (spectacle_id, tournee_id) doit lui aussi pouvoir absorber un
+-- doublon arrivé par un autre chemin, plutôt que de faire échouer la reprise.
+on conflict do nothing;
+
+-- ============================================================================
+-- LA TRANSMISSION À UN TIERS — 19 septembre 2026
+-- ============================================================================
+-- Le dispositif des partitions distribue NOMINATIVEMENT, à des gens qu'on a
+-- dans l'annuaire. Il ne sait rien faire d'un orchestre étranger qui reprend le
+-- programme : ses cinquante musiciens ne sont pas nos musiciens, ils n'ont ni
+-- fiche, ni lien personnel, et il n'est pas question d'en créer cinquante pour
+-- une coproduction — ni de leur écrire un par un.
+--
+-- CE QU'ON CONFIE, ET À QUI
+-- ------------------------
+-- On confie un LOT (le matériel d'un spectacle, en entier ou par parties
+-- choisies) à un ENSEMBLE, représenté par une personne nommée — son
+-- bibliothécaire, son régisseur d'orchestre. Un seul lien, un seul code, un
+-- seul interlocuteur responsable. C'est lui qui distribue en interne, comme il
+-- le fait déjà pour son propre matériel.
+--
+-- POURQUOI CE N'EST PAS UNE AFFECTATION DE PLUS
+-- --------------------------------------------
+-- Une affectation vise une PERSONNE de l'annuaire sur une OPÉRATION à nous.
+-- Ici, ni l'un ni l'autre : le destinataire est une personne morale extérieure,
+-- et l'objet transmis est le matériel d'un spectacle, indépendamment de nos
+-- dates. Greffer ça sur partitions_affectations aurait obligé à inventer des
+-- musiciens fantômes dans l'annuaire — qui seraient ensuite remontés dans les
+-- plannings, les feuilles de route et les budgets.
+--
+-- CE QUI REMPLACE LE NOM SUR LE FILIGRANE
+-- ---------------------------------------
+-- Le nom de l'ENSEMBLE, et la date. Un exemplaire qui ressort ne désigne alors
+-- plus une personne mais une maison — ce qui est exactement le niveau de
+-- responsabilité que crée une transmission à un tiers. Quand le destinataire
+-- accepte de distribuer nominativement (option `nominatif`), le bibliothécaire
+-- saisit le nom de chaque musicien avant de prendre sa partie, et on retrouve
+-- la granularité d'origine sans avoir créé une seule fiche.
+--
+-- CE QUE CE DISPOSITIF NE FAIT PAS, ET QUI EST UN BON REFUS
+-- --------------------------------------------------------
+-- Il ne vérifie PAS les droits. Retransmettre du matériel de LOCATION (Durand,
+-- Boosey, Schott…) à un autre ensemble est contractuellement interdit dans la
+-- quasi-totalité des contrats de location : c'est l'éditeur qui loue au second
+-- ensemble, pas nous qui lui prêtons. La base ne peut pas le savoir ; elle se
+-- contente d'enregistrer que quelqu'un l'a affirmé, avec la date et l'auteur de
+-- l'envoi (`droits_confirmes` + journal d'audit). C'est une trace, pas une
+-- autorisation.
+-- ----------------------------------------------------------------------------
+
+create table if not exists partitions_envois (
+  id text primary key,
+  spectacle_id text not null references partitions_spectacles(id) on delete restrict,
+  -- L'opération, quand il y en a une de notre côté (coproduction, tournée
+  -- commune). Pas de clé étrangère, pour la même raison qu'ailleurs : une
+  -- tournée doit rester supprimable depuis tournees.html.
+  tournee_id text not null default '',
+  -- L'ensemble destinataire. C'est CE nom qui se pose sur le filigrane.
+  destinataire text not null default '',
+  contact_nom text not null default '',
+  contact_email text not null default '',
+  -- Le lien. Charset volontairement identique à celui qu'accepte
+  -- /api/partition : [A-Za-z0-9_-]. Tiré côté navigateur, 32 caractères.
+  jeton text not null unique,
+  -- Le code, second facteur, en clair et pour les mêmes raisons que
+  -- partitions_acces.code : il se lit au téléphone à un bibliothécaire à
+  -- l'étranger, et se retrouve dans la page trois semaines plus tard.
+  code text not null default '',
+  -- « Tout le spectacle » se propage : une partie ajoutée après l'envoi entre
+  -- dans le lot sans qu'on y retouche — même principe que l'affectation qui
+  -- porte sur la partie et non sur le fichier. La sélection explicite sert aux
+  -- cas où l'on ne confie qu'un pupitre (une harpe prêtée, des cuivres
+  -- renforcés).
+  toutes_parties boolean not null default true,
+  parties jsonb not null default '[]'::jsonb,
+  ouvert_le date,
+  -- LA DATE DE FIN N'EST PAS FACULTATIVE DANS LES FAITS. Un lot confié sans
+  -- terme est un lot qui reste ouvert des années : la page en propose une, et
+  -- la base accepte qu'on l'efface — il arrive qu'une coproduction n'ait pas
+  -- de fin connue. Ce qui ne s'efface pas, c'est la révocation immédiate.
+  expire_le date,
+  actif boolean not null default true,
+  -- Exiger un nom par exemplaire. À négocier avec le destinataire : c'est lui
+  -- qui saisit, donc c'est lui qui accepte.
+  nominatif boolean not null default false,
+  droits_confirmes boolean not null default false,
+  note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_partitions_envois_spectacle on partitions_envois(spectacle_id);
+drop trigger if exists trg_partitions_envois_updated_at on partitions_envois;
+create trigger trg_partitions_envois_updated_at before update on partitions_envois
+  for each row execute function set_updated_at();
+alter table partitions_envois enable row level security;
+drop policy if exists "partitions_envois acces" on partitions_envois;
+create policy "partitions_envois acces" on partitions_envois for all to authenticated
+  using (has_access()) with check (has_access());
+drop trigger if exists trg_audit_partitions_envois on partitions_envois;
+create trigger trg_audit_partitions_envois after insert or update or delete on partitions_envois
+  for each row execute function audit_trigger_func();
+
+-- Ce que voit le destinataire en ouvrant son lien. Le CODE N'EST PAS DEMANDÉ
+-- ICI, pour la même raison que du côté des musiciens : un bibliothécaire qui
+-- ouvre le lien doit voir CE QU'ON LUI CONFIE — trente-deux parties, tant de
+-- mégaoctets — avant de chercher le code dans ses mails. Un écran vide au
+-- premier regard, c'est un appel téléphonique à la production.
+--
+-- Un lot révoqué ou périmé répond quand même, et le dit. Le contraire ferait
+-- lire « lien invalide » à quelqu'un qui a le bon lien, et qui rappellerait
+-- pour s'entendre dire qu'il a expiré la veille.
+create or replace function envoi_partitions(p_jeton text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  e        record;
+  v_ouvert boolean;
+  resultat jsonb;
+begin
+  select * into e from partitions_envois where jeton = p_jeton;
+  if not found then
+    return null;   -- la page dira « ce lien n'est pas valide »
+  end if;
+
+  v_ouvert := e.actif
+    and (e.ouvert_le is null or e.ouvert_le <= current_date)
+    and (e.expire_le is null or e.expire_le >= current_date);
+
+  select jsonb_build_object(
+    'destinataire', e.destinataire,
+    'contactNom',   e.contact_nom,
+    'spectacle',    sp.nom,
+    'compositeur',  sp.compositeur,
+    'arrangeur',    sp.arrangeur,
+    'operation',    coalesce((select t.nom from tournees t where t.id = e.tournee_id), ''),
+    'codeRequis',   (e.code <> ''),
+    'nominatif',    e.nominatif,
+    'actif',        e.actif,
+    'ouvert',       v_ouvert,
+    'ouvertLe',     e.ouvert_le,
+    'expireLe',     e.expire_le,
+    'note',         e.note,
+    -- L'heure de la source, pas celle du navigateur.
+    'genereLe', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    'parties', coalesce((
+      select jsonb_agg(p.ligne order by p.ordre, p.nom)
+      from (
+        select pa.ordre, pa.nom,
+          jsonb_build_object(
+            'partieId', pa.id,
+            'nom',      pa.nom,
+            'pupitre',  pa.pupitre,
+            'fichiers', coalesce((
+              select jsonb_agg(jsonb_build_object(
+                       'id', fi.id, 'titre', fi.titre,
+                       'octets', fi.octets, 'pages', fi.pages)
+                     order by fi.ordre, fi.titre)
+                from partitions_fichiers fi where fi.partie_id = pa.id
+            ), '[]'::jsonb)
+          ) as ligne
+        from partitions_parties pa
+        where pa.spectacle_id = e.spectacle_id
+          and (e.toutes_parties or e.parties ? pa.id)
+      ) p
+    ), '[]'::jsonb)
+  ) into resultat
+  from partitions_spectacles sp
+  where sp.id = e.spectacle_id;
+
+  return resultat;
+end;
+$$;
+grant execute on function envoi_partitions(text) to anon, authenticated;
+
+-- L'autorisation de télécharger UN fichier au titre d'un lot confié, et la
+-- création de son jeton de filigrane dans le même mouvement. Même forme de
+-- retour que partition_pour_jeton — à une colonne près, `destinataire`, qui
+-- dit à /api/partition qu'il s'agit d'un exemplaire CONFIÉ et non d'un
+-- exemplaire PERSONNEL : les deux ne portent pas la même mention, et écrire
+-- « Exemplaire personnel de Tokyo Symphony » n'aurait aucun sens.
+--
+-- Un refus ne dit JAMAIS lequel des contrôles a échoué.
+drop function if exists partition_pour_envoi(text, text, text, text);
+create or replace function partition_pour_envoi(p_jeton text, p_fichier_id text, p_code text, p_pour text)
+returns table(
+  chemin text, personne text, operation text, partie text,
+  jeton_filigrane text, chiffrer boolean, destinataire text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  e          record;
+  f          record;
+  v_contexte text;
+  v_operation text;
+  v_personne text;
+  v_jeton    text;
+begin
+  select * into e from partitions_envois where jeton = p_jeton;
+  if not found then return; end if;
+  if not e.actif then return; end if;
+  if e.ouvert_le is not null and e.ouvert_le > current_date then return; end if;
+  if e.expire_le is not null and e.expire_le < current_date then return; end if;
+  -- La comparaison ignore la casse : un code se lit à voix haute, il se retape
+  -- en minuscules aussi souvent qu'en majuscules.
+  if e.code <> '' and upper(e.code) <> upper(coalesce(p_code, '')) then return; end if;
+  -- Le nom par exemplaire, quand il est exigé, l'est ICI et pas dans la page :
+  -- un navigateur ne protège rien.
+  if e.nominatif and btrim(coalesce(p_pour, '')) = '' then return; end if;
+
+  select fi.chemin as chemin, pa.id as partie_id, pa.nom as partie_nom,
+         sp.id as spectacle_id, sp.nom as spectacle_nom, sp.chiffrer as chiffrer
+    into f
+    from partitions_fichiers fi
+    join partitions_parties pa on pa.id = fi.partie_id
+    join partitions_spectacles sp on sp.id = pa.spectacle_id
+   where fi.id = p_fichier_id;
+  if not found or f.chemin = '' then return; end if;
+
+  -- Le fichier doit relever du spectacle confié, ET d'une partie du lot.
+  if f.spectacle_id <> e.spectacle_id then return; end if;
+  if not e.toutes_parties and not (e.parties ? f.partie_id) then return; end if;
+
+  select t.nom into v_operation from tournees t where t.id = e.tournee_id;
+  v_contexte := coalesce(f.spectacle_nom, '')
+    || case when coalesce(v_operation, '') <> '' then ' · ' || v_operation else '' end;
+
+  -- Le nom qui se pose en tête de page : celui du musicien quand le
+  -- destinataire distribue nominativement, celui de l'ensemble sinon.
+  v_personne := case when e.nominatif then btrim(p_pour) else e.destinataire end;
+  if coalesce(v_personne, '') = '' then v_personne := e.destinataire; end if;
+
+  v_jeton := 'CX-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4))
+                   || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4))
+                   || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4))
+                   || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4));
+
+  -- Le même journal que les téléchargements nominatifs, et c'est voulu : une
+  -- partition retrouvée se cherche à un seul endroit. `person_type` vaut
+  -- 'tiers' et `person_id` l'identifiant de l'envoi — de quoi remonter au lot,
+  -- à l'ensemble et au contact qui en répond.
+  insert into partitions_telechargements
+    (id, jeton_filigrane, fichier_id, tournee_id, person_type, person_id,
+     personne, partie, spectacle, operation)
+  values
+    ('tel' || replace(gen_random_uuid()::text, '-', ''), v_jeton, p_fichier_id, e.tournee_id,
+     'tiers', e.id,
+     coalesce(v_personne, ''), coalesce(f.partie_nom, ''), coalesce(f.spectacle_nom, ''),
+     coalesce(v_contexte, ''));
+
+  return query select f.chemin, coalesce(v_personne, ''), coalesce(v_contexte, ''),
+                      coalesce(f.partie_nom, ''), v_jeton, coalesce(f.chiffrer, false),
+                      coalesce(e.destinataire, '');
+end;
+$$;
+grant execute on function partition_pour_envoi(text, text, text, text) to anon, authenticated;
+
+-- Le poids réellement servi, pour un lot confié. Même raison d'être que son
+-- équivalent nominatif, et même indifférence à l'échec : un journal ne doit
+-- jamais empêcher une livraison.
+create or replace function journaliser_telechargement_envoi(
+  p_jeton text, p_fichier_id text, p_jeton_filigrane text, p_octets bigint
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update partitions_telechargements
+     set octets = coalesce(p_octets, 0)
+   where jeton_filigrane = p_jeton_filigrane
+     and fichier_id = p_fichier_id
+     and person_type = 'tiers'
+     and person_id = (select e.id from partitions_envois e where e.jeton = p_jeton);
+end;
+$$;
+grant execute on function journaliser_telechargement_envoi(text, text, text, bigint) to anon, authenticated;
