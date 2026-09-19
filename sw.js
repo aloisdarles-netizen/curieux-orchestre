@@ -153,13 +153,20 @@
 // servie réseau d'abord), lirait les programmations avec un adaptateur qui ne
 // les connaît pas — chaque spectacle s'afficherait comme rattaché à aucune
 // opération, et aucun rattachement ne s'enregistrerait.
-// v128 : la transmission d'un lot de parties à un ensemble tiers. db.js
+// v128 : la refonte visuelle des partitions, côté musicien. base.css porte les
+// teintes de pupitre (--pup-*) et deux pièces partagées (.co-pup, .co-seg),
+// partitions-commun.js les met en forme, mes-dates-vue.js redessine le bloc
+// « Mes partitions » en tuiles, et mes-partitions.html charge
+// partitions-commun.js. Sans cet incrément, un navigateur déjà venu garderait
+// l'ancien base.css : les variables de teinte seraient introuvables, donc les
+// bandeaux de pupitre transparents.
+// v129 : la transmission d'un lot de parties à un ensemble tiers. db.js
 // apprend la table partitions_envois et deux appels de plus, et assets/zip.js
 // arrive — c'est lui qui assemble l'archive dans le navigateur du
 // destinataire. Sans cet incrément, un navigateur déjà venu garderait l'ancien
 // db.js : l'écran des transmissions s'ouvrirait, le lien partirait en base et
 // n'en reviendrait jamais — l'adaptateur manquant, tout se lirait vide.
-const VERSION = 'curieux-v128';
+const VERSION = 'curieux-v129';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

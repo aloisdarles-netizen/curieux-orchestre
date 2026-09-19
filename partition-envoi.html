@@ -55,8 +55,7 @@
   .bloc h2 .total{margin-left:auto; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:0;}
 
   .pupitre{
-    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
-    color:var(--muted); margin:14px 0 4px; padding-top:10px; border-top:1px solid var(--border);
+    margin:14px 0 6px; padding-top:10px; border-top:1px solid var(--border);
   }
   .pupitre:first-of-type{border-top:none; padding-top:0; margin-top:4px;}
 
@@ -376,12 +375,14 @@ function rendre(){
   if(!fichiers){
     html += `<p class="rien">${escapeHtml(T('rien'))}</p>`;
   } else {
-    let pupitreCourant = null;
-    parties.forEach(p => {
-      if((p.pupitre || '') !== pupitreCourant){
-        pupitreCourant = p.pupitre || '';
-        if(pupitreCourant) html += `<div class="pupitre">${escapeHtml(pupitreCourant)}</div>`;
-      }
+    /* Le groupement par pupitre est celui de partitions-commun.js, donc le
+       même que dans l'espace des musiciens, teintes comprises. Regrouper
+       vraiment — au lieu de poser un titre chaque fois que la valeur change —
+       évite aussi le « Cordes » affiché deux fois quand une partie revient
+       plus bas dans l'ordre du conducteur. */
+    partitionsGrouperParPupitre(parties).forEach(groupe => {
+      html += `<div class="pupitre">${partitionsPupitreHtml(groupe.pupitre)}</div>`;
+      groupe.parties.forEach(p => {
       (p.fichiers || []).forEach(f => {
         const detail = [partitionsPoids(f.octets), f.pages ? T('pages')(f.pages) : ''].filter(Boolean).join(' · ');
         const nom = nomArchive(p, f).replace(/\.pdf$/, '');
@@ -389,6 +390,7 @@ function rendre(){
           <span class="fic-nom">${escapeHtml(nom)}<span class="fic-det">${escapeHtml(detail)}</span></span>
           <span class="fic-fleche">↓</span>
         </a>`;
+      });
       });
     });
   }
