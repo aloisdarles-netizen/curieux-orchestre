@@ -33,6 +33,17 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-19-5',
+    titre: 'Supprimer un spectacle',
+    points: [
+      "Un spectacle créé en double, un essai, un matériel déposé sous le mauvais nom : il n'y avait aucun moyen de s'en défaire. C'est fait, dans les réglages du spectacle — et c'est réservé aux comptes admin, comme le budget et les devis.",
+      "Avant de confirmer, la page dit exactement ce qui part : le nombre de parties, de fichiers et leur poids, les affectations et combien de personnes verront leurs partitions disparaître, les rattachements aux opérations, les transmissions. Puis elle demande de retaper le nom du spectacle.",
+      "Elle REFUSE tant qu'un lot est confié à un ensemble extérieur : leur lien cesserait de fonctionner sans qu'ils en soient avertis, et c'est la seule personne qu'on ne peut pas prévenir. Il faut révoquer d'abord.",
+      "Rien n'est détruit tant que le ruban « Annuler » est à l'écran — quinze secondes. C'est le seul filet qui rattrape un fichier : les lignes supprimées restent restaurables depuis la corbeille de l'administration, les PDF non.",
+      "Pour un spectacle qui ne se joue plus, la bonne manœuvre reste l'ARCHIVAGE, juste au-dessus : il sort des listes et rien n'est perdu. La suppression sert à autre chose.",
+    ],
+  },
+  {
     version: '2026-09-19-4',
     titre: 'Confier un jeu de parties à un autre ensemble',
     points: [
