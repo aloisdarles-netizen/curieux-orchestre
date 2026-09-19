@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Mes partitions</title>
+<!-- Page volontairement PUBLIQUE, comme les autres écrans de l'espace personnel :
+     pas de requireAdminAuth() ici. L'identification se fait par le jeton de l'URL,
+     et le droit sur un fichier donné se vérifie en base (mes_partitions) puis dans
+     /api/partition — jamais dans cette page. -->
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/app-musicien.js"></script>
+<!-- Les teintes de pupitre : la même table que l'écran de production, pour
+     que la partie bleue le soit des deux côtés. Sans ce module, les tuiles
+     gardent un liseré gris — la page fonctionne, elle est seulement muette. -->
+<script src="assets/partitions-commun.js"></script>
+<script src="assets/mes-dates-vue.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  /* Une colonne de largeur de téléphone, même sur grand écran : une liste de
+     parties étirée sur 1 100 px met le poids du fichier à vingt centimètres de
+     son nom. Rien ici ne réclame de la largeur. */
+  .wrap{max-width:640px; margin:0 auto; padding-bottom:40px;}
+  .entete{margin-bottom:14px;}
+  .sous{color:var(--muted); font-size:13.5px; margin:4px 0 0; line-height:1.55;}
+  .etat-boite{text-align:center; color:var(--muted); font-size:13.5px; line-height:1.6;}
+
+  /* La fraîcheur de la page, dite une fois — même pastille que sur Mes dates.
+     Une partition déposée ce matin et une page ouverte hier ne se distinguent
+     pas autrement, et la question « est-ce que c'est à jour ? » se règle par
+     un message à la production si la page ne la règle pas elle-même. */
+  .fraicheur{
+    display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted);
+    background:var(--bg); border:1px solid var(--border); border-radius:999px;
+    padding:4px 11px; margin-top:8px;
+  }
+  .fraicheur::before{content:''; width:6px; height:6px; border-radius:50%; background:var(--ok);}
+
+  .pied{
+    margin-top:26px; padding-top:16px; border-top:1px solid var(--border);
+    font-size:12px; color:var(--muted); line-height:1.6;
+  }
+  .pied p{margin:0 0 9px;}
+  .pied p:last-child{margin-bottom:0;}
+  .pied strong{color:var(--text);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="brand-logo-img" alt="Curieux orchestre">
+  <div class="entete">
+    <h1 class="co-h1" id="titre">Mes partitions</h1>
+    <p class="sous" id="sousTitre">Chargement…</p>
+  </div>
+  <div id="contenu"></div>
+  <div id="pied"></div>
+</div>
+
+<script>
+/* ---------------------------------------------------------------------------
+   Mes partitions — l'onglet.
+   ---------------------------------------------------------------------------
+   Le rendu vit dans assets/mes-dates-vue.js (section MES PARTITIONS), où il
+   était déjà : il s'affichait en bas de « Mes dates ». Il en sort pour avoir
+   son écran, et pour deux raisons qui ne sont pas de confort.
+
+   1. ON NE DÉFILE PAS POUR TROUVER SA PARTIE. Le bloc arrivait après les
+      colonnes de dates — six cents pixels sur un téléphone. Une partie déposée
+      la veille d'une répétition se découvrait en défilant, ou pas du tout.
+
+   2. UN BLOC N'A PAS DE PASTILLE. Depuis n'importe quel écran de l'espace, la
+      barre d'onglets peut maintenant dire qu'il reste trois parties à prendre
+      — c'est-à-dire déposées, ouvertes, et jamais téléchargées par vous. Un
+      compteur qui descend, et non le nombre de partitions qu'on possède, qui
+      aurait affiché « 12 » toute la saison.
+
+   AUCUN LIEN N'EST RÉÉMIS. Cette page s'ouvre avec le jeton que la personne a
+   déjà — celui de son espace. Rien à installer, rien à recevoir.
+
+   LA PAGE NE DÉCIDE DE RIEN. Elle affiche ce que mes_partitions lui rend, et
+   les téléchargements passent par /api/partition. Le droit sur un fichier,
+   l'ouverture d'une opération et son code se vérifient en base : un navigateur
+   ne protège rien.
+--------------------------------------------------------------------------- */
+
+const params = new URLSearchParams(location.search);
+const TOKEN = params.get('token') || '';
+
+function etat(html){
+  document.getElementById('sousTitre').textContent = '';
+  document.getElementById('contenu').innerHTML = `<div class="co-card co-pad etat-boite">${html}</div>`;
+}
+
+/* Le pied n'est pas le même selon qu'on a des partitions ou non. Expliquer le
+   filigrane et le code de l'opération à quelqu'un à qui on n'a rien attribué,
+   c'est lui faire lire deux paragraphes de règles sur une chose qu'il n'a
+   pas. Reste alors la seule ligne qui serve : à qui écrire. */
+function poserPied(aDesPartitions){
+  document.getElementById('pied').innerHTML = `<div class="pied">
+    ${aDesPartitions ? `
+      <p><strong>Le nom est apposé au téléchargement</strong>, et non au dépôt : en tête de page, en pied de
+        page, et sous une forme invisible qui retrouve l'origine d'un exemplaire qui circulerait. La musique
+        n'est jamais recouverte. C'est ce qui permet de te confier le matériel directement, plutôt qu'un lien
+        de pupitre renvoyé à chaque ajout.</p>
+      <p>Le <strong>code d'une opération</strong> t'est communiqué séparément de ce lien : il dit que tu es
+        censé·e jouer ce programme maintenant. Tu ne le saisis qu'une fois — il est retenu quatorze jours
+        sur cet appareil.</p>` : ''}
+    <p>Une partie qui n'est pas la tienne, un fichier qui manque, une version qui ne correspond pas à ce que
+      tu as répété ? Écris à la personne qui t'a envoyé ce lien — ne cherche pas la bonne version ailleurs.</p>
+  </div>`;
+}
+
+async function init(){
+  if(!window.supabase){ etat("La page n'a pas pu se charger. Réessaie dans un instant."); return; }
+  if(!TOKEN){
+    etat("Ce lien est incomplet. Reprends celui qu'on t'a envoyé, ou demande-nous de te le renvoyer.");
+    return;
+  }
+
+  const charge = await CurieuxDB.mesPartitions(TOKEN);
+
+  // La migration n'est pas jouée sur cette base. Dit en toutes lettres : sans
+  // ce cas, la page annoncerait « aucune partition », qui se lit « on ne t'a
+  // rien donné » — un mensonge, et le plus décourageant de tous.
+  if(charge && charge.migrationAbsente){
+    etat("Cette page n'est pas encore active sur ce serveur.<br>Préviens la production — il lui reste une mise à jour à appliquer.");
+    return;
+  }
+  if(!charge){
+    etat("Ce lien n'est plus valide. Contacte la production pour en obtenir un nouveau.");
+    return;
+  }
+
+  /* Ce que la coque a besoin de savoir, rafraîchi ici : c'est cette page qui
+     détient la vérité sur les partitions, et non l'accueil qui l'a estimée en
+     arrivant. Une partie prise à l'instant fait donc tomber la pastille au
+     rechargement, sans passer par l'accueil. */
+  const compte = CurieuxMesDates.compterPartitions(charge);
+  if(window.CurieuxAppMusicien) CurieuxAppMusicien.etat({
+    partitions: compte.operations,
+    partitionsNeuves: compte.neuves,
+  });
+
+  const stamp = CurieuxMesDates.fraicheur(charge.genereLe);
+  document.getElementById('sousTitre').innerHTML =
+    (compte.operations
+      ? "Ce qui t'est attribué, opération par opération."
+      : 'Le matériel que la production te confie apparaît ici.')
+    + (stamp ? `<br><span class="fraicheur">${escapeHtml(stamp)}</span>` : '');
+
+  CurieuxMesDates.monterPartitions(document.getElementById('contenu'), charge, TOKEN,
+    { titre: false, vide: true });
+
+  poserPied(compte.operations > 0);
+}
+
+init();
+applyBrandLogo();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+</script>
+</body>
+</html>

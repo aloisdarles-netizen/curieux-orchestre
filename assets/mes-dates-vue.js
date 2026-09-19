@@ -401,12 +401,23 @@ const CurieuxMesDates = (function(){
      Elles sont désormais ici, dans l'espace que la personne a déjà — AUCUN
      nouveau lien n'est envoyé, et les liens en circulation restent valides.
 
-     UN BLOC DE PAGE, ET PAS SEULEMENT UN DÉTAIL DE JOURNÉE. La vue par défaut
-     sur téléphone est « colonnes », jamais le calendrier : des partitions qui
-     ne s'afficheraient que dans le détail d'une journée du calendrier seraient
-     invisibles pour la quasi-totalité des musicien·nes. Le groupement par
-     opération donne le même résultat — on voit ses parties sous son opé — sans
-     dépendre d'une vue que personne n'ouvre.
+     UN ÉCRAN, ET PLUS UN BLOC EN BAS DE PAGE. Le rendu s'est d'abord greffé
+     sous les dates : c'était la place la plus proche d'un endroit où l'on
+     passe. Elle avait deux défauts qu'un onglet corrige. Le premier est qu'on
+     y arrivait par six cents pixels de colonnes de dates — une partition
+     déposée la veille d'une répétition se découvrait en défilant. Le second
+     est qu'un bloc n'a pas de pastille : rien ne pouvait dire, depuis
+     n'importe quel écran, qu'il restait trois parties à prendre.
+
+     Le module rend donc les deux formes, et une seule est utilisée à la fois :
+     `titre:false` quand la barre de l'application porte déjà le nom de
+     l'écran, `vide:true` quand la page EST celle des partitions — là, ne rien
+     dire se lirait comme une panne, alors qu'un cadre « aucune partition »
+     greffé sous les dates de quelqu'un à qui on n'en donne jamais serait du
+     bruit permanent.
+
+     Le groupement par opération ne change pas : on voit ses parties sous son
+     opé, sans dépendre d'une vue que personne n'ouvre.
 
      LE CODE NE SERT QU'À TÉLÉCHARGER. La liste s'affiche sans lui : savoir
      qu'on a trois partitions qui attendent est utile et sans risque. Exiger le
@@ -431,28 +442,36 @@ const CurieuxMesDates = (function(){
     try{ localStorage.setItem(_clePartitions(jeton, tourneeId), JSON.stringify({ quand: Date.now(), code })); }catch(e){}
   }
 
-  /* CE QUI EST DÉJÀ RÉCUPÉRÉ, et la limite honnête de ce repère.
-     -------------------------------------------------------------------------
-     La vraie trace du retrait est en base — c'est /api/partition qui l'écrit,
-     et c'est elle que lit l'écran de production. Mais mes_partitions ne la
-     renvoie pas, et l'espace du musicien n'a pas de quoi l'interroger.
-     On marque donc localement ce qui a été téléchargé DEPUIS CET APPAREIL, et
-     on l'écrit tel quel dans l'étiquette : « sur cet appareil ». Une promesse
-     tenue à moitié vaut mieux qu'une promesse fausse — quelqu'un qui a
-     téléchargé sa partie au bureau et rouvre la page dans le train doit
-     comprendre pourquoi la coche n'y est pas.
-     La marque ne se périme pas : une partition récupérée il y a six mois l'est
-     toujours. C'est le code d'accès qui expire, pas le souvenir du retrait. */
-  function _clePris(jeton){ return 'curieuxPartitionsPris:' + jeton; }
-  function _lirePris(jeton){
-    try{ return JSON.parse(localStorage.getItem(_clePris(jeton)) || '{}') || {}; }catch(e){ return {}; }
-  }
-  function _marquerPris(jeton, fichierId){
-    try{
-      const j = _lirePris(jeton);
-      j[fichierId] = new Date().toISOString();
-      localStorage.setItem(_clePris(jeton), JSON.stringify(j));
-    }catch(e){}
+  /* Ce que la coque de l'espace musicien a besoin de savoir, en deux nombres.
+
+     `operations` décide de l'EXISTENCE de l'onglet : une opération sans aucun
+     fichier compte quand même, parce qu'elle dit quelque chose — on est
+     attendu dessus, le matériel arrive. Un·e technicien·ne, lui, n'en a
+     aucune, et n'a donc pas d'onglet qui ne lui montrerait jamais rien.
+
+     `neuves` fait la pastille : les fichiers qu'on peut prendre MAINTENANT et
+     qu'on n'a jamais pris. Deux exclusions, et chacune évite un compteur qui
+     ne descendrait pas — celui d'une opération pas encore ouverte (le fichier
+     existe, il ne se télécharge pas), et celui qu'on aurait fait du nombre
+     total de partitions, qui aurait affiché « 12 » toute la saison.
+
+     `pris` n'existe qu'une fois la migration jouée : sans lui, `neuves` vaut
+     null — aucune pastille, jamais un zéro, qui se lirait « tu as tout pris ».
+     */
+  function compterPartitions(charge){
+    const operations = (charge && charge.operations) || [];
+    let fichiers = 0, neuves = 0, su = false;
+    operations.forEach(op => (op.parties || []).forEach(p => (p.fichiers || []).forEach(f => {
+      fichiers++;
+      if(typeof f.pris !== 'boolean') return;
+      su = true;
+      if(!f.pris && op.ouvert) neuves++;
+    })));
+    return {
+      operations: operations.length,
+      fichiers,
+      neuves: (su || !fichiers) ? neuves : null,
+    };
   }
 
   function _poids(o){
@@ -461,16 +480,10 @@ const CurieuxMesDates = (function(){
     return (n / 1048576).toFixed(1).replace('.', ',') + ' Mo';
   }
 
-  function _jourCourt(iso){
-    if(!iso) return '';
-    const d = new Date(iso);
-    if(isNaN(d)) return '';
-    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-  }
-
-  /* La teinte du pupitre, si partitions-commun.js est chargé. mon-espace.html
-     charge cette vue sans monter le bloc des partitions : la vue ne doit donc
-     pas supposer que le module est là. */
+  /* La teinte du pupitre, si partitions-commun.js est chargé. Les pages qui
+     montent ce bloc le chargent (mes-partitions.html) ; mon-espace.html charge
+     cette vue sans monter le bloc. La vue ne suppose donc pas que le module
+     est là — un bandeau gris vaut mieux qu'une page qui casse. */
   function _teintePupitre(pupitre, encre){
     if(typeof partitionsPupitreVar === 'function') return partitionsPupitreVar(pupitre, encre);
     return encre ? 'var(--muted)' : 'var(--border)';
@@ -478,28 +491,43 @@ const CurieuxMesDates = (function(){
 
   /* Monter le bloc dans un conteneur dédié. `charge` est ce que rend
      mes_partitions : { personId, personType, genereLe, operations: [...] }.
-     Rien à afficher quand il n'y a rien : un bloc « aucune partition » sur
-     l'espace de quelqu'un à qui on n'en donne jamais est du bruit permanent.
 
-     CE QUI A CHANGÉ, ET POURQUOI. C'était une liste de liens gris, tous
-     pareils, où la partie et le fichier se confondaient. Sur un téléphone en
-     coulisse, avant une balance, on cherchait la bonne ligne. Chaque partie
-     est maintenant une tuile qu'on peut viser du pouce, teintée de son
-     pupitre, qui dit son poids, son nombre de pages, et si elle a déjà été
-     récupérée. Le geste — appuyer pour avoir sa musique — est redevenu le plus
-     gros élément de l'écran. */
-  function monterPartitions(hote, charge, jeton){
+     Deux options, et chacune répond à « où suis-je ? » :
+       titre:false — la barre de l'application porte déjà « Mes partitions »,
+                     le répéter dix pixels dessous se lit comme une maladresse ;
+       vide:true   — la page est celle des partitions : quand il n'y en a
+                     aucune, elle doit le DIRE. Sans l'option, le bloc
+                     s'efface, ce qu'il faut quand il est greffé ailleurs.
+
+     CE QUI A CHANGÉ DANS LA FORME, ET POURQUOI. C'était une liste de liens
+     gris, tous pareils, où la partie et le fichier se confondaient. Sur un
+     téléphone en coulisse, avant une balance, on cherchait la bonne ligne.
+     Chaque partie est maintenant une tuile qu'on vise au pouce, teintée de son
+     pupitre — la même teinte que sur l'écran de la production, faute de quoi
+     un code couleur devrait s'apprendre deux fois. Le geste, appuyer pour
+     avoir sa musique, est redevenu le plus gros élément de l'écran. */
+  function monterPartitions(hote, charge, jeton, options){
     if(!hote) return;
+    const o = options || {};
     const operations = (charge && charge.operations) || [];
-    if(!operations.length){ hote.innerHTML = ''; return; }
+    const chapeau = o.titre === false ? '' : '<h2 class="mdv-part-titre">Mes partitions</h2>';
+
+    if(!operations.length){
+      if(!o.vide){ hote.innerHTML = ''; return; }
+      poserStyle();
+      hote.innerHTML = `<section class="mdv-part">${chapeau}
+        <p class="mdv-part-rien">Aucune partition ne t'est attribuée pour l'instant.<br>
+          Dès que la production dépose le matériel d'une opération où tu joues, il
+          apparaît ici — sans qu'on t'envoie de nouveau lien.</p>
+      </section>`;
+      return;
+    }
     poserStyle();
 
     const rendre = ()=>{
-      const pris = _lirePris(jeton);
-      hote.innerHTML = `<section class="mdv-part">
-        <h2 class="mdv-part-titre">Mes partitions</h2>
+      hote.innerHTML = `<section class="mdv-part">${chapeau}
         <p class="mdv-part-intro">Chaque exemplaire porte ton nom : il t'est personnellement attribué, et il n'a pas à circuler au-delà de l'orchestre.</p>
-        ${operations.map(op => _operationHtml(op, jeton, pris)).join('')}
+        ${operations.map(op => _operationHtml(op, jeton)).join('')}
       </section>`;
 
       hote.querySelectorAll('[data-part-code]').forEach(form => {
@@ -517,25 +545,18 @@ const CurieuxMesDates = (function(){
         rendre();
       });
 
-      // Le marquage se fait au clic et pas après coup : on ne sait pas si le
-      // téléchargement a abouti, et une coche qui n'apparaît qu'au succès ne
-      // pourrait jamais apparaître — rien ne nous le dit. La coche dit donc
-      // « tu l'as demandée », ce qui est exactement ce dont on se souvient.
-      hote.querySelectorAll('[data-part-fic]').forEach(a => a.addEventListener('click', ()=>{
-        _marquerPris(jeton, a.dataset.partFic);
-        setTimeout(rendre, 900);
-      }));
-
+      /* « Tout télécharger ». La page ne REDESSINE PAS après coup : `pris` vient
+         de la base, et la base ne sera relue qu'au prochain chargement. Redessiner
+         ici ne changerait donc aucune pastille et ferait seulement sauter l'écran
+         sous le pouce. La phrase d'aide, elle, est nécessaire : plusieurs
+         téléchargements d'affilée ne passent pas partout, et un bouton qui échoue
+         en silence est pire que pas de bouton. */
       hote.querySelectorAll('[data-part-tout]').forEach(b => b.onclick = ()=>{
         const liens = Array.from(hote.querySelectorAll(
           `[data-part-ope="${b.dataset.partTout}"] [data-part-fic]`));
-        liens.forEach((a, i) => setTimeout(()=>{
-          _marquerPris(jeton, a.dataset.partFic);
-          a.click();
-        }, i * 700));
+        liens.forEach((a, i) => setTimeout(()=> a.click(), i * 700));
         const note = b.parentElement.querySelector('.mdv-part-aide');
         if(note) note.textContent = "Si un seul fichier s'ouvre, touche les autres un par un : certains téléphones n'acceptent qu'un téléchargement à la fois.";
-        setTimeout(rendre, liens.length * 700 + 900);
       });
     };
     rendre();
@@ -559,19 +580,20 @@ const CurieuxMesDates = (function(){
   }
 
   /* Le cartouche d'une opération : son nom, et ce qu'elle porte. Le compte est
-     écrit en toutes lettres — « 3 partitions » — parce que c'est la première
-     chose qu'on vérifie : ai-je tout ce qu'on m'a annoncé ? */
+     écrit en toutes lettres — « 4 partitions · 3 à prendre » — parce que c'est
+     la première chose qu'on vérifie : ai-je tout ce qu'on m'a annoncé ? */
   function _opeTete(op, compte, droite){
     return `<div class="mdv-part-ope-tete">
       <span class="mdv-part-ope-nom">${escapeHtml(op.nom || 'Opération')}</span>
-      ${compte ? `<span class="mdv-part-ope-n">${compte}</span>` : ''}
+      ${compte ? `<span class="mdv-part-ope-n">${escapeHtml(compte)}</span>` : ''}
       ${droite || ''}
     </div>`;
   }
 
-  function _operationHtml(op, jeton, pris){
+  function _operationHtml(op, jeton){
     const parties = op.parties || [];
-    const nbFichiers = parties.reduce((s, p)=> s + ((p.fichiers || []).length), 0);
+    const fichiers = parties.reduce((s, p)=> s.concat(p.fichiers || []), []);
+    const nbFichiers = fichiers.length;
     const code = op.codeRequis ? _lireCode(jeton, op.tourneeId) : '';
 
     if(!op.ouvert){
@@ -585,9 +607,12 @@ const CurieuxMesDates = (function(){
     }
 
     // Le code manque : on dit ce qui attend, et on demande le code. Jamais
-    // l'inverse — un champ nu sans savoir ce qu'il ouvre ne se remplit pas.
+    // l'inverse — un champ nu sans savoir ce qu'il ouvre ne se remplit pas. Les
+    // noms des parties sont montrés, teintés : on sait ce qu'on débloque avant
+    // d'aller chercher le code dans ses messages.
     if(op.codeRequis && !code){
-      const apercu = parties.map(p => `<span class="mdv-part-apercu" style="background:${_teintePupitre(p.pupitre)}; color:${_teintePupitre(p.pupitre, true)}">${escapeHtml(p.nom)}</span>`).join('');
+      const apercu = parties.map(p => `<span class="mdv-part-apercu"
+        style="background:${_teintePupitre(p.pupitre)}; color:${_teintePupitre(p.pupitre, true)}">${escapeHtml(p.nom)}</span>`).join('');
       return `<div class="mdv-part-ope verrou">
         ${_opeTete(op, nbFichiers + ' partition' + (nbFichiers > 1 ? 's' : ''))}
         <p class="mdv-part-vide"><span class="mdv-part-cadenas" aria-hidden="true">🔒</span>
@@ -602,29 +627,48 @@ const CurieuxMesDates = (function(){
       </div>`;
     }
 
+    /* CE QUI EST DÉJÀ PRIS VIENT DE LA BASE, et de nulle part ailleurs.
+       partitions_telechargements garde une ligne par exemplaire émis, et
+       mes_partitions la rend en un booléen `pris` par fichier. C'est la seule
+       source qui vaille : un repère posé dans le navigateur ne dirait que ce
+       qu'on a pris SUR CET APPAREIL, et quelqu'un qui a téléchargé au bureau
+       puis rouvre la page dans le train verrait sa liste redevenue entière.
+       `pris` peut manquer — migration pas encore jouée. On ne dit alors RIEN,
+       ni « pris » ni « à prendre » : une ligne muette vaut mieux qu'une ligne
+       qui affirme. */
     const tuiles = parties.map(p => (p.fichiers || []).map(f => {
       const url = `/api/partition?jeton=${encodeURIComponent(jeton)}&fichier=${encodeURIComponent(f.id)}`
                 + (code ? `&code=${encodeURIComponent(code)}` : '');
       const detail = [p.spectacle, _poids(f.octets), f.pages ? f.pages + ' pages' : '']
                      .filter(Boolean).join(' · ');
-      const quand = pris && pris[f.id] ? _jourCourt(pris[f.id]) : '';
-      return `<a class="mdv-fic${quand ? ' pris' : ''}" href="${escapeAttr(url)}" download
+      const connu = typeof f.pris === 'boolean';
+      const dejaPris = connu && f.pris;
+      /* « À prendre », et non « nouveau » : un fichier déposé il y a trois mois
+         et jamais téléchargé n'a rien de nouveau, mais il reste à prendre.
+         C'est ce que compte la pastille de l'onglet, dit ici ligne par ligne —
+         sans quoi on saurait qu'il en reste trois sans savoir lesquelles, sur
+         une opération qui en porte douze. */
+      const marque = !connu ? ''
+        : dejaPris ? '<span class="mdv-fic-pris">Déjà récupérée</span>'
+        : '<span class="mdv-part-neuf">à prendre</span>';
+      return `<a class="mdv-fic${dejaPris ? ' pris' : ''}" href="${escapeAttr(url)}" download
                  data-part-fic="${escapeAttr(f.id)}">
         <span class="mdv-fic-teinte" style="background:${_teintePupitre(p.pupitre, true)}"></span>
         <span class="mdv-fic-corps">
-          <span class="mdv-fic-nom">${escapeHtml(p.nom)}${_suffixe(p, f)}</span>
+          <span class="mdv-fic-nom">${escapeHtml(p.nom)}${_suffixe(p, f)}${connu && !dejaPris ? marque : ''}</span>
           <span class="mdv-fic-det">${escapeHtml(detail)}</span>
-          ${quand ? `<span class="mdv-fic-pris">Récupérée le ${escapeHtml(quand)}, sur cet appareil</span>` : ''}
+          ${dejaPris ? marque : ''}
         </span>
         <span class="mdv-fic-btn" aria-hidden="true">↓</span>
       </a>`;
     }).join('')).join('');
 
-    const nbPris = parties.reduce((s, p)=> s + (p.fichiers || []).filter(f => pris && pris[f.id]).length, 0);
+    const nbAPrendre = fichiers.filter(f => f.pris === false).length;
+    const compte = nbFichiers + ' partition' + (nbFichiers > 1 ? 's' : '')
+      + (nbAPrendre ? ' · ' + nbAPrendre + ' à prendre' : '');
 
     return `<div class="mdv-part-ope" data-part-ope="${escapeAttr(op.tourneeId)}">
-      ${_opeTete(op,
-        nbFichiers + ' partition' + (nbFichiers > 1 ? 's' : '') + (nbPris ? ' · ' + nbPris + ' récupérée' + (nbPris > 1 ? 's' : '') : ''),
+      ${_opeTete(op, compte,
         op.codeRequis ? `<button type="button" class="mdv-part-oublier" data-part-oublier="${escapeAttr(op.tourneeId)}">oublier le code</button>` : '')}
       ${tuiles || '<p class="mdv-part-vide">Rien de déposé pour l\'instant.</p>'}
       ${nbFichiers > 1 ? `<div class="mdv-part-pied">
@@ -646,7 +690,7 @@ const CurieuxMesDates = (function(){
          C'était une liste de liens gris où rien ne se distinguait. Trois
          règles la rendent utilisable d'une main, debout, en coulisse :
          la tuile fait 56 px de haut et se vise au pouce ; la teinte du
-         pupitre court le long de son bord gauche ; ce qui est déjà récupéré
+         pupitre court le long de son bord gauche ; ce qui reste à prendre
          le dit, en toutes lettres et pas par une nuance.
          ------------------------------------------------------------------ */
       .mdv-part{margin-top:22px;}
@@ -666,6 +710,19 @@ const CurieuxMesDates = (function(){
         text-transform:none;}
       .mdv-part-vide{font-size:13px; color:var(--muted); margin:0; line-height:1.55;}
       .mdv-part-cadenas{font-size:14px; margin-right:3px;}
+      /* La page des partitions quand il n'y en a aucune. Encadré, et non une
+         ligne grise perdue au milieu d'un écran blanc : un écran nu se lit
+         comme un chargement qui n'a pas abouti. */
+      .mdv-part-rien{
+        background:var(--card); border:1px solid var(--border); border-radius:var(--radius-md);
+        padding:18px 16px; margin:0; font-size:13.5px; color:var(--muted); line-height:1.6;
+        text-align:center;
+      }
+      .mdv-part-neuf{
+        display:inline-block; margin-left:8px; font-size:10px; font-weight:800;
+        text-transform:uppercase; letter-spacing:.05em; padding:2px 7px; border-radius:999px;
+        background:var(--secondary); color:#fff; vertical-align:1.5px;
+      }
       /* L'aperçu des parties sous le cadenas : savoir CE QU'ON DÉBLOQUE avant
          d'aller chercher le code. Un champ nu ne se remplit pas. */
       .mdv-part-apercus{display:flex; flex-wrap:wrap; gap:5px; margin:9px 0 0;}
@@ -695,10 +752,13 @@ const CurieuxMesDates = (function(){
       .mdv-fic-pris::before{content:'✓ ';}
       .mdv-fic-btn{width:38px; height:38px; border-radius:50%; flex-shrink:0; display:grid; place-items:center;
         background:var(--accent-solid); color:#fff; font-size:18px; font-weight:800; line-height:1;}
+      /* Un simple éclaircissement plutôt qu'un basculement vers --accent-dark :
+         la nuit, cette variable vaut un bleu presque blanc, et la flèche
+         blanche y disparaissait. */
       .mdv-fic:hover .mdv-fic-btn, .mdv-fic:active .mdv-fic-btn{filter:brightness(1.12);}
-      /* Récupérée : la pastille passe en contour. L'action reste possible — on
-         retélécharge une partition qu'on a perdue — mais elle cesse d'appeler
-         le regard, qui doit aller sur ce qui reste à faire. */
+      /* Déjà récupérée : la pastille passe en contour. L'action reste possible
+         — on retélécharge une partition qu'on a perdue — mais elle cesse
+         d'appeler le regard, qui doit aller sur ce qui reste à prendre. */
       .mdv-fic.pris .mdv-fic-btn{background:transparent; border:1.5px solid var(--border); color:var(--muted);}
 
       .mdv-barre{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:4px 0 4px;}
@@ -1198,7 +1258,7 @@ const CurieuxMesDates = (function(){
     return { rendre, ajuster };
   }
 
-  return { monter, monterPartitions, apercu, mediaPetitEcran, fraicheur, statutDe, groupeDe, STATUT_MOT };
+  return { monter, monterPartitions, compterPartitions, apercu, mediaPetitEcran, fraicheur, statutDe, groupeDe, STATUT_MOT };
 })();
 
 if(typeof window !== 'undefined') window.CurieuxMesDates = CurieuxMesDates;
