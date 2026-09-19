@@ -32,11 +32,14 @@
       s'empilent pas — on passe de l'une à l'autre, comme dans n'importe quelle
       application, sans jamais avoir à revenir en arrière.
 
-   4. UN ONGLET QUI N'OUVRE JAMAIS RIEN N'EST PAS UN ONGLET. Deux destinations
+   4. LA BARRE SE DÉCIDE PAR LE MÉTIER, PAS PAR LE STOCK. Deux destinations
       ne s'affichent pas pour tout le monde — les remplaçant·es, réservés aux
-      titulaires, et les partitions, qui n'existent que pour qui en a. La
-      barre en porte quatre pour la plupart des gens, cinq pour un pupitre en
-      pleine production.
+      titulaires, et les partitions, réservées aux musicien·nes. Ce qui les
+      décide est un ÉTAT DURABLE de la personne, jamais le contenu du jour :
+      un onglet qui apparaîtrait le jour où on affecte une partie et
+      disparaîtrait le jour où on la retire donnerait à chacun une
+      application différente, impossible à expliquer au téléphone. Un pupitre
+      a cinq onglets en permanence, une régie en a quatre.
 
    Chargé après ui-helpers.js sur les pages à jeton. Sans jeton, le module ne
    fait rien : les pages d'équipe gardent leur bandeau prune.
@@ -58,7 +61,7 @@ const CurieuxAppMusicien = (function(){
   const ONGLETS = [
     { cle:'accueil',    page:'mon-espace.html',     libelle:'Accueil',     titre:'Mon espace' },
     { cle:'dates',      page:'mes-dates.html',      libelle:'Mes dates',   titre:'Mes dates' },
-    { cle:'partitions', page:'mes-partitions.html', libelle:'Partitions',  titre:'Mes partitions', siPartitions:true },
+    { cle:'partitions', page:'mes-partitions.html', libelle:'Partitions',  titre:'Mes partitions', musicien:true },
     { cle:'infos',      page:'mes-infos.html',      libelle:'Mes infos',   titre:'Mes informations' },
     { cle:'rempla',     page:'mes-remplacants.html',libelle:'Remplaçants', titre:'Mes remplaçant·es', titulaire:true },
   ];
@@ -148,18 +151,34 @@ const CurieuxAppMusicien = (function(){
      sont volontairement INVERSES — parce que l'erreur la plus coûteuse n'est
      pas la même des deux côtés.
 
-     REMPLAÇANTS se montre TANT QU'ON NE SAIT PAS. Le statut n'est connu
-     qu'après un passage par l'espace ; le lien envoyé ouvre toujours l'espace,
-     donc le cas ne dure qu'un écran — et retirer un onglet à quelqu'un qui y
-     avait droit serait la pire des deux erreurs.
+     REMPLAÇANTS se montre TANT QU'ON NE SAIT PAS. Retirer un onglet à
+     quelqu'un qui y avait droit serait la pire des deux erreurs.
 
-     PARTITIONS se cache tant qu'on ne sait pas. Ici la pire erreur est
-     l'autre : un·e technicien·ne reçoit le même lien et n'aura jamais de
-     partition, et un onglet qui n'ouvre jamais rien apprend à ne plus
-     regarder la barre. Le compte est posé par les deux écrans par lesquels on
-     ENTRE dans l'espace — l'accueil du lien personnel, et la page des dates
-     qu'on envoie par message. L'onglet apparaît donc sur le premier écran,
-     jamais au troisième clic. */
+     PARTITIONS se cache tant qu'on ne sait pas, parce qu'ici la pire erreur
+     est l'autre : sur les cinquante-neuf liens personnels en circulation,
+     quinze vont à des technicien·nes qui n'auront jamais de partition, et un
+     onglet qui n'ouvre jamais rien apprend à ne plus regarder la barre.
+
+     CE QUI DÉCIDE EST LE MÉTIER, ET NON LE STOCK. Une première version
+     regardait si la personne avait des parties affectées. C'était deux fois
+     faux. D'abord parce que l'onglet serait apparu le jour de l'affectation
+     et aurait disparu le jour du retrait : une application dont le menu
+     change de forme ne s'explique pas au téléphone — « touche Partitions » /
+     « je n'ai pas Partitions ». Ensuite parce qu'un·e musicien·ne ne pouvait
+     pas découvrir que la chose existe avant qu'on lui donne quelque chose.
+     L'onglet vide dit maintenant ce qu'il faut : rien pour l'instant, et ça
+     viendra là.
+
+     personType vient de mes_dates comme de mes_demandes_dispo, toutes deux
+     déjà lues en tête des deux écrans d'entrée : l'onglet est donc peint au
+     PREMIER rendu, sans apparaître après coup.
+
+     Le `|| e.partitions > 0` est une ceinture. L'affectation se fait
+     aujourd'hui depuis l'effectif d'une opération, donc sur des musicien·nes ;
+     si un jour une partie était confiée à quelqu'un d'autre — un·e
+     chef·fe de chant, une régie qui suit la partition — il faut que
+     l'onglet apparaisse quand même, plutôt que de perdre en silence un
+     matériel qu'on lui a bel et bien attribué. */
   function ongletsVisibles(){
     const e = lireEtat();
     return ONGLETS.filter(o=>{
@@ -170,7 +189,7 @@ const CurieuxAppMusicien = (function(){
          garde pas, onglet resté ouvert pendant qu'une affectation changeait. */
       if(contexte && o.cle === contexte.onglet) return true;
       if(o.titulaire && e.titulaire === false) return false;
-      if(o.siPartitions && !(e.partitions > 0)) return false;
+      if(o.musicien && !(e.musicien === true || e.partitions > 0)) return false;
       return true;
     });
   }

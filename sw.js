@@ -166,7 +166,15 @@
 // destinataire. Sans cet incrément, un navigateur déjà venu garderait l'ancien
 // db.js : l'écran des transmissions s'ouvrirait, le lien partirait en base et
 // n'en reviendrait jamais — l'adaptateur manquant, tout se lirait vide.
-const VERSION = 'curieux-v129';
+// v130 : l'onglet Partitions se décide par le MÉTIER et non par le stock —
+// tous les musicien·nes l'ont en permanence, les technicien·nes jamais
+// (app-musicien.js). Le type de personne est lu dans mes_dates et
+// mes_demandes_dispo, déjà attendues par les deux écrans d'entrée : l'onglet
+// est peint au premier rendu, sans apparaître après coup. Sans cet incrément,
+// un téléphone déjà venu garderait l'ancien app-musicien.js et continuerait de
+// cacher l'onglet aux musicien·nes sans partie affectée — c'est-à-dire à
+// presque tout l'orchestre.
+const VERSION = 'curieux-v130';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

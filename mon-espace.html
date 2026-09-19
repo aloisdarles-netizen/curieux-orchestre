@@ -428,11 +428,17 @@ async function init(){
   const lienRempla = `mes-remplacants.html?token=${jeton}`;
 
   /* Ce que la coque a besoin de savoir pour peindre ses onglets — le prénom
-     dans la barre, l'onglet des remplaçant·es, les pastilles. C'est ici, et
-     nulle part ailleurs, qu'on le sait : les quatre autres écrans le liront
-     dans l'état de session plutôt que de refaire la requête. */
+     dans la barre, l'onglet des remplaçant·es, celui des partitions, les
+     pastilles. C'est ici, et nulle part ailleurs, qu'on le sait : les autres
+     écrans le liront dans l'état de session plutôt que de refaire la requête.
+
+     `musicien` décide de l'onglet des partitions, et il est posé ICI plutôt
+     qu'au retour de la requête des partitions : mes_demandes_dispo rend déjà
+     le type de la personne, et il est déjà attendu. L'onglet est donc peint au
+     premier rendu, sans apparaître après coup sous le pouce. */
   if(window.CurieuxAppMusicien) CurieuxAppMusicien.etat({
     prenom, titulaire: estTitulaire,
+    musicien: (moi.personType || '') === 'musicien',
     disposAFaire: enAttente.length,
     infosIncompletes: manquantes.length > 0,
     remplaVides: remplaAFaire,
@@ -530,18 +536,19 @@ async function init(){
 
   injecterModeEmploiApp('blocInstallation', { nom: 'Mon espace' });
 
-  /* L'onglet des partitions, allumé depuis l'accueil.
+  /* La PASTILLE des partitions, comptée depuis l'accueil.
      -----------------------------------------------------------------------
      Rien ne s'en affiche sur cette page : les partitions ont leur écran
      (mes-partitions.html), et une tuile qui mène à ce qu'un onglet ouvre déjà
-     est un doublon de plus. Ce qu'on lit ici, c'est le COMPTE — l'onglet se
-     cache tant qu'on ne sait pas s'il y a quelque chose, et l'accueil est la
-     porte d'entrée du lien personnel.
+     est un doublon de plus. L'onglet, lui, est déjà décidé plus haut par le
+     métier ; ce qu'on lit ici n'est que le nombre de parties qui restent à
+     prendre, et la ceinture du cas où quelqu'un qui n'est pas musicien·ne
+     aurait malgré tout du matériel affecté.
 
      Hors du Promise.all volontairement. Ajoutée aux deux lectures de tête,
      cette requête aurait retardé l'ouverture de l'accueil — la page la plus
-     ouverte de l'espace — pour peindre un onglet de plus en bas de l'écran.
-     Elle part après le rendu, et la barre se repeint quand elle revient. */
+     ouverte de l'espace — pour une pastille en bas de l'écran. Elle part
+     après le rendu, et la barre se repeint quand elle revient. */
   CurieuxDB.mesPartitions(TOKEN).then(charge => {
     if(!charge || charge.migrationAbsente || !window.CurieuxAppMusicien) return;
     const compte = CurieuxMesDates.compterPartitions(charge);
