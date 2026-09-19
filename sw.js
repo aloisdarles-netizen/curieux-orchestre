@@ -135,7 +135,15 @@
 // partitions-commun.js arrive. Sans cet incrément, un navigateur déjà venu
 // garderait l'ancien db.js : la page s'ouvrirait, le dépôt partirait en base
 // et n'en reviendrait jamais — l'adaptateur manquant, tout se lirait vide.
-const VERSION = 'curieux-v125';
+// v126 : la refonte visuelle des partitions. base.css porte les teintes de
+// pupitre (--pup-*) et deux pièces partagées (.co-pup, .co-seg) ;
+// partitions-commun.js les met en forme ; mes-dates-vue.js redessine le bloc
+// « Mes partitions » et mes-dates.html charge désormais partitions-commun.js.
+// Sans cet incrément, un téléphone déjà venu garderait l'ancien
+// mes-dates-vue.js ET l'ancien base.css : le bloc s'afficherait dans une
+// charte qui n'existe plus, avec des variables de couleur introuvables — donc
+// des teintes vides, c'est-à-dire des bandeaux transparents.
+const VERSION = 'curieux-v126';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -431,16 +431,63 @@ const CurieuxMesDates = (function(){
     try{ localStorage.setItem(_clePartitions(jeton, tourneeId), JSON.stringify({ quand: Date.now(), code })); }catch(e){}
   }
 
+  /* CE QUI EST DÉJÀ RÉCUPÉRÉ, et la limite honnête de ce repère.
+     -------------------------------------------------------------------------
+     La vraie trace du retrait est en base — c'est /api/partition qui l'écrit,
+     et c'est elle que lit l'écran de production. Mais mes_partitions ne la
+     renvoie pas, et l'espace du musicien n'a pas de quoi l'interroger.
+     On marque donc localement ce qui a été téléchargé DEPUIS CET APPAREIL, et
+     on l'écrit tel quel dans l'étiquette : « sur cet appareil ». Une promesse
+     tenue à moitié vaut mieux qu'une promesse fausse — quelqu'un qui a
+     téléchargé sa partie au bureau et rouvre la page dans le train doit
+     comprendre pourquoi la coche n'y est pas.
+     La marque ne se périme pas : une partition récupérée il y a six mois l'est
+     toujours. C'est le code d'accès qui expire, pas le souvenir du retrait. */
+  function _clePris(jeton){ return 'curieuxPartitionsPris:' + jeton; }
+  function _lirePris(jeton){
+    try{ return JSON.parse(localStorage.getItem(_clePris(jeton)) || '{}') || {}; }catch(e){ return {}; }
+  }
+  function _marquerPris(jeton, fichierId){
+    try{
+      const j = _lirePris(jeton);
+      j[fichierId] = new Date().toISOString();
+      localStorage.setItem(_clePris(jeton), JSON.stringify(j));
+    }catch(e){}
+  }
+
   function _poids(o){
     const n = Number(o) || 0;
     if(n < 1024 * 1024) return Math.round(n / 1024) + ' Ko';
     return (n / 1048576).toFixed(1).replace('.', ',') + ' Mo';
   }
 
+  function _jourCourt(iso){
+    if(!iso) return '';
+    const d = new Date(iso);
+    if(isNaN(d)) return '';
+    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  }
+
+  /* La teinte du pupitre, si partitions-commun.js est chargé. mon-espace.html
+     charge cette vue sans monter le bloc des partitions : la vue ne doit donc
+     pas supposer que le module est là. */
+  function _teintePupitre(pupitre, encre){
+    if(typeof partitionsPupitreVar === 'function') return partitionsPupitreVar(pupitre, encre);
+    return encre ? 'var(--muted)' : 'var(--border)';
+  }
+
   /* Monter le bloc dans un conteneur dédié. `charge` est ce que rend
      mes_partitions : { personId, personType, genereLe, operations: [...] }.
      Rien à afficher quand il n'y a rien : un bloc « aucune partition » sur
-     l'espace de quelqu'un à qui on n'en donne jamais est du bruit permanent. */
+     l'espace de quelqu'un à qui on n'en donne jamais est du bruit permanent.
+
+     CE QUI A CHANGÉ, ET POURQUOI. C'était une liste de liens gris, tous
+     pareils, où la partie et le fichier se confondaient. Sur un téléphone en
+     coulisse, avant une balance, on cherchait la bonne ligne. Chaque partie
+     est maintenant une tuile qu'on peut viser du pouce, teintée de son
+     pupitre, qui dit son poids, son nombre de pages, et si elle a déjà été
+     récupérée. Le geste — appuyer pour avoir sa musique — est redevenu le plus
+     gros élément de l'écran. */
   function monterPartitions(hote, charge, jeton){
     if(!hote) return;
     const operations = (charge && charge.operations) || [];
@@ -448,11 +495,13 @@ const CurieuxMesDates = (function(){
     poserStyle();
 
     const rendre = ()=>{
+      const pris = _lirePris(jeton);
       hote.innerHTML = `<section class="mdv-part">
         <h2 class="mdv-part-titre">Mes partitions</h2>
         <p class="mdv-part-intro">Chaque exemplaire porte ton nom : il t'est personnellement attribué, et il n'a pas à circuler au-delà de l'orchestre.</p>
-        ${operations.map(op => _operationHtml(op, jeton)).join('')}
+        ${operations.map(op => _operationHtml(op, jeton, pris)).join('')}
       </section>`;
+
       hote.querySelectorAll('[data-part-code]').forEach(form => {
         form.onsubmit = (e)=>{
           e.preventDefault();
@@ -467,21 +516,60 @@ const CurieuxMesDates = (function(){
         try{ localStorage.removeItem(_clePartitions(jeton, b.dataset.partOublier)); }catch(e){}
         rendre();
       });
+
+      // Le marquage se fait au clic et pas après coup : on ne sait pas si le
+      // téléchargement a abouti, et une coche qui n'apparaît qu'au succès ne
+      // pourrait jamais apparaître — rien ne nous le dit. La coche dit donc
+      // « tu l'as demandée », ce qui est exactement ce dont on se souvient.
+      hote.querySelectorAll('[data-part-fic]').forEach(a => a.addEventListener('click', ()=>{
+        _marquerPris(jeton, a.dataset.partFic);
+        setTimeout(rendre, 900);
+      }));
+
+      hote.querySelectorAll('[data-part-tout]').forEach(b => b.onclick = ()=>{
+        const liens = Array.from(hote.querySelectorAll(
+          `[data-part-ope="${b.dataset.partTout}"] [data-part-fic]`));
+        liens.forEach((a, i) => setTimeout(()=>{
+          _marquerPris(jeton, a.dataset.partFic);
+          a.click();
+        }, i * 700));
+        const note = b.parentElement.querySelector('.mdv-part-aide');
+        if(note) note.textContent = "Si un seul fichier s'ouvre, touche les autres un par un : certains téléphones n'acceptent qu'un téléchargement à la fois.";
+        setTimeout(rendre, liens.length * 700 + 900);
+      });
     };
     rendre();
   }
 
   /* Le titre du fichier n'est affiché QUE s'il apporte quelque chose. Une
      partie qui ne porte qu'un fichier nommé comme elle donnait « Violon 1 —
-     Violon 1 », ce qui fait douter qu'on regarde la bonne ligne. */
+     Violon 1 », ce qui fait douter qu'on regarde la bonne ligne.
+     Et quand le titre COMMENCE par le nom de la partie — « Violon 1 — erratum »,
+     le cas le plus courant d'un ajout tardif — on ne garde que ce qui suit :
+     autrement la ligne disait « Violon 1 — Violon 1 — erratum ». */
   function _suffixe(partie, fichier){
-    const titre = (fichier.titre || '').trim();
+    let titre = (fichier.titre || '').trim();
     if(!titre || (partie.fichiers || []).length < 2) return '';
-    if(titre.toLowerCase() === (partie.nom || '').trim().toLowerCase()) return '';
-    return ' — ' + escapeHtml(titre);
+    const nom = (partie.nom || '').trim();
+    if(titre.toLowerCase() === nom.toLowerCase()) return '';
+    if(nom && titre.toLowerCase().startsWith(nom.toLowerCase())){
+      titre = titre.slice(nom.length).replace(/^[\s\-–—_·:]+/, '').trim();
+    }
+    return titre ? ' — ' + escapeHtml(titre) : '';
   }
 
-  function _operationHtml(op, jeton){
+  /* Le cartouche d'une opération : son nom, et ce qu'elle porte. Le compte est
+     écrit en toutes lettres — « 3 partitions » — parce que c'est la première
+     chose qu'on vérifie : ai-je tout ce qu'on m'a annoncé ? */
+  function _opeTete(op, compte, droite){
+    return `<div class="mdv-part-ope-tete">
+      <span class="mdv-part-ope-nom">${escapeHtml(op.nom || 'Opération')}</span>
+      ${compte ? `<span class="mdv-part-ope-n">${compte}</span>` : ''}
+      ${droite || ''}
+    </div>`;
+  }
+
+  function _operationHtml(op, jeton, pris){
     const parties = op.parties || [];
     const nbFichiers = parties.reduce((s, p)=> s + ((p.fichiers || []).length), 0);
     const code = op.codeRequis ? _lireCode(jeton, op.tourneeId) : '';
@@ -490,43 +578,59 @@ const CurieuxMesDates = (function(){
       const quand = op.ouvertLe
         ? `Le matériel de cette opération sera disponible le ${escapeHtml(jourLong(op.ouvertLe))}.`
         : "Le matériel de cette opération n'est pas encore ouvert — il le sera avant les répétitions.";
-      return `<div class="mdv-part-ope">
-        <div class="mdv-part-ope-nom">${escapeHtml(op.nom || 'Opération')}</div>
-        <p class="mdv-part-vide">${quand}</p>
+      return `<div class="mdv-part-ope ferme">
+        ${_opeTete(op, '')}
+        <p class="mdv-part-vide"><span class="mdv-part-cadenas" aria-hidden="true">⏳</span> ${quand}</p>
       </div>`;
     }
 
     // Le code manque : on dit ce qui attend, et on demande le code. Jamais
     // l'inverse — un champ nu sans savoir ce qu'il ouvre ne se remplit pas.
     if(op.codeRequis && !code){
-      return `<div class="mdv-part-ope">
-        <div class="mdv-part-ope-nom">${escapeHtml(op.nom || 'Opération')}</div>
-        <p class="mdv-part-vide">${nbFichiers} partition${nbFichiers > 1 ? 's' : ''} t'${nbFichiers > 1 ? 'attendent' : 'attend'} — ${escapeHtml(parties.map(p=> p.nom).join(', '))}.</p>
+      const apercu = parties.map(p => `<span class="mdv-part-apercu" style="background:${_teintePupitre(p.pupitre)}; color:${_teintePupitre(p.pupitre, true)}">${escapeHtml(p.nom)}</span>`).join('');
+      return `<div class="mdv-part-ope verrou">
+        ${_opeTete(op, nbFichiers + ' partition' + (nbFichiers > 1 ? 's' : ''))}
+        <p class="mdv-part-vide"><span class="mdv-part-cadenas" aria-hidden="true">🔒</span>
+          ${nbFichiers} partition${nbFichiers > 1 ? 's t\'attendent' : ' t\'attend'} — saisis le code pour ${nbFichiers > 1 ? 'les' : 'la'} débloquer.</p>
+        ${apercu ? `<div class="mdv-part-apercus">${apercu}</div>` : ''}
         <form class="mdv-part-code" data-part-code="${escapeAttr(op.tourneeId)}">
           <input class="co-input" inputmode="latin" autocapitalize="characters" maxlength="32"
-                 placeholder="code" aria-label="Code de l'opération">
-          <button type="submit" class="co-btn primary sm">Ouvrir</button>
+                 placeholder="CODE" aria-label="Code de l'opération">
+          <button type="submit" class="co-btn primary">Ouvrir</button>
         </form>
         <p class="mdv-part-aide">Le code t'a été communiqué séparément de ce lien. Tu ne le saisis qu'une fois.</p>
       </div>`;
     }
 
-    const lignes = parties.map(p => (p.fichiers || []).map(f => {
+    const tuiles = parties.map(p => (p.fichiers || []).map(f => {
       const url = `/api/partition?jeton=${encodeURIComponent(jeton)}&fichier=${encodeURIComponent(f.id)}`
                 + (code ? `&code=${encodeURIComponent(code)}` : '');
-      const detail = [_poids(f.octets), f.pages ? f.pages + ' pages' : ''].filter(Boolean).join(' · ');
-      return `<a class="mdv-part-fic" href="${escapeAttr(url)}" download>
-        <span class="mdv-part-fic-nom">${escapeHtml(p.nom)}${_suffixe(p, f)}</span>
-        <span class="mdv-part-fic-det">${escapeHtml(detail)}</span>
-        <span class="mdv-part-fic-fleche">↓</span>
+      const detail = [p.spectacle, _poids(f.octets), f.pages ? f.pages + ' pages' : '']
+                     .filter(Boolean).join(' · ');
+      const quand = pris && pris[f.id] ? _jourCourt(pris[f.id]) : '';
+      return `<a class="mdv-fic${quand ? ' pris' : ''}" href="${escapeAttr(url)}" download
+                 data-part-fic="${escapeAttr(f.id)}">
+        <span class="mdv-fic-teinte" style="background:${_teintePupitre(p.pupitre, true)}"></span>
+        <span class="mdv-fic-corps">
+          <span class="mdv-fic-nom">${escapeHtml(p.nom)}${_suffixe(p, f)}</span>
+          <span class="mdv-fic-det">${escapeHtml(detail)}</span>
+          ${quand ? `<span class="mdv-fic-pris">Récupérée le ${escapeHtml(quand)}, sur cet appareil</span>` : ''}
+        </span>
+        <span class="mdv-fic-btn" aria-hidden="true">↓</span>
       </a>`;
     }).join('')).join('');
 
-    return `<div class="mdv-part-ope">
-      <div class="mdv-part-ope-nom">${escapeHtml(op.nom || 'Opération')}
-        ${op.codeRequis ? `<button type="button" class="mdv-part-oublier" data-part-oublier="${escapeAttr(op.tourneeId)}">oublier le code</button>` : ''}
-      </div>
-      ${lignes || '<p class="mdv-part-vide">Rien de déposé pour l\'instant.</p>'}
+    const nbPris = parties.reduce((s, p)=> s + (p.fichiers || []).filter(f => pris && pris[f.id]).length, 0);
+
+    return `<div class="mdv-part-ope" data-part-ope="${escapeAttr(op.tourneeId)}">
+      ${_opeTete(op,
+        nbFichiers + ' partition' + (nbFichiers > 1 ? 's' : '') + (nbPris ? ' · ' + nbPris + ' récupérée' + (nbPris > 1 ? 's' : '') : ''),
+        op.codeRequis ? `<button type="button" class="mdv-part-oublier" data-part-oublier="${escapeAttr(op.tourneeId)}">oublier le code</button>` : '')}
+      ${tuiles || '<p class="mdv-part-vide">Rien de déposé pour l\'instant.</p>'}
+      ${nbFichiers > 1 ? `<div class="mdv-part-pied">
+        <button type="button" class="co-btn ghost" data-part-tout="${escapeAttr(op.tourneeId)}">Tout télécharger (${nbFichiers})</button>
+        <p class="mdv-part-aide"></p>
+      </div>` : ''}
     </div>`;
   }
 
@@ -537,27 +641,66 @@ const CurieuxMesDates = (function(){
     stylePose = true;
     const s = document.createElement('style');
     s.textContent = `
+      /* ------------------------------------------------------------------
+         MES PARTITIONS — la mise en page.
+         C'était une liste de liens gris où rien ne se distinguait. Trois
+         règles la rendent utilisable d'une main, debout, en coulisse :
+         la tuile fait 56 px de haut et se vise au pouce ; la teinte du
+         pupitre court le long de son bord gauche ; ce qui est déjà récupéré
+         le dit, en toutes lettres et pas par une nuance.
+         ------------------------------------------------------------------ */
       .mdv-part{margin-top:22px;}
       .mdv-part-titre{font-size:15px; font-weight:800; margin:0 0 2px;}
       .mdv-part-intro{font-size:12.5px; color:var(--muted); margin:0 0 10px; line-height:1.5;}
       .mdv-part-ope{background:var(--card); border:1px solid var(--border); border-radius:var(--radius-md);
-        padding:12px 14px; margin-bottom:10px;}
+        padding:12px 14px 6px; margin-bottom:10px;}
+      .mdv-part-ope.verrou{border-color:var(--maybe); padding-bottom:12px;}
+      .mdv-part-ope.ferme{padding-bottom:12px;}
+      .mdv-part-ope-tete{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; margin-bottom:8px;}
       .mdv-part-ope-nom{font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
-        font-weight:800; margin-bottom:8px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;}
+        font-weight:800;}
+      .mdv-part-ope-n{font-size:11.5px; font-weight:700;
+        background:var(--accent-tint); color:var(--tint-ink); border-radius:999px; padding:2px 9px;}
       .mdv-part-oublier{margin-left:auto; border:none; background:none; color:var(--muted); font:inherit;
         font-size:11px; text-decoration:underline; cursor:pointer; padding:0; min-height:0; letter-spacing:0;
         text-transform:none;}
       .mdv-part-vide{font-size:13px; color:var(--muted); margin:0; line-height:1.55;}
-      .mdv-part-code{display:flex; gap:8px; margin-top:9px; flex-wrap:wrap;}
-      .mdv-part-code input{width:150px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;}
+      .mdv-part-cadenas{font-size:14px; margin-right:3px;}
+      /* L'aperçu des parties sous le cadenas : savoir CE QU'ON DÉBLOQUE avant
+         d'aller chercher le code. Un champ nu ne se remplit pas. */
+      .mdv-part-apercus{display:flex; flex-wrap:wrap; gap:5px; margin:9px 0 0;}
+      .mdv-part-apercu{font-size:11px; font-weight:800; border-radius:999px; padding:3px 10px;}
+      .mdv-part-code{display:flex; gap:8px; margin-top:11px; flex-wrap:wrap;}
+      .mdv-part-code input{flex:1; min-width:120px; max-width:190px; font-weight:800; letter-spacing:.14em;
+        text-transform:uppercase; font-size:17px; text-align:center; padding:11px 10px;}
+      .mdv-part-code .co-btn{padding:11px 22px; font-size:14px;}
       .mdv-part-aide{font-size:11.5px; color:var(--muted); margin:7px 0 0; line-height:1.5;}
-      .mdv-part-fic{display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px; align-items:center;
-        padding:9px 0; border-bottom:1px solid var(--border); text-decoration:none; color:inherit;}
-      .mdv-part-fic:last-child{border-bottom:none;}
-      .mdv-part-fic:hover .mdv-part-fic-nom{color:var(--accent);}
-      .mdv-part-fic-nom{font-weight:700; font-size:13.5px; min-width:0;}
-      .mdv-part-fic-det{font-size:12px; color:var(--muted); white-space:nowrap;}
-      .mdv-part-fic-fleche{font-size:16px; color:var(--accent); font-weight:800;}
+      .mdv-part-pied{border-top:1px solid var(--border); margin-top:4px; padding:9px 0 8px;}
+      .mdv-part-pied .co-btn{width:100%; padding:11px 16px; font-size:13.5px;}
+      .mdv-part-pied .mdv-part-aide:empty{display:none;}
+
+      /* La tuile de partition. 4 px de teinte à gauche, le nom en 15 px, la
+         flèche dans une pastille de 38 px — la cible tient largement les 44 px
+         recommandés en comptant la hauteur de la tuile. */
+      .mdv-fic{display:flex; align-items:center; gap:11px; padding:9px 0; min-height:56px;
+        border-bottom:1px solid var(--border); text-decoration:none; color:inherit;
+        -webkit-tap-highlight-color:transparent;}
+      .mdv-fic:last-of-type{border-bottom:none;}
+      .mdv-fic-teinte{width:4px; align-self:stretch; border-radius:999px; flex-shrink:0;
+        min-height:34px; background:var(--border);}
+      .mdv-fic-corps{flex:1; min-width:0;}
+      .mdv-fic-nom{display:block; font-weight:800; font-size:15px; line-height:1.3;}
+      .mdv-fic-det{display:block; font-size:12px; color:var(--muted); line-height:1.45; margin-top:1px;}
+      .mdv-fic-pris{display:block; font-size:11.5px; color:var(--ok); font-weight:700; margin-top:2px;}
+      .mdv-fic-pris::before{content:'✓ ';}
+      .mdv-fic-btn{width:38px; height:38px; border-radius:50%; flex-shrink:0; display:grid; place-items:center;
+        background:var(--accent-solid); color:#fff; font-size:18px; font-weight:800; line-height:1;}
+      .mdv-fic:hover .mdv-fic-btn, .mdv-fic:active .mdv-fic-btn{filter:brightness(1.12);}
+      /* Récupérée : la pastille passe en contour. L'action reste possible — on
+         retélécharge une partition qu'on a perdue — mais elle cesse d'appeler
+         le regard, qui doit aller sur ce qui reste à faire. */
+      .mdv-fic.pris .mdv-fic-btn{background:transparent; border:1.5px solid var(--border); color:var(--muted);}
+
       .mdv-barre{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:4px 0 4px;}
       .mdv-bascule{display:inline-flex; gap:3px; background:var(--bg); border:1px solid var(--border);
         border-radius:999px; padding:3px;}

@@ -183,6 +183,115 @@ function partitionsNouveauCode() {
   return Array.from(octets, b => alphabet[b % alphabet.length]).join('');
 }
 
+/* ============================================================================
+ * LE VOCABULAIRE VISUEL, partagé par l'écran de production et par l'espace du
+ * musicien.
+ *
+ * Les deux écrans montraient la même chose de deux façons différentes : des
+ * lignes de texte, sans repère, où l'on relisait chaque intitulé pour savoir
+ * de quel pupitre relevait une partie. Une teinte par pupitre suffit à rendre
+ * la liste lisible d'un coup d'œil, à condition que ce soit LA MÊME teinte des
+ * deux côtés — le musicien qui a appris que sa partie est bleue doit la
+ * retrouver bleue quand la production lui en parle.
+ *
+ * Les teintes elles-mêmes sont dans base.css (--pup-*). Ici, seulement ce qui
+ * décide QUEL pupitre, et dans quel ordre.
+ * ========================================================================== */
+
+/* L'ordre du conducteur, appliqué aux pupitres. C'est celui de la partition,
+   pas l'alphabet : les bois en haut, les cordes en bas, le chef à part. */
+const PARTITIONS_PUPITRE_ORDRE = [
+  "Chef d'orchestre", 'Bois', 'Cuivres', 'Percussions', 'Chant', 'Cordes', 'Autre',
+];
+
+/* Ramener une valeur de pupitre à l'une des sept. partitions_parties.pupitre
+   est rempli par partitionsPupitreDe() et vaut donc toujours l'une d'elles ;
+   mais une partie créée à la main avant cette règle, ou reprise d'un import,
+   peut porter autre chose. Tout ce qui n'est pas reconnu tombe dans « Autre »
+   plutôt que de créer un pupitre fantôme d'une seule partie. */
+function partitionsPupitreNormalise(valeur) {
+  const v = String(valeur || '').trim();
+  if (PARTITIONS_PUPITRE_ORDRE.includes(v)) return v;
+  const n = partitionsNormaliser(v);
+  const trouve = PARTITIONS_PUPITRE_ORDRE.find(p => partitionsNormaliser(p) === n);
+  return trouve || 'Autre';
+}
+
+function partitionsRangPupitre(valeur) {
+  const i = PARTITIONS_PUPITRE_ORDRE.indexOf(partitionsPupitreNormalise(valeur));
+  return i < 0 ? 99 : i;
+}
+
+/* Grouper des parties par pupitre, dans l'ordre du conducteur, et sans jamais
+   rendre un pupitre vide : une section « Chant » vide au milieu d'un programme
+   symphonique est du bruit, pas une information. */
+function partitionsGrouperParPupitre(parties) {
+  const seaux = new Map();
+  (parties || []).forEach(p => {
+    const pup = partitionsPupitreNormalise(p.pupitre);
+    if (!seaux.has(pup)) seaux.set(pup, []);
+    seaux.get(pup).push(p);
+  });
+  return PARTITIONS_PUPITRE_ORDRE
+    .filter(pup => seaux.has(pup))
+    .map(pup => ({ pupitre: pup, parties: seaux.get(pup) }));
+}
+
+/* La pastille de pupitre. Le nom y est écrit en toutes lettres : la couleur
+   accélère la lecture, elle ne la porte pas seule — un daltonien, une
+   impression en noir et blanc et un écran mal réglé doivent donner la même
+   page. */
+function partitionsPupitreHtml(pupitre, options) {
+  const pup = partitionsPupitreNormalise(pupitre);
+  const o = options || {};
+  const texte = o.texte != null ? o.texte : pup;
+  return `<span class="co-pup" data-pup="${escapeAttr(pup)}"${o.titre ? ` title="${escapeAttr(o.titre)}"` : ''}>${escapeHtml(texte)}</span>`;
+}
+
+/* La variable CSS de la teinte d'un pupitre, pour border-left et aplats. */
+function partitionsPupitreVar(pupitre, encre) {
+  const cle = {
+    "Chef d'orchestre": 'chef', 'Cordes': 'cordes', 'Bois': 'bois', 'Cuivres': 'cuivres',
+    'Percussions': 'percussions', 'Chant': 'chant', 'Autre': 'autre',
+  }[partitionsPupitreNormalise(pupitre)] || 'autre';
+  return `var(--pup-${cle}${encre ? '-ink' : ''})`;
+}
+
+/* La jauge segmentée d'un ensemble de parties : un segment par partie, vert si
+   elle porte au moins un fichier, rouge sinon. Le title de chaque segment
+   nomme la partie — on survole le rouge et on sait quoi redemander à
+   l'arrangeur, sans ouvrir le détail. */
+function partitionsJaugeHtml(parties, aDesFichiers, options) {
+  const liste = parties || [];
+  const o = options || {};
+  if (!liste.length) return '';
+  const pleines = liste.filter(aDesFichiers).length;
+  const segments = liste.map(p => {
+    const ok = aDesFichiers(p);
+    return `<i class="${ok ? '' : 'vide'}" title="${escapeAttr(p.nom + (ok ? '' : ' — aucun fichier'))}"></i>`;
+  }).join('');
+  // Un <span> et non un <div> : la jauge est posée dans les cartes de spectacle,
+  // qui sont des <button> — et un <button> ne contient que du contenu de phrase.
+  return `<span class="co-seg${o.fin ? ' fin' : ''}" role="img"
+    aria-label="${escapeAttr(pleines + ' partie' + (pleines > 1 ? 's' : '') + ' sur ' + liste.length + ' avec un fichier déposé')}">${segments}</span>`;
+}
+
+/* Les initiales d'un spectacle, pour sa pastille. Deux caractères, jamais
+   plus : au-delà, ce n'est plus une pastille mais une étiquette, et le nom
+   complet est déjà écrit à côté.
+   Un second mot purement numérique est écarté au profit des deux premières
+   lettres du premier : beaucoup de programmes s'appellent « EXPEDITION 33 »
+   ou « Symphonie 5 », et « E3 » ne se reconnaît pas alors que « EX » si. */
+function partitionsInitiales(nom) {
+  const mots = String(nom || '').trim().split(/[\s\-_]+/).filter(Boolean);
+  if (!mots.length) return '\u266a';
+  const second = mots[1];
+  if (mots.length === 1 || !second || /^[0-9]+$/.test(second)) {
+    return mots[0].slice(0, 2).toUpperCase();
+  }
+  return (mots[0][0] + second[0]).toUpperCase();
+}
+
 if (typeof window !== 'undefined') {
   window.PARTITIONS_ORDRE_CONDUCTEUR = PARTITIONS_ORDRE_CONDUCTEUR;
   window.partitionsNormaliser = partitionsNormaliser;
@@ -192,4 +301,12 @@ if (typeof window !== 'undefined') {
   window.partitionsApparier = partitionsApparier;
   window.partitionsPoids = partitionsPoids;
   window.partitionsNouveauCode = partitionsNouveauCode;
+  window.PARTITIONS_PUPITRE_ORDRE = PARTITIONS_PUPITRE_ORDRE;
+  window.partitionsPupitreNormalise = partitionsPupitreNormalise;
+  window.partitionsRangPupitre = partitionsRangPupitre;
+  window.partitionsGrouperParPupitre = partitionsGrouperParPupitre;
+  window.partitionsPupitreHtml = partitionsPupitreHtml;
+  window.partitionsPupitreVar = partitionsPupitreVar;
+  window.partitionsJaugeHtml = partitionsJaugeHtml;
+  window.partitionsInitiales = partitionsInitiales;
 }
