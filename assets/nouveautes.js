@@ -33,6 +33,18 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-19',
+    titre: 'Les partitions',
+    points: [
+      "Une nouvelle section dans le bandeau : la bibliothèque d'orchestre. On y range le matériel par SPECTACLE — EXPEDITION 33 une fois, pas une fois par opération — et on le sort ensuite pour chaque tournée ou enregistrement.",
+      "Le dépôt lit le nom des fichiers et propose la partie de chacun : « 410 Piano_merged.pdf » devient Piano. Ce qu'il n'a pas su reconnaître remonte en tête de liste, pour qu'on ne relise que ce qui pose question.",
+      "L'affectation porte sur la partie, pas sur le fichier : un PDF ajouté à trois semaines du concert apparaît tout seul chez ceux qui la lisent. Et « reprendre l'affectation de… » recopie les pupitres d'une opération à l'autre, en écartant ceux qui n'y jouent pas.",
+      "Deux compteurs veillent : les parties que personne ne lit, et — celui qu'on oublie — les personnes affectées à l'opération qui n'ont aucune partie. L'effectif est lu dans les dates, jamais dans la nomenclature du devis.",
+      "Côté musicien : rien de nouveau à installer, rien à recevoir. Les partitions apparaissent dans l'espace personnel habituel, sous l'opération. Un code par opération, à communiquer séparément du lien, s'y saisit une fois.",
+      "Chaque exemplaire téléchargé porte le nom de qui l'a pris — en haut de page, en pied de page, et sous une forme invisible qui permet de retrouver l'origine d'une partition qui circulerait. La musique n'est jamais recouverte : c'est vérifié au pixel.",
+    ],
+  },
+  {
     version: '2026-09-18-5',
     titre: 'Le bilan de projet',
     points: [

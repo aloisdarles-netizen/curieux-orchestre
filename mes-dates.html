@@ -89,6 +89,7 @@
   </div>
   <div id="contenu"></div>
   <div id="agenda"></div>
+  <div id="partitions"></div>
   <div id="pied"></div>
 </div>
 
@@ -193,6 +194,27 @@ function poserAgenda(charge){
   });
 }
 
+/* Les partitions de la personne, groupées par opération.
+   -------------------------------------------------------------------------
+   Lecture SÉPARÉE de mes_dates, et c'est voulu : mes_dates ne rend que les
+   dates À VENIR où l'on est affecté ou sollicité. Des partitions qui en
+   découleraient disparaîtraient le lendemain de la dernière date — or on
+   répète encore après, et on reprend un programme des mois plus tard.
+
+   Le bloc ne s'affiche pas du tout quand il n'y a rien : un cadre « aucune
+   partition » sur l'espace de quelqu'un à qui on n'en donne jamais est du
+   bruit permanent. */
+async function poserPartitions(){
+  const hote = document.getElementById('partitions');
+  let charge;
+  try{ charge = await CurieuxDB.mesPartitions(TOKEN); }
+  catch(e){ return; }
+  // Migration pas encore jouée : on se tait plutôt que d'annoncer un vide qui
+  // n'en est pas un. La production le verra sur sa propre page.
+  if(!charge || charge.migrationAbsente){ hote.innerHTML = ''; return; }
+  CurieuxMesDates.monterPartitions(hote, charge, TOKEN);
+}
+
 async function init(){
   if(!window.supabase){ etat("La page n'a pas pu se charger. Réessaie dans un instant."); return; }
   if(!TOKEN){
@@ -257,6 +279,7 @@ async function init(){
     { vueParDefaut: 'colonnes', lienDispo });
 
   poserAgenda(moi);
+  poserPartitions();
 
   document.getElementById('pied').innerHTML = `<div class="pied">
     <p>Ces dates sont <strong>strictement confidentielles</strong> — merci de ne pas les diffuser en dehors de l'équipe.</p>

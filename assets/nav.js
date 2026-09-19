@@ -35,6 +35,15 @@ const CURIEUX_SECTIONS = [
      Un seul écran, donc pas de sous-menu : le projet se choisit dans la page,
      pas dans le bandeau, parce qu'on en change en cours de travail. */
   { libelle:'Invitations', href:'invitations.html', pages:['invitations.html'] },
+  /* Les partitions sont une section à part entière, et pas une sous-entrée de
+     Tournées : on y range le matériel d'un SPECTACLE, qui survit à l'opération
+     et sert aux quatre suivantes. La ranger sous une opération dirait le
+     contraire de ce que la page organise.
+
+     Un seul écran, donc pas de sous-menu : le spectacle et l'opération se
+     choisissent dans la page, parce qu'on passe de l'un à l'autre en cours de
+     travail — on dépose, on affecte, on revient déposer ce qui manquait. */
+  { libelle:'Partitions', href:'partitions.html', pages:['partitions.html','partitions.html?type=recording'] },
   // Les enregistrements en studio vivent dans les mêmes pages que les tournées,
   // filtrées par ?type=recording : mêmes dates, mêmes affectations, mêmes
   // feuilles, seul le vocabulaire change (voir CURIEUX_VOCABULAIRE).

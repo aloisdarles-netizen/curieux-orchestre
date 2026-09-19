@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Partitions</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/nouveautes.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/partitions-commun.js"></script>
+<script src="assets/annuler.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  /* ==========================================================================
+     LA CHARTE DE LA PAGE BUDGET, et pas une autre.
+     Une carte blanche par section, son titre en petites capitales, ses lignes
+     séparées d'un filet. Les classes reprennent celles de budget.html et
+     suivi.html pour que les trois pages bougent ensemble le jour où la charte
+     bouge.
+     ========================================================================== */
+  .wrap{max-width:min(1180px, 97vw); margin:0 auto;}
+
+  .chiffres{display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:18px;}
+  .chiffre{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px;}
+  .chiffre b{
+    display:block; font-family:var(--font-display); font-size:28px; font-weight:500; color:var(--accent);
+    line-height:1.1; font-variant-numeric:tabular-nums;
+  }
+  .chiffre span{font-size:12.5px; color:var(--muted); font-weight:600;}
+  .chiffre small{display:block; font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.4;}
+  .chiffre.alerte b{color:var(--ko);}
+
+  .bloc{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px;}
+  .bloc + .bloc{margin-top:14px;}
+  .bloc h2{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+    font-weight:800; margin:0 0 8px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
+  }
+  .bloc h2 .h2-total{margin-left:auto; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:0;}
+
+  .ligne{
+    display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px; align-items:center;
+    padding:9px 0; border-bottom:1px solid var(--border);
+  }
+  .ligne:last-child{border-bottom:none;}
+  .l-nom{min-width:0;}
+  .l-titre{font-weight:700; font-size:13.5px; display:block;}
+  .l-sous{display:block; font-size:12px; color:var(--muted); font-weight:400; margin-top:1px; line-height:1.4;}
+  .l-num{text-align:right; font-variant-numeric:tabular-nums; font-size:13px; font-weight:800; white-space:nowrap; color:var(--muted);}
+
+  .vide{font-size:13px; color:var(--muted); padding:10px 0; line-height:1.6;}
+
+  /* La jauge de stockage. Le plan Supabase est à 1 Go : à 1,7 Mo la partie
+     fusionnée, c'est une vingtaine de programmes. On ne la cache pas dans un
+     écran d'administration — elle se lit là où on dépose. */
+  .jauge{height:6px; background:var(--border); border-radius:999px; overflow:hidden; margin-top:8px;}
+  .jauge i{display:block; height:100%; background:var(--accent); border-radius:999px;}
+  .jauge.alerte i{background:var(--ko);}
+
+  /* Les pastilles de sûreté d'appariement. Trois états, trois lectures : ce qui
+     est sûr se survole, ce qui ne l'est pas se lit. */
+  .sur{
+    display:inline-block; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:999px;
+    text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
+  }
+  .sur.exacte{background:var(--ok-tint); color:var(--ok);}
+  .sur.probable{background:var(--maybe-tint); color:var(--maybe);}
+  .sur.incertaine, .sur.aucune{background:var(--ko-tint); color:var(--ko);}
+
+  .depot-zone{
+    border:2px dashed var(--border); border-radius:var(--radius); padding:26px 18px; text-align:center;
+    color:var(--muted); font-size:13.5px; line-height:1.6; cursor:pointer; transition:border-color .12s, background .12s;
+  }
+  .depot-zone:hover, .depot-zone.survol{border-color:var(--accent); background:var(--champagne);}
+  .depot-zone b{display:block; color:var(--text); font-size:15px; margin-bottom:4px;}
+
+  .dep-ligne{
+    display:grid; grid-template-columns:minmax(0,1fr) 210px auto; gap:10px; align-items:center;
+    padding:9px 0; border-bottom:1px solid var(--border);
+  }
+  .dep-ligne:last-child{border-bottom:none;}
+  .dep-ligne.aRegler{background:var(--ko-tint); margin:0 -18px; padding:9px 18px;}
+
+  /* Les lecteurs d'une partie : des jetons qu'on retire d'un clic. C'est la
+     seule forme qui tienne quand une partie est lue par huit personnes et la
+     suivante par une seule. */
+  .lecteurs{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
+  .lecteur{
+    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
+    background:var(--bg); border:1px solid var(--border); border-radius:999px; padding:3px 6px 3px 10px;
+  }
+  .lecteur button{
+    border:none; background:none; cursor:pointer; color:var(--muted); font-size:15px; line-height:1;
+    padding:0 2px; min-height:0;
+  }
+  .lecteur button:hover{color:var(--ko);}
+  .lecteur.absent{border-color:var(--ko); color:var(--ko);}
+
+  .sans-lecteur{color:var(--ko); font-weight:700;}
+
+  .barre{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px;}
+  .barre select, .barre input{max-width:100%;}
+
+  @media (max-width:760px){
+    .bloc{padding:13px 14px;}
+    .ligne{grid-template-columns:minmax(0,1fr) auto;}
+    .dep-ligne{grid-template-columns:minmax(0,1fr); gap:6px;}
+    .dep-ligne.aRegler{margin:0 -14px; padding:9px 14px;}
+    input, select{font-size:16px !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="co-page-head co-fade">
+    <div>
+      <h1 class="co-h1">Partitions</h1>
+      <p class="co-sub">La bibliothèque d'orchestre : on y range le matériel par spectacle, et on le sort pour une opération.</p>
+    </div>
+    <div class="co-actions">
+      <button type="button" class="co-btn" data-vue="bibliotheque">Bibliothèque</button>
+      <button type="button" class="co-btn" data-vue="affectation">Affectation</button>
+    </div>
+  </div>
+
+  <div id="page"><div class="co-card co-pad vide">Chargement…</div></div>
+</div>
+
+<script>
+/* ============================================================================
+   Partitions — la page.
+   ============================================================================
+   Les partitions circulaient par message et par Drive : un lien par pupitre,
+   renvoyé à chaque ajout, et personne ne savait qui avait réellement récupéré
+   sa partie. Le jour où une partition ressortait ailleurs, rien ne disait d'où
+   elle venait. Cette page range le matériel une fois, le distribue nominativement
+   à chaque opération, et pose sur chaque exemplaire téléchargé le nom de qui
+   l'a pris.
+
+   TROIS NIVEAUX, ET C'EST CELUI DU MILIEU QUI TRAVAILLE :
+     le SPECTACLE  — EXPEDITION 33. On y dépose le matériel UNE FOIS.
+     la PARTIE     — Violon 1, Alto, Piano. C'est l'unité qu'on affecte.
+     l'OPÉRATION   — une tournée ou un enregistrement, une ligne de tournees.
+
+   LES RÈGLES QUI TIENNENT TOUT, et qu'il ne faut défaire sous aucun prétexte :
+
+   1. UN SEUL EXEMPLAIRE PROPRE PAR PARTIE, jamais un fichier par musicien·ne.
+      C'est ce qui maintient le stockage plat : cinquante musiciens sur une
+      partie, c'est un fichier, pas cinquante.
+   2. LE FILIGRANE SE POSE À LA VOLÉE, dans /api/partition, au moment du
+      téléchargement. Le fichier propre ne sort jamais du bucket privé.
+   3. L'AFFECTATION PORTE SUR LA PARTIE, pas sur le fichier. Un fichier ajouté
+      à trois semaines du concert se propage seul à tous ceux qui la lisent.
+   4. LES LIENS PERSONNELS DÉJÀ ENVOYÉS RESTENT VALIDES. Le musicien voit ses
+      partitions dans son espace existant ; on ne réémet aucun lien.
+
+   CE QUE CETTE PAGE NE FAIT PAS, et qui est un bon refus :
+
+   — Elle n'apparie PAS automatiquement une partie à une personne d'après son
+     instrument. musiciens.instrument est du texte libre : 25 valeurs sur 114
+     fiches, avec « Flutes » et « Flûtes », « Alto » et « Altos », et un
+     « Violoncelles » à espace final. Un appariement automatique se tromperait,
+     et l'erreur ne se découvrirait qu'à la première répétition. L'affectation
+     est donc nominative, et la page se contente de la rendre rapide.
+   — Elle ne lit PAS la nomenclature de l'opération pour savoir qui joue.
+     tournees.nomenclature est un prévisionnel de devis : EXP33-REC-ORCHESTRE
+     SYMPHONIQUE y annonce 49 postes et n'a que 16 musiciens affectés. L'effectif
+     réel se lit dans dates[].musiciensAssignes, et nulle part ailleurs.
+   — Elle n'affiche PAS les partitions dans le navigateur. La CSP interdit
+     <object> et <embed> (object-src 'none'), mais pas une <iframe> vers
+     /api/partition, qui est same-origin : c'est donc un choix, pas une
+     contrainte. Prévisualiser obligerait à poser le filigrane pour un simple
+     coup d'œil, donc à écrire une ligne de journal et à brûler un jeton pour
+     rien. On télécharge, et le journal ne dit que la vérité.
+============================================================================ */
+
+const PLAFOND_STOCKAGE = 1024 * 1024 * 1024;   // le plan Supabase gratuit
+
+let state = {
+  vue: 'bibliotheque',
+  spectacles: [], parties: [], fichiers: [], affectations: [], acces: [],
+  tournees: [], musiciens: [], techniciens: [],
+  spectacleId: '',
+  tourneeId: '',
+  depot: [],          // les fichiers choisis, pas encore déposés
+  chargement: true,
+};
+
+/* ---------------------------------------------------------------------------
+   LECTURES DÉRIVÉES
+   --------------------------------------------------------------------------- */
+
+const parId = (liste) => { const m = new Map(); (liste || []).forEach(x => m.set(x.id, x)); return m; };
+
+function partiesDe(spectacleId){
+  return state.parties.filter(p => p.spectacleId === spectacleId)
+    .sort((a, b) => (a.ordre - b.ordre) || a.nom.localeCompare(b.nom, 'fr'));
+}
+function fichiersDe(partieId){
+  return state.fichiers.filter(f => f.partieId === partieId)
+    .sort((a, b) => (a.ordre - b.ordre) || a.titre.localeCompare(b.titre, 'fr'));
+}
+function poidsSpectacle(spectacleId){
+  const ids = new Set(partiesDe(spectacleId).map(p => p.id));
+  return state.fichiers.filter(f => ids.has(f.partieId)).reduce((s, f) => s + (f.octets || 0), 0);
+}
+const poidsTotal = () => state.fichiers.reduce((s, f) => s + (f.octets || 0), 0);
+
+/* L'effectif RÉEL d'une opération : l'union des personnes affectées sur ses
+   dates. C'est la seule source juste — voir la bannière de tête. Une personne
+   qui ne joue qu'une date sur trois en fait partie : elle a besoin de sa
+   partie autant que les autres. */
+function effectifDe(tourneeId){
+  const t = state.tournees.find(x => x.id === tourneeId);
+  if(!t) return [];
+  const compte = new Map();
+  (t.dates || []).forEach(d => {
+    (d.musiciensAssignes || []).forEach(id => compte.set('musicien|' + id, (compte.get('musicien|' + id) || 0) + 1));
+    (d.techniciensAssignes || []).forEach(id => compte.set('technicien|' + id, (compte.get('technicien|' + id) || 0) + 1));
+  });
+  const mus = parId(state.musiciens), tech = parId(state.techniciens);
+  const out = [];
+  compte.forEach((nbDates, cle) => {
+    const [personType, personId] = cle.split('|');
+    const p = (personType === 'musicien' ? mus : tech).get(personId);
+    if(!p) return;   // une personne supprimée de l'annuaire depuis
+    out.push({
+      personType, personId, nbDates,
+      nom: [p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom',
+      pupitre: p.pupitre || p.pole || '',
+      instrument: p.instrument || p.poste || '',
+    });
+  });
+  const rangPupitre = (x) => {
+    const i = CURIEUX_PUPITRES.indexOf(x.pupitre);
+    return i < 0 ? 99 : i;
+  };
+  return out.sort((a, b) => rangPupitre(a) - rangPupitre(b) || a.nom.localeCompare(b.nom, 'fr'));
+}
+
+function affectationsDe(tourneeId){
+  return state.affectations.filter(a => a.tourneeId === tourneeId);
+}
+
+/* ---------------------------------------------------------------------------
+   CHARGEMENT
+   --------------------------------------------------------------------------- */
+
+async function charger(){
+  const [spectacles, parties, fichiers, affectations, acces, tournees, musiciens, techniciens] = await Promise.all([
+    CurieuxDB.fetchAll('partitions_spectacles').catch(()=> []),
+    CurieuxDB.fetchAll('partitions_parties').catch(()=> []),
+    CurieuxDB.fetchAll('partitions_fichiers').catch(()=> []),
+    CurieuxDB.fetchAll('partitions_affectations').catch(()=> []),
+    CurieuxDB.fetchAll('partitions_acces').catch(()=> []),
+    CurieuxDB.fetchAll('tournees').catch(()=> []),
+    CurieuxDB.fetchAll('musiciens').catch(()=> []),
+    CurieuxDB.fetchAll('techniciens').catch(()=> []),
+  ]);
+  Object.assign(state, { spectacles, parties, fichiers, affectations, acces, tournees, musiciens, techniciens, chargement: false });
+
+  const url = new URLSearchParams(location.search);
+  state.spectacleId = url.get('spectacle') || state.spectacleId || (spectacles[0] || {}).id || '';
+  state.tourneeId = url.get('operation') || state.tourneeId || '';
+  if(url.get('vue')) state.vue = url.get('vue');
+  rendre();
+}
+
+/* ---------------------------------------------------------------------------
+   RENDU
+   --------------------------------------------------------------------------- */
+
+function rendre(){
+  document.querySelectorAll('[data-vue]').forEach(b => {
+    b.classList.toggle('primary', b.dataset.vue === state.vue);
+  });
+  const el = document.getElementById('page');
+  if(state.chargement){ el.innerHTML = '<div class="co-card co-pad vide">Chargement…</div>'; return; }
+  el.innerHTML = state.vue === 'affectation' ? vueAffectation()
+               : state.vue === 'depot' ? vueDepot()
+               : vueBibliotheque();
+  cablerVue();
+}
+
+function enteteStockage(){
+  const total = poidsTotal();
+  const part = Math.min(1, total / PLAFOND_STOCKAGE);
+  const chaud = part > 0.8;
+  return `
+    <div class="chiffres">
+      <div class="chiffre">
+        <b>${state.spectacles.length}</b><span>spectacle${state.spectacles.length > 1 ? 's' : ''}</span>
+        <small>${state.parties.length} partie${state.parties.length > 1 ? 's' : ''}, ${state.fichiers.length} fichier${state.fichiers.length > 1 ? 's' : ''}</small>
+      </div>
+      <div class="chiffre${chaud ? ' alerte' : ''}">
+        <b>${partitionsPoids(total)}</b><span>de matériel rangé</span>
+        <div class="jauge${chaud ? ' alerte' : ''}"><i style="width:${(part * 100).toFixed(1)}%"></i></div>
+        <small>sur 1 Go — soit une vingtaine de programmes à parties fusionnées</small>
+      </div>
+      <div class="chiffre">
+        <b>${state.affectations.length}</b><span>affectations</span>
+        <small>sur ${new Set(state.affectations.map(a => a.tourneeId)).size} opération(s)</small>
+      </div>
+    </div>`;
+}
+
+/* --- VUE 1 : LA BIBLIOTHÈQUE ---------------------------------------------- */
+
+function vueBibliotheque(){
+  const spectacle = state.spectacles.find(s => s.id === state.spectacleId);
+  const listeSpectacles = state.spectacles.slice()
+    .sort((a, b) => Number(a.archive) - Number(b.archive) || a.nom.localeCompare(b.nom, 'fr'));
+
+  const cartes = listeSpectacles.map(s => {
+    const nbParties = partiesDe(s.id).length;
+    const ids = new Set(partiesDe(s.id).map(p => p.id));
+    const nbFichiers = state.fichiers.filter(f => ids.has(f.partieId)).length;
+    const actif = s.id === state.spectacleId;
+    return `
+      <div class="ligne">
+        <span class="l-nom">
+          <span class="l-titre">${escapeHtml(s.nom || 'Sans nom')}${s.archive ? ' <em style="font-weight:400;color:var(--muted)">— archivé</em>' : ''}</span>
+          <span class="l-sous">${escapeHtml([s.compositeur, s.arrangeur && 'arr. ' + s.arrangeur].filter(Boolean).join(' · ')) || 'Aucun auteur renseigné'}</span>
+        </span>
+        <span class="l-num">${nbParties} partie${nbParties > 1 ? 's' : ''}<br><em style="font-weight:400">${nbFichiers} fichier${nbFichiers > 1 ? 's' : ''} · ${partitionsPoids(poidsSpectacle(s.id))}</em></span>
+        <button type="button" class="co-btn sm${actif ? ' primary' : ''}" data-ouvrir="${escapeAttr(s.id)}">${actif ? 'Ouvert' : 'Ouvrir'}</button>
+      </div>`;
+  }).join('');
+
+  return `
+    ${enteteStockage()}
+    <section class="bloc">
+      <h2>Spectacles <span class="h2-total"><button type="button" class="co-btn sm" id="btnNouveauSpectacle">Nouveau spectacle</button></span></h2>
+      ${cartes || '<p class="vide">Aucun spectacle. Commence par en créer un — c\'est le tiroir où le matériel se range, et il sert ensuite à toutes les opérations qui le jouent.</p>'}
+    </section>
+    ${spectacle ? vueMateriel(spectacle) : ''}`;
+}
+
+function vueMateriel(spectacle){
+  const parties = partiesDe(spectacle.id);
+  const lignes = parties.map(p => {
+    const fs = fichiersDe(p.id);
+    const poids = fs.reduce((s, f) => s + (f.octets || 0), 0);
+    const detail = fs.length
+      ? fs.map(f => `<span class="l-sous">— ${escapeHtml(f.titre || f.nomOrigine)} · ${partitionsPoids(f.octets)}${f.pages ? ' · ' + f.pages + ' p.' : ''}
+           <button type="button" class="co-btn ghost sm" data-retirer-fichier="${escapeAttr(f.id)}" style="padding:1px 8px;min-height:0;font-size:11px">retirer</button></span>`).join('')
+      : '<span class="l-sous sans-lecteur">Aucun fichier — cette partie est annoncée mais rien n\'est déposé</span>';
+    return `
+      <div class="ligne">
+        <span class="l-nom">
+          <span class="l-titre">${escapeHtml(p.nom)}</span>
+          ${detail}
+        </span>
+        <span class="l-num">${escapeHtml(p.pupitre || '—')}${poids ? '<br><em style="font-weight:400">' + partitionsPoids(poids) + '</em>' : ''}</span>
+        <button type="button" class="co-btn ghost sm" data-retirer-partie="${escapeAttr(p.id)}">Retirer</button>
+      </div>`;
+  }).join('');
+
+  const manquantes = parties.filter(p => !fichiersDe(p.id).length).length;
+
+  return `
+    <section class="bloc">
+      <h2>Matériel — ${escapeHtml(spectacle.nom)}
+        <span class="h2-total">
+          <button type="button" class="co-btn sm primary" id="btnDeposer">Déposer des fichiers</button>
+          <button type="button" class="co-btn sm" id="btnNouvellePartie">Ajouter une partie</button>
+          <button type="button" class="co-btn ghost sm" id="btnReglagesSpectacle">Réglages</button>
+        </span>
+      </h2>
+      ${manquantes ? `<p class="vide sans-lecteur">${manquantes} partie${manquantes > 1 ? 's sont annoncées' : ' est annoncée'} sans aucun fichier déposé.</p>` : ''}
+      ${lignes || '<p class="vide">Rien de rangé. Dépose les PDF : la page lit leur nom et propose la partie de chacun.</p>'}
+    </section>
+    <section class="bloc">
+      <h2>Réglages de ce spectacle</h2>
+      <div class="ligne">
+        <span class="l-nom">
+          <span class="l-titre">Chiffrer les partitions au téléchargement</span>
+          <span class="l-sous">AES-256, le code de l'opération sert de mot de passe. forScore sait l'ouvrir ; MobileSheets et Newzik ne le documentent pas — à vérifier sur les tablettes du pupitre avant d'activer.</span>
+        </span>
+        <span></span>
+        <label class="co-check"><input type="checkbox" id="chkChiffrer" ${spectacle.chiffrer ? 'checked' : ''}> <span>${spectacle.chiffrer ? 'Activé' : 'Désactivé'}</span></label>
+      </div>
+      <div class="ligne">
+        <span class="l-nom">
+          <span class="l-titre">Sauvegarde sur le Drive</span>
+          <span class="l-sous">Le lien du dossier qui garde le matériel hors de ce site. Si l'application disparaît, le matériel ne disparaît pas avec elle.</span>
+        </span>
+        <span></span>
+        <input class="co-input" id="inpDrive" style="width:260px" placeholder="https://drive.google.com/…" value="${escapeAttr(spectacle.lienDrive || '')}">
+      </div>
+    </section>`;
+}
+
+/* --- VUE 2 : LE DÉPÔT ------------------------------------------------------ */
+
+function vueDepot(){
+  const spectacle = state.spectacles.find(s => s.id === state.spectacleId);
+  if(!spectacle) return '<div class="co-card co-pad vide">Choisis d\'abord un spectacle.</div>';
+  const parties = partiesDe(spectacle.id);
+
+  /* Ce qui n'a pas été reconnu remonte en tête. C'est tout l'intérêt de l'écran :
+     on ne relit pas trente lignes, on règle les quatre qui posent question. */
+  const rang = { aucune: 0, incertaine: 1, probable: 2, exacte: 3 };
+  const liste = state.depot.slice().sort((a, b) => (rang[a.sûrete] - rang[b.sûrete]) || a.nomOrigine.localeCompare(b.nomOrigine, 'fr'));
+
+  const lignes = liste.map((d, i) => {
+    const idx = state.depot.indexOf(d);
+    const options = [
+      `<option value="">— nouvelle partie « ${escapeHtml(d.propose)} » —</option>`,
+      ...parties.map(p => `<option value="${escapeAttr(p.id)}"${d.partieId === p.id ? ' selected' : ''}>${escapeHtml(p.nom)}</option>`),
+    ].join('');
+    const aRegler = d.sûrete === 'aucune' || d.sûrete === 'incertaine';
+    const indice = d.candidats && d.candidats.length
+      ? `Plusieurs parties possibles : ${escapeHtml(d.candidats.map(c => c.nom).join(', '))} — à trancher.`
+      : d.sûrete === 'aucune' ? `Aucune partie ne correspond : une nouvelle sera créée, pupitre ${escapeHtml(partitionsPupitreDe(d.propose))}.`
+      : '';
+    return `
+      <div class="dep-ligne${aRegler ? ' aRegler' : ''}">
+        <span class="l-nom">
+          <span class="l-titre">${escapeHtml(d.nomOrigine)}</span>
+          <span class="l-sous">${partitionsPoids(d.octets)} ${indice ? '· ' + indice : ''}</span>
+        </span>
+        <select class="co-select" data-depot-partie="${idx}">${options}</select>
+        <span style="display:flex;gap:8px;align-items:center">
+          <span class="sur ${d.sûrete}">${d.sûrete}</span>
+          <button type="button" class="co-btn ghost sm" data-depot-retirer="${idx}" style="padding:2px 9px;min-height:0">×</button>
+        </span>
+      </div>`;
+  }).join('');
+
+  const poids = state.depot.reduce((s, d) => s + d.octets, 0);
+  const aRegler = state.depot.filter(d => d.sûrete === 'aucune' || d.sûrete === 'incertaine').length;
+
+  return `
+    <section class="bloc">
+      <h2>Déposer dans — ${escapeHtml(spectacle.nom)}
+        <span class="h2-total"><button type="button" class="co-btn ghost sm" id="btnRetourBiblio">Retour à la bibliothèque</button></span>
+      </h2>
+      <div class="depot-zone" id="zoneDepot">
+        <b>Glisse les PDF ici, ou clique pour les choisir</b>
+        La page lit le nom de chaque fichier et propose sa partie. Tu ne corriges que ce qu'elle a raté.
+        <input type="file" id="inpFichiers" accept="application/pdf,.pdf" multiple hidden>
+      </div>
+    </section>
+    ${state.depot.length ? `
+    <section class="bloc">
+      <h2>${state.depot.length} fichier${state.depot.length > 1 ? 's' : ''} à déposer
+        <span class="h2-total">${partitionsPoids(poids)}
+          <button type="button" class="co-btn sm primary" id="btnConfirmerDepot" style="margin-left:10px">Déposer</button>
+        </span>
+      </h2>
+      ${aRegler ? `<p class="vide sans-lecteur">${aRegler} fichier${aRegler > 1 ? 's demandent' : ' demande'} une décision — ${aRegler > 1 ? 'ils sont' : 'il est'} en tête de liste.</p>` : '<p class="vide">Tout est reconnu. Vérifie d\'un coup d\'œil et dépose.</p>'}
+      ${lignes}
+    </section>` : ''}`;
+}
+
+/* --- VUE 3 : L'AFFECTATION ------------------------------------------------- */
+
+function vueAffectation(){
+  const operations = state.tournees.slice().sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  const selecteur = `
+    <div class="barre">
+      <select class="co-select" id="selOperation">
+        <option value="">— choisir une opération —</option>
+        ${operations.map(t => `<option value="${escapeAttr(t.id)}"${t.id === state.tourneeId ? ' selected' : ''}>${escapeHtml(t.nom)}${t.type === 'recording' ? ' · Recording' : ''}</option>`).join('')}
+      </select>
+      <select class="co-select" id="selSpectacleAff">
+        <option value="">— matériel à distribuer —</option>
+        ${state.spectacles.map(s => `<option value="${escapeAttr(s.id)}"${s.id === state.spectacleId ? ' selected' : ''}>${escapeHtml(s.nom)}</option>`).join('')}
+      </select>
+    </div>`;
+
+  if(!state.tourneeId) return selecteur + '<div class="co-card co-pad vide">Choisis une opération pour distribuer son matériel.</div>';
+
+  const operation = state.tournees.find(t => t.id === state.tourneeId);
+  const effectif = effectifDe(state.tourneeId);
+  const aff = affectationsDe(state.tourneeId);
+  const parties = partiesDe(state.spectacleId);
+  const mus = parId(state.musiciens), tech = parId(state.techniciens);
+
+  // Les deux compteurs qui sauvent. Le second se lit à l'envers — il part de
+  // l'effectif réel de l'opération, pas du matériel — et c'est celui qu'on
+  // oublie : quelqu'un qui arrive à la première sans rien à jouer.
+  const partiesLues = new Set(aff.map(a => a.partieId));
+  const sansLecteur = parties.filter(p => !partiesLues.has(p.id));
+  const affectes = new Set(aff.map(a => a.personType + '|' + a.personId));
+  const sansPartie = effectif.filter(p => !affectes.has(p.personType + '|' + p.personId));
+
+  const lignesParties = parties.map(p => {
+    const lecteurs = aff.filter(a => a.partieId === p.id).map(a => {
+      const personne = (a.personType === 'musicien' ? mus : tech).get(a.personId);
+      const nom = personne ? [personne.prenom, personne.nom].filter(Boolean).join(' ') : 'Personne supprimée';
+      const dansEffectif = effectif.some(e => e.personType === a.personType && e.personId === a.personId);
+      return `<span class="lecteur${dansEffectif ? '' : ' absent'}" title="${dansEffectif ? '' : 'Cette personne n\'est affectée à aucune date de l\'opération'}">${escapeHtml(nom)}<button type="button" data-desaffecter="${escapeAttr(a.id)}" aria-label="Retirer">×</button></span>`;
+    }).join('');
+    const libres = effectif.filter(e => !aff.some(a => a.partieId === p.id && a.personId === e.personId && a.personType === e.personType));
+    return `
+      <div class="ligne" style="grid-template-columns:minmax(0,1fr) 200px">
+        <span class="l-nom">
+          <span class="l-titre">${escapeHtml(p.nom)} <em style="font-weight:400;color:var(--muted);font-size:12px">${escapeHtml(p.pupitre || '')} · ${fichiersDe(p.id).length} fichier(s)</em></span>
+          ${lecteurs ? `<span class="lecteurs">${lecteurs}</span>` : '<span class="l-sous sans-lecteur">Personne ne lit cette partie</span>'}
+        </span>
+        <select class="co-select" data-affecter="${escapeAttr(p.id)}">
+          <option value="">+ ajouter…</option>
+          ${libres.map(e => `<option value="${escapeAttr(e.personType + '|' + e.personId)}">${escapeHtml(e.nom)} — ${escapeHtml(e.pupitre)}</option>`).join('')}
+        </select>
+      </div>`;
+  }).join('');
+
+  const acces = state.acces.find(a => a.id === state.tourneeId) || { id: state.tourneeId, code: '', actif: true, ouvertLe: '' };
+  const autres = state.tournees.filter(t => t.id !== state.tourneeId && affectationsDe(t.id).length);
+
+  return `
+    ${selecteur}
+    <div class="chiffres">
+      <div class="chiffre"><b>${effectif.length}</b><span>personnes sur l'opé</span>
+        <small>lues dans les dates, pas dans la nomenclature</small></div>
+      <div class="chiffre${sansLecteur.length ? ' alerte' : ''}"><b>${sansLecteur.length}</b><span>parties sans lecteur</span>
+        <small>${sansLecteur.length ? escapeHtml(sansLecteur.slice(0, 4).map(p => p.nom).join(', ')) + (sansLecteur.length > 4 ? '…' : '') : 'Tout le matériel est distribué'}</small></div>
+      <div class="chiffre${sansPartie.length ? ' alerte' : ''}"><b>${sansPartie.length}</b><span>personnes sans partie</span>
+        <small>${sansPartie.length ? escapeHtml(sansPartie.slice(0, 4).map(p => p.nom).join(', ')) + (sansPartie.length > 4 ? '…' : '') : 'Tout le monde a de quoi jouer'}</small></div>
+    </div>
+
+    <section class="bloc">
+      <h2>Code d'accès — ${escapeHtml(operation ? operation.nom : '')}</h2>
+      <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto auto">
+        <span class="l-nom">
+          <span class="l-titre">Le code que les musiciens saisissent une fois</span>
+          <span class="l-sous">Leur lien personnel dit qui ils sont ; ce code dit qu'ils sont bien censés jouer ça maintenant. Un lien transféré ne donne rien sans lui. Communique-le en répétition ou par message groupé — pas dans le même message que le lien.</span>
+        </span>
+        <input class="co-input" id="inpCode" style="width:130px;font-weight:800;letter-spacing:.08em;text-transform:uppercase" maxlength="32" value="${escapeAttr(acces.code)}" placeholder="aucun">
+        <button type="button" class="co-btn sm" id="btnNouveauCode">Tirer un code</button>
+      </div>
+      <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
+        <span class="l-nom">
+          <span class="l-titre">Ouvrir le matériel à partir du</span>
+          <span class="l-sous">Laisse vide pour qu'il soit disponible tout de suite. Le matériel d'une création se range des mois avant d'avoir à être lu.</span>
+        </span>
+        <input class="co-input" type="date" id="inpOuvertLe" value="${escapeAttr(acces.ouvertLe || '')}">
+      </div>
+    </section>
+
+    <section class="bloc">
+      <h2>Qui lit quoi
+        <span class="h2-total">
+          ${autres.length ? `<select class="co-select" id="selReprendre" style="width:230px">
+            <option value="">Reprendre l'affectation de…</option>
+            ${autres.map(t => `<option value="${escapeAttr(t.id)}">${escapeHtml(t.nom)} (${affectationsDe(t.id).length})</option>`).join('')}
+          </select>` : ''}
+        </span>
+      </h2>
+      ${state.spectacleId ? (lignesParties || '<p class="vide">Ce spectacle n\'a aucune partie. Range d\'abord son matériel dans la bibliothèque.</p>')
+                         : '<p class="vide">Choisis le matériel à distribuer, en haut.</p>'}
+    </section>
+
+    ${sansPartie.length ? `
+    <section class="bloc">
+      <h2>Personnes sans aucune partie</h2>
+      <p class="vide">Elles sont affectées à au moins une date de l'opération et n'ont rien à jouer. Soit il manque une partie, soit elles n'en ont pas besoin — la page ne tranche pas.</p>
+      ${sansPartie.map(p => `<div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
+        <span class="l-nom"><span class="l-titre">${escapeHtml(p.nom)}</span>
+          <span class="l-sous">${escapeHtml([p.pupitre, p.instrument].filter(Boolean).join(' · '))} — ${p.nbDates} date${p.nbDates > 1 ? 's' : ''}</span></span>
+        <span class="l-num">—</span>
+      </div>`).join('')}
+    </section>` : ''}`;
+}
+
+/* ---------------------------------------------------------------------------
+   ACTIONS
+   --------------------------------------------------------------------------- */
+
+function cablerVue(){
+  const el = document.getElementById('page');
+
+  el.querySelectorAll('[data-ouvrir]').forEach(b => b.onclick = ()=>{
+    state.spectacleId = b.dataset.ouvrir; rendre();
+  });
+  const q = (id)=> el.querySelector('#' + id);
+
+  if(q('btnNouveauSpectacle')) q('btnNouveauSpectacle').onclick = nouveauSpectacle;
+  if(q('btnNouvellePartie')) q('btnNouvellePartie').onclick = nouvellePartie;
+  if(q('btnDeposer')) q('btnDeposer').onclick = ()=>{ state.vue = 'depot'; state.depot = []; rendre(); };
+  if(q('btnRetourBiblio')) q('btnRetourBiblio').onclick = ()=>{ state.vue = 'bibliotheque'; state.depot = []; rendre(); };
+  if(q('btnReglagesSpectacle')) q('btnReglagesSpectacle').onclick = ()=> document.getElementById('chkChiffrer').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  if(q('chkChiffrer')) q('chkChiffrer').onchange = (e)=> majSpectacle({ chiffrer: e.target.checked });
+  if(q('inpDrive')) q('inpDrive').onchange = (e)=> majSpectacle({ lienDrive: e.target.value.trim() });
+
+  el.querySelectorAll('[data-retirer-partie]').forEach(b => b.onclick = ()=> retirerPartie(b.dataset.retirerPartie));
+  el.querySelectorAll('[data-retirer-fichier]').forEach(b => b.onclick = ()=> retirerFichier(b.dataset.retirerFichier));
+
+  // --- dépôt ---
+  const zone = q('zoneDepot'), inp = q('inpFichiers');
+  if(zone && inp){
+    zone.onclick = ()=> inp.click();
+    inp.onchange = ()=>{ ajouterAuDepot(Array.from(inp.files || [])); inp.value = ''; };
+    ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, (e)=>{ e.preventDefault(); zone.classList.add('survol'); }));
+    ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, (e)=>{ e.preventDefault(); zone.classList.remove('survol'); }));
+    zone.addEventListener('drop', (e)=> ajouterAuDepot(Array.from((e.dataTransfer || {}).files || [])));
+  }
+  el.querySelectorAll('[data-depot-partie]').forEach(s => s.onchange = ()=>{
+    const d = state.depot[Number(s.dataset.depotPartie)];
+    if(!d) return;
+    d.partieId = s.value;
+    // Une décision prise n'a plus à remonter en tête de liste.
+    d.sûrete = s.value ? 'exacte' : 'aucune';
+    d.candidats = null;
+    rendre();
+  });
+  el.querySelectorAll('[data-depot-retirer]').forEach(b => b.onclick = ()=>{
+    state.depot.splice(Number(b.dataset.depotRetirer), 1); rendre();
+  });
+  if(q('btnConfirmerDepot')) q('btnConfirmerDepot').onclick = confirmerDepot;
+
+  // --- affectation ---
+  if(q('selOperation')) q('selOperation').onchange = (e)=>{ state.tourneeId = e.target.value; rendre(); };
+  if(q('selSpectacleAff')) q('selSpectacleAff').onchange = (e)=>{ state.spectacleId = e.target.value; rendre(); };
+  el.querySelectorAll('[data-affecter]').forEach(s => s.onchange = ()=>{
+    if(!s.value) return;
+    const [personType, personId] = s.value.split('|');
+    affecter(s.dataset.affecter, personType, personId);
+  });
+  el.querySelectorAll('[data-desaffecter]').forEach(b => b.onclick = ()=> desaffecter(b.dataset.desaffecter));
+  if(q('inpCode')) q('inpCode').onchange = (e)=> majAcces({ code: e.target.value.trim().toUpperCase() });
+  if(q('btnNouveauCode')) q('btnNouveauCode').onclick = ()=> majAcces({ code: partitionsNouveauCode() });
+  if(q('inpOuvertLe')) q('inpOuvertLe').onchange = (e)=> majAcces({ ouvertLe: e.target.value });
+  if(q('selReprendre')) q('selReprendre').onchange = (e)=>{ if(e.target.value) reprendreAffectation(e.target.value); };
+}
+
+async function nouveauSpectacle(){
+  const nom = prompt('Nom du spectacle — celui sous lequel on range son matériel (ex. EXPEDITION 33) :');
+  if(!nom || !nom.trim()) return;
+  const s = { id: genId('spect'), nom: nom.trim(), compositeur: '', arrangeur: '', lienDrive: '', chiffrer: false, archive: false, note: '' };
+  state.spectacles.push(s); state.spectacleId = s.id; rendre();
+  await CurieuxDB.upsertOne('partitions_spectacles', s);
+}
+
+async function majSpectacle(champs){
+  const s = state.spectacles.find(x => x.id === state.spectacleId);
+  if(!s) return;
+  Object.assign(s, champs); rendre();
+  await CurieuxDB.upsertOne('partitions_spectacles', s);
+}
+
+async function nouvellePartie(){
+  const nom = prompt('Nom de la partie (ex. Violon 1, Cor 1-2, Conducteur) :');
+  if(!nom || !nom.trim()) return;
+  const p = creerPartieLocale(nom.trim());
+  rendre();
+  await CurieuxDB.upsertOne('partitions_parties', p);
+}
+
+function creerPartieLocale(nom){
+  const p = {
+    id: genId('part'), spectacleId: state.spectacleId, nom,
+    pupitre: partitionsPupitreDe(nom), ordre: partitionsOrdreDe(nom), note: '',
+  };
+  state.parties.push(p);
+  return p;
+}
+
+/* Une partie retirée emporte ses fichiers, et ses fichiers sont dans le
+   stockage. On ne touche au stockage que dans `purger` : tant que le ruban
+   « Annuler » est là, rien n'est parti. */
+function retirerPartie(id){
+  const p = state.parties.find(x => x.id === id);
+  if(!p) return;
+  const fs = fichiersDe(id);
+  const affs = state.affectations.filter(a => a.partieId === id);
+  state.parties = state.parties.filter(x => x.id !== id);
+  state.fichiers = state.fichiers.filter(f => f.partieId !== id);
+  state.affectations = state.affectations.filter(a => a.partieId !== id);
+  rendre();
+  CurieuxAnnuler.proposer({
+    texte: `« ${p.nom} » retirée${fs.length ? ` (${fs.length} fichier${fs.length > 1 ? 's' : ''})` : ''}`,
+    retablir: ()=>{
+      state.parties.push(p); state.fichiers.push(...fs); state.affectations.push(...affs); rendre();
+    },
+    purger: async ()=>{
+      for(const a of affs) await CurieuxDB.removeOne('partitions_affectations', a.id);
+      for(const f of fs){ await CurieuxDB.removeOne('partitions_fichiers', f.id); await CurieuxDB.retirerPartition(f.chemin); }
+      await CurieuxDB.removeOne('partitions_parties', id);
+    },
+  });
+}
+
+function retirerFichier(id){
+  const f = state.fichiers.find(x => x.id === id);
+  if(!f) return;
+  state.fichiers = state.fichiers.filter(x => x.id !== id);
+  rendre();
+  CurieuxAnnuler.proposer({
+    texte: `« ${f.titre || f.nomOrigine} » retiré`,
+    retablir: ()=>{ state.fichiers.push(f); rendre(); },
+    purger: async ()=>{ await CurieuxDB.removeOne('partitions_fichiers', id); await CurieuxDB.retirerPartition(f.chemin); },
+  });
+}
+
+function ajouterAuDepot(fichiers){
+  const parties = partiesDe(state.spectacleId);
+  const pdf = fichiers.filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+  const rejetes = fichiers.length - pdf.length;
+  pdf.forEach(f => {
+    const r = partitionsApparier(f.name, parties);
+    state.depot.push({
+      fichier: f, nomOrigine: f.name, octets: f.size,
+      propose: r.propose, partieId: r.partie ? r.partie.id : '',
+      sûrete: r.sûrete, candidats: r.candidats || null,
+    });
+  });
+  if(rejetes) alert(`${rejetes} fichier${rejetes > 1 ? 's ont' : ' a'} été ignoré${rejetes > 1 ? 's' : ''} : seuls les PDF sont acceptés.`);
+  rendre();
+}
+
+async function confirmerDepot(){
+  const btn = document.getElementById('btnConfirmerDepot');
+  const aFaire = state.depot.slice();
+  if(!aFaire.length) return;
+  btn.disabled = true;
+
+  // Les parties manquantes d'abord, toutes ensemble : plusieurs fichiers
+  // peuvent viser la même partie neuve, et en créer deux la scinderait en
+  // silence.
+  const neuves = new Map();
+  for(const d of aFaire){
+    if(d.partieId) continue;
+    const cle = partitionsNormaliser(d.propose);
+    if(!neuves.has(cle)){
+      const p = creerPartieLocale(d.propose);
+      neuves.set(cle, p);
+      await CurieuxDB.upsertOne('partitions_parties', p);
+    }
+    d.partieId = neuves.get(cle).id;
+  }
+
+  let faits = 0, echecs = [];
+  for(const d of aFaire){
+    btn.textContent = `Dépôt ${faits + 1} / ${aFaire.length}…`;
+    const depot = await CurieuxDB.deposerPartition(state.spectacleId, d.partieId, d.fichier);
+    if(depot.error){ echecs.push(`${d.nomOrigine} — ${depot.error.message || 'échec'}`); continue; }
+    const f = {
+      id: genId('pfic'), partieId: d.partieId,
+      titre: partitionsNomDepuisFichier(d.nomOrigine), chemin: depot.chemin,
+      nomOrigine: d.nomOrigine, octets: d.octets, pages: null, empreinte: '',
+      ordre: fichiersDe(d.partieId).length,
+    };
+    state.fichiers.push(f);
+    await CurieuxDB.upsertOne('partitions_fichiers', f);
+    faits++;
+  }
+
+  state.depot = [];
+  state.vue = 'bibliotheque';
+  rendre();
+  if(echecs.length) alert(`${faits} fichier(s) déposé(s).\n\nÉchecs :\n` + echecs.join('\n'));
+}
+
+/* LA LIGNE D'ACCÈS SE CRÉE À LA PREMIÈRE AFFECTATION, et surtout pas plus tard.
+   partition_pour_jeton fait une jointure INTERNE sur partitions_acces : sans
+   cette ligne, aucune partition n'est téléchargeable, et rien ne le dit —
+   la production affecte tout un orchestre, les musiciens voient leur liste et
+   se heurtent à un refus que personne ne sait expliquer. On la crée donc avec
+   un code tiré d'office : mieux vaut un code à communiquer qu'un mur muet. */
+async function assurerAcces(){
+  if(state.acces.some(a => a.id === state.tourneeId)) return;
+  const a = { id: state.tourneeId, code: partitionsNouveauCode(), actif: true, ouvertLe: '' };
+  state.acces.push(a);
+  await CurieuxDB.upsertOne('partitions_acces', a);
+}
+
+async function affecter(partieId, personType, personId){
+  const id = `${state.tourneeId}::${partieId}::${personId}`;
+  if(state.affectations.some(a => a.id === id)) return;
+  await assurerAcces();
+  const a = { id, tourneeId: state.tourneeId, partieId, personType, personId };
+  state.affectations.push(a); rendre();
+  await CurieuxDB.upsertOne('partitions_affectations', a);
+}
+
+function desaffecter(id){
+  const a = state.affectations.find(x => x.id === id);
+  if(!a) return;
+  state.affectations = state.affectations.filter(x => x.id !== id);
+  rendre();
+  CurieuxAnnuler.proposer({
+    texte: 'Affectation retirée',
+    retablir: ()=>{ state.affectations.push(a); rendre(); },
+    purger: async ()=>{ await CurieuxDB.removeOne('partitions_affectations', id); },
+  });
+}
+
+/* Reprendre l'affectation d'une autre opération. C'est le geste qui fait gagner
+   le plus de temps : EXPEDITION 33 porte quatre opérations, et l'essentiel des
+   pupitres revient d'une fois sur l'autre. On ne reprend QUE les personnes
+   réellement présentes sur la nouvelle opération — recopier quelqu'un qui n'y
+   joue pas lui ferait apparaître des partitions dans son espace pour une opé
+   où il n'est pas attendu. */
+async function reprendreAffectation(sourceId){
+  const source = affectationsDe(sourceId);
+  const effectif = new Set(effectifDe(state.tourneeId).map(e => e.personType + '|' + e.personId));
+  const existantes = new Set(affectationsDe(state.tourneeId).map(a => a.partieId + '|' + a.personId));
+  const nouvelles = [];
+  let ecartes = 0;
+  source.forEach(a => {
+    if(!effectif.has(a.personType + '|' + a.personId)){ ecartes++; return; }
+    if(existantes.has(a.partieId + '|' + a.personId)) return;
+    nouvelles.push({ id: `${state.tourneeId}::${a.partieId}::${a.personId}`, tourneeId: state.tourneeId,
+                     partieId: a.partieId, personType: a.personType, personId: a.personId });
+  });
+  if(!nouvelles.length){
+    alert(ecartes ? `Rien à reprendre : les ${ecartes} personnes de cette opération ne jouent aucune date de celle-ci.`
+                  : 'Rien à reprendre — tout est déjà affecté.');
+    rendre(); return;
+  }
+  const nomSource = (state.tournees.find(t => t.id === sourceId) || {}).nom || '';
+  if(!confirm(`Reprendre ${nouvelles.length} affectation(s) de « ${nomSource} » ?`
+      + (ecartes ? `\n\n${ecartes} seront écartées : ces personnes ne jouent aucune date de cette opération.` : ''))) { rendre(); return; }
+  await assurerAcces();
+  state.affectations.push(...nouvelles); rendre();
+  for(const a of nouvelles) await CurieuxDB.upsertOne('partitions_affectations', a);
+}
+
+async function majAcces(champs){
+  let a = state.acces.find(x => x.id === state.tourneeId);
+  if(!a){ a = { id: state.tourneeId, code: '', actif: true, ouvertLe: '' }; state.acces.push(a); }
+  Object.assign(a, champs); rendre();
+  await CurieuxDB.upsertOne('partitions_acces', a);
+}
+
+/* --------------------------------------------------------------------------- */
+
+document.querySelectorAll('[data-vue]').forEach(b => b.onclick = ()=>{
+  state.vue = b.dataset.vue; state.depot = []; rendre();
+});
+
+applyAutoTheme();
+charger();
+</script>
+</body>
+</html>

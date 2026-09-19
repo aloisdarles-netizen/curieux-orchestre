@@ -392,6 +392,144 @@ const CurieuxMesDates = (function(){
     return nb >= 16 ? 2 : 1;
   }
 
+
+  /* ==========================================================================
+     MES PARTITIONS
+     ==========================================================================
+     Les partitions arrivaient par message : un lien par pupitre, renvoyé à
+     chaque ajout, et rien qui dise qui avait réellement récupéré sa partie.
+     Elles sont désormais ici, dans l'espace que la personne a déjà — AUCUN
+     nouveau lien n'est envoyé, et les liens en circulation restent valides.
+
+     UN BLOC DE PAGE, ET PAS SEULEMENT UN DÉTAIL DE JOURNÉE. La vue par défaut
+     sur téléphone est « colonnes », jamais le calendrier : des partitions qui
+     ne s'afficheraient que dans le détail d'une journée du calendrier seraient
+     invisibles pour la quasi-totalité des musicien·nes. Le groupement par
+     opération donne le même résultat — on voit ses parties sous son opé — sans
+     dépendre d'une vue que personne n'ouvre.
+
+     LE CODE NE SERT QU'À TÉLÉCHARGER. La liste s'affiche sans lui : savoir
+     qu'on a trois partitions qui attendent est utile et sans risque. Exiger le
+     code pour seulement les VOIR donnerait un espace qui paraît vide et un
+     musicien qui appelle la production. */
+
+  function _clePartitions(jeton, tourneeId){
+    return 'curieuxPartitionsCode:' + jeton + ':' + tourneeId;
+  }
+  // Le code retenu quatorze jours, comme le journal de dispo-titulaire : le
+  // temps d'une opération, pas celui d'une saison. Tout est enveloppé — le
+  // stockage lève en navigation privée, et une préférence ne doit jamais
+  // casser la page.
+  function _lireCode(jeton, tourneeId){
+    try{
+      const j = JSON.parse(localStorage.getItem(_clePartitions(jeton, tourneeId)) || 'null');
+      if(!j || !j.quand || Date.now() - j.quand > 14 * 86400000) return '';
+      return j.code || '';
+    }catch(e){ return ''; }
+  }
+  function _ecrireCode(jeton, tourneeId, code){
+    try{ localStorage.setItem(_clePartitions(jeton, tourneeId), JSON.stringify({ quand: Date.now(), code })); }catch(e){}
+  }
+
+  function _poids(o){
+    const n = Number(o) || 0;
+    if(n < 1024 * 1024) return Math.round(n / 1024) + ' Ko';
+    return (n / 1048576).toFixed(1).replace('.', ',') + ' Mo';
+  }
+
+  /* Monter le bloc dans un conteneur dédié. `charge` est ce que rend
+     mes_partitions : { personId, personType, genereLe, operations: [...] }.
+     Rien à afficher quand il n'y a rien : un bloc « aucune partition » sur
+     l'espace de quelqu'un à qui on n'en donne jamais est du bruit permanent. */
+  function monterPartitions(hote, charge, jeton){
+    if(!hote) return;
+    const operations = (charge && charge.operations) || [];
+    if(!operations.length){ hote.innerHTML = ''; return; }
+    poserStyle();
+
+    const rendre = ()=>{
+      hote.innerHTML = `<section class="mdv-part">
+        <h2 class="mdv-part-titre">Mes partitions</h2>
+        <p class="mdv-part-intro">Chaque exemplaire porte ton nom : il t'est personnellement attribué, et il n'a pas à circuler au-delà de l'orchestre.</p>
+        ${operations.map(op => _operationHtml(op, jeton)).join('')}
+      </section>`;
+      hote.querySelectorAll('[data-part-code]').forEach(form => {
+        form.onsubmit = (e)=>{
+          e.preventDefault();
+          const champ = form.querySelector('input');
+          const code = (champ.value || '').trim().toUpperCase();
+          if(!/^[A-Za-z0-9-]{1,32}$/.test(code)){ champ.focus(); return; }
+          _ecrireCode(jeton, form.dataset.partCode, code);
+          rendre();
+        };
+      });
+      hote.querySelectorAll('[data-part-oublier]').forEach(b => b.onclick = ()=>{
+        try{ localStorage.removeItem(_clePartitions(jeton, b.dataset.partOublier)); }catch(e){}
+        rendre();
+      });
+    };
+    rendre();
+  }
+
+  /* Le titre du fichier n'est affiché QUE s'il apporte quelque chose. Une
+     partie qui ne porte qu'un fichier nommé comme elle donnait « Violon 1 —
+     Violon 1 », ce qui fait douter qu'on regarde la bonne ligne. */
+  function _suffixe(partie, fichier){
+    const titre = (fichier.titre || '').trim();
+    if(!titre || (partie.fichiers || []).length < 2) return '';
+    if(titre.toLowerCase() === (partie.nom || '').trim().toLowerCase()) return '';
+    return ' — ' + escapeHtml(titre);
+  }
+
+  function _operationHtml(op, jeton){
+    const parties = op.parties || [];
+    const nbFichiers = parties.reduce((s, p)=> s + ((p.fichiers || []).length), 0);
+    const code = op.codeRequis ? _lireCode(jeton, op.tourneeId) : '';
+
+    if(!op.ouvert){
+      const quand = op.ouvertLe
+        ? `Le matériel de cette opération sera disponible le ${escapeHtml(jourLong(op.ouvertLe))}.`
+        : "Le matériel de cette opération n'est pas encore ouvert — il le sera avant les répétitions.";
+      return `<div class="mdv-part-ope">
+        <div class="mdv-part-ope-nom">${escapeHtml(op.nom || 'Opération')}</div>
+        <p class="mdv-part-vide">${quand}</p>
+      </div>`;
+    }
+
+    // Le code manque : on dit ce qui attend, et on demande le code. Jamais
+    // l'inverse — un champ nu sans savoir ce qu'il ouvre ne se remplit pas.
+    if(op.codeRequis && !code){
+      return `<div class="mdv-part-ope">
+        <div class="mdv-part-ope-nom">${escapeHtml(op.nom || 'Opération')}</div>
+        <p class="mdv-part-vide">${nbFichiers} partition${nbFichiers > 1 ? 's' : ''} t'${nbFichiers > 1 ? 'attendent' : 'attend'} — ${escapeHtml(parties.map(p=> p.nom).join(', '))}.</p>
+        <form class="mdv-part-code" data-part-code="${escapeAttr(op.tourneeId)}">
+          <input class="co-input" inputmode="latin" autocapitalize="characters" maxlength="32"
+                 placeholder="code" aria-label="Code de l'opération">
+          <button type="submit" class="co-btn primary sm">Ouvrir</button>
+        </form>
+        <p class="mdv-part-aide">Le code t'a été communiqué séparément de ce lien. Tu ne le saisis qu'une fois.</p>
+      </div>`;
+    }
+
+    const lignes = parties.map(p => (p.fichiers || []).map(f => {
+      const url = `/api/partition?jeton=${encodeURIComponent(jeton)}&fichier=${encodeURIComponent(f.id)}`
+                + (code ? `&code=${encodeURIComponent(code)}` : '');
+      const detail = [_poids(f.octets), f.pages ? f.pages + ' pages' : ''].filter(Boolean).join(' · ');
+      return `<a class="mdv-part-fic" href="${escapeAttr(url)}" download>
+        <span class="mdv-part-fic-nom">${escapeHtml(p.nom)}${_suffixe(p, f)}</span>
+        <span class="mdv-part-fic-det">${escapeHtml(detail)}</span>
+        <span class="mdv-part-fic-fleche">↓</span>
+      </a>`;
+    }).join('')).join('');
+
+    return `<div class="mdv-part-ope">
+      <div class="mdv-part-ope-nom">${escapeHtml(op.nom || 'Opération')}
+        ${op.codeRequis ? `<button type="button" class="mdv-part-oublier" data-part-oublier="${escapeAttr(op.tourneeId)}">oublier le code</button>` : ''}
+      </div>
+      ${lignes || '<p class="mdv-part-vide">Rien de déposé pour l\'instant.</p>'}
+    </div>`;
+  }
+
   // --- La feuille de style, posée une fois ---------------------------------
   let stylePose = false;
   function poserStyle(){
@@ -399,6 +537,27 @@ const CurieuxMesDates = (function(){
     stylePose = true;
     const s = document.createElement('style');
     s.textContent = `
+      .mdv-part{margin-top:22px;}
+      .mdv-part-titre{font-size:15px; font-weight:800; margin:0 0 2px;}
+      .mdv-part-intro{font-size:12.5px; color:var(--muted); margin:0 0 10px; line-height:1.5;}
+      .mdv-part-ope{background:var(--card); border:1px solid var(--border); border-radius:var(--radius-md);
+        padding:12px 14px; margin-bottom:10px;}
+      .mdv-part-ope-nom{font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+        font-weight:800; margin-bottom:8px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;}
+      .mdv-part-oublier{margin-left:auto; border:none; background:none; color:var(--muted); font:inherit;
+        font-size:11px; text-decoration:underline; cursor:pointer; padding:0; min-height:0; letter-spacing:0;
+        text-transform:none;}
+      .mdv-part-vide{font-size:13px; color:var(--muted); margin:0; line-height:1.55;}
+      .mdv-part-code{display:flex; gap:8px; margin-top:9px; flex-wrap:wrap;}
+      .mdv-part-code input{width:150px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;}
+      .mdv-part-aide{font-size:11.5px; color:var(--muted); margin:7px 0 0; line-height:1.5;}
+      .mdv-part-fic{display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px; align-items:center;
+        padding:9px 0; border-bottom:1px solid var(--border); text-decoration:none; color:inherit;}
+      .mdv-part-fic:last-child{border-bottom:none;}
+      .mdv-part-fic:hover .mdv-part-fic-nom{color:var(--accent);}
+      .mdv-part-fic-nom{font-weight:700; font-size:13.5px; min-width:0;}
+      .mdv-part-fic-det{font-size:12px; color:var(--muted); white-space:nowrap;}
+      .mdv-part-fic-fleche{font-size:16px; color:var(--accent); font-weight:800;}
       .mdv-barre{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:4px 0 4px;}
       .mdv-bascule{display:inline-flex; gap:3px; background:var(--bg); border:1px solid var(--border);
         border-radius:999px; padding:3px;}
@@ -896,7 +1055,7 @@ const CurieuxMesDates = (function(){
     return { rendre, ajuster };
   }
 
-  return { monter, apercu, mediaPetitEcran, fraicheur, statutDe, groupeDe, STATUT_MOT };
+  return { monter, monterPartitions, apercu, mediaPetitEcran, fraicheur, statutDe, groupeDe, STATUT_MOT };
 })();
 
 if(typeof window !== 'undefined') window.CurieuxMesDates = CurieuxMesDates;

@@ -6080,3 +6080,453 @@ end $$;
 -- null et non 0 : « pas de détail » n'est pas « zéro unité ».
 alter table depenses add column if not exists quantite numeric;
 alter table depenses add column if not exists prix_unitaire numeric;
+
+-- ============================================================================
+-- LES PARTITIONS — 19 septembre 2026
+-- ============================================================================
+-- Donner à chaque musicien sa partie, pour une opération donnée, sans la lui
+-- envoyer par message et sans qu'elle circule ensuite sans nom dessus.
+--
+-- TROIS NIVEAUX, ET C'EST CELUI DU MILIEU QUI TRAVAILLE
+-- ----------------------------------------------------
+--   le SPECTACLE  — EXPEDITION 33. Le matériel y est rangé UNE FOIS.
+--   la PARTIE     — Violon 1, Alto, Piano, Conducteur. L'unité d'affectation.
+--   l'OPÉRATION   — une ligne de tournees, tournée ou enregistrement.
+--
+-- Le matériel appartient au spectacle, jamais à l'opération : EXPEDITION 33
+-- porte quatre opérations, et on ne redépose pas quatre fois les mêmes PDF.
+-- L'affectation, elle, appartient à l'opération — c'est là que « qui joue quoi »
+-- change d'une fois sur l'autre.
+--
+-- POURQUOI L'AFFECTATION PORTE SUR LA PARTIE ET NON SUR LE FICHIER
+-- ---------------------------------------------------------------
+-- Une partie ne contient qu'un fichier fusionné dans presque tous les cas, mais
+-- elle peut en contenir cinq : une œuvre ajoutée au programme, une version
+-- corrigée, un cahier de reprises. En affectant la PARTIE, un fichier ajouté à
+-- trois semaines du concert apparaît chez tous ceux qui la lisent sans qu'on
+-- réaffecte personne. En affectant le fichier, il faudrait repasser sur
+-- cinquante lignes — et on en oublierait.
+--
+-- CE QUI N'EST PAS UNE CLÉ ÉTRANGÈRE, ET POURQUOI
+-- ----------------------------------------------
+-- tournee_id, person_id : pas de contrainte. Les dates ne sont pas des lignes
+-- (elles vivent dans tournees.dates en jsonb) et une personne est tantôt un
+-- musicien tantôt un technicien. Surtout, une clé étrangère vers tournees
+-- ferait échouer la suppression d'une tournée depuis tournees.html — une
+-- régression sur une page qui marche.
+-- fichier_id dans le journal des téléchargements : pas de contrainte non plus,
+-- et c'est le point important. Un journal de traçabilité doit SURVIVRE à ce
+-- qu'il décrit : si une partition ressort dans deux ans, le fichier aura
+-- peut-être été remplacé. Le journal fige donc ce qu'il faut pour retrouver
+-- quelqu'un, et ne dépend de rien.
+-- ----------------------------------------------------------------------------
+
+-- Le spectacle. « Nomenclature » est déjà pris ailleurs et veut dire autre chose
+-- (un effectif chiffré par pupitre, dans tournees.nomenclature) : ici on parle
+-- du MATÉRIEL, au sens où l'entend un orchestre.
+create table if not exists partitions_spectacles (
+  id text primary key,
+  nom text not null default '',
+  compositeur text not null default '',
+  arrangeur text not null default '',
+  -- Le Drive reste la sauvegarde hors site : si ce site disparaît, le matériel
+  -- ne disparaît pas avec lui.
+  lien_drive text not null default '',
+  -- Le chiffrement AES-256 n'est PAS le défaut. forScore sait ouvrir un PDF
+  -- protégé, MobileSheets et Newzik ne le documentent pas. On l'active
+  -- spectacle par spectacle, une fois vérifié sur les tablettes du pupitre,
+  -- sans toucher au code.
+  chiffrer boolean not null default false,
+  archive boolean not null default false,
+  note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_partitions_spectacles_updated_at on partitions_spectacles;
+create trigger trg_partitions_spectacles_updated_at before update on partitions_spectacles
+  for each row execute function set_updated_at();
+alter table partitions_spectacles enable row level security;
+drop policy if exists "partitions_spectacles acces" on partitions_spectacles;
+create policy "partitions_spectacles acces" on partitions_spectacles for all to authenticated
+  using (has_access()) with check (has_access());
+
+-- La partie. `ordre` est l'ordre du conducteur — flûtes, hautbois, clarinettes,
+-- bassons, cors, trompettes... Une liste de parties triée par ordre
+-- alphabétique se lit comme un annuaire ; triée dans l'ordre du conducteur,
+-- elle se lit comme une partition, et on voit tout de suite ce qui manque.
+create table if not exists partitions_parties (
+  id text primary key,
+  spectacle_id text not null references partitions_spectacles(id) on delete restrict,
+  nom text not null default '',
+  -- Les cinq pupitres de tournees.nomenclature, plus Chant. Volontairement le
+  -- même vocabulaire : c'est celui que la maison emploie déjà.
+  pupitre text not null default '' check (pupitre in ('','Cordes','Bois','Cuivres','Percussions','Chant','Autre')),
+  ordre integer not null default 0,
+  note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_partitions_parties_spectacle on partitions_parties(spectacle_id, ordre);
+drop trigger if exists trg_partitions_parties_updated_at on partitions_parties;
+create trigger trg_partitions_parties_updated_at before update on partitions_parties
+  for each row execute function set_updated_at();
+alter table partitions_parties enable row level security;
+drop policy if exists "partitions_parties acces" on partitions_parties;
+create policy "partitions_parties acces" on partitions_parties for all to authenticated
+  using (has_access()) with check (has_access());
+
+-- Le fichier. `empreinte` est un SHA-256 du contenu : elle permet de dire « ce
+-- PDF est déjà déposé » au moment du dépôt en masse, quand on redépose un
+-- dossier entier pour trois fichiers modifiés.
+create table if not exists partitions_fichiers (
+  id text primary key,
+  partie_id text not null references partitions_parties(id) on delete restrict,
+  titre text not null default '',
+  chemin text not null default '',
+  nom_origine text not null default '',
+  octets bigint not null default 0,
+  pages integer,
+  empreinte text not null default '',
+  ordre integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_partitions_fichiers_partie on partitions_fichiers(partie_id, ordre);
+create index if not exists idx_partitions_fichiers_empreinte on partitions_fichiers(empreinte);
+drop trigger if exists trg_partitions_fichiers_updated_at on partitions_fichiers;
+create trigger trg_partitions_fichiers_updated_at before update on partitions_fichiers
+  for each row execute function set_updated_at();
+alter table partitions_fichiers enable row level security;
+drop policy if exists "partitions_fichiers acces" on partitions_fichiers;
+create policy "partitions_fichiers acces" on partitions_fichiers for all to authenticated
+  using (has_access()) with check (has_access());
+
+-- L'affectation. L'id est composite par concaténation ('::'), comme ailleurs
+-- dans le projet : upsertOne code onConflict:'id' en dur.
+create table if not exists partitions_affectations (
+  id text primary key,
+  tournee_id text not null default '',
+  partie_id text not null references partitions_parties(id) on delete restrict,
+  person_type text not null default 'musicien' check (person_type in ('musicien','technicien')),
+  person_id text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_partitions_affectations_tournee on partitions_affectations(tournee_id);
+create index if not exists idx_partitions_affectations_personne on partitions_affectations(person_type, person_id);
+create index if not exists idx_partitions_affectations_partie on partitions_affectations(partie_id);
+drop trigger if exists trg_partitions_affectations_updated_at on partitions_affectations;
+create trigger trg_partitions_affectations_updated_at before update on partitions_affectations
+  for each row execute function set_updated_at();
+alter table partitions_affectations enable row level security;
+drop policy if exists "partitions_affectations acces" on partitions_affectations;
+create policy "partitions_affectations acces" on partitions_affectations for all to authenticated
+  using (has_access()) with check (has_access());
+
+-- Le code d'accès, une ligne par opération (l'id EST l'id de la tournée).
+--
+-- POURQUOI UN CODE ALORS QUE LE LIEN PERSONNEL IDENTIFIE DÉJÀ
+-- ----------------------------------------------------------
+-- Le jeton dit QUI vous êtes ; il est permanent et il est dans une URL, donc il
+-- se transfère. Le code dit que vous êtes bien censé jouer ÇA MAINTENANT : il
+-- change à chaque opération et se communique autrement (en répétition, par
+-- message groupé). Un lien transféré ne donne rien sans le code, un code seul
+-- ne donne rien sans le lien.
+--
+-- Le code est stocké EN CLAIR, et c'est délibéré. Il doit pouvoir se lire à
+-- voix haute au pupitre et se retrouver dans la page trois semaines plus tard.
+-- Le hacher protégerait contre une fuite de base — mais qui lit cette table a
+-- déjà tout le reste, y compris les affectations. Ce n'est pas un mot de passe,
+-- c'est un second facteur de courte vie.
+create table if not exists partitions_acces (
+  id text primary key,
+  code text not null default '',
+  actif boolean not null default true,
+  -- Rien avant cette date : le matériel d'une création se prépare des mois à
+  -- l'avance, il n'a pas à être lisible dès qu'il est rangé.
+  ouvert_le date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists trg_partitions_acces_updated_at on partitions_acces;
+create trigger trg_partitions_acces_updated_at before update on partitions_acces
+  for each row execute function set_updated_at();
+alter table partitions_acces enable row level security;
+drop policy if exists "partitions_acces acces" on partitions_acces;
+create policy "partitions_acces acces" on partitions_acces for all to authenticated
+  using (has_access()) with check (has_access());
+
+-- Le journal des téléchargements. C'est lui qui donne son sens au filigrane
+-- invisible : sans lui, on lit « CX-4A7F-2291 » sur une partition retrouvée et
+-- on ne sait pas à qui elle appartenait.
+--
+-- PAS DE DÉCLENCHEUR D'AUDIT SUR CETTE TABLE. Le journal d'audit stocke
+-- old_data ET new_data en entier : une table qui prend une ligne par
+-- téléchargement le ferait grossir pour rien, et le plan Supabase est à 500 Mo.
+-- Cette table EST déjà un journal ; l'auditer serait journaliser le journal.
+--
+-- Les libellés sont figés à la volée (personne, partie, spectacle, operation) :
+-- voir l'en-tête de ce bloc — un journal de traçabilité doit survivre à ce
+-- qu'il décrit.
+create table if not exists partitions_telechargements (
+  id text primary key,
+  jeton_filigrane text not null unique,
+  fichier_id text not null default '',
+  tournee_id text not null default '',
+  person_type text not null default '',
+  person_id text not null default '',
+  personne text not null default '',
+  partie text not null default '',
+  spectacle text not null default '',
+  operation text not null default '',
+  octets bigint not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_partitions_tel_personne on partitions_telechargements(person_type, person_id);
+create index if not exists idx_partitions_tel_tournee on partitions_telechargements(tournee_id, created_at desc);
+alter table partitions_telechargements enable row level security;
+drop policy if exists "partitions_telechargements acces" on partitions_telechargements;
+create policy "partitions_telechargements acces" on partitions_telechargements for all to authenticated
+  using (has_access()) with check (has_access());
+
+-- Le journal d'audit sur ce qui se modifie à la main, et sur rien d'autre.
+do $$
+declare tbl text;
+begin
+  foreach tbl in array array['partitions_spectacles','partitions_parties','partitions_fichiers','partitions_affectations','partitions_acces']
+  loop
+    execute format('drop trigger if exists trg_audit_%1$s on %1$I', tbl);
+    execute format('create trigger trg_audit_%1$s after insert or update or delete on %1$I for each row execute function audit_trigger_func()', tbl);
+  end loop;
+end $$;
+
+-- ----------------------------------------------------------------------------
+-- LE STOCKAGE
+-- ----------------------------------------------------------------------------
+-- Bucket PRIVÉ, et il le reste. Le navigateur d'un musicien ne reçoit jamais
+-- d'URL vers un objet de ce bucket : il passe par /api/partition, qui lit le
+-- fichier propre avec la clé de service et ne rend qu'un exemplaire filigrané.
+-- Le dépôt, lui, se fait directement depuis le navigateur de la production :
+-- trente fichiers de 1,7 Mo ne passent pas par une fonction serverless, dont le
+-- corps de requête est plafonné.
+insert into storage.buckets (id, name, public)
+values ('partitions', 'partitions', false)
+on conflict (id) do nothing;
+
+drop policy if exists "partitions depot" on storage.objects;
+create policy "partitions depot" on storage.objects for insert to authenticated
+  with check (bucket_id = 'partitions' and has_access());
+drop policy if exists "partitions lecture" on storage.objects;
+create policy "partitions lecture" on storage.objects for select to authenticated
+  using (bucket_id = 'partitions' and has_access());
+drop policy if exists "partitions remplacement" on storage.objects;
+create policy "partitions remplacement" on storage.objects for update to authenticated
+  using (bucket_id = 'partitions' and has_access());
+drop policy if exists "partitions retrait" on storage.objects;
+create policy "partitions retrait" on storage.objects for delete to authenticated
+  using (bucket_id = 'partitions' and has_access());
+
+-- ----------------------------------------------------------------------------
+-- LES FONCTIONS À JETON
+-- ----------------------------------------------------------------------------
+-- Tout le contrôle d'accès tient ici, et nulle part ailleurs. La règle « cette
+-- personne a-t-elle droit à ce fichier, sur cette opération, avec ce code » est
+-- une règle métier : elle appartient à la base, pas à six endroits du code.
+-- Les tables restent fermées à anon ; seules ces fonctions sont ouvertes.
+--
+-- resolve_person_token accepte AUSSI BIEN un jeton permanent d'acces_personnels
+-- qu'un identifiant de dispo_demandes. C'est ce qui permet aux liens DÉJÀ
+-- ENVOYÉS de continuer à fonctionner — la contrainte absolue de ce projet.
+-- ----------------------------------------------------------------------------
+
+-- Ce que voit un musicien dans son espace : ses parties, groupées par opération.
+-- Le CODE N'EST PAS DEMANDÉ ICI, délibérément — voir qu'il existe trois
+-- partitions vous attendant est une information utile et sans risque ; c'est
+-- pour les télécharger qu'il faut le code. L'inverse donnerait un espace qui
+-- paraît vide et un musicien qui appelle la production.
+create or replace function mes_partitions(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cible    record;
+  resultat jsonb;
+begin
+  select * into cible from resolve_person_token(p_token);
+  if not found or cible.person_id is null then
+    return null;   -- la page dira « ce lien n'est plus valide »
+  end if;
+
+  select jsonb_build_object(
+    'personId',   cible.person_id,
+    'personType', cible.person_type,
+    -- L'heure de la source, pas celle du navigateur.
+    'genereLe', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    'operations', coalesce((
+      select jsonb_agg(o.ligne order by o.nom)
+      from (
+        select t.nom,
+          jsonb_build_object(
+            'tourneeId',  t.id,
+            'nom',        t.nom,
+            'type',       coalesce(t.type, 'tournee'),
+            -- Un code vide veut dire « pas de code sur cette opération ».
+            'codeRequis', (ac.code is not null and ac.code <> ''),
+            'ouvert',     coalesce(ac.actif, false)
+                            and (ac.ouvert_le is null or ac.ouvert_le <= current_date),
+            'ouvertLe',   ac.ouvert_le,
+            'parties', coalesce((
+              select jsonb_agg(p.ligne order by p.ordre, p.nom)
+              from (
+                select pa.ordre, pa.nom,
+                  jsonb_build_object(
+                    'partieId',  pa.id,
+                    'nom',       pa.nom,
+                    'pupitre',   pa.pupitre,
+                    'spectacle', sp.nom,
+                    'fichiers', coalesce((
+                      select jsonb_agg(jsonb_build_object(
+                               'id', fi.id, 'titre', fi.titre,
+                               'octets', fi.octets, 'pages', fi.pages)
+                             order by fi.ordre, fi.titre)
+                        from partitions_fichiers fi where fi.partie_id = pa.id
+                    ), '[]'::jsonb)
+                  ) as ligne
+                from partitions_affectations af2
+                join partitions_parties pa on pa.id = af2.partie_id
+                join partitions_spectacles sp on sp.id = pa.spectacle_id
+                where af2.tournee_id = t.id
+                  and af2.person_id = cible.person_id
+                  and af2.person_type = cible.person_type
+              ) p
+            ), '[]'::jsonb)
+          ) as ligne
+        from tournees t
+        left join partitions_acces ac on ac.id = t.id
+        where exists (
+          select 1 from partitions_affectations af
+           where af.tournee_id = t.id
+             and af.person_id = cible.person_id
+             and af.person_type = cible.person_type
+        )
+      ) o
+    ), '[]'::jsonb)
+  ) into resultat;
+
+  return resultat;
+end;
+$$;
+grant execute on function mes_partitions(text) to anon, authenticated;
+
+-- L'autorisation de télécharger UN fichier, et la création de son jeton de
+-- filigrane dans le même mouvement. Les deux ne se séparent pas : un jeton
+-- posé sur un PDF sans ligne de journal en face ne désigne personne, et une
+-- ligne de journal sans PDF ne gêne personne.
+--
+-- Un refus ne dit JAMAIS lequel des contrôles a échoué. Indiquer « mauvais
+-- code » plutôt que « pas affecté » renseignerait qui tâtonne.
+drop function if exists partition_pour_jeton(text, text, text);
+create or replace function partition_pour_jeton(p_token text, p_fichier_id text, p_code text)
+returns table(
+  chemin text, personne text, operation text, partie text,
+  jeton_filigrane text, chiffrer boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cible       record;
+  f           record;
+  v_tournee   text;
+  v_operation text;
+  v_personne  text;
+  v_jeton     text;
+begin
+  select * into cible from resolve_person_token(p_token);
+  if not found or cible.person_id is null then return; end if;
+
+  select fi.chemin as chemin, pa.id as partie_id, pa.nom as partie_nom,
+         sp.nom as spectacle_nom, sp.chiffrer as chiffrer
+    into f
+    from partitions_fichiers fi
+    join partitions_parties pa on pa.id = fi.partie_id
+    join partitions_spectacles sp on sp.id = pa.spectacle_id
+   where fi.id = p_fichier_id;
+  if not found or f.chemin = '' then return; end if;
+
+  -- L'affectation qui ouvre le droit, ET l'accès de l'opération qui va avec.
+  -- La comparaison du code ignore la casse : un code se lit à voix haute, il
+  -- se retape en minuscules aussi souvent qu'en majuscules.
+  select af.tournee_id into v_tournee
+    from partitions_affectations af
+    join partitions_acces ac on ac.id = af.tournee_id
+   where af.partie_id = f.partie_id
+     and af.person_id = cible.person_id
+     and af.person_type = cible.person_type
+     and ac.actif
+     and (ac.ouvert_le is null or ac.ouvert_le <= current_date)
+     and (ac.code = '' or upper(ac.code) = upper(coalesce(p_code, '')))
+   limit 1;
+  if v_tournee is null then return; end if;
+
+  select t.nom into v_operation from tournees t where t.id = v_tournee;
+
+  select trim(coalesce(m.prenom, '') || ' ' || coalesce(m.nom, '')) into v_personne
+    from musiciens m where m.id = cible.person_id and cible.person_type = 'musicien';
+  if v_personne is null then
+    select trim(coalesce(x.prenom, '') || ' ' || coalesce(x.nom, '')) into v_personne
+      from techniciens x where x.id = cible.person_id and cible.person_type = 'technicien';
+  end if;
+
+  -- 64 bits d'aléa, en quatre groupes lisibles. Il ne s'agit pas de résister à
+  -- une attaque — le jeton est invisible et personne ne le devine — mais de ne
+  -- jamais rendre deux fois le même, et de rester recopiable à la main quand on
+  -- l'a lu dans les métadonnées d'un fichier retrouvé.
+  v_jeton := 'CX-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4))
+                   || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4))
+                   || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4))
+                   || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4));
+
+  insert into partitions_telechargements
+    (id, jeton_filigrane, fichier_id, tournee_id, person_type, person_id,
+     personne, partie, spectacle, operation)
+  values
+    ('tel' || replace(gen_random_uuid()::text, '-', ''), v_jeton, p_fichier_id, v_tournee,
+     cible.person_type, cible.person_id,
+     coalesce(v_personne, ''), coalesce(f.partie_nom, ''), coalesce(f.spectacle_nom, ''),
+     coalesce(v_operation, ''));
+
+  return query select f.chemin, coalesce(v_personne, 'Musicien'), coalesce(v_operation, ''),
+                      coalesce(f.partie_nom, ''), v_jeton, coalesce(f.chiffrer, false);
+end;
+$$;
+grant execute on function partition_pour_jeton(text, text, text) to anon, authenticated;
+
+-- Le poids réellement servi, écrit après coup. Séparé de l'autorisation parce
+-- qu'on ne connaît la taille qu'une fois le filigrane posé — et parce qu'un
+-- échec ici ne doit surtout pas empêcher un musicien de recevoir sa partie.
+create or replace function journaliser_telechargement_partition(
+  p_token text, p_fichier_id text, p_jeton_filigrane text, p_octets bigint
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update partitions_telechargements
+     set octets = coalesce(p_octets, 0)
+   where jeton_filigrane = p_jeton_filigrane
+     and fichier_id = p_fichier_id;
+end;
+$$;
+grant execute on function journaliser_telechargement_partition(text, text, text, bigint) to anon, authenticated;
+
+-- CONSERVATION. Le journal des téléchargements porte un nom de personne et une
+-- date : c'est une donnée personnelle, conservée pour une seule raison — savoir
+-- de qui vient un exemplaire retrouvé en circulation. Elle n'a pas à survivre
+-- au spectacle. À purger avec le reste, comme le journal d'audit, et à
+-- mentionner dans mentions-legales.html.

@@ -773,6 +773,88 @@ const CurieuxDB = (()=>{
         _updatedAt: r.updated_at
       })
     },
+    /* LES PARTITIONS — trois niveaux, et c'est celui du milieu qui travaille.
+       Le SPECTACLE range le matériel une fois pour toutes ; la PARTIE (Violon 1,
+       Alto, Piano, Conducteur) est l'unité qu'on affecte ; le FICHIER est un PDF,
+       et une partie peut en porter plusieurs — une œuvre ajoutée au programme,
+       une version corrigée. En affectant la partie et non le fichier, un ajout
+       tardif se propage seul à tous ceux qui la lisent. */
+    partitions_spectacles: {
+      toDb: (s)=> ({
+        id: s.id, nom: s.nom || '', compositeur: s.compositeur || '',
+        arrangeur: s.arrangeur || '', lien_drive: s.lienDrive || '',
+        chiffrer: !!s.chiffrer, archive: !!s.archive, note: s.note || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, nom: r.nom || '', compositeur: r.compositeur || '',
+        arrangeur: r.arrangeur || '', lienDrive: r.lien_drive || '',
+        chiffrer: !!r.chiffrer, archive: !!r.archive, note: r.note || '',
+        _updatedAt: r.updated_at
+      })
+    },
+    partitions_parties: {
+      toDb: (p)=> ({
+        id: p.id, spectacle_id: p.spectacleId, nom: p.nom || '',
+        pupitre: p.pupitre || '', ordre: Number(p.ordre) || 0, note: p.note || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, spectacleId: r.spectacle_id, nom: r.nom || '',
+        pupitre: r.pupitre || '', ordre: Number(r.ordre) || 0, note: r.note || '',
+        _updatedAt: r.updated_at
+      })
+    },
+    partitions_fichiers: {
+      toDb: (f)=> ({
+        id: f.id, partie_id: f.partieId, titre: f.titre || '',
+        chemin: f.chemin || '', nom_origine: f.nomOrigine || '',
+        octets: Number(f.octets) || 0,
+        // null et non 0 : « nombre de pages inconnu » n'est pas « zéro page ».
+        pages: f.pages == null || f.pages === '' ? null : Number(f.pages),
+        empreinte: f.empreinte || '', ordre: Number(f.ordre) || 0
+      }),
+      fromDb: (r)=> ({
+        id: r.id, partieId: r.partie_id, titre: r.titre || '',
+        chemin: r.chemin || '', nomOrigine: r.nom_origine || '',
+        octets: Number(r.octets) || 0, pages: r.pages == null ? null : Number(r.pages),
+        empreinte: r.empreinte || '', ordre: Number(r.ordre) || 0,
+        _updatedAt: r.updated_at
+      })
+    },
+    partitions_affectations: {
+      toDb: (a)=> ({
+        id: a.id, tournee_id: a.tourneeId || '', partie_id: a.partieId,
+        person_type: a.personType || 'musicien', person_id: a.personId || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, tourneeId: r.tournee_id || '', partieId: r.partie_id,
+        personType: r.person_type || 'musicien', personId: r.person_id || '',
+        _updatedAt: r.updated_at
+      })
+    },
+    // L'id EST l'id de l'opération : une opération, un code.
+    partitions_acces: {
+      toDb: (a)=> ({
+        id: a.id, code: a.code || '', actif: a.actif !== false,
+        ouvert_le: a.ouvertLe || null
+      }),
+      fromDb: (r)=> ({
+        id: r.id, code: r.code || '', actif: r.actif !== false,
+        ouvertLe: r.ouvert_le || '', _updatedAt: r.updated_at
+      })
+    },
+    // Lecture seule côté page : c'est /api/partition qui l'écrit, en même temps
+    // qu'il pose le jeton invisible sur le PDF.
+    partitions_telechargements: {
+      toDb: (t)=> ({ id: t.id }),
+      fromDb: (r)=> ({
+        id: r.id, jetonFiligrane: r.jeton_filigrane, fichierId: r.fichier_id || '',
+        tourneeId: r.tournee_id || '', personType: r.person_type || '',
+        personId: r.person_id || '', personne: r.personne || '',
+        partie: r.partie || '', spectacle: r.spectacle || '',
+        operation: r.operation || '', octets: Number(r.octets) || 0,
+        createdAt: r.created_at
+      })
+    },
     carnet_contacts: {
       toDb: (c)=> ({
         id: c.id, role: c.role || '', nom: c.nom || '',
@@ -1416,6 +1498,11 @@ const CurieuxDB = (()=>{
     'musiciens', 'techniciens', 'tournees', 'feuilles_route', 'carnet_contacts',
     'dispo_demandes', 'remplacant_prefs', 'cachet_overrides', 'invitations',
     'depenses', 'suivis_budget',
+    // Les partitions : le matériel, ses parties, ses fichiers, ses affectations
+    // et les codes d'opération. PAS partitions_telechargements — cette table EST
+    // déjà un journal, et elle ne porte aucun déclencheur d'audit.
+    'partitions_spectacles', 'partitions_parties', 'partitions_fichiers',
+    'partitions_affectations', 'partitions_acces',
   ];
 
   // Suppressions restaurables : celles dont la ligne n'a pas été recréée depuis.
@@ -2097,6 +2184,51 @@ const CurieuxDB = (()=>{
     return (data && data.publicUrl) || '';
   }
 
+  /* ------------------------------------------------------------------------
+     LES PARTITIONS
+     ------------------------------------------------------------------------
+     Le bucket « partitions » est PRIVÉ, et il le reste. Le dépôt se fait ici,
+     depuis le navigateur de la production : trente fichiers de 1,7 Mo ne
+     passent pas par une fonction serverless, dont le corps de requête est
+     plafonné à 4,5 Mo. La LECTURE, elle, ne se fait jamais d'ici : un musicien
+     qui recevrait une URL vers le bucket recevrait l'exemplaire PROPRE, celui
+     qui ne désigne personne. Il passe par /api/partition, qui lit avec la clé
+     de service et ne rend qu'un exemplaire filigrané à son nom.
+     ------------------------------------------------------------------------ */
+
+  // upsert:false — on ne remplace jamais un fichier en place. Un chemin porte
+  // un identifiant unique, si bien qu'un dépôt ne peut pas en écraser un autre
+  // par collision de nom : « Violon 1.pdf » déposé deux fois donne deux
+  // fichiers, et c'est à la page de proposer de retirer l'ancien.
+  async function deposerPartition(spectacleId, partieId, fichier){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const chemin = `${spectacleId}/${partieId}/${_identifiant()}.pdf`;
+    const depot = await supabaseClient.storage.from('partitions')
+      .upload(chemin, fichier, { contentType: 'application/pdf', upsert: false });
+    if(depot.error) return { error: depot.error };
+    return { chemin };
+  }
+
+  async function retirerPartition(chemin){
+    if(!supabaseClient || !chemin) return { error: null };
+    const { error } = await supabaseClient.storage.from('partitions').remove([chemin]);
+    if(error) console.warn('[CurieuxDB] retirerPartition', error.message);
+    return { error: error || null };
+  }
+
+  // Ce que voit un musicien dans son espace, en un seul aller-retour. Le code
+  // de l'opération n'est PAS demandé ici : voir qu'on a trois partitions qui
+  // attendent est une information utile et sans risque ; c'est pour les
+  // télécharger qu'il faut le code.
+  async function mesPartitions(token){
+    if(!supabaseClient) return null;
+    const { data, error } = await supabaseClient.rpc('mes_partitions', { p_token: token });
+    if(!error) return data || null;
+    if(_fonctionAbsente(error)) return { migrationAbsente: true };
+    console.warn('[CurieuxDB] mesPartitions', error.message);
+    return null;
+  }
+
   function _identifiant(){
     return (typeof crypto !== 'undefined' && crypto.randomUUID)
       ? crypto.randomUUID().replace(/-/g, '')
@@ -2112,6 +2244,7 @@ const CurieuxDB = (()=>{
     getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis, enregistrerHorairesJournee,
     ajouterRemarqueParJeton, getRemarquesParJeton, enregistrerPlanSalleParJeton, toucherAcces,
     deposerPlanSalle, urlPubliquePlanSalle,
+    deposerPartition, retirerPartition, mesPartitions,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,
     getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,

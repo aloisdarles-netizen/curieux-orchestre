@@ -1,0 +1,195 @@
+/* ============================================================================
+ * partitions-commun.js — reconnaître une partie dans un nom de fichier.
+ *
+ * Le dépôt est le moment coûteux. On sort trente PDF de Dorico, nommés comme
+ * Dorico les nomme — « 410 Piano_merged.pdf », « Violon 1.pdf », « EXP33 - Cor
+ * 3-4 - v2.pdf » — et il faut dire de quelle partie chacun relève. Fait à la
+ * main, c'est quarante minutes et deux erreurs ; deviné correctement, c'est
+ * deux minutes de relecture.
+ *
+ * CE FICHIER NE DEVINE PAS L'INSTRUMENT D'UNE PERSONNE, et c'est délibéré.
+ * musiciens.instrument est du texte libre : 25 valeurs distinctes sur 114
+ * fiches, avec « Flutes » et « Flûtes », « Alto » et « Altos », « Contrebasse »
+ * et « Contrebasses », et un « Violoncelles » à espace final. On ne peut RIEN
+ * y apparier automatiquement sans se tromper. L'affectation reste donc
+ * nominative — c'est un choix, pas un renoncement : une partie donnée à la
+ * mauvaise personne se découvre à la première répétition.
+ *
+ * Ce qu'on devine ici, c'est seulement le lien FICHIER → PARTIE, où les deux
+ * côtés sont saisis par la même personne dans le même vocabulaire.
+ * ========================================================================== */
+
+/* L'ordre du conducteur. Une liste de parties triée par ordre alphabétique se
+   lit comme un annuaire ; triée ainsi, elle se lit comme une partition — et un
+   trou saute aux yeux, ce qui est tout l'intérêt au moment du dépôt. */
+const PARTITIONS_ORDRE_CONDUCTEUR = [
+  'piccolo', 'flute', 'hautbois', 'cor anglais', 'clarinette', 'clarinette basse',
+  'basson', 'contrebasson', 'saxophone',
+  'cor', 'trompette', 'cornet', 'saxhorn', 'trombone', 'trombone basse', 'tuba',
+  'timbales', 'percussion', 'batterie', 'vibraphone', 'marimba', 'xylophone',
+  'harpe', 'piano', 'celesta', 'clavier', 'orgue', 'accordeon', 'guitare', 'basse',
+  'voix', 'choeur', 'soprano', 'alto voix', 'tenor', 'basse voix',
+  'violon', 'violon 1', 'violon 2', 'alto', 'violoncelle', 'contrebasse',
+  'conducteur',
+];
+
+/* Le pupitre d'une partie, déduit de son nom. Six valeurs, celles que la maison
+   emploie déjà (musiciens.pupitre est propre, contrairement à instrument).
+   L'ordre des règles compte : « clarinette basse » doit tomber dans Bois avant
+   que « basse » ne l'envoie dans Cordes. */
+const PARTITIONS_PUPITRES = [
+  // « cor anglais » et « saxophone » AVANT les cuivres : sans cette priorité,
+  // « cor » attrape le cor anglais, qui est un hautbois. Et « saxhorn » est un
+  // cuivre, pas un saxophone — un motif « sax » les confondait.
+  { pupitre: 'Bois',        motifs: ['piccolo', 'flute', 'flûte', 'hautbois', 'cor anglais', 'clarinette', 'basson', 'saxophone'] },
+  { pupitre: 'Cuivres',     motifs: ['cor', 'trompette', 'cornet', 'saxhorn', 'trombone', 'tuba', 'bugle', 'euphonium'] },
+  { pupitre: 'Percussions', motifs: ['percussion', 'timbale', 'batterie', 'vibraphone', 'marimba', 'xylophone', 'glockenspiel', 'cymbale', 'caisse claire'] },
+  { pupitre: 'Chant',       motifs: ['voix', 'chant', 'choeur', 'chœur', 'soprano', 'mezzo', 'tenor', 'ténor', 'baryton'] },
+  { pupitre: 'Cordes',      motifs: ['violon', 'alto', 'violoncelle', 'cello', 'contrebasse', 'harpe'] },
+  { pupitre: 'Autre',       motifs: ['piano', 'clavier', 'celesta', 'orgue', 'synth', 'accordeon', 'accordéon', 'guitare', 'basse', 'conducteur', 'partition'] },
+];
+
+function partitionsNormaliser(texte) {
+  return String(texte || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[_\-.]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/* Nettoyer un nom de fichier pour en tirer un nom de partie lisible.
+   « 410 Piano_merged.pdf » → « Piano ». Les conventions rencontrées :
+   un numéro d'œuvre en tête, un suffixe d'export (_merged, _full, -final),
+   un numéro de version, une date. On les retire ; ce qui reste est la partie. */
+function partitionsNomDepuisFichier(nomFichier) {
+  let s = String(nomFichier || '').replace(/\.pdf$/i, '');
+  s = s.replace(/[_\-\s]*(merged|full|score|export|final|def|ok|v\d+|rev\d*)\b/gi, ' ');
+  s = s.replace(/\b(19|20)\d{2}[-_ ]?\d{2}[-_ ]?\d{2}\b/g, ' ');   // une date
+  s = s.replace(/^\s*\d{1,4}\s*[-_.)]?\s*/, '');                    // un numéro d'œuvre en tête
+  s = s.replace(/[_]+/g, ' ');
+  // On n'aère PAS les tirets : « Cor 1-2 » désigne un pupitre double et doit le
+  // rester. Aérer donnait « Cor 1 - 2 », que plus personne ne reconnaît.
+  s = s.replace(/\s+/g, ' ').trim();
+  s = s.replace(/^[-\s]+|[-\s]+$/g, '');
+  return s || String(nomFichier || '').replace(/\.pdf$/i, '');
+}
+
+/* Le mot commence-t-il ici, et finit-il proprement ? « violon » est dans
+   « violon 1 » (le mot s'arrête) mais pas dans « violoncelle » (il continue).
+   Sans cette distinction, un fichier « Violon.pdf » s'appariait au violoncelle
+   — l'erreur d'appariement la plus coûteuse, parce qu'elle est invisible
+   jusqu'à la première répétition. */
+function _motEntier(aiguille, meule) {
+  let i = meule.indexOf(aiguille);
+  while (i >= 0) {
+    const avant = i === 0 || meule[i - 1] === ' ';
+    const apres = i + aiguille.length === meule.length || meule[i + aiguille.length] === ' ';
+    if (avant && apres) return true;
+    i = meule.indexOf(aiguille, i + 1);
+  }
+  return false;
+}
+
+function partitionsPupitreDe(nom) {
+  const n = partitionsNormaliser(nom);
+  if (!n) return '';
+  for (const regle of PARTITIONS_PUPITRES) {
+    for (const motif of regle.motifs) {
+      const m = partitionsNormaliser(motif);
+      // Un motif doit commencer un mot : « cor » ne doit pas attraper
+      // « accordeon », et « alto » ne doit pas attraper « altoparlante ».
+      if (new RegExp('(^|\\s)' + m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(n)) return regle.pupitre;
+    }
+  }
+  return 'Autre';
+}
+
+/* La place d'une partie dans l'ordre du conducteur. Les parties inconnues
+   passent à la fin plutôt qu'au début : une partie qu'on n'a pas su classer se
+   relit mieux en bas de liste qu'intercalée au milieu des bois. */
+function partitionsOrdreDe(nom) {
+  const n = partitionsNormaliser(nom);
+  if (!n) return 9000;
+  // On cherche l'instrument N'IMPORTE OÙ dans le nom, pas seulement en tête :
+  // beaucoup de fichiers sortent préfixés du nom du spectacle
+  // (« EXP33 - Cor 3-4 »), et les classer tous à la fin ferait perdre l'ordre
+  // du conducteur au moment précis où il sert.
+  let meilleur = -1, rang = 9000;
+  PARTITIONS_ORDRE_CONDUCTEUR.forEach((cle, i) => {
+    const c = partitionsNormaliser(cle);
+    if (_motEntier(c, n) && c.length > meilleur) { meilleur = c.length; rang = i * 10; }
+  });
+  if (rang === 9000) return 9000;
+  // Le numéro dans la famille : « Cor 3 » après « Cor 1 ».
+  const num = n.match(/(\d+)/);
+  return rang + (num ? Math.min(9, Number(num[1])) : 0);
+}
+
+/* Apparier un fichier à une partie existante. Trois passes, de la plus sûre à
+   la plus lâche, et on dit TOUJOURS laquelle a répondu : une correspondance
+   exacte et une correspondance approximative ne se relisent pas avec la même
+   attention, et la page doit pouvoir faire remonter les secondes. */
+function partitionsApparier(nomFichier, parties) {
+  const propose = partitionsNomDepuisFichier(nomFichier);
+  const n = partitionsNormaliser(propose);
+  const liste = parties || [];
+  if (!n) return { partie: null, propose, sûrete: 'aucune' };
+
+  let trouve = liste.find(p => partitionsNormaliser(p.nom) === n);
+  if (trouve) return { partie: trouve, propose, sûrete: 'exacte' };
+
+  // Le nom du fichier contient celui de la partie, ou l'inverse : « EXP33 -
+  // Violon 1 » pour une partie « Violon 1 », ou « Cor » pour « Cor 1-2 ».
+  // L'inclusion doit tomber sur des MOTS ENTIERS — voir _motEntier.
+  const candidats = liste.filter(p => {
+    const q = partitionsNormaliser(p.nom);
+    return q && (_motEntier(q, n) || _motEntier(n, q));
+  });
+  if (candidats.length === 1) return { partie: candidats[0], propose, sûrete: 'probable' };
+  if (candidats.length > 1) {
+    /* Plusieurs prétendants : on ne tranche PAS. « Violon » entre « Violon 1 »
+       et « Violon 2 » n'a pas de bonne réponse, et en inventer une donne une
+       partie fausse qui ne se découvrira qu'à la première répétition. La page
+       reçoit la liste et pose la question — c'est une seconde de lecture contre
+       un pupitre qui n'a pas sa musique. */
+    candidats.sort((a, b) => partitionsNormaliser(a.nom).length - partitionsNormaliser(b.nom).length);
+    return { partie: null, propose, sûrete: 'incertaine', candidats };
+  }
+  return { partie: null, propose, sûrete: 'aucune' };
+}
+
+/* Le poids, tel qu'on le lit dans une page de production : jamais plus de trois
+   chiffres significatifs, et jamais d'octets bruts au-delà du kilo. */
+function partitionsPoids(octets) {
+  const o = Number(octets) || 0;
+  if (o < 1024) return o + ' o';
+  if (o < 1024 * 1024) return (o / 1024).toFixed(0).replace('.', ',') + ' Ko';
+  const mo = o / (1024 * 1024);
+  if (mo < 10) return mo.toFixed(1).replace('.', ',') + ' Mo';
+  if (mo < 1024) return mo.toFixed(0) + ' Mo';
+  return (mo / 1024).toFixed(2).replace('.', ',') + ' Go';
+}
+
+/* Le code d'une opération. Six caractères, sans les paires qu'on confond en le
+   lisant à voix haute au pupitre ou en le recopiant d'un message : pas de O ni
+   de 0, pas de I ni de 1, pas de S ni de 5. Ce n'est pas un mot de passe — il
+   est vérifié côté base, il vit le temps d'une opération, et il doit surtout ne
+   jamais être mal retapé. */
+function partitionsNouveauCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRTUVWXYZ2346789';
+  const octets = new Uint8Array(6);
+  crypto.getRandomValues(octets);
+  return Array.from(octets, b => alphabet[b % alphabet.length]).join('');
+}
+
+if (typeof window !== 'undefined') {
+  window.PARTITIONS_ORDRE_CONDUCTEUR = PARTITIONS_ORDRE_CONDUCTEUR;
+  window.partitionsNormaliser = partitionsNormaliser;
+  window.partitionsNomDepuisFichier = partitionsNomDepuisFichier;
+  window.partitionsPupitreDe = partitionsPupitreDe;
+  window.partitionsOrdreDe = partitionsOrdreDe;
+  window.partitionsApparier = partitionsApparier;
+  window.partitionsPoids = partitionsPoids;
+  window.partitionsNouveauCode = partitionsNouveauCode;
+}
