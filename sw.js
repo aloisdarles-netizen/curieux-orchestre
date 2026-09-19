@@ -145,7 +145,15 @@
 // change aussi : sans la nouvelle page dans sa liste blanche, l'écran des
 // partitions annoncerait le manifeste de l'ÉQUIPE, et l'icône posée depuis
 // cet écran ouvrirait la page de connexion.
-const VERSION = 'curieux-v126';
+// v127 : les partitions se travaillent dans l'ordre où la production décide —
+// on crée un spectacle, on dit sur quelle opération il se joue, puis on y lie
+// ses parties et ses musiciens. db.js apprend la table de liaison
+// partitions_programmations. Sans cet incrément, un navigateur déjà venu
+// garderait l'ancien db.js : partitions.html, elle rafraîchie (c'est une page,
+// servie réseau d'abord), lirait les programmations avec un adaptateur qui ne
+// les connaît pas — chaque spectacle s'afficherait comme rattaché à aucune
+// opération, et aucun rattachement ne s'enregistrerait.
+const VERSION = 'curieux-v127';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
