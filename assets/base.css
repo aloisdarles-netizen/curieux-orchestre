@@ -61,6 +61,22 @@
   --tour-6: #dcece9;
   --tour-7: #f0e0d4;
 
+  /* Couleurs de pupitre — le seul repère visuel des partitions.
+     Une liste de quarante parties se lit comme un annuaire tant que rien ne
+     dit où finissent les bois et où commencent les cuivres. Une teinte par
+     pupitre, la même sur l'écran de production et sur celui du musicien, et
+     un trou dans un pupitre se voit sans lire une ligne.
+     Les teintes sortent de la palette des tournées : même famille, donc pas
+     une charte de plus. L'encre est calculée pour tenir le contraste AA sur
+     son propre aplat — une pastille de pupitre porte toujours du texte. */
+  --pup-cordes: #dde8f5;       --pup-cordes-ink: #2d4f73;
+  --pup-bois: #e2ece4;         --pup-bois-ink: #2a6547;
+  --pup-cuivres: #f7ecc9;      --pup-cuivres-ink: #7d5a12;
+  --pup-percussions: #f3ddd0;  --pup-percussions-ink: #8a4526;
+  --pup-chant: #f5dfe8;        --pup-chant-ink: #8a2b58;
+  --pup-chef: #e3e0f5;         --pup-chef-ink: #443a80;
+  --pup-autre: #eae3e7;        --pup-autre-ink: #635360;
+
   /* --- Refonte 2026 : compléments de la charte ---------------------------
      Les six couleurs de la charte Les Alfredines, disponibles en littéral :
      les « stickers » de la refonte les posent en aplat, indépendamment du
@@ -140,6 +156,17 @@
   --tour-5: #2a2740;
   --tour-6: #1f302c;
   --tour-7: #332821;
+
+  /* La nuit, l'aplat s'assombrit et l'encre s'éclaircit : la teinte reste
+     reconnaissable d'un thème à l'autre, ce qui est tout l'intérêt d'un code
+     couleur — on ne réapprend pas ses pupitres en changeant de thème. */
+  --pup-cordes: #26364a;       --pup-cordes-ink: #a9c8e8;
+  --pup-bois: #20362b;         --pup-bois-ink: #96d2b0;
+  --pup-cuivres: #3a3120;      --pup-cuivres-ink: #e3c274;
+  --pup-percussions: #3a2a22;  --pup-percussions-ink: #e0a888;
+  --pup-chant: #3d2430;        --pup-chant-ink: #eaa6c3;
+  --pup-chef: #2b2742;         --pup-chef-ink: #b6aee6;
+  --pup-autre: #2c2629;        --pup-autre-ink: #bcaeb6;
 
   --tint-ink: #CEE1F4;
   --topbar: #4a0e2d;
@@ -568,6 +595,36 @@ body.co-has-topbar > .co-footer{ padding-left:16px; padding-right:16px; }
 .co-pill.ko{ background:var(--ko-tint); color:var(--ko); }
 .co-pill.info{ background:var(--accent-tint); color:var(--tint-ink); }
 .co-chip-col{ display:flex; flex-direction:column; align-items:flex-start; gap:5px; }
+
+/* --- Pastille de pupitre et jauge segmentée ------------------------------
+   Deux pièces partagées par l'écran de production et par l'espace du musicien.
+   Elles sont ici et pas dans chaque page pour la raison habituelle : le jour
+   où un pupitre change de teinte, il change de teinte partout. */
+.co-pup{
+  display:inline-flex; align-items:center; gap:5px; padding:2px 9px;
+  border-radius:var(--radius-pill); font-size:10.5px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.05em; white-space:nowrap;
+  background:var(--pup-autre); color:var(--pup-autre-ink);
+}
+.co-pup[data-pup="Cordes"]{ background:var(--pup-cordes); color:var(--pup-cordes-ink); }
+.co-pup[data-pup="Bois"]{ background:var(--pup-bois); color:var(--pup-bois-ink); }
+.co-pup[data-pup="Cuivres"]{ background:var(--pup-cuivres); color:var(--pup-cuivres-ink); }
+.co-pup[data-pup="Percussions"]{ background:var(--pup-percussions); color:var(--pup-percussions-ink); }
+.co-pup[data-pup="Chant"]{ background:var(--pup-chant); color:var(--pup-chant-ink); }
+.co-pup[data-pup="Chef d'orchestre"]{ background:var(--pup-chef); color:var(--pup-chef-ink); }
+
+/* La jauge segmentée : un segment par unité, pas un pourcentage. Sur douze
+   parties, « 75 % » ne dit pas lesquelles manquent ; trois segments rouges au
+   milieu de neuf verts, si. Les segments portent un title : la souris nomme
+   le trou, et le lecteur d'écran lit le résumé porté par le conteneur. */
+/* overflow:hidden : au-delà d'une trentaine de segments, la somme des largeurs
+   minimales dépasse la place disponible. On préfère une jauge tronquée à une
+   jauge qui pousse la carte hors de la grille. */
+.co-seg{ display:flex; gap:2px; height:8px; overflow:hidden; }
+.co-seg > i{ flex:1 1 0; min-width:2px; border-radius:2px; background:var(--ok); }
+.co-seg > i.vide{ background:var(--ko); }
+.co-seg > i.part{ background:var(--maybe); }
+.co-seg.fin{ height:5px; }
 /* Deux colonnes « ✓ Fait » / « À faire » des cartes d'avancement. */
 .co-split{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .co-split-head{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px; }
@@ -662,6 +719,13 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
    --prune reste figé (#791649) : deux foncés, texte quasi invisible. Le texte
    passe en crème, seul --prune n'étant pas remappé côté sombre. */
 :root[data-theme="dark"] .co-btn.secondary{ color:var(--blanc); }
+/* La nuit, --accent-dark vaut un bleu presque blanc (#eef6fc) : le survol d'un
+   bouton principal posait donc du blanc sur du blanc, et le libellé
+   disparaissait sous le curseur — sur les onglets de page, on ne savait plus
+   où l'on était. L'encre passe au noir de la charte sur cet aplat clair.
+   Même cause, même correctif pour .btn-primary, l'ancienne forme du bouton. */
+:root[data-theme="dark"] .co-btn.primary:hover,
+:root[data-theme="dark"] .btn-primary:hover{ color:#141617; }
 .co-btn.tonic{ background:var(--tonic); color:var(--blanc); }
 .co-btn.tint{ background:var(--accent-tint); color:var(--tint-ink); border-radius:8px; }
 

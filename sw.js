@@ -153,7 +153,14 @@
 // servie réseau d'abord), lirait les programmations avec un adaptateur qui ne
 // les connaît pas — chaque spectacle s'afficherait comme rattaché à aucune
 // opération, et aucun rattachement ne s'enregistrerait.
-const VERSION = 'curieux-v127';
+// v128 : la refonte visuelle des partitions, côté musicien. base.css porte les
+// teintes de pupitre (--pup-*) et deux pièces partagées (.co-pup, .co-seg),
+// partitions-commun.js les met en forme, mes-dates-vue.js redessine le bloc
+// « Mes partitions » en tuiles, et mes-partitions.html charge
+// partitions-commun.js. Sans cet incrément, un navigateur déjà venu garderait
+// l'ancien base.css : les variables de teinte seraient introuvables, donc les
+// bandeaux de pupitre transparents.
+const VERSION = 'curieux-v128';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
