@@ -1159,11 +1159,27 @@ const CurieuxDB = (()=>{
 
   // Récupère toute une collection (équivalent de l'ancien loadXxx()).
   async function fetchAll(table){
-    if(!supabaseClient) return [];
+    const { data } = await fetchAllOuEchec(table);
+    return data;
+  }
+
+  /* La même lecture, mais qui DIT quand elle a échoué.
+   *
+   * fetchAll rend [] aussi bien pour « la table est vide » que pour « je n'ai
+   * pas pu lire » — c'est commode pour afficher, désastreux pour décider. Le
+   * 18 septembre, la page « Suivi des dispos » a recréé 85 demandes déjà
+   * existantes : sa lecture avait échoué, la liste vide a été prise pour un
+   * inventaire, et le code a conclu qu'aucune demande n'existait.
+   *
+   * Tout code qui CRÉE, SUPPRIME ou compare à partir d'une collection doit
+   * passer par ici et s'arrêter sur l'erreur. Pour seulement afficher,
+   * fetchAll reste le bon outil : une liste vide s'y voit. */
+  async function fetchAllOuEchec(table){
+    if(!supabaseClient) return { data: [], error: { message: 'Supabase non chargé' } };
     const { data, error } = await supabaseClient.from(table).select('*').order('created_at', { ascending: true });
-    if(error){ console.warn(`[CurieuxDB] fetchAll(${table})`, error.message); return []; }
+    if(error){ console.warn(`[CurieuxDB] fetchAll(${table})`, error.message); return { data: [], error }; }
     const adapter = adapterFor(table);
-    return (data || []).map(adapter.fromDb);
+    return { data: (data || []).map(adapter.fromDb), error: null };
   }
 
   // Une seule ligne, par son id — pour vérifier la fraîcheur d'un document
@@ -2328,7 +2344,7 @@ const CurieuxDB = (()=>{
   }
 
   return {
-    fetchAll, fetchOne, tableManquante, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
+    fetchAll, fetchAllOuEchec, fetchOne, tableManquante, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
     fetchReglages, fetchPreferences, savePreferences, setPhaseTest, setVillesBase, setTechniqueSeuils, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,

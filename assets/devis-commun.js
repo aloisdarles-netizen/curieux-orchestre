@@ -14,7 +14,8 @@
  *     connaît le nombre de dates, l'effectif attendu et le cachet standard.
  *
  * Le document devis (stocké tel quel en jsonb) :
- *   { id, projetId, tourneeId, variante, retenue, numero, statut, fige,
+ *   { id, projetId, tourneeId, typeDoc, budgetId, issuDevisId,
+ *     variante, retenue, numero, statut, fige,
  *     titre, clientId, date, validiteJours, conditionsReglement, acomptePct,
  *     intervention, rendus:[{titre, texte}], horsDevisTexte, memo,
  *     chargesApres (id de section : le bloc des charges patronales s'imprime
@@ -100,6 +101,25 @@ function typeDocDe(d){
   return 'budget';
 }
 
+/* Le cycle de vie d'un chiffrage, et ce qui en sort de la vue.
+ *
+ * Un budget dont un devis client a été tiré a fait son travail : c'est le
+ * devis qui vit désormais, le budget n'est plus qu'une référence — celle
+ * contre laquelle l'écart se mesure. Il quitte donc le plan de travail sans
+ * disparaître : le supprimer ferait perdre la marge, et l'historique de ce
+ * qu'on avait prévu.
+ *
+ * Volontairement DÉRIVÉ et non stocké : pas de drapeau `archive` à tenir à
+ * jour, donc rien qui puisse mentir. Supprimer le devis tiré fait revenir son
+ * budget dans le plan de travail, ce qui est exactement ce qu'on veut.
+ */
+function budgetTire(b, tous){
+  return !!b && (tous || []).some(d=> d.budgetId === b.id);
+}
+function estArchive(d, tous){
+  return typeDocDe(d) === 'budget' && budgetTire(d, tous);
+}
+
 const DEVIS_STATUTS = {
   brouillon: 'Brouillon',
   envoye:    'Envoyé',
@@ -116,7 +136,11 @@ function nouveauDevis(reglages, projetId, tourneeId, typeProjet){
     id: genId('devis'),
     projetId: projetId || genId('projet'),
     tourneeId: tourneeId || '',
-    typeDoc: 'budget', budgetId: '',
+    // typeDoc : 'budget' (interne, retravaillable) ou 'devis' (client).
+    // budgetId  : sur un devis, le budget dont il a été tiré.
+    // issuDevisId : sur un budget, le devis dont il est une variante — une
+    //   variante repart d'un document de travail, elle ne naît pas devis.
+    typeDoc: 'budget', budgetId: '', issuDevisId: '',
     variante: '', retenue: false,
     numero: '', statut: 'brouillon', fige: false,
     titre: '', clientId: '', date: '',

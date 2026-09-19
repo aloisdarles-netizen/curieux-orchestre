@@ -498,7 +498,8 @@ function renderTout(){
 function renderTete(){
   const estBudget = typeDocDe(devis) === 'budget';
   document.getElementById('pageTitre').textContent = devis.titre || 'Sans titre';
-  const morceaux = [estBudget ? 'Budget prévisionnel (interne)' : 'Devis client'];
+  const estRange = estBudget && estArchive(devis, tousDevis);
+  const morceaux = [estBudget ? (estRange ? 'Budget rangé (interne)' : 'Budget prévisionnel (interne)') : 'Devis client'];
   if(devis.numero) morceaux.push(devis.numero);
   if(!estBudget) morceaux.push(DEVIS_STATUTS[devis.statut] || 'Brouillon');
   if(devis.variante) morceaux.push('variante « ' + devis.variante + ' »');
@@ -514,10 +515,25 @@ function renderTete(){
       + 'Pour continuer à travailler, duplique-le en nouvelle variante'
       + (budgetSource ? ` — ou reprends <a href="devis-editeur.html?id=${encodeURIComponent(budgetSource.id)}">son budget</a>.` : '.');
   } else if(estBudget){
-    note.style.display = 'block'; note.className = 'budget-note';
-    note.innerHTML = '<b>Budget prévisionnel — document interne.</b> Il n\'est ni numéroté ni envoyé : '
-      + 'c\'est ton outil de travail, tu le retouches quand tu veux. Quand le chiffrage tient, '
-      + '« Générer le devis client » en tire la version commerciale, que tu pourras dépouiller sans y toucher.';
+    const tires = tousDevis.filter(d=> d.budgetId === devis.id);
+    const origine = devis.issuDevisId ? tousDevis.find(d=> d.id === devis.issuDevisId) : null;
+    const liens = tires.map(d=> `<a href="devis-editeur.html?id=${encodeURIComponent(d.id)}">${escapeHtml(d.variante || d.numero || 'le devis')}</a>`).join(', ');
+    note.style.display = 'block';
+    if(tires.length){
+      // Le budget a fait son travail : il est rangé, mais reste modifiable —
+      // c'est lui qui sert de référence à l'écart, et on peut vouloir corriger
+      // un chiffrage qu'on sait faux même après avoir tiré le devis.
+      note.className = 'budget-note';
+      note.innerHTML = `<b>Budget rangé.</b> ${tires.length > 1 ? 'Des devis clients en ont' : 'Un devis client en a'} été tiré (${liens})`
+        + `, et c'est ${tires.length > 1 ? 'eux' : 'lui'} qui vit maintenant. Ce budget quitte le plan de travail mais reste la référence de l'écart — `
+        + 'tu peux encore le corriger, ou en tirer un autre devis.';
+    } else {
+      note.className = 'budget-note';
+      note.innerHTML = '<b>Budget prévisionnel — document interne.</b> Il n\'est ni numéroté ni envoyé : '
+        + 'c\'est ton outil de travail, tu le retouches quand tu veux. Quand le chiffrage tient, '
+        + '« Générer le devis client » en tire la version commerciale, que tu pourras dépouiller sans y toucher.'
+        + (origine ? ` Cette variante repart du devis <a href="devis-editeur.html?id=${encodeURIComponent(origine.id)}">${escapeHtml(origine.variante || origine.numero || 'précédent')}</a>.` : '');
+    }
   } else {
     note.style.display = 'block'; note.className = 'devis-note';
     note.innerHTML = '<b>Devis client.</b> C\'est ce document qui part chez le client et suit le cycle '
@@ -529,7 +545,7 @@ function renderTete(){
   const actions = [];
   actions.push(`<button type="button" class="co-btn secondary md" id="pdfBtn">${estBudget ? 'PDF budget' : 'PDF'}</button>`);
   if(estBudget) actions.push('<button type="button" class="co-btn primary md" id="genererBtn">Générer le devis client</button>');
-  actions.push(`<button type="button" class="co-btn secondary md" id="dupliquerBtn">Dupliquer${estBudget ? ' ce budget' : ' en variante'}</button>`);
+  actions.push(`<button type="button" class="co-btn secondary md" id="dupliquerBtn">${estBudget ? 'Dupliquer ce budget' : 'Nouvelle variante (en budget)'}</button>`);
   if(variantes.length > 1 && !devis.retenue) actions.push('<button type="button" class="co-btn secondary md" id="retenueBtn">Marquer retenu</button>');
   if(!estBudget && !devis.fige && devis.statut === 'brouillon') actions.push('<button type="button" class="co-btn primary md" id="envoyerBtn">Passer en « envoyé »</button>');
   if(!estBudget && devis.statut === 'envoye'){
@@ -573,9 +589,21 @@ function renderTete(){
   document.getElementById('dupliquerBtn').addEventListener('click', async ()=>{
     const copie = JSON.parse(JSON.stringify(devis));
     copie.id = genId('devis');
-    copie.typeDoc = typeDocDe(devis);
+    // Une variante repart TOUJOURS d'un document de travail, jamais d'un devis
+    // client tout fait. Dupliquer un devis envoyé donnait jusqu'ici un second
+    // devis en brouillon, qui n'avait jamais été budgété : on obtenait une
+    // proposition commerciale dont personne n'avait vérifié qu'elle tenait.
+    // Elle naît donc budget, et devra passer en devis comme les autres.
+    copie.typeDoc = 'budget';
+    copie.budgetId = '';
+    copie.issuDevisId = estBudget ? (devis.issuDevisId || '') : devis.id;
     copie.numero = ''; copie.statut = 'brouillon'; copie.fige = false; copie.retenue = false;
-    copie.variante = prompt('Nom de la nouvelle variante ? (ex. « Sans clip »)', devis.variante ? devis.variante + ' (copie)' : 'Variante 2') || 'Variante';
+    const parDefaut = devis.variante ? devis.variante + ' (variante)' : 'Variante 2';
+    copie.variante = prompt(
+      estBudget
+        ? 'Nom de la nouvelle variante ? (ex. « Sans clip »)'
+        : 'Nom de la variante ?\n\nElle repart en budget de travail : quand le chiffrage tient, tu en tireras son devis client.',
+      parDefaut) || 'Variante';
     const { error } = await CurieuxDB.upsertOne('devis', copie);
     if(error){ alert('Duplication impossible :\n\n' + error.message); return; }
     location.href = 'devis-editeur.html?id=' + encodeURIComponent(copie.id);

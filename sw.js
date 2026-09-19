@@ -174,7 +174,17 @@
 // un téléphone déjà venu garderait l'ancien app-musicien.js et continuerait de
 // cacher l'onglet aux musicien·nes sans partie affectée — c'est-à-dire à
 // presque tout l'orchestre.
-// v131 : la refonte visuelle des partitions, côté PRODUCTION cette fois.
+// v131 : « Mes remplaçant·es » ne peut plus annoncer un enregistrement qui n'a
+// pas eu lieu. L'incrément compte ici pour lui-même : il vide le cache des
+// actifs, donc un téléphone qui gardait un assets/db.js d'avant la fonction
+// d'écriture — le cas où le bouton restait figé sur « Enregistrement… » —
+// repart sur un fichier frais au prochain chargement.
+// v132 : db.js gagne fetchAllOuEchec — la lecture d'une collection qui DIT
+// quand elle a échoué, au lieu de rendre une liste vide indistinguable d'une
+// table vide. « Suivi des dispos » s'en sert pour ne plus recréer des demandes
+// qu'il n'a pas pu lire. Sans cet incrément, un navigateur déjà venu garderait
+// l'ancien db.js : la page appellerait une fonction absente.
+// v133 : la refonte visuelle des partitions, côté PRODUCTION cette fois.
 // partitions.html est une page — servie réseau d'abord, donc rafraîchie sans
 // cet incrément — mais elle ne tient debout qu'avec les pièces communes déjà
 // posées en v128 : les teintes --pup-* et la jauge .co-seg de base.css, le
@@ -184,7 +194,7 @@
 // les cartes de spectacle s'afficheraient sans teinte, les tuiles de matériel
 // sans bordure de pupitre et la matrice sans colonne collante — un écran de
 // production illisible là où il doit justement montrer les trous.
-const VERSION = 'curieux-v131';
+const VERSION = 'curieux-v133';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

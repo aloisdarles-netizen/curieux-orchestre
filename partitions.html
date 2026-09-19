@@ -557,6 +557,11 @@ let state = {
   // Voir chargerJournalTiers.
   prisesTiers: null,          // { parEnvoi: { <envoiId>: {nb, derniere} }, total }
   prisesTiersEnCours: false,
+  // Le compte est-il « admin » ? La page entière est derrière requireAdminAuth
+  // (toute l'équipe y entre) ; la SUPPRESSION d'un spectacle, elle, est
+  // réservée aux comptes admin, comme le budget et les devis. Lu une fois au
+  // chargement : le rôle ne change pas en cours de session.
+  admin: false,
   chargement: true,
 };
 
@@ -797,7 +802,7 @@ function mediaPetitEcran(){
 
 async function charger(){
   const [spectacles, programmations, parties, fichiers, affectations, acces, envois,
-         tournees, musiciens, techniciens, migrationAbsente, envoisAbsents] = await Promise.all([
+         tournees, musiciens, techniciens, migrationAbsente, envoisAbsents, admin] = await Promise.all([
     CurieuxDB.fetchAll('partitions_spectacles').catch(()=> []),
     CurieuxDB.fetchAll('partitions_programmations').catch(()=> []),
     CurieuxDB.fetchAll('partitions_parties').catch(()=> []),
@@ -810,9 +815,10 @@ async function charger(){
     CurieuxDB.fetchAll('techniciens').catch(()=> []),
     CurieuxDB.tableManquante('partitions_programmations').catch(()=> false),
     CurieuxDB.tableManquante('partitions_envois').catch(()=> false),
+    CurieuxDB.isSuperAdmin().catch(()=> false),
   ]);
   Object.assign(state, { spectacles, programmations, parties, fichiers, affectations, acces, envois,
-                         tournees, musiciens, techniciens, chargement: false });
+                         tournees, musiciens, techniciens, admin, chargement: false });
   // Une liste vide se lit « rien n'est programmé » ; la vérité peut être « la
   // migration n'est pas jouée ». Ce n'est pas la même chose à faire ensuite —
   // et deux migrations peuvent manquer, sans les mêmes conséquences : on nomme
@@ -1497,7 +1503,45 @@ function blocReglages(s){
         <span></span>
         <label class="co-check"><input type="checkbox" id="chkArchive" ${s.archive ? 'checked' : ''}> <span>${s.archive ? 'Archivé' : 'Actif'}</span></label>
       </div>
+      ${blocSuppression(s)}
     </section>`;
+}
+
+/* La suppression définitive, et les deux raisons de la traiter à part.
+
+   ELLE EST RÉSERVÉE AUX COMPTES ADMIN. Toute l'équipe entre sur cette page
+   pour déposer et distribuer ; effacer d'un clic le matériel d'un spectacle —
+   les PDF avec — n'est pas du même ordre, et c'est la garde que le projet pose
+   déjà sur le budget et les devis. Le bouton n'est pas caché aux autres : il
+   est remplacé par la raison, sinon on cherche ce qui a disparu de son écran.
+
+   ELLE N'EST PAS LE GESTE COURANT. Un spectacle qui ne se joue plus
+   s'ARCHIVE : il sort des listes et rien ne se perd. La suppression sert à
+   autre chose — un doublon créé par erreur, un essai, un matériel déposé sous
+   le mauvais nom. Le texte le dit, parce que personne ne lit une page d'aide
+   mais tout le monde lit la ligne qu'il a sous les yeux. */
+function blocSuppression(s){
+  if(!state.admin){
+    return `
+      <div class="ligne">
+        <span class="l-nom">
+          <span class="l-titre">Supprimer ce spectacle</span>
+          <span class="l-sous">Réservé aux comptes admin — la suppression emporte les fichiers déposés, et le stockage ne les rend pas. Archive-le, ou demande à un compte admin.</span>
+        </span>
+        <span></span>
+        <span class="l-num">—</span>
+      </div>`;
+  }
+  const inv = inventaireSpectacle(s);
+  return `
+    <div class="ligne">
+      <span class="l-nom">
+        <span class="l-titre sans-lecteur">Supprimer définitivement ce spectacle</span>
+        <span class="l-sous">Emporte ${inv.parties.length} partie${inv.parties.length > 1 ? 's' : ''}, ${inv.fichiers.length} fichier${inv.fichiers.length > 1 ? 's' : ''}${inv.poids ? ' (' + partitionsPoids(inv.poids) + ')' : ''}, ${inv.affectations.length} affectation${inv.affectations.length > 1 ? 's' : ''} et ${inv.envois.length} transmission${inv.envois.length > 1 ? 's' : ''}. Pour un spectacle qui ne se joue plus, archive-le : rien n'est perdu et il sort des listes.</span>
+      </span>
+      <span></span>
+      <button type="button" class="co-btn sm" id="btnSupprimerSpectacle">Supprimer…</button>
+    </div>`;
 }
 
 /* --- VUE 3 : LE DÉPÔT ------------------------------------------------------ */
@@ -2260,6 +2304,7 @@ function cablerVue(){
 
   if(q('chkChiffrer')) q('chkChiffrer').onchange = (e)=> majSpectacle({ chiffrer: e.target.checked });
   if(q('chkArchive')) q('chkArchive').onchange = (e)=> majSpectacle({ archive: e.target.checked });
+  if(q('btnSupprimerSpectacle')) q('btnSupprimerSpectacle').onclick = ()=> supprimerSpectacle(spectacleCourant());
   if(q('inpDrive')) q('inpDrive').onchange = (e)=> majSpectacle({ lienDrive: e.target.value.trim() });
 
   el.querySelectorAll('[data-retirer-partie]').forEach(b => b.onclick = ()=> retirerPartie(b.dataset.retirerPartie));
@@ -2637,6 +2682,29 @@ function creerPartieLocale(nom, pupitre){
 /* Une partie retirée emporte ses fichiers, et ses fichiers sont dans le
    stockage. On ne touche au stockage que dans `purger` : tant que le ruban
    « Annuler » est là, rien n'est parti. */
+/* TOUT ce qu'une suppression de spectacle emporte, compté avant de le dire.
+   C'est la seule façon d'écrire un avertissement qui vaille : « supprimer ce
+   spectacle ? » ne renseigne personne, « 38 parties, 41 fichiers (67 Mo),
+   52 affectations chez 34 personnes et 2 transmissions » fait réfléchir une
+   seconde, et cette seconde est tout ce qu'on cherche. */
+function inventaireSpectacle(s){
+  const parties = partiesDe(s.id);
+  const idsParties = new Set(parties.map(p => p.id));
+  const fichiers = state.fichiers.filter(f => idsParties.has(f.partieId));
+  const affectations = state.affectations.filter(a => idsParties.has(a.partieId));
+  const programmations = programmationsDe(s.id);
+  const envois = state.envois.filter(e => e.spectacleId === s.id);
+  return {
+    parties, fichiers, affectations, programmations, envois,
+    personnes: new Set(affectations.map(a => a.personType + '|' + a.personId)).size,
+    poids: fichiers.reduce((t, f) => t + (f.octets || 0), 0),
+    // Un lot ouvert ou qui va s'ouvrir est un ensemble qui travaille dessus en
+    // ce moment, ou s'y prépare. Les lots révoqués et périmés ne retiennent
+    // rien : leur lien ne sert déjà plus.
+    dehors: envois.filter(e => ['ouvert', 'attente'].includes(etatEnvoi(e).cle)),
+  };
+}
+
 /* Les lots confiés OUVERTS qui contiennent cette partie. Un lot « tout le
    spectacle » la contient par construction ; un lot sur sélection, seulement
    s'il la nomme. On ne compte pas les lots révoqués ou périmés : ils ne
@@ -2648,6 +2716,119 @@ function lotsContenant(partie){
     && e.actif
     && (!e.expireLe || e.expireLe >= jour)
     && (e.toutesParties || (e.parties || []).includes(partie.id)));
+}
+
+/* SUPPRIMER UN SPECTACLE, et tout ce qui pend après lui.
+
+   L'ORDRE DE SUPPRESSION N'EST PAS UN DÉTAIL. Les clés étrangères sont en
+   « on delete restrict » : les fichiers tiennent aux parties, les parties et
+   les envois tiennent au spectacle. Commencer par le spectacle échoue, et
+   échoue à moitié — quelques lignes parties, le reste en place, et un écran
+   qui ne dit rien de juste. On descend donc l'arbre : affectations, fichiers
+   (et leurs objets de stockage), parties, transmissions, programmations, puis
+   le spectacle.
+
+   CE QUI SURVIT, ET C'EST VOULU. Le journal des téléchargements ne porte
+   aucune clé étrangère : il reste. C'est sa raison d'être — une partition
+   retrouvée dans deux ans se rattache à quelqu'un même si le spectacle a été
+   effacé entre-temps. Le journal d'audit, lui, garde l'état complet des
+   lignes supprimées : elles sont restaurables depuis la corbeille de
+   l'administration. Les FICHIERS, non : le stockage ne les rend pas.
+
+   ON PASSE PAR LE RUBAN D'ANNULATION, comme le retrait d'une partie. Rien
+   n'est réellement détruit tant qu'il est à l'écran : c'est le dernier filet,
+   et le seul qui rattrape un fichier. */
+async function supprimerSpectacle(s){
+  if(!s) return;
+  if(!state.admin){
+    alert("La suppression d'un spectacle est réservée aux comptes admin.");
+    return;
+  }
+  const inv = inventaireSpectacle(s);
+
+  /* UN LOT ENCORE DEHORS FAIT REFUSER. Un ensemble tiers qui travaille sur ce
+     matériel verrait son lien cesser de fonctionner sans un mot — et c'est la
+     seule personne que la page ne peut pas prévenir. Révoquer d'abord est un
+     clic, et ce clic est une décision qu'on prend les yeux ouverts. */
+  if(inv.dehors.length){
+    alert(`Ce spectacle est confié à ${inv.dehors.length} ensemble${inv.dehors.length > 1 ? 's' : ''} en ce moment :\n`
+      + inv.dehors.map(e => '  · ' + e.destinataire).join('\n')
+      + `\n\nLeur lien cesserait de fonctionner sans qu'ils en soient avertis. Révoque ${inv.dehors.length > 1 ? 'ces transmissions' : 'cette transmission'} d'abord, puis supprime.`);
+    return;
+  }
+
+  const lignes = [
+    `${inv.parties.length} partie${inv.parties.length > 1 ? 's' : ''}`,
+    `${inv.fichiers.length} fichier${inv.fichiers.length > 1 ? 's' : ''}${inv.poids ? ' — ' + partitionsPoids(inv.poids) + ', retirés du stockage' : ''}`,
+    inv.affectations.length ? `${inv.affectations.length} affectation${inv.affectations.length > 1 ? 's' : ''} chez ${inv.personnes} personne${inv.personnes > 1 ? 's' : ''} — ces partitions disparaîtront de leur espace` : '',
+    inv.programmations.length ? `${inv.programmations.length} rattachement${inv.programmations.length > 1 ? 's' : ''} à une opération` : '',
+    inv.envois.length ? `${inv.envois.length} transmission${inv.envois.length > 1 ? 's' : ''} (révoquée${inv.envois.length > 1 ? 's' : ''} ou périmée${inv.envois.length > 1 ? 's' : ''})` : '',
+  ].filter(Boolean);
+
+  ouvrirFiche({
+    titre: `Supprimer « ${s.nom} » ?`,
+    sous: "Un spectacle qui ne se joue plus s'ARCHIVE : il sort des listes et rien n'est perdu. La suppression sert à autre chose — un doublon, un essai, un matériel déposé sous le mauvais nom.",
+    libelleOk: 'Supprimer définitivement',
+    corps: `
+      <p class="sous" style="margin:0 0 6px"><b>Ce qui part avec lui :</b></p>
+      <ul style="margin:0 0 12px 18px; padding:0; font-size:13px; line-height:1.7">
+        ${lignes.map(l => `<li>${escapeHtml(l)}</li>`).join('')}
+      </ul>
+      <p class="sous" style="margin:0 0 12px">Ce qui reste : le <b>journal des téléchargements</b> — il doit survivre à ce qu'il décrit, c'est ce qui permet de rattacher une partition retrouvée. Les lignes supprimées restent restaurables depuis la corbeille de l'administration, <b>mais pas les fichiers</b> : le stockage ne les rend pas.</p>
+      <label class="co-label" for="fConfirme">Retape le nom du spectacle pour confirmer</label>
+      <input class="co-input" id="fConfirme" autocomplete="off" placeholder="${escapeAttr(s.nom)}">`,
+    valider: async (ov)=>{
+      const saisi = ov.querySelector('#fConfirme').value.trim();
+      if(partitionsNormaliser(saisi) !== partitionsNormaliser(s.nom)){
+        return 'Le nom ne correspond pas. Recopie-le tel qu\'il est affiché — c\'est la dernière vérification.';
+      }
+      effacerSpectacle(s, inv);
+      return '';
+    },
+  });
+}
+
+function effacerSpectacle(s, inv){
+  const idsParties = new Set(inv.parties.map(p => p.id));
+  const idsAff = new Set(inv.affectations.map(a => a.id));
+  const idsEnvois = new Set(inv.envois.map(e => e.id));
+  const idsProg = new Set(inv.programmations.map(p => p.id));
+
+  state.affectations = state.affectations.filter(a => !idsAff.has(a.id));
+  state.fichiers = state.fichiers.filter(f => !idsParties.has(f.partieId));
+  state.parties = state.parties.filter(p => !idsParties.has(p.id));
+  state.envois = state.envois.filter(e => !idsEnvois.has(e.id));
+  state.programmations = state.programmations.filter(p => !idsProg.has(p.id));
+  state.spectacles = state.spectacles.filter(x => x.id !== s.id);
+  state.spectacleId = '';
+  state.tourneeId = '';
+  state.vue = 'spectacles';
+  rendre();
+
+  CurieuxAnnuler.proposer({
+    texte: `« ${s.nom} » supprimé${inv.fichiers.length ? ` (${inv.fichiers.length} fichier${inv.fichiers.length > 1 ? 's' : ''})` : ''}`,
+    retablir: ()=>{
+      state.spectacles.push(s);
+      state.parties.push(...inv.parties);
+      state.fichiers.push(...inv.fichiers);
+      state.affectations.push(...inv.affectations);
+      state.envois.push(...inv.envois);
+      state.programmations.push(...inv.programmations);
+      ouvrirSpectacle(s.id, '');
+    },
+    // L'ordre descend l'arbre des clés étrangères — voir l'en-tête ci-dessus.
+    purger: async ()=>{
+      for(const a of inv.affectations) await CurieuxDB.removeOne('partitions_affectations', a.id);
+      for(const f of inv.fichiers){
+        await CurieuxDB.removeOne('partitions_fichiers', f.id);
+        await CurieuxDB.retirerPartition(f.chemin);
+      }
+      for(const p of inv.parties) await CurieuxDB.removeOne('partitions_parties', p.id);
+      for(const e of inv.envois) await CurieuxDB.removeOne('partitions_envois', e.id);
+      for(const p of inv.programmations) await CurieuxDB.removeOne('partitions_programmations', p.id);
+      await CurieuxDB.removeOne('partitions_spectacles', s.id);
+    },
+  });
 }
 
 function retirerPartie(id){

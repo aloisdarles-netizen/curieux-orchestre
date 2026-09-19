@@ -51,6 +51,15 @@
     padding:8px 11px; border:1px solid var(--border); border-radius:8px;
     font-size:13px; font-weight:700; background:var(--card); color:var(--text); font-family:inherit;
   }
+  /* Le budget d'origine : replié, discret, mais à portée de clic. Il a fait
+     son travail, il n'occupe plus le plan de travail — il reste la référence
+     contre laquelle l'écart se mesure. */
+  .archives{margin-top:6px; border-top:1px dashed var(--border); padding-top:6px;}
+  .archives > summary{cursor:pointer; font-size:11.5px; color:var(--muted); font-weight:700; padding:4px 0; list-style:none;}
+  .archives > summary::-webkit-details-marker{display:none;}
+  .archives > summary::before{content:'▸ '; font-size:10px;}
+  .archives[open] > summary::before{content:'▾ ';}
+  .archives .variante-row{opacity:.72;}
   .variante-row{
     display:flex; align-items:center; gap:10px; flex-wrap:wrap;
     padding:9px 0; border-top:1px solid var(--border);
@@ -256,7 +265,11 @@ function renderProjets(){
     // Les budgets (le travail interne) d'abord, les devis clients ensuite.
     const budgets = docs.filter(d=> typeDocDe(d) === 'budget');
     const devisClients = docs.filter(d=> typeDocDe(d) === 'devis');
-    const ordonnes = [...budgets, ...devisClients];
+    // Un budget dont un devis a été tiré sort du plan de travail : c'est le
+    // devis qui vit. Il reste en bas de la carte, replié, parce qu'il reste la
+    // référence de l'écart — et parce qu'on veut pouvoir y revenir.
+    const archives = budgets.filter(b=> estArchive(b, devisCache));
+    const ordonnes = [...budgets.filter(b=> !estArchive(b, devisCache)), ...devisClients];
     const principale = docs.find(v=> v.retenue) || docs[0];
     const client = nomClient(principale.clientId);
     // Tous les documents d'une carte chiffrent le même projet : le premier fait foi.
@@ -267,10 +280,14 @@ function renderProjets(){
     // plus avancé : accepté, sinon envoyé, sinon dernier brouillon).
     let ecart = '';
     if(budgets.length && devisClients.length){
-      const budgetRef = budgets.find(b=> b.retenue) || budgets[0];
       const devisRef = devisClients.find(d=> d.statut === 'accepte')
         || devisClients.find(d=> d.statut === 'envoye')
         || devisClients[devisClients.length - 1];
+      // Le budget dont CE devis a été tiré, quand on le connaît : comparer un
+      // devis au budget d'une autre variante donnait un écart qui ne voulait
+      // rien dire. Les deux replis servent aux documents d'avant ce lien.
+      const budgetRef = budgets.find(b=> b.id === devisRef.budgetId)
+        || budgets.find(b=> b.retenue) || budgets[0];
       const delta = calculerDevis(devisRef).totalHT - calculerDevis(budgetRef).totalHT;
       ecart = `<div class="ecart-ligne">Écart budget → devis client : <b>${delta >= 0 ? '+' : '−'}${fmtEurosDevis(Math.abs(delta))} HT</b></div>`;
     }
@@ -299,6 +316,20 @@ function renderProjets(){
             title="Supprimer ${escapeAttr(estBudget ? 'ce budget' : 'ce devis')}" aria-label="Supprimer">✕</button>
         </div>`;
       }).join('')}
+      ${archives.length ? `<details class="archives">
+        <summary>${archives.length === 1 ? 'Budget d\u2019origine' : archives.length + ' budgets d\u2019origine'} — rangé${archives.length > 1 ? 's' : ''} depuis qu\u2019${archives.length > 1 ? 'ils ont' : 'il a'} donné son devis</summary>
+        ${archives.map(v=>{
+          const calc = calculerDevis(v);
+          return `<div class="variante-row">
+            <span class="variante-nom">${escapeHtml(v.variante || 'Budget')}</span>
+            <span class="type-badge">Budget</span>
+            <span class="variante-total">${fmtEurosDevis(calc.totalHT)} HT</span>
+            <a class="co-btn ghost sm" href="devis-editeur.html?id=${encodeURIComponent(v.id)}">Ouvrir</a>
+            <button type="button" class="variante-suppr" data-suppr="${escapeAttr(v.id)}"
+              title="Supprimer ce budget" aria-label="Supprimer">✕</button>
+          </div>`;
+        }).join('')}
+      </details>` : ''}
       ${ecart}
     </div>`;
   }).join('');
