@@ -73,6 +73,8 @@
 
   .forme{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0 4px;}
   .aide{font-size:12px; color:var(--muted); line-height:1.55; margin:4px 0 0;}
+  .erreur{font-size:12.5px; color:var(--ko); font-weight:700; line-height:1.55; margin:6px 0 0;}
+  .erreur:empty{display:none;}
 
   .progres{height:6px; background:var(--border); border-radius:999px; overflow:hidden; margin-top:10px;}
   .progres i{display:block; height:100%; background:var(--accent); border-radius:999px; transition:width .2s;}
@@ -162,10 +164,13 @@ const TEXTES = {
     nomAide: "Ce lot est distribué nominativement : chaque exemplaire porte le nom du musicien auquel il est remis. Saisissez-le avant de télécharger — il s'inscrit sur la partition et dans notre registre.",
     nomChamp: 'Prénom et nom du musicien',
     nomManque: 'Saisissez d’abord le nom du musicien auquel cet exemplaire est remis.',
+    codeInvalide: "Ce code ne ressemble pas à l'un des nôtres : lettres et chiffres uniquement, sans espace. Reprenez celui qui vous a été communiqué.",
+    nomInvalide: 'Ce nom contient des caractères que nous ne pouvons pas inscrire sur la partition. Lettres, espaces, traits d’union, apostrophes, points et virgules — de deux à soixante caractères.',
     lot: 'Le lot',
     partiesN: (n)=> `${n} partie${n > 1 ? 's' : ''}`,
     fichiersN: (n)=> `${n} fichier${n > 1 ? 's' : ''}`,
     toutPrendre: 'Tout télécharger (.zip)',
+    pasDArchive: "Ce lot est distribué nominativement : il se prend partie par partie, chacune au nom du musicien qui la reçoit. Une archive complète porterait le même nom sur tout le jeu, et le registre désignerait quelqu'un qui n'a jamais eu ces parties.",
     enCours: (a, b)=> `Préparation ${a} / ${b}…`,
     echecPartiel: (n)=> `${n} fichier(s) n'ont pas pu être préparés et ne sont pas dans l'archive. Reprenez-les à l'unité.`,
     echecTotal: "Le téléchargement a échoué. Vérifiez le code, puis réessayez — ou prenez les parties à l'unité.",
@@ -194,10 +199,13 @@ const TEXTES = {
     nomAide: 'This set is distributed by name: each copy carries the name of the player it is handed to. Enter it before downloading — it is printed on the part and recorded in our register.',
     nomChamp: 'Player’s first and last name',
     nomManque: 'Please enter the name of the player receiving this copy first.',
+    codeInvalide: 'This does not look like one of our codes: letters and digits only, no spaces. Please use the one we sent you.',
+    nomInvalide: 'This name contains characters we cannot print on the part. Letters, spaces, hyphens, apostrophes, full stops and commas — between two and sixty characters.',
     lot: 'The set',
     partiesN: (n)=> `${n} part${n > 1 ? 's' : ''}`,
     fichiersN: (n)=> `${n} file${n > 1 ? 's' : ''}`,
     toutPrendre: 'Download everything (.zip)',
+    pasDArchive: 'This set is distributed by name, so it is downloaded part by part, each under the name of the player receiving it. A single archive would carry one name across the whole set, and our register would point to someone who never received those parts.',
     enCours: (a, b)=> `Preparing ${a} / ${b}…`,
     echecPartiel: (n)=> `${n} file(s) could not be prepared and are missing from the archive. Please download them individually.`,
     echecTotal: 'The download failed. Check the code and try again — or download the parts individually.',
@@ -212,7 +220,12 @@ const TEXTES = {
 
 const CLE_LANGUE = 'curieuxEnvoiLangue';
 const CLE_CODE = 'curieuxEnvoiCode:' + JETON;
-const CLE_NOM = 'curieuxEnvoiNom:' + JETON;
+/* PAS DE CLÉ POUR LE NOM, et c'est délibéré. Le code, lui, se retient
+   quatorze jours : il désigne le LOT, il ne change pas d'un exemplaire à
+   l'autre. Le nom désigne UNE personne, et un nom retenu d'une session sur
+   l'autre est un exemplaire qui repart au nom du précédent — le registre
+   désigne alors quelqu'un qui n'a jamais reçu cette partie, ce qui est pire
+   que pas de registre du tout. Il vit le temps de la page, et se retape. */
 
 /* Le français par défaut pour un navigateur francophone, l'anglais pour tous
    les autres : c'est le partage juste quand on envoie à l'étranger. Le choix
@@ -254,7 +267,7 @@ function jourLisible(iso){
 
 let CHARGE = null;
 let CODE = lireRetenu(CLE_CODE);
-let NOM = lireRetenu(CLE_NOM);
+let NOM = '';
 
 function etat(html){
   document.getElementById('sousTitre').textContent = '';
@@ -342,6 +355,7 @@ function rendre(){
                placeholder="${escapeAttr(T('codeChamp'))}" aria-label="${escapeAttr(T('codeTitre'))}">
         <button type="submit" class="co-btn primary sm">${escapeHtml(T('ouvrir'))}</button>
       </form>
+      <p class="erreur" id="errCode"></p>
       <p class="aide">${escapeHtml(T('codeAide'))}</p>
     </section>`;
   }
@@ -357,6 +371,7 @@ function rendre(){
                value="${escapeAttr(NOM)}">
         <button type="submit" class="co-btn sm">${escapeHtml(T('ouvrir'))}</button>
       </form>
+      <p class="erreur" id="errNom"></p>
       <p class="aide">${escapeHtml(T('nomAide'))}</p>
     </section>`;
   }
@@ -366,11 +381,12 @@ function rendre(){
   html += `<section class="bloc">
     <h2>${escapeHtml(T('lot'))}
       <span class="total">
-        ${fichiers && pret ? `<button type="button" class="co-btn sm primary" id="btnTout">${escapeHtml(T('toutPrendre'))}</button>` : ''}
+        ${fichiers && pret && !c.nominatif ? `<button type="button" class="co-btn sm primary" id="btnTout">${escapeHtml(T('toutPrendre'))}</button>` : ''}
         ${c.codeRequis && CODE ? `<button type="button" class="co-btn ghost sm" id="btnOublier" style="margin-left:8px">${escapeHtml(T('oublier'))}</button>` : ''}
       </span>
     </h2>
-    <div id="progres"></div>`;
+    <div id="progres"></div>
+    ${c.nominatif && fichiers ? `<p class="aide">${escapeHtml(T('pasDArchive'))}</p>` : ''}`;
 
   if(!fichiers){
     html += `<p class="rien">${escapeHtml(T('rien'))}</p>`;
@@ -408,12 +424,25 @@ function rendre(){
 }
 
 function cabler(){
+  /* Un formulaire qui ne fait RIEN quand on valide se lit comme une panne.
+     C'était le cas des deux : saisie refusée, champ repris, aucun mot. Un
+     bibliothécaire à l'étranger, devant un écran qui ne réagit pas, appelle
+     la production — ou renonce. */
+  const dire = (id, message)=>{
+    const zone = document.getElementById(id);
+    if(zone) zone.textContent = message;
+  };
+
   const formCode = document.getElementById('formCode');
   if(formCode) formCode.onsubmit = (e)=>{
     e.preventDefault();
     const champ = document.getElementById('inpCode');
     const v = (champ.value || '').trim().toUpperCase();
-    if(!/^[A-Za-z0-9-]{1,32}$/.test(v)){ champ.focus(); return; }
+    if(!/^[A-Za-z0-9-]{1,32}$/.test(v)){
+      dire('errCode', T('codeInvalide'));
+      champ.focus();
+      return;
+    }
     CODE = v; ecrireRetenu(CLE_CODE, v); rendre();
   };
 
@@ -422,10 +451,17 @@ function cabler(){
     e.preventDefault();
     const champ = document.getElementById('inpNom');
     const v = (champ.value || '').trim().replace(/\s+/g, ' ');
-    // Le même jeu de caractères que celui qu'accepte /api/partition : refuser
-    // ici évite un 400 incompréhensible après trente secondes d'attente.
-    if(!/^[\p{L}\p{M}\s'’.·-]{2,60}$/u.test(v)){ champ.focus(); return; }
-    NOM = v; ecrireRetenu(CLE_NOM, v); rendre();
+    /* Le même jeu de caractères que celui qu'accepte /api/partition : refuser
+       ici évite un 400 incompréhensible après trente secondes d'attente. La
+       VIRGULE en fait partie — « Müller, Anna » est la forme courante des
+       bibliothèques d'orchestre allemandes, et la refuser sans un mot était le
+       plus sûr moyen de bloquer quelqu'un. */
+    if(!/^[\p{L}\p{M}\s'’.·,-]{2,60}$/u.test(v)){
+      dire('errNom', T('nomInvalide'));
+      champ.focus();
+      return;
+    }
+    NOM = v; rendre();
   };
 
   const btnOublier = document.getElementById('btnOublier');

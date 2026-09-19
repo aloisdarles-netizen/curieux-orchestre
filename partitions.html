@@ -275,7 +275,7 @@ let state = {
   // majorité et ne s'affichent nulle part ici. Lu au premier écran qui en a
   // besoin ET qui a quelque chose à en dire, une seule fois ensuite.
   // Voir chargerJournalTiers.
-  prisesTiers: null,          // { lignes: [], total: 0 }
+  prisesTiers: null,          // { parEnvoi: { <envoiId>: {nb, derniere} }, total }
   prisesTiersEnCours: false,
   chargement: true,
 };
@@ -1027,9 +1027,12 @@ function partiesDuLot(e){
   return e.toutesParties ? parties : parties.filter(p => (e.parties || []).includes(p.id));
 }
 
+/* Ce qu'un lot a donné : le nombre d'exemplaires pris et la date du dernier.
+   null tant que la base n'a pas répondu — et un lot sans aucune prise n'a
+   simplement pas de ligne, d'où le zéro par défaut. */
 function prisesDe(envoiId){
   if(!state.prisesTiers) return null;
-  return state.prisesTiers.lignes.filter(t => t.personId === envoiId);
+  return state.prisesTiers.parEnvoi[envoiId] || { nb: 0, derniere: '' };
 }
 
 /* Le message à envoyer, prêt à coller dans un mail. C'est LE geste qui fait
@@ -1098,12 +1101,15 @@ function chargerJournalTiers(){
   // Rien de confié, rien à compter. Sans ce refus, ouvrir n'importe quelle
   // fiche de spectacle — le geste le plus courant de la page — lancerait une
   // requête sur le journal des téléchargements pour afficher trois zéros.
-  if(!state.envois.length){ state.prisesTiers = { lignes: [], total: 0 }; return; }
+  if(!state.envois.length){ state.prisesTiers = { parEnvoi: {}, total: 0 }; return; }
   state.prisesTiersEnCours = true;
-  CurieuxDB.telechargementsTiers()
-    .catch(()=> ({ lignes: [], total: 0 }))
-    .then(r => {
-      state.prisesTiers = r || { lignes: [], total: 0 };
+  CurieuxDB.prisesTiersParEnvoi()
+    .catch(()=> [])
+    .then(lignes => {
+      const parEnvoi = {};
+      let total = 0;
+      (lignes || []).forEach(l => { parEnvoi[l.envoiId] = l; total += l.nb; });
+      state.prisesTiers = { parEnvoi, total };
       state.prisesTiersEnCours = false;
       /* On ne re-rend QUE les écrans qui affichent ces nombres. Le journal met
          parfois plusieurs secondes à revenir : un rendu tombé pendant un dépôt
@@ -1168,8 +1174,7 @@ function ligneEnvoi(e, options){
   const op = e.tourneeId ? nomOperation(e.tourneeId) : '';
   const nb = partiesDuLot(e).length;
   const prises = prisesDe(e.id);
-  const derniere = prises && prises.length
-    ? prises.map(x => x.createdAt).sort().slice(-1)[0].slice(0, 10) : '';
+  const derniere = prises && prises.derniere ? String(prises.derniere).slice(0, 10) : '';
   const contexte = [o.avecSpectacle ? sp : '', op, e.contactNom, e.contactEmail].filter(Boolean).join(' · ');
   return `
     <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
@@ -1181,7 +1186,7 @@ function ligneEnvoi(e, options){
         ${contexte ? `<span class="l-sous">${escapeHtml(contexte)}</span>` : ''}
         <span class="l-sous">${nb} partie${nb > 1 ? 's' : ''}${e.toutesParties ? ' (tout le spectacle)' : ' (sélection)'}
           ${e.expireLe ? ' · jusqu\'au ' + escapeHtml(jourEnvoi(e.expireLe)) : ' · sans date de fin'}
-          ${prises ? ' · ' + prises.length + ' exemplaire' + (prises.length > 1 ? 's' : '') + ' pris' + (derniere ? ', dernier le ' + escapeHtml(jourEnvoi(derniere)) : '') : ''}
+          ${prises ? ' · ' + prises.nb + ' exemplaire' + (prises.nb > 1 ? 's' : '') + ' pris' + (derniere ? ', dernier le ' + escapeHtml(jourEnvoi(derniere)) : '') : ''}
           ${e.droitsConfirmes ? '' : ' · <b class="sans-lecteur">droits non confirmés</b>'}</span>
         <span class="lecteurs">
           <button type="button" class="co-btn ghost sm" data-copier-lien="${escapeAttr(e.id)}">Copier le lien</button>
@@ -1643,9 +1648,32 @@ function creerPartieLocale(nom, pupitre){
 /* Une partie retirée emporte ses fichiers, et ses fichiers sont dans le
    stockage. On ne touche au stockage que dans `purger` : tant que le ruban
    « Annuler » est là, rien n'est parti. */
+/* Les lots confiés OUVERTS qui contiennent cette partie. Un lot « tout le
+   spectacle » la contient par construction ; un lot sur sélection, seulement
+   s'il la nomme. On ne compte pas les lots révoqués ou périmés : ils ne
+   servent plus personne. */
+function lotsContenant(partie){
+  const jour = new Date().toISOString().slice(0, 10);
+  return state.envois.filter(e =>
+    e.spectacleId === partie.spectacleId
+    && e.actif
+    && (!e.expireLe || e.expireLe >= jour)
+    && (e.toutesParties || (e.parties || []).includes(partie.id)));
+}
+
 function retirerPartie(id){
   const p = state.parties.find(x => x.id === id);
   if(!p) return;
+  /* Une partie retirée disparaît AUSSI du lot confié à un ensemble tiers, en
+     silence et de son côté : il rouvre son lien et le jeu a maigri, sans un
+     mot. On ne l'interdit pas — il y a de bonnes raisons de retirer une partie
+     pour la redéposer corrigée — mais on le dit, parce que c'est la seule
+     personne que la page ne peut pas prévenir. */
+  const lots = lotsContenant(p);
+  if(lots.length && !confirm(
+      `« ${p.nom} » fait partie de ${lots.length} lot${lots.length > 1 ? 's' : ''} confié${lots.length > 1 ? 's' : ''} à l'extérieur :\n`
+      + lots.map(e => '  · ' + e.destinataire).join('\n')
+      + `\n\nEn la retirant, elle disparaît de leur lien sans qu'ils en soient avertis. Continuer ?`)) return;
   const fs = fichiersDe(id);
   const affs = state.affectations.filter(a => a.partieId === id);
   state.parties = state.parties.filter(x => x.id !== id);

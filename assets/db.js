@@ -2289,30 +2289,26 @@ const CurieuxDB = (()=>{
     return null;
   }
 
-  /* Les prises d'exemplaires par des ENSEMBLES TIERS, et elles seules.
-     fetchAll ne convenait pas ici, pour trois raisons qui se cumulent : il
-     lit la table entière alors que les prises des tiers en sont une petite
-     part ; il ne pose aucune pagination, donc au-delà du plafond de lignes de
-     l'API (1 000 par défaut) une partie des lignes ne revient pas ; et il
-     trie du PLUS ANCIEN au plus récent, si bien que ce sont précisément les
-     prises récentes qui tombent — celles qu'on regarde.
-     On demande donc les plus récentes d'abord, bornées, et le compte exact
-     dans la même requête : un écran qui affiche « 500 exemplaires pris »
-     alors qu'il y en a 900 se lit comme une vérité. */
-  async function telechargementsTiers(limite){
-    if(!supabaseClient) return { lignes: [], total: 0 };
-    const { data, count, error } = await supabaseClient
-      .from('partitions_telechargements')
-      .select('*', { count: 'exact' })
-      .eq('person_type', 'tiers')
-      .order('created_at', { ascending: false })
-      .limit(limite || 500);
+  /* Les exemplaires pris par des ensembles tiers, COMPTÉS PAR LA BASE, un
+     lot par ligne. Lire le journal pour l'additionner côté page ne marchait
+     qu'en apparence : la table grossit d'une ligne par partition remise, très
+     majoritairement pour nos propres musiciens, et toute fenêtre de lecture —
+     même large, même triée du plus récent — finit par exclure les prises d'un
+     lot ancien, qui s'affiche alors « 0 exemplaire pris ». Ici, il y a une
+     ligne par lot, et elle est juste quel que soit le nombre de prises
+     derrière. */
+  async function prisesTiersParEnvoi(){
+    if(!supabaseClient) return [];
+    const { data, error } = await supabaseClient.rpc('prises_tiers_par_envoi');
     if(error){
-      console.warn('[CurieuxDB] telechargementsTiers', error.message);
-      return { lignes: [], total: 0 };
+      if(!_fonctionAbsente(error)) console.warn('[CurieuxDB] prisesTiersParEnvoi', error.message);
+      return [];
     }
-    const adapter = adapterFor('partitions_telechargements');
-    return { lignes: (data || []).map(adapter.fromDb), total: count == null ? (data || []).length : count };
+    return (data || []).map(r => ({
+      envoiId: r.envoi_id || '',
+      nb: Number(r.nb) || 0,
+      derniere: r.derniere || '',
+    }));
   }
 
   /* Le jeton d'un lot confié. 32 caractères tirés de l'alphabet que
@@ -2340,7 +2336,7 @@ const CurieuxDB = (()=>{
     getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis, enregistrerHorairesJournee,
     ajouterRemarqueParJeton, getRemarquesParJeton, enregistrerPlanSalleParJeton, toucherAcces,
     deposerPlanSalle, urlPubliquePlanSalle,
-    deposerPartition, retirerPartition, mesPartitions, envoiPartitions, nouveauJetonEnvoi, telechargementsTiers,
+    deposerPartition, retirerPartition, mesPartitions, envoiPartitions, nouveauJetonEnvoi, prisesTiersParEnvoi,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,
     getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,

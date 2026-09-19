@@ -167,6 +167,57 @@ async function journaliser(cleService, fonction, charge) {
   }
 }
 
+/* LES EXEMPLAIRES DÉPOSÉS N'ONT AUCUNE RAISON DE SURVIVRE À LEUR URL.
+   Au-dessus du plafond de réponse, on dépose l'exemplaire filigrané dans le
+   stockage et on redirige vers une URL signée valable cinq minutes. Sans
+   balayage, chacun de ces fichiers reste là pour toujours : une transmission à
+   un ensemble tiers en produit un PAR PARTIE LOURDE et par téléchargement —
+   trente pour un lot repris deux fois —, et le plan Supabase est à 1 Go. Pire,
+   la jauge de la page des partitions ne les compte pas : elle additionne le
+   matériel rangé, si bien qu'elle annonce de la place qui n'existe plus.
+
+   On balaie ici plutôt que par une tâche planifiée : aucun cron à déclarer, et
+   le balayage n'a lieu que sur le chemin qui SALIT. Il est borné (une page de
+   listing, cent suppressions au plus), il ne s'exécute qu'APRÈS avoir répondu,
+   et il échoue en silence — un ménage qui empêcherait une partition d'arriver
+   la veille d'une première serait un mauvais échange. */
+const AGE_TELECHARGEMENT_MS = 60 * 60 * 1000;   // une heure, pour une URL qui vit cinq minutes
+
+async function balayerTelechargements(cleService) {
+  try {
+    const rep = await fetch(`${SUPABASE_URL}/storage/v1/object/list/partitions`, {
+      method: 'POST',
+      headers: {
+        apikey: cleService,
+        Authorization: `Bearer ${cleService}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prefix: '_telechargements/', limit: 100, sortBy: { column: 'created_at', order: 'asc' } }),
+    });
+    if (!rep.ok) throw new Error(`listing ${rep.status}`);
+    const objets = await rep.json();
+    if (!Array.isArray(objets) || !objets.length) return;
+    const limite = Date.now() - AGE_TELECHARGEMENT_MS;
+    const perimes = objets
+      .filter((o) => o && o.name && Date.parse(o.created_at || o.updated_at || '') < limite)
+      .map((o) => `_telechargements/${o.name}`);
+    if (!perimes.length) return;
+    const suppression = await fetch(`${SUPABASE_URL}/storage/v1/object/partitions`, {
+      method: 'DELETE',
+      headers: {
+        apikey: cleService,
+        Authorization: `Bearer ${cleService}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prefixes: perimes }),
+    });
+    if (!suppression.ok) throw new Error(`suppression ${suppression.status}`);
+    console.log(`[partition] balayage : ${perimes.length} exemplaire(s) temporaire(s) retiré(s)`);
+  } catch (e) {
+    console.error('[partition] balayage', e && e.message);
+  }
+}
+
 /* Le filigrane lui-même. Rien ici ne doit croiser une portée : le nom se pose
    dans la marge de tête, la mention dans la marge de pied, et les positions se
    calculent sur la taille RÉELLE de chaque page — une partition peut mélanger
@@ -305,7 +356,7 @@ export default async function handler(req, res) {
      alphabet, les espaces et la ponctuation des noms, et rien d'autre. Ce
      n'est pas une protection — la base ne le recoupe à rien — mais une
      garantie que ce qui se pose sur la partition reste un nom. */
-  if (pour && !/^[\p{L}\p{M}\s'’.·\-]{1,60}$/u.test(pour)) {
+  if (pour && !/^[\p{L}\p{M}\s'’.·,\-]{1,60}$/u.test(pour)) {
     res.status(400).json({ erreur: 'Nom invalide.' });
     return;
   }
@@ -399,6 +450,16 @@ export default async function handler(req, res) {
      son jeton : même si ce lien fuit, il désigne toujours quelqu'un. L'original
      propre, lui, ne sort jamais. */
   if (sortie.length > PLAFOND_REPONSE) {
+    /* Le jeton part dans un chemin de stockage, en ÉCRITURE. Il vient de notre
+       propre fonction SQL, comme `chemin` quarante lignes plus haut — et pour
+       la même raison qu'on valide celui-là, on valide celui-ci : une ligne
+       fabriquée à la main un jour de migration ne doit pas pouvoir écrire
+       ailleurs que sous ce préfixe. */
+    if (!/^CX-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(String(droit.jeton_filigrane || ''))) {
+      console.error('[partition] jeton de filigrane refusé', droit.jeton_filigrane);
+      res.status(500).json({ erreur: "Cette partition n'a pas pu être préparée." });
+      return;
+    }
     const cheminTemporaire = `_telechargements/${droit.jeton_filigrane}.pdf`;
     try {
       const depot = await fetch(`${SUPABASE_URL}/storage/v1/object/partitions/${cheminTemporaire}`, {
@@ -432,6 +493,9 @@ export default async function handler(req, res) {
       res.statusCode = 302;
       res.setHeader('Location', `${SUPABASE_URL}/storage/v1${url.startsWith('/') ? url : '/' + url}`);
       res.end();
+      // La réponse est partie : on profite du passage pour balayer. Voir
+      // balayerTelechargements — jamais avant, jamais en bloquant.
+      await balayerTelechargements(cleService);
       return;
     } catch (e) {
       console.error('[partition] repli URL signée', e && e.message);

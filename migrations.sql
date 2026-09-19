@@ -6701,8 +6701,12 @@ create table if not exists partitions_envois (
   -- commune). Pas de clé étrangère, pour la même raison qu'ailleurs : une
   -- tournée doit rester supprimable depuis tournees.html.
   tournee_id text not null default '',
-  -- L'ensemble destinataire. C'est CE nom qui se pose sur le filigrane.
-  destinataire text not null default '',
+  -- L'ensemble destinataire. C'est CE nom qui se pose sur le filigrane, et
+  -- tout le dispositif repose sur lui : un exemplaire qui ne désigne personne
+  -- ne se retrouve pas. La contrainte est ici et pas seulement dans la page —
+  -- une ligne écrite par un autre chemin produirait des partitions anonymes,
+  -- et on ne s'en apercevrait qu'en en retrouvant une.
+  destinataire text not null default '' check (btrim(destinataire) <> ''),
   contact_nom text not null default '',
   contact_email text not null default '',
   -- Le lien. Charset volontairement identique à celui qu'accepte
@@ -6735,6 +6739,16 @@ create table if not exists partitions_envois (
   updated_at timestamptz not null default now()
 );
 create index if not exists idx_partitions_envois_spectacle on partitions_envois(spectacle_id);
+-- La contrainte ci-dessus n'est posée par « create table if not exists » que
+-- sur une base neuve. Pour celles où la table existe déjà, on la pose ici.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'partitions_envois_destinataire_non_vide') then
+    update partitions_envois set destinataire = '(destinataire inconnu)' where btrim(destinataire) = '';
+    alter table partitions_envois
+      add constraint partitions_envois_destinataire_non_vide check (btrim(destinataire) <> '');
+  end if;
+end $$;
 drop trigger if exists trg_partitions_envois_updated_at on partitions_envois;
 create trigger trg_partitions_envois_updated_at before update on partitions_envois
   for each row execute function set_updated_at();
@@ -6886,8 +6900,12 @@ begin
 
   -- Le nom qui se pose en tête de page : celui du musicien quand le
   -- destinataire distribue nominativement, celui de l'ensemble sinon.
+  -- Un destinataire vide est refusé plutôt que rattrapé : servir un
+  -- exemplaire que rien ne désigne, c'est perdre la seule chose que ce
+  -- dispositif garantit. La contrainte de la table l'interdit déjà ; ce refus
+  -- couvre les bases où elle n'aurait pas été posée.
+  if btrim(coalesce(e.destinataire, '')) = '' then return; end if;
   v_personne := case when e.nominatif then btrim(p_pour) else e.destinataire end;
-  if coalesce(v_personne, '') = '' then v_personne := e.destinataire; end if;
 
   v_jeton := 'CX-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4))
                    || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4))
@@ -6913,6 +6931,29 @@ begin
 end;
 $$;
 grant execute on function partition_pour_envoi(text, text, text, text) to anon, authenticated;
+
+-- Le compte des exemplaires pris, PAR LOT CONFIÉ. C'est la base qui compte,
+-- et pas la page : lire les dernières lignes du journal pour les additionner
+-- côté navigateur donne un résultat faux dès que le journal dépasse la fenêtre
+-- lue — un lot de la saison passée affiche alors « 0 exemplaire pris », ce qui
+-- est plus trompeur qu'un compteur absent. Ici, une ligne par lot, quel que
+-- soit le nombre de prises derrière.
+--
+-- PAS de security definer : la fonction s'exécute avec les droits de qui
+-- l'appelle, donc la politique RLS de partitions_telechargements s'applique.
+-- Cet écran est celui de la production, pas un point d'entrée à jeton.
+create or replace function prises_tiers_par_envoi()
+returns table(envoi_id text, nb bigint, derniere timestamptz)
+language sql
+stable
+set search_path = public
+as $$
+  select te.person_id, count(*), max(te.created_at)
+    from partitions_telechargements te
+   where te.person_type = 'tiers'
+   group by te.person_id;
+$$;
+grant execute on function prises_tiers_par_envoi() to authenticated;
 
 -- Le poids réellement servi, pour un lot confié. Même raison d'être que son
 -- équivalent nominatif, et même indifférence à l'échec : un journal ne doit
