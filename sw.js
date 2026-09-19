@@ -135,7 +135,17 @@
 // partitions-commun.js arrive. Sans cet incrément, un navigateur déjà venu
 // garderait l'ancien db.js : la page s'ouvrirait, le dépôt partirait en base
 // et n'en reviendrait jamais — l'adaptateur manquant, tout se lirait vide.
-const VERSION = 'curieux-v125';
+// v126 : les partitions passent d'un bloc en bas de « Mes dates » à un onglet
+// de l'espace musicien — app-musicien.js gagne une destination et sa règle
+// d'affichage, mes-dates-vue.js le compte qui fait la pastille et la forme
+// « page » du bloc. Sans cet incrément, un téléphone déjà venu garderait
+// l'ancien app-musicien.js : l'onglet n'existerait pas, et mes-dates.html,
+// lui rafraîchi (c'est une page, servie réseau d'abord), aurait cessé
+// d'afficher les partitions — elles ne seraient nulle part. brand-assets.js
+// change aussi : sans la nouvelle page dans sa liste blanche, l'écran des
+// partitions annoncerait le manifeste de l'ÉQUIPE, et l'icône posée depuis
+// cet écran ouvrirait la page de connexion.
+const VERSION = 'curieux-v126';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

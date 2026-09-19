@@ -89,7 +89,6 @@
   </div>
   <div id="contenu"></div>
   <div id="agenda"></div>
-  <div id="partitions"></div>
   <div id="pied"></div>
 </div>
 
@@ -194,25 +193,38 @@ function poserAgenda(charge){
   });
 }
 
-/* Les partitions de la personne, groupées par opération.
+/* L'onglet des partitions, allumé depuis ici.
    -------------------------------------------------------------------------
+   Les partitions s'affichaient en bas de cette page. Elles ont leur écran
+   (mes-partitions.html) : un bloc en fin de page ne se trouvait qu'en
+   défilant six cents pixels de colonnes de dates, et ne pouvait rien
+   annoncer depuis les autres écrans.
+
+   La lecture reste ici, et rien ne s'en affiche. Une seule raison, mais elle
+   suffit : cette page est celle qu'on ENVOIE PAR MESSAGE, donc l'une des deux
+   portes d'entrée de l'espace. Sans ce compte, l'onglet des partitions
+   resterait invisible à qui arrive par là — il se cache tant qu'on ne sait
+   pas s'il y en a (voir ongletsVisibles dans app-musicien.js).
+
    Lecture SÉPARÉE de mes_dates, et c'est voulu : mes_dates ne rend que les
    dates À VENIR où l'on est affecté ou sollicité. Des partitions qui en
    découleraient disparaîtraient le lendemain de la dernière date — or on
    répète encore après, et on reprend un programme des mois plus tard.
 
-   Le bloc ne s'affiche pas du tout quand il n'y a rien : un cadre « aucune
-   partition » sur l'espace de quelqu'un à qui on n'en donne jamais est du
-   bruit permanent. */
-async function poserPartitions(){
-  const hote = document.getElementById('partitions');
+   Lancée après le rendu et jamais attendue : une pastille ne vaut pas une
+   demi-seconde d'attente sur les dates, qui sont ce qu'on vient lire ici. */
+async function allumerOngletPartitions(){
   let charge;
   try{ charge = await CurieuxDB.mesPartitions(TOKEN); }
   catch(e){ return; }
-  // Migration pas encore jouée : on se tait plutôt que d'annoncer un vide qui
-  // n'en est pas un. La production le verra sur sa propre page.
-  if(!charge || charge.migrationAbsente){ hote.innerHTML = ''; return; }
-  CurieuxMesDates.monterPartitions(hote, charge, TOKEN);
+  // Migration pas encore jouée : pas d'onglet, et surtout pas de zéro. La
+  // production le verra sur sa propre page.
+  if(!charge || charge.migrationAbsente) return;
+  const compte = CurieuxMesDates.compterPartitions(charge);
+  if(window.CurieuxAppMusicien) CurieuxAppMusicien.etat({
+    partitions: compte.operations,
+    partitionsNeuves: compte.neuves,
+  });
 }
 
 async function init(){
@@ -279,7 +291,7 @@ async function init(){
     { vueParDefaut: 'colonnes', lienDispo });
 
   poserAgenda(moi);
-  poserPartitions();
+  allumerOngletPartitions();
 
   document.getElementById('pied').innerHTML = `<div class="pied">
     <p>Ces dates sont <strong>strictement confidentielles</strong> — merci de ne pas les diffuser en dehors de l'équipe.</p>

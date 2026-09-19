@@ -529,6 +529,27 @@ async function init(){
   });
 
   injecterModeEmploiApp('blocInstallation', { nom: 'Mon espace' });
+
+  /* L'onglet des partitions, allumé depuis l'accueil.
+     -----------------------------------------------------------------------
+     Rien ne s'en affiche sur cette page : les partitions ont leur écran
+     (mes-partitions.html), et une tuile qui mène à ce qu'un onglet ouvre déjà
+     est un doublon de plus. Ce qu'on lit ici, c'est le COMPTE — l'onglet se
+     cache tant qu'on ne sait pas s'il y a quelque chose, et l'accueil est la
+     porte d'entrée du lien personnel.
+
+     Hors du Promise.all volontairement. Ajoutée aux deux lectures de tête,
+     cette requête aurait retardé l'ouverture de l'accueil — la page la plus
+     ouverte de l'espace — pour peindre un onglet de plus en bas de l'écran.
+     Elle part après le rendu, et la barre se repeint quand elle revient. */
+  CurieuxDB.mesPartitions(TOKEN).then(charge => {
+    if(!charge || charge.migrationAbsente || !window.CurieuxAppMusicien) return;
+    const compte = CurieuxMesDates.compterPartitions(charge);
+    CurieuxAppMusicien.etat({
+      partitions: compte.operations,
+      partitionsNeuves: compte.neuves,
+    });
+  }).catch(()=>{});
 }
 
 init();

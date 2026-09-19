@@ -401,12 +401,23 @@ const CurieuxMesDates = (function(){
      Elles sont désormais ici, dans l'espace que la personne a déjà — AUCUN
      nouveau lien n'est envoyé, et les liens en circulation restent valides.
 
-     UN BLOC DE PAGE, ET PAS SEULEMENT UN DÉTAIL DE JOURNÉE. La vue par défaut
-     sur téléphone est « colonnes », jamais le calendrier : des partitions qui
-     ne s'afficheraient que dans le détail d'une journée du calendrier seraient
-     invisibles pour la quasi-totalité des musicien·nes. Le groupement par
-     opération donne le même résultat — on voit ses parties sous son opé — sans
-     dépendre d'une vue que personne n'ouvre.
+     UN ÉCRAN, ET PLUS UN BLOC EN BAS DE PAGE. Le rendu s'est d'abord greffé
+     sous les dates : c'était la place la plus proche d'un endroit où l'on
+     passe. Elle avait deux défauts qu'un onglet corrige. Le premier est qu'on
+     y arrivait par six cents pixels de colonnes de dates — une partition
+     déposée la veille d'une répétition se découvrait en défilant. Le second
+     est qu'un bloc n'a pas de pastille : rien ne pouvait dire, depuis
+     n'importe quel écran, qu'il restait trois parties à prendre.
+
+     Le module rend donc les deux formes, et une seule est utilisée à la fois :
+     `titre:false` quand la barre de l'application porte déjà le nom de
+     l'écran, `vide:true` quand la page EST celle des partitions — là, ne rien
+     dire se lirait comme une panne, alors qu'un cadre « aucune partition »
+     greffé sous les dates de quelqu'un à qui on n'en donne jamais serait du
+     bruit permanent.
+
+     Le groupement par opération ne change pas : on voit ses parties sous son
+     opé, sans dépendre d'une vue que personne n'ouvre.
 
      LE CODE NE SERT QU'À TÉLÉCHARGER. La liste s'affiche sans lui : savoir
      qu'on a trois partitions qui attendent est utile et sans risque. Exiger le
@@ -431,6 +442,38 @@ const CurieuxMesDates = (function(){
     try{ localStorage.setItem(_clePartitions(jeton, tourneeId), JSON.stringify({ quand: Date.now(), code })); }catch(e){}
   }
 
+  /* Ce que la coque de l'espace musicien a besoin de savoir, en deux nombres.
+
+     `operations` décide de l'EXISTENCE de l'onglet : une opération sans aucun
+     fichier compte quand même, parce qu'elle dit quelque chose — on est
+     attendu dessus, le matériel arrive. Un·e technicien·ne, lui, n'en a
+     aucune, et n'a donc pas d'onglet qui ne lui montrerait jamais rien.
+
+     `neuves` fait la pastille : les fichiers qu'on peut prendre MAINTENANT et
+     qu'on n'a jamais pris. Deux exclusions, et chacune évite un compteur qui
+     ne descendrait pas — celui d'une opération pas encore ouverte (le fichier
+     existe, il ne se télécharge pas), et celui qu'on aurait fait du nombre
+     total de partitions, qui aurait affiché « 12 » toute la saison.
+
+     `pris` n'existe qu'une fois la migration jouée : sans lui, `neuves` vaut
+     null — aucune pastille, jamais un zéro, qui se lirait « tu as tout pris ».
+     */
+  function compterPartitions(charge){
+    const operations = (charge && charge.operations) || [];
+    let fichiers = 0, neuves = 0, su = false;
+    operations.forEach(op => (op.parties || []).forEach(p => (p.fichiers || []).forEach(f => {
+      fichiers++;
+      if(typeof f.pris !== 'boolean') return;
+      su = true;
+      if(!f.pris && op.ouvert) neuves++;
+    })));
+    return {
+      operations: operations.length,
+      fichiers,
+      neuves: (su || !fichiers) ? neuves : null,
+    };
+  }
+
   function _poids(o){
     const n = Number(o) || 0;
     if(n < 1024 * 1024) return Math.round(n / 1024) + ' Ko';
@@ -439,17 +482,33 @@ const CurieuxMesDates = (function(){
 
   /* Monter le bloc dans un conteneur dédié. `charge` est ce que rend
      mes_partitions : { personId, personType, genereLe, operations: [...] }.
-     Rien à afficher quand il n'y a rien : un bloc « aucune partition » sur
-     l'espace de quelqu'un à qui on n'en donne jamais est du bruit permanent. */
-  function monterPartitions(hote, charge, jeton){
+
+     Deux options, et chacune répond à « où suis-je ? » :
+       titre:false — la barre de l'application porte déjà « Mes partitions »,
+                     le répéter dix pixels dessous se lit comme une maladresse ;
+       vide:true   — la page est celle des partitions : quand il n'y en a
+                     aucune, elle doit le DIRE. Sans l'option, le bloc
+                     s'efface, ce qu'il faut quand il est greffé ailleurs. */
+  function monterPartitions(hote, charge, jeton, options){
     if(!hote) return;
+    const o = options || {};
     const operations = (charge && charge.operations) || [];
-    if(!operations.length){ hote.innerHTML = ''; return; }
+    const chapeau = o.titre === false ? '' : '<h2 class="mdv-part-titre">Mes partitions</h2>';
+
+    if(!operations.length){
+      if(!o.vide){ hote.innerHTML = ''; return; }
+      poserStyle();
+      hote.innerHTML = `<section class="mdv-part">${chapeau}
+        <p class="mdv-part-rien">Aucune partition ne t'est attribuée pour l'instant.<br>
+          Dès que la production dépose le matériel d'une opération où tu joues, il
+          apparaît ici — sans qu'on t'envoie de nouveau lien.</p>
+      </section>`;
+      return;
+    }
     poserStyle();
 
     const rendre = ()=>{
-      hote.innerHTML = `<section class="mdv-part">
-        <h2 class="mdv-part-titre">Mes partitions</h2>
+      hote.innerHTML = `<section class="mdv-part">${chapeau}
         <p class="mdv-part-intro">Chaque exemplaire porte ton nom : il t'est personnellement attribué, et il n'a pas à circuler au-delà de l'orchestre.</p>
         ${operations.map(op => _operationHtml(op, jeton)).join('')}
       </section>`;
@@ -515,8 +574,14 @@ const CurieuxMesDates = (function(){
       const url = `/api/partition?jeton=${encodeURIComponent(jeton)}&fichier=${encodeURIComponent(f.id)}`
                 + (code ? `&code=${encodeURIComponent(code)}` : '');
       const detail = [_poids(f.octets), f.pages ? f.pages + ' pages' : ''].filter(Boolean).join(' · ');
+      /* « À prendre », et non « nouveau » : un fichier déposé il y a trois
+         mois et jamais téléchargé n'a rien de nouveau, mais il reste à
+         prendre. C'est ce que compte la pastille de l'onglet, dit ici ligne
+         par ligne — sans quoi on saurait qu'il en reste trois sans savoir
+         lesquelles, sur une opération qui en porte douze. */
+      const aPrendre = f.pris === false ? '<span class="mdv-part-neuf">à prendre</span>' : '';
       return `<a class="mdv-part-fic" href="${escapeAttr(url)}" download>
-        <span class="mdv-part-fic-nom">${escapeHtml(p.nom)}${_suffixe(p, f)}</span>
+        <span class="mdv-part-fic-nom">${escapeHtml(p.nom)}${_suffixe(p, f)}${aPrendre}</span>
         <span class="mdv-part-fic-det">${escapeHtml(detail)}</span>
         <span class="mdv-part-fic-fleche">↓</span>
       </a>`;
@@ -548,6 +613,19 @@ const CurieuxMesDates = (function(){
         font-size:11px; text-decoration:underline; cursor:pointer; padding:0; min-height:0; letter-spacing:0;
         text-transform:none;}
       .mdv-part-vide{font-size:13px; color:var(--muted); margin:0; line-height:1.55;}
+      /* La page des partitions quand il n'y en a aucune. Encadré, et non une
+         ligne grise perdue au milieu d'un écran blanc : un écran nu se lit
+         comme un chargement qui n'a pas abouti. */
+      .mdv-part-rien{
+        background:var(--card); border:1px solid var(--border); border-radius:var(--radius-md);
+        padding:18px 16px; margin:0; font-size:13.5px; color:var(--muted); line-height:1.6;
+        text-align:center;
+      }
+      .mdv-part-neuf{
+        display:inline-block; margin-left:8px; font-size:10px; font-weight:800;
+        text-transform:uppercase; letter-spacing:.05em; padding:2px 7px; border-radius:999px;
+        background:var(--secondary); color:#fff; vertical-align:1.5px;
+      }
       .mdv-part-code{display:flex; gap:8px; margin-top:9px; flex-wrap:wrap;}
       .mdv-part-code input{width:150px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;}
       .mdv-part-aide{font-size:11.5px; color:var(--muted); margin:7px 0 0; line-height:1.5;}
@@ -1055,7 +1133,7 @@ const CurieuxMesDates = (function(){
     return { rendre, ajuster };
   }
 
-  return { monter, monterPartitions, apercu, mediaPetitEcran, fraicheur, statutDe, groupeDe, STATUT_MOT };
+  return { monter, monterPartitions, compterPartitions, apercu, mediaPetitEcran, fraicheur, statutDe, groupeDe, STATUT_MOT };
 })();
 
 if(typeof window !== 'undefined') window.CurieuxMesDates = CurieuxMesDates;

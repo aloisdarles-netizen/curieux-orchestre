@@ -33,6 +33,16 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-19-2',
+    titre: 'Les partitions ont leur onglet',
+    points: [
+      "Côté musicien·ne, les partitions quittent le bas de « Mes dates » pour un onglet à elles, à côté des dates. Elles se trouvaient en défilant six cents pixels de colonnes : une partie déposée la veille d'une répétition pouvait ne pas être vue.",
+      "L'onglet porte une pastille : le nombre de parties DÉPOSÉES, OUVERTES et jamais téléchargées par la personne. Un compteur qui descend — et non le nombre de partitions qu'elle possède, qui aurait affiché « 12 » toute la saison. Chaque ligne de la liste dit « à prendre » tant qu'elle n'a pas été prise.",
+      "L'onglet ne s'affiche qu'aux personnes qui ont du matériel : les technicien·nes reçoivent le même lien et n'en auront jamais. Il apparaît dès le premier écran — l'accueil comme la page des dates posent le compte.",
+      "Rien de nouveau à envoyer : ni lien, ni code, ni message. Les liens en circulation ouvrent le nouvel onglet, et les codes d'opération déjà saisis restent valables.",
+    ],
+  },
+  {
     version: '2026-09-19',
     titre: 'Les partitions',
     points: [

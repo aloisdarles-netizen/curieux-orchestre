@@ -139,6 +139,7 @@ function initCurieuxPWA(){
     'mes-infos.html':         { param:'token', court:'Mes infos' },
     'dispo-titulaire.html':   { param:'token', court:'Mes dispos' },
     'mes-dates.html':         { param:'token', court:'Mes dates' },
+    'mes-partitions.html':    { param:'token', court:'Partitions' },
     'mes-remplacants.html':   { param:'token', court:'Remplaçants' },
     'technique-partage.html': { param:'jeton', court:'Technique' },
     'fiche-technique.html':   { param:'jeton', court:'Fiche tech' },

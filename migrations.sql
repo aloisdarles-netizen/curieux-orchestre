@@ -6284,6 +6284,10 @@ create table if not exists partitions_telechargements (
 );
 create index if not exists idx_partitions_tel_personne on partitions_telechargements(person_type, person_id);
 create index if not exists idx_partitions_tel_tournee on partitions_telechargements(tournee_id, created_at desc);
+-- « Cette personne a-t-elle pris CE fichier ? », posée une fois par fichier
+-- par mes_partitions. L'index par personne seule obligeait à relire toutes
+-- ses prises — une saison de tournées — pour chaque ligne affichée.
+create index if not exists idx_partitions_tel_prise on partitions_telechargements(person_type, person_id, fichier_id);
 alter table partitions_telechargements enable row level security;
 drop policy if exists "partitions_telechargements acces" on partitions_telechargements;
 create policy "partitions_telechargements acces" on partitions_telechargements for all to authenticated
@@ -6389,7 +6393,30 @@ begin
                     'fichiers', coalesce((
                       select jsonb_agg(jsonb_build_object(
                                'id', fi.id, 'titre', fi.titre,
-                               'octets', fi.octets, 'pages', fi.pages)
+                               'octets', fi.octets, 'pages', fi.pages,
+                               -- « Cette personne a-t-elle DÉJÀ pris ce
+                               -- fichier ? » — ce que le journal des
+                               -- téléchargements sait déjà, et que personne
+                               -- ne lui demandait. C'est ce qui permet à
+                               -- l'onglet de compter ce qui reste à prendre
+                               -- plutôt que ce qui existe : un compteur qui
+                               -- ne descend jamais cesse d'être lu.
+                               --
+                               -- Ce que dit vraiment le oui : un exemplaire a
+                               -- été ÉMIS au nom de cette personne pour ce
+                               -- fichier. La ligne de journal s'écrit à
+                               -- l'autorisation, avant la livraison — un
+                               -- téléchargement coupé en route compte donc
+                               -- comme pris. C'est le bon sens pour un
+                               -- journal de traçabilité (l'exemplaire existe,
+                               -- filigrané, et peut ressortir), et sans
+                               -- conséquence ici : le fichier reste dans la
+                               -- liste, il se reprend d'un doigt.
+                               'pris', exists(
+                                 select 1 from partitions_telechargements te
+                                  where te.fichier_id = fi.id
+                                    and te.person_type = cible.person_type
+                                    and te.person_id = cible.person_id))
                              order by fi.ordre, fi.titre)
                         from partitions_fichiers fi where fi.partie_id = pa.id
                     ), '[]'::jsonb)

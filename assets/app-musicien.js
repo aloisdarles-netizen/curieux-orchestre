@@ -1,20 +1,21 @@
 /* ============================================================================
    L'espace musicien·ne, comme une application
    ============================================================================
-   Les cinq pages ouvertes par un lien personnel — l'espace, les dates, les
-   dispos, les infos, les remplaçant·es — étaient cinq pages web empilées. On
-   arrivait sur l'une d'elles, et pour aller ailleurs il fallait remonter tout
-   en haut chercher un « ← Mon espace », revenir au sommaire, redescendre. Rien
-   ne disait où l'on était ni ce qui existait à côté : la personne qui installait
-   la page sur son téléphone se retrouvait avec une icône ouvrant un sommaire.
+   Les pages ouvertes par un lien personnel — l'espace, les dates, les dispos,
+   les infos, les remplaçant·es, les partitions — étaient des pages web
+   empilées. On arrivait sur l'une d'elles, et pour aller ailleurs il fallait
+   remonter tout en haut chercher un « ← Mon espace », revenir au sommaire,
+   redescendre. Rien ne disait où l'on était ni ce qui existait à côté : la
+   personne qui installait la page sur son téléphone se retrouvait avec une
+   icône ouvrant un sommaire.
 
    Ce fichier pose la coque qui manquait : une barre en haut qui nomme l'écran,
-   une barre d'onglets en bas qui nomme les quatre destinations, et des pastilles
+   une barre d'onglets en bas qui nomme les destinations, et des pastilles
    qui disent ce qui attend. C'est tout ce qui sépare un site d'une application
    — et c'est exactement ce qu'on peut donner sans compte, sans serveur de plus,
    sans rien changer aux pages elles-mêmes.
 
-   TROIS PRINCIPES
+   QUATRE PRINCIPES
 
    1. LE JETON VOYAGE. Il n'y a pas de session : le lien EST l'identité. Chaque
       onglet reprend donc le jeton de l'adresse courante. Une seule fonction le
@@ -27,9 +28,15 @@
       des téléphones souvent en 4G au fond d'une salle.
 
    3. UNE PAGE D'ÉCRAN, PAS UNE PILE. Un sous-écran (remplir ses dispos sur un
-      projet) porte une flèche de retour ; les quatre destinations, elles, ne
+      projet) porte une flèche de retour ; les destinations, elles, ne
       s'empilent pas — on passe de l'une à l'autre, comme dans n'importe quelle
       application, sans jamais avoir à revenir en arrière.
+
+   4. UN ONGLET QUI N'OUVRE JAMAIS RIEN N'EST PAS UN ONGLET. Deux destinations
+      ne s'affichent pas pour tout le monde — les remplaçant·es, réservés aux
+      titulaires, et les partitions, qui n'existent que pour qui en a. La
+      barre en porte quatre pour la plupart des gens, cinq pour un pupitre en
+      pleine production.
 
    Chargé après ui-helpers.js sur les pages à jeton. Sans jeton, le module ne
    fait rien : les pages d'équipe gardent leur bandeau prune.
@@ -38,15 +45,22 @@
 const CurieuxAppMusicien = (function(){
   'use strict';
 
-  // Les quatre destinations, dans l'ordre où elles apparaissent en bas. Une
-  // cinquième page — dispo-titulaire — est un sous-écran : elle allume
-  // « Accueil » et reçoit une flèche de retour, parce qu'on y entre depuis un
-  // projet précis et qu'on en ressort vers là d'où l'on vient.
+  /* Les destinations, dans l'ordre où elles apparaissent en bas. Une page de
+     plus — dispo-titulaire — est un sous-écran : elle allume « Accueil » et
+     reçoit une flèche de retour, parce qu'on y entre depuis un projet précis
+     et qu'on en ressort vers là d'où l'on vient.
+
+     L'ordre n'est pas décoratif : les deux premiers onglets sont ce qu'on
+     VIENT faire (voir ses dates, prendre ses partitions), les deux derniers
+     ce qu'on doit ENTRETENIR (son dossier, ses remplaçant·es). Les partitions
+     se rangent donc contre les dates — même geste, même moment de la saison —
+     et non en bout de barre. */
   const ONGLETS = [
-    { cle:'accueil', page:'mon-espace.html',     libelle:'Accueil',     titre:'Mon espace' },
-    { cle:'dates',   page:'mes-dates.html',      libelle:'Mes dates',   titre:'Mes dates' },
-    { cle:'infos',   page:'mes-infos.html',      libelle:'Mes infos',   titre:'Mes informations' },
-    { cle:'rempla',  page:'mes-remplacants.html',libelle:'Remplaçants', titre:'Mes remplaçant·es', titulaire:true },
+    { cle:'accueil',    page:'mon-espace.html',     libelle:'Accueil',     titre:'Mon espace' },
+    { cle:'dates',      page:'mes-dates.html',      libelle:'Mes dates',   titre:'Mes dates' },
+    { cle:'partitions', page:'mes-partitions.html', libelle:'Partitions',  titre:'Mes partitions', siPartitions:true },
+    { cle:'infos',      page:'mes-infos.html',      libelle:'Mes infos',   titre:'Mes informations' },
+    { cle:'rempla',     page:'mes-remplacants.html',libelle:'Remplaçants', titre:'Mes remplaçant·es', titulaire:true },
   ];
   const SOUS_ECRANS = {
     'dispo-titulaire.html': { onglet:'accueil', titre:'Mes disponibilités' },
@@ -59,6 +73,10 @@ const CurieuxAppMusicien = (function(){
     dates:   '<rect x="3.5" y="5" width="17" height="15.5" rx="2.2"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3"/><path d="M8.5 13.8 10.7 16l4.3-4.3"/>',
     infos:   '<rect x="3.5" y="5.5" width="17" height="13" rx="2.2"/><circle cx="9" cy="11" r="2.1"/><path d="M5.6 16.2a3.7 3.7 0 0 1 6.8 0M14.5 10h4M14.5 13.4h4"/>',
     rempla:  '<path d="M4 7.5h11a4 4 0 0 1 4 4v1"/><path d="M12 4.3 15.2 7.5 12 10.7"/><path d="M20 16.5H9a4 4 0 0 1-4-4v-1"/><path d="M12 13.3 8.8 16.5 12 19.7"/>',
+    // Une page portée, et non une double croche seule : seule la page dit que
+    // ce qu'on vient chercher ici est un DOCUMENT à emporter. La note isolée
+    // aurait aussi bien pu annoncer un enregistrement à écouter.
+    partitions: '<rect x="4.4" y="3.3" width="15.2" height="17.4" rx="2.3"/><path d="M8 7.9h8M8 10.7h8"/><circle cx="10.1" cy="16.6" r="1.85"/><path d="M11.95 16.6V12.4"/>',
   };
   const svg = (d, taille)=> `<svg class="app-onglet-icone" width="${taille || 22}" height="${taille || 22}" viewBox="0 0 24 24"
     fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"
@@ -77,7 +95,7 @@ const CurieuxAppMusicien = (function(){
 
      Ce qu'il faut pour peindre la coque — le prénom, le statut, ce qui reste à
      faire — est déjà lu par l'espace personnel. On le range ici pour que les
-     quatre autres écrans l'affichent sans redemander. sessionStorage et non
+     autres écrans l'affichent sans redemander. sessionStorage et non
      localStorage : deux personnes peuvent ouvrir leur lien sur le même
      téléphone, et l'état de l'une n'a rien à faire dans l'onglet de l'autre.
      La clé porte le jeton, ce qui rend la confusion impossible même dans un
@@ -117,18 +135,44 @@ const CurieuxAppMusicien = (function(){
   function pastille(cleOnglet){
     const e = lireEtat();
     if(cleOnglet === 'accueil' && e.disposAFaire > 0) return String(e.disposAFaire);
+    // Un nombre qui DESCEND : les partitions qu'on peut prendre et qu'on n'a
+    // jamais prises, jamais le total de celles qu'on possède. Voir
+    // compterPartitions dans mes-dates-vue.js.
+    if(cleOnglet === 'partitions' && e.partitionsNeuves > 0) return String(e.partitionsNeuves);
     if(cleOnglet === 'infos'  && e.infosIncompletes) return '•';
     if(cleOnglet === 'rempla' && e.remplaVides) return '•';
     return '';
   }
 
+  /* Deux onglets ne s'affichent pas pour tout le monde, et leurs deux règles
+     sont volontairement INVERSES — parce que l'erreur la plus coûteuse n'est
+     pas la même des deux côtés.
+
+     REMPLAÇANTS se montre TANT QU'ON NE SAIT PAS. Le statut n'est connu
+     qu'après un passage par l'espace ; le lien envoyé ouvre toujours l'espace,
+     donc le cas ne dure qu'un écran — et retirer un onglet à quelqu'un qui y
+     avait droit serait la pire des deux erreurs.
+
+     PARTITIONS se cache tant qu'on ne sait pas. Ici la pire erreur est
+     l'autre : un·e technicien·ne reçoit le même lien et n'aura jamais de
+     partition, et un onglet qui n'ouvre jamais rien apprend à ne plus
+     regarder la barre. Le compte est posé par les deux écrans par lesquels on
+     ENTRE dans l'espace — l'accueil du lien personnel, et la page des dates
+     qu'on envoie par message. L'onglet apparaît donc sur le premier écran,
+     jamais au troisième clic. */
   function ongletsVisibles(){
     const e = lireEtat();
-    // Le statut n'est connu qu'après un passage par l'espace. Tant qu'il ne
-    // l'est pas, on montre l'onglet : le lien envoyé ouvre toujours l'espace,
-    // donc le cas ne dure qu'un écran — et retirer un onglet à quelqu'un qui y
-    // avait droit serait la pire des deux erreurs.
-    return ONGLETS.filter(o=> !o.titulaire || e.titulaire !== false);
+    return ONGLETS.filter(o=>{
+      /* L'ÉCRAN OÙ L'ON EST SE MONTRE TOUJOURS, quelle que soit la règle. Une
+         barre qui n'allume rien pendant qu'on lit une page donne le sentiment
+         d'être sorti de l'application, et le cas arrive pour de vrai : lien
+         ouvert directement, navigation privée où l'état de session ne se
+         garde pas, onglet resté ouvert pendant qu'une affectation changeait. */
+      if(contexte && o.cle === contexte.onglet) return true;
+      if(o.titulaire && e.titulaire === false) return false;
+      if(o.siPartitions && !(e.partitions > 0)) return false;
+      return true;
+    });
   }
 
   // --- La feuille de style, posée une fois ---------------------------------
@@ -178,8 +222,13 @@ const CurieuxAppMusicien = (function(){
          donc entière. « Bonjour Camille », lui, n'est pas un titre d'écran
          mais une salutation : il reste. */
       body.app-musicien #content > h1:first-child{display:none;}
-      body.app-musicien.app-ecran-dates .entete .co-h1{display:none;}
-      body.app-musicien.app-ecran-dates .entete{padding-top:2px;}
+      /* Deux écrans posent leur titre dans une .entete plutôt que dans
+         #content — « Mes dates » et « Mes partitions ». La barre le porte
+         déjà : il s'efface des deux, et l'en-tête se recolle en haut. */
+      body.app-musicien.app-ecran-dates .entete .co-h1,
+      body.app-musicien.app-ecran-partitions .entete .co-h1{display:none;}
+      body.app-musicien.app-ecran-dates .entete,
+      body.app-musicien.app-ecran-partitions .entete{padding-top:2px;}
 
       .app-barre{
         position:fixed; top:0; left:0; right:0; z-index:40;
@@ -279,6 +328,16 @@ const CurieuxAppMusicien = (function(){
       }
       .app-onglet-pastille.point{min-width:9px; width:9px; height:9px; padding:0; font-size:0; top:8px;}
 
+      /* Cinq onglets sur un téléphone de 360 px : chacun tombe à 72 px, et
+         « Remplaçants » n'y tient plus. Le libellé se resserre plutôt que de
+         se faire couper — « Remplaçan… » ne se lit pas, il se devine, et on
+         ne vise pas ce qu'on devine. Le compte est porté par data-nb, posé au
+         rendu : il ne vaut 5 que pour un pupitre titulaire en production. */
+      .app-onglets[data-nb="5"] .app-onglet{
+        font-size:10.5px; padding-left:1px; padding-right:1px; letter-spacing:0;
+      }
+      .app-onglets[data-nb="5"] .app-onglet-pastille{left:calc(50% + 5px);}
+
       /* Sur écran large, la barre du bas n'a plus de sens : le pouce n'est pas
          là. Les mêmes onglets remontent sous le titre, en une rangée de pilules
          centrée sur la colonne de contenu. */
@@ -296,6 +355,9 @@ const CurieuxAppMusicien = (function(){
         .app-onglet{
           flex:0 0 auto; flex-direction:row; gap:8px; padding:8px 16px; border-radius:999px;
           font-size:13px; background:var(--bg); border:1px solid transparent;
+        }
+        .app-onglets[data-nb="5"] .app-onglet{
+          font-size:13px; padding-left:16px; padding-right:16px; letter-spacing:.01em;
         }
         .app-onglet:hover{border-color:var(--border);}
         .app-onglet.actif{background:var(--accent); color:#fff;}
@@ -315,7 +377,14 @@ const CurieuxAppMusicien = (function(){
     if(!onglets || !contexte) return;
     const e = lireEtat();
 
-    onglets.innerHTML = ongletsVisibles().map(o=>{
+    /* Le nombre d'onglets réellement affichés, porté sur la barre : c'est lui
+       qui resserre les libellés à cinq (voir la feuille de style). Posé au
+       rendu et non à la construction — l'onglet des partitions apparaît quand
+       l'écran apprend qu'il y en a, c'est-à-dire après la barre. */
+    const liste = ongletsVisibles();
+    onglets.setAttribute('data-nb', String(liste.length));
+
+    onglets.innerHTML = liste.map(o=>{
       const actif = o.cle === contexte.onglet;
       const p = pastille(o.cle);
       return `<a class="app-onglet${actif ? ' actif' : ''}" href="${echapper(lien(o.page))}"
