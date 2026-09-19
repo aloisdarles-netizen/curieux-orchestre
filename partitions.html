@@ -1806,6 +1806,15 @@ async function reprendreAffectation(sourceId){
 async function creerEnvoi(){
   const val = (id)=> (document.getElementById(id) || {}).value || '';
   const coche = (id)=> !!(document.getElementById(id) || {}).checked;
+  /* Le formulaire ne vit que dans la fiche d'un spectacle ouvert, donc
+     state.spectacleId est nécessairement rempli — mais il ne l'est plus
+     d'office au chargement depuis que la page part de la liste, et un lot
+     rattaché à un spectacle vide serait un lien qui n'ouvre rien, envoyé à un
+     orchestre qui attend son matériel. Une ligne de ceinture. */
+  if(!state.spectacleId){
+    alert("Ouvre d'abord le spectacle à confier : c'est lui qui décide des parties du lot.");
+    return;
+  }
   const destinataire = val('envDestinataire').trim();
   if(!destinataire){
     alert("Le nom de l'ensemble destinataire est obligatoire : c'est lui qui se pose sur chaque exemplaire téléchargé, et c'est ce qui rend la transmission traçable.");
