@@ -38,7 +38,7 @@ const CURIEUX_NOUVEAUTES = [
     points: [
       "Côté musicien·ne, les partitions quittent le bas de « Mes dates » pour un onglet à elles, à côté des dates. Elles se trouvaient en défilant six cents pixels de colonnes : une partie déposée la veille d'une répétition pouvait ne pas être vue.",
       "L'onglet porte une pastille : le nombre de parties DÉPOSÉES, OUVERTES et jamais téléchargées par la personne. Un compteur qui descend — et non le nombre de partitions qu'elle possède, qui aurait affiché « 12 » toute la saison. Chaque ligne de la liste dit « à prendre » tant qu'elle n'a pas été prise.",
-      "L'onglet ne s'affiche qu'aux personnes qui ont du matériel : les technicien·nes reçoivent le même lien et n'en auront jamais. Il apparaît dès le premier écran — l'accueil comme la page des dates posent le compte.",
+      "L'onglet est là pour TOUS les musicien·nes, avec ou sans partie affectée : vide, il dit « rien pour l'instant, et ça arrivera ici ». Les technicien·nes, qui reçoivent le même lien personnel, ne le voient pas. C'est le métier qui décide, jamais le contenu du jour — un menu qui change de forme d'une semaine à l'autre ne s'explique pas au téléphone.",
       "Rien de nouveau à envoyer : ni lien, ni code, ni message. Les liens en circulation ouvrent le nouvel onglet, et les codes d'opération déjà saisis restent valables.",
     ],
   },

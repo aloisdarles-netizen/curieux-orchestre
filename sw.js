@@ -145,7 +145,13 @@
 // change aussi : sans la nouvelle page dans sa liste blanche, l'écran des
 // partitions annoncerait le manifeste de l'ÉQUIPE, et l'icône posée depuis
 // cet écran ouvrirait la page de connexion.
-const VERSION = 'curieux-v126';
+// v127 : l'onglet Partitions se décide par le MÉTIER et non par le stock —
+// tous les musicien·nes l'ont, les technicien·nes jamais (app-musicien.js).
+// Le type de personne est lu dans mes_dates / mes_demandes_dispo, déjà
+// attendues : l'onglet est peint au premier rendu. Sans cet incrément, un
+// téléphone déjà venu garderait l'ancien app-musicien.js et continuerait de
+// cacher l'onglet aux musicien·nes sans affectation.
+const VERSION = 'curieux-v127';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

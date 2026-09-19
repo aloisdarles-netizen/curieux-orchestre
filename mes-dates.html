@@ -193,18 +193,18 @@ function poserAgenda(charge){
   });
 }
 
-/* L'onglet des partitions, allumé depuis ici.
+/* La pastille des partitions, comptée depuis ici.
    -------------------------------------------------------------------------
    Les partitions s'affichaient en bas de cette page. Elles ont leur écran
    (mes-partitions.html) : un bloc en fin de page ne se trouvait qu'en
    défilant six cents pixels de colonnes de dates, et ne pouvait rien
    annoncer depuis les autres écrans.
 
-   La lecture reste ici, et rien ne s'en affiche. Une seule raison, mais elle
-   suffit : cette page est celle qu'on ENVOIE PAR MESSAGE, donc l'une des deux
-   portes d'entrée de l'espace. Sans ce compte, l'onglet des partitions
-   resterait invisible à qui arrive par là — il se cache tant qu'on ne sait
-   pas s'il y en a (voir ongletsVisibles dans app-musicien.js).
+   La lecture reste ici, et rien ne s'en affiche. L'onglet lui-même est déjà
+   décidé plus haut, par le métier de la personne ; ce qu'on compte ici, c'est
+   le nombre de parties qui restent à PRENDRE, pour la pastille — et cette
+   page est l'une des deux portes d'entrée de l'espace, celle qu'on envoie par
+   message.
 
    Lecture SÉPARÉE de mes_dates, et c'est voulu : mes_dates ne rend que les
    dates À VENIR où l'on est affecté ou sollicité. Des partitions qui en
@@ -217,7 +217,7 @@ async function allumerOngletPartitions(){
   let charge;
   try{ charge = await CurieuxDB.mesPartitions(TOKEN); }
   catch(e){ return; }
-  // Migration pas encore jouée : pas d'onglet, et surtout pas de zéro. La
+  // Migration pas encore jouée : pas de pastille, et surtout pas de zéro. La
   // production le verra sur sa propre page.
   if(!charge || charge.migrationAbsente) return;
   const compte = CurieuxMesDates.compterPartitions(charge);
@@ -263,7 +263,12 @@ async function init(){
   // La barre de l'application porte déjà « Mes dates » : ce titre-ci lui est
   // masqué (voir app-musicien.js), et c'est le prénom en bout de barre qui
   // dit de qui sont ces dates.
-  if(window.CurieuxAppMusicien) CurieuxAppMusicien.etat({ prenom });
+  /* `musicien` décide de l'onglet des partitions. mes_dates rend le type de
+     la personne, déjà attendu ici : l'onglet est peint au premier rendu, et
+     n'apparaît pas après coup. */
+  if(window.CurieuxAppMusicien) CurieuxAppMusicien.etat({
+    prenom, musicien: (moi.personType || '') === 'musicien',
+  });
   const stamp = CurieuxMesDates.fraicheur(moi.genereLe);
   document.getElementById('sousTitre').innerHTML =
     `Ce qui est confirmé, ce qui est encore en option.${stamp ? `<br><span class="fraicheur">${escapeHtml(stamp)}</span>` : ''}`;
