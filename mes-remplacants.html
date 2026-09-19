@@ -296,22 +296,83 @@ function markDirty(){
   hasUnsavedChanges = true;
 }
 
+/* ENREGISTRER, ET S'EN ASSURER.
+   ---------------------------------------------------------------------------
+   Une liste qu'on croit enregistrée et qui ne l'est pas coûte bien plus cher
+   qu'une erreur affichée : la personne referme son téléphone, et le trou ne se
+   découvre que le jour où il faut appeler quelqu'un.
+
+   Deux failles se refermaient mal ici, toutes deux muettes :
+
+   1. RIEN N'ENTOURAIT L'APPEL. Si l'écriture LEVAIT au lieu de rendre une
+      erreur — réseau qui tombe en cours d'envoi, ou assets/db.js gardé en
+      cache par le téléphone dans une version d'avant la fonction, auquel cas
+      elle vaut undefined —, le bouton restait sur « Enregistrement… »,
+      désactivé, sans un mot. Rien n'était parti et rien ne le disait.
+
+   2. LE ✓ ÉTAIT AFFIRMÉ SUR LA SEULE ABSENCE D'ERREUR. On relit donc la liste
+      depuis la base et on la compare à ce qu'on vient d'envoyer : le ✓ ne
+      s'affiche que si la base rend les mêmes personnes dans le même ordre.
+
+   Le doute penche toujours du même côté : mieux vaut demander une seconde fois
+   un enregistrement qui avait réussi — réécrire la même liste ne coûte rien —
+   que d'annoncer un succès qui n'a pas eu lieu. */
+function empreinteListe(items){
+  return (items || []).slice()
+    .sort((a, b)=> (Number(a.rang) || 0) - (Number(b.rang) || 0))
+    .map(it=> it.source === 'roster'
+      ? `${it.rang}|roster|${it.personType || 'musicien'}|${it.personId}`
+      : `${it.rang}|new|${(it.prenom || '').trim()}|${(it.nom || '').trim()}`
+        + `|${(it.telephone || '').trim()}|${(it.email || '').trim()}`)
+    .join('\n');
+}
+
 async function doSave(){
   const btn = document.getElementById('saveBtn');
   const status = document.getElementById('saveStatus');
+  // Photo de ce qu'on envoie : la personne peut continuer à toucher l'écran
+  // pendant l'aller-retour, et c'est bien CET envoi-là qu'on doit vérifier.
+  const envoye = state.items.map(it=> Object.assign({}, it));
   btn.disabled = true;
   btn.textContent = 'Enregistrement…';
-  const { error } = await CurieuxDB.upsertRemplacantPrefsByToken(state.token, state.items);
-  btn.textContent = 'Enregistrer ma liste';
-  if(error){
-    status.textContent = "Erreur d'enregistrement — réessaie.";
+
+  // Un seul chemin de sortie en cas d'échec : le bouton redevient cliquable,
+  // la saisie reste à l'écran et l'alerte de fermeture d'onglet reste armée.
+  const echec = (message)=>{
+    status.textContent = message;
     status.className = 'save-status dirty';
+    btn.textContent = 'Enregistrer ma liste';
     btn.disabled = false;
-  } else {
-    status.textContent = '✓ Liste enregistrée.';
-    status.className = 'save-status saved';
-    hasUnsavedChanges = false;
+    hasUnsavedChanges = true;
+  };
+
+  let erreur = null;
+  try{
+    const reponse = await CurieuxDB.upsertRemplacantPrefsByToken(state.token, envoye);
+    erreur = reponse && reponse.error;
+  }catch(e){
+    erreur = e || { message: 'échec inattendu' };
   }
+  if(erreur){
+    console.warn('[remplaçants] écriture refusée', erreur.message || erreur);
+    echec('Pas enregistré — vérifie ta connexion et réessaie.');
+    return;
+  }
+
+  // Contrôle : la base rend-elle bien ce qu'on vient de lui donner ?
+  let relu = null;
+  try{ relu = await CurieuxDB.getRemplacantPrefsByToken(state.token); }
+  catch(e){ relu = null; }
+
+  if(!relu || empreinteListe(relu) !== empreinteListe(envoye)){
+    echec('Enregistrement non confirmé — réessaie.');
+    return;
+  }
+
+  btn.textContent = 'Enregistrer ma liste';
+  status.textContent = '✓ Liste enregistrée.';
+  status.className = 'save-status saved';
+  hasUnsavedChanges = false;
 }
 document.getElementById('saveBtn').addEventListener('click', doSave);
 

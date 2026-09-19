@@ -174,7 +174,12 @@
 // un téléphone déjà venu garderait l'ancien app-musicien.js et continuerait de
 // cacher l'onglet aux musicien·nes sans partie affectée — c'est-à-dire à
 // presque tout l'orchestre.
-const VERSION = 'curieux-v130';
+// v131 : « Mes remplaçant·es » ne peut plus annoncer un enregistrement qui n'a
+// pas eu lieu. L'incrément compte ici pour lui-même : il vide le cache des
+// actifs, donc un téléphone qui gardait un assets/db.js d'avant la fonction
+// d'écriture — le cas où le bouton restait figé sur « Enregistrement… » —
+// repart sur un fichier frais au prochain chargement.
+const VERSION = 'curieux-v131';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
