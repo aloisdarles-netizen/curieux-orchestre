@@ -125,8 +125,12 @@
     font-family:inherit; line-height:1.3; text-align:left;
   }
   .onglet small{display:block; font-weight:500; font-size:11px; color:var(--muted);}
-  .onglet.actif{background:var(--accent); border-color:var(--accent); color:#fff;}
-  .onglet.actif small{color:rgba(255,255,255,.82);}
+  /* L'encre de l'onglet actif suit --sur-statut et non #fff : la nuit,
+     --accent bascule au glacier (#CEE1F4) et du blanc pur s'y posait à 1,3:1
+     — le libellé de l'onglet où l'on se trouve disparaissait. --sur-statut est
+     fait pour ça : il vaut le blanc le jour et le noir de la charte la nuit. */
+  .onglet.actif{background:var(--accent); border-color:var(--accent); color:var(--sur-statut);}
+  .onglet.actif small{color:var(--sur-statut); opacity:.82;}
   .onglet.alerte{border-color:var(--ko);}
 
   /* Le fil d'Ariane de l'atelier. Sans lui, on ne sait plus dans quel spectacle
@@ -862,7 +866,8 @@ function vueDepot(){
       <h2>Déposer dans — ${escapeHtml(spectacle.nom)}
         <span class="h2-total"><button type="button" class="co-btn ghost sm" id="btnRetourSpectacle">Retour au spectacle</button></span>
       </h2>
-      <div class="depot-zone" id="zoneDepot">
+      <div class="depot-zone" id="zoneDepot" role="button" tabindex="0"
+           aria-label="Choisir des PDF à déposer">
         <b>Glisse les PDF ici, ou clique pour les choisir</b>
         La page lit le nom de chaque fichier et propose sa partie. Tu ne corriges que ce qu'elle a raté.
         <input type="file" id="inpFichiers" accept="application/pdf,.pdf" multiple hidden>
@@ -1414,7 +1419,13 @@ function ouvrirFiche({ titre, sous, corps, valider, libelleOk }){
   };
   // Entrée valide — sauf dans une zone de texte, où elle sert à aller à la ligne.
   ov.addEventListener('keydown', (e)=>{
-    if(e.key === 'Enter' && e.target.tagName !== 'TEXTAREA'){ e.preventDefault(); ok.click(); }
+    /* Entrée valide DEPUIS UN CHAMP, jamais depuis un bouton. Le navigateur
+       active déjà le bouton qui a le focus : en détournant Entrée sans
+       exception, on enregistrait au moment où l'on visait « Annuler » — et
+       sur la fiche d'un spectacle, cela le créait. */
+    if(e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON'){
+      e.preventDefault(); ok.click();
+    }
   });
   const premier = ov.querySelector('input, select, textarea');
   if(premier) premier.focus();
@@ -1464,6 +1475,13 @@ function cablerVue(){
   const zone = q('zoneDepot'), inp = q('inpFichiers');
   if(zone && inp){
     zone.onclick = ()=> inp.click();
+    /* La zone est le SEUL chemin vers le sélecteur de fichiers : l'input est
+       `hidden`, donc hors de l'ordre de tabulation, et le glisser-déposer
+       demande une souris. Sans ces deux touches, la seule action de l'écran —
+       déposer un PDF — était impossible au clavier. */
+    zone.onkeydown = (e)=>{
+      if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); inp.click(); }
+    };
     inp.onchange = ()=>{ ajouterAuDepot(Array.from(inp.files || [])); inp.value = ''; };
     ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, (e)=>{ e.preventDefault(); zone.classList.add('survol'); }));
     ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, (e)=>{ e.preventDefault(); zone.classList.remove('survol'); }));
