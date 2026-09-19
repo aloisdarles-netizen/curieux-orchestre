@@ -106,6 +106,60 @@
   .barre{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px;}
   .barre select, .barre input{max-width:100%;}
 
+  /* Les opérations d'un spectacle, en pastilles. Une programmation se lit d'un
+     coup d'œil dans la liste des spectacles : c'est elle qui dit à quoi sert ce
+     matériel, et son absence est une alerte, pas un détail. */
+  .opes{display:flex; flex-wrap:wrap; gap:6px; margin-top:5px;}
+  .ope{
+    display:inline-block; font-size:11.5px; font-weight:700; white-space:nowrap;
+    background:var(--bg); border:1px solid var(--border); border-radius:999px; padding:2px 9px;
+  }
+  .ope.vide{color:var(--ko); border-color:var(--ko); padding:2px 9px;}
+
+  /* Les onglets d'opération dans l'atelier d'un spectacle : on distribue une
+     opération à la fois, et on voit sans chercher combien il y en a d'autres. */
+  .onglets{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+  .onglet{
+    border:1px solid var(--border); background:var(--card); border-radius:999px;
+    padding:6px 14px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text);
+    font-family:inherit; line-height:1.3; text-align:left;
+  }
+  .onglet small{display:block; font-weight:500; font-size:11px; color:var(--muted);}
+  .onglet.actif{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .onglet.actif small{color:rgba(255,255,255,.82);}
+  .onglet.alerte{border-color:var(--ko);}
+
+  /* Le fil d'Ariane de l'atelier. Sans lui, on ne sait plus dans quel spectacle
+     on dépose — et on dépose dans le mauvais. */
+  .fil{
+    display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:14px;
+    font-size:12.5px; color:var(--muted);
+  }
+  .fil b{font-family:var(--font-display); font-size:22px; font-weight:500; color:var(--text); line-height:1.15;}
+
+  /* La fiche modale — création et modification d'un spectacle, d'une partie.
+     On abandonne prompt() : il ne prend qu'un champ, il ne valide rien, et il
+     ne permettait pas de demander l'opération au moment où elle se décide. */
+  .fiche-ov{position:fixed; inset:0; background:rgba(20,22,23,.55); display:grid; place-items:center; z-index:200; padding:20px;}
+  .fiche-bo{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg, 22px);
+    padding:22px 24px; max-width:540px; width:100%; max-height:86vh; overflow:auto;
+  }
+  .fiche-bo h2{font-family:var(--font-display); font-size:21px; font-weight:500; color:var(--accent); margin:0 0 4px; text-transform:none; letter-spacing:0;}
+  .fiche-bo p.sous{font-size:12.5px; color:var(--muted); margin:0 0 16px; line-height:1.5;}
+  .fiche-bo label.co-label{margin-top:12px;}
+  .fiche-bo label.co-label:first-of-type{margin-top:0;}
+  .fiche-err{font-size:12.5px; color:var(--ko); font-weight:700; margin-top:10px; min-height:1px;}
+  .fiche-pied{display:flex; gap:8px; margin-top:18px; flex-wrap:wrap;}
+  .fiche-pied .co-btn.ghost{margin-left:auto;}
+
+  /* La bannière de migration. Une table absente se lit « aucune opération » —
+     et ce n'est pas la même chose à faire ensuite. */
+  .banniere-alerte{display:flex; gap:11px; align-items:flex-start; background:var(--danger-tint); border-radius:var(--radius); padding:13px 15px; margin-bottom:16px;}
+  .banniere-alerte .sig{color:var(--danger); font-weight:900; font-size:15px; line-height:1.4; flex:0 0 auto;}
+  .banniere-alerte p{margin:0; font-size:13.5px; line-height:1.5;}
+  .banniere-alerte[hidden]{display:none;}
+
   @media (max-width:760px){
     .bloc{padding:13px 14px;}
     .ligne{grid-template-columns:minmax(0,1fr) auto;}
@@ -120,18 +174,22 @@
   <div class="co-page-head co-fade">
     <div>
       <h1 class="co-h1">Partitions</h1>
-      <p class="co-sub">La bibliothèque d'orchestre : on y range le matériel par spectacle, et on le sort pour une opération.</p>
+      <p class="co-sub">On crée un spectacle, on dit sur quelle opération il se joue, puis on y lie ses parties et ses musiciens.</p>
     </div>
     <div class="co-actions">
-      <button type="button" class="co-btn" data-vue="bibliotheque">Bibliothèque</button>
-      <button type="button" class="co-btn" data-vue="affectation">Affectation</button>
+      <button type="button" class="co-btn" data-vue="spectacles">Spectacles</button>
+      <button type="button" class="co-btn" data-vue="operations">Par opération</button>
       <button type="button" class="co-btn" data-vue="transmissions">Transmissions</button>
     </div>
   </div>
 
+  <div class="banniere-alerte" id="migrationBanner" hidden>
+    <span class="sig">!</span>
+    <p id="migrationTexte"></p>
+  </div>
+
   <div id="page"><div class="co-card co-pad vide">Chargement…</div></div>
 </div>
-
 <script>
 /* ============================================================================
    Partitions — la page.
@@ -143,6 +201,21 @@
    à chaque opération, et pose sur chaque exemplaire téléchargé le nom de qui
    l'a pris.
 
+   L'ORDRE DES GESTES, et c'est lui qu'on a corrigé
+   -----------------------------------------------
+   La première version partait des fichiers : on déposait dans une bibliothèque
+   hors sol, puis on ouvrait un SECOND écran où il fallait recroiser à la main
+   une opération et un spectacle — sans que rien ne dise lesquels vont ensemble.
+   On travaille maintenant dans l'ordre où la production décide :
+
+     1. je crée le SPECTACLE et je dis sur quelle OPÉRATION il se joue ;
+     2. j'ouvre ce spectacle et j'y range ses PARTIES et leurs fichiers ;
+     3. dans ce même écran, j'y lie les MUSICIENS, opération par opération.
+
+   Tout tient dans une seule page par spectacle. L'écran « Par opération » ne
+   sert qu'à la relecture d'avant première répétition : sur cette opé, qu'a-t-on
+   programmé, et qui n'a rien à jouer.
+
    TROIS NIVEAUX, ET C'EST CELUI DU MILIEU QUI TRAVAILLE :
      le SPECTACLE  — EXPEDITION 33. On y dépose le matériel UNE FOIS.
      la PARTIE     — Violon 1, Alto, Piano. C'est l'unité qu'on affecte.
@@ -153,11 +226,16 @@
    1. UN SEUL EXEMPLAIRE PROPRE PAR PARTIE, jamais un fichier par musicien·ne.
       C'est ce qui maintient le stockage plat : cinquante musiciens sur une
       partie, c'est un fichier, pas cinquante.
-   2. LE FILIGRANE SE POSE À LA VOLÉE, dans /api/partition, au moment du
+   2. LE MATÉRIEL APPARTIENT AU SPECTACLE, PAS À L'OPÉRATION. EXPEDITION 33
+      porte quatre opérations et ne se dépose qu'une fois. C'est pourquoi la
+      programmation est une LIGNE DE LIAISON (partitions_programmations) et non
+      une colonne sur le spectacle : rattacher une cinquième opération ne coûte
+      pas un octet de plus.
+   3. LE FILIGRANE SE POSE À LA VOLÉE, dans /api/partition, au moment du
       téléchargement. Le fichier propre ne sort jamais du bucket privé.
-   3. L'AFFECTATION PORTE SUR LA PARTIE, pas sur le fichier. Un fichier ajouté
+   4. L'AFFECTATION PORTE SUR LA PARTIE, pas sur le fichier. Un fichier ajouté
       à trois semaines du concert se propage seul à tous ceux qui la lisent.
-   4. LES LIENS PERSONNELS DÉJÀ ENVOYÉS RESTENT VALIDES. Le musicien voit ses
+   5. LES LIENS PERSONNELS DÉJÀ ENVOYÉS RESTENT VALIDES. Le musicien voit ses
       partitions dans son espace existant ; on ne réémet aucun lien.
 
    CE QUE CETTE PAGE NE FAIT PAS, et qui est un bon refus :
@@ -183,16 +261,17 @@
 const PLAFOND_STOCKAGE = 1024 * 1024 * 1024;   // le plan Supabase gratuit
 
 let state = {
-  vue: 'bibliotheque',
-  spectacles: [], parties: [], fichiers: [], affectations: [], acces: [], envois: [],
+  vue: 'spectacles',   // 'spectacles' | 'spectacle' | 'depot' | 'operations' | 'transmissions'
+  spectacles: [], programmations: [], parties: [], fichiers: [], affectations: [], acces: [], envois: [],
   tournees: [], musiciens: [], techniciens: [],
   spectacleId: '',
-  tourneeId: '',
+  tourneeId: '',      // l'opération en cours de distribution
   depot: [],          // les fichiers choisis, pas encore déposés
-  // Le journal des téléchargements n'est lu QU'À L'OUVERTURE de l'onglet
-  // Transmissions, et une seule fois. C'est une table qui grossit d'une ligne
-  // par partition remise : la charger à chaque ouverture de la bibliothèque
-  // ferait payer une saison de téléchargements à qui vient déposer trois PDF.
+  // Le journal des téléchargements n'est lu qu'au premier écran qui en a
+  // besoin — l'onglet Transmissions ou la fiche d'un spectacle —, et une seule
+  // fois ensuite. C'est une table qui grossit d'une ligne par partition
+  // remise : la charger à chaque ouverture de la page ferait payer une saison
+  // de téléchargements à qui vient déposer trois PDF. Voir chargerJournalTiers.
   telechargements: null,
   telechargementsEnCours: false,
   chargement: true,
@@ -218,12 +297,66 @@ function poidsSpectacle(spectacleId){
 }
 const poidsTotal = () => state.fichiers.reduce((s, f) => s + (f.octets || 0), 0);
 
+const spectacleCourant = () => state.spectacles.find(s => s.id === state.spectacleId) || null;
+const nomSpectacle = (id) => (state.spectacles.find(s => s.id === id) || {}).nom || 'Spectacle supprimé';
+const operationDe = (id) => state.tournees.find(t => t.id === id) || null;
+const nomOperation = (id) => (operationDe(id) || {}).nom || 'Opération supprimée';
+
+/* Les bornes d'une opération, lues dans ses dates. Elles servent à deux
+   choses : dater une programmation dans une liste, et faire remonter ce qui
+   n'est pas encore passé — une production travaille sur ce qui arrive. */
+function bornesOperation(t){
+  const dates = ((t || {}).dates || []).map(d => d.date).filter(Boolean).sort();
+  return { debut: dates[0] || '', fin: dates[dates.length - 1] || '' };
+}
+function periodeOperation(t){ return libelleSerieDates((t || {}).dates || []); }
+
+function trierOperations(liste){
+  const auj = new Date().toISOString().slice(0, 10);
+  const fin = (t) => bornesOperation(t).fin;
+  const debut = (t) => bornesOperation(t).debut;
+  const aVenir = liste.filter(t => fin(t) && fin(t) >= auj).sort((a, b) => debut(a).localeCompare(debut(b)));
+  const sansDate = liste.filter(t => !fin(t)).sort((a, b) => (a.nom || '').localeCompare(b.nom || '', 'fr'));
+  const passees = liste.filter(t => fin(t) && fin(t) < auj).sort((a, b) => fin(b).localeCompare(fin(a)));
+  return [...aVenir, ...sansDate, ...passees];
+}
+
+/* LA PROGRAMMATION : « ce spectacle se joue sur cette opération ». C'est elle
+   qui ouvre tout le reste — sans elle, le matériel se range et ne se distribue
+   pas. On rend toujours les opérations RÉSOLUES, y compris celles dont la
+   tournée a été supprimée depuis : une programmation orpheline doit se voir
+   pour se retirer, pas disparaître en silence. */
+function programmationsDe(spectacleId){
+  const liste = state.programmations.filter(p => p.spectacleId === spectacleId);
+  const rang = new Map(trierOperations(state.tournees).map((t, i) => [t.id, i]));
+  return liste.sort((a, b) => (rang.has(a.tourneeId) ? rang.get(a.tourneeId) : 9e9)
+                            - (rang.has(b.tourneeId) ? rang.get(b.tourneeId) : 9e9));
+}
+function operationsDe(spectacleId){
+  return programmationsDe(spectacleId).map(p => {
+    const t = operationDe(p.tourneeId);
+    return {
+      progId: p.id, tourneeId: p.tourneeId, tournee: t, supprimee: !t,
+      nom: t ? t.nom : 'Opération supprimée',
+      periode: t ? periodeOperation(t) : '',
+      recording: estRecording(t),
+    };
+  });
+}
+function spectaclesDe(tourneeId){
+  const ids = new Set(state.programmations.filter(p => p.tourneeId === tourneeId).map(p => p.spectacleId));
+  return state.spectacles.filter(s => ids.has(s.id))
+    .sort((a, b) => Number(a.archive) - Number(b.archive) || a.nom.localeCompare(b.nom, 'fr'));
+}
+const estProgramme = (spectacleId, tourneeId) =>
+  state.programmations.some(p => p.spectacleId === spectacleId && p.tourneeId === tourneeId);
+
 /* L'effectif RÉEL d'une opération : l'union des personnes affectées sur ses
    dates. C'est la seule source juste — voir la bannière de tête. Une personne
    qui ne joue qu'une date sur trois en fait partie : elle a besoin de sa
    partie autant que les autres. */
 function effectifDe(tourneeId){
-  const t = state.tournees.find(x => x.id === tourneeId);
+  const t = operationDe(tourneeId);
   if(!t) return [];
   const compte = new Map();
   (t.dates || []).forEach(d => {
@@ -253,14 +386,25 @@ function effectifDe(tourneeId){
 function affectationsDe(tourneeId){
   return state.affectations.filter(a => a.tourneeId === tourneeId);
 }
+/* Les affectations d'UN spectacle sur UNE opération. Deux spectacles peuvent
+   partager une opération — un concert narratif et son lever de rideau — et
+   « qui lit quoi » ne se lit correctement que spectacle par spectacle. */
+function affectationsDeSpectacle(spectacleId, tourneeId){
+  const ids = new Set(partiesDe(spectacleId).map(p => p.id));
+  return state.affectations.filter(a => a.tourneeId === tourneeId && ids.has(a.partieId));
+}
+const accesDe = (tourneeId) =>
+  state.acces.find(a => a.id === tourneeId) || { id: tourneeId, code: '', actif: true, ouvertLe: '' };
 
 /* ---------------------------------------------------------------------------
    CHARGEMENT
    --------------------------------------------------------------------------- */
 
 async function charger(){
-  const [spectacles, parties, fichiers, affectations, acces, envois, tournees, musiciens, techniciens] = await Promise.all([
+  const [spectacles, programmations, parties, fichiers, affectations, acces, envois,
+         tournees, musiciens, techniciens, migrationAbsente, envoisAbsents] = await Promise.all([
     CurieuxDB.fetchAll('partitions_spectacles').catch(()=> []),
+    CurieuxDB.fetchAll('partitions_programmations').catch(()=> []),
     CurieuxDB.fetchAll('partitions_parties').catch(()=> []),
     CurieuxDB.fetchAll('partitions_fichiers').catch(()=> []),
     CurieuxDB.fetchAll('partitions_affectations').catch(()=> []),
@@ -269,14 +413,50 @@ async function charger(){
     CurieuxDB.fetchAll('tournees').catch(()=> []),
     CurieuxDB.fetchAll('musiciens').catch(()=> []),
     CurieuxDB.fetchAll('techniciens').catch(()=> []),
+    CurieuxDB.tableManquante('partitions_programmations').catch(()=> false),
+    CurieuxDB.tableManquante('partitions_envois').catch(()=> false),
   ]);
-  Object.assign(state, { spectacles, parties, fichiers, affectations, acces, envois, tournees, musiciens, techniciens, chargement: false });
+  Object.assign(state, { spectacles, programmations, parties, fichiers, affectations, acces, envois,
+                         tournees, musiciens, techniciens, chargement: false });
+  // Une liste vide se lit « rien n'est programmé » ; la vérité peut être « la
+  // migration n'est pas jouée ». Ce n'est pas la même chose à faire ensuite —
+  // et deux migrations peuvent manquer, sans les mêmes conséquences : on nomme
+  // celle qui manque plutôt que d'afficher le texte de l'autre.
+  poserBandeauMigration(migrationAbsente, envoisAbsents);
 
   const url = new URLSearchParams(location.search);
-  state.spectacleId = url.get('spectacle') || state.spectacleId || (spectacles[0] || {}).id || '';
-  state.tourneeId = url.get('operation') || state.tourneeId || '';
-  if(url.get('vue')) state.vue = url.get('vue');
+  const spectacle = url.get('spectacle') || '';
+  const operation = url.get('operation') || '';
+  if(operation) state.tourneeId = operation;
+  // Les anciens noms de vue restent valides : des liens et des signets les
+  // portent, et ils ne doivent pas atterrir sur un écran au hasard.
+  const LEGACY = { bibliotheque: 'spectacles', affectation: 'operations' };
+  const vue = url.get('vue');
+  if(vue) state.vue = LEGACY[vue] || vue;
+  if(spectacle && state.spectacles.some(s => s.id === spectacle)){ ouvrirSpectacle(spectacle, operation); return; }
+  if(operation && state.vue !== 'spectacles') state.vue = 'operations';
   rendre();
+}
+
+/* Une liste vide se lit « il n'y a rien » ; la vérité peut être « la migration
+   n'est pas jouée ». Deux tables peuvent manquer, et pas avec les mêmes
+   conséquences : le bandeau nomme celle qui manque et ce qu'elle empêche.
+   Afficher le texte de l'une pendant que l'autre manque enverrait jouer le
+   mauvais bloc de migrations.sql. */
+function poserBandeauMigration(programmationsAbsentes, envoisAbsents){
+  const manques = [];
+  if(programmationsAbsentes) manques.push(`La table <code>partitions_programmations</code> n'existe pas encore dans Supabase :
+    aucun spectacle ne peut être rattaché à une opération, et le matériel déjà rangé s'affiche donc comme non distribué.
+    Colle le bloc <b>LA PROGRAMMATION D'UN SPECTACLE SUR UNE OPÉRATION</b> de <code>migrations.sql</code> dans l'éditeur SQL.`);
+  if(envoisAbsents) manques.push(`La table <code>partitions_envois</code> n'existe pas encore dans Supabase :
+    aucun lot ne peut être confié à un ensemble tiers, et un lien créé ici ne serait enregistré nulle part.
+    Colle le bloc <b>LA TRANSMISSION À UN TIERS</b> de <code>migrations.sql</code> dans l'éditeur SQL.`);
+  const banniere = document.getElementById('migrationBanner');
+  banniere.hidden = !manques.length;
+  if(manques.length){
+    document.getElementById('migrationTexte').innerHTML =
+      manques.join('</p><p>') + '</p><p>Puis recharge cette page.';
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -284,22 +464,60 @@ async function charger(){
    --------------------------------------------------------------------------- */
 
 function rendre(){
-  document.querySelectorAll('[data-vue]').forEach(b => {
-    b.classList.toggle('primary', b.dataset.vue === state.vue);
-  });
+  const onglet = state.vue === 'operations' ? 'operations'
+               : state.vue === 'transmissions' ? 'transmissions' : 'spectacles';
+  document.querySelectorAll('[data-vue]').forEach(b => b.classList.toggle('primary', b.dataset.vue === onglet));
   const el = document.getElementById('page');
   if(state.chargement){ el.innerHTML = '<div class="co-card co-pad vide">Chargement…</div>'; return; }
-  el.innerHTML = state.vue === 'affectation' ? vueAffectation()
+  el.innerHTML = state.vue === 'operations' ? vueOperations()
                : state.vue === 'depot' ? vueDepot()
                : state.vue === 'transmissions' ? vueTransmissions()
-               : vueBibliotheque();
+               : state.vue === 'spectacle' ? vueSpectacle()
+               : vueSpectacles();
   cablerVue();
 }
 
-function enteteStockage(){
+function optionsOperations(selectionne, exclure){
+  const exclus = new Set(exclure || []);
+  return trierOperations(state.tournees.filter(t => !exclus.has(t.id))).map(t => {
+    const p = periodeOperation(t);
+    return `<option value="${escapeAttr(t.id)}"${t.id === selectionne ? ' selected' : ''}>`
+      + `${escapeHtml(t.nom || 'Sans nom')}${estRecording(t) ? ' · Recording' : ''}${p ? ' · ' + escapeHtml(p) : ''}</option>`;
+  }).join('');
+}
+
+/* --- VUE 1 : LA LISTE DES SPECTACLES -------------------------------------- */
+
+function vueSpectacles(){
   const total = poidsTotal();
   const part = Math.min(1, total / PLAFOND_STOCKAGE);
   const chaud = part > 0.8;
+  const servies = new Set(state.affectations.map(a => a.personType + '|' + a.personId)).size;
+  const orphelins = state.spectacles.filter(s => !s.archive && !programmationsDe(s.id).length);
+
+  const liste = state.spectacles.slice()
+    .sort((a, b) => Number(a.archive) - Number(b.archive) || a.nom.localeCompare(b.nom, 'fr'));
+
+  const lignes = liste.map(s => {
+    const parties = partiesDe(s.id);
+    const ids = new Set(parties.map(p => p.id));
+    const nbFichiers = state.fichiers.filter(f => ids.has(f.partieId)).length;
+    const opes = operationsDe(s.id);
+    const pastilles = opes.length
+      ? opes.map(o => `<span class="ope"${o.supprimee ? ' style="border-color:var(--ko);color:var(--ko)"' : ''}>${escapeHtml(o.nom)}${o.periode ? ' · ' + escapeHtml(o.periode) : ''}</span>`).join('')
+      : '<span class="ope vide">Aucune opération — ce matériel ne se distribue pas</span>';
+    return `
+      <div class="ligne">
+        <span class="l-nom">
+          <span class="l-titre">${escapeHtml(s.nom || 'Sans nom')}${s.archive ? ' <em style="font-weight:400;color:var(--muted)">— archivé</em>' : ''}</span>
+          <span class="l-sous">${escapeHtml([s.compositeur, s.arrangeur && 'arr. ' + s.arrangeur].filter(Boolean).join(' · ')) || 'Aucun auteur renseigné'}</span>
+          <span class="opes">${pastilles}</span>
+        </span>
+        <span class="l-num">${parties.length} partie${parties.length > 1 ? 's' : ''}<br><em style="font-weight:400">${nbFichiers} fichier${nbFichiers > 1 ? 's' : ''} · ${partitionsPoids(poidsSpectacle(s.id))}</em></span>
+        <button type="button" class="co-btn sm primary" data-ouvrir="${escapeAttr(s.id)}">Ouvrir</button>
+      </div>`;
+  }).join('');
+
   return `
     <div class="chiffres">
       <div class="chiffre">
@@ -312,49 +530,88 @@ function enteteStockage(){
         <small>sur 1 Go — soit une vingtaine de programmes à parties fusionnées</small>
       </div>
       <div class="chiffre">
-        <b>${state.affectations.length}</b><span>affectations</span>
-        <small>sur ${new Set(state.affectations.map(a => a.tourneeId)).size} opération(s)</small>
+        <b>${servies}</b><span>personnes servies</span>
+        <small>${state.affectations.length} affectation(s) sur ${new Set(state.programmations.map(p => p.tourneeId)).size} opération(s)</small>
       </div>
+    </div>
+    <section class="bloc">
+      <h2>Spectacles <span class="h2-total"><button type="button" class="co-btn sm primary" id="btnNouveauSpectacle">Nouveau spectacle</button></span></h2>
+      ${orphelins.length ? `<p class="vide sans-lecteur">${orphelins.length} spectacle${orphelins.length > 1 ? 's ne sont rattachés' : ' n\'est rattaché'} à aucune opération : ${escapeHtml(orphelins.slice(0, 4).map(s => s.nom).join(', '))}${orphelins.length > 4 ? '…' : ''}. Tant qu'ils n'en ont pas, personne ne peut recevoir leurs parties.</p>` : ''}
+      ${lignes || '<p class="vide">Aucun spectacle. Commence par en créer un : on lui donne son nom, l\'opération sur laquelle il se joue, et on y range ensuite ses parties et ses musiciens.</p>'}
+    </section>`;
+}
+
+/* --- VUE 2 : L'ATELIER D'UN SPECTACLE ------------------------------------- */
+
+function vueSpectacle(){
+  const s = spectacleCourant();
+  if(!s) return '<div class="co-card co-pad vide">Ce spectacle n\'existe plus. <button type="button" class="co-btn sm" id="btnRetourListe">Revenir à la liste</button></div>';
+  return blocFil(s) + blocOperations(s) + blocMateriel(s) + blocDistribution(s) + blocTransmissions(s) + blocReglages(s);
+}
+
+function blocFil(s){
+  return `
+    <div class="fil">
+      <button type="button" class="co-btn ghost sm" id="btnRetourListe">← Tous les spectacles</button>
+      <b>${escapeHtml(s.nom || 'Sans nom')}</b>
+      <span>${escapeHtml([s.compositeur, s.arrangeur && 'arr. ' + s.arrangeur].filter(Boolean).join(' · '))}</span>
+      ${s.archive ? '<span class="ope">archivé</span>' : ''}
+      <span style="margin-left:auto"><button type="button" class="co-btn ghost sm" id="btnModifierSpectacle">Modifier la fiche</button></span>
     </div>`;
 }
 
-/* --- VUE 1 : LA BIBLIOTHÈQUE ---------------------------------------------- */
-
-function vueBibliotheque(){
-  const spectacle = state.spectacles.find(s => s.id === state.spectacleId);
-  const listeSpectacles = state.spectacles.slice()
-    .sort((a, b) => Number(a.archive) - Number(b.archive) || a.nom.localeCompare(b.nom, 'fr'));
-
-  const cartes = listeSpectacles.map(s => {
-    const nbParties = partiesDe(s.id).length;
-    const ids = new Set(partiesDe(s.id).map(p => p.id));
-    const nbFichiers = state.fichiers.filter(f => ids.has(f.partieId)).length;
-    const actif = s.id === state.spectacleId;
+/* Bloc 1 — LES OPÉRATIONS. C'est le premier bloc parce que c'est la première
+   décision : ce matériel, pour quoi ? Tant qu'il n'y en a aucune, la
+   distribution plus bas n'a rien à montrer, et on le dit plutôt que d'afficher
+   un écran vide. */
+function blocOperations(s){
+  const opes = operationsDe(s.id);
+  const lignes = opes.map(o => {
+    const aff = affectationsDeSpectacle(s.id, o.tourneeId);
+    const effectif = effectifDe(o.tourneeId);
+    const servies = new Set(aff.map(a => a.personType + '|' + a.personId)).size;
+    const acces = accesDe(o.tourneeId);
+    const etat = o.supprimee ? 'Cette opération a été supprimée — à retirer'
+      : !aff.length ? 'Rien de distribué sur cette opération'
+      : `${servies} personne${servies > 1 ? 's servies' : ' servie'} sur ${effectif.length} à l'affiche`;
     return `
       <div class="ligne">
         <span class="l-nom">
-          <span class="l-titre">${escapeHtml(s.nom || 'Sans nom')}${s.archive ? ' <em style="font-weight:400;color:var(--muted)">— archivé</em>' : ''}</span>
-          <span class="l-sous">${escapeHtml([s.compositeur, s.arrangeur && 'arr. ' + s.arrangeur].filter(Boolean).join(' · ')) || 'Aucun auteur renseigné'}</span>
+          <span class="l-titre">${escapeHtml(o.nom)}${o.recording ? ' <em style="font-weight:400;color:var(--muted)">· Recording</em>' : ''}</span>
+          <span class="l-sous${o.supprimee || !aff.length ? ' sans-lecteur' : ''}">${escapeHtml(o.periode || 'Aucune date')} — ${escapeHtml(etat)}</span>
+          <span class="l-sous">Code d'accès : <b>${escapeHtml(acces.code || 'aucun')}</b>${acces.ouvertLe ? ' · ouvert à partir du ' + escapeHtml(acces.ouvertLe) : ''}</span>
         </span>
-        <span class="l-num">${nbParties} partie${nbParties > 1 ? 's' : ''}<br><em style="font-weight:400">${nbFichiers} fichier${nbFichiers > 1 ? 's' : ''} · ${partitionsPoids(poidsSpectacle(s.id))}</em></span>
-        <button type="button" class="co-btn sm${actif ? ' primary' : ''}" data-ouvrir="${escapeAttr(s.id)}">${actif ? 'Ouvert' : 'Ouvrir'}</button>
+        <button type="button" class="co-btn sm${o.tourneeId === state.tourneeId ? ' primary' : ''}" data-distribuer="${escapeAttr(o.tourneeId)}">Distribuer</button>
+        <button type="button" class="co-btn ghost sm" data-deprogrammer="${escapeAttr(o.progId)}">Retirer</button>
       </div>`;
   }).join('');
 
+  const restantes = state.tournees.filter(t => !estProgramme(s.id, t.id));
+
   return `
-    ${enteteStockage()}
     <section class="bloc">
-      <h2>Spectacles <span class="h2-total"><button type="button" class="co-btn sm" id="btnNouveauSpectacle">Nouveau spectacle</button></span></h2>
-      ${cartes || '<p class="vide">Aucun spectacle. Commence par en créer un — c\'est le tiroir où le matériel se range, et il sert ensuite à toutes les opérations qui le jouent.</p>'}
-    </section>
-    ${spectacle ? vueMateriel(spectacle) : ''}`;
+      <h2>Opérations sur lesquelles ce spectacle se joue</h2>
+      ${lignes || '<p class="vide sans-lecteur">Ce spectacle n\'est rattaché à aucune opération. Son matériel se range, mais personne ne peut le recevoir : une partition ne se distribue qu\'au titre d\'une opération.</p>'}
+      ${restantes.length ? `
+      <div class="ligne" style="grid-template-columns:minmax(0,1fr) 280px">
+        <span class="l-nom">
+          <span class="l-titre">Programmer sur une autre opération</span>
+          <span class="l-sous">Le matériel ne se redépose pas : une reprise coûte un clic, pas un octet.</span>
+        </span>
+        <select class="co-select" id="selProgrammer">
+          <option value="">— choisir une opération —</option>
+          ${optionsOperations('', state.programmations.filter(p => p.spectacleId === s.id).map(p => p.tourneeId))}
+        </select>
+      </div>` : ''}
+    </section>`;
 }
 
-function vueMateriel(spectacle){
-  const parties = partiesDe(spectacle.id);
+/* Bloc 2 — LE MATÉRIEL. Les parties du spectacle et leurs fichiers. */
+function blocMateriel(s){
+  const parties = partiesDe(s.id);
   const lignes = parties.map(p => {
     const fs = fichiersDe(p.id);
-    const poids = fs.reduce((s, f) => s + (f.octets || 0), 0);
+    const poids = fs.reduce((acc, f) => acc + (f.octets || 0), 0);
     const detail = fs.length
       ? fs.map(f => `<span class="l-sous">— ${escapeHtml(f.titre || f.nomOrigine)} · ${partitionsPoids(f.octets)}${f.pages ? ' · ' + f.pages + ' p.' : ''}
            <button type="button" class="co-btn ghost sm" data-retirer-fichier="${escapeAttr(f.id)}" style="padding:1px 8px;min-height:0;font-size:11px">retirer</button></span>`).join('')
@@ -374,16 +631,150 @@ function vueMateriel(spectacle){
 
   return `
     <section class="bloc">
-      <h2>Matériel — ${escapeHtml(spectacle.nom)}
+      <h2>Matériel
         <span class="h2-total">
           <button type="button" class="co-btn sm primary" id="btnDeposer">Déposer des fichiers</button>
           <button type="button" class="co-btn sm" id="btnNouvellePartie">Ajouter une partie</button>
-          <button type="button" class="co-btn ghost sm" id="btnReglagesSpectacle">Réglages</button>
         </span>
       </h2>
       ${manquantes ? `<p class="vide sans-lecteur">${manquantes} partie${manquantes > 1 ? 's sont annoncées' : ' est annoncée'} sans aucun fichier déposé.</p>` : ''}
       ${lignes || '<p class="vide">Rien de rangé. Dépose les PDF : la page lit leur nom et propose la partie de chacun.</p>'}
+    </section>`;
+}
+
+/* Bloc 3 — LA DISTRIBUTION. Qui lit quoi, opération par opération.
+   C'est ici que se règle le geste que l'ancienne page envoyait sur un second
+   écran : on est déjà dans le spectacle, l'opération se choisit d'un onglet,
+   et l'effectif proposé est celui de cette opération — pas l'annuaire entier. */
+function blocDistribution(s){
+  const opes = operationsDe(s.id);
+  if(!opes.length){
+    return `
+      <section class="bloc">
+        <h2>Qui lit quoi</h2>
+        <p class="vide">Rattache d'abord ce spectacle à une opération, plus haut. C'est elle qui dit qui est à l'affiche — et donc à qui proposer ses parties.</p>
+      </section>`;
+  }
+
+  const onglets = opes.map(o => {
+    const aff = affectationsDeSpectacle(s.id, o.tourneeId);
+    return `<button type="button" class="onglet${o.tourneeId === state.tourneeId ? ' actif' : ''}${aff.length ? '' : ' alerte'}" data-onglet="${escapeAttr(o.tourneeId)}">
+        ${escapeHtml(o.nom)}
+        <small>${escapeHtml(o.periode || 'sans date')} · ${aff.length} affectation${aff.length > 1 ? 's' : ''}</small>
+      </button>`;
+  }).join('');
+
+  if(!state.tourneeId || !estProgramme(s.id, state.tourneeId)){
+    return `<section class="bloc"><h2>Qui lit quoi</h2><div class="onglets">${onglets}</div>
+      <p class="vide">Choisis l'opération à distribuer.</p></section>`;
+  }
+
+  const effectif = effectifDe(state.tourneeId);
+  const aff = affectationsDeSpectacle(s.id, state.tourneeId);
+  const parties = partiesDe(s.id);
+  const mus = parId(state.musiciens), tech = parId(state.techniciens);
+
+  // Les deux compteurs qui sauvent. Le second se lit à l'envers — il part de
+  // l'effectif réel de l'opération, pas du matériel — et c'est celui qu'on
+  // oublie : quelqu'un qui arrive à la première sans rien à jouer. Il compte
+  // TOUTES les affectations de l'opération, pas seulement celles de ce
+  // spectacle : sur une soirée à deux œuvres, quelqu'un peut n'être attendu
+  // que sur la seconde.
+  const partiesLues = new Set(aff.map(a => a.partieId));
+  const sansLecteur = parties.filter(p => !partiesLues.has(p.id));
+  const servisSurOpe = new Set(affectationsDe(state.tourneeId).map(a => a.personType + '|' + a.personId));
+  const sansPartie = effectif.filter(p => !servisSurOpe.has(p.personType + '|' + p.personId));
+
+  const lignesParties = parties.map(p => {
+    const lecteurs = aff.filter(a => a.partieId === p.id).map(a => {
+      const personne = (a.personType === 'musicien' ? mus : tech).get(a.personId);
+      const nom = personne ? [personne.prenom, personne.nom].filter(Boolean).join(' ') : 'Personne supprimée';
+      const dansEffectif = effectif.some(e => e.personType === a.personType && e.personId === a.personId);
+      return `<span class="lecteur${dansEffectif ? '' : ' absent'}" title="${dansEffectif ? '' : 'Cette personne n\'est affectée à aucune date de l\'opération'}">${escapeHtml(nom)}<button type="button" data-desaffecter="${escapeAttr(a.id)}" aria-label="Retirer">×</button></span>`;
+    }).join('');
+    const libres = effectif.filter(e => !aff.some(a => a.partieId === p.id && a.personId === e.personId && a.personType === e.personType));
+    return `
+      <div class="ligne" style="grid-template-columns:minmax(0,1fr) 200px">
+        <span class="l-nom">
+          <span class="l-titre">${escapeHtml(p.nom)} <em style="font-weight:400;color:var(--muted);font-size:12px">${escapeHtml(p.pupitre || '')} · ${fichiersDe(p.id).length} fichier(s)</em></span>
+          ${lecteurs ? `<span class="lecteurs">${lecteurs}</span>` : '<span class="l-sous sans-lecteur">Personne ne lit cette partie</span>'}
+        </span>
+        <select class="co-select" data-affecter="${escapeAttr(p.id)}">
+          <option value="">+ ajouter…</option>
+          ${libres.map(e => `<option value="${escapeAttr(e.personType + '|' + e.personId)}">${escapeHtml(e.nom)} — ${escapeHtml(e.pupitre)}</option>`).join('')}
+        </select>
+      </div>`;
+  }).join('');
+
+  // Reprendre l'affectation d'une AUTRE opération DE CE SPECTACLE : c'est le
+  // seul report qui ait un sens, puisque les parties doivent exister des deux
+  // côtés.
+  const autres = operationsDe(s.id)
+    .filter(o => o.tourneeId !== state.tourneeId && affectationsDeSpectacle(s.id, o.tourneeId).length);
+
+  return `
+    <section class="bloc">
+      <h2>Qui lit quoi</h2>
+      <div class="onglets">${onglets}</div>
+      <div class="chiffres" style="margin-bottom:12px">
+        <div class="chiffre"><b>${effectif.length}</b><span>personnes sur l'opé</span>
+          <small>lues dans les dates, pas dans la nomenclature</small></div>
+        <div class="chiffre${sansLecteur.length ? ' alerte' : ''}"><b>${sansLecteur.length}</b><span>parties sans lecteur</span>
+          <small>${sansLecteur.length ? escapeHtml(sansLecteur.slice(0, 4).map(p => p.nom).join(', ')) + (sansLecteur.length > 4 ? '…' : '') : 'Tout le matériel est distribué'}</small></div>
+        <div class="chiffre${sansPartie.length ? ' alerte' : ''}"><b>${sansPartie.length}</b><span>personnes sans partie</span>
+          <small>${sansPartie.length ? escapeHtml(sansPartie.slice(0, 4).map(p => p.nom).join(', ')) + (sansPartie.length > 4 ? '…' : '') : 'Tout le monde a de quoi jouer'}</small></div>
+      </div>
+      ${autres.length ? `<div class="barre">
+        <select class="co-select" id="selReprendre" style="width:280px">
+          <option value="">Reprendre l'affectation d'une autre opération…</option>
+          ${autres.map(o => `<option value="${escapeAttr(o.tourneeId)}">${escapeHtml(o.nom)} (${affectationsDeSpectacle(s.id, o.tourneeId).length})</option>`).join('')}
+        </select>
+      </div>` : ''}
+      ${lignesParties || '<p class="vide">Ce spectacle n\'a aucune partie. Range d\'abord son matériel, juste au-dessus.</p>'}
     </section>
+
+    ${blocCode(state.tourneeId)}
+
+    ${sansPartie.length ? `
+    <section class="bloc">
+      <h2>Personnes sans aucune partie sur ${escapeHtml(nomOperation(state.tourneeId))}</h2>
+      <p class="vide">Elles sont affectées à au moins une date de l'opération et n'ont rien à jouer, tous spectacles confondus. Soit il manque une partie, soit elles n'en ont pas besoin — la page ne tranche pas.</p>
+      ${sansPartie.map(p => `<div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
+        <span class="l-nom"><span class="l-titre">${escapeHtml(p.nom)}</span>
+          <span class="l-sous">${escapeHtml([p.pupitre, p.instrument].filter(Boolean).join(' · '))} — ${p.nbDates} date${p.nbDates > 1 ? 's' : ''}</span></span>
+        <span class="l-num">—</span>
+      </div>`).join('')}
+    </section>` : ''}`;
+}
+
+/* Le code d'accès d'une opération. Une opération, un code — quel que soit le
+   nombre de spectacles qu'elle porte : le musicien en saisit un, pas trois. */
+function blocCode(tourneeId){
+  const acces = accesDe(tourneeId);
+  return `
+    <section class="bloc">
+      <h2>Code d'accès — ${escapeHtml(nomOperation(tourneeId))}</h2>
+      <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto auto">
+        <span class="l-nom">
+          <span class="l-titre">Le code que les musiciens saisissent une fois</span>
+          <span class="l-sous">Leur lien personnel dit qui ils sont ; ce code dit qu'ils sont bien censés jouer ça maintenant. Un lien transféré ne donne rien sans lui. Communique-le en répétition ou par message groupé — pas dans le même message que le lien. Il vaut pour toute l'opération, tous spectacles confondus.</span>
+        </span>
+        <input class="co-input" id="inpCode" style="width:130px;font-weight:800;letter-spacing:.08em;text-transform:uppercase" maxlength="32" value="${escapeAttr(acces.code)}" placeholder="aucun">
+        <button type="button" class="co-btn sm" id="btnNouveauCode">Tirer un code</button>
+      </div>
+      <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
+        <span class="l-nom">
+          <span class="l-titre">Ouvrir le matériel à partir du</span>
+          <span class="l-sous">Laisse vide pour qu'il soit disponible tout de suite. Le matériel d'une création se range des mois avant d'avoir à être lu.</span>
+        </span>
+        <input class="co-input" type="date" id="inpOuvertLe" value="${escapeAttr(acces.ouvertLe || '')}">
+      </div>
+    </section>`;
+}
+
+/* Bloc 4 — LES RÉGLAGES DU SPECTACLE. */
+function blocReglages(s){
+  return `
     <section class="bloc">
       <h2>Réglages de ce spectacle</h2>
       <div class="ligne">
@@ -392,7 +783,7 @@ function vueMateriel(spectacle){
           <span class="l-sous">AES-256, le code de l'opération sert de mot de passe. forScore sait l'ouvrir ; MobileSheets et Newzik ne le documentent pas — à vérifier sur les tablettes du pupitre avant d'activer.</span>
         </span>
         <span></span>
-        <label class="co-check"><input type="checkbox" id="chkChiffrer" ${spectacle.chiffrer ? 'checked' : ''}> <span>${spectacle.chiffrer ? 'Activé' : 'Désactivé'}</span></label>
+        <label class="co-check"><input type="checkbox" id="chkChiffrer" ${s.chiffrer ? 'checked' : ''}> <span>${s.chiffrer ? 'Activé' : 'Désactivé'}</span></label>
       </div>
       <div class="ligne">
         <span class="l-nom">
@@ -400,15 +791,23 @@ function vueMateriel(spectacle){
           <span class="l-sous">Le lien du dossier qui garde le matériel hors de ce site. Si l'application disparaît, le matériel ne disparaît pas avec elle.</span>
         </span>
         <span></span>
-        <input class="co-input" id="inpDrive" style="width:260px" placeholder="https://drive.google.com/…" value="${escapeAttr(spectacle.lienDrive || '')}">
+        <input class="co-input" id="inpDrive" style="width:260px" placeholder="https://drive.google.com/…" value="${escapeAttr(s.lienDrive || '')}">
+      </div>
+      <div class="ligne">
+        <span class="l-nom">
+          <span class="l-titre">Archiver ce spectacle</span>
+          <span class="l-sous">Il passe en bas de la liste et cesse d'être proposé. Rien n'est supprimé : les affectations passées, leur journal de téléchargement et les fichiers restent en place.</span>
+        </span>
+        <span></span>
+        <label class="co-check"><input type="checkbox" id="chkArchive" ${s.archive ? 'checked' : ''}> <span>${s.archive ? 'Archivé' : 'Actif'}</span></label>
       </div>
     </section>`;
 }
 
-/* --- VUE 2 : LE DÉPÔT ------------------------------------------------------ */
+/* --- VUE 3 : LE DÉPÔT ------------------------------------------------------ */
 
 function vueDepot(){
-  const spectacle = state.spectacles.find(s => s.id === state.spectacleId);
+  const spectacle = spectacleCourant();
   if(!spectacle) return '<div class="co-card co-pad vide">Choisis d\'abord un spectacle.</div>';
   const parties = partiesDe(spectacle.id);
 
@@ -417,7 +816,7 @@ function vueDepot(){
   const rang = { aucune: 0, incertaine: 1, probable: 2, exacte: 3 };
   const liste = state.depot.slice().sort((a, b) => (rang[a.sûrete] - rang[b.sûrete]) || a.nomOrigine.localeCompare(b.nomOrigine, 'fr'));
 
-  const lignes = liste.map((d, i) => {
+  const lignes = liste.map((d) => {
     const idx = state.depot.indexOf(d);
     const options = [
       `<option value="">— nouvelle partie « ${escapeHtml(d.propose)} » —</option>`,
@@ -448,7 +847,7 @@ function vueDepot(){
   return `
     <section class="bloc">
       <h2>Déposer dans — ${escapeHtml(spectacle.nom)}
-        <span class="h2-total"><button type="button" class="co-btn ghost sm" id="btnRetourBiblio">Retour à la bibliothèque</button></span>
+        <span class="h2-total"><button type="button" class="co-btn ghost sm" id="btnRetourSpectacle">Retour au spectacle</button></span>
       </h2>
       <div class="depot-zone" id="zoneDepot">
         <b>Glisse les PDF ici, ou clique pour les choisir</b>
@@ -468,109 +867,86 @@ function vueDepot(){
     </section>` : ''}`;
 }
 
-/* --- VUE 3 : L'AFFECTATION ------------------------------------------------- */
+/* --- VUE 4 : PAR OPÉRATION (la relecture) ---------------------------------- */
 
-function vueAffectation(){
-  const operations = state.tournees.slice().sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+function vueOperations(){
   const selecteur = `
     <div class="barre">
-      <select class="co-select" id="selOperation">
+      <select class="co-select" id="selOperation" style="min-width:280px">
         <option value="">— choisir une opération —</option>
-        ${operations.map(t => `<option value="${escapeAttr(t.id)}"${t.id === state.tourneeId ? ' selected' : ''}>${escapeHtml(t.nom)}${t.type === 'recording' ? ' · Recording' : ''}</option>`).join('')}
-      </select>
-      <select class="co-select" id="selSpectacleAff">
-        <option value="">— matériel à distribuer —</option>
-        ${state.spectacles.map(s => `<option value="${escapeAttr(s.id)}"${s.id === state.spectacleId ? ' selected' : ''}>${escapeHtml(s.nom)}</option>`).join('')}
+        ${optionsOperations(state.tourneeId)}
       </select>
     </div>`;
 
-  if(!state.tourneeId) return selecteur + '<div class="co-card co-pad vide">Choisis une opération pour distribuer son matériel.</div>';
+  if(!state.tourneeId || !operationDe(state.tourneeId)){
+    return selecteur + `<div class="co-card co-pad vide">
+      Cet écran sert à la relecture d'avant première répétition : sur une opération donnée, ce qui est programmé et qui n'a rien à jouer.
+      Pour préparer du matériel, passe par <b>Spectacles</b>.</div>`;
+  }
 
-  const operation = state.tournees.find(t => t.id === state.tourneeId);
   const effectif = effectifDe(state.tourneeId);
   const aff = affectationsDe(state.tourneeId);
-  const parties = partiesDe(state.spectacleId);
-  const mus = parId(state.musiciens), tech = parId(state.techniciens);
+  const servis = new Set(aff.map(a => a.personType + '|' + a.personId));
+  const sansPartie = effectif.filter(p => !servis.has(p.personType + '|' + p.personId));
+  const programmes = spectaclesDe(state.tourneeId);
 
-  // Les deux compteurs qui sauvent. Le second se lit à l'envers — il part de
-  // l'effectif réel de l'opération, pas du matériel — et c'est celui qu'on
-  // oublie : quelqu'un qui arrive à la première sans rien à jouer.
-  const partiesLues = new Set(aff.map(a => a.partieId));
-  const sansLecteur = parties.filter(p => !partiesLues.has(p.id));
-  const affectes = new Set(aff.map(a => a.personType + '|' + a.personId));
-  const sansPartie = effectif.filter(p => !affectes.has(p.personType + '|' + p.personId));
-
-  const lignesParties = parties.map(p => {
-    const lecteurs = aff.filter(a => a.partieId === p.id).map(a => {
-      const personne = (a.personType === 'musicien' ? mus : tech).get(a.personId);
-      const nom = personne ? [personne.prenom, personne.nom].filter(Boolean).join(' ') : 'Personne supprimée';
-      const dansEffectif = effectif.some(e => e.personType === a.personType && e.personId === a.personId);
-      return `<span class="lecteur${dansEffectif ? '' : ' absent'}" title="${dansEffectif ? '' : 'Cette personne n\'est affectée à aucune date de l\'opération'}">${escapeHtml(nom)}<button type="button" data-desaffecter="${escapeAttr(a.id)}" aria-label="Retirer">×</button></span>`;
-    }).join('');
-    const libres = effectif.filter(e => !aff.some(a => a.partieId === p.id && a.personId === e.personId && a.personType === e.personType));
+  const lignes = programmes.map(s => {
+    const affS = affectationsDeSpectacle(s.id, state.tourneeId);
+    const parties = partiesDe(s.id);
+    const lues = new Set(affS.map(a => a.partieId));
+    const sansLecteur = parties.filter(p => !lues.has(p.id)).length;
+    const sansFichier = parties.filter(p => !fichiersDe(p.id).length).length;
+    const alertes = [
+      !parties.length ? 'aucune partie rangée' : '',
+      sansFichier ? `${sansFichier} partie(s) sans fichier` : '',
+      sansLecteur ? `${sansLecteur} partie(s) sans lecteur` : '',
+    ].filter(Boolean);
     return `
-      <div class="ligne" style="grid-template-columns:minmax(0,1fr) 200px">
+      <div class="ligne">
         <span class="l-nom">
-          <span class="l-titre">${escapeHtml(p.nom)} <em style="font-weight:400;color:var(--muted);font-size:12px">${escapeHtml(p.pupitre || '')} · ${fichiersDe(p.id).length} fichier(s)</em></span>
-          ${lecteurs ? `<span class="lecteurs">${lecteurs}</span>` : '<span class="l-sous sans-lecteur">Personne ne lit cette partie</span>'}
+          <span class="l-titre">${escapeHtml(s.nom || 'Sans nom')}</span>
+          <span class="l-sous${alertes.length ? ' sans-lecteur' : ''}">${escapeHtml(alertes.length ? alertes.join(' · ') : 'Tout est rangé et distribué')}</span>
         </span>
-        <select class="co-select" data-affecter="${escapeAttr(p.id)}">
-          <option value="">+ ajouter…</option>
-          ${libres.map(e => `<option value="${escapeAttr(e.personType + '|' + e.personId)}">${escapeHtml(e.nom)} — ${escapeHtml(e.pupitre)}</option>`).join('')}
-        </select>
+        <span class="l-num">${affS.length} affectation${affS.length > 1 ? 's' : ''}<br><em style="font-weight:400">${parties.length} partie${parties.length > 1 ? 's' : ''}</em></span>
+        <button type="button" class="co-btn sm" data-ouvrir="${escapeAttr(s.id)}">Ouvrir</button>
       </div>`;
   }).join('');
 
-  const acces = state.acces.find(a => a.id === state.tourneeId) || { id: state.tourneeId, code: '', actif: true, ouvertLe: '' };
-  const autres = state.tournees.filter(t => t.id !== state.tourneeId && affectationsDe(t.id).length);
+  const restants = state.spectacles.filter(s => !s.archive && !estProgramme(s.id, state.tourneeId));
 
   return `
     ${selecteur}
     <div class="chiffres">
       <div class="chiffre"><b>${effectif.length}</b><span>personnes sur l'opé</span>
         <small>lues dans les dates, pas dans la nomenclature</small></div>
-      <div class="chiffre${sansLecteur.length ? ' alerte' : ''}"><b>${sansLecteur.length}</b><span>parties sans lecteur</span>
-        <small>${sansLecteur.length ? escapeHtml(sansLecteur.slice(0, 4).map(p => p.nom).join(', ')) + (sansLecteur.length > 4 ? '…' : '') : 'Tout le matériel est distribué'}</small></div>
+      <div class="chiffre${programmes.length ? '' : ' alerte'}"><b>${programmes.length}</b><span>spectacle${programmes.length > 1 ? 's programmés' : ' programmé'}</span>
+        <small>${programmes.length ? escapeHtml(programmes.slice(0, 3).map(s => s.nom).join(', ')) + (programmes.length > 3 ? '…' : '') : 'Aucun matériel rattaché à cette opération'}</small></div>
       <div class="chiffre${sansPartie.length ? ' alerte' : ''}"><b>${sansPartie.length}</b><span>personnes sans partie</span>
         <small>${sansPartie.length ? escapeHtml(sansPartie.slice(0, 4).map(p => p.nom).join(', ')) + (sansPartie.length > 4 ? '…' : '') : 'Tout le monde a de quoi jouer'}</small></div>
     </div>
 
     <section class="bloc">
-      <h2>Code d'accès — ${escapeHtml(operation ? operation.nom : '')}</h2>
-      <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto auto">
+      <h2>Spectacles programmés sur ${escapeHtml(nomOperation(state.tourneeId))}</h2>
+      ${lignes || '<p class="vide sans-lecteur">Aucun spectacle programmé sur cette opération : personne n\'y recevra de partition.</p>'}
+      ${restants.length ? `
+      <div class="ligne" style="grid-template-columns:minmax(0,1fr) 280px">
         <span class="l-nom">
-          <span class="l-titre">Le code que les musiciens saisissent une fois</span>
-          <span class="l-sous">Leur lien personnel dit qui ils sont ; ce code dit qu'ils sont bien censés jouer ça maintenant. Un lien transféré ne donne rien sans lui. Communique-le en répétition ou par message groupé — pas dans le même message que le lien.</span>
+          <span class="l-titre">Programmer un spectacle sur cette opération</span>
+          <span class="l-sous">Le matériel déjà rangé se reprend tel quel — il n'y a rien à redéposer.</span>
         </span>
-        <input class="co-input" id="inpCode" style="width:130px;font-weight:800;letter-spacing:.08em;text-transform:uppercase" maxlength="32" value="${escapeAttr(acces.code)}" placeholder="aucun">
-        <button type="button" class="co-btn sm" id="btnNouveauCode">Tirer un code</button>
-      </div>
-      <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
-        <span class="l-nom">
-          <span class="l-titre">Ouvrir le matériel à partir du</span>
-          <span class="l-sous">Laisse vide pour qu'il soit disponible tout de suite. Le matériel d'une création se range des mois avant d'avoir à être lu.</span>
-        </span>
-        <input class="co-input" type="date" id="inpOuvertLe" value="${escapeAttr(acces.ouvertLe || '')}">
-      </div>
+        <select class="co-select" id="selProgrammerIci">
+          <option value="">— choisir un spectacle —</option>
+          ${restants.map(s => `<option value="${escapeAttr(s.id)}">${escapeHtml(s.nom || 'Sans nom')}</option>`).join('')}
+        </select>
+      </div>` : ''}
     </section>
 
-    <section class="bloc">
-      <h2>Qui lit quoi
-        <span class="h2-total">
-          ${autres.length ? `<select class="co-select" id="selReprendre" style="width:230px">
-            <option value="">Reprendre l'affectation de…</option>
-            ${autres.map(t => `<option value="${escapeAttr(t.id)}">${escapeHtml(t.nom)} (${affectationsDe(t.id).length})</option>`).join('')}
-          </select>` : ''}
-        </span>
-      </h2>
-      ${state.spectacleId ? (lignesParties || '<p class="vide">Ce spectacle n\'a aucune partie. Range d\'abord son matériel dans la bibliothèque.</p>')
-                         : '<p class="vide">Choisis le matériel à distribuer, en haut.</p>'}
-    </section>
+    ${programmes.length ? blocCode(state.tourneeId) : ''}
 
     ${sansPartie.length ? `
     <section class="bloc">
       <h2>Personnes sans aucune partie</h2>
-      <p class="vide">Elles sont affectées à au moins une date de l'opération et n'ont rien à jouer. Soit il manque une partie, soit elles n'en ont pas besoin — la page ne tranche pas.</p>
+      <p class="vide">Elles sont affectées à au moins une date de l'opération et n'ont rien à jouer, tous spectacles confondus.</p>
       ${sansPartie.map(p => `<div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
         <span class="l-nom"><span class="l-titre">${escapeHtml(p.nom)}</span>
           <span class="l-sous">${escapeHtml([p.pupitre, p.instrument].filter(Boolean).join(' · '))} — ${p.nbDates} date${p.nbDates > 1 ? 's' : ''}</span></span>
@@ -696,89 +1072,134 @@ function messageEnvoi(e, langue){
   ].filter(l => l !== null).join('\n');
 }
 
-function vueTransmissions(){
-  // Le journal n'est lu qu'ici, et une seule fois — voir state.telechargements.
-  if(state.telechargements === null && !state.telechargementsEnCours){
-    state.telechargementsEnCours = true;
-    CurieuxDB.fetchAll('partitions_telechargements')
-      .catch(()=> [])
-      .then(l => { state.telechargements = l || []; state.telechargementsEnCours = false;
-                   if(state.vue === 'transmissions') rendre(); });
-  }
+/* Le journal des téléchargements n'est lu qu'au premier écran qui en a besoin,
+   et une seule fois. C'est une table qui grossit d'une ligne par partition
+   remise : la charger à chaque ouverture de la page ferait payer une saison de
+   téléchargements à qui vient déposer trois PDF.
 
-  const spectacle = state.spectacles.find(s => s.id === state.spectacleId);
-  const selecteur = `
-    <div class="barre">
-      <select class="co-select" id="selSpectacleEnvoi">
-        <option value="">— matériel à confier —</option>
-        ${state.spectacles.map(s => `<option value="${escapeAttr(s.id)}"${s.id === state.spectacleId ? ' selected' : ''}>${escapeHtml(s.nom)}</option>`).join('')}
-      </select>
+   Le rendu qui suit son arrivée est retenu tant qu'une saisie est en cours :
+   le journal met deux cents millisecondes à revenir, et un rendu tombé au
+   milieu du nom d'un ensemble effacerait le formulaire sous les doigts. */
+function chargerJournalTiers(){
+  if(state.telechargements !== null || state.telechargementsEnCours) return;
+  state.telechargementsEnCours = true;
+  CurieuxDB.fetchAll('partitions_telechargements')
+    .catch(()=> [])
+    .then(l => {
+      state.telechargements = l || [];
+      state.telechargementsEnCours = false;
+      const actif = document.activeElement;
+      if(!actif || !/^(INPUT|SELECT|TEXTAREA)$/.test(actif.tagName)) rendre();
+    });
+}
+
+/* Une ligne de lot confié, la même dans la fiche du spectacle et dans l'écran
+   de supervision. Seul le rappel du spectacle change : dans sa propre fiche,
+   le répéter à chaque ligne est du bruit. */
+function ligneEnvoi(e, options){
+  const o = options || {};
+  const et = etatEnvoi(e);
+  const sp = (state.spectacles.find(x => x.id === e.spectacleId) || {}).nom || 'Spectacle supprimé';
+  const op = e.tourneeId ? nomOperation(e.tourneeId) : '';
+  const nb = partiesDuLot(e).length;
+  const prises = prisesDe(e.id);
+  const derniere = prises && prises.length
+    ? prises.map(x => x.createdAt).sort().slice(-1)[0].slice(0, 10) : '';
+  const contexte = [o.avecSpectacle ? sp : '', op, e.contactNom, e.contactEmail].filter(Boolean).join(' · ');
+  return `
+    <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
+      <span class="l-nom">
+        <span class="l-titre">${escapeHtml(e.destinataire || 'Sans destinataire')}
+          <span class="sur ${et.classe === 'ok' ? 'exacte' : et.classe === 'maybe' ? 'probable' : 'aucune'}">${escapeHtml(et.libelle)}</span>
+          ${e.nominatif ? '<span class="sur probable">nominatif</span>' : ''}
+        </span>
+        ${contexte ? `<span class="l-sous">${escapeHtml(contexte)}</span>` : ''}
+        <span class="l-sous">${nb} partie${nb > 1 ? 's' : ''}${e.toutesParties ? ' (tout le spectacle)' : ' (sélection)'}
+          ${e.expireLe ? ' · jusqu\'au ' + escapeHtml(jourEnvoi(e.expireLe)) : ' · sans date de fin'}
+          ${prises ? ' · ' + prises.length + ' exemplaire' + (prises.length > 1 ? 's' : '') + ' pris' + (derniere ? ', dernier le ' + escapeHtml(jourEnvoi(derniere)) : '') : ''}
+          ${e.droitsConfirmes ? '' : ' · <b class="sans-lecteur">droits non confirmés</b>'}</span>
+        <span class="lecteurs">
+          <button type="button" class="co-btn ghost sm" data-copier-lien="${escapeAttr(e.id)}">Copier le lien</button>
+          ${e.code ? `<button type="button" class="co-btn ghost sm" data-copier-code="${escapeAttr(e.id)}">Copier le code (${escapeHtml(e.code)})</button>` : ''}
+          <button type="button" class="co-btn ghost sm" data-message-fr="${escapeAttr(e.id)}">Message FR</button>
+          <button type="button" class="co-btn ghost sm" data-message-en="${escapeAttr(e.id)}">Message EN</button>
+        </span>
+      </span>
+      <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+        ${et.cle === 'expire' ? `<button type="button" class="co-btn sm" data-prolonger="${escapeAttr(e.id)}">Prolonger</button>` : ''}
+        <button type="button" class="co-btn sm" data-basculer="${escapeAttr(e.id)}">${e.actif ? 'Révoquer' : 'Réactiver'}</button>
+        <button type="button" class="co-btn ghost sm" data-retirer-envoi="${escapeAttr(e.id)}">Retirer</button>
+      </span>
     </div>`;
+}
 
-  // Tous les lots, pas seulement ceux du spectacle choisi : la question qu'on
-  // se pose en arrivant ici est « qu'est-ce qui est dehors, en ce moment ? »,
-  // et elle ne se pose jamais spectacle par spectacle.
-  const lots = state.envois.slice().sort((a, b) => {
-    const ea = etatEnvoi(a), eb = etatEnvoi(b);
-    const rang = { ouvert: 0, attente: 1, expire: 2, revoque: 3 };
-    return (rang[ea.cle] - rang[eb.cle]) || String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
-  });
+/* L'ordre de lecture d'une liste de lots : ce qui est ouvert d'abord — c'est
+   ce dont on répond aujourd'hui —, le reste ensuite, du plus récent au plus
+   ancien. */
+function trierEnvois(liste){
+  const rang = { ouvert: 0, attente: 1, expire: 2, revoque: 3 };
+  return liste.slice().sort((a, b) =>
+    (rang[etatEnvoi(a).cle] - rang[etatEnvoi(b).cle])
+    || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+}
 
+/* L'ÉCRAN DE SUPERVISION. La question qu'on se pose en arrivant ici est
+   « qu'est-ce qui est dehors, en ce moment, et chez qui ? » — elle ne se pose
+   jamais spectacle par spectacle, d'où un onglet à part. On n'y CRÉE rien :
+   confier un lot suppose de choisir des parties et une opération, donc d'être
+   dans la fiche du spectacle. Un formulaire ici aurait redemandé le spectacle
+   dans un sélecteur, c'est-à-dire exactement le recroisement à la main que la
+   page vient de supprimer partout ailleurs. */
+function vueTransmissions(){
+  chargerJournalTiers();
+
+  const lots = trierEnvois(state.envois);
   const ouverts = lots.filter(e => etatEnvoi(e).cle === 'ouvert');
   const sansDroits = state.envois.filter(e => !e.droitsConfirmes).length;
   const prises = state.telechargements
     ? state.telechargements.filter(t => t.personType === 'tiers').length : null;
 
-  const lignes = lots.map(e => {
-    const et = etatEnvoi(e);
-    const sp = (state.spectacles.find(x => x.id === e.spectacleId) || {}).nom || 'Spectacle supprimé';
-    const op = (state.tournees.find(t => t.id === e.tourneeId) || {}).nom || '';
-    const nb = partiesDuLot(e).length;
-    const p = prisesDe(e.id);
-    const derniere = p && p.length
-      ? p.map(x => x.createdAt).sort().slice(-1)[0].slice(0, 10) : '';
-    return `
-      <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
-        <span class="l-nom">
-          <span class="l-titre">${escapeHtml(e.destinataire || 'Sans destinataire')}
-            <span class="sur ${et.classe === 'ok' ? 'exacte' : et.classe === 'maybe' ? 'probable' : 'aucune'}">${escapeHtml(et.libelle)}</span>
-            ${e.nominatif ? '<span class="sur probable">nominatif</span>' : ''}
-          </span>
-          <span class="l-sous">${escapeHtml([sp, op, e.contactNom, e.contactEmail].filter(Boolean).join(' · '))}</span>
-          <span class="l-sous">${nb} partie${nb > 1 ? 's' : ''}${e.toutesParties ? ' (tout le spectacle)' : ' (sélection)'}
-            ${e.expireLe ? ' · jusqu\'au ' + escapeHtml(jourEnvoi(e.expireLe)) : ' · sans date de fin'}
-            ${p ? ' · ' + p.length + ' exemplaire' + (p.length > 1 ? 's' : '') + ' pris' + (derniere ? ', dernier le ' + escapeHtml(jourEnvoi(derniere)) : '') : ''}
-            ${e.droitsConfirmes ? '' : ' · <b class="sans-lecteur">droits non confirmés</b>'}</span>
-          <span class="lecteurs">
-            <button type="button" class="co-btn ghost sm" data-copier-lien="${escapeAttr(e.id)}">Copier le lien</button>
-            ${e.code ? `<button type="button" class="co-btn ghost sm" data-copier-code="${escapeAttr(e.id)}">Copier le code (${escapeHtml(e.code)})</button>` : ''}
-            <button type="button" class="co-btn ghost sm" data-message-fr="${escapeAttr(e.id)}">Message FR</button>
-            <button type="button" class="co-btn ghost sm" data-message-en="${escapeAttr(e.id)}">Message EN</button>
-          </span>
-        </span>
-        <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-          ${et.cle === 'expire' ? `<button type="button" class="co-btn sm" data-prolonger="${escapeAttr(e.id)}">Prolonger</button>` : ''}
-          <button type="button" class="co-btn sm" data-basculer="${escapeAttr(e.id)}">${e.actif ? 'Révoquer' : 'Réactiver'}</button>
-          <button type="button" class="co-btn ghost sm" data-retirer-envoi="${escapeAttr(e.id)}">Retirer</button>
-        </span>
-      </div>`;
-  }).join('');
+  return `
+    <div class="chiffres">
+      <div class="chiffre"><b>${ouverts.length}</b><span>lot${ouverts.length > 1 ? 's' : ''} ouvert${ouverts.length > 1 ? 's' : ''}</span>
+        <small>${ouverts.length ? escapeHtml(ouverts.slice(0, 3).map(e => e.destinataire).join(', ')) + (ouverts.length > 3 ? '…' : '') : 'Aucun matériel confié à l\'extérieur en ce moment'}</small></div>
+      <div class="chiffre"><b>${prises === null ? '…' : prises}</b><span>exemplaires pris par des tiers</span>
+        <small>sur ${state.envois.length} transmission${state.envois.length > 1 ? 's' : ''} au total, révoquées et expirées comprises — le journal, lui, ne s'efface pas</small></div>
+      <div class="chiffre${sansDroits ? ' alerte' : ''}"><b>${sansDroits}</b><span>lot${sansDroits > 1 ? 's' : ''} sans vérification des droits</span>
+        <small>${sansDroits ? 'Le matériel de location ne se retransmet pas : c\'est l\'éditeur qui loue au second ensemble.' : 'Droits vérifiés sur tous les lots confiés'}</small></div>
+    </div>
 
+    <section class="bloc">
+      <h2>Ce qui est confié <span class="h2-total">${lots.length} transmission${lots.length > 1 ? 's' : ''}</span></h2>
+      ${lots.map(e => ligneEnvoi(e, { avecSpectacle: true })).join('')
+        || '<p class="vide">Aucune transmission. Un lot confié remplace l\'envoi individuel à cinquante musiciens qui ne sont pas les nôtres : un lien, un code, une personne qui en répond.<br>Ça se prépare depuis la fiche du spectacle — c\'est là que se choisissent les parties et l\'opération.</p>'}
+    </section>`;
+}
+
+/* Bloc 5 — CONFIER À UN ENSEMBLE TIERS. Dans la fiche du spectacle, après la
+   distribution interne, parce que c'est l'ordre réel : on sert son orchestre,
+   puis on confie à l'invité. Le spectacle est déjà choisi — c'est celui qu'on
+   a ouvert — et les opérations proposées sont les siennes, pas les cent
+   autres. */
+function blocTransmissions(s){
+  chargerJournalTiers();
+
+  const lots = trierEnvois(state.envois.filter(e => e.spectacleId === s.id));
+  const parties = partiesDe(s.id);
+  const opes = operationsDe(s.id);
   const aujourdHui = new Date().toISOString().slice(0, 10);
-  const parties = spectacle ? partiesDe(spectacle.id) : [];
-  const operations = state.tournees.slice().sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
 
-  const formulaire = !spectacle ? '<p class="vide">Choisis le matériel à confier, en haut.</p>' : `
+  const formulaire = `
     <div class="ligne" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
       <span class="l-nom">
         <span class="l-titre">Ensemble destinataire</span>
         <input class="co-input" id="envDestinataire" style="width:100%" maxlength="120" placeholder="Tokyo Symphony Orchestra">
       </span>
       <span class="l-nom">
-        <span class="l-titre">Opération concernée <em style="font-weight:400;color:var(--muted)">— facultatif</em></span>
+        <span class="l-titre">Au titre de quelle opération <em style="font-weight:400;color:var(--muted)">— facultatif</em></span>
         <select class="co-select" id="envOperation" style="width:100%">
           <option value="">— aucune de notre côté —</option>
-          ${operations.map(t => `<option value="${escapeAttr(t.id)}">${escapeHtml(t.nom)}</option>`).join('')}
+          ${opes.map(o => `<option value="${escapeAttr(o.tourneeId)}">${escapeHtml(o.nom)}${o.periode ? ' · ' + escapeHtml(o.periode) : ''}</option>`).join('')}
         </select>
       </span>
     </div>
@@ -842,25 +1263,71 @@ function vueTransmissions(){
     </div>`;
 
   return `
-    ${selecteur}
-    <div class="chiffres">
-      <div class="chiffre"><b>${ouverts.length}</b><span>lot${ouverts.length > 1 ? 's' : ''} ouvert${ouverts.length > 1 ? 's' : ''}</span>
-        <small>${ouverts.length ? escapeHtml(ouverts.slice(0, 3).map(e => e.destinataire).join(', ')) + (ouverts.length > 3 ? '…' : '') : 'Aucun matériel confié à l\'extérieur en ce moment'}</small></div>
-      <div class="chiffre"><b>${prises === null ? '…' : prises}</b><span>exemplaires pris par des tiers</span>
-        <small>sur ${state.envois.length} transmission${state.envois.length > 1 ? 's' : ''} au total, révoquées et expirées comprises — le journal, lui, ne s'efface pas</small></div>
-      <div class="chiffre${sansDroits ? ' alerte' : ''}"><b>${sansDroits}</b><span>lot${sansDroits > 1 ? 's' : ''} sans vérification des droits</span>
-        <small>${sansDroits ? 'Le matériel de location ne se retransmet pas : c\'est l\'éditeur qui loue au second ensemble.' : 'Droits vérifiés sur tous les lots confiés'}</small></div>
-    </div>
-
-    <section class="bloc">
-      <h2>Confier un lot${spectacle ? ' — ' + escapeHtml(spectacle.nom) : ''}</h2>
-      ${formulaire}
-    </section>
-
-    <section class="bloc">
-      <h2>Ce qui est confié <span class="h2-total">${lots.length} transmission${lots.length > 1 ? 's' : ''}</span></h2>
-      ${lignes || '<p class="vide">Aucune transmission. Un lot confié remplace l\'envoi individuel à cinquante musiciens qui ne sont pas les nôtres : un lien, un code, une personne qui en répond.</p>'}
+    <section class="bloc" id="blocTransmissions">
+      <h2>Confier à un ensemble tiers
+        <span class="h2-total">${lots.length ? lots.length + ' lot' + (lots.length > 1 ? 's' : '') : ''}</span>
+      </h2>
+      <p class="vide">Un orchestre invité qui reprend le programme n'a pas ses musiciens dans notre annuaire — et il n'est pas question de leur écrire un par un. On confie le lot à la MAISON : un lien, un code, une personne qui en répond, une date de fin. Chaque exemplaire pris porte le nom de l'ensemble et reste traçable.</p>
+      ${lots.map(e => ligneEnvoi(e, { avecSpectacle: false })).join('')}
+      ${parties.length ? formulaire : '<p class="vide sans-lecteur">Range d\'abord les parties de ce spectacle : on ne confie pas un lot vide.</p>'}
     </section>`;
+}
+
+/* ---------------------------------------------------------------------------
+   LA FICHE MODALE
+   ---------------------------------------------------------------------------
+   prompt() ne prend qu'un champ, ne valide rien et ne sait pas poser deux
+   questions à la fois. Or la création d'un spectacle en pose deux, et c'est la
+   seconde qui compte : sur quelle opération se joue-t-il ? La poser plus tard,
+   c'est ne jamais la poser.
+   --------------------------------------------------------------------------- */
+
+function ouvrirFiche({ titre, sous, corps, valider, libelleOk }){
+  const ancien = document.getElementById('ficheOv');
+  if(ancien) ancien.remove();
+  const ov = document.createElement('div');
+  ov.id = 'ficheOv';
+  ov.className = 'fiche-ov';
+  ov.innerHTML = `
+    <div class="fiche-bo" role="dialog" aria-modal="true" aria-label="${escapeAttr(titre)}">
+      <h2>${escapeHtml(titre)}</h2>
+      ${sous ? `<p class="sous">${sous}</p>` : ''}
+      ${corps}
+      <div class="fiche-err" id="ficheErr" role="alert"></div>
+      <div class="fiche-pied">
+        <button type="button" class="co-btn ghost md" id="ficheAnnuler">Annuler</button>
+        <button type="button" class="co-btn primary md" id="ficheOk">${escapeHtml(libelleOk || 'Enregistrer')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+
+  const surTouche = (e)=>{ if(e.key === 'Escape') fermer(); };
+  function fermer(){ ov.remove(); document.removeEventListener('keydown', surTouche); }
+  document.addEventListener('keydown', surTouche);
+  ov.addEventListener('click', (e)=>{ if(e.target === ov) fermer(); });
+  ov.querySelector('#ficheAnnuler').onclick = fermer;
+
+  const ok = ov.querySelector('#ficheOk');
+  ok.onclick = async ()=>{
+    const err = ov.querySelector('#ficheErr');
+    err.textContent = '';
+    ok.disabled = true;
+    try{
+      const refus = await valider(ov);
+      if(refus){ err.textContent = refus; ok.disabled = false; return; }
+      fermer();
+    }catch(e){
+      err.textContent = (e && e.message) || "L'enregistrement a échoué.";
+      ok.disabled = false;
+    }
+  };
+  // Entrée valide — sauf dans une zone de texte, où elle sert à aller à la ligne.
+  ov.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter' && e.target.tagName !== 'TEXTAREA'){ e.preventDefault(); ok.click(); }
+  });
+  const premier = ov.querySelector('input, select, textarea');
+  if(premier) premier.focus();
+  return ov;
 }
 
 /* ---------------------------------------------------------------------------
@@ -869,23 +1336,38 @@ function vueTransmissions(){
 
 function cablerVue(){
   const el = document.getElementById('page');
-
-  el.querySelectorAll('[data-ouvrir]').forEach(b => b.onclick = ()=>{
-    state.spectacleId = b.dataset.ouvrir; rendre();
-  });
   const q = (id)=> el.querySelector('#' + id);
 
-  if(q('btnNouveauSpectacle')) q('btnNouveauSpectacle').onclick = nouveauSpectacle;
-  if(q('btnNouvellePartie')) q('btnNouvellePartie').onclick = nouvellePartie;
+  // --- navigation ---
+  el.querySelectorAll('[data-ouvrir]').forEach(b => b.onclick = ()=> ouvrirSpectacle(b.dataset.ouvrir, state.tourneeId));
+  if(q('btnRetourListe')) q('btnRetourListe').onclick = ()=>{ state.vue = 'spectacles'; state.depot = []; rendre(); };
+  if(q('btnRetourSpectacle')) q('btnRetourSpectacle').onclick = ()=>{ state.vue = 'spectacle'; state.depot = []; rendre(); };
+  if(q('selOperation')) q('selOperation').onchange = (e)=>{ state.tourneeId = e.target.value; rendre(); };
+
+  // --- spectacle ---
+  if(q('btnNouveauSpectacle')) q('btnNouveauSpectacle').onclick = ()=> ficheSpectacle(null);
+  if(q('btnModifierSpectacle')) q('btnModifierSpectacle').onclick = ()=> ficheSpectacle(spectacleCourant());
+  if(q('btnNouvellePartie')) q('btnNouvellePartie').onclick = fichePartie;
   if(q('btnDeposer')) q('btnDeposer').onclick = ()=>{ state.vue = 'depot'; state.depot = []; rendre(); };
-  if(q('btnRetourBiblio')) q('btnRetourBiblio').onclick = ()=>{ state.vue = 'bibliotheque'; state.depot = []; rendre(); };
-  if(q('btnReglagesSpectacle')) q('btnReglagesSpectacle').onclick = ()=> document.getElementById('chkChiffrer').scrollIntoView({ behavior: 'smooth', block: 'center' });
 
   if(q('chkChiffrer')) q('chkChiffrer').onchange = (e)=> majSpectacle({ chiffrer: e.target.checked });
+  if(q('chkArchive')) q('chkArchive').onchange = (e)=> majSpectacle({ archive: e.target.checked });
   if(q('inpDrive')) q('inpDrive').onchange = (e)=> majSpectacle({ lienDrive: e.target.value.trim() });
 
   el.querySelectorAll('[data-retirer-partie]').forEach(b => b.onclick = ()=> retirerPartie(b.dataset.retirerPartie));
   el.querySelectorAll('[data-retirer-fichier]').forEach(b => b.onclick = ()=> retirerFichier(b.dataset.retirerFichier));
+
+  // --- programmation ---
+  if(q('selProgrammer')) q('selProgrammer').onchange = (e)=>{ if(e.target.value) programmer(state.spectacleId, e.target.value); };
+  if(q('selProgrammerIci')) q('selProgrammerIci').onchange = (e)=>{ if(e.target.value) programmer(e.target.value, state.tourneeId); };
+  el.querySelectorAll('[data-deprogrammer]').forEach(b => b.onclick = ()=> deprogrammer(b.dataset.deprogrammer));
+  el.querySelectorAll('[data-distribuer]').forEach(b => b.onclick = ()=>{
+    state.tourneeId = b.dataset.distribuer;
+    rendre();
+    const cible = document.querySelector('.onglets');
+    if(cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  el.querySelectorAll('[data-onglet]').forEach(b => b.onclick = ()=>{ state.tourneeId = b.dataset.onglet; rendre(); });
 
   // --- dépôt ---
   const zone = q('zoneDepot'), inp = q('inpFichiers');
@@ -911,21 +1393,18 @@ function cablerVue(){
   if(q('btnConfirmerDepot')) q('btnConfirmerDepot').onclick = confirmerDepot;
 
   // --- affectation ---
-  if(q('selOperation')) q('selOperation').onchange = (e)=>{ state.tourneeId = e.target.value; rendre(); };
-  if(q('selSpectacleAff')) q('selSpectacleAff').onchange = (e)=>{ state.spectacleId = e.target.value; rendre(); };
   el.querySelectorAll('[data-affecter]').forEach(s => s.onchange = ()=>{
     if(!s.value) return;
     const [personType, personId] = s.value.split('|');
     affecter(s.dataset.affecter, personType, personId);
   });
   el.querySelectorAll('[data-desaffecter]').forEach(b => b.onclick = ()=> desaffecter(b.dataset.desaffecter));
-  if(q('inpCode')) q('inpCode').onchange = (e)=> majAcces({ code: e.target.value.trim().toUpperCase() });
-  if(q('btnNouveauCode')) q('btnNouveauCode').onclick = ()=> majAcces({ code: partitionsNouveauCode() });
-  if(q('inpOuvertLe')) q('inpOuvertLe').onchange = (e)=> majAcces({ ouvertLe: e.target.value });
+  if(q('inpCode')) q('inpCode').onchange = (e)=> majAcces(state.tourneeId, { code: e.target.value.trim().toUpperCase() });
+  if(q('btnNouveauCode')) q('btnNouveauCode').onclick = ()=> majAcces(state.tourneeId, { code: partitionsNouveauCode() });
+  if(q('inpOuvertLe')) q('inpOuvertLe').onchange = (e)=> majAcces(state.tourneeId, { ouvertLe: e.target.value });
   if(q('selReprendre')) q('selReprendre').onchange = (e)=>{ if(e.target.value) reprendreAffectation(e.target.value); };
 
   // --- transmissions ---
-  if(q('selSpectacleEnvoi')) q('selSpectacleEnvoi').onchange = (e)=>{ state.spectacleId = e.target.value; rendre(); };
   // La liste des parties se montre et se cache SANS rendre() : un rendu
   // complet reconstruirait le formulaire et effacerait le nom du
   // destinataire qu'on vient de taper.
@@ -965,33 +1444,133 @@ function cablerVue(){
   el.querySelectorAll('[data-retirer-envoi]').forEach(b => b.onclick = ()=> retirerEnvoi(b.dataset.retirerEnvoi));
 }
 
-async function nouveauSpectacle(){
-  const nom = prompt('Nom du spectacle — celui sous lequel on range son matériel (ex. EXPEDITION 33) :');
-  if(!nom || !nom.trim()) return;
-  const s = { id: genId('spect'), nom: nom.trim(), compositeur: '', arrangeur: '', lienDrive: '', chiffrer: false, archive: false, note: '' };
-  state.spectacles.push(s); state.spectacleId = s.id; rendre();
-  await CurieuxDB.upsertOne('partitions_spectacles', s);
+/* Ouvrir un spectacle, c'est aussi choisir l'opération qu'on va distribuer.
+   On garde celle d'où l'on vient si le spectacle y est programmé — c'est le
+   cas quand on arrive depuis l'écran « Par opération » —, sinon la première. */
+function ouvrirSpectacle(id, tourneeId){
+  state.spectacleId = id;
+  const opes = programmationsDe(id).map(p => p.tourneeId);
+  if(tourneeId && opes.includes(tourneeId)) state.tourneeId = tourneeId;
+  else if(!opes.includes(state.tourneeId)) state.tourneeId = opes[0] || '';
+  state.vue = 'spectacle';
+  state.depot = [];
+  rendre();
+}
+
+/* --- Le spectacle : création et fiche ------------------------------------- */
+
+function ficheSpectacle(existant){
+  const s = existant || null;
+  const dejaProgramme = s ? programmationsDe(s.id).map(p => p.tourneeId) : [];
+  ouvrirFiche({
+    titre: s ? 'Fiche du spectacle' : 'Nouveau spectacle',
+    sous: s
+      ? 'Ce qui identifie le matériel. Les opérations se règlent dans la page, juste en dessous.'
+      : "Le tiroir où le matériel se range, une fois pour toutes — et l'opération sur laquelle il se joue. On pourra en rattacher d'autres ensuite&nbsp;: une reprise ne coûte pas un octet de plus.",
+    libelleOk: s ? 'Enregistrer' : 'Créer le spectacle',
+    corps: `
+      <label class="co-label" for="fNom">Nom du spectacle</label>
+      <input class="co-input" id="fNom" autocomplete="off" placeholder="EXPEDITION 33" value="${escapeAttr(s ? s.nom : '')}">
+      <div class="co-field-row" style="margin-top:12px">
+        <div class="co-field" style="flex:1 1 210px">
+          <label class="co-label" for="fComp">Compositeur</label>
+          <input class="co-input" id="fComp" autocomplete="off" value="${escapeAttr(s ? s.compositeur : '')}">
+        </div>
+        <div class="co-field" style="flex:1 1 210px">
+          <label class="co-label" for="fArr">Arrangeur</label>
+          <input class="co-input" id="fArr" autocomplete="off" value="${escapeAttr(s ? s.arrangeur : '')}">
+        </div>
+      </div>
+      ${s ? `
+      <label class="co-label" for="fNote" style="margin-top:12px">Note interne</label>
+      <textarea class="co-textarea" id="fNote" placeholder="Éditeur, numéro de location, état du matériel…">${escapeHtml(s.note || '')}</textarea>`
+      : `
+      <label class="co-label" for="fOpe" style="margin-top:12px">Opération sur laquelle il se joue</label>
+      <select class="co-select" id="fOpe">
+        <option value="">— à rattacher plus tard —</option>
+        ${optionsOperations('', dejaProgramme)}
+      </select>
+      <p class="sous" style="margin:6px 0 0">Sans opération, le matériel se range mais ne se distribue pas : personne n'y a accès, et rien ne le signale ailleurs que sur cette page.</p>`}`,
+    valider: async (ov)=>{
+      const nom = ov.querySelector('#fNom').value.trim();
+      if(!nom) return "Il faut un nom — c'est sous lui que tout le matériel se range.";
+      // Deux spectacles du même nom, c'est le matériel coupé en deux tiroirs et
+      // la moitié des musiciens servis. On refuse, plutôt que de le découvrir
+      // à la générale.
+      const cle = partitionsNormaliser(nom);
+      if(state.spectacles.some(x => x.id !== (s ? s.id : '') && partitionsNormaliser(x.nom) === cle))
+        return 'Un spectacle porte déjà ce nom. Ouvre-le plutôt que d\'en créer un second : son matériel s\'y range déjà.';
+
+      const champs = {
+        nom,
+        compositeur: ov.querySelector('#fComp').value.trim(),
+        arrangeur: ov.querySelector('#fArr').value.trim(),
+      };
+      if(s){
+        champs.note = ov.querySelector('#fNote').value.trim();
+        Object.assign(s, champs);
+        rendre();
+        await CurieuxDB.upsertOne('partitions_spectacles', s);
+        return '';
+      }
+      const neuf = Object.assign({ id: genId('spect'), lienDrive: '', chiffrer: false, archive: false, note: '' }, champs);
+      const tourneeId = ov.querySelector('#fOpe').value;
+      state.spectacles.push(neuf);
+      state.spectacleId = neuf.id;
+      state.vue = 'spectacle';
+      rendre();
+      await CurieuxDB.upsertOne('partitions_spectacles', neuf);
+      if(tourneeId) await programmer(neuf.id, tourneeId);
+      else rendre();
+      curieuxFlash(`« ${neuf.nom} » créé${tourneeId ? ' et programmé sur ' + nomOperation(tourneeId) : ''}.`);
+      return '';
+    },
+  });
 }
 
 async function majSpectacle(champs){
-  const s = state.spectacles.find(x => x.id === state.spectacleId);
+  const s = spectacleCourant();
   if(!s) return;
   Object.assign(s, champs); rendre();
   await CurieuxDB.upsertOne('partitions_spectacles', s);
 }
 
-async function nouvellePartie(){
-  const nom = prompt('Nom de la partie (ex. Violon 1, Cor 1-2, Conducteur) :');
-  if(!nom || !nom.trim()) return;
-  const p = creerPartieLocale(nom.trim());
-  rendre();
-  await CurieuxDB.upsertOne('partitions_parties', p);
+/* --- La partie ------------------------------------------------------------- */
+
+function fichePartie(){
+  const s = spectacleCourant();
+  if(!s) return;
+  const pupitres = ['', 'Cordes', 'Bois', 'Cuivres', 'Percussions', 'Chant', 'Autre'];
+  ouvrirFiche({
+    titre: 'Ajouter une partie',
+    sous: "L'unité qu'on affecte : Violon 1, Cor 1-2, Piano, Conducteur. Le pupitre se devine du nom — corrige-le s'il se trompe.",
+    libelleOk: 'Ajouter',
+    corps: `
+      <label class="co-label" for="fPartie">Nom de la partie</label>
+      <input class="co-input" id="fPartie" autocomplete="off" placeholder="Violon 1">
+      <label class="co-label" for="fPupitre" style="margin-top:12px">Pupitre</label>
+      <select class="co-select" id="fPupitre">
+        <option value="">— deviné du nom —</option>
+        ${pupitres.filter(Boolean).map(p => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join('')}
+      </select>`,
+    valider: async (ov)=>{
+      const nom = ov.querySelector('#fPartie').value.trim();
+      if(!nom) return 'Il faut un nom de partie.';
+      const cle = partitionsNormaliser(nom);
+      if(partiesDe(s.id).some(p => partitionsNormaliser(p.nom) === cle))
+        return 'Cette partie existe déjà dans ce spectacle.';
+      const p = creerPartieLocale(nom, ov.querySelector('#fPupitre').value);
+      rendre();
+      await CurieuxDB.upsertOne('partitions_parties', p);
+      return '';
+    },
+  });
 }
 
-function creerPartieLocale(nom){
+function creerPartieLocale(nom, pupitre){
   const p = {
     id: genId('part'), spectacleId: state.spectacleId, nom,
-    pupitre: partitionsPupitreDe(nom), ordre: partitionsOrdreDe(nom), note: '',
+    pupitre: pupitre || partitionsPupitreDe(nom), ordre: partitionsOrdreDe(nom), note: '',
   };
   state.parties.push(p);
   return p;
@@ -1034,6 +1613,75 @@ function retirerFichier(id){
   });
 }
 
+/* --- La programmation : le lien spectacle ↔ opération ---------------------- */
+
+/* LA LIGNE D'ACCÈS SE CRÉE AVEC LA PROGRAMMATION, et surtout pas plus tard.
+   partition_pour_jeton fait une jointure INTERNE sur partitions_acces : sans
+   cette ligne, aucune partition n'est téléchargeable, et rien ne le dit —
+   la production affecte tout un orchestre, les musiciens voient leur liste et
+   se heurtent à un refus que personne ne sait expliquer. On la crée donc avec
+   un code tiré d'office : mieux vaut un code à communiquer qu'un mur muet.
+   Elle appartient à l'OPÉRATION, pas au spectacle : deux spectacles sur la
+   même soirée partagent un seul code. */
+async function assurerAcces(tourneeId){
+  if(!tourneeId || state.acces.some(a => a.id === tourneeId)) return;
+  const a = { id: tourneeId, code: partitionsNouveauCode(), actif: true, ouvertLe: '' };
+  state.acces.push(a);
+  await CurieuxDB.upsertOne('partitions_acces', a);
+}
+
+async function programmer(spectacleId, tourneeId){
+  if(!spectacleId || !tourneeId) return;
+  const id = `${spectacleId}::${tourneeId}`;
+  if(state.programmations.some(p => p.id === id)){ rendre(); return; }
+  const p = { id, spectacleId, tourneeId, note: '' };
+  state.programmations.push(p);
+  // On recale l'onglet de distribution si celui en cours n'appartient pas à ce
+  // spectacle : sinon on vient de programmer et l'écran ne montre rien.
+  if(state.spectacleId === spectacleId && !estProgramme(spectacleId, state.tourneeId)) state.tourneeId = tourneeId;
+  rendre();
+  await CurieuxDB.upsertOne('partitions_programmations', p);
+  await assurerAcces(tourneeId);
+  rendre();
+}
+
+/* Déprogrammer emporte les affectations de CE spectacle sur CETTE opération —
+   et rien d'autre. Les laisser derrière donnerait des partitions visibles dans
+   l'espace de musiciens sur une opération où l'œuvre n'est plus jouée : une
+   erreur qui ne se voit que du côté du musicien, donc jamais. */
+function deprogrammer(progId){
+  const p = state.programmations.find(x => x.id === progId);
+  if(!p) return;
+  const affs = affectationsDeSpectacle(p.spectacleId, p.tourneeId);
+  if(affs.length && !confirm(
+      `« ${nomSpectacle(p.spectacleId)} » est distribué à ${new Set(affs.map(a => a.personType + '|' + a.personId)).size} personne(s) sur « ${nomOperation(p.tourneeId)} ».\n\n`
+      + `Le retirer de cette opération retire aussi ces ${affs.length} affectation(s) : ces partitions disparaîtront de leur espace.`)){
+    rendre(); return;
+  }
+  const retirees = new Set(affs.map(a => a.id));
+  state.programmations = state.programmations.filter(x => x.id !== progId);
+  state.affectations = state.affectations.filter(a => !retirees.has(a.id));
+  if(state.tourneeId === p.tourneeId && state.vue === 'spectacle'){
+    state.tourneeId = (programmationsDe(p.spectacleId)[0] || {}).tourneeId || '';
+  }
+  rendre();
+  CurieuxAnnuler.proposer({
+    texte: `« ${nomSpectacle(p.spectacleId)} » retiré de ${nomOperation(p.tourneeId)}${affs.length ? ` (${affs.length} affectation${affs.length > 1 ? 's' : ''})` : ''}`,
+    retablir: ()=>{
+      state.programmations.push(p);
+      state.affectations.push(...affs);
+      state.tourneeId = p.tourneeId;
+      rendre();
+    },
+    purger: async ()=>{
+      for(const a of affs) await CurieuxDB.removeOne('partitions_affectations', a.id);
+      await CurieuxDB.removeOne('partitions_programmations', progId);
+    },
+  });
+}
+
+/* --- Le dépôt -------------------------------------------------------------- */
+
 function ajouterAuDepot(fichiers){
   const parties = partiesDe(state.spectacleId);
   const pdf = fichiers.filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
@@ -1064,14 +1712,15 @@ async function confirmerDepot(){
     if(d.partieId) continue;
     const cle = partitionsNormaliser(d.propose);
     if(!neuves.has(cle)){
-      const p = creerPartieLocale(d.propose);
+      const p = creerPartieLocale(d.propose, '');
       neuves.set(cle, p);
       await CurieuxDB.upsertOne('partitions_parties', p);
     }
     d.partieId = neuves.get(cle).id;
   }
 
-  let faits = 0, echecs = [];
+  let faits = 0;
+  const echecs = [];
   for(const d of aFaire){
     btn.textContent = `Dépôt ${faits + 1} / ${aFaire.length}…`;
     const depot = await CurieuxDB.deposerPartition(state.spectacleId, d.partieId, d.fichier);
@@ -1088,28 +1737,19 @@ async function confirmerDepot(){
   }
 
   state.depot = [];
-  state.vue = 'bibliotheque';
+  state.vue = 'spectacle';
   rendre();
   if(echecs.length) alert(`${faits} fichier(s) déposé(s).\n\nÉchecs :\n` + echecs.join('\n'));
+  else curieuxFlash(`${faits} fichier${faits > 1 ? 's déposés' : ' déposé'} dans « ${nomSpectacle(state.spectacleId)} ».`);
 }
 
-/* LA LIGNE D'ACCÈS SE CRÉE À LA PREMIÈRE AFFECTATION, et surtout pas plus tard.
-   partition_pour_jeton fait une jointure INTERNE sur partitions_acces : sans
-   cette ligne, aucune partition n'est téléchargeable, et rien ne le dit —
-   la production affecte tout un orchestre, les musiciens voient leur liste et
-   se heurtent à un refus que personne ne sait expliquer. On la crée donc avec
-   un code tiré d'office : mieux vaut un code à communiquer qu'un mur muet. */
-async function assurerAcces(){
-  if(state.acces.some(a => a.id === state.tourneeId)) return;
-  const a = { id: state.tourneeId, code: partitionsNouveauCode(), actif: true, ouvertLe: '' };
-  state.acces.push(a);
-  await CurieuxDB.upsertOne('partitions_acces', a);
-}
+/* --- L'affectation --------------------------------------------------------- */
 
 async function affecter(partieId, personType, personId){
+  if(!state.tourneeId) return;
   const id = `${state.tourneeId}::${partieId}::${personId}`;
   if(state.affectations.some(a => a.id === id)) return;
-  await assurerAcces();
+  await assurerAcces(state.tourneeId);
   const a = { id, tourneeId: state.tourneeId, partieId, personType, personId };
   state.affectations.push(a); rendre();
   await CurieuxDB.upsertOne('partitions_affectations', a);
@@ -1127,14 +1767,14 @@ function desaffecter(id){
   });
 }
 
-/* Reprendre l'affectation d'une autre opération. C'est le geste qui fait gagner
-   le plus de temps : EXPEDITION 33 porte quatre opérations, et l'essentiel des
-   pupitres revient d'une fois sur l'autre. On ne reprend QUE les personnes
-   réellement présentes sur la nouvelle opération — recopier quelqu'un qui n'y
-   joue pas lui ferait apparaître des partitions dans son espace pour une opé
-   où il n'est pas attendu. */
+/* Reprendre l'affectation d'une autre opération DU MÊME SPECTACLE. C'est le
+   geste qui fait gagner le plus de temps : EXPEDITION 33 porte quatre
+   opérations, et l'essentiel des pupitres revient d'une fois sur l'autre. On ne
+   reprend QUE les personnes réellement présentes sur la nouvelle opération —
+   recopier quelqu'un qui n'y joue pas lui ferait apparaître des partitions dans
+   son espace pour une opé où il n'est pas attendu. */
 async function reprendreAffectation(sourceId){
-  const source = affectationsDe(sourceId);
+  const source = affectationsDeSpectacle(state.spectacleId, sourceId);
   const effectif = new Set(effectifDe(state.tourneeId).map(e => e.personType + '|' + e.personId));
   const existantes = new Set(affectationsDe(state.tourneeId).map(a => a.partieId + '|' + a.personId));
   const nouvelles = [];
@@ -1150,10 +1790,9 @@ async function reprendreAffectation(sourceId){
                   : 'Rien à reprendre — tout est déjà affecté.');
     rendre(); return;
   }
-  const nomSource = (state.tournees.find(t => t.id === sourceId) || {}).nom || '';
-  if(!confirm(`Reprendre ${nouvelles.length} affectation(s) de « ${nomSource} » ?`
+  if(!confirm(`Reprendre ${nouvelles.length} affectation(s) de « ${nomOperation(sourceId)} » ?`
       + (ecartes ? `\n\n${ecartes} seront écartées : ces personnes ne jouent aucune date de cette opération.` : ''))) { rendre(); return; }
-  await assurerAcces();
+  await assurerAcces(state.tourneeId);
   state.affectations.push(...nouvelles); rendre();
   for(const a of nouvelles) await CurieuxDB.upsertOne('partitions_affectations', a);
 }
@@ -1263,9 +1902,10 @@ function copierTexte(texte, message){
   }
 }
 
-async function majAcces(champs){
-  let a = state.acces.find(x => x.id === state.tourneeId);
-  if(!a){ a = { id: state.tourneeId, code: '', actif: true, ouvertLe: '' }; state.acces.push(a); }
+async function majAcces(tourneeId, champs){
+  if(!tourneeId) return;
+  let a = state.acces.find(x => x.id === tourneeId);
+  if(!a){ a = { id: tourneeId, code: '', actif: true, ouvertLe: '' }; state.acces.push(a); }
   Object.assign(a, champs); rendre();
   await CurieuxDB.upsertOne('partitions_acces', a);
 }

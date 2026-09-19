@@ -33,15 +33,28 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
-    version: '2026-09-19-3',
+    version: '2026-09-19-4',
     titre: 'Confier un jeu de parties à un autre ensemble',
     points: [
-      "Un troisième onglet dans les partitions : « Transmissions ». Il sert au cas qu'on ne savait pas traiter — un orchestre invité, étranger ou non, qui reprend le programme et doit travailler dessus. Ses musiciens ne sont pas les nôtres : on confie le matériel à la MAISON, pas à cinquante personnes une par une.",
+      "Le cas qu'on ne savait pas traiter : un orchestre invité, étranger ou non, qui reprend le programme et doit travailler dessus. Ses musiciens ne sont pas les nôtres — on confie donc le matériel à la MAISON, pas à cinquante personnes une par une.",
+      "Ça se prépare dans la fiche du spectacle, sous la distribution interne : le spectacle est déjà choisi, et les opérations proposées sont les siennes. Un troisième onglet, « Transmissions », répond à l'autre question — qu'est-ce qui est dehors en ce moment, chez qui, et jusqu'à quand.",
       "Un lot, c'est un spectacle (en entier ou quelques parties), un ensemble destinataire, la personne qui en répond, un lien, un code et une date de fin. Le destinataire ouvre une page à lui — en français ou en anglais, selon son navigateur — et récupère tout d'un bloc, en une archive, ou partie par partie.",
       "Rien n'est assoupli : le fichier propre ne sort jamais du stockage, chaque exemplaire est filigrané à la volée et journalisé. La mention change seulement de niveau — « confié à Tokyo Symphony » plutôt que le nom d'une personne, ce qui est la bonne responsabilité entre deux maisons. Si l'ensemble accepte de distribuer nominativement, son bibliothécaire saisit le nom de chaque musicien et on retrouve la traçabilité individuelle, sans créer une seule fiche.",
       "Un lot se révoque d'un clic, se prolonge d'un autre, et l'écran dit ce qui est dehors en ce moment, chez qui, jusqu'à quand, et combien d'exemplaires ont été pris.",
       "Deux boutons préparent le mail à envoyer, en français ou en anglais, avec le lien, le code, ce que contient le lot et les conditions d'usage. Il reste à le coller.",
       "Un garde-fou, et il compte : le matériel de LOCATION (Durand, Boosey, Schott…) ne se retransmet pas à un autre ensemble — c'est l'éditeur qui le lui loue. La page ne peut pas le vérifier ; elle demande qu'on l'affirme, et garde la trace de qui l'a fait.",
+    ],
+  },
+  {
+    version: '2026-09-19-3',
+    titre: 'Les partitions se travaillent dans l\'ordre où la production décide',
+    points: [
+      "L'écran partait des fichiers : on déposait dans une bibliothèque hors sol, puis un SECOND écran demandait de recroiser à la main une opération et un spectacle — sans que rien ne dise lesquels vont ensemble. L'ordre est maintenant celui de l'exploitation : je crée le spectacle et je dis sur quelle opération il se joue, j'y range ses parties, puis j'y lie ses musiciens.",
+      "Tout un spectacle tient désormais dans une page : ses opérations, son matériel, sa distribution opération par opération, ses réglages. On n'en sort plus pour distribuer.",
+      "L'ancien onglet « Affectation » devient « Par opération ». Il ne sert plus qu'à la relecture d'avant première répétition : ce qui est programmé sur une opération, et qui n'a rien à jouer.",
+      "Un spectacle se crée par une fiche, plus par une boîte de dialogue — c'est la seconde question, « sur quelle opération ? », qui compte. Deux spectacles ne peuvent plus porter le même nom : c'était le matériel coupé en deux tiroirs et la moitié des musiciens servis.",
+      "Le code d'accès se crée avec la programmation, et non plus à la première affectation. Déprogrammer un spectacle d'une opération emporte les affectations correspondantes, et rien d'autre : des partitions laissées derrière resteraient visibles chez des musiciens pour une œuvre qui n'est plus jouée — une erreur qui ne se voit que de leur côté.",
+      "Les liens et signets qui portaient les anciens noms d'écran continuent d'ouvrir le bon.",
     ],
   },
   {

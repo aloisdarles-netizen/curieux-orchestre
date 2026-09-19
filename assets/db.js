@@ -792,6 +792,22 @@ const CurieuxDB = (()=>{
         _updatedAt: r.updated_at
       })
     },
+    /* La programmation : « ce spectacle se joue sur cette opération ». C'est la
+       ligne qui manquait — le lien se déduisait des affectations, donc il
+       n'apparaissait qu'une fois le travail fait. Déclaré à la création du
+       spectacle, il permet à la page de n'offrir que les opérations du
+       spectacle et que l'effectif de l'opération. L'id est composite
+       (`spectacleId::tourneeId`), comme ailleurs ici. */
+    partitions_programmations: {
+      toDb: (p)=> ({
+        id: p.id, spectacle_id: p.spectacleId, tournee_id: p.tourneeId || '',
+        note: p.note || ''
+      }),
+      fromDb: (r)=> ({
+        id: r.id, spectacleId: r.spectacle_id, tourneeId: r.tournee_id || '',
+        note: r.note || '', _updatedAt: r.updated_at
+      })
+    },
     partitions_parties: {
       toDb: (p)=> ({
         id: p.id, spectacle_id: p.spectacleId, nom: p.nom || '',
@@ -1531,8 +1547,9 @@ const CurieuxDB = (()=>{
     // Les partitions : le matériel, ses parties, ses fichiers, ses affectations
     // et les codes d'opération. PAS partitions_telechargements — cette table EST
     // déjà un journal, et elle ne porte aucun déclencheur d'audit.
-    'partitions_spectacles', 'partitions_parties', 'partitions_fichiers',
-    'partitions_affectations', 'partitions_acces', 'partitions_envois',
+    'partitions_spectacles', 'partitions_programmations', 'partitions_parties',
+    'partitions_fichiers', 'partitions_affectations', 'partitions_acces',
+    'partitions_envois',
   ];
 
   // Suppressions restaurables : celles dont la ligne n'a pas été recréée depuis.

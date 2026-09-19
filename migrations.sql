@@ -6575,6 +6575,80 @@ grant execute on function journaliser_telechargement_partition(text, text, text,
 -- mentionner dans mentions-legales.html.
 
 -- ============================================================================
+-- LA PROGRAMMATION D'UN SPECTACLE SUR UNE OPÉRATION — 19 septembre 2026
+-- ============================================================================
+-- CE QUI N'ALLAIT PAS
+-- ------------------
+-- Le lien entre un spectacle et l'opération qui le joue n'existait nulle part :
+-- il se déduisait des affectations, donc il n'apparaissait qu'une fois le
+-- travail fait. Conséquence, l'exploitation partait du mauvais bout — on
+-- déposait des fichiers dans une bibliothèque hors sol, puis on ouvrait un
+-- second écran pour recroiser à la main une opération et un spectacle, sans
+-- que rien ne dise lesquels vont ensemble. Deux écrans, deux sélecteurs, et
+-- un oubli invisible : un spectacle préparé que personne n'a distribué.
+--
+-- CE QUE CETTE TABLE CHANGE
+-- -------------------------
+-- Le spectacle est déclaré sur son opération À SA CRÉATION. C'est cette ligne,
+-- et non l'affectation, qui dit « EXPEDITION 33 se joue sur EXP33-REC ». La
+-- page peut donc, dès le premier geste, n'afficher que les opérations du
+-- spectacle et que l'effectif de l'opération — plus de recroisement à la main.
+--
+-- POURQUOI UNE TABLE DE LIAISON ET NON UNE COLONNE tournee_id
+-- -----------------------------------------------------------
+-- Parce que la règle d'origine reste juste : le matériel se range UNE FOIS.
+-- EXPEDITION 33 porte quatre opérations. Une colonne sur le spectacle
+-- obligerait à dupliquer le spectacle — donc les PDF — à chaque reprise, et le
+-- plan Supabase est à 1 Go. À la création on demande UNE opération (c'est le
+-- geste d'exploitation) ; on en ajoute d'autres ensuite d'un clic, sans
+-- redéposer un seul fichier.
+--
+-- PAS DE CLÉ ÉTRANGÈRE VERS tournees, pour la même raison qu'ailleurs dans ce
+-- bloc : elle ferait échouer la suppression d'une tournée depuis tournees.html.
+-- Une programmation orpheline se lit « opération supprimée » et se retire.
+-- ----------------------------------------------------------------------------
+create table if not exists partitions_programmations (
+  id text primary key,
+  spectacle_id text not null references partitions_spectacles(id) on delete restrict,
+  tournee_id text not null default '',
+  note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_partitions_prog_spectacle on partitions_programmations(spectacle_id);
+create index if not exists idx_partitions_prog_tournee on partitions_programmations(tournee_id);
+-- Un spectacle ne se programme qu'une fois sur une opération. L'id composite
+-- ('::', comme partout ici) le garantit déjà ; cet index le dit à la base, qui
+-- refusera un doublon arrivé par un autre chemin qu'upsertOne.
+create unique index if not exists idx_partitions_prog_unique on partitions_programmations(spectacle_id, tournee_id);
+drop trigger if exists trg_partitions_programmations_updated_at on partitions_programmations;
+create trigger trg_partitions_programmations_updated_at before update on partitions_programmations
+  for each row execute function set_updated_at();
+alter table partitions_programmations enable row level security;
+drop policy if exists "partitions_programmations acces" on partitions_programmations;
+create policy "partitions_programmations acces" on partitions_programmations for all to authenticated
+  using (has_access()) with check (has_access());
+drop trigger if exists trg_audit_partitions_programmations on partitions_programmations;
+create trigger trg_audit_partitions_programmations
+  after insert or update or delete on partitions_programmations
+  for each row execute function audit_trigger_func();
+
+-- REPRISE DE L'EXISTANT. Le lien existait déjà, en creux, dans les
+-- affectations : si quelqu'un lit une partie d'EXPEDITION 33 sur EXP33-REC,
+-- c'est que le spectacle y est programmé. On le remonte, une fois, pour que
+-- rien de ce qui a été distribué avant cette migration ne disparaisse de la
+-- page. Idempotent : on ne réécrit pas une ligne déjà là.
+insert into partitions_programmations (id, spectacle_id, tournee_id)
+select distinct pa.spectacle_id || '::' || af.tournee_id, pa.spectacle_id, af.tournee_id
+  from partitions_affectations af
+  join partitions_parties pa on pa.id = af.partie_id
+ where af.tournee_id <> ''
+-- `on conflict do nothing` sans cible, et non `on conflict (id)` : l'index
+-- unique sur (spectacle_id, tournee_id) doit lui aussi pouvoir absorber un
+-- doublon arrivé par un autre chemin, plutôt que de faire échouer la reprise.
+on conflict do nothing;
+
+-- ============================================================================
 -- LA TRANSMISSION À UN TIERS — 19 septembre 2026
 -- ============================================================================
 -- Le dispositif des partitions distribue NOMINATIVEMENT, à des gens qu'on a

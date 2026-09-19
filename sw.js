@@ -145,13 +145,21 @@
 // change aussi : sans la nouvelle page dans sa liste blanche, l'écran des
 // partitions annoncerait le manifeste de l'ÉQUIPE, et l'icône posée depuis
 // cet écran ouvrirait la page de connexion.
-// v127 : la transmission d'un lot de parties à un ensemble tiers. db.js
+// v127 : les partitions se travaillent dans l'ordre où la production décide —
+// on crée un spectacle, on dit sur quelle opération il se joue, puis on y lie
+// ses parties et ses musiciens. db.js apprend la table de liaison
+// partitions_programmations. Sans cet incrément, un navigateur déjà venu
+// garderait l'ancien db.js : partitions.html, elle rafraîchie (c'est une page,
+// servie réseau d'abord), lirait les programmations avec un adaptateur qui ne
+// les connaît pas — chaque spectacle s'afficherait comme rattaché à aucune
+// opération, et aucun rattachement ne s'enregistrerait.
+// v128 : la transmission d'un lot de parties à un ensemble tiers. db.js
 // apprend la table partitions_envois et deux appels de plus, et assets/zip.js
 // arrive — c'est lui qui assemble l'archive dans le navigateur du
 // destinataire. Sans cet incrément, un navigateur déjà venu garderait l'ancien
 // db.js : l'écran des transmissions s'ouvrirait, le lien partirait en base et
 // n'en reviendrait jamais — l'adaptateur manquant, tout se lirait vide.
-const VERSION = 'curieux-v127';
+const VERSION = 'curieux-v128';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
