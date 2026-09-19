@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curieux orchestre — Matériel confié</title>
+<meta name="robots" content="noindex, nofollow">
+<!-- Page volontairement PUBLIQUE : elle s'ouvre avec le jeton du lien, et le
+     droit sur chaque fichier se vérifie en base (envoi_partitions) puis dans
+     /api/partition — jamais ici. Pas de PWA : le bibliothécaire d'un orchestre
+     étranger n'installe pas notre application, il vient une fois chercher un
+     jeu de parties. -->
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/partitions-commun.js"></script>
+<script src="assets/zip.js"></script>
+<script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  /* Une colonne, même sur grand écran. Un bibliothécaire travaille sur un
+     ordinateur, mais une liste de parties étirée sur 1 100 px met le poids du
+     fichier à vingt centimètres de son nom. */
+  .wrap{max-width:720px; margin:0 auto; padding-bottom:40px;}
+  .entete{margin-bottom:16px;}
+  .sous{color:var(--muted); font-size:13.5px; margin:4px 0 0; line-height:1.55;}
+
+  .langues{display:flex; gap:6px; justify-content:flex-end; margin-bottom:10px;}
+  .langues button{
+    border:1px solid var(--border); background:var(--card); color:var(--muted);
+    border-radius:999px; padding:3px 12px; font-size:11.5px; font-weight:800;
+    cursor:pointer; letter-spacing:.04em; min-height:0;
+  }
+  .langues button.actif{background:var(--accent); border-color:var(--accent); color:#fff;}
+
+  .bandeau{
+    display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
+    font-size:12.5px; color:var(--muted); margin-top:10px;
+  }
+  .etiq{
+    display:inline-block; font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:999px;
+    text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
+  }
+  .etiq.ok{background:var(--ok-tint); color:var(--ok);}
+  .etiq.ko{background:var(--ko-tint); color:var(--ko);}
+  .etiq.att{background:var(--maybe-tint); color:var(--maybe);}
+
+  .bloc{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px;}
+  .bloc + .bloc{margin-top:14px;}
+  .bloc h2{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+    font-weight:800; margin:0 0 8px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
+  }
+  .bloc h2 .total{margin-left:auto; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:0;}
+
+  .pupitre{
+    font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--muted); margin:14px 0 4px; padding-top:10px; border-top:1px solid var(--border);
+  }
+  .pupitre:first-of-type{border-top:none; padding-top:0; margin-top:4px;}
+
+  .fic{
+    display:flex; gap:10px; align-items:center; text-decoration:none; color:inherit;
+    padding:9px 0; border-bottom:1px solid var(--border);
+  }
+  .fic:last-child{border-bottom:none;}
+  .fic-nom{flex:1; min-width:0; font-weight:700; font-size:13.5px;}
+  .fic-det{font-size:12px; color:var(--muted); font-weight:400; display:block; margin-top:1px;}
+  .fic-fleche{color:var(--accent); font-weight:800; font-size:16px;}
+  .fic.inerte{opacity:.5; pointer-events:none;}
+
+  .rien{font-size:13px; color:var(--muted); padding:10px 0; line-height:1.6;}
+
+  .forme{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0 4px;}
+  .aide{font-size:12px; color:var(--muted); line-height:1.55; margin:4px 0 0;}
+
+  .progres{height:6px; background:var(--border); border-radius:999px; overflow:hidden; margin-top:10px;}
+  .progres i{display:block; height:100%; background:var(--accent); border-radius:999px; transition:width .2s;}
+
+  .pied{
+    margin-top:26px; padding-top:16px; border-top:1px solid var(--border);
+    font-size:12px; color:var(--muted); line-height:1.6;
+  }
+  .pied p{margin:0 0 9px;}
+  .pied p:last-child{margin-bottom:0;}
+  .pied strong{color:var(--text);}
+
+  @media (max-width:760px){
+    .bloc{padding:13px 14px;}
+    input, select{font-size:16px !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="brand-logo-img" alt="Curieux orchestre">
+  <div class="langues" id="langues"></div>
+  <div class="entete">
+    <h1 class="co-h1" id="titre">…</h1>
+    <p class="sous" id="sousTitre"></p>
+  </div>
+  <div id="contenu"></div>
+  <div id="pied"></div>
+</div>
+
+<script>
+/* ============================================================================
+   Le matériel confié à un ensemble tiers — la page du destinataire.
+   ============================================================================
+   Un orchestre étranger reprend le programme et a besoin du matériel pour
+   travailler. Ses cinquante musiciens ne sont pas les nôtres : ils n'ont ni
+   fiche dans l'annuaire, ni lien personnel, et leur en créer cinquante pour
+   une coproduction serait à la fois faux et ingérable. On confie donc le lot à
+   la MAISON, représentée par la personne qui en répond — son bibliothécaire,
+   son régisseur d'orchestre —, et c'est elle qui distribue en interne, comme
+   elle le fait déjà pour son propre matériel.
+
+   CE QUE CETTE PAGE CHANGE, ET CE QU'ELLE NE CHANGE PAS
+   ----------------------------------------------------
+   Elle ne change RIEN au dispositif : le bucket reste privé, le fichier propre
+   ne sort jamais, chaque exemplaire est filigrané à la volée par
+   /api/partition et journalisé un par un. Seule la MENTION change — « confié
+   à », et le nom d'une maison plutôt que celui d'une personne. C'est le bon
+   niveau de responsabilité : un exemplaire qui ressort désigne l'ensemble qui
+   l'a reçu, et le contact nommé qui en a signé la réception.
+
+   POURQUOI ELLE EST BILINGUE
+   --------------------------
+   Parce que le destinataire est, par construction, souvent étranger. Une page
+   en français devant un bibliothécaire de Tokyo ou de Leipzig, c'est un appel
+   téléphonique à la production et deux jours perdus. La langue se devine du
+   navigateur, se change d'un bouton, et se retient.
+
+   L'ARCHIVE EST ASSEMBLÉE ICI, dans ce navigateur (voir assets/zip.js) : les
+   parties sont récupérées une par une, filigranées chacune côté serveur, puis
+   rangées localement. Aucun plafond de fonction serverless n'est approché, et
+   une coupure en cours de route laisse tout le reste téléchargeable à l'unité.
+============================================================================ */
+
+const params = new URLSearchParams(location.search);
+const JETON = params.get('e') || params.get('envoi') || '';
+
+/* Les deux langues, côte à côte. Pas de fichier de traduction ni de mécanique :
+   une trentaine de chaînes, lues et corrigées d'un coup d'œil. Une chaîne
+   manquante retombe sur le français plutôt que d'afficher sa clé. */
+const TEXTES = {
+  fr: {
+    titre: 'Matériel confié',
+    pourEnsemble: (e)=> `Matériel confié à ${e}`,
+    sousTitre: 'Le jeu de parties que nous vous transmettons pour travail.',
+    lienInvalide: "Ce lien n'est pas valide. Reprenez celui qui vous a été envoyé, ou demandez-nous de vous le renvoyer.",
+    pasActive: "Cette page n'est pas encore active sur ce serveur. Prévenez la production — il lui reste une mise à jour à appliquer.",
+    revoque: "Ce lien a été révoqué par la production. Contactez-nous avant de chercher le matériel ailleurs.",
+    expire: (d)=> `Ce lien a expiré le ${d}. Contactez-nous pour le rouvrir si vous en avez encore besoin.`,
+    pasOuvert: (d)=> `Le matériel sera disponible à partir du ${d}.`,
+    codeTitre: 'Code d’accès',
+    codeAide: "Le code vous a été communiqué séparément de ce lien. Vous ne le saisissez qu'une fois : il est retenu quatorze jours sur cet appareil.",
+    codeChamp: 'code',
+    ouvrir: 'Ouvrir',
+    oublier: 'oublier le code',
+    nomTitre: 'Nom du destinataire de cet exemplaire',
+    nomAide: "Ce lot est distribué nominativement : chaque exemplaire porte le nom du musicien auquel il est remis. Saisissez-le avant de télécharger — il s'inscrit sur la partition et dans notre registre.",
+    nomChamp: 'Prénom et nom du musicien',
+    nomManque: 'Saisissez d’abord le nom du musicien auquel cet exemplaire est remis.',
+    lot: 'Le lot',
+    partiesN: (n)=> `${n} partie${n > 1 ? 's' : ''}`,
+    fichiersN: (n)=> `${n} fichier${n > 1 ? 's' : ''}`,
+    toutPrendre: 'Tout télécharger (.zip)',
+    enCours: (a, b)=> `Préparation ${a} / ${b}…`,
+    echecPartiel: (n)=> `${n} fichier(s) n'ont pas pu être préparés et ne sont pas dans l'archive. Reprenez-les à l'unité.`,
+    echecTotal: "Le téléchargement a échoué. Vérifiez le code, puis réessayez — ou prenez les parties à l'unité.",
+    rien: "Aucune partie n'est encore déposée dans ce lot. Nous vous prévenons dès que c'est fait.",
+    expireLe: (d)=> `à retirer avant le ${d}`,
+    pages: (n)=> `${n} pages`,
+    piedFiligrane: "Chaque exemplaire téléchargé porte le nom de votre ensemble, en tête et en pied de page, ainsi qu'une marque invisible qui permet d'identifier l'origine d'un exemplaire qui circulerait. La musique n'est jamais recouverte.",
+    piedUsage: "Ce matériel vous est confié pour le seul travail convenu entre nos deux maisons. Il n'a pas à être rediffusé au-delà de votre ensemble, ni conservé après la période indiquée.",
+    piedContact: "Une partie manquante, une version qui ne correspond pas à ce que vous attendez ? Écrivez à la personne qui vous a transmis ce lien — ne cherchez pas le matériel ailleurs.",
+  },
+  en: {
+    titre: 'Material entrusted',
+    pourEnsemble: (e)=> `Material entrusted to ${e}`,
+    sousTitre: 'The set of parts we are sending you to work from.',
+    lienInvalide: 'This link is not valid. Please use the one we sent you, or ask us to send it again.',
+    pasActive: 'This page is not active on this server yet. Please let the production office know — an update is still pending.',
+    revoque: 'This link has been revoked by the production office. Please contact us before looking for the material elsewhere.',
+    expire: (d)=> `This link expired on ${d}. Contact us if you still need it and we will reopen it.`,
+    pasOuvert: (d)=> `The material will be available from ${d}.`,
+    codeTitre: 'Access code',
+    codeAide: 'The code was sent to you separately from this link. You only enter it once: it is remembered on this device for fourteen days.',
+    codeChamp: 'code',
+    ouvrir: 'Open',
+    oublier: 'forget the code',
+    nomTitre: 'Name of the player receiving this copy',
+    nomAide: 'This set is distributed by name: each copy carries the name of the player it is handed to. Enter it before downloading — it is printed on the part and recorded in our register.',
+    nomChamp: 'Player’s first and last name',
+    nomManque: 'Please enter the name of the player receiving this copy first.',
+    lot: 'The set',
+    partiesN: (n)=> `${n} part${n > 1 ? 's' : ''}`,
+    fichiersN: (n)=> `${n} file${n > 1 ? 's' : ''}`,
+    toutPrendre: 'Download everything (.zip)',
+    enCours: (a, b)=> `Preparing ${a} / ${b}…`,
+    echecPartiel: (n)=> `${n} file(s) could not be prepared and are missing from the archive. Please download them individually.`,
+    echecTotal: 'The download failed. Check the code and try again — or download the parts individually.',
+    rien: 'No part has been uploaded to this set yet. We will let you know as soon as it is done.',
+    expireLe: (d)=> `available until ${d}`,
+    pages: (n)=> `${n} pages`,
+    piedFiligrane: 'Every copy downloaded carries your ensemble’s name at the top and bottom of each page, together with an invisible mark that identifies the origin of any copy found in circulation. The music itself is never covered.',
+    piedUsage: 'This material is entrusted to you for the agreed work only. It must not be passed on beyond your ensemble, nor kept after the period stated above.',
+    piedContact: 'A missing part, or a version that does not match what you expect? Write to the person who sent you this link — please do not look for the material elsewhere.',
+  },
+};
+
+const CLE_LANGUE = 'curieuxEnvoiLangue';
+const CLE_CODE = 'curieuxEnvoiCode:' + JETON;
+const CLE_NOM = 'curieuxEnvoiNom:' + JETON;
+
+/* Le français par défaut pour un navigateur francophone, l'anglais pour tous
+   les autres : c'est le partage juste quand on envoie à l'étranger. Le choix
+   explicite l'emporte et se retient. */
+function langueInitiale(){
+  try{
+    const retenu = localStorage.getItem(CLE_LANGUE);
+    if(retenu === 'fr' || retenu === 'en') return retenu;
+  }catch(e){}
+  if(params.get('lang') === 'en') return 'en';
+  if(params.get('lang') === 'fr') return 'fr';
+  return /^fr\b/i.test(navigator.language || '') ? 'fr' : 'en';
+}
+let LANGUE = langueInitiale();
+function T(cle){ return TEXTES[LANGUE][cle] !== undefined ? TEXTES[LANGUE][cle] : TEXTES.fr[cle]; }
+
+/* Le code et le nom sont retenus quatorze jours, comme côté musicien : le
+   temps d'une production, pas celui d'une saison. Tout est enveloppé — le
+   stockage lève en navigation privée, et une commodité ne doit jamais casser
+   la page. */
+function lireRetenu(cle){
+  try{
+    const j = JSON.parse(localStorage.getItem(cle) || 'null');
+    if(!j || !j.quand || Date.now() - j.quand > 14 * 86400000) return '';
+    return j.valeur || '';
+  }catch(e){ return ''; }
+}
+function ecrireRetenu(cle, valeur){
+  try{ localStorage.setItem(cle, JSON.stringify({ quand: Date.now(), valeur })); }catch(e){}
+}
+
+function jourLisible(iso){
+  if(!iso) return '';
+  const d = new Date(iso + 'T12:00:00');
+  if(isNaN(d)) return iso;
+  return d.toLocaleDateString(LANGUE === 'fr' ? 'fr-FR' : 'en-GB',
+    { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+let CHARGE = null;
+let CODE = lireRetenu(CLE_CODE);
+let NOM = lireRetenu(CLE_NOM);
+
+function etat(html){
+  document.getElementById('sousTitre').textContent = '';
+  document.getElementById('contenu').innerHTML = `<div class="co-card co-pad rien" style="text-align:center">${html}</div>`;
+  document.getElementById('pied').innerHTML = '';
+}
+
+function rendreLangues(){
+  document.getElementById('langues').innerHTML = ['fr', 'en'].map(l =>
+    `<button type="button" data-langue="${l}" class="${l === LANGUE ? 'actif' : ''}">${l.toUpperCase()}</button>`).join('');
+  document.querySelectorAll('[data-langue]').forEach(b => b.onclick = ()=>{
+    LANGUE = b.dataset.langue;
+    try{ localStorage.setItem(CLE_LANGUE, LANGUE); }catch(e){}
+    document.documentElement.lang = LANGUE;
+    rendre();
+  });
+}
+
+/* L'URL d'un exemplaire. Le code et le nom y passent en clair : c'est une
+   requête vers notre propre serveur, en HTTPS, et c'est là que la base les
+   vérifie. Un lien recopié sans le code ne donne rien. */
+function urlFichier(fichierId){
+  let u = `/api/partition?envoi=${encodeURIComponent(JETON)}&fichier=${encodeURIComponent(fichierId)}`;
+  if(CODE) u += `&code=${encodeURIComponent(CODE)}`;
+  if(NOM) u += `&pour=${encodeURIComponent(NOM)}`;
+  return u;
+}
+
+/* Le nom d'un fichier dans l'archive. « Violon 1.pdf » et non l'identifiant de
+   stockage : c'est ce que le bibliothécaire va voir dans son dossier, puis
+   dans son logiciel de pupitre. Le titre du fichier n'est ajouté que s'il
+   apporte quelque chose — une partie qui ne porte qu'un fichier nommé comme
+   elle donnerait « Violon 1 — Violon 1 ». */
+function nomArchive(partie, fichier){
+  const titre = (fichier.titre || '').trim();
+  const ajout = titre && (partie.fichiers || []).length > 1
+    && titre.toLowerCase() !== (partie.nom || '').trim().toLowerCase()
+    ? ' - ' + titre : '';
+  return `${partie.nom || 'Partie'}${ajout}.pdf`;
+}
+
+function rendre(){
+  rendreLangues();
+  const c = CHARGE;
+  document.getElementById('titre').textContent = c && c.destinataire
+    ? T('pourEnsemble')(c.destinataire) : T('titre');
+  // Le bouton de langue appelle rendre() : il peut être cliqué avant que le
+  // lot soit revenu de la base. Sans ce garde-fou, la page se vide.
+  if(!c) return;
+
+  // Les trois refus, dits en toutes lettres. « Lien invalide » devant
+  // quelqu'un qui a le bon lien mais un lot expiré la veille, c'est un appel
+  // téléphonique et une matinée perdue des deux côtés.
+  if(!c.actif){ etat(escapeHtml(T('revoque'))); return; }
+  if(c.expireLe && new Date(c.expireLe + 'T23:59:59') < new Date()){
+    etat(escapeHtml(T('expire')(jourLisible(c.expireLe)))); return;
+  }
+  if(!c.ouvert){ etat(escapeHtml(T('pasOuvert')(jourLisible(c.ouvertLe)))); return; }
+
+  const parties = c.parties || [];
+  const fichiers = parties.reduce((s, p)=> s + (p.fichiers || []).length, 0);
+  const poids = parties.reduce((s, p)=> s + (p.fichiers || []).reduce((t, f)=> t + (f.octets || 0), 0), 0);
+
+  const contexte = [c.spectacle, c.compositeur, c.operation].filter(Boolean).join(' · ');
+  document.getElementById('sousTitre').innerHTML =
+    escapeHtml(T('sousTitre'))
+    + (contexte ? `<br><strong style="color:var(--text)">${escapeHtml(contexte)}</strong>` : '')
+    + `<span class="bandeau">
+        <span class="etiq ok">${escapeHtml(T('partiesN')(parties.length))}</span>
+        <span>${escapeHtml(T('fichiersN')(fichiers))} · ${escapeHtml(partitionsPoids(poids))}</span>
+        ${c.expireLe ? `<span class="etiq att">${escapeHtml(T('expireLe')(jourLisible(c.expireLe)))}</span>` : ''}
+      </span>`;
+
+  let html = '';
+
+  // Le code d'abord : sans lui, la liste s'affiche mais rien ne se télécharge.
+  // On le demande APRÈS avoir dit ce que contient le lot — un champ nu, sans
+  // savoir ce qu'il ouvre, ne se remplit pas.
+  if(c.codeRequis && !CODE){
+    html += `<section class="bloc">
+      <h2>${escapeHtml(T('codeTitre'))}</h2>
+      <form class="forme" id="formCode">
+        <input class="co-input" id="inpCode" style="width:150px;font-weight:800;letter-spacing:.08em;text-transform:uppercase"
+               maxlength="32" inputmode="latin" autocapitalize="characters"
+               placeholder="${escapeAttr(T('codeChamp'))}" aria-label="${escapeAttr(T('codeTitre'))}">
+        <button type="submit" class="co-btn primary sm">${escapeHtml(T('ouvrir'))}</button>
+      </form>
+      <p class="aide">${escapeHtml(T('codeAide'))}</p>
+    </section>`;
+  }
+
+  // Le nom par exemplaire, quand le lot est distribué nominativement. La base
+  // refuse le téléchargement s'il manque : le champ n'est pas une politesse.
+  if(c.nominatif){
+    html += `<section class="bloc">
+      <h2>${escapeHtml(T('nomTitre'))}</h2>
+      <form class="forme" id="formNom">
+        <input class="co-input" id="inpNom" style="width:min(300px,100%)" maxlength="60"
+               placeholder="${escapeAttr(T('nomChamp'))}" aria-label="${escapeAttr(T('nomTitre'))}"
+               value="${escapeAttr(NOM)}">
+        <button type="submit" class="co-btn sm">${escapeHtml(T('ouvrir'))}</button>
+      </form>
+      <p class="aide">${escapeHtml(T('nomAide'))}</p>
+    </section>`;
+  }
+
+  const pret = (!c.codeRequis || CODE) && (!c.nominatif || NOM);
+
+  html += `<section class="bloc">
+    <h2>${escapeHtml(T('lot'))}
+      <span class="total">
+        ${fichiers && pret ? `<button type="button" class="co-btn sm primary" id="btnTout">${escapeHtml(T('toutPrendre'))}</button>` : ''}
+        ${c.codeRequis && CODE ? `<button type="button" class="co-btn ghost sm" id="btnOublier" style="margin-left:8px">${escapeHtml(T('oublier'))}</button>` : ''}
+      </span>
+    </h2>
+    <div id="progres"></div>`;
+
+  if(!fichiers){
+    html += `<p class="rien">${escapeHtml(T('rien'))}</p>`;
+  } else {
+    let pupitreCourant = null;
+    parties.forEach(p => {
+      if((p.pupitre || '') !== pupitreCourant){
+        pupitreCourant = p.pupitre || '';
+        if(pupitreCourant) html += `<div class="pupitre">${escapeHtml(pupitreCourant)}</div>`;
+      }
+      (p.fichiers || []).forEach(f => {
+        const detail = [partitionsPoids(f.octets), f.pages ? T('pages')(f.pages) : ''].filter(Boolean).join(' · ');
+        const nom = nomArchive(p, f).replace(/\.pdf$/, '');
+        html += `<a class="fic${pret ? '' : ' inerte'}" ${pret ? `href="${escapeAttr(urlFichier(f.id))}" download` : 'href="#" aria-disabled="true"'}>
+          <span class="fic-nom">${escapeHtml(nom)}<span class="fic-det">${escapeHtml(detail)}</span></span>
+          <span class="fic-fleche">↓</span>
+        </a>`;
+      });
+    });
+  }
+  html += '</section>';
+
+  document.getElementById('contenu').innerHTML = html;
+  document.getElementById('pied').innerHTML = `<div class="pied">
+    <p>${escapeHtml(T('piedFiligrane'))}</p>
+    <p><strong>${escapeHtml(T('piedUsage'))}</strong></p>
+    ${c.note ? `<p>${escapeHtml(c.note)}</p>` : ''}
+    <p>${escapeHtml(T('piedContact'))}</p>
+  </div>`;
+
+  cabler();
+}
+
+function cabler(){
+  const formCode = document.getElementById('formCode');
+  if(formCode) formCode.onsubmit = (e)=>{
+    e.preventDefault();
+    const champ = document.getElementById('inpCode');
+    const v = (champ.value || '').trim().toUpperCase();
+    if(!/^[A-Za-z0-9-]{1,32}$/.test(v)){ champ.focus(); return; }
+    CODE = v; ecrireRetenu(CLE_CODE, v); rendre();
+  };
+
+  const formNom = document.getElementById('formNom');
+  if(formNom) formNom.onsubmit = (e)=>{
+    e.preventDefault();
+    const champ = document.getElementById('inpNom');
+    const v = (champ.value || '').trim().replace(/\s+/g, ' ');
+    // Le même jeu de caractères que celui qu'accepte /api/partition : refuser
+    // ici évite un 400 incompréhensible après trente secondes d'attente.
+    if(!/^[\p{L}\p{M}\s'’.·-]{2,60}$/u.test(v)){ champ.focus(); return; }
+    NOM = v; ecrireRetenu(CLE_NOM, v); rendre();
+  };
+
+  const btnOublier = document.getElementById('btnOublier');
+  if(btnOublier) btnOublier.onclick = ()=>{
+    try{ localStorage.removeItem(CLE_CODE); }catch(e){}
+    CODE = ''; rendre();
+  };
+
+  const btnTout = document.getElementById('btnTout');
+  if(btnTout) btnTout.onclick = toutTelecharger;
+}
+
+/* Tout prendre d'un coup. Chaque partie est récupérée séparément — donc
+   filigranée et journalisée séparément, comme si le bibliothécaire les avait
+   prises une par une — puis rangée dans une archive assemblée ici. On ne
+   parallélise PAS : /api/partition pose un filigrane par appel, et trente
+   appels simultanés feraient tomber la fonction plutôt que d'aller plus vite. */
+async function toutTelecharger(){
+  const c = CHARGE;
+  if(c.nominatif && !NOM){ alert(T('nomManque')); return; }
+  const btn = document.getElementById('btnTout');
+  const progres = document.getElementById('progres');
+  const aPrendre = [];
+  (c.parties || []).forEach(p => (p.fichiers || []).forEach(f => aPrendre.push({ partie: p, fichier: f })));
+  if(!aPrendre.length) return;
+
+  btn.disabled = true;
+  const entrees = [];
+  const echecs = [];
+  for(let i = 0; i < aPrendre.length; i++){
+    const { partie, fichier } = aPrendre[i];
+    btn.textContent = T('enCours')(i + 1, aPrendre.length);
+    progres.innerHTML = `<div class="progres"><i style="width:${Math.round(i / aPrendre.length * 100)}%"></i></div>`;
+    try{
+      const rep = await fetch(urlFichier(fichier.id), { credentials: 'omit' });
+      if(!rep.ok) throw new Error('HTTP ' + rep.status);
+      entrees.push({ nom: nomArchive(partie, fichier), octets: await rep.arrayBuffer() });
+    }catch(e){
+      console.warn('[envoi] ', fichier.id, e && e.message);
+      echecs.push(fichier.id);
+    }
+  }
+
+  progres.innerHTML = '';
+  btn.disabled = false;
+  btn.textContent = T('toutPrendre');
+
+  if(!entrees.length){ alert(T('echecTotal')); return; }
+  const nomLot = [c.spectacle || 'Partitions', c.destinataire].filter(Boolean).join(' - ') + '.zip';
+  CurieuxZip.enregistrer(CurieuxZip.creer(entrees), nomLot);
+  if(echecs.length) alert(T('echecPartiel')(echecs.length));
+}
+
+async function init(){
+  document.documentElement.lang = LANGUE;
+  rendreLangues();
+  if(!window.supabase){ etat(escapeHtml(T('lienInvalide'))); return; }
+  if(!JETON){ etat(escapeHtml(T('lienInvalide'))); return; }
+
+  const charge = await CurieuxDB.envoiPartitions(JETON);
+  if(charge && charge.migrationAbsente){ etat(escapeHtml(T('pasActive'))); return; }
+  if(!charge){ etat(escapeHtml(T('lienInvalide'))); return; }
+
+  CHARGE = charge;
+  rendre();
+}
+
+init();
+applyBrandLogo();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+</script>
+</body>
+</html>

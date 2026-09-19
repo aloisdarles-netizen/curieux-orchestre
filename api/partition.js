@@ -36,6 +36,16 @@
 // portée reste pixel pour pixel identique à l'original, et le jeton reste
 // extractible. C'est la seule méthode correcte.
 //
+// DEUX PROVENANCES, UN SEUL FILIGRANE
+// ===================================
+// Le paramètre `jeton` désigne une PERSONNE de l'annuaire (lien personnel) ;
+// le paramètre `envoi` désigne un LOT CONFIÉ à un ensemble tiers — une
+// coproduction, un orchestre étranger qui reprend le programme. Les deux
+// passent par la même lecture de stockage, le même filigrane et le même
+// journal : un exemplaire retrouvé se cherche à un seul endroit. Seule la
+// MENTION change, parce qu'« exemplaire personnel de Tokyo Symphony » ne veut
+// rien dire — voir `destinataire` dans filigraner().
+//
 // Variable d'environnement requise sur Vercel : SUPABASE_SERVICE_ROLE_KEY
 
 import {
@@ -111,14 +121,38 @@ async function autorisation(cleService, jeton, fichierId, code) {
   return (Array.isArray(lignes) ? lignes[0] : lignes) || null;
 }
 
+/* Le pendant de la fonction ci-dessus pour un lot confié à un ensemble tiers.
+   Mêmes principes, mêmes refus muets, et une colonne de plus : `destinataire`,
+   qui n'est jamais vide ici et qui fait basculer la mention du filigrane.
+   `pour` est le nom saisi par le bibliothécaire quand le lot est distribué
+   nominativement ; la base refuse le téléchargement s'il manque alors qu'il
+   est exigé — un navigateur ne protège rien. */
+async function autorisationEnvoi(cleService, jetonEnvoi, fichierId, code, pour) {
+  const rep = await fetch(`${SUPABASE_URL}/rest/v1/rpc/partition_pour_envoi`, {
+    method: 'POST',
+    headers: {
+      apikey: cleService,
+      Authorization: `Bearer ${cleService}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ p_jeton: jetonEnvoi, p_fichier_id: fichierId, p_code: code, p_pour: pour }),
+  });
+  if (!rep.ok) {
+    console.error('[partition] autorisation envoi', rep.status, await rep.text().catch(() => ''));
+    return null;
+  }
+  const lignes = await rep.json().catch(() => null);
+  return (Array.isArray(lignes) ? lignes[0] : lignes) || null;
+}
+
 /* Le journal des téléchargements est ce qui donne un sens au jeton invisible :
    sans lui, on lit « CX-4A7F-2291 » sur une partition retrouvée et on ne sait
    pas à qui elle appartenait. Il échoue en silence — un journal qui empêche un
    musicien de recevoir sa partition avant une répétition serait un mauvais
    échange. */
-async function journaliser(cleService, charge) {
+async function journaliser(cleService, fonction, charge) {
   try {
-    const rep = await fetch(`${SUPABASE_URL}/rest/v1/rpc/journaliser_telechargement_partition`, {
+    const rep = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fonction}`, {
       method: 'POST',
       headers: {
         apikey: cleService,
@@ -137,14 +171,21 @@ async function journaliser(cleService, charge) {
    dans la marge de tête, la mention dans la marge de pied, et les positions se
    calculent sur la taille RÉELLE de chaque page — une partition peut mélanger
    les formats, et une valeur en dur finirait un jour au milieu des notes. */
-export async function filigraner(octets, { nom, operation, leJour, jeton, chiffrer, code, motDePasseProprietaire }) {
+export async function filigraner(octets, { nom, operation, leJour, jeton, chiffrer, code, motDePasseProprietaire, destinataire }) {
   // updateMetadata:false, sinon la sauvegarde réécrit le producteur et efface
   // le jeton qu'on vient d'y poser.
   const pdf = await PDFDocument.load(octets, { updateMetadata: false });
   const police = await pdf.embedFont(StandardFonts.Helvetica);
 
-  const haut = versWinAnsi(nom);
-  const pied = versWinAnsi(`Exemplaire personnel de ${nom} · ${operation} · téléchargé le ${leJour} · ne pas diffuser`);
+  /* La mention de pied, et c'est la seule chose qui distingue les deux
+     provenances. Un exemplaire PERSONNEL engage la personne qui l'a pris ; un
+     exemplaire CONFIÉ engage la maison qui l'a reçu, et doit dire les deux
+     quand le destinataire distribue nominativement — « Alexandra Ivanova » ne
+     se rattache à rien sans le nom de son orchestre. */
+  const haut = versWinAnsi(destinataire && nom !== destinataire ? `${nom} · ${destinataire}` : nom);
+  const pied = versWinAnsi(destinataire
+    ? `Exemplaire confié à ${destinataire}${nom !== destinataire ? ' — ' + nom : ''} · ${operation} · téléchargé le ${leJour} · usage réservé à cet ensemble, ne pas rediffuser`
+    : `Exemplaire personnel de ${nom} · ${operation} · téléchargé le ${leJour} · ne pas diffuser`);
   const gris = rgb(0.45, 0.45, 0.45);
   const jetonWin = versWinAnsi(jeton);
 
@@ -247,14 +288,25 @@ export default async function handler(req, res) {
   // invalide » sans qu'aucun journal ne dise pourquoi.
   const params = new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams;
   const jeton = (params.get('jeton') || params.get('token') || '').trim();
+  const envoi = (params.get('envoi') || '').trim();
   const fichierId = (params.get('fichier') || '').trim();
   const code = (params.get('code') || '').trim();
+  const pour = (params.get('pour') || '').trim();
 
   // Même charset que les autres points d'entrée à jeton du site. Ces valeurs
   // finissent dans une URL d'API et, pour le chemin, dans le stockage : un
   // « / » ou un « .. » qui passerait sortirait du préfixe.
-  if (!/^[A-Za-z0-9_-]{1,128}$/.test(jeton)) {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(envoi || jeton)) {
     res.status(400).json({ erreur: 'Lien invalide.' });
+    return;
+  }
+  /* Le nom saisi par le bibliothécaire d'un ensemble tiers. Il finit sur le
+     PDF et dans le journal : on accepte les lettres de n'importe quel
+     alphabet, les espaces et la ponctuation des noms, et rien d'autre. Ce
+     n'est pas une protection — la base ne le recoupe à rien — mais une
+     garantie que ce qui se pose sur la partition reste un nom. */
+  if (pour && !/^[\p{L}\p{M}\s'’.·\-]{1,60}$/u.test(pour)) {
+    res.status(400).json({ erreur: 'Nom invalide.' });
     return;
   }
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(fichierId)) {
@@ -267,7 +319,11 @@ export default async function handler(req, res) {
   }
 
   let droit;
-  try { droit = await autorisation(cleService, jeton, fichierId, code); }
+  try {
+    droit = envoi
+      ? await autorisationEnvoi(cleService, envoi, fichierId, code, pour)
+      : await autorisation(cleService, jeton, fichierId, code);
+  }
   catch (e) {
     console.error('[partition] autorisation', e && e.message);
     res.status(503).json({ erreur: "Impossible de vérifier l'accès pour le moment." });
@@ -312,13 +368,14 @@ export default async function handler(req, res) {
   let sortie;
   try {
     sortie = await filigraner(source, {
-      nom: droit.personne || 'Musicien',
+      nom: droit.personne || droit.destinataire || 'Musicien',
       operation: droit.operation || '',
       leJour,
       jeton: droit.jeton_filigrane,
       chiffrer: !!droit.chiffrer,
       code,
       motDePasseProprietaire: process.env.PARTITIONS_MOT_DE_PASSE_PROPRIETAIRE,
+      destinataire: droit.destinataire || '',
     });
   } catch (e) {
     // Un PDF source déjà protégé par mot de passe arrive ici. On le refuse au
@@ -328,12 +385,11 @@ export default async function handler(req, res) {
     return;
   }
 
-  await journaliser(cleService, {
-    p_token: jeton,
-    p_fichier_id: fichierId,
-    p_jeton_filigrane: droit.jeton_filigrane,
-    p_octets: sortie.length,
-  });
+  await journaliser(cleService,
+    envoi ? 'journaliser_telechargement_envoi' : 'journaliser_telechargement_partition',
+    envoi
+      ? { p_jeton: envoi, p_fichier_id: fichierId, p_jeton_filigrane: droit.jeton_filigrane, p_octets: sortie.length }
+      : { p_token: jeton, p_fichier_id: fichierId, p_jeton_filigrane: droit.jeton_filigrane, p_octets: sortie.length });
 
   const nomFichier = [droit.partie, droit.operation, droit.personne].filter(Boolean).join(' - ') + '.pdf';
 

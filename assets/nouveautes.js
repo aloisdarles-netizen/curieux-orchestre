@@ -33,6 +33,18 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-19-3',
+    titre: 'Confier un jeu de parties à un autre ensemble',
+    points: [
+      "Un troisième onglet dans les partitions : « Transmissions ». Il sert au cas qu'on ne savait pas traiter — un orchestre invité, étranger ou non, qui reprend le programme et doit travailler dessus. Ses musiciens ne sont pas les nôtres : on confie le matériel à la MAISON, pas à cinquante personnes une par une.",
+      "Un lot, c'est un spectacle (en entier ou quelques parties), un ensemble destinataire, la personne qui en répond, un lien, un code et une date de fin. Le destinataire ouvre une page à lui — en français ou en anglais, selon son navigateur — et récupère tout d'un bloc, en une archive, ou partie par partie.",
+      "Rien n'est assoupli : le fichier propre ne sort jamais du stockage, chaque exemplaire est filigrané à la volée et journalisé. La mention change seulement de niveau — « confié à Tokyo Symphony » plutôt que le nom d'une personne, ce qui est la bonne responsabilité entre deux maisons. Si l'ensemble accepte de distribuer nominativement, son bibliothécaire saisit le nom de chaque musicien et on retrouve la traçabilité individuelle, sans créer une seule fiche.",
+      "Un lot se révoque d'un clic, se prolonge d'un autre, et l'écran dit ce qui est dehors en ce moment, chez qui, jusqu'à quand, et combien d'exemplaires ont été pris.",
+      "Deux boutons préparent le mail à envoyer, en français ou en anglais, avec le lien, le code, ce que contient le lot et les conditions d'usage. Il reste à le coller.",
+      "Un garde-fou, et il compte : le matériel de LOCATION (Durand, Boosey, Schott…) ne se retransmet pas à un autre ensemble — c'est l'éditeur qui le lui loue. La page ne peut pas le vérifier ; elle demande qu'on l'affirme, et garde la trace de qui l'a fait.",
+    ],
+  },
+  {
     version: '2026-09-19-2',
     titre: 'Les partitions ont leur onglet',
     points: [
