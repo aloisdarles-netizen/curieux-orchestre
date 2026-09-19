@@ -78,16 +78,32 @@
   .rr-ordre-hint{font-size:11.5px; color:var(--muted); margin:0 2px 8px;}
 
   .rr-import{
-    display:flex; flex-direction:column; gap:6px; padding:10px 12px;
+    display:flex; flex-direction:column; gap:8px; padding:12px;
     background:var(--bg); border:1px dashed var(--border); border-radius:8px;
   }
+  /* Aller chercher quelqu'un dans son répertoire est l'action principale de cet
+     onglet : elle prend toute la largeur et la couleur de l'accent, au lieu du
+     petit bouton gris qu'on ne voyait pas. */
   .rr-btn-import{
-    align-self:flex-start; background:var(--card); border:1px solid var(--border); border-radius:8px;
-    padding:8px 12px; font-size:12.5px; font-weight:700; color:var(--text); cursor:pointer; font-family:inherit;
+    width:100%; background:var(--accent-solid); color:#fff; border:none; border-radius:8px;
+    padding:11px 14px; font-size:13.5px; font-weight:800; cursor:pointer; font-family:inherit; text-align:center;
   }
-  .rr-btn-import:hover{border-color:var(--accent); color:var(--accent-dark);}
+  .rr-btn-import:hover{background:var(--accent-dark);}
   .rr-import-note{font-size:11.5px; color:var(--muted); line-height:1.35;}
-  .rr-import-ok{font-size:12px; color:var(--ok); font-weight:700;}
+  .rr-import-msg{font-size:12px; font-weight:700; line-height:1.35;}
+  .rr-import-msg.ok{color:var(--ok);}
+  .rr-import-msg.ko{color:var(--danger);}
+  .rr-coller{
+    width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid var(--border); border-radius:6px;
+    font-size:14px; font-family:inherit; background:var(--card); color:var(--text); resize:vertical; min-height:54px;
+  }
+  .rr-coller:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .rr-lien{
+    align-self:flex-start; background:none; border:none; padding:0; font-family:inherit; font-size:12px;
+    font-weight:700; color:var(--accent-dark); text-decoration:underline; cursor:pointer;
+  }
+  .rr-ou{display:flex; align-items:center; gap:10px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+  .rr-ou::before, .rr-ou::after{content:''; flex:1; height:1px; background:var(--border);}
   .rr-btn-edit, .rr-btn-remove, .rr-btn-cancel{
     background:none; border:1px solid var(--border); border-radius:7px; padding:6px 10px; font-size:12px; font-weight:600;
     color:var(--text); cursor:pointer; font-family:inherit;
@@ -140,7 +156,7 @@
   .save-btn:not(:disabled):hover{background:var(--accent-dark);}
 
   @media (max-width:600px){
-    input, select{ font-size:16px !important; }
+    input, select, textarea{ font-size:16px !important; }
   }
 
   @media (max-width:420px){
@@ -376,21 +392,16 @@ function editFormHtml(rang){
       <div class="rr-edit-body">
         <div class="rr-tabs">
           <button type="button" class="rr-tab ${tab==='search'?'active':''}" data-tab="search">Dans le répertoire</button>
-          <button type="button" class="rr-tab ${tab==='new'?'active':''}" data-tab="new">Nouvelle personne</button>
+          <button type="button" class="rr-tab ${tab==='new'?'active':''}" data-tab="new">Quelqu'un d'autre</button>
         </div>
         ${tab === 'search' ? `
           <input type="text" id="rrSearchInput" placeholder="Chercher un nom…" autocomplete="off">
           <div id="rrSearchResults" class="rr-search-results"></div>
+          <div class="rr-ou">pas dans l'orchestre ?</div>
+          <button type="button" class="rr-btn-import" data-contacts="${rang}">${LIBELLE_CONTACTS}</button>
         ` : `
           <div class="rr-new-form">
-            <div class="rr-import">
-              <button type="button" class="rr-btn-import" data-import="${rang}">${PIOCHE_CONTACTS ? 'Choisir dans mes contacts' : 'Importer une fiche contact (.vcf)'}</button>
-              <input type="file" id="rrVcf" accept=".vcf,text/vcard,text/x-vcard,text/directory" hidden>
-              <div class="rr-import-note">${PIOCHE_CONTACTS
-                ? "Ton téléphone te demandera quel contact partager. Rien n'est ajouté avant que tu valides ci-dessous."
-                : "Depuis ton répertoire : partage la fiche de la personne (« Partager le contact » puis « Enregistrer dans Fichiers »), et choisis-la ici. Les champs se remplissent, tu vérifies, tu valides."}</div>
-              <div id="rrImportOk" class="rr-import-ok"></div>
-            </div>
+            ${blocContactsHtml(rang)}
             <div class="field-row">
               <div class="field"><label for="rrNewPrenom">Prénom</label><input type="text" id="rrNewPrenom" value="${escapeAttr(newVals.prenom || '')}"></div>
               <div class="field"><label for="rrNewNom">Nom</label><input type="text" id="rrNewNom" value="${escapeAttr(newVals.nom || '')}"></div>
@@ -419,7 +430,7 @@ function render(){
     </div>
     ${itemsOrdonnes().length > 1 ? `<div class="rr-ordre-hint">Pour changer l'ordre : glisse la pastille du rang, ou utilise les flèches.</div>` : ''}
     <div class="rr-list" id="rrList">${rangsVisibles().map(rowHtml).join('')}</div>
-    <div class="rr-empty-hint">Une personne pas encore au répertoire ? Ajoute-la directement depuis l'onglet « Nouvelle personne » — nom, prénom et téléphone suffisent.</div>
+    <div class="rr-empty-hint">Une personne pas encore au répertoire ? Onglet « Quelqu'un d'autre »${PIOCHE_CONTACTS ? ' : ton téléphone remplit sa fiche depuis tes contacts.' : ' : nom, prénom et téléphone suffisent.'}</div>
   `;
   bindRowEvents();
   document.getElementById('saveBar').classList.add('visible');
@@ -495,7 +506,7 @@ function bindRowEvents(){
     searchInput.focus();
   }
 
-  brancherImport();
+  brancherContacts();
   activerGlisser();
 }
 
@@ -597,18 +608,60 @@ function finirGlisser(){
   if(deplacer(Number(g.ligne.dataset.rang), g.cible + 1)){ markDirty(); render(); }
 }
 
-/* IMPORTER QUELQU'UN DEPUIS SES CONTACTS.
+/* ALLER CHERCHER QUELQU'UN DANS LE RÉPERTOIRE DU TÉLÉPHONE.
    ---------------------------------------------------------------------------
-   Deux chemins, parce qu'aucun ne marche partout :
-   — le sélecteur de contacts du navigateur (navigator.contacts) : parfait, mais
-     réservé à Chrome sur Android ; il n'existe pas sur iPhone ;
-   — la fiche .vcf, qu'on obtient en partageant un contact depuis le répertoire
-     du téléphone : plus long, mais disponible sur tous les appareils.
+   Ce qu'on veut : « je choisis la personne dans mes contacts, l'outil remplit
+   la fiche ». C'est exactement ce que fait navigator.contacts.select() — mais
+   cette interface n'existe que sur Chrome et Samsung Internet sous Android.
+   Ni Safari iOS, ni aucun navigateur d'ordinateur ne l'implémentent : une page
+   web n'a pas le droit d'y lire le carnet d'adresses. Ce n'est pas un réglage
+   à changer, c'est une limite du système.
 
-   Dans les deux cas l'import ne fait que REMPLIR le formulaire : la personne
-   relit et valide. On n'ajoute jamais un contact sans qu'il soit passé sous
-   les yeux de quelqu'un. */
+   D'où trois chemins, du plus direct au plus laborieux :
+   1. le sélecteur natif quand il existe (Android) — un geste, tout est rempli ;
+   2. le collage : on colle un numéro ou une ligne « Camille Roussel 06 … »
+      recopiée depuis Contacts, un message ou un mail, et l'outil répartit
+      nom / téléphone / e-mail dans les bons champs. Marche partout ;
+   3. la fiche .vcf, pour qui connaît déjà « Partager le contact ».
+
+   Dans tous les cas on ne fait que REMPLIR le formulaire : la personne relit
+   et valide. On n'ajoute jamais un contact sans qu'il soit passé sous les yeux
+   de quelqu'un. */
 const PIOCHE_CONTACTS = !!(window.isSecureContext && navigator.contacts && navigator.contacts.select);
+const LIBELLE_CONTACTS = PIOCHE_CONTACTS ? 'Chercher dans mes contacts' : 'Ajouter quelqu\'un hors répertoire';
+
+function blocContactsHtml(rang){
+  return `
+    <div class="rr-import">
+      ${PIOCHE_CONTACTS ? `
+        <button type="button" class="rr-btn-import" data-contacts="${rang}">Chercher dans mes contacts</button>
+        <div class="rr-import-note">Ton téléphone ouvre ton répertoire : tu choisis la personne, les champs se remplissent tout seuls. Rien n'est ajouté tant que tu n'as pas validé.</div>
+        <div class="rr-ou">ou</div>
+      ` : `
+        <div class="rr-import-note">Sur iPhone et sur ordinateur, le navigateur n'a pas le droit d'ouvrir ton répertoire : c'est une limite du système. Le plus rapide : dans Contacts, maintiens le numéro appuyé pour le copier, puis colle-le ici.</div>
+      `}
+      <div class="field">
+        <label for="rrColler">Coller un contact</label>
+        <textarea id="rrColler" class="rr-coller" rows="2" placeholder="Camille Roussel 06 12 34 56 78" autocomplete="off"></textarea>
+      </div>
+      <div class="rr-import-note">Nom, numéro, e-mail : ce qui est reconnu se range tout seul dans les champs ci-dessous.</div>
+      <button type="button" class="rr-lien" data-vcf="${rang}">Ou importer une fiche contact (.vcf)</button>
+      <input type="file" id="rrVcf" accept=".vcf,text/vcard,text/x-vcard,text/directory" hidden>
+      <div id="rrImportMsg" class="rr-import-msg"></div>
+    </div>
+  `;
+}
+
+/* Un numéro reste lisible tel que la personne l'a noté : on se contente
+   d'unifier les séparateurs et de retirer le « (0) » de « +33 (0)6 … », qui
+   fait doublon avec l'indicatif et casse les appels directs. */
+function normaliserTel(v){
+  return String(v || '')
+    .replace(/\(\s*0\s*\)/g, '')
+    .replace(/[^\d+]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 function lireFichier(f){
   if(f.text) return f.text();
@@ -667,7 +720,7 @@ function lireVcf(texte){
       fiche.prenom = nettoyerVcf(parts[1]);
       nomVu = true;
     } else if(prop === 'FN' && !nomAffiche){ nomAffiche = nettoyerVcf(valeur); }
-    else if(prop === 'TEL' && !fiche.telephone){ fiche.telephone = nettoyerVcf(valeur).replace(/[^\d+ .()\-]/g, '').trim(); }
+    else if(prop === 'TEL' && !fiche.telephone){ fiche.telephone = normaliserTel(nettoyerVcf(valeur)); }
     else if(prop === 'EMAIL' && !fiche.email){ fiche.email = nettoyerVcf(valeur); }
   }
   // Certaines fiches n'ont qu'un nom affiché (« FN:Camille Roussel ») : on le
@@ -680,78 +733,170 @@ function lireVcf(texte){
   return fiche;
 }
 
-async function viaSelecteurContacts(){
-  let champs = ['name', 'tel', 'email'];
-  try{
-    const dispo = await navigator.contacts.getProperties();
-    if(Array.isArray(dispo) && dispo.length) champs = champs.filter(c=> dispo.includes(c));
-  }catch(err){}
-  if(!champs.length) return null;
-  const choix = await navigator.contacts.select(champs, { multiple:false });
-  if(!choix || !choix.length) return null;
-  const c = choix[0];
-  const bouts = String((c.name && c.name[0]) || '').replace(/\s+/g, ' ').trim().split(' ');
+/* Les mots que les répertoires collent devant un numéro quand on le copie
+   (« Mobile », « Tél. », « Domicile »...) : ce ne sont pas des noms. */
+const MOTS_ETIQUETTE = /^(t[ée]l|t[ée]l[ée]phone|mobile|portable|dom|domicile|maison|bureau|travail|perso|principal|fax|mail|e-?mail|courriel|contact|num[ée]ro|num)$/i;
+
+/* LIRE CE QU'ON A COLLÉ.
+   ---------------------------------------------------------------------------
+   On accepte tout ce qui sort d'un téléphone : une fiche vCard entière, un
+   numéro seul, « Camille Roussel 06 12 34 56 78 », une signature de mail. On
+   repère d'abord l'e-mail, puis le numéro, et ce qui reste fait le nom. */
+function lireColle(texte){
+  const brut = String(texte || '').replace(/\s+/g, ' ').trim();
+  if(!brut) return null;
+  if(/BEGIN:VCARD/i.test(brut)) return lireVcf(texte);
+
+  const fiche = { prenom:'', nom:'', telephone:'', email:'' };
+  let reste = brut;
+
+  const mail = reste.match(/[^\s<>(),;:"]+@[^\s<>(),;:"]+\.[A-Za-z]{2,}/);
+  if(mail){ fiche.email = mail[0]; reste = reste.replace(mail[0], ' '); }
+
+  // Un vrai numéro, c'est au moins huit chiffres : en dessous on tomberait sur
+  // un numéro de pupitre ou une année.
+  const tel = reste.match(/\+?\d[\d\s.\-\/()]{6,}\d/);
+  if(tel && tel[0].replace(/\D/g, '').length >= 8){
+    fiche.telephone = normaliserTel(tel[0]);
+    reste = reste.replace(tel[0], ' ');
+  }
+
+  const mots = reste.split(/[^A-Za-zÀ-ÖØ-öø-ÿ'’\-]+/)
+    .filter(m=> /[A-Za-zÀ-ÖØ-öø-ÿ]/.test(m) && !MOTS_ETIQUETTE.test(m));
+
+  // « ROUSSEL Camille » : beaucoup de répertoires rangent le nom en capitales
+  // et le mettent devant. On ne s'y fie que si le reste ne l'est pas.
+  const capitale = m=> m.length > 1 && m === m.toUpperCase() && m !== m.toLowerCase();
+  if(mots.length > 1 && capitale(mots[0]) && !capitale(mots[mots.length - 1])){
+    fiche.nom = mots.shift();
+    fiche.prenom = mots.join(' ');
+  } else {
+    fiche.prenom = mots.shift() || '';
+    fiche.nom = mots.join(' ');
+  }
+  return fiche;
+}
+
+function ficheDepuisContact(c){
+  const nom = lireColle(String((c.name && c.name[0]) || '')) || { prenom:'', nom:'' };
   return {
-    prenom: bouts.shift() || '',
-    nom: bouts.join(' '),
-    telephone: (c.tel && c.tel[0]) || '',
+    prenom: nom.prenom,
+    nom: nom.nom,
+    telephone: normaliserTel((c.tel && c.tel[0]) || ''),
     email: (c.email && c.email[0]) || ''
   };
 }
 
-function remplirDepuisFiche(fiche, rang){
-  const poser = (id, val)=>{ const el = document.getElementById(id); if(el && val) el.value = val; };
+/* Le sélecteur exige un geste de l'utilisateur encore « frais » : on l'appelle
+   donc en tout premier dans le gestionnaire de clic. L'ancienne version
+   interrogeait d'abord getProperties(), et quand cet appel échouait on
+   retombait sur le sélecteur de fichiers — après deux attentes, le navigateur
+   refusait aussi de l'ouvrir : le bouton ne faisait plus rien du tout. */
+async function lancerSelecteur(rang){
+  try{
+    const choix = await navigator.contacts.select(['name', 'tel', 'email'], { multiple:false });
+    if(!choix || !choix.length) return;   // annulé : rien à signaler
+    remplirDepuisFiche(ficheDepuisContact(choix[0]), rang, false);
+  }catch(err){
+    poserMessage("Ton téléphone n'a pas ouvert le répertoire. Copie le numéro depuis Contacts et colle-le ci-dessous.", 'ko');
+    const zone = document.getElementById('rrColler');
+    if(zone) zone.focus();
+  }
+}
+
+function poserMessage(texte, ton){
+  const el = document.getElementById('rrImportMsg');
+  if(!el) return;
+  el.textContent = texte || '';
+  el.className = 'rr-import-msg' + (ton ? ' ' + ton : '');
+}
+
+function resumeFiche(f){
+  return [`${f.prenom || ''} ${f.nom || ''}`.trim(), f.telephone, f.email].filter(Boolean).join(' · ');
+}
+
+/* fusion = true : on ne touche qu'aux champs que le collage a reconnus, pour
+   ne pas effacer ce que la personne vient de taper à côté.
+   fusion = false : la fiche est complète (sélecteur, .vcf), elle remplace tout
+   — y compris les blancs, sinon l'e-mail du contact précédent resterait collé
+   au nom du suivant, et on écrirait à la mauvaise personne. */
+function remplirDepuisFiche(fiche, rang, fusion){
+  const poser = (id, val)=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(!fusion || val) el.value = val || '';
+  };
   poser('rrNewPrenom', fiche.prenom);
   poser('rrNewNom', fiche.nom);
   poser('rrNewTelephone', fiche.telephone);
   poser('rrNewEmail', fiche.email);
+
   const complet = `${fiche.prenom || ''} ${fiche.nom || ''}`.trim();
-  const info = document.getElementById('rrImportOk');
-  if(info) info.textContent = `Importé : ${complet || 'sans nom'} — vérifie et complète avant d'ajouter.`;
-  const errEl = document.getElementById('rrNewError');
-  if(!errEl) return;
+  const resume = resumeFiche(fiche) || 'rien de reconnaissable';
+  const telChamp = document.getElementById('rrNewTelephone');
+  const telPose = telChamp ? telChamp.value.trim() : fiche.telephone;
+
   if(fiche.nom && fiche.prenom && isDuplicateName(fiche.nom, fiche.prenom, rang)){
-    errEl.textContent = `${complet} est déjà au répertoire — prends-la/le dans l'onglet « Dans le répertoire ».`;
-  } else if(!fiche.telephone){
-    errEl.textContent = "Le contact n'avait pas de numéro : complète le téléphone.";
+    poserMessage(`${complet} est déjà au répertoire — prends-la/le dans l'onglet « Dans le répertoire ».`, 'ko');
+  } else if(!telPose){
+    poserMessage(`Repéré : ${resume}. Il manque le téléphone : complète-le ci-dessous.`, 'ko');
   } else {
-    errEl.textContent = '';
+    poserMessage(`Repéré : ${resume}. Vérifie, puis ajoute au rang ${rang}.`, 'ok');
   }
+  const errEl = document.getElementById('rrNewError');
+  if(errEl) errEl.textContent = '';
 }
 
-function brancherImport(){
-  const bouton = document.querySelector('[data-import]');
-  const champ = document.getElementById('rrVcf');
-  if(!bouton || !champ) return;
-  const rang = parseInt(bouton.dataset.import, 10);
-
-  bouton.addEventListener('click', async ()=>{
-    if(PIOCHE_CONTACTS){
-      try{
-        const fiche = await viaSelecteurContacts();
-        if(fiche) remplirDepuisFiche(fiche, rang);
-        return;
-      }catch(err){
-        // Sélecteur refusé (permission, geste perdu) : on retombe sur la fiche
-        // .vcf, qui marche partout.
-      }
-    }
-    champ.click();
+function brancherContacts(){
+  /* Le bouton existe dans les deux onglets : depuis « Dans le répertoire », il
+     bascule d'abord sur « Quelqu'un d'autre ». Ce basculement est synchrone, le
+     geste de l'utilisateur reste donc valable pour ouvrir le sélecteur dans la
+     foulée — c'était tout l'objet de la manœuvre : une seule tape pour arriver
+     dans son carnet d'adresses. */
+  document.querySelectorAll('[data-contacts]').forEach(bouton=>{
+    bouton.addEventListener('click', ()=>{
+      const rang = parseInt(bouton.dataset.contacts, 10);
+      if(state.editTab !== 'new'){ state.editTab = 'new'; render(); }
+      if(PIOCHE_CONTACTS){ lancerSelecteur(rang); return; }
+      const zone = document.getElementById('rrColler');
+      if(zone) zone.focus();
+    });
   });
+
+  const zone = document.getElementById('rrColler');
+  const bloc = document.querySelector('[data-vcf]');
+  const rang = bloc ? parseInt(bloc.dataset.vcf, 10) : null;
+  if(zone && rang){
+    const traiter = ()=>{
+      const fiche = lireColle(zone.value);
+      if(!fiche) return;
+      if(!fiche.prenom && !fiche.nom && !fiche.telephone && !fiche.email){
+        poserMessage("Rien de reconnu là-dedans — saisis les champs à la main.", 'ko');
+        return;
+      }
+      remplirDepuisFiche(fiche, rang, true);
+    };
+    // Le contenu n'est pas encore dans le champ au moment de l'événement paste.
+    zone.addEventListener('paste', ()=> setTimeout(traiter, 0));
+    zone.addEventListener('change', traiter);
+  }
+
+  const champ = document.getElementById('rrVcf');
+  if(!bloc || !champ || !rang) return;
+  bloc.addEventListener('click', ()=> champ.click());
 
   champ.addEventListener('change', async ()=>{
     const f = champ.files && champ.files[0];
     if(!f) return;
-    const errEl = document.getElementById('rrNewError');
     try{
       const fiche = lireVcf(await lireFichier(f));
       if(!fiche.prenom && !fiche.nom && !fiche.telephone){
-        if(errEl) errEl.textContent = "Cette fiche ne contient pas de nom lisible — saisis la personne à la main.";
+        poserMessage("Cette fiche ne contient pas de nom lisible — saisis la personne à la main.", 'ko');
       } else {
-        remplirDepuisFiche(fiche, rang);
+        remplirDepuisFiche(fiche, rang, false);
       }
     }catch(err){
-      if(errEl) errEl.textContent = "Fiche illisible — saisis la personne à la main.";
+      poserMessage("Fiche illisible — saisis la personne à la main.", 'ko');
     }
     champ.value = '';
   });
@@ -774,7 +919,7 @@ function renderRosterSearchResults(query){
   }).slice(0, 8);
 
   if(!results.length){
-    holder.innerHTML = `<div class="rr-empty-hint">Aucun résultat.</div>`;
+    holder.innerHTML = `<div class="rr-empty-hint">Aucun résultat au répertoire de l'orchestre${PIOCHE_CONTACTS ? ' — va la chercher dans tes contacts, juste en dessous.' : ' — ajoute-la juste en dessous.'}</div>`;
     return;
   }
   holder.innerHTML = results.map(p=> `
