@@ -1877,7 +1877,23 @@ function desaffecter(id){
   CurieuxAnnuler.proposer({
     texte: 'Affectation retirée',
     retablir: ()=>{ state.affectations.push(a); rendre(); },
-    purger: async ()=>{ await CurieuxDB.removeOne('partitions_affectations', id); },
+    /* LA PURGE VÉRIFIE D'ABORD QUE LA LIGNE N'EST PAS REVENUE, et ce n'est pas
+       une précaution de principe : l'identifiant d'une affectation est
+       DÉTERMINISTE — `tournee::partie::personne`, voir affecter(). Retirer
+       quelqu'un d'une partie puis l'y remettre à la main reconstruit donc
+       exactement le même identifiant, et la purge encore en attente
+       supprimait en base la ligne qu'on venait de réécrire.
+       L'écran, lui, continuait de l'afficher : state.affectations la porte, et
+       rien ne relit la base avant le prochain chargement. On distribuait une
+       partie que personne n'avait — découvert à la première répétition.
+       Le ruban ne laisse que quinze secondes, mais elles suffisent : c'est le
+       temps qu'on met à se raviser. Et la fenêtre se referme AVANT si une
+       autre action arrive — proposer() commence par purger la précédente
+       (annuler.js) —, auquel cas la ligne était détruite dans la seconde. */
+    purger: async ()=>{
+      if(state.affectations.some(x => x.id === id)) return;
+      await CurieuxDB.removeOne('partitions_affectations', id);
+    },
   });
 }
 

@@ -573,8 +573,21 @@ const CurieuxMesDates = (function(){
     if(!titre || (partie.fichiers || []).length < 2) return '';
     const nom = (partie.nom || '').trim();
     if(titre.toLowerCase() === nom.toLowerCase()) return '';
-    if(nom && titre.toLowerCase().startsWith(nom.toLowerCase())){
-      titre = titre.slice(nom.length).replace(/^[\s\-–—_·:]+/, '').trim();
+    /* LE PRÉFIXE NE SE RETIRE QUE SUR UNE FRONTIÈRE DE MOT, et seul un BLANC
+       en est une. Sans cette règle, « Alto » se retirait de « Altos divisi »
+       pour donner « Alto — s divisi », et « Violon » de « Violoncelle solo »
+       pour donner « Violon — celle solo » : le libellé était coupé au milieu
+       d'un mot. C'est l'erreur exacte contre laquelle _motEntier met en garde
+       dans partitions-commun.js — un fichier « Violon.pdf » s'y appariait au
+       violoncelle. Ce module ne peut pas s'appuyer dessus : mon-espace.html le
+       charge sans partitions-commun.js.
+       LE TIRET N'EST PAS UNE FRONTIÈRE : « Cor 1-2 » désigne un pupitre
+       double, et retirer « Cor 1 » de « Cor 1-2 bis » donnerait « 2 bis », qui
+       ne désigne plus rien. Même raison qu'à l'autre bout de la chaîne, où
+       l'on n'aère pas les tirets d'un nom de fichier. */
+    const suite = titre.slice(nom.length);
+    if(nom && titre.toLowerCase().startsWith(nom.toLowerCase()) && /^\s/.test(suite)){
+      titre = suite.replace(/^[\s\-–—_·:]+/, '').trim();
     }
     return titre ? ' — ' + escapeHtml(titre) : '';
   }
