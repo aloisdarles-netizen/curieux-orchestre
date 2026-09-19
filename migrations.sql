@@ -6791,7 +6791,15 @@ begin
     'note',         e.note,
     -- L'heure de la source, pas celle du navigateur.
     'genereLe', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-    'parties', coalesce((
+    -- L'INVENTAIRE NE SORT QUE SI LE LOT EST OUVERT. Révoquer, c'est fermer
+    -- pour de bon : l'écran de production le promet en toutes lettres (« le
+    -- lien cesse immédiatement de fonctionner »), et on révoque justement
+    -- parce qu'un lien a circulé. Continuer à énumérer les parties, leurs
+    -- poids et leur pagination à qui le rappelle ferait de la promesse une
+    -- approximation. L'état, les dates et le nom de l'ensemble restent
+    -- lisibles : sans eux, un bibliothécaire de bonne foi lirait « lien
+    -- invalide » et rappellerait la production.
+    'parties', case when not v_ouvert then '[]'::jsonb else coalesce((
       select jsonb_agg(p.ligne order by p.ordre, p.nom)
       from (
         select pa.ordre, pa.nom,
@@ -6811,7 +6819,7 @@ begin
         where pa.spectacle_id = e.spectacle_id
           and (e.toutes_parties or e.parties ? pa.id)
       ) p
-    ), '[]'::jsonb)
+    ), '[]'::jsonb) end
   ) into resultat
   from partitions_spectacles sp
   where sp.id = e.spectacle_id;

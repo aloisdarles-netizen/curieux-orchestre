@@ -158,6 +158,9 @@
   .banniere-alerte{display:flex; gap:11px; align-items:flex-start; background:var(--danger-tint); border-radius:var(--radius); padding:13px 15px; margin-bottom:16px;}
   .banniere-alerte .sig{color:var(--danger); font-weight:900; font-size:15px; line-height:1.4; flex:0 0 auto;}
   .banniere-alerte p{margin:0; font-size:13.5px; line-height:1.5;}
+  /* Deux migrations peuvent manquer à la fois : sans cet écart, les deux
+     textes se touchent et se lisent comme une seule phrase. */
+  .banniere-alerte p + p{margin-top:7px;}
   .banniere-alerte[hidden]{display:none;}
 
   @media (max-width:760px){
@@ -185,7 +188,7 @@
 
   <div class="banniere-alerte" id="migrationBanner" hidden>
     <span class="sig">!</span>
-    <p id="migrationTexte"></p>
+    <div id="migrationTexte"></div>
   </div>
 
   <div id="page"><div class="co-card co-pad vide">Chargement…</div></div>
@@ -267,13 +270,13 @@ let state = {
   spectacleId: '',
   tourneeId: '',      // l'opération en cours de distribution
   depot: [],          // les fichiers choisis, pas encore déposés
-  // Le journal des téléchargements n'est lu qu'au premier écran qui en a
-  // besoin — l'onglet Transmissions ou la fiche d'un spectacle —, et une seule
-  // fois ensuite. C'est une table qui grossit d'une ligne par partition
-  // remise : la charger à chaque ouverture de la page ferait payer une saison
-  // de téléchargements à qui vient déposer trois PDF. Voir chargerJournalTiers.
-  telechargements: null,
-  telechargementsEnCours: false,
+  // Les prises d'exemplaires par des ensembles tiers — et elles seules, pas
+  // le journal entier : les remises nominatives en représentent l'écrasante
+  // majorité et ne s'affichent nulle part ici. Lu au premier écran qui en a
+  // besoin ET qui a quelque chose à en dire, une seule fois ensuite.
+  // Voir chargerJournalTiers.
+  prisesTiers: null,          // { lignes: [], total: 0 }
+  prisesTiersEnCours: false,
   chargement: true,
 };
 
@@ -434,7 +437,13 @@ async function charger(){
   const vue = url.get('vue');
   if(vue) state.vue = LEGACY[vue] || vue;
   if(spectacle && state.spectacles.some(s => s.id === spectacle)){ ouvrirSpectacle(spectacle, operation); return; }
-  if(operation && state.vue !== 'spectacles') state.vue = 'operations';
+  /* Une vue demandée gagne toujours ; une opération SANS vue ouvre son écran.
+     L'ancienne règle forçait « Par opération » dès qu'une opération
+     accompagnait une vue, si bien qu'un lien ?vue=transmissions&operation=…
+     atterrissait ailleurs sans rien dire — et qu'un ?operation=… seul restait
+     sur la liste des spectacles, avec l'opération retenue mais invisible,
+     c'est-à-dire nulle part. */
+  if(!vue && operation) state.vue = 'operations';
   rendre();
 }
 
@@ -454,8 +463,12 @@ function poserBandeauMigration(programmationsAbsentes, envoisAbsents){
   const banniere = document.getElementById('migrationBanner');
   banniere.hidden = !manques.length;
   if(manques.length){
+    // Un paragraphe par migration manquante, plus la marche à suivre. Le
+    // conteneur est un <div> et non un <p> : un <p> imbriqué dans un <p> est
+    // refermé d'office par l'analyseur du navigateur, qui rendait un
+    // paragraphe vide et collait les deux textes l'un contre l'autre.
     document.getElementById('migrationTexte').innerHTML =
-      manques.join('</p><p>') + '</p><p>Puis recharge cette page.';
+      manques.map(m => `<p>${m}</p>`).join('') + '<p>Puis recharge cette page.</p>';
   }
 }
 
@@ -1015,8 +1028,8 @@ function partiesDuLot(e){
 }
 
 function prisesDe(envoiId){
-  if(!state.telechargements) return null;
-  return state.telechargements.filter(t => t.personType === 'tiers' && t.personId === envoiId);
+  if(!state.prisesTiers) return null;
+  return state.prisesTiers.lignes.filter(t => t.personId === envoiId);
 }
 
 /* Le message à envoyer, prêt à coller dans un mail. C'est LE geste qui fait
@@ -1081,16 +1094,68 @@ function messageEnvoi(e, langue){
    le journal met deux cents millisecondes à revenir, et un rendu tombé au
    milieu du nom d'un ensemble effacerait le formulaire sous les doigts. */
 function chargerJournalTiers(){
-  if(state.telechargements !== null || state.telechargementsEnCours) return;
-  state.telechargementsEnCours = true;
-  CurieuxDB.fetchAll('partitions_telechargements')
-    .catch(()=> [])
-    .then(l => {
-      state.telechargements = l || [];
-      state.telechargementsEnCours = false;
-      const actif = document.activeElement;
-      if(!actif || !/^(INPUT|SELECT|TEXTAREA)$/.test(actif.tagName)) rendre();
+  if(state.prisesTiers !== null || state.prisesTiersEnCours) return;
+  // Rien de confié, rien à compter. Sans ce refus, ouvrir n'importe quelle
+  // fiche de spectacle — le geste le plus courant de la page — lancerait une
+  // requête sur le journal des téléchargements pour afficher trois zéros.
+  if(!state.envois.length){ state.prisesTiers = { lignes: [], total: 0 }; return; }
+  state.prisesTiersEnCours = true;
+  CurieuxDB.telechargementsTiers()
+    .catch(()=> ({ lignes: [], total: 0 }))
+    .then(r => {
+      state.prisesTiers = r || { lignes: [], total: 0 };
+      state.prisesTiersEnCours = false;
+      /* On ne re-rend QUE les écrans qui affichent ces nombres. Le journal met
+         parfois plusieurs secondes à revenir : un rendu tombé pendant un dépôt
+         de trente PDF reconstruirait l'écran sous les pieds de la production —
+         le bouton « Déposer » redeviendrait cliquable au milieu de l'envoi, et
+         un second clic relancerait tout. Même prudence pour une saisie en
+         cours, qu'un rendu effacerait. */
+      rendreQuandLaSaisieEstFinie();
     });
+}
+
+/* Rendre, mais pas au milieu d'une frappe. Un rendu reconstruit l'écran :
+   tombé pendant qu'on tape le nom d'un ensemble, il l'efface ; tombé pendant
+   un dépôt de trente PDF, il rend le bouton « Déposer » cliquable au milieu de
+   l'envoi. On attend donc que le clavier ait quitté les champs — et on ATTEND
+   vraiment, au lieu d'abandonner : un rendu jeté, ce sont des compteurs qui
+   n'apparaissent jamais. La vérification est refaite après le focusout parce
+   que passer d'un champ au suivant en déclenche un sans que la saisie soit
+   finie. */
+/* Le formulaire « Confier à un ensemble tiers » porte-t-il déjà quelque chose
+   qu'un rendu ferait perdre ? On ne regarde que ce qui vient de la main : les
+   dates portent une valeur par défaut, et les comparer ferait croire à une
+   saisie sur un formulaire intact. */
+function formulaireEnvoiEntame(){
+  const texte = ['envDestinataire', 'envContact', 'envEmail', 'envNote']
+    .some(id => ((document.getElementById(id) || {}).value || '').trim() !== '');
+  const coches = ['envNominatif', 'envDroits']
+    .some(id => !!(document.getElementById(id) || {}).checked);
+  const portee = ((document.getElementById('envPortee') || {}).value || 'tout') !== 'tout';
+  const parties = Array.from(document.querySelectorAll('[data-env-partie]')).some(c => c.checked);
+  return texte || coches || portee || parties;
+}
+
+function rendreQuandLaSaisieEstFinie(){
+  if(state.vue !== 'transmissions' && state.vue !== 'spectacle') return;
+  const enSaisie = ()=>{
+    const a = document.activeElement;
+    return !!a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName);
+  };
+  /* Un formulaire de transmission commencé vaut plus que des compteurs à
+     jour : un rendu le vide, et la production retape tout. On renonce alors
+     au rendu — les nombres apparaîtront au prochain, qui vient de toute
+     façon dès qu'on crée le lot, qu'on change d'écran ou qu'on agit sur un
+     lot existant. */
+  if(formulaireEnvoiEntame()) return;
+  if(!enSaisie()){ rendre(); return; }
+  document.addEventListener('focusout', function suite(){
+    setTimeout(()=>{
+      if(enSaisie()){ document.addEventListener('focusout', suite, { once: true }); return; }
+      if(state.vue === 'transmissions' || state.vue === 'spectacle') rendre();
+    }, 0);
+  }, { once: true });
 }
 
 /* Une ligne de lot confié, la même dans la fiche du spectacle et dans l'écran
@@ -1156,8 +1221,7 @@ function vueTransmissions(){
   const lots = trierEnvois(state.envois);
   const ouverts = lots.filter(e => etatEnvoi(e).cle === 'ouvert');
   const sansDroits = state.envois.filter(e => !e.droitsConfirmes).length;
-  const prises = state.telechargements
-    ? state.telechargements.filter(t => t.personType === 'tiers').length : null;
+  const prises = state.prisesTiers ? state.prisesTiers.total : null;
 
   return `
     <div class="chiffres">

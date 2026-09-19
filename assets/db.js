@@ -2289,6 +2289,32 @@ const CurieuxDB = (()=>{
     return null;
   }
 
+  /* Les prises d'exemplaires par des ENSEMBLES TIERS, et elles seules.
+     fetchAll ne convenait pas ici, pour trois raisons qui se cumulent : il
+     lit la table entière alors que les prises des tiers en sont une petite
+     part ; il ne pose aucune pagination, donc au-delà du plafond de lignes de
+     l'API (1 000 par défaut) une partie des lignes ne revient pas ; et il
+     trie du PLUS ANCIEN au plus récent, si bien que ce sont précisément les
+     prises récentes qui tombent — celles qu'on regarde.
+     On demande donc les plus récentes d'abord, bornées, et le compte exact
+     dans la même requête : un écran qui affiche « 500 exemplaires pris »
+     alors qu'il y en a 900 se lit comme une vérité. */
+  async function telechargementsTiers(limite){
+    if(!supabaseClient) return { lignes: [], total: 0 };
+    const { data, count, error } = await supabaseClient
+      .from('partitions_telechargements')
+      .select('*', { count: 'exact' })
+      .eq('person_type', 'tiers')
+      .order('created_at', { ascending: false })
+      .limit(limite || 500);
+    if(error){
+      console.warn('[CurieuxDB] telechargementsTiers', error.message);
+      return { lignes: [], total: 0 };
+    }
+    const adapter = adapterFor('partitions_telechargements');
+    return { lignes: (data || []).map(adapter.fromDb), total: count == null ? (data || []).length : count };
+  }
+
   /* Le jeton d'un lot confié. 32 caractères tirés de l'alphabet que
      /api/partition accepte — [A-Za-z0-9_-] —, soit ~190 bits : un lien qui ne
      se devine pas, et qui ne porte AUCUNE information sur ce qu'il ouvre. */
@@ -2314,7 +2340,7 @@ const CurieuxDB = (()=>{
     getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis, enregistrerHorairesJournee,
     ajouterRemarqueParJeton, getRemarquesParJeton, enregistrerPlanSalleParJeton, toucherAcces,
     deposerPlanSalle, urlPubliquePlanSalle,
-    deposerPartition, retirerPartition, mesPartitions, envoiPartitions, nouveauJetonEnvoi,
+    deposerPartition, retirerPartition, mesPartitions, envoiPartitions, nouveauJetonEnvoi, telechargementsTiers,
     onEtatEcriture, reessayerEcritures, ecrituresEnAttente,
     signIn, signOut, getSession, onAuthStateChange, updateOwnPassword,
     getMyRole, hasAppAccess, isSuperAdmin, hasDirectionTechniqueAccess,
