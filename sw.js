@@ -231,7 +231,18 @@
 //     chœur.
 // Les deux pages sont servies réseau d'abord ; c'est l'incrément, et lui seul,
 // qui leur donne les actifs qu'elles attendent.
-const VERSION = 'curieux-v136';
+// v137 : un correctif d'écriture, et il vaut pour TOUTES les tables. db.js ne
+// retire plus jamais la CLÉ d'une ligne : le mécanisme qui écrit sans une
+// colonne que la base ne connaît pas encore retirait aussi `id` quand
+// PostgREST nommait la clé de conflit — la ligne repartait alors en insertion
+// anonyme, et Postgres répondait « null value in column "id" ». Une écriture
+// perdue, et un message qui ne désigne pas sa cause. db.js apprend au passage
+// à traduire les deux signatures d'une migration en retard. partitions.html
+// met l'espace du chœur en lecture seule tant que son bloc SQL n'est pas joué
+// — la base refuse le pupitre « Chœur », et le proposer promettait un échec.
+// Sans cet incrément, un navigateur déjà venu garde l'ancien db.js : le bogue
+// reste, sur toutes les pages qui écrivent.
+const VERSION = 'curieux-v137';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

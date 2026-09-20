@@ -624,6 +624,91 @@ function partitionsTrierVoix(parties) {
     || String(a.nom || '').localeCompare(String(b.nom || ''), 'fr'));
 }
 
+/* ----------------------------------------------------------------------------
+   LES VOIX, DANS LA LANGUE DU CHEF DE CHŒUR — et pourquoi ce n'est PAS le
+   glossaire des instruments.
+
+   « Alto » est le piège, et il est sérieux. Dans PARTITIONS_INSTRUMENTS il
+   désigne l'instrument à cordes : le traduire donnerait « Bratsche » à un
+   Chorleiter, « Altviool » à un koordirigent — une partie d'alto d'orchestre
+   remise à vingt chanteuses. Dans un chœur, « Alto » est une VOIX, et elle
+   s'appelle Alt en allemand, contralto en espagnol et en italien.
+
+   Le même mot, deux objets, deux tables. La page du chœur consulte celle-ci et
+   jamais l'autre ; la page du matériel confié fait l'inverse. Les mélanger
+   serait exactement l'erreur que ces deux pages existent pour éviter.
+
+   CE QUI NE CHANGE PAS, ici comme là-bas : le nom de la partie tel qu'il est
+   écrit sur le matériel, et le nom du fichier téléchargé. La traduction est
+   une GLOSE posée à côté, et seulement quand elle apprend quelque chose.
+   -------------------------------------------------------------------------- */
+const PARTITIONS_VOIX_LANGUES = [
+  { fr: 'Soprano',          en: 'Soprano',          de: 'Sopran',          es: 'Soprano',        it: 'Soprano',          nl: 'Sopraan',       ja: 'ソプラノ' },
+  { fr: 'Mezzo-soprano',    en: 'Mezzo-soprano',    de: 'Mezzosopran',     es: 'Mezzosoprano',   it: 'Mezzosoprano',     nl: 'Mezzosopraan',  ja: 'メゾソプラノ', alias: ['mezzo'] },
+  // « Alto » AVANT « Contralto » : c'est la forme qu'emploient les jeux
+  // français, et c'est elle qu'on lira le plus souvent.
+  { fr: 'Alto',             en: 'Alto',             de: 'Alt',             es: 'Contralto',      it: 'Contralto',        nl: 'Alt',           ja: 'アルト' },
+  { fr: 'Contralto',        en: 'Contralto',        de: 'Alt',             es: 'Contralto',      it: 'Contralto',        nl: 'Alt',           ja: 'コントラルト' },
+  { fr: 'Ténor',            en: 'Tenor',            de: 'Tenor',           es: 'Tenor',          it: 'Tenore',           nl: 'Tenor',         ja: 'テノール' },
+  { fr: 'Baryton',          en: 'Baritone',         de: 'Bariton',         es: 'Barítono',       it: 'Baritono',         nl: 'Bariton',       ja: 'バリトン' },
+  { fr: 'Baryton-basse',    en: 'Bass-baritone',    de: 'Bassbariton',     es: 'Barítono bajo',  it: 'Baritono basso',   nl: 'Basbariton',    ja: 'バスバリトン' },
+  { fr: 'Basse',            en: 'Bass',             de: 'Bass',            es: 'Bajo',           it: 'Basso',            nl: 'Bas',           ja: 'バス' },
+  { fr: 'Chœur',            en: 'Choir',            de: 'Chor',            es: 'Coro',           it: 'Coro',             nl: 'Koor',          ja: '合唱', alias: ['choeur', 'chorale', 'chorus'] },
+  { fr: 'Chœur mixte',      en: 'Mixed choir',      de: 'Gemischter Chor', es: 'Coro mixto',     it: 'Coro misto',       nl: 'Gemengd koor',  ja: '混声合唱', alias: ['choeur mixte'] },
+  { fr: "Chœur d'enfants",  en: "Children's choir", de: 'Kinderchor',      es: 'Coro infantil',  it: 'Coro di voci bianche', nl: 'Kinderkoor', ja: '児童合唱', alias: ["choeur d'enfants", 'maitrise', 'maîtrise'] },
+  { fr: 'Chœur de femmes',  en: "Women's choir",    de: 'Frauenchor',      es: 'Coro femenino',  it: 'Coro femminile',   nl: 'Vrouwenkoor',   ja: '女声合唱', alias: ['choeur de femmes'] },
+  { fr: "Chœur d'hommes",   en: "Men's choir",      de: 'Männerchor',      es: 'Coro masculino', it: 'Coro maschile',    nl: 'Mannenkoor',    ja: '男声合唱', alias: ["choeur d'hommes"] },
+  { fr: 'Solistes',         en: 'Soloists',         de: 'Solisten',        es: 'Solistas',       it: 'Solisti',          nl: 'Solisten',      ja: '独唱', alias: ['soliste', 'solo'] },
+  { fr: 'Divisi',           en: 'Divisi',           de: 'Divisi',          es: 'Divisi',         it: 'Divisi',           nl: 'Divisi',        ja: 'ディヴィジ' },
+  { fr: 'Tutti',            en: 'Tutti',            de: 'Tutti',           es: 'Tutti',          it: 'Tutti',            nl: 'Tutti',         ja: 'トゥッティ' },
+];
+
+const PARTITIONS_VOIX_INDEX = (function () {
+  const index = new Map();
+  PARTITIONS_VOIX_LANGUES.forEach(e => {
+    [e.fr, e.en, e.de, e.es, e.it, e.nl, e.ja].concat(e.alias || []).forEach(forme => {
+      const cle = partitionsNormaliser(forme);
+      if (cle && !index.has(cle)) index.set(cle, e);
+    });
+  });
+  return index;
+})();
+
+/* Traduire le nom d'une voix sans en perdre la structure — même mécanique que
+   partitionsNomTraduit, même refus de toucher à ce qui n'est pas une voix. Les
+   divisi (« Soprano 1 », « Alto 2 ») gardent leur numéro : c'est lui qui
+   distingue deux pupitres dans un chœur, et le perdre serait pire que ne pas
+   traduire. Le chiffre collé à la lettre — « Soprano1 », comme l'exporte
+   Dorico — est reconnu de la même façon. */
+function partitionsVoixTraduite(nom, langue) {
+  const l = String(langue || '').slice(0, 2).toLowerCase();
+  const source = String(nom || '');
+  if (!l || l === 'fr') return source;
+  const mots = source.trim().split(/\s+/).filter(Boolean);
+  if (!mots.length) return source;
+
+  const _aUneLettre = (mot) => /\p{L}/u.test(mot);
+  const sortie = [];
+  let i = 0;
+  while (i < mots.length) {
+    let pris = 0, texte = '';
+    for (let n = Math.min(3, mots.length - i); n >= 1; n--) {
+      const groupe = mots.slice(i, i + n);
+      if (!groupe.every(_aUneLettre)) continue;
+      const entree = PARTITIONS_VOIX_INDEX.get(partitionsNormaliser(groupe.join(' ')));
+      if (entree && entree[l]) { pris = n; texte = entree[l]; break; }
+    }
+    if (!pris) {
+      const colle = mots[i].match(/^(\p{L}[\p{L}\p{M}'\u2019-]*)([0-9].*)$/u);
+      const entree = colle && PARTITIONS_VOIX_INDEX.get(partitionsNormaliser(colle[1]));
+      if (entree && entree[l]) { pris = 1; texte = entree[l] + colle[2]; }
+    }
+    if (pris) { sortie.push(texte); i += pris; }
+    else { sortie.push(mots[i]); i += 1; }
+  }
+  return sortie.join(' ');
+}
+
 const _TONALITE_MODES = {
   maj: 'majeur', majeur: 'majeur', major: 'majeur', dur: 'majeur',
   min: 'mineur', mineur: 'mineur', minor: 'mineur', moll: 'mineur',
@@ -669,12 +754,27 @@ function partitionsTonalite(texte) {
   return (tete + signe + (mode ? ' ' + mode : '')).replace('Re', 'Ré');
 }
 
-/* La même, pour la page bilingue du chœur. Seul le mode change : les notes
-   restent telles qu'elles ont été saisies, et « ♭ » se lit partout. */
+/* La même, dans la langue du lecteur. SEUL LE MODE change : les notes restent
+   telles qu'elles ont été saisies — traduire « Ré♭ » en « Des » imposerait une
+   notation à qui en emploie une autre, souvent parce que sa partition la
+   porte —, et le signe « ♭ » se lit partout.
+   Le japonais ne met PAS d'espace devant 長調 : « Ré♭長調 », et non
+   « Ré♭ 長調 ». D'où le séparateur, qui n'est pas de la coquetterie. */
+const _TONALITE_MODES_LANGUES = {
+  fr: { majeur: 'majeur',   mineur: 'mineur',  espace: ' ' },
+  en: { majeur: 'major',    mineur: 'minor',   espace: ' ' },
+  de: { majeur: 'Dur',      mineur: 'Moll',    espace: ' ' },
+  es: { majeur: 'mayor',    mineur: 'menor',   espace: ' ' },
+  it: { majeur: 'maggiore', mineur: 'minore',  espace: ' ' },
+  nl: { majeur: 'majeur',   mineur: 'mineur',  espace: ' ' },
+  ja: { majeur: '長調',      mineur: '短調',     espace: '' },
+};
 function partitionsTonaliteLangue(texte, langue) {
   const t = partitionsTonalite(texte);
-  if (langue !== 'en' || !t) return t;
-  return t.replace(/\bmajeur\b/, 'major').replace(/\bmineur\b/, 'minor');
+  const l = String(langue || '').slice(0, 2).toLowerCase();
+  const table = _TONALITE_MODES_LANGUES[l];
+  if (!t || !table || l === 'fr') return t;
+  return t.replace(/\s(majeur|mineur)$/, (tout, mot) => table.espace + table[mot]);
 }
 
 if (typeof window !== 'undefined') {
@@ -703,4 +803,6 @@ if (typeof window !== 'undefined') {
   window.partitionsTrierVoix = partitionsTrierVoix;
   window.partitionsTonalite = partitionsTonalite;
   window.partitionsTonaliteLangue = partitionsTonaliteLangue;
+  window.PARTITIONS_VOIX_LANGUES = PARTITIONS_VOIX_LANGUES;
+  window.partitionsVoixTraduite = partitionsVoixTraduite;
 }

@@ -636,13 +636,18 @@ let state = {
   // réservée aux comptes admin, comme le budget et les devis. Lu une fois au
   // chargement : le rôle ne change pas en cours de session.
   admin: false,
-  /* La colonne `type` de partitions_envois est-elle absente de la base ?
-     Ce n'est pas une coquetterie : sans elle, un lot de chœur s'enregistre
-     comme une transmission à un ensemble tiers (db.js retire la colonne
-     inconnue et réécrit), et « tout le spectacle » remettrait alors le
-     matériel d'orchestre complet à une chorale. On préfère refuser la
-     création et le dire. */
-  typeAbsent: false,
+  /* Le bloc SQL du chœur a-t-il été joué ? Ce n'est pas une coquetterie, et
+     il ne s'agit pas que des lots :
+       — sans `type` et `dates` sur partitions_envois, un lot de chœur
+         s'enregistre comme une transmission à un ensemble tiers (db.js retire
+         la colonne inconnue et réécrit), et « tout le chœur » remettrait le
+         matériel d'orchestre complet à une chorale ;
+       — sans la contrainte élargie sur partitions_parties.pupitre, la base
+         REFUSE la valeur « Chœur ». Créer les quatre voix échouait alors une
+         par une, et l'écran affichait un message de contrainte que personne
+         n'a à lire.
+     Tant que c'est vrai, l'espace du chœur est en LECTURE SEULE. */
+  choeurAbsent: false,
   chargement: true,
 };
 
@@ -935,7 +940,8 @@ function mediaPetitEcran(){
 
 async function charger(){
   const [spectacles, programmations, parties, fichiers, affectations, acces, envois,
-         tournees, musiciens, techniciens, migrationAbsente, envoisAbsents, typeAbsent, admin] = await Promise.all([
+         tournees, musiciens, techniciens, migrationAbsente, envoisAbsents, typeAbsent,
+         tonaliteAbsente, admin] = await Promise.all([
     CurieuxDB.fetchAll('partitions_spectacles').catch(()=> []),
     CurieuxDB.fetchAll('partitions_programmations').catch(()=> []),
     CurieuxDB.fetchAll('partitions_parties').catch(()=> []),
@@ -949,15 +955,23 @@ async function charger(){
     CurieuxDB.tableManquante('partitions_programmations').catch(()=> false),
     CurieuxDB.tableManquante('partitions_envois').catch(()=> false),
     CurieuxDB.colonneManquante('partitions_envois', 'type,dates').catch(()=> false),
+    /* DEUX SONDAGES ET NON UN. Le bloc du chœur touche deux tables : il ajoute
+       `type` et `dates` aux lots, mais aussi `tonalite` aux parties ET la
+       valeur « Chœur » à la contrainte de pupitre. Ne vérifier que la première
+       laissait passer le geste le plus courant — créer les quatre voix —, que
+       la base refuse alors une par une avec un message de contrainte. Les deux
+       arrivent dans le même bloc SQL : `tonalite` en est le témoin fiable. */
+    CurieuxDB.colonneManquante('partitions_parties', 'tonalite').catch(()=> false),
     CurieuxDB.isSuperAdmin().catch(()=> false),
   ]);
   Object.assign(state, { spectacles, programmations, parties, fichiers, affectations, acces, envois,
-                         tournees, musiciens, techniciens, admin, typeAbsent, chargement: false });
+                         tournees, musiciens, techniciens, admin,
+                         choeurAbsent: typeAbsent || tonaliteAbsente, chargement: false });
   // Une liste vide se lit « rien n'est programmé » ; la vérité peut être « la
   // migration n'est pas jouée ». Ce n'est pas la même chose à faire ensuite —
   // et deux migrations peuvent manquer, sans les mêmes conséquences : on nomme
   // celle qui manque plutôt que d'afficher le texte de l'autre.
-  poserBandeauMigration(migrationAbsente, envoisAbsents, typeAbsent && !envoisAbsents);
+  poserBandeauMigration(migrationAbsente, envoisAbsents, state.choeurAbsent && !envoisAbsents);
 
   const url = new URLSearchParams(location.search);
   const spectacle = url.get('spectacle') || '';
@@ -1330,7 +1344,7 @@ function blocMateriel(s){
      n'apparaissent donc QUE pendant un glissé, et disparaissent avec lui. */
   const presents = new Set(groupes.map(g => g.pupitre));
   const absents = parties.length
-    ? PARTITIONS_PUPITRE_ORDRE.filter(pup => !presents.has(pup)).map(pup => `
+    ? PARTITIONS_PUPITRE_ORDRE.filter(pup => !presents.has(pup) && (pup !== 'Chœur' || !state.choeurAbsent)).map(pup => `
       <div class="pup-groupe pup-vide" data-pup-cible="${escapeAttr(pup)}">
         <div class="pup-bandeau" style="color:${partitionsPupitreVar(pup, true)}">
           ${escapeHtml(pup)}
@@ -2075,6 +2089,20 @@ function lienEnvoi(e){
 
 const estChoeur = (e) => (e || {}).type === 'choeur';
 
+/* Le refus commun à tous les gestes du chœur, tant que le SQL n'est pas joué.
+   Il est prononcé DEVANT l'écriture et non après : la base répondrait sinon par
+   un nom de contrainte, que personne n'a à lire, et la modification finirait
+   dans le ruban « non enregistrée » sans qu'on sache quoi en faire. */
+function choeurIndisponible(){
+  if(!state.choeurAbsent) return false;
+  alert("L'espace du chœur attend une mise à jour de la base.\n\n"
+    + "Tant qu'elle n'est pas jouée, la base REFUSE le pupitre « Chœur » et ne sait pas ranger "
+    + "les tonalités : le geste échouerait sans rien enregistrer.\n\n"
+    + "Colle le bloc « L'ESPACE DU CHŒUR » de migrations.sql dans l'éditeur SQL Supabase "
+    + "(il se rejoue sans risque s'il l'a déjà été), puis recharge cette page.");
+  return true;
+}
+
 /* ---------------------------------------------------------------------------
    LES DATES D'UN LOT — et pourquoi un chœur en a besoin quand un orchestre
    invité n'en a pas.
@@ -2626,6 +2654,9 @@ function blocChoeur(s){
     return `
       <section class="bloc" id="blocChoeur">
         <h2>Le chœur</h2>
+        ${state.choeurAbsent ? `<p class="vide sans-lecteur">Lecture seule : la base attend le bloc
+          <b>L'ESPACE DU CHŒUR</b> de <code>migrations.sql</code>. Tant qu'il n'est pas joué, elle refuse le pupitre
+          « Chœur » — les gestes ci-dessous échoueraient sans rien enregistrer.</p>` : ''}
         <p class="vide">Ce spectacle n'a aucune partie de chœur. S'il en porte un, range ses voix ici : elles se
           transmettent alors séparément du matériel d'orchestre, avec leurs tonalités, à un lien qui n'ouvre
           que sur elles.</p>
@@ -2635,7 +2666,7 @@ function blocChoeur(s){
             <span class="l-titre">Rattacher une partie existante au chœur</span>
             <span class="l-sous">Les voix déjà rangées sous « Chant » y sont souvent : ce pupitre désigne les solistes, le chœur est à part.</span>
           </span>
-          <select class="co-select" id="selVersChoeur">
+          <select class="co-select" id="selVersChoeur"${state.choeurAbsent ? ' disabled' : ''}>
             <option value="">— choisir une partie —</option>
             ${autres.map(p => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.nom)}${p.pupitre ? ' · ' + escapeHtml(p.pupitre) : ''}</option>`).join('')}
           </select>
@@ -2645,7 +2676,7 @@ function blocChoeur(s){
             <span class="l-titre">Ou créer les voix</span>
             <span class="l-sous">Soprano, Alto, Ténor, Basse — et leurs divisi. Le dépôt des PDF suit, comme pour le reste du matériel.</span>
           </span>
-          <button type="button" class="co-btn sm" id="btnVoixSATB">Créer les quatre voix</button>
+          <button type="button" class="co-btn sm" id="btnVoixSATB"${state.choeurAbsent ? ' disabled' : ''}>Créer les quatre voix</button>
         </div>
       </section>`;
   }
@@ -2665,7 +2696,7 @@ function blocChoeur(s){
           return `<span class="voix-fic">
             <span class="nom">${escapeHtml(f.titre || f.nomOrigine)}</span>
             <span class="det">${partitionsPoids(f.octets)}${f.pages ? ' · ' + f.pages + ' p.' : ''}</span>
-            <input class="co-input ton" data-ton-fichier="${escapeAttr(f.id)}" maxlength="40"
+            <input class="co-input ton"${state.choeurAbsent ? ' disabled' : ''} data-ton-fichier="${escapeAttr(f.id)}" maxlength="40"
                    value="${escapeAttr(propre)}"
                    placeholder="${escapeAttr(tonPartie || 'ton')}"
                    title="${escapeAttr(propre ? 'Tonalité de ce numéro'
@@ -2678,7 +2709,7 @@ function blocChoeur(s){
       <div class="voix-tuile${fs.length ? '' : ' sans-fichier'}">
         <span class="voix-tete">
           <b>${escapeHtml(p.nom)}</b>
-          <input class="co-input ton" data-ton-partie="${escapeAttr(p.id)}" maxlength="40"
+          <input class="co-input ton"${state.choeurAbsent ? ' disabled' : ''} data-ton-partie="${escapeAttr(p.id)}" maxlength="40"
                  value="${escapeAttr(tonPartie)}" placeholder="tonalité"
                  title="Tonalité de cette voix — elle s'applique à ses numéros qui n'en portent pas d'autre">
           <span class="det">${fs.length ? fs.length + ' fichier' + (fs.length > 1 ? 's' : '') + ' · ' + partitionsPoids(poids) : ''}</span>
@@ -2783,7 +2814,7 @@ function blocChoeur(s){
         <span class="l-titre">Mot affiché au chœur <em style="font-weight:400;color:var(--muted)">— facultatif</em></span>
         <input class="co-input" id="choNote" style="width:100%" maxlength="240" placeholder="Le n° 7 descend d'un demi-ton — version définitive le 12 mars.">
       </span>
-      <button type="button" class="co-btn primary" id="btnCreerChoeur"${state.typeAbsent ? ' disabled title="La migration du chœur n\'est pas jouée — voir le bandeau en haut de page."' : ''}>Créer le lien</button>
+      <button type="button" class="co-btn primary" id="btnCreerChoeur"${state.choeurAbsent ? ' disabled title="La mise à jour de la base n\'est pas jouée — voir le bandeau en haut de page."' : ''}>Créer le lien</button>
     </div>`;
 
   return `
@@ -2791,9 +2822,12 @@ function blocChoeur(s){
       <h2>Le chœur
         <span class="h2-total">
           ${voix.length} voix${lots.length ? ' · ' + lots.length + ' lot' + (lots.length > 1 ? 's' : '') : ''}
-          <button type="button" class="co-btn sm" id="btnAjouterVoix">Ajouter une voix</button>
+          <button type="button" class="co-btn sm" id="btnAjouterVoix"${state.choeurAbsent ? ' disabled' : ''}>Ajouter une voix</button>
         </span>
       </h2>
+      ${state.choeurAbsent ? `<p class="vide sans-lecteur">Lecture seule : la base attend le bloc
+        <b>L'ESPACE DU CHŒUR</b> de <code>migrations.sql</code>. Tant qu'il n'est pas joué, elle refuse le pupitre
+        « Chœur » et ne sait pas ranger les tonalités — ce qui est affiché ici reste juste, mais rien ne s'y enregistre.</p>` : ''}
       ${voix.length ? partitionsJaugeHtml(voix, aUnFichier) : ''}
       ${sansFichier ? `<p class="vide sans-lecteur">${sansFichier} voix sur ${voix.length} ${sansFichier > 1 ? 'sont annoncées' : 'est annoncée'} sans aucun fichier déposé.</p>` : ''}
       ${voix.length && sansTon ? `<p class="vide">${sansTon === voix.length ? 'Aucune tonalité renseignée' : sansTon + ' voix sans tonalité'} — c'est la première chose qu'un chef de chœur demande, et la seule qu'on ne retrouve nulle part ailleurs.</p>` : ''}
@@ -2804,7 +2838,7 @@ function blocChoeur(s){
           <span class="l-titre">Rattacher une autre partie au chœur</span>
           <span class="l-sous">Une voix rangée sous « Chant » n'entre pas dans un lot de chœur : « Chant » désigne les solistes.</span>
         </span>
-        <select class="co-select" id="selVersChoeur">
+        <select class="co-select" id="selVersChoeur"${state.choeurAbsent ? ' disabled' : ''}>
           <option value="">— choisir une partie —</option>
           ${autres.map(p => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.nom)}${p.pupitre ? ' · ' + escapeHtml(p.pupitre) : ''}</option>`).join('')}
         </select>
@@ -3654,7 +3688,9 @@ function fichePartie(existant){
      cosmétique — une voix rangée sous « Chant » n'entre pas dans un lot de
      chœur, et le chef de chœur ne la voit jamais. */
   const p = existant || null;
-  const pupitres = PARTITIONS_PUPITRE_ORDRE;
+  // « Chœur » disparaît de la liste tant que la base le refuse : proposer une
+  // valeur qu'on ne peut pas enregistrer, c'est promettre un échec.
+  const pupitres = PARTITIONS_PUPITRE_ORDRE.filter(x => x !== 'Chœur' || !state.choeurAbsent);
   const devine = p ? partitionsPupitreNormalise(partitionsPupitreDe(p.nom)) : '';
   const range = p ? partitionsPupitreNormalise(p.pupitre) : '';
   ouvrirFiche({
@@ -4147,6 +4183,7 @@ async function reprendreAffectation(sourceId){
    On met donc à jour ce qui doit l'être — la valeur normalisée, et les
    pense-bêtes des fichiers qui héritent de cette voix — et rien d'autre. */
 async function majTonalitePartie(partieId, valeur, champ){
+  if(choeurIndisponible()) { rendre(); return; }
   const p = state.parties.find(x => x.id === partieId);
   if(!p) return;
   const propre = partitionsTonalite(valeur);
@@ -4166,6 +4203,7 @@ async function majTonalitePartie(partieId, valeur, champ){
 }
 
 async function majTonaliteFichier(fichierId, valeur, champ){
+  if(choeurIndisponible()) { rendre(); return; }
   const f = state.fichiers.find(x => x.id === fichierId);
   if(!f) return;
   const propre = partitionsTonalite(valeur);
@@ -4182,6 +4220,7 @@ async function majTonaliteFichier(fichierId, valeur, champ){
    de chœur « tout le chœur » la porte désormais, et un lot d'orchestre « tout
    le spectacle » la porte toujours. */
 async function versChoeur(partieId){
+  if(choeurIndisponible()) return;
   const p = state.parties.find(x => x.id === partieId);
   if(!p) return;
   p.pupitre = 'Chœur';
@@ -4217,6 +4256,7 @@ async function horsChoeur(partieId){
    même fiche modale pour taper quatre mots qu'on connaît d'avance. Les divisi
    s'ajoutent ensuite un par un, parce qu'eux ne se devinent pas. */
 async function creerVoixSATB(){
+  if(choeurIndisponible()) return;
   const s = spectacleCourant();
   if(!s) return;
   const existantes = new Set(partiesDe(s.id).map(p => partitionsNormaliser(p.nom)));
@@ -4241,6 +4281,7 @@ async function creerVoixSATB(){
 /* Une voix de plus — un divisi, un chœur d'enfants, une voix de récitant. La
    tonalité se demande ICI plutôt qu'après : c'est le moment où on l'a en tête. */
 function ficheVoix(){
+  if(choeurIndisponible()) return;
   const s = spectacleCourant();
   if(!s) return;
   ouvrirFiche({
@@ -4288,14 +4329,7 @@ async function creerChoeur(){
     alert("Ouvre d'abord le spectacle : c'est lui qui décide des voix du lot.");
     return;
   }
-  if(state.typeAbsent){
-    alert("La base n'a pas encore les colonnes « type » et « dates » de partitions_envois.\n\n"
-      + "Un lot de chœur créé maintenant s'enregistrerait comme une transmission ordinaire — "
-      + "donc avec le matériel d'orchestre complet, et sans les dates chantées. "
-      + "Joue le bloc L'ESPACE DU CHŒUR de migrations.sql (il se rejoue sans risque s'il l'a déjà été), "
-      + "puis recharge cette page.");
-    return;
-  }
+  if(choeurIndisponible()) return;
   const destinataire = val('choDestinataire').trim();
   if(!destinataire){
     alert("Le nom du chœur est obligatoire : c'est lui qui se pose sur chaque exemplaire téléchargé, et c'est ce qui rend la remise traçable.");
