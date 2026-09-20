@@ -131,3 +131,21 @@ les catalogues système, et c'est très bien ainsi.
 `--verifier` ne réécrit rien et sort en échec si la documentation ne correspond
 plus à la base — de quoi le lancer après chaque strate ajoutée à
 `migrations.sql`.
+
+# Vérifier la logique pure
+
+Trois tests s'exécutent avec Node seul, sans navigateur ni base. Ils tiennent
+ce qu'aucune capture ne montre : une règle qui rend faux sur une entrée
+précise.
+
+```sh
+node outils/test-remplacants.cjs                 # « Enregistrer ma liste », les quatre issues
+node outils/test-suivi-dispo-doublons.cjs        # le suivi des dispos ne compte personne deux fois
+node outils/test-partitions-proposition.cjs      # la proposition d'affectation d'après les instruments
+```
+
+Le dernier lit les 25 valeurs réelles de `musiciens.instrument` et les noms de
+parties tels que Dorico les sort, puis rejoue la proposition graduée — sûre,
+probable, à trancher, sans proposition — sur un jeu complet et sur ses cas
+limites. À relancer après toute modification de `PARTITIONS_INSTRUMENTS` ou de
+`partitionsProposerAffectations` dans `assets/partitions-commun.js`.

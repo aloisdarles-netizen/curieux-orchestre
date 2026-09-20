@@ -323,6 +323,9 @@
      dessous. Chaque cellule a sa place ÉCRITE — laissé à l'auto-placement,
      la partie passait sous la case à cocher, dans une colonne de 16 px. */
   @media (max-width:640px){
+    /* Un seul défilement, celui de la fiche : une liste qui défile dans une
+       boîte qui défile cachait « Affecter » sous le bord de l'écran. */
+    .prop-liste{max-height:none; overflow:visible;}
     .prop-ligne{grid-template-columns:minmax(0,1fr) auto; row-gap:4px;}
     .prop-ligne .prop-qui{grid-row:1; grid-column:1;}
     .prop-ligne .sur{grid-row:1; grid-column:2; align-self:start;}
@@ -3552,9 +3555,10 @@ async function affecterSelection(partieId){
 }
 
 /* Poser plusieurs affectations d'un coup, sur l'opération en cours. C'est le
-   seul chemin d'écriture groupée : l'en-tête de colonne et la fiche de
-   proposition passent tous deux par ici. Ce qui existe déjà est ignoré sans
-   bruit. Rend le nombre d'affectations réellement posées.
+   chemin commun de l'en-tête de colonne et de la fiche de proposition ; la
+   reprise d'une autre opération (reprendreAffectation) garde le sien, sans
+   ruban, parce qu'elle confirme avant d'écrire. Ce qui existe déjà est ignoré
+   sans bruit. Rend le nombre d'affectations réellement posées.
    `texte` reçoit ce nombre et rend le libellé du ruban d'annulation. */
 async function affecterEnMasse(paires, texte){
   if(!state.tourneeId) return 0;
@@ -3570,7 +3574,17 @@ async function affecterEnMasse(paires, texte){
   await assurerAcces(state.tourneeId);
   state.affectations.push(...nouvelles);
   rendre();
-  for(const a of nouvelles) await CurieuxDB.upsertOne('partitions_affectations', a);
+  const refusees = [];
+  for(const a of nouvelles){
+    const res = await CurieuxDB.upsertOne('partitions_affectations', a);
+    if(res && res.error) refusees.push(res.error.message || 'échec');
+  }
+  /* Une écriture refusée reste affichée — db.js la garde dans son bandeau
+     « Réessayer » —, mais on le DIT : le ruban qui suit annonce des
+     affectations posées, et elles ne le sont pas toutes. */
+  if(refusees.length){
+    alert(`${refusees.length} affectation${refusees.length > 1 ? 's sont affichées' : ' est affichée'} mais pas enregistrée${refusees.length > 1 ? 's' : ''} : ${refusees[0]}`);
+  }
   /* Un ruban d'annulation GROUPÉ : vingt affectations posées d'un clic doivent
      se retirer d'un clic. Vingt rubans successifs ne s'annulent pas, ils se
      recouvrent. */
@@ -3588,14 +3602,17 @@ async function affecterEnMasse(paires, texte){
 }
 
 /* PROPOSER D'APRÈS LES INSTRUMENTS. La page sait l'instrument de chacun et le
-   nom de chaque partie ; elle peut donc dire, pour quatre-vingts pour cent de
+   nom de chaque partie ; elle peut donc dire, pour la plus grande part de
    l'effectif, qui lit quoi — et elle le DIT, elle ne l'écrit pas. La fiche
    liste chaque proposition avec sa sûreté, cochée d'avance quand elle est
    sûre ou probable, à choisir dans une liste quand la fiche de la personne ne
    suffit pas à trancher. On décoche, on choisit, on valide : seul ce qui est
-   coché s'écrit, et par le même chemin que l'en-tête de colonne — même ruban
-   d'annulation groupé. Les personnes qui ont déjà une partie ici ne sont pas
-   dans la liste : la proposition sert à qui n'a rien, et ne défait rien. */
+   coché ou choisi s'écrit, et par le même chemin que l'en-tête de colonne —
+   même ruban d'annulation groupé. Les personnes qui ont déjà une partie DE CE
+   SPECTACLE ici ne sont pas dans la liste : la proposition sert à qui n'a
+   rien, et ne défait rien. « De ce spectacle », parce que « qui lit quoi » se
+   lit spectacle par spectacle — sur une soirée à deux œuvres, avoir sa partie
+   du lever de rideau ne dispense pas de celle du concert. */
 function ficheProposition(){
   const s = spectacleCourant();
   if(!s || !state.tourneeId) return;
@@ -3617,7 +3634,8 @@ function ficheProposition(){
     <div class="prop-ligne incertaine">
       <span class="prop-qui"><b>${escapeHtml(x.personne.nom)}</b><small>${sousNom(x)}</small></span>
       <span class="prop-vers">
-        <select class="co-select" data-prop-choix="${escapeAttr(x.personne.personType + '§' + x.personne.personId)}">
+        <select class="co-select" data-prop-choix="${escapeAttr(x.personne.personType + '§' + x.personne.personId)}"
+                aria-label="Partie pour ${escapeAttr(x.personne.nom)}">
           <option value="">— choisir, ou laisser —</option>
           ${x.memes.length ? `<optgroup label="Même instrument">${x.memes.map(p => `<option value="${escapeAttr(p.id)}">${nomPartie(p)}</option>`).join('')}</optgroup>` : ''}
           ${x.autres.length ? `<optgroup label="Même pupitre">${x.autres.map(p => `<option value="${escapeAttr(p.id)}">${nomPartie(p)}</option>`).join('')}</optgroup>` : ''}
@@ -3645,7 +3663,7 @@ function ficheProposition(){
   if(prop.dejaServis) restes.push(`${prop.dejaServis} personne${prop.dejaServis > 1 ? 's ont' : ' a'} déjà une partie de ce spectacle ici — non touchée${prop.dejaServis > 1 ? 's' : ''}`);
   if(prop.techniciens) restes.push(`${prop.techniciens} technicien${prop.techniciens > 1 ? 's' : ''}, sans partition`);
 
-  ouvrirFiche({
+  const ov = ouvrirFiche({
     titre: "Proposer d'après les instruments",
     sous: `Ce que l'instrument de chacun dit de sa partie dans « ${escapeHtml(s.nom)} », sur ${escapeHtml(nomOperation(state.tourneeId))}. `
       + "Rien n'est enregistré avant « Affecter » ; ce qui est décoché ou laissé sans choix reste à faire dans la matrice.",
@@ -3653,13 +3671,13 @@ function ficheProposition(){
     corps: `
       <div class="prop-liste">
         ${section('Sûres', prop.sures.length, prop.sures.map(x => ligne(x, 'exacte', true)).join(''),
-          "Un seul instrument possible, ou le numéro de la fiche est celui de la partie.")}
+          "Une seule partie pour cet instrument dans ce spectacle, ou le numéro de la fiche est celui de la partie — et le conducteur pour le chef.")}
         ${section('Probables', prop.probables.length, prop.probables.map(x => ligne(x, 'probable', true)).join(''),
-          "Une convention plutôt qu'une lecture : le violon solo au premier violon, par exemple. À relire.")}
+          "Une convention plutôt qu'une lecture : le violon solo au premier violon. À relire.")}
         ${section('À trancher', prop.aTrancher.length, prop.aTrancher.map(choix).join(''),
           "La fiche ne dit pas laquelle. Les parties encore sans lecteur sont en tête de liste.")}
         ${section('Sans proposition', prop.sansProposition.length, prop.sansProposition.map(sans).join(''),
-          "Ni instrument reconnu, ni partie de ce pupitre. Un instrument à renseigner dans l'annuaire, ou une partie qui manque.")}
+          "Instrument non reconnu, ou aucune partie pour lui ni pour son pupitre dans ce spectacle. Un instrument à renseigner dans l'annuaire, ou une partie qui manque.")}
       </div>
       ${restes.length ? `<p class="sous" style="margin:12px 0 0">${restes.map(escapeHtml).join(' · ')}.</p>` : ''}`,
     valider: async (ov)=>{
@@ -3675,13 +3693,20 @@ function ficheProposition(){
         paires.push({ partieId: sel.value, personType, personId });
       });
       if(!paires.length) return 'Rien de coché, rien de choisi — il n\'y a rien à affecter.';
-      const n = await affecterEnMasse(paires, (k) => `${k} affectation${k > 1 ? 's' : ''} proposée${k > 1 ? 's' : ''} d'après les instruments`);
-      try{ curieuxFlash(n ? `${n} affectation${n > 1 ? 's posées' : ' posée'}. La matrice reste là pour le reste.` : 'Ces affectations existaient déjà.'); }catch(e){}
+      const n = await affecterEnMasse(paires, (k) => `${k} affectation${k > 1 ? 's posées' : ' posée'} d'après les instruments`);
+      // Le ruban dit le reste ; un flash par-dessus le recouvrirait.
+      if(!n){ try{ curieuxFlash('Ces affectations existaient déjà.'); }catch(e){} }
       return '';
     },
   });
+  /* Entrée ne valide PAS depuis la liste. Dans les autres fiches, Entrée
+     envoie le seul champ qu'on vient de remplir ; ici, le focus arrive sur une
+     case déjà cochée, et une touche de trop écrirait vingt affectations.
+     Espace coche, les flèches choisissent, « Affecter » se clique. */
+  const liste = ov.querySelector('.prop-liste');
+  if(liste) liste.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); e.stopPropagation(); } });
   // La fiche est plus large que les autres : elle porte trois colonnes.
-  const bo = document.querySelector('#ficheOv .fiche-bo');
+  const bo = ov.querySelector('.fiche-bo');
   if(bo) bo.style.maxWidth = '720px';
 }
 

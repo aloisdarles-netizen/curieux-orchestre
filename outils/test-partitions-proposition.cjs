@@ -1,6 +1,6 @@
 /* TEST — la proposition d'affectation d'après les instruments.
 
-   Deux choses à tenir. D'abord la LECTURE du texte libre : les 26 valeurs
+   Deux choses à tenir. D'abord la LECTURE du texte libre : les 25 valeurs
    réelles de musiciens.instrument (pluriels, accents, espace final, « Violon
    solo », « Violon 2 ») et les formes de Dorico côté parties (« Violoncello1 »,
    « DoubleBass », « 120 Oboe ») doivent tomber sur le même instrument. Ensuite
@@ -26,7 +26,7 @@ const verifier = (nom, obtenu, attendu) => {
 };
 const court = (t) => { const l = lire(t); return l ? [l.nom, l.numeros, l.solo] : null; };
 
-console.log('\n1. Lire les 26 valeurs réelles de musiciens.instrument');
+console.log('\n1. Lire les 25 valeurs réelles de musiciens.instrument');
 [
   ['', null],
   ['Accordeon', ['Accordéon', [], false]],
@@ -83,7 +83,36 @@ console.log('\n2. Lire les noms de parties — Dorico, français, italien, numé
   ['Tutti', null],
   ['Coronation Anthem - Violin 1', ['Violon', [1], false]],
   ['Trompette 1 in C', ['Trompette', [1], false]],
+  // Le préfixe nomme un instrument : c'est le dernier segment qui compte.
+  ['Concerto pour violon – Flûte 1', ['Flûte', [1], false]],
+  ['Concerto pour piano - Violon 1', ['Violon', [1], false]],
+  ['Horn Concerto - Violin 1', ['Violon', [1], false]],
+  // Le registre qualifie, il ne nomme pas.
+  ['Sax alto', ['Saxophone', [], false]],
+  ['Alto Sax', ['Saxophone', [], false]],
+  ['Sax alto 1', ['Saxophone', [1], false]],
+  ['Tenor Trombone', ['Trombone', [], false]],
+  ['Alto Clarinet', ['Clarinette', [], false]],
+  ['Partition piano', ['Piano', [], false]],
+  ['Conductor', ['Conducteur', [], false]],
+  ['Conductor Score', ['Conducteur', [], false]],
+  // Les pluriels, mot par mot.
+  ['Cors anglais', ['Cor anglais', [], false]],
+  ['Double Basses', ['Contrebasse', [], false]],
+  ['Bass Clarinets', ['Clarinette basse', [], false]],
+  ['Contrabass Clarinet', ['Clarinette contrebasse', [], false]],
+  // Les numéros, quel que soit le signe entre eux.
+  ['Cor 1,2', ['Cor', [1, 2], false]],
+  ['Cor 1/2', ['Cor', [1, 2], false]],
+  ['Cor (1-2)', ['Cor', [1, 2], false]],
+  ['Oboe I, II', ['Hautbois', [1, 2], false]],
+  ['Cor 1 & 2', ['Cor', [1, 2], false]],
 ].forEach(([t, att]) => verifier(JSON.stringify(t), court(t), att));
+
+console.log('\n2b. Les alias ne changent pas la glose des noms déjà connus');
+verifier('« Contrabass clarinet » glosé en allemand', ctx.window.partitionsNomTraduit('Contrabass clarinet', 'de'), 'Kontrabassklarinette');
+verifier('« Cor 1-2 » glosé en anglais, comme avant', ctx.window.partitionsNomTraduit('Cor 1-2', 'en'), 'Horn 1-2');
+verifier('« Violoncello2 » glosé en anglais, comme avant', ctx.window.partitionsNomTraduit('Violoncello2', 'en'), 'Cello2');
 
 /* Un jeu sorti de Dorico, tel qu'il arrive : anglais, numéros collés. */
 const P = (id, nom, pupitre) => ({ id, nom, pupitre });
@@ -119,7 +148,7 @@ const effectif = [
   M('m-hn-c', 'Camille', 'Cuivres', 'Premier cor'),    // l'ordinal devant tranche
   M('m-tbn', 'Abel', 'Cuivres', 'Trombone'),
   M('m-sxh', 'Amelie', 'Cuivres', 'Saxhorn'),          // pas de saxhorn → autres du pupitre
-  M('m-perc', 'Théo', 'Percussions', 'Percussions'),   // une seule « Percussion » ; timbales en « même pupitre »
+  M('m-perc', 'Théo', 'Percussions', 'Percussions'),   // une seule « Percussion » → sûre ; les timbales ne lui sont pas proposées
   M('m-pno', 'Lou', 'Autre', 'Piano'),
   M('m-vn-solo', 'Alec', 'Cordes', 'Violon solo'),     // probable → Violin1
   M('m-vn2', 'Mariane', 'Cordes', 'Violon 2'),         // sûr → Violin2
@@ -172,9 +201,21 @@ console.log('\n4. Cas limites');
 verifier('un seul cor, fiche « Cor 3 » : sûr — il n\u2019y a que celui-là',
   (() => { const p = proposer([P('hn', 'Cor', 'Cuivres')], [M('a', 'A', 'Cuivres', 'Cor 3')], []); return [p.sures.map(x => x.partie.id), p.probables.length]; })(),
   [['hn'], 0]);
-verifier('un seul violon, numéroté 1, fiche « Violon 2 » : probable, numéroté autrement',
-  (() => { const p = proposer([P('vn1', 'Violin1', 'Cordes')], [M('a', 'A', 'Cordes', 'Violon 2')], []); return [p.sures.length, p.probables.map(x => x.partie.id)]; })(),
-  [0, ['vn1']]);
+verifier('un seul violon, numéroté 1, fiche « Violon 2 » : à trancher, jamais coché d’avance',
+  (() => { const p = proposer([P('vn1', 'Violin1', 'Cordes')], [M('a', 'A', 'Cordes', 'Violon 2')], []);
+    return [p.sures.length, p.probables.length, p.aTrancher.map(x => [x.memes.map(q => q.id), x.motif])]; })(),
+  [0, 0, [[['vn1'], 'seule partie « Violon », mais numérotée 1 quand la fiche dit 2']]]);
+verifier('une partie « Violon solo » existe : à trancher, la partie solo en tête',
+  (() => { const p = proposer([P('s', 'Violon solo', 'Cordes'), P('v1', 'Violon 1', 'Cordes'), P('v2', 'Violon 2', 'Cordes')],
+    [M('a', 'A', 'Cordes', 'Violon solo')], []); return [p.probables.length, p.aTrancher.map(x => x.memes.map(q => q.id))]; })(),
+  [0, [['s', 'v1', 'v2']]]);
+verifier('deux pupitres instrumentaux différents ne se répondent pas : partie rangée aux Bois, altiste des Cordes',
+  (() => { const p = proposer([P('x', 'Alto', 'Bois')], [M('a', 'A', 'Cordes', 'Altos')], []); return [p.sures.length, p.sansProposition.length]; })(),
+  [0, 1]);
+verifier('la partie de même pupitre reste proposée « même pupitre » quand la lecture du nom ne suffit pas',
+  (() => { const p = proposer([P('x', 'Alto', 'Bois'), P('y', 'Violon', 'Cordes')], [M('a', 'A', 'Cordes', 'Altos')], []);
+    return p.aTrancher.map(t => [t.memes.map(q => q.id), t.autres.map(q => q.id)]); })(),
+  [[[], ['y']]]);
 verifier('deux parties portent le même numéro : à trancher entre elles',
   (() => { const p = proposer([P('a', 'Violon 1 divisi a', 'Cordes'), P('b', 'Violon 1 divisi b', 'Cordes'), P('c', 'Violon 2', 'Cordes')],
     [M('m', 'M', 'Cordes', 'Violon 1')], []); return p.aTrancher.map(x => x.memes.map(q => q.id)); })(),
