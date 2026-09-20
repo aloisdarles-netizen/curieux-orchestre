@@ -1120,11 +1120,33 @@ const CurieuxDB = (()=>{
    * erreur mal formée tournerait en rond.
    */
   async function _upsertTolerant(table, rows, onConflict){
+    /* LA CLÉ N'EST JAMAIS RETIRÉE, et c'est le garde-fou le plus important de
+       cette fonction.
+
+       Le mécanisme ci-dessous retire du payload la colonne que l'erreur nomme.
+       C'est juste pour une colonne NOUVELLE, que la base n'a pas encore : on
+       écrit sans elle, le reste s'enregistre. Ça ne l'est plus du tout quand la
+       colonne nommée est la CLÉ — et PostgREST la nomme, avec le même code
+       PGRST204, quand il n'arrive pas à résoudre la cible du « on conflict »
+       (son cache de schéma est en retard d'une migration, par exemple). On
+       retirait alors `id` de la ligne, on réécrivait, et Postgres répondait
+       « null value in column "id" violates not-null constraint » : une écriture
+       perdue, et un message qui ne désigne pas sa cause.
+
+       Retirer la clé ne peut JAMAIS être la bonne réponse : sans elle, un
+       upsert devient une insertion anonyme. On rend donc l'erreur telle quelle,
+       et le ruban « modification non enregistrée » fait son travail. */
+    const cles = new Set(String(onConflict || 'id').split(',').map(c => c.trim()).filter(Boolean));
     let payload = rows;
     for(let essai = 0; essai < 3; essai++){
       const res = await supabaseClient.from(table).upsert(payload, { onConflict });
       const colonne = _colonneManquante(res && res.error);
       if(!colonne || !payload.some(r=> colonne in r)) return res;
+      if(cles.has(colonne)){
+        console.error(`[CurieuxDB] ${table} : la base ne reconnaît pas la clé « ${colonne} ». `
+          + 'Écriture abandonnée plutôt que rejouée sans clé — une migration est probablement à jouer.');
+        return res;
+      }
       console.warn(`[CurieuxDB] colonne « ${colonne} » absente de ${table} — écriture sans elle (migration à jouer).`);
       payload = payload.map(r=>{ const c = Object.assign({}, r); delete c[colonne]; return c; });
     }
@@ -1140,6 +1162,19 @@ const CurieuxDB = (()=>{
     }
     if(/fetch|network|Failed to fetch|timeout/i.test(m)){
       return "Pas de connexion — la modification n'est pas encore enregistrée.";
+    }
+    /* Les deux signatures d'une migration en retard. La première se lit
+       « la base ne connaît pas encore cette colonne », la seconde
+       « la valeur écrite n'est pas dans la liste autorisée » — dans les deux
+       cas, le SQL n'a pas été joué, et c'est ÇA qu'il faut lire plutôt que le
+       nom d'une contrainte. */
+    if(/violates check constraint/i.test(m)){
+      return "La base refuse cette valeur : il lui manque une mise à jour. "
+        + "Joue les migrations en attente, puis recharge la page. (" + m + ")";
+    }
+    if(/Could not find the .* column|does not exist|schema cache/i.test(m)){
+      return "La base n'a pas encore cette colonne : il lui manque une mise à jour. "
+        + "Joue les migrations en attente, puis recharge la page. (" + m + ")";
     }
     return m;
   }

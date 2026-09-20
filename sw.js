@@ -244,14 +244,25 @@
 //     Production — neuf écrans pour un compte admin — repasse sur deux lignes
 //     à 1440 px, soit 108 px de bandeau collant au lieu de 61 sur chaque
 //     écran de production. Elle pose aussi la butée de hauteur du déroulant.
-// v138 : assets/nouveautes.js annonce que « Mon ordre » mêle titulaires et
+// v138 : un correctif d'écriture, et il vaut pour TOUTES les tables. db.js ne
+// retire plus jamais la CLÉ d'une ligne : le mécanisme qui écrit sans une
+// colonne que la base ne connaît pas encore retirait aussi `id` quand
+// PostgREST nommait la clé de conflit — la ligne repartait alors en insertion
+// anonyme, et Postgres répondait « null value in column "id" ». Une écriture
+// perdue, et un message qui ne désigne pas sa cause. db.js apprend au passage
+// à traduire les deux signatures d'une migration en retard. partitions.html
+// met l'espace du chœur en lecture seule tant que son bloc SQL n'est pas joué
+// — la base refuse le pupitre « Chœur », et le proposer promettait un échec.
+// Sans cet incrément, un navigateur déjà venu garde l'ancien db.js : le bogue
+// reste, sur toutes les pages qui écrivent.
+// v139 : assets/nouveautes.js annonce que « Mon ordre » mêle titulaires et
 // remplaçant·es sur le Tableau de service. Le fichier est un actif mis en
 // cache : sans cet incrément, un navigateur déjà venu garderait la liste
 // précédente et la fenêtre « Ce qui a changé » ne s'ouvrirait jamais sur cette
 // livraison — personne dans l'équipe ne saurait que le tri a changé de règle.
 // recap.html change au même moment, mais c'est une page, servie réseau
 // d'abord : elle se rafraîchit d'elle-même.
-const VERSION = 'curieux-v138';
+const VERSION = 'curieux-v139';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
