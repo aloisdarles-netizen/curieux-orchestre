@@ -255,7 +255,14 @@
 // — la base refuse le pupitre « Chœur », et le proposer promettait un échec.
 // Sans cet incrément, un navigateur déjà venu garde l'ancien db.js : le bogue
 // reste, sur toutes les pages qui écrivent.
-const VERSION = 'curieux-v138';
+// v139 : assets/nouveautes.js annonce que « Mon ordre » mêle titulaires et
+// remplaçant·es sur le Tableau de service. Le fichier est un actif mis en
+// cache : sans cet incrément, un navigateur déjà venu garderait la liste
+// précédente et la fenêtre « Ce qui a changé » ne s'ouvrirait jamais sur cette
+// livraison — personne dans l'équipe ne saurait que le tri a changé de règle.
+// recap.html change au même moment, mais c'est une page, servie réseau
+// d'abord : elle se rafraîchit d'elle-même.
+const VERSION = 'curieux-v139';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -33,6 +33,17 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-20-3',
+    titre: "« Mon ordre » mêle titulaires et remplaçant·es",
+    points: [
+      "Sur le Tableau de service, le tri « Mon ordre » ne séparait pas ce qu'il disait ranger : un·e remplaçant·e que personne n'avait inscrit·e sur sa liste tombait tout en bas du tableau, et le nom qu'on glissait vers les violons revenait à sa place au rendu suivant. Les deux listes n'en font plus qu'une : on place qui l'on veut, où l'on veut.",
+      "Un·e remplaçant·e en violon jamais déplacé·e apparaît désormais au milieu des violons, et non derrière tout le monde — à portée de main pour le glisser où il faut.",
+      "Dans « Titulaires + leurs remplaçant·es », une ligne indentée sous son ou sa titulaire peut maintenant se prendre elle aussi : la glisser la détache, elle devient une ligne de plein droit. Celles qu'on ne touche pas gardent leur flèche et suivent leur titulaire, comme avant.",
+      "L'ordre personnel n'avait aucun retour en arrière. Un lien « Tout remettre dans l'ordre de l'orchestre » apparaît à côté du tri dès qu'un nom a bougé : tout le monde repart dans l'ordre de l'orchestre et les remplaçant·es retournent sous leur titulaire. « Réinitialiser l'affichage » continue, lui, d'épargner cet ordre.",
+      "Rappel : cet ordre n'appartient qu'à toi — personne d'autre ne le voit — et il suit ton compte d'un appareil à l'autre. L'export PDF le respecte.",
+    ],
+  },
+  {
     version: '2026-09-20-2',
     titre: 'La reconnaissance des parties se départage autrement, et apprend l\'italien',
     points: [
