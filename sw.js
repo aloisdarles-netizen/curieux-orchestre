@@ -285,7 +285,33 @@
 // navigateur déjà venu chargerait le nouvel accueil.html avec l'ancienne
 // feuille — des liens nus, sans touche ni voyant — et la fenêtre « Ce qui a
 // changé » ne dirait rien de la livraison.
-const VERSION = 'curieux-v142';
+// v143 : db.js ne laisse plus partir une ligne dont il n'envoie pas toutes les
+// colonnes qu'il annonce. JSON.stringify EFFACE les propriétés à `undefined` ;
+// supabase-js, lui, calcule le paramètre `columns=` sur Object.keys, où elles
+// figurent encore. La requête annonçait donc sept colonnes et n'en envoyait que
+// cinq, et PostgREST insérait NULL dans les deux manquantes — « null value in
+// column "id" » sur la clé primaire, une écriture perdue et un message qui ne
+// désigne pas sa cause. Les clés indéfinies sont désormais retirées (le corps
+// et `columns` redeviennent d'accord), et si l'une d'elles est la CLÉ, la ligne
+// ne part pas du tout : refus explicite et pile d'appel en console.
+// partitions.html refuse de la même façon, à la source, une partie sans
+// identifiant ou sans spectacle. Sans cet incrément, un navigateur déjà venu
+// garde l'ancien db.js : le bogue reste, sur toutes les pages qui écrivent.
+// v144 : le refus d'écriture nomme le geste. « Une modification n'a pas été
+// enregistrée » n'apprend rien à qui travaille : il ne sait ni ce qu'il vient
+// de perdre, ni quoi refaire, ni quoi nous dire. db.js lit la pile d'appel,
+// en saute ses propres cadres, et met dans le message la fonction appelante et
+// l'intitulé de la ligne — « geste : versChoeur, sur « Basse » ». Dix mots qui
+// répondent aux trois questions, sans ouvrir la console.
+// v145 : créer une partie ne dépend plus de rien. L'identifiant se fabrique
+// sur place quand celui de ui-helpers.js revient vide — pour une ligne NEUVE,
+// un identifiant tiré au hasard est juste par construction, il n'y a rien à
+// préserver donc rien à refuser —, et le spectacle se retrouve à trois
+// endroits : l'état, l'écran affiché, l'adresse. Le même filet couvre les
+// fichiers déposés, les lots et les spectacles. partitions.html seule change,
+// mais elle s'appuie sur le db.js de la version précédente : sans l'incrément,
+// un navigateur déjà venu garderait l'ancien et perdrait le filet du dessous.
+const VERSION = 'curieux-v145';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -3865,7 +3865,7 @@ function ficheSpectacle(existant){
         await CurieuxDB.upsertOne('partitions_spectacles', s);
         return '';
       }
-      const neuf = Object.assign({ id: genId('spect'), lienDrive: '', chiffrer: false, archive: false, note: '' }, champs);
+      const neuf = Object.assign({ id: genId('spect') || _identifiantDeSecours('spect'), lienDrive: '', chiffrer: false, archive: false, note: '' }, champs);
       const tourneeId = ov.querySelector('#fOpe').value;
       state.spectacles.push(neuf);
       state.spectacleId = neuf.id;
@@ -3944,6 +3944,7 @@ function fichePartie(existant){
         return '';
       }
       const neuve = creerPartieLocale(nom, pupitre);
+      if(!neuve) return "La partie n'a pas pu être créée — voir le message qui vient de s'afficher.";
       rendre();
       await CurieuxDB.upsertOne('partitions_parties', neuve);
       return '';
@@ -3951,10 +3952,57 @@ function fichePartie(existant){
   });
 }
 
+/* UN IDENTIFIANT SE FABRIQUE TOUJOURS — on ne renonce pas à un geste pour ça.
+
+   Des écritures sont parties en base avec `id` et `spectacleId` indéfinis (voir
+   _nettoyerIndefinis dans db.js, qui les intercepte désormais). La cause tient
+   forcément dans ces deux lignes : `genId` vient de ui-helpers.js, le spectacle
+   de l'état de la page. Refuser était la bonne première réponse — on ne
+   soupçonnait pas encore le mécanisme. Ce n'est pas la bonne réponse finale :
+   pour une partie NEUVE, un identifiant tiré au hasard est juste par
+   construction, quel qu'il soit. Il n'y a rien à préserver, donc rien à
+   refuser : on en fabrique un, et on note au passage que le premier a manqué.
+
+   LE SPECTACLE, LUI, NE S'INVENTE PAS — une partie appartient à un spectacle et
+   à un seul. On le cherche donc à trois endroits, du plus sûr au plus lâche :
+   l'état, le spectacle affiché, l'adresse. Si les trois se taisent, on refuse,
+   et c'est le bon refus. */
+function _identifiantDeSecours(prefixe){
+  try{
+    if(typeof crypto !== 'undefined' && crypto.randomUUID) return prefixe + crypto.randomUUID().replace(/-/g, '');
+  }catch(e){}
+  return prefixe + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+}
+
+function _idSpectacleCourant(){
+  if(state.spectacleId) return state.spectacleId;
+  const ouvert = (state.spectacles || []).find(x => x && x.id && x.id === state.spectacleId);
+  if(ouvert) return ouvert.id;
+  try{
+    const url = new URLSearchParams(location.search).get('spectacle');
+    if(url && (state.spectacles || []).some(x => x && x.id === url)) return url;
+  }catch(e){}
+  return '';
+}
+
 function creerPartieLocale(nom, pupitre){
+  let id = genId('part');
+  if(!id){
+    id = _identifiantDeSecours('part');
+    console.error('[partitions] genId a rendu une valeur vide — identifiant de secours tiré : ' + id
+      + '\n' + (new Error('pile d\'appel').stack || ''));
+  }
+  const spectacleId = _idSpectacleCourant();
+  if(!spectacleId){
+    console.error('[partitions] creerPartieLocale : aucun spectacle ouvert — création refusée.\n'
+      + (new Error('pile d\'appel').stack || ''));
+    alert("La partie n'a pas pu être créée : aucun spectacle n'est ouvert.\n\n"
+      + "Reviens à la liste des spectacles, rouvre celui-ci, et recommence.");
+    return null;
+  }
   const p = {
-    id: genId('part'), spectacleId: state.spectacleId, nom,
-    pupitre: pupitre || partitionsPupitreDe(nom), ordre: partitionsOrdreDe(nom), note: '',
+    id, spectacleId, nom,
+    pupitre: pupitre || partitionsPupitreDe(nom), ordre: Number(partitionsOrdreDe(nom)) || 9000, note: '',
     tonalite: '',
   };
   state.parties.push(p);
@@ -4279,6 +4327,7 @@ async function confirmerDepot(){
       const cle = partitionsNormaliser(d.propose);
       if(!neuves.has(cle)){
         const p = creerPartieLocale(d.propose, '');
+        if(!p) return;   // refusé et annoncé ; on n'enchaîne pas sur des fichiers orphelins
         neuves.set(cle, p);
         await CurieuxDB.upsertOne('partitions_parties', p);
       }
@@ -4298,7 +4347,7 @@ async function confirmerDepot(){
       const depot = await CurieuxDB.deposerPartition(state.spectacleId, d.partieId, d.fichier);
       if(depot.error){ echecs.push(`${d.nomOrigine} — ${depot.error.message || 'échec'}`); continue; }
       const f = {
-        id: genId('pfic'), partieId: d.partieId,
+        id: genId('pfic') || _identifiantDeSecours('pfic'), partieId: d.partieId,
         titre: partitionsNomDepuisFichier(d.nomOrigine), chemin: depot.chemin,
         nomOrigine: d.nomOrigine, octets: d.octets, pages: null, empreinte: '',
         ordre: fichiersDe(d.partieId).length,
@@ -4477,9 +4526,15 @@ async function creerVoixSATB(){
   const existantes = new Set(partiesDe(s.id).map(p => partitionsNormaliser(p.nom)));
   const neuves = ['Soprano', 'Alto', 'Ténor', 'Basse']
     .filter(nom => !existantes.has(partitionsNormaliser(nom)))
-    .map(nom => creerPartieLocale(nom, 'Chœur'));
+    .map(nom => creerPartieLocale(nom, 'Chœur'))
+    .filter(Boolean);   // creerPartieLocale refuse et a déjà prévenu
   if(!neuves.length){
-    alert('Les quatre voix existent déjà dans ce spectacle. Rattache-les au chœur depuis le sélecteur ci-dessous.');
+    // Deux causes, deux messages : ou bien tout existait déjà, ou bien la
+    // création a été refusée — et dans ce cas l'alerte est déjà passée, il
+    // serait faux d'annoncer que les voix sont là.
+    const toutesLa = ['Soprano', 'Alto', 'Ténor', 'Basse']
+      .every(nom => existantes.has(partitionsNormaliser(nom)));
+    if(toutesLa) alert('Les quatre voix existent déjà dans ce spectacle. Rattache-les au chœur depuis le sélecteur ci-dessous.');
     return;
   }
   rendre();
@@ -4515,6 +4570,7 @@ function ficheVoix(){
       if(partiesDe(s.id).some(p => partitionsNormaliser(p.nom) === cle))
         return 'Cette partie existe déjà dans ce spectacle.';
       const p = creerPartieLocale(nom, 'Chœur');
+      if(!p) return "La voix n'a pas pu être créée — voir le message qui vient de s'afficher.";
       p.tonalite = partitionsTonalite(ov.querySelector('#fVoixTon').value);
       rendre();
       const res = await CurieuxDB.upsertOne('partitions_parties', p);
@@ -4570,7 +4626,7 @@ async function creerChoeur(){
   if(!coche('choDroits') && !confirm("Les droits de diffusion n'ont pas été vérifiés.\n\nUn chœur invité est un TIERS au sens des contrats, même quand il chante avec nous : le matériel de location ne lui est pas retransmissible. Créer quand même le lien ?")) return;
 
   const e = {
-    id: genId('pcho'),
+    id: genId('pcho') || _identifiantDeSecours('pcho'),
     type: 'choeur',
     spectacleId: state.spectacleId,
     tourneeId: val('choOperation'),
@@ -4629,7 +4685,7 @@ async function creerEnvoi(){
   if(!coche('envDroits') && !confirm("Les droits de diffusion n'ont pas été vérifiés.\n\nLe matériel de LOCATION ne se retransmet pas à un autre ensemble : c'est l'éditeur qui le lui loue. Créer quand même le lien ?")) return;
 
   const e = {
-    id: genId('penv'),
+    id: genId('penv') || _identifiantDeSecours('penv'),
     spectacleId: state.spectacleId,
     tourneeId: val('envOperation'),
     destinataire,
