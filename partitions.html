@@ -3729,6 +3729,7 @@ function fichePartie(existant){
         return '';
       }
       const neuve = creerPartieLocale(nom, pupitre);
+      if(!neuve) return "La partie n'a pas pu être créée — voir le message qui vient de s'afficher.";
       rendre();
       await CurieuxDB.upsertOne('partitions_parties', neuve);
       return '';
@@ -3736,10 +3737,33 @@ function fichePartie(existant){
   });
 }
 
+/* UNE PARTIE SANS IDENTIFIANT OU SANS SPECTACLE NE PART PAS, et elle ne
+   s'affiche pas non plus.
+
+   Les deux valeurs viennent d'ailleurs — `genId` de ui-helpers.js, le spectacle
+   de l'état de la page — et si l'une manque, la ligne écrite ressort en base
+   avec une clé nulle : une écriture perdue, et un message qui ne désigne pas sa
+   cause (voir _nettoyerIndefinis dans db.js, qui la refuse désormais au
+   passage). Mieux vaut refuser ICI, où l'on sait encore de quel geste il
+   s'agit, que trois couches plus bas.
+
+   `ordre` est calculé à part : s'il revenait indéfini, la partie se rangerait
+   en fin de liste, ce qui est gênant mais pas faux. On le borne plutôt que de
+   refuser. */
 function creerPartieLocale(nom, pupitre){
+  const id = genId('part');
+  const spectacleId = state.spectacleId;
+  if(!id || !spectacleId){
+    console.error('[partitions] creerPartieLocale : ' + (!id ? 'identifiant' : 'spectacle')
+      + ' manquant — création refusée.\n' + (new Error('pile d\'appel').stack || ''));
+    alert("La partie n'a pas pu être créée : " + (!id ? "l'identifiant n'a pas pu être tiré."
+      : "aucun spectacle n'est ouvert.")
+      + "\n\nRecharge la page et rouvre le spectacle avant de recommencer.");
+    return null;
+  }
   const p = {
-    id: genId('part'), spectacleId: state.spectacleId, nom,
-    pupitre: pupitre || partitionsPupitreDe(nom), ordre: partitionsOrdreDe(nom), note: '',
+    id, spectacleId, nom,
+    pupitre: pupitre || partitionsPupitreDe(nom), ordre: Number(partitionsOrdreDe(nom)) || 9000, note: '',
     tonalite: '',
   };
   state.parties.push(p);
@@ -4064,6 +4088,7 @@ async function confirmerDepot(){
       const cle = partitionsNormaliser(d.propose);
       if(!neuves.has(cle)){
         const p = creerPartieLocale(d.propose, '');
+        if(!p) return;   // refusé et annoncé ; on n'enchaîne pas sur des fichiers orphelins
         neuves.set(cle, p);
         await CurieuxDB.upsertOne('partitions_parties', p);
       }
@@ -4262,9 +4287,15 @@ async function creerVoixSATB(){
   const existantes = new Set(partiesDe(s.id).map(p => partitionsNormaliser(p.nom)));
   const neuves = ['Soprano', 'Alto', 'Ténor', 'Basse']
     .filter(nom => !existantes.has(partitionsNormaliser(nom)))
-    .map(nom => creerPartieLocale(nom, 'Chœur'));
+    .map(nom => creerPartieLocale(nom, 'Chœur'))
+    .filter(Boolean);   // creerPartieLocale refuse et a déjà prévenu
   if(!neuves.length){
-    alert('Les quatre voix existent déjà dans ce spectacle. Rattache-les au chœur depuis le sélecteur ci-dessous.');
+    // Deux causes, deux messages : ou bien tout existait déjà, ou bien la
+    // création a été refusée — et dans ce cas l'alerte est déjà passée, il
+    // serait faux d'annoncer que les voix sont là.
+    const toutesLa = ['Soprano', 'Alto', 'Ténor', 'Basse']
+      .every(nom => existantes.has(partitionsNormaliser(nom)));
+    if(toutesLa) alert('Les quatre voix existent déjà dans ce spectacle. Rattache-les au chœur depuis le sélecteur ci-dessous.');
     return;
   }
   rendre();
@@ -4300,6 +4331,7 @@ function ficheVoix(){
       if(partiesDe(s.id).some(p => partitionsNormaliser(p.nom) === cle))
         return 'Cette partie existe déjà dans ce spectacle.';
       const p = creerPartieLocale(nom, 'Chœur');
+      if(!p) return "La voix n'a pas pu être créée — voir le message qui vient de s'afficher.";
       p.tonalite = partitionsTonalite(ov.querySelector('#fVoixTon').value);
       rendre();
       const res = await CurieuxDB.upsertOne('partitions_parties', p);

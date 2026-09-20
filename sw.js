@@ -262,7 +262,19 @@
 // livraison — personne dans l'équipe ne saurait que le tri a changé de règle.
 // recap.html change au même moment, mais c'est une page, servie réseau
 // d'abord : elle se rafraîchit d'elle-même.
-const VERSION = 'curieux-v139';
+// v140 : db.js ne laisse plus partir une ligne dont il n'envoie pas toutes les
+// colonnes qu'il annonce. JSON.stringify EFFACE les propriétés à `undefined` ;
+// supabase-js, lui, calcule le paramètre `columns=` sur Object.keys, où elles
+// figurent encore. La requête annonçait donc sept colonnes et n'en envoyait que
+// cinq, et PostgREST insérait NULL dans les deux manquantes — « null value in
+// column "id" » sur la clé primaire, une écriture perdue et un message qui ne
+// désigne pas sa cause. Les clés indéfinies sont désormais retirées (le corps
+// et `columns` redeviennent d'accord), et si l'une d'elles est la CLÉ, la ligne
+// ne part pas du tout : refus explicite et pile d'appel en console.
+// partitions.html refuse de la même façon, à la source, une partie sans
+// identifiant ou sans spectacle. Sans cet incrément, un navigateur déjà venu
+// garde l'ancien db.js : le bogue reste, sur toutes les pages qui écrivent.
+const VERSION = 'curieux-v140';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
