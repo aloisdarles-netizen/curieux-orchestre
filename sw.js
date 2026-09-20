@@ -194,7 +194,14 @@
 // les cartes de spectacle s'afficheraient sans teinte, les tuiles de matériel
 // sans bordure de pupitre et la matrice sans colonne collante — un écran de
 // production illisible là où il doit justement montrer les trous.
-const VERSION = 'curieux-v133';
+// v134 : partitions-commun.js apprend les noms d'instruments EN ANGLAIS.
+// Dorico exporte « Oboe », « Clarinet », « Bassoon », « Horn », « Violin1 »,
+// « Viola », « DoubleBass » : la liste des pupitres ne connaissait que le
+// français, et onze parties sur seize d'un import réel tombaient dans
+// « Autre ». Sans cet incrément, un navigateur déjà venu garderait l'ancien
+// fichier : le bouton « Reclasser » de l'écran de production ne verrait aucun
+// écart à corriger, et le prochain dépôt se tromperait encore.
+const VERSION = 'curieux-v134';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

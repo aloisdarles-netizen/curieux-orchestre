@@ -163,6 +163,33 @@
   }
   .part-tuile.sans-fichier{border-style:dashed; border-left-style:solid; border-color:var(--ko); background:var(--ko-tint);}
   .part-nom{font-weight:800; font-size:13.5px; line-height:1.25; display:flex; gap:8px; align-items:baseline;}
+  /* Le nom est un bouton, et il ne doit pas en avoir l'air tant qu'on ne le
+     vise pas : c'est d'abord un titre. C'est le chemin du doigt vers la fiche,
+     là où le glisser-déposer ne se déclenche pas. */
+  .part-titre{
+    font:inherit; color:inherit; background:none; border:none; padding:0; margin:0;
+    min-height:0; cursor:pointer; text-align:left; min-width:0;
+  }
+  .part-titre:hover{color:var(--accent); text-decoration:underline;}
+  .part-titre:focus-visible{outline:2px solid var(--text); outline-offset:2px; border-radius:4px;}
+
+  /* --- Le déplacement d'une partie d'un pupitre à l'autre ---
+     La tuile se saisit, le groupe visé s'allume. On ne déplace pas la tuile à
+     la main : c'est le glissé natif du navigateur, qui donne l'image, le
+     curseur, Échap pour renoncer et le lâcher hors zone pour annuler. */
+  .part-tuile{cursor:grab;}
+  .part-tuile:active{cursor:grabbing;}
+  .part-tuile.en-vol{opacity:.4;}
+  .pup-groupe{border-radius:10px; transition:background .12s, box-shadow .12s;}
+  .pup-groupe.survol{background:var(--accent-tint); box-shadow:0 0 0 2px var(--accent); padding:2px 8px 8px;}
+  /* Les pupitres que ce spectacle n'emploie pas : invisibles, sauf pendant un
+     glissé — il faut bien pouvoir y déposer la première partie. */
+  .pup-vide{display:none;}
+  body.deplace-partie .pup-vide{display:block;}
+  .pup-accueil{
+    border:2px dashed var(--border); border-radius:10px; padding:16px 12px; text-align:center;
+    font-size:12px; font-weight:700; color:var(--muted);
+  }
   /* Le retrait est une croix et non le mot « Retirer » : vingt-quatre boutons
      libellés faisaient de la destruction l'élément le plus répété de l'écran,
      alors qu'on vient y lire ce qui manque. La cible garde 24 px. */
@@ -550,6 +577,11 @@ let state = {
      fois ensuite. Voir chargerRetraits. */
   retraits: null,
   retraitsEnCours: false,
+  // La partie qu'on tient pendant un glissé. Elle vit dans l'état et pas dans
+  // le seul dataTransfer : Safari ne rend rien de dataTransfer pendant le
+  // survol (seulement au lâcher), si bien qu'on ne pouvait pas savoir qu'un
+  // glissé était en cours pour marquer la zone visée.
+  partieGlissee: '',
   // Les prises d'exemplaires par des ensembles tiers — et elles seules, pas
   // le journal entier : les remises nominatives en représentent l'écrasante
   // majorité et ne s'affichent nulle part ici. Lu au premier écran qui en a
@@ -1092,77 +1124,131 @@ function blocOperations(s){
    par pupitre. Une partie est une TUILE et non une ligne : la tuile porte son
    nom en tête, ses fichiers en dessous, et son manque en rouge tireté.
    Quarante lignes identiques deviennent six blocs colorés dont un seul, en
-   général, demande quelque chose. */
+   général, demande quelque chose.
+
+   ET LA TUILE SE DÉPLACE. Le pupitre est DEVINÉ du nom de fichier, donc il se
+   trompe : un jeu sorti de Dorico en anglais, un intitulé maison, une partie
+   double qui relève de deux familles. Jusqu'ici l'erreur était définitive à
+   l'écran — il fallait retirer la partie, donc ses fichiers, et redéposer.
+   On la corrige maintenant d'un glissé, et la correction vaut aussitôt pour
+   l'espace du musicien, qui lit le même pupitre.
+
+   Le glisser-déposer ne marche pas au doigt : sur tablette, le nom de la
+   partie est un bouton qui ouvre sa fiche, où le pupitre se choisit dans une
+   liste. Le même geste, sans la souris. */
 function blocMateriel(s){
   const parties = partiesDe(s.id);
   const groupes = partitionsGrouperParPupitre(parties);
   const manquantes = parties.filter(p => !aUnFichier(p)).length;
 
+  const tuile = (p, encre) => {
+    const fs = fichiersDe(p.id);
+    const poids = fs.reduce((acc, f) => acc + (f.octets || 0), 0);
+    /* Le titre d'un fichier n'est écrit que s'il apporte quelque chose. Une
+       partie qui ne porte qu'un fichier nommé comme elle donnait « Violon 1 /
+       Violon 1 · 391 Ko », où l'on relit deux fois la même chose avant de
+       trouver le poids. Même règle que côté musicien (mes-dates-vue.js). */
+    const nomUtile = (f) => fs.length > 1
+      || partitionsNormaliser(f.titre || '') !== partitionsNormaliser(p.nom);
+    /* UNE SEULE CROIX QUAND IL N'Y A QU'UN FICHIER. Deux croix identiques
+       l'une au-dessus de l'autre — l'une retirant la partie, l'autre son
+       unique fichier — n'ont pas de sens lisible : on vise l'une et on
+       déclenche l'autre. Avec un seul fichier, la croix de la partie suffit,
+       et son ruban d'annulation dit bien qu'elle emporte le fichier. La
+       croix par fichier ne revient que là où elle sert : à partir de deux. */
+    const corps = fs.length
+      ? fs.map(f => `<span class="part-fic">
+           ${nomUtile(f) ? `<span class="nom" title="${escapeAttr(f.nomOrigine || f.titre)}">${escapeHtml(f.titre || f.nomOrigine)}</span>` : '<span class="nom"></span>'}
+           <span>${partitionsPoids(f.octets)}${f.pages ? ' · ' + f.pages + ' p.' : ''}</span>
+           ${fs.length > 1 ? `<button type="button" class="part-x" data-retirer-fichier="${escapeAttr(f.id)}"
+                   title="Retirer ce fichier" aria-label="Retirer le fichier ${escapeAttr(f.titre || f.nomOrigine)}">×</button>` : ''}
+         </span>`).join('')
+      : '<span class="part-manque">Aucun fichier déposé</span>';
+    /* Une tuile vide porte le rouge sur ses quatre côtés : sa teinte de
+       pupitre n'est plus l'information du moment, son manque l'est. */
+    return `
+      <div class="part-tuile${fs.length ? '' : ' sans-fichier'}" draggable="true"
+           data-partie="${escapeAttr(p.id)}" style="border-left-color:${fs.length ? encre : 'var(--ko)'}">
+        <span class="part-nom">
+          <button type="button" class="part-titre" data-modifier-partie="${escapeAttr(p.id)}"
+                  title="Modifier le nom ou le pupitre de cette partie">${escapeHtml(p.nom)}</button>
+          <button type="button" class="part-x" data-retirer-partie="${escapeAttr(p.id)}"
+                  title="Retirer cette partie" aria-label="Retirer la partie ${escapeAttr(p.nom)}">×</button>
+        </span>
+        ${fs.length > 1 ? `<span class="part-meta">${fs.length} fichiers · ${partitionsPoids(poids)}</span>` : ''}
+        ${corps}
+      </div>`;
+  };
+
   const sections = groupes.map(g => {
     const teinte = partitionsPupitreVar(g.pupitre);
     const encre = partitionsPupitreVar(g.pupitre, true);
     const vides = g.parties.filter(p => !aUnFichier(p)).length;
-    const tuiles = g.parties.map(p => {
-      const fs = fichiersDe(p.id);
-      const poids = fs.reduce((acc, f) => acc + (f.octets || 0), 0);
-      /* Le titre d'un fichier n'est écrit que s'il apporte quelque chose. Une
-         partie qui ne porte qu'un fichier nommé comme elle donnait « Violon 1 /
-         Violon 1 · 391 Ko », où l'on relit deux fois la même chose avant de
-         trouver le poids. Même règle que côté musicien (mes-dates-vue.js). */
-      const nomUtile = (f) => fs.length > 1
-        || partitionsNormaliser(f.titre || '') !== partitionsNormaliser(p.nom);
-      /* UNE SEULE CROIX QUAND IL N'Y A QU'UN FICHIER. Deux croix identiques
-         l'une au-dessus de l'autre — l'une retirant la partie, l'autre son
-         unique fichier — n'ont pas de sens lisible : on vise l'une et on
-         déclenche l'autre. Avec un seul fichier, la croix de la partie suffit,
-         et son ruban d'annulation dit bien qu'elle emporte le fichier. La
-         croix par fichier ne revient que là où elle sert : à partir de deux. */
-      const corps = fs.length
-        ? fs.map(f => `<span class="part-fic">
-             ${nomUtile(f) ? `<span class="nom" title="${escapeAttr(f.nomOrigine || f.titre)}">${escapeHtml(f.titre || f.nomOrigine)}</span>` : '<span class="nom"></span>'}
-             <span>${partitionsPoids(f.octets)}${f.pages ? ' · ' + f.pages + ' p.' : ''}</span>
-             ${fs.length > 1 ? `<button type="button" class="part-x" data-retirer-fichier="${escapeAttr(f.id)}"
-                     title="Retirer ce fichier" aria-label="Retirer le fichier ${escapeAttr(f.titre || f.nomOrigine)}">×</button>` : ''}
-           </span>`).join('')
-        : '<span class="part-manque">Aucun fichier déposé</span>';
-      /* Une tuile vide porte le rouge sur ses quatre côtés : sa teinte de
-         pupitre n'est plus l'information du moment, son manque l'est. */
-      return `
-        <div class="part-tuile${fs.length ? '' : ' sans-fichier'}" style="border-left-color:${fs.length ? encre : 'var(--ko)'}">
-          <span class="part-nom">${escapeHtml(p.nom)}
-            <button type="button" class="part-x" data-retirer-partie="${escapeAttr(p.id)}"
-                    title="Retirer cette partie" aria-label="Retirer la partie ${escapeAttr(p.nom)}">×</button>
-          </span>
-          ${fs.length > 1 ? `<span class="part-meta">${fs.length} fichiers · ${partitionsPoids(poids)}</span>` : ''}
-          ${corps}
-        </div>`;
-    }).join('');
     return `
-      <div class="pup-bandeau" style="color:${encre}">
-        ${escapeHtml(g.pupitre)}
-        <span class="trait" style="background:${teinte}"></span>
-        <span class="compte">${g.parties.length} partie${g.parties.length > 1 ? 's' : ''}${vides ? ' · ' + vides + ' sans fichier' : ''}</span>
-      </div>
-      <div class="part-grille">${tuiles}</div>`;
+      <div class="pup-groupe" data-pup-cible="${escapeAttr(g.pupitre)}">
+        <div class="pup-bandeau" style="color:${encre}">
+          ${escapeHtml(g.pupitre)}
+          <span class="trait" style="background:${teinte}"></span>
+          <span class="compte">${g.parties.length} partie${g.parties.length > 1 ? 's' : ''}${vides ? ' · ' + vides + ' sans fichier' : ''}</span>
+        </div>
+        <div class="part-grille">${g.parties.map(p => tuile(p, encre)).join('')}</div>
+      </div>`;
   }).join('');
+
+  /* Les pupitres que ce spectacle n'emploie pas. Ils n'ont rien à faire à
+     l'écran — une section « Chant » vide au milieu d'un programme symphonique
+     est du bruit — mais il faut bien pouvoir y déposer quelque chose. Ils
+     n'apparaissent donc QUE pendant un glissé, et disparaissent avec lui. */
+  const presents = new Set(groupes.map(g => g.pupitre));
+  const absents = parties.length
+    ? PARTITIONS_PUPITRE_ORDRE.filter(pup => !presents.has(pup)).map(pup => `
+      <div class="pup-groupe pup-vide" data-pup-cible="${escapeAttr(pup)}">
+        <div class="pup-bandeau" style="color:${partitionsPupitreVar(pup, true)}">
+          ${escapeHtml(pup)}
+          <span class="trait" style="background:${partitionsPupitreVar(pup)}"></span>
+        </div>
+        <div class="part-grille"><div class="pup-accueil">Déposer une partie ici</div></div>
+      </div>`).join('')
+    : '';
+
+  /* Ce que la détection dirait AUJOURD'HUI, comparé à ce qui est rangé. Le
+     bouton n'apparaît que s'il y a un écart : un matériel bien classé n'a pas
+     à porter une commande qui ne ferait rien. */
+  const aReclasser = ecartsDePupitre(parties);
 
   return `
     <section class="bloc">
       <h2>Matériel
         <span class="h2-total">
           <button type="button" class="co-btn sm primary" id="btnDeposer">Déposer des fichiers</button>
-          <button type="button" class="co-btn sm" id="btnNouvellePartie">Ajouter une partie</button>
+          <button type="button" class="co-btn sm ghost" id="btnNouvellePartie">Ajouter une partie</button>
+          ${aReclasser.length ? `<button type="button" class="co-btn sm ghost" id="btnReclasser">Reclasser ${aReclasser.length} partie${aReclasser.length > 1 ? 's' : ''}…</button>` : ''}
         </span>
       </h2>
       ${parties.length ? partitionsJaugeHtml(parties, aUnFichier) : ''}
       ${manquantes ? `<p class="vide sans-lecteur">${manquantes} partie${manquantes > 1 ? 's sont annoncées' : ' est annoncée'} sans aucun fichier déposé — ${manquantes > 1 ? 'elles sont' : 'elle est'} en rouge ci-dessous.</p>` : ''}
+      ${parties.length ? '<p class="vide" style="padding:2px 0 0">Glisse une tuile d\'un pupitre à l\'autre pour la reclasser. Au doigt, ouvre son nom : le pupitre s\'y choisit dans une liste.</p>' : ''}
       ${sections || '<p class="vide">Rien de rangé. Dépose les PDF : la page lit leur nom et propose la partie de chacun.</p>'}
+      ${absents}
       <div class="depot-zone compacte" id="zoneDepotRapide" style="margin-top:14px">
         <b>Glisse des PDF ici</b>
         Ils rejoignent l'écran de dépôt, déjà appariés à leur partie.
         <input type="file" id="inpFichiersRapide" accept="application/pdf,.pdf" multiple hidden>
       </div>
     </section>`;
+}
+
+/* Les parties dont le pupitre RANGÉ diffère de celui que la détection donne
+   aujourd'hui. C'est la question qui se pose après coup : la détection a
+   appris des noms qu'elle ne connaissait pas — l'anglais de Dorico, par
+   exemple —, et le matériel déjà déposé garde pourtant le classement de son
+   jour de dépôt. Personne ne va redéposer trente PDF pour ça. */
+function ecartsDePupitre(parties){
+  return (parties || []).map(p => {
+    const devine = partitionsPupitreNormalise(partitionsPupitreDe(p.nom));
+    const range = partitionsPupitreNormalise(p.pupitre);
+    return (devine !== range && devine !== 'Autre') ? { partie: p, de: range, vers: devine } : null;
+  }).filter(Boolean);
 }
 
 /* Bloc 3 — LA DISTRIBUTION. Qui lit quoi, opération par opération.
@@ -2309,6 +2395,9 @@ function cablerVue(){
 
   el.querySelectorAll('[data-retirer-partie]').forEach(b => b.onclick = ()=> retirerPartie(b.dataset.retirerPartie));
   el.querySelectorAll('[data-retirer-fichier]').forEach(b => b.onclick = ()=> retirerFichier(b.dataset.retirerFichier));
+  el.querySelectorAll('[data-modifier-partie]').forEach(b => b.onclick = ()=> fichePartie(state.parties.find(x => x.id === b.dataset.modifierPartie)));
+  if(q('btnReclasser')) q('btnReclasser').onclick = ficheReclasser;
+  cablerDeplacementParties(el);
 
   // --- programmation ---
   if(q('selProgrammer')) q('selProgrammer').onchange = (e)=>{ if(e.target.value) programmer(state.spectacleId, e.target.value); };
@@ -2485,6 +2574,141 @@ function cablerZoneDepot(zone, inp, versEcranDepot){
   zone.addEventListener('drop', (e)=> prendre(Array.from((e.dataTransfer || {}).files || [])));
 }
 
+/* ---------------------------------------------------------------------------
+   DÉPLACER UNE PARTIE D'UN PUPITRE À L'AUTRE
+   ---------------------------------------------------------------------------
+   Le pupitre est deviné du nom de fichier (partitionsPupitreDe), et il se
+   trompe : un jeu sorti de Dorico en anglais, un intitulé maison, une partie
+   double qui relève de deux familles. L'écran le montrait sans permettre de le
+   corriger — il fallait retirer la partie, donc ses fichiers, et tout
+   redéposer pour un mot mal lu.
+
+   LE GLISSÉ EST CELUI DU NAVIGATEUR, pas une réimplémentation à la souris. Il
+   donne l'image de la tuile, le curseur juste, l'échappement par Échap et
+   l'annulation par un lâcher hors zone — quatre choses qu'un glissé maison
+   rate presque toujours. En contrepartie il ne se déclenche pas au doigt :
+   c'est la fiche de la partie qui sert de second chemin, et elle n'est pas un
+   pis-aller — elle règle aussi le nom.
+   --------------------------------------------------------------------------- */
+
+function cablerDeplacementParties(el){
+  el.querySelectorAll('.part-tuile[data-partie]').forEach(t => {
+    t.addEventListener('dragstart', (e)=>{
+      // text/plain et pas seulement un format maison : sans lui, Firefox
+      // refuse d'ouvrir le glissé.
+      try{ e.dataTransfer.setData('text/plain', t.dataset.partie); }catch(err){}
+      e.dataTransfer.effectAllowed = 'move';
+      state.partieGlissee = t.dataset.partie;
+      t.classList.add('en-vol');
+      // La classe est posée sur <body> : elle révèle les pupitres vides, qui
+      // sont ailleurs dans l'arbre que la tuile qu'on tient.
+      document.body.classList.add('deplace-partie');
+    });
+    t.addEventListener('dragend', ()=>{
+      t.classList.remove('en-vol');
+      document.body.classList.remove('deplace-partie');
+      el.querySelectorAll('.pup-groupe.survol').forEach(g => g.classList.remove('survol'));
+      state.partieGlissee = '';
+    });
+  });
+
+  el.querySelectorAll('.pup-groupe[data-pup-cible]').forEach(g => {
+    const cible = g.dataset.pupCible;
+    g.addEventListener('dragover', (e)=>{
+      if(!state.partieGlissee) return;
+      e.preventDefault();                       // sans quoi le lâcher n'arrive jamais
+      e.dataTransfer.dropEffect = 'move';
+      g.classList.add('survol');
+    });
+    // dragleave part aussi quand on survole un enfant : on ne retire la marque
+    // que si le curseur a réellement quitté le groupe.
+    g.addEventListener('dragleave', (e)=>{ if(!g.contains(e.relatedTarget)) g.classList.remove('survol'); });
+    g.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      g.classList.remove('survol');
+      const id = state.partieGlissee || (()=>{ try{ return e.dataTransfer.getData('text/plain'); }catch(err){ return ''; } })();
+      state.partieGlissee = '';
+      document.body.classList.remove('deplace-partie');
+      if(id) deplacerPartie(id, cible);
+    });
+  });
+}
+
+/* Le déplacement lui-même. Il passe par le ruban d'annulation comme tout ce
+   qui se défait ici : un glissé part vite, et la main se trompe de section
+   aussi vite. */
+async function deplacerPartie(id, pupitre){
+  const p = state.parties.find(x => x.id === id);
+  if(!p) return;
+  const avant = partitionsPupitreNormalise(p.pupitre);
+  const apres = partitionsPupitreNormalise(pupitre);
+  if(avant === apres) return;
+  p.pupitre = apres;
+  rendre();
+  await CurieuxDB.upsertOne('partitions_parties', p);
+  CurieuxAnnuler.proposer({
+    texte: `« ${p.nom} » passe de ${avant} à ${apres}`,
+    retablir: async ()=>{
+      p.pupitre = avant;
+      rendre();
+      await CurieuxDB.upsertOne('partitions_parties', p);
+    },
+    // Rien à purger : le pupitre est une colonne, pas une ligne. Le ruban
+    // n'est là que pour revenir en arrière.
+    purger: async ()=>{},
+  });
+}
+
+/* Reclasser d'un coup ce que la détection lit autrement aujourd'hui.
+
+   ON NE RECLASSE RIEN EN SILENCE, et c'est la seule façon que ce bouton soit
+   acceptable : quelqu'un a peut-être déplacé une partie À LA MAIN, exprès, et
+   une reprise automatique la remettrait d'où elle vient sans le dire. La fiche
+   liste donc chaque changement, ligne à ligne, toutes cochées ; on décoche ce
+   qu'on veut garder. */
+function ficheReclasser(){
+  const s = spectacleCourant();
+  if(!s) return;
+  const ecarts = ecartsDePupitre(partiesDe(s.id));
+  if(!ecarts.length){ curieuxFlash('Rien à reclasser.'); return; }
+  ouvrirFiche({
+    titre: 'Reclasser les parties',
+    sous: "Ce que le nom de chaque partie dit de son pupitre, comparé au classement enregistré. Décoche ce que tu as rangé toi-même : on ne remet rien en place sans que tu l'aies vu.",
+    libelleOk: 'Appliquer',
+    corps: `
+      <div style="display:flex;flex-direction:column;gap:2px;max-height:46vh;overflow:auto">
+        ${ecarts.map(e => `
+          <label class="co-check" style="gap:9px;padding:5px 2px;align-items:center">
+            <input type="checkbox" data-reclasse="${escapeAttr(e.partie.id)}" checked>
+            <span style="min-width:0;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+              <b style="font-weight:800">${escapeHtml(e.partie.nom)}</b>
+              ${partitionsPupitreHtml(e.de)}<span style="color:var(--muted)">→</span>${partitionsPupitreHtml(e.vers)}
+            </span>
+          </label>`).join('')}
+      </div>`,
+    valider: async (ov)=>{
+      const retenus = Array.from(ov.querySelectorAll('[data-reclasse]'))
+        .filter(c => c.checked).map(c => c.dataset.reclasse);
+      if(!retenus.length) return 'Rien de coché — décoche tout revient à annuler.';
+      const faits = ecarts.filter(e => retenus.includes(e.partie.id));
+      const avant = faits.map(e => ({ p: e.partie, pupitre: e.partie.pupitre }));
+      faits.forEach(e => { e.partie.pupitre = e.vers; });
+      rendre();
+      for(const e of faits) await CurieuxDB.upsertOne('partitions_parties', e.partie);
+      CurieuxAnnuler.proposer({
+        texte: `${faits.length} partie${faits.length > 1 ? 's reclassées' : ' reclassée'}`,
+        retablir: async ()=>{
+          avant.forEach(a => { a.p.pupitre = a.pupitre; });
+          rendre();
+          for(const a of avant) await CurieuxDB.upsertOne('partitions_parties', a.p);
+        },
+        purger: async ()=>{},
+      });
+      return '';
+    },
+  });
+}
+
 /* Affecter d'un coup les personnes cochées à une partie. C'est le geste qui
    remplace vingt sélecteurs — et il ne devine rien : la sélection est faite à
    la main, par quelqu'un qui sait qui joue quoi.
@@ -2640,31 +2864,57 @@ async function majSpectacle(champs){
 
 /* --- La partie ------------------------------------------------------------- */
 
-function fichePartie(){
+/* La fiche d'une partie — création, et MODIFICATION depuis la tuile.
+
+   La modification n'existait pas : un pupitre mal deviné ou un intitulé de
+   fichier illisible ne se corrigeaient qu'en retirant la partie, donc ses
+   fichiers, pour tout redéposer. C'est aussi le chemin du doigt, là où le
+   glisser-déposer ne se déclenche pas. */
+function fichePartie(existant){
   const s = spectacleCourant();
   if(!s) return;
-  const pupitres = ['', 'Cordes', 'Bois', 'Cuivres', 'Percussions', 'Chant', 'Autre'];
+  const p = existant || null;
+  const pupitres = PARTITIONS_PUPITRE_ORDRE;
+  const devine = p ? partitionsPupitreNormalise(partitionsPupitreDe(p.nom)) : '';
+  const range = p ? partitionsPupitreNormalise(p.pupitre) : '';
   ouvrirFiche({
-    titre: 'Ajouter une partie',
-    sous: "L'unité qu'on affecte : Violon 1, Cor 1-2, Piano, Conducteur. Le pupitre se devine du nom — corrige-le s'il se trompe.",
-    libelleOk: 'Ajouter',
+    titre: p ? 'Modifier la partie' : 'Ajouter une partie',
+    sous: p
+      ? "Le nom tel qu'il se lit au pupitre, et la famille à laquelle il appartient. Les fichiers déjà déposés suivent la partie — rien ne se redépose."
+      : "L'unité qu'on affecte : Violon 1, Cor 1-2, Piano, Conducteur. Le pupitre se devine du nom — corrige-le s'il se trompe.",
+    libelleOk: p ? 'Enregistrer' : 'Ajouter',
     corps: `
       <label class="co-label" for="fPartie">Nom de la partie</label>
-      <input class="co-input" id="fPartie" autocomplete="off" placeholder="Violon 1">
+      <input class="co-input" id="fPartie" autocomplete="off" placeholder="Violon 1" value="${escapeAttr(p ? p.nom : '')}">
       <label class="co-label" for="fPupitre" style="margin-top:12px">Pupitre</label>
       <select class="co-select" id="fPupitre">
-        <option value="">— deviné du nom —</option>
-        ${pupitres.filter(Boolean).map(p => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join('')}
-      </select>`,
+        ${p ? '' : '<option value="">— deviné du nom —</option>'}
+        ${pupitres.map(x => `<option value="${escapeAttr(x)}"${p && range === x ? ' selected' : ''}>${escapeHtml(x)}</option>`).join('')}
+      </select>
+      ${p && devine !== range && devine !== 'Autre'
+        ? `<p class="sous" style="margin:6px 0 0">D'après son nom, cette partie relèverait plutôt de <b>${escapeHtml(devine)}</b>.</p>` : ''}`,
     valider: async (ov)=>{
       const nom = ov.querySelector('#fPartie').value.trim();
       if(!nom) return 'Il faut un nom de partie.';
       const cle = partitionsNormaliser(nom);
-      if(partiesDe(s.id).some(p => partitionsNormaliser(p.nom) === cle))
+      if(partiesDe(s.id).some(x => x.id !== (p ? p.id : '') && partitionsNormaliser(x.nom) === cle))
         return 'Cette partie existe déjà dans ce spectacle.';
-      const p = creerPartieLocale(nom, ov.querySelector('#fPupitre').value);
+      const pupitre = ov.querySelector('#fPupitre').value;
+      if(p){
+        const renommee = partitionsNormaliser(p.nom) !== cle;
+        p.nom = nom;
+        p.pupitre = partitionsPupitreNormalise(pupitre || partitionsPupitreDe(nom));
+        // Une partie renommée reprend sa place dans l'ordre du conducteur :
+        // « 120 Oboe » devenu « Hautbois 1-2 » n'a plus à traîner en fin de
+        // liste avec ce qu'on n'a pas su classer.
+        if(renommee) p.ordre = partitionsOrdreDe(nom);
+        rendre();
+        await CurieuxDB.upsertOne('partitions_parties', p);
+        return '';
+      }
+      const neuve = creerPartieLocale(nom, pupitre);
       rendre();
-      await CurieuxDB.upsertOne('partitions_parties', p);
+      await CurieuxDB.upsertOne('partitions_parties', neuve);
       return '';
     },
   });
