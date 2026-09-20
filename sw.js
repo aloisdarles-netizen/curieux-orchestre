@@ -194,7 +194,19 @@
 // les cartes de spectacle s'afficheraient sans teinte, les tuiles de matériel
 // sans bordure de pupitre et la matrice sans colonne collante — un écran de
 // production illisible là où il doit justement montrer les trous.
-const VERSION = 'curieux-v133';
+// v134 : l'espace du chœur. Trois actifs communs changent ensemble, et aucun
+// ne suffit seul : base.css apprend la teinte --pup-choeur (sans elle, la
+// pastille du pupitre « Chœur » naît grise, comme « Autre » — la seule
+// distinction que l'écran fait entre le chœur et les solistes disparaît),
+// partitions-commun.js apprend l'ordre des tessitures, la reconnaissance du
+// pupitre et la mise en forme des tonalités (sans lui, partition-choeur.html
+// appelle partitionsTrierVoix et partitionsTonaliteLangue, qui n'existent pas
+// : la page du chef de chœur reste blanche), et db.js apprend `type`,
+// `effectif` et `tonalite` — sans quoi un lot de chœur relu depuis la base
+// repasse pour une transmission ordinaire. partitions.html et
+// partition-choeur.html sont des PAGES, servies réseau d'abord : c'est
+// l'incrément, et lui seul, qui leur donne les actifs qu'elles attendent.
+const VERSION = 'curieux-v134';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

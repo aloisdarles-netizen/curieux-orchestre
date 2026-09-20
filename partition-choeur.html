@@ -3,13 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Curieux orchestre — Matériel confié</title>
+<title>Curieux orchestre — Partitions du chœur</title>
 <meta name="robots" content="noindex, nofollow">
 <!-- Page volontairement PUBLIQUE : elle s'ouvre avec le jeton du lien, et le
      droit sur chaque fichier se vérifie en base (envoi_partitions) puis dans
-     /api/partition — jamais ici. Pas de PWA : le bibliothécaire d'un orchestre
-     étranger n'installe pas notre application, il vient une fois chercher un
-     jeu de parties. -->
+     /api/partition — jamais ici. Pas de PWA : un chef de chœur n'installe pas
+     notre application, il vient chercher un jeu de voix et il repart. -->
 <script src="assets/vendor/supabase-js.js"></script>
 <script src="assets/db.js"></script>
 <script src="assets/brand-assets.js"></script>
@@ -19,9 +18,8 @@
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
-  /* Une colonne, même sur grand écran. Un bibliothécaire travaille sur un
-     ordinateur, mais une liste de parties étirée sur 1 100 px met le poids du
-     fichier à vingt centimètres de son nom. */
+  /* Une colonne, même sur grand écran : une liste de quatre voix étirée sur
+     1 100 px met la tonalité à vingt centimètres du nom qu'elle qualifie. */
   .wrap{max-width:720px; margin:0 auto; padding-bottom:40px;}
   .entete{margin-bottom:16px;}
   .sous{color:var(--muted); font-size:13.5px; margin:4px 0 0; line-height:1.55;}
@@ -54,10 +52,25 @@
   }
   .bloc h2 .total{margin-left:auto; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:0;}
 
-  .pupitre{
-    margin:14px 0 6px; padding-top:10px; border-top:1px solid var(--border);
+  /* ---------------------------------------------------------------------
+     LA VOIX ET SA TONALITÉ.
+
+     La tonalité n'est pas un détail rangé en fin de ligne : c'est la première
+     chose qu'un chef de chœur vérifie en ouvrant le lien, avant même de
+     compter les pages. Elle est donc posée contre le nom de la voix, en
+     pastille, et non noyée dans la ligne de détail avec le poids du fichier.
+     Une voix sans tonalité n'affiche RIEN plutôt qu'un tiret : un tiret se
+     lit « pas de transposition », l'absence se lit « on ne nous l'a pas dit »
+     — et ce n'est pas la même chose à faire ensuite.
+     --------------------------------------------------------------------- */
+  .voix{margin:14px 0 6px; padding-top:10px; border-top:1px solid var(--border);}
+  .voix:first-of-type{border-top:none; padding-top:0; margin-top:4px;}
+  .voix-tete{display:flex; gap:9px; align-items:center; flex-wrap:wrap;}
+  .voix-tete .nom{font-weight:800; font-size:14.5px;}
+  .ton{
+    display:inline-block; font-size:11.5px; font-weight:800; padding:2px 9px; border-radius:999px;
+    background:var(--pup-choeur); color:var(--pup-choeur-ink); white-space:nowrap;
   }
-  .pupitre:first-of-type{border-top:none; padding-top:0; margin-top:4px;}
 
   .fic{
     display:flex; gap:10px; align-items:center; text-decoration:none; color:inherit;
@@ -107,129 +120,136 @@
 
 <script>
 /* ============================================================================
-   Le matériel confié à un ensemble tiers — la page du destinataire.
+   Les partitions du chœur — la page du chef de chœur.
    ============================================================================
-   Un orchestre étranger reprend le programme et a besoin du matériel pour
-   travailler. Ses cinquante musiciens ne sont pas les nôtres : ils n'ont ni
-   fiche dans l'annuaire, ni lien personnel, et leur en créer cinquante pour
-   une coproduction serait à la fois faux et ingérable. On confie donc le lot à
-   la MAISON, représentée par la personne qui en répond — son bibliothécaire,
-   son régisseur d'orchestre —, et c'est elle qui distribue en interne, comme
-   elle le fait déjà pour son propre matériel.
+   Un chœur invité — une maîtrise, un chœur régional, une chorale associée à la
+   production — n'a pas ses choristes dans notre annuaire, et il n'est pas
+   question d'écrire à quarante personnes. On remet le lot à la MAISON,
+   représentée par la personne qui en répond, et c'est elle qui distribue en
+   interne : c'est déjà ce qu'elle fait pour son propre répertoire.
 
-   CE QUE CETTE PAGE CHANGE, ET CE QU'ELLE NE CHANGE PAS
-   ----------------------------------------------------
-   Elle ne change RIEN au dispositif : le bucket reste privé, le fichier propre
-   ne sort jamais, chaque exemplaire est filigrané à la volée par
-   /api/partition et journalisé un par un. Seule la MENTION change — « confié
-   à », et le nom d'une maison plutôt que celui d'une personne. C'est le bon
-   niveau de responsabilité : un exemplaire qui ressort désigne l'ensemble qui
-   l'a reçu, et le contact nommé qui en a signé la réception.
+   CE QUI DISTINGUE CETTE PAGE DE CELLE DES ENSEMBLES TIERS
+   -------------------------------------------------------
+   Rien du dispositif : le bucket reste privé, le fichier propre ne sort
+   jamais, chaque exemplaire est filigrané à la volée par /api/partition et
+   journalisé un par un. Ce qui change, c'est CE QU'ON MONTRE.
+
+   1. LES VOIX SONT RANGÉES PAR TESSITURE, et non dans l'ordre du conducteur.
+      Soprano, alto, ténor, basse : c'est l'ordre que tout choriste connaît par
+      cœur. L'ordre du conducteur range « Alto » avec les cordes et donnait
+      « Soprano, Ténor, Basse, Alto » — un chef de chœur qui lit ça croit qu'il
+      manque une voix.
+   2. LA TONALITÉ EST EN TÊTE DE VOIX. C'est la première chose qu'il vérifie,
+      et la seule que le matériel d'orchestre n'a jamais besoin de porter.
+   3. LE LOT NE PORTE QUE LE CHŒUR. La base y veille (voir envoi_partitions) :
+      un lot de chœur « tout le spectacle » ne donne que les parties de chœur.
+      Ce n'est pas une politesse, c'est la règle — le matériel d'orchestre n'a
+      rien à faire chez une chorale, et une partie de location encore moins.
 
    POURQUOI ELLE EST BILINGUE
    --------------------------
-   Parce que le destinataire est, par construction, souvent étranger. Une page
-   en français devant un bibliothécaire de Tokyo ou de Leipzig, c'est un appel
-   téléphonique à la production et deux jours perdus. La langue se devine du
-   navigateur, se change d'un bouton, et se retient.
+   Pour la même raison que la page des ensembles tiers : une coproduction
+   amène des chœurs qui ne lisent pas le français, et une page en français
+   devant un Chorleiter de Leipzig, c'est un appel téléphonique et deux jours
+   perdus. La langue se devine du navigateur, se change d'un bouton, se retient.
 
    L'ARCHIVE EST ASSEMBLÉE ICI, dans ce navigateur (voir assets/zip.js) : les
-   parties sont récupérées une par une, filigranées chacune côté serveur, puis
+   voix sont récupérées une par une, filigranées chacune côté serveur, puis
    rangées localement. Aucun plafond de fonction serverless n'est approché, et
    une coupure en cours de route laisse tout le reste téléchargeable à l'unité.
 ============================================================================ */
 
 const params = new URLSearchParams(location.search);
-const JETON = params.get('e') || params.get('envoi') || '';
+const JETON = params.get('c') || params.get('choeur') || params.get('e') || '';
 
 /* Les deux langues, côte à côte. Pas de fichier de traduction ni de mécanique :
    une trentaine de chaînes, lues et corrigées d'un coup d'œil. Une chaîne
    manquante retombe sur le français plutôt que d'afficher sa clé. */
 const TEXTES = {
   fr: {
-    titre: 'Matériel confié',
-    pourEnsemble: (e)=> `Matériel confié à ${e}`,
-    sousTitre: 'Le jeu de parties que nous vous transmettons pour travail.',
+    titre: 'Partitions du chœur',
+    pourEnsemble: (e)=> `Partitions — ${e}`,
+    sousTitre: 'Les voix que nous vous transmettons pour le travail de votre chœur.',
     lienInvalide: "Ce lien n’est pas valide. Reprenez celui qui vous a été envoyé, ou demandez-nous de vous le renvoyer.",
-    /* Un lien de chœur ouvert ici n'est pas une erreur du destinataire : c'est
-       une adresse recopiée de travers, ou notre mail qui portait la mauvaise.
-       On l'emmène au bon endroit, d'un clic, plutôt que de lui faire rappeler
-       la production — et on ne montre rien du lot ici, parce que ce n'est pas
-       la page qui le décrit. */
-    mauvaisePage: 'Ce lien ouvre les voix d’un chœur, et non un lot de matériel d’orchestre.',
-    mauvaisePageLien: 'Ouvrir la page des partitions du chœur',
     pasActive: "Cette page n’est pas encore active sur ce serveur. Prévenez la production — il lui reste une mise à jour à appliquer.",
-    revoque: "Ce lien a été révoqué par la production. Contactez-nous avant de chercher le matériel ailleurs.",
+    revoque: "Ce lien a été révoqué par la production. Contactez-nous avant de chercher les partitions ailleurs.",
     expire: (d)=> `Ce lien a expiré le ${d}. Contactez-nous pour le rouvrir si vous en avez encore besoin.`,
-    pasOuvert: (d)=> `Le matériel sera disponible à partir du ${d}.`,
+    pasOuvert: (d)=> `Les partitions seront disponibles à partir du ${d}.`,
+    /* Un lien de transmission ouvert ici n'est pas une erreur du destinataire :
+       c'est une adresse recopiée de travers, ou notre mail qui portait la
+       mauvaise. On ne dit donc pas « lien invalide » — on l'emmène au bon
+       endroit, d'un clic, plutôt que de lui faire rappeler la production. */
+    mauvaisePage: 'Ce lien ouvre un lot de matériel d’orchestre, et non les voix d’un chœur.',
+    mauvaisePageLien: 'Ouvrir la page du matériel confié',
     codeTitre: 'Code d’accès',
     codeAide: "Le code vous a été communiqué séparément de ce lien. Vous ne le saisissez qu’une fois : il est retenu quatorze jours sur cet appareil.",
     codeChamp: 'code',
     ouvrir: 'Ouvrir',
     oublier: 'oublier le code',
-    nomTitre: 'Nom du musicien qui reçoit cet exemplaire',
-    nomAide: "Ce lot est distribué nominativement : chaque exemplaire porte le nom du musicien auquel il est remis. Saisissez-le avant de télécharger — il s’inscrit sur la partition et dans notre registre.",
-    nomChamp: 'Prénom et nom du musicien',
-    nomManque: 'Saisissez d’abord le nom du musicien auquel cet exemplaire est remis.',
+    nomTitre: 'Nom du ou de la choriste qui reçoit cet exemplaire',
+    nomAide: "Ces partitions sont distribuées nominativement : chaque exemplaire porte le nom du ou de la choriste à qui il est remis. Saisissez-le avant de télécharger — il s’inscrit sur la partition et dans notre registre.",
+    nomChamp: 'Prénom et nom',
+    nomManque: 'Saisissez d’abord le nom du ou de la choriste à qui cet exemplaire est remis.',
     codeInvalide: "Ce code ne ressemble pas à l’un des nôtres : lettres et chiffres uniquement, sans espace. Reprenez celui qui vous a été communiqué.",
     nomInvalide: 'Ce nom contient des caractères que nous ne pouvons pas inscrire sur la partition. Lettres, espaces, traits d’union, apostrophes, points et virgules — de deux à soixante caractères.',
-    lot: 'Le lot',
-    partiesN: (n)=> `${n} partie${n > 1 ? 's' : ''}`,
+    lot: 'Les voix',
+    voixN: (n)=> `${n} voix`,
     fichiersN: (n)=> `${n} fichier${n > 1 ? 's' : ''}`,
     toutPrendre: 'Tout télécharger (.zip)',
-    pasDArchive: "Ce lot est distribué nominativement : il se prend partie par partie, chacune au nom du musicien qui la reçoit. Une archive complète porterait le même nom sur tout le jeu, et le registre désignerait quelqu’un qui n’a jamais eu ces parties.",
+    pasDArchive: "Ces partitions sont distribuées nominativement : elles se prennent une par une, chacune au nom de la personne qui la reçoit. Une archive complète porterait le même nom sur tout le jeu, et le registre désignerait quelqu’un qui n’a jamais eu ces partitions.",
     enCours: (a, b)=> `Préparation ${a} / ${b}…`,
     echecPartiel: (n)=> n > 1
       ? `${n} fichiers n’ont pas pu être préparés et ne sont pas dans l’archive. Reprenez-les à l’unité.`
       : "Un fichier n’a pas pu être préparé et ne figure pas dans l’archive. Reprenez-le à l’unité.",
-    echecTotal: "Le téléchargement a échoué. Vérifiez le code, puis réessayez — ou prenez les parties à l’unité.",
-    archiveImpossible: "Ce lot est trop lourd pour être assemblé en une seule archive sur cet appareil. Prenez les parties à l’unité — elles sont toutes dans la liste ci-dessous.",
-    rien: "Aucune partie n’est encore déposée dans ce lot. Nous vous prévenons dès que c’est fait.",
+    echecTotal: "Le téléchargement a échoué. Vérifiez le code, puis réessayez — ou prenez les voix à l’unité.",
+    archiveImpossible: "Ce jeu est trop lourd pour être assemblé en une seule archive sur cet appareil. Prenez les voix à l’unité — elles sont toutes dans la liste ci-dessous.",
+    rien: "Aucune voix n’est encore déposée. Nous vous prévenons dès que c’est fait.",
     expireLe: (d)=> `à télécharger avant le ${d}`,
     pages: (n)=> `${n} page${n > 1 ? 's' : ''}`,
     /* Les poids aussi se traduisent : « 18,4 Mo » se lit comme une coquille
-       devant un bibliothécaire de Leipzig — l’unité et la virgule décimale
+       devant un chef de chœur de Leipzig — l’unité et la virgule décimale
        sont françaises, et tout le reste de la page est dans sa langue. */
     poids: (o)=> partitionsPoids(o),
-    piedFiligrane: "Chaque exemplaire téléchargé porte le nom de votre ensemble, en tête et en pied de page, ainsi qu’une marque invisible qui permet d’identifier l’origine d’un exemplaire qui circulerait. La musique n’est jamais recouverte.",
-    piedUsage: (avecDate)=> "Ce matériel vous est confié pour le seul travail convenu entre nos deux maisons. Il n’a pas à être rediffusé au-delà de votre ensemble, ni conservé "
+    piedTonalite: "Les tonalités indiquées sont celles du matériel transmis. Si l’une d’elles ne correspond pas à ce qui a été convenu avec la direction musicale, prévenez-nous avant de faire travailler le chœur : une voix apprise dans le mauvais ton se réapprend rarement.",
+    piedFiligrane: "Chaque exemplaire téléchargé porte le nom de votre chœur, en tête et en pied de page, ainsi qu’une marque invisible qui permet d’identifier l’origine d’un exemplaire qui circulerait. La musique n’est jamais recouverte.",
+    piedUsage: (avecDate)=> "Ces partitions vous sont remises pour le seul travail convenu entre nos deux maisons. Elles n’ont pas à être rediffusées au-delà de vos choristes, ni conservées "
       + (avecDate ? 'au-delà de la date indiquée ci-dessus.' : 'au-delà du travail convenu.'),
-    piedContact: "Une partie manquante, une version qui ne correspond pas à ce que vous attendez ? Écrivez à la personne qui vous a transmis ce lien — ne cherchez pas le matériel ailleurs.",
+    piedContact: "Une voix manquante, une version qui ne correspond pas à ce que vous attendez ? Écrivez à la personne qui vous a transmis ce lien — ne cherchez pas les partitions ailleurs.",
   },
   en: {
-    titre: 'Material entrusted',
-    pourEnsemble: (e)=> `Material entrusted to ${e}`,
-    sousTitre: 'The set of parts we are sending you to work from.',
+    titre: 'Choir parts',
+    pourEnsemble: (e)=> `Choir parts — ${e}`,
+    sousTitre: 'The voice parts we are sending you for your choir to work from.',
     lienInvalide: 'This link is not valid. Please use the one we sent you, or ask us to send it again.',
-    mauvaisePage: 'This link opens a choir’s voice parts, not a set of orchestral material.',
-    mauvaisePageLien: 'Open the choir parts page',
     pasActive: 'This page is not active on this server yet. Please let the production office know — an update is still pending.',
-    revoque: 'This link has been revoked by the production office. Please contact us before looking for the material elsewhere.',
+    revoque: 'This link has been revoked by the production office. Please contact us before looking for the parts elsewhere.',
     expire: (d)=> `This link expired on ${d}. Contact us if you still need it and we will reopen it.`,
-    pasOuvert: (d)=> `The material will be available from ${d}.`,
+    pasOuvert: (d)=> `The parts will be available from ${d}.`,
+    mauvaisePage: 'This link opens a set of orchestral material, not a choir’s voice parts.',
+    mauvaisePageLien: 'Open the orchestral material page',
     codeTitre: 'Access code',
     codeAide: 'The code was sent to you separately from this link. You only enter it once: it is remembered on this device for fourteen days.',
     codeChamp: 'code',
     ouvrir: 'Open',
     oublier: 'forget the code',
-    nomTitre: 'Name of the player receiving this copy',
-    nomAide: 'This set is distributed by name: each copy carries the name of the player it is handed to. Enter it before downloading — it is printed on the part and recorded in our register.',
-    nomChamp: 'Player’s first and last name',
-    nomManque: 'Please enter the name of the player receiving this copy first.',
+    nomTitre: 'Name of the singer receiving this copy',
+    nomAide: 'These parts are distributed by name: each copy carries the name of the singer it is handed to. Enter it before downloading — it is printed on the part and recorded in our register.',
+    nomChamp: 'First and last name',
+    nomManque: 'Please enter the name of the singer receiving this copy first.',
     codeInvalide: 'This does not look like one of our codes: letters and digits only, no spaces. Please use the one we sent you.',
     nomInvalide: 'This name contains characters we cannot print on the part. Letters, spaces, hyphens, apostrophes, full stops and commas — between two and sixty characters.',
-    lot: 'The set',
-    partiesN: (n)=> `${n} part${n > 1 ? 's' : ''}`,
+    lot: 'Voice parts',
+    voixN: (n)=> `${n} voice part${n > 1 ? 's' : ''}`,
     fichiersN: (n)=> `${n} file${n > 1 ? 's' : ''}`,
     toutPrendre: 'Download everything (.zip)',
-    pasDArchive: 'This set is distributed by name, so it is downloaded part by part, each under the name of the player receiving it. A single archive would carry one name across the whole set, and our register would point to someone who never received those parts.',
+    pasDArchive: 'These parts are distributed by name, so they are downloaded one at a time, each under the name of the singer receiving it. A single archive would carry one name across the whole set, and our register would point to someone who never received those parts.',
     enCours: (a, b)=> `Preparing ${a} / ${b}…`,
     echecPartiel: (n)=> n > 1
       ? `${n} files could not be prepared and are missing from the archive. Please download them individually.`
       : 'One file could not be prepared and is missing from the archive. Please download it individually.',
-    echecTotal: 'The download failed. Check the code and try again — or download the parts individually.',
-    archiveImpossible: 'This set is too large to be packed into a single archive on this device. Please download the parts individually — they are all listed below.',
-    rien: 'No part has been uploaded to this set yet. We will let you know as soon as it is done.',
+    echecTotal: 'The download failed. Check the code and try again — or download the voice parts individually.',
+    archiveImpossible: 'This set is too large to be packed into a single archive on this device. Please download the voice parts individually — they are all listed below.',
+    rien: 'No voice part has been uploaded yet. We will let you know as soon as it is done.',
     expireLe: (d)=> `available until ${d}`,
     pages: (n)=> `${n} page${n > 1 ? 's' : ''}`,
     poids: (o)=> {
@@ -241,25 +261,23 @@ const TEXTES = {
       if(mo < 1024) return mo.toFixed(0) + ' MB';
       return (mo / 1024).toFixed(2) + ' GB';
     },
-    piedFiligrane: 'Every copy downloaded carries your ensemble’s name at the top and bottom of each page, together with an invisible mark that identifies the origin of any copy found in circulation. The music itself is never covered.',
-    piedUsage: (avecDate)=> 'This material is entrusted to you for the agreed work only. It must not be passed on beyond your ensemble, nor kept '
+    piedTonalite: 'The keys shown are those of the material as sent. If any of them does not match what was agreed with the musical director, please tell us before your choir starts work: a part learnt in the wrong key is rarely relearnt.',
+    piedFiligrane: 'Every copy downloaded carries your choir’s name at the top and bottom of each page, together with an invisible mark that identifies the origin of any copy found in circulation. The music itself is never covered.',
+    piedUsage: (avecDate)=> 'These parts are entrusted to you for the agreed work only. They must not be passed on beyond your singers, nor kept '
       + (avecDate ? 'beyond the date shown above.' : 'beyond the agreed work.'),
-    piedContact: 'A missing part, or a version that does not match what you expect? Write to the person who sent you this link — please do not look for the material elsewhere.',
+    piedContact: 'A missing voice part, or a version that does not match what you expect? Write to the person who sent you this link — please do not look for the parts elsewhere.',
   },
 };
 
-const CLE_LANGUE = 'curieuxEnvoiLangue';
-const CLE_CODE = 'curieuxEnvoiCode:' + JETON;
-/* PAS DE CLÉ POUR LE NOM, et c'est délibéré. Le code, lui, se retient
-   quatorze jours : il désigne le LOT, il ne change pas d'un exemplaire à
-   l'autre. Le nom désigne UNE personne, et un nom retenu d'une session sur
-   l'autre est un exemplaire qui repart au nom du précédent — le registre
-   désigne alors quelqu'un qui n'a jamais reçu cette partie, ce qui est pire
-   que pas de registre du tout. Il vit le temps de la page, et se retape. */
+const CLE_LANGUE = 'curieuxEnvoiLangue';       // la même que l'autre page : une maison, une langue choisie
+const CLE_CODE = 'curieuxChoeurCode:' + JETON;
+/* PAS DE CLÉ POUR LE NOM, et c'est délibéré. Le code, lui, se retient quatorze
+   jours : il désigne le LOT, il ne change pas d'un exemplaire à l'autre. Le nom
+   désigne UNE personne, et un nom retenu d'une session sur l'autre est un
+   exemplaire qui repart au nom du précédent — le registre désigne alors
+   quelqu'un qui n'a jamais reçu cette partition, ce qui est pire que pas de
+   registre du tout. Il vit le temps de la page, et se retape. */
 
-/* Le français par défaut pour un navigateur francophone, l'anglais pour tous
-   les autres : c'est le partage juste quand on envoie à l'étranger. Le choix
-   explicite l'emporte et se retient. */
 function langueInitiale(){
   try{
     const retenu = localStorage.getItem(CLE_LANGUE);
@@ -272,10 +290,8 @@ function langueInitiale(){
 let LANGUE = langueInitiale();
 function T(cle){ return TEXTES[LANGUE][cle] !== undefined ? TEXTES[LANGUE][cle] : TEXTES.fr[cle]; }
 
-/* Le code et le nom sont retenus quatorze jours, comme côté musicien : le
-   temps d'une production, pas celui d'une saison. Tout est enveloppé — le
-   stockage lève en navigation privée, et une commodité ne doit jamais casser
-   la page. */
+/* Tout est enveloppé — le stockage lève en navigation privée, et une commodité
+   ne doit jamais casser la page. */
 function lireRetenu(cle){
   try{
     const j = JSON.parse(localStorage.getItem(cle) || 'null');
@@ -296,11 +312,11 @@ function jourLisible(iso){
 }
 
 let CHARGE = null;
-/* L'archive en cours n'est PAS un état du DOM. Basculer la langue ou oublier
-   le code reconstruit l'écran pendant la préparation : le nouveau bouton
-   naissait actif, un second clic relançait les trente-deux parties, et le
-   registre comptait chaque exemplaire deux fois — au nom du même ensemble, ce
-   qui est exactement ce qu'un registre de traçabilité ne doit pas faire. */
+/* L'archive en cours n'est PAS un état du DOM. Basculer la langue ou oublier le
+   code reconstruit l'écran pendant la préparation : le nouveau bouton naissait
+   actif, un second clic relançait les quatre voix, et le registre comptait
+   chaque exemplaire deux fois — au nom du même chœur, ce qui est exactement ce
+   qu'un registre de traçabilité ne doit pas faire. */
 let ARCHIVE_EN_COURS = false;
 /* Un refus survenu avant le chargement doit lui aussi suivre la langue : la
    page bilingue restait en français devant le seul public qui ne la lit pas. */
@@ -325,7 +341,9 @@ function rendreLangues(){
   });
 }
 
-/* L'URL d'un exemplaire. Le code et le nom y passent en clair : c'est une
+/* L'URL d'un exemplaire. Le paramètre reste `envoi` : les deux espaces
+   partagent la même table, la même autorisation et le même journal — deux
+   écrans, un seul dispositif. Le code et le nom y passent en clair : c'est une
    requête vers notre propre serveur, en HTTPS, et c'est là que la base les
    vérifie. Un lien recopié sans le code ne donne rien. */
 function urlFichier(fichierId){
@@ -335,18 +353,20 @@ function urlFichier(fichierId){
   return u;
 }
 
-/* Le nom d'un fichier dans l'archive. « Violon 1.pdf » et non l'identifiant de
-   stockage : c'est ce que le bibliothécaire va voir dans son dossier, puis
-   dans son logiciel de pupitre. Le titre du fichier n'est ajouté que s'il
-   apporte quelque chose — une partie qui ne porte qu'un fichier nommé comme
-   elle donnerait « Violon 1 — Violon 1 ». */
+/* Le nom d'un fichier dans l'archive. « Soprano.pdf » et non l'identifiant de
+   stockage : c'est ce que le chef de chœur va voir dans son dossier, puis dans
+   ce qu'il distribue. Le titre n'est ajouté que s'il apporte quelque chose —
+   une voix qui ne porte qu'un fichier nommé comme elle donnerait
+   « Soprano — Soprano ». */
 function nomArchive(partie, fichier){
   const titre = (fichier.titre || '').trim();
   const ajout = titre && (partie.fichiers || []).length > 1
     && titre.toLowerCase() !== (partie.nom || '').trim().toLowerCase()
     ? ' - ' + titre : '';
-  return `${partie.nom || 'Partie'}${ajout}.pdf`;
+  return `${partie.nom || 'Voix'}${ajout}.pdf`;
 }
+
+const ton = (valeur)=> partitionsTonaliteLangue(valeur, LANGUE);
 
 function rendre(){
   rendreLangues();
@@ -358,49 +378,45 @@ function rendre(){
   // lot soit revenu de la base. Sans ce garde-fou, la page se vide.
   if(!c) return;
 
-  // Un lien de chœur ouvert ici : on l'emmène à sa page plutôt que de lui
-  // faire lire « lien invalide » alors qu'il a le bon lien.
-  if(c.type === 'choeur'){
+  /* UN LIEN DE TRANSMISSION OUVERT ICI. Ce n'est pas une erreur du
+     destinataire : c'est une adresse recopiée de travers. On l'emmène au bon
+     endroit plutôt que de lui faire rappeler la production — et on ne montre
+     RIEN du lot ici, parce que ce n'est pas la page qui le décrit. */
+  if(c.type && c.type !== 'choeur'){
     etat(escapeHtml(T('mauvaisePage'))
-      + `<br><br><a class="co-btn sm primary" href="partition-choeur.html?c=${escapeAttr(encodeURIComponent(JETON))}">${escapeHtml(T('mauvaisePageLien'))}</a>`);
+      + `<br><br><a class="co-btn sm primary" href="partition-envoi.html?e=${escapeAttr(encodeURIComponent(JETON))}">${escapeHtml(T('mauvaisePageLien'))}</a>`);
     return;
   }
 
-  /* Les trois refus, dits en toutes lettres. « Lien invalide » devant
-     quelqu'un qui a le bon lien mais un lot expiré la veille, c'est un appel
-     téléphonique et une matinée perdue des deux côtés.
-
-     LE MOTIF VIENT DE LA BASE, jamais d'un calcul refait ici. La page compare
-     avec l'horloge du navigateur ; la base avec la sienne. Un bibliothécaire à
-     New York le 1er décembre au soir est déjà le 2 pour nous : les deux juges
-     se contredisaient, et l'écran affichait « disponible à partir du . » — une
-     phrase sans date. `etat` n'existe pas sur une base dont la migration est
-     plus ancienne : on retombe alors sur ce qu'on sait. */
+  /* Les trois refus, dits en toutes lettres. LE MOTIF VIENT DE LA BASE, jamais
+     d'un calcul refait ici : la page compare avec l'horloge du navigateur, la
+     base avec la sienne, et un chef de chœur à Montréal le 1er décembre au soir
+     est déjà le 2 pour nous. Un seul juge, et il dit son motif. `etat` n'existe
+     pas sur une base dont la migration est plus ancienne : on retombe alors sur
+     ce qu'on sait. */
   const etatLot = c.etat || (!c.actif ? 'revoque' : c.ouvert ? 'ouvert' : c.ouvertLe ? 'attente' : 'expire');
   if(etatLot === 'revoque'){ etat(escapeHtml(T('revoque'))); return; }
   if(etatLot === 'expire'){
     etat(escapeHtml(c.expireLe ? T('expire')(jourLisible(c.expireLe)) : T('revoque'))); return;
   }
-  /* La base peut fermer un lot pour une raison que la page n'a pas vue : elle
-     compare à SA date du jour, la page à celle du navigateur, et un
-     bibliothécaire à New York ouvre son lien le 1er décembre au soir quand il
-     est déjà le 2 à Paris. Sans ce repli, la page annonçait « disponible à
-     partir du . » — une phrase sans date, qui ne veut rien dire. */
   if(etatLot !== 'ouvert'){
     etat(escapeHtml(c.ouvertLe ? T('pasOuvert')(jourLisible(c.ouvertLe)) : T('revoque')));
     return;
   }
 
-  const parties = c.parties || [];
-  const fichiers = parties.reduce((s, p)=> s + (p.fichiers || []).length, 0);
-  const poids = parties.reduce((s, p)=> s + (p.fichiers || []).reduce((t, f)=> t + (f.octets || 0), 0), 0);
+  /* L'ORDRE DES TESSITURES, et non celui du conducteur : voir l'en-tête. La
+     base renvoie les voix dans l'ordre du matériel ; c'est ici qu'on les remet
+     dans celui que le chœur connaît. */
+  const voix = partitionsTrierVoix(c.parties || []);
+  const fichiers = voix.reduce((s, p)=> s + (p.fichiers || []).length, 0);
+  const poids = voix.reduce((s, p)=> s + (p.fichiers || []).reduce((t, f)=> t + (f.octets || 0), 0), 0);
 
   const contexte = [c.spectacle, c.compositeur, c.operation].filter(Boolean).join(' · ');
   document.getElementById('sousTitre').innerHTML =
     escapeHtml(T('sousTitre'))
     + (contexte ? `<br><strong style="color:var(--text)">${escapeHtml(contexte)}</strong>` : '')
     + `<span class="bandeau">
-        <span class="etiq ok">${escapeHtml(T('partiesN')(parties.length))}</span>
+        <span class="etiq ok">${escapeHtml(T('voixN')(voix.length))}</span>
         <span>${escapeHtml(T('fichiersN')(fichiers))} · ${escapeHtml(T('poids')(poids))}</span>
         ${c.expireLe ? `<span class="etiq att">${escapeHtml(T('expireLe')(jourLisible(c.expireLe)))}</span>` : ''}
       </span>`;
@@ -455,29 +471,38 @@ function rendre(){
   if(!fichiers){
     html += `<p class="rien">${escapeHtml(T('rien'))}</p>`;
   } else {
-    /* Le groupement par pupitre est celui de partitions-commun.js, donc le
-       même que dans l'espace des musiciens, teintes comprises. Regrouper
-       vraiment — au lieu de poser un titre chaque fois que la valeur change —
-       évite aussi le « Cordes » affiché deux fois quand une partie revient
-       plus bas dans l'ordre du conducteur. */
-    partitionsGrouperParPupitre(parties).forEach(groupe => {
-      html += `<div class="pupitre">${partitionsPupitreHtml(groupe.pupitre)}</div>`;
-      groupe.parties.forEach(p => {
+    voix.forEach(p => {
+      const tonVoix = ton(p.tonalite);
+      html += `<div class="voix"><div class="voix-tete">
+        <span class="nom">${escapeHtml(p.nom)}</span>
+        ${tonVoix ? `<span class="ton">${escapeHtml(tonVoix)}</span>` : ''}
+      </div>`;
       (p.fichiers || []).forEach(f => {
-        const detail = [T('poids')(f.octets), f.pages ? T('pages')(f.pages) : ''].filter(Boolean).join(' · ');
+        /* La tonalité du numéro ne se répète PAS quand elle est celle de la
+           voix : une colonne où « Ré♭ majeur » revient huit fois ne se lit
+           plus, et c'est précisément la neuvième — celle qui diffère — qu'on
+           cherche. Elle ne s'écrit donc que là où elle apporte quelque chose. */
+        const tonFic = ton(f.tonalite);
+        const detail = [
+          tonFic && tonFic !== tonVoix ? tonFic : '',
+          T('poids')(f.octets),
+          f.pages ? T('pages')(f.pages) : '',
+        ].filter(Boolean).join(' · ');
         const nom = nomArchive(p, f).replace(/\.pdf$/, '');
         html += `<a class="fic${pret ? '' : ' inerte'}" ${pret ? `href="${escapeAttr(urlFichier(f.id))}" download` : 'href="#" aria-disabled="true"'}>
           <span class="fic-nom">${escapeHtml(nom)}<span class="fic-det">${escapeHtml(detail)}</span></span>
           <span class="fic-fleche">↓</span>
         </a>`;
       });
-      });
+      html += '</div>';
     });
   }
   html += '</section>';
 
+  const aUneTonalite = voix.some(p => ton(p.tonalite) || (p.fichiers || []).some(f => ton(f.tonalite)));
   document.getElementById('contenu').innerHTML = html;
   document.getElementById('pied').innerHTML = `<div class="pied">
+    ${aUneTonalite ? `<p>${escapeHtml(T('piedTonalite'))}</p>` : ''}
     <p>${escapeHtml(T('piedFiligrane'))}</p>
     <p><strong>${escapeHtml(T('piedUsage')(!!c.expireLe))}</strong></p>
     ${c.note ? `<p>${escapeHtml(c.note)}</p>` : ''}
@@ -489,9 +514,9 @@ function rendre(){
 
 function cabler(){
   /* Un formulaire qui ne fait RIEN quand on valide se lit comme une panne.
-     C'était le cas des deux : saisie refusée, champ repris, aucun mot. Un
-     bibliothécaire à l'étranger, devant un écran qui ne réagit pas, appelle
-     la production — ou renonce. */
+     C'était le cas des deux : saisie refusée, champ repris, aucun mot. Un chef
+     de chœur devant un écran qui ne réagit pas appelle la production — ou
+     renonce, et fait travailler son chœur sur une photocopie. */
   const dire = (id, message)=>{
     const zone = document.getElementById(id);
     if(zone) zone.textContent = message;
@@ -518,8 +543,8 @@ function cabler(){
     /* Le même jeu de caractères que celui qu'accepte /api/partition : refuser
        ici évite un 400 incompréhensible après trente secondes d'attente. La
        VIRGULE en fait partie — « Müller, Anna » est la forme courante des
-       bibliothèques d'orchestre allemandes, et la refuser sans un mot était le
-       plus sûr moyen de bloquer quelqu'un. */
+       listes de chœur allemandes, et la refuser sans un mot était le plus sûr
+       moyen de bloquer quelqu'un. */
     if(!/^[\p{L}\p{M}\s'’.·,-]{2,60}$/u.test(v)){
       dire('errNom', T('nomInvalide'));
       champ.focus();
@@ -538,11 +563,11 @@ function cabler(){
   if(btnTout) btnTout.onclick = toutTelecharger;
 }
 
-/* Tout prendre d'un coup. Chaque partie est récupérée séparément — donc
-   filigranée et journalisée séparément, comme si le bibliothécaire les avait
+/* Tout prendre d'un coup. Chaque voix est récupérée séparément — donc
+   filigranée et journalisée séparément, comme si le chef de chœur les avait
    prises une par une — puis rangée dans une archive assemblée ici. On ne
-   parallélise PAS : /api/partition pose un filigrane par appel, et trente
-   appels simultanés feraient tomber la fonction plutôt que d'aller plus vite. */
+   parallélise PAS : /api/partition pose un filigrane par appel, et huit appels
+   simultanés feraient tomber la fonction plutôt que d'aller plus vite. */
 async function toutTelecharger(){
   const c = CHARGE;
   if(ARCHIVE_EN_COURS) return;
@@ -550,7 +575,7 @@ async function toutTelecharger(){
   const btn = document.getElementById('btnTout');
   const progres = document.getElementById('progres');
   const aPrendre = [];
-  (c.parties || []).forEach(p => (p.fichiers || []).forEach(f => aPrendre.push({ partie: p, fichier: f })));
+  partitionsTrierVoix(c.parties || []).forEach(p => (p.fichiers || []).forEach(f => aPrendre.push({ partie: p, fichier: f })));
   if(!aPrendre.length) return;
 
   ARCHIVE_EN_COURS = true;
@@ -566,7 +591,7 @@ async function toutTelecharger(){
       if(!rep.ok) throw new Error('HTTP ' + rep.status);
       entrees.push({ nom: nomArchive(partie, fichier), octets: await rep.arrayBuffer() });
     }catch(e){
-      console.warn('[envoi] ', fichier.id, e && e.message);
+      console.warn('[choeur] ', fichier.id, e && e.message);
       echecs.push(fichier.id);
     }
   }
@@ -578,15 +603,15 @@ async function toutTelecharger(){
 
   if(!entrees.length){ alert(T('echecTotal')); return; }
   /* L'assemblage peut échouer là où rien d'autre n'échoue : un matériel
-     d'opéra dépasse ce qu'un navigateur accepte d'allouer d'un bloc. Sans ce
-     filet, toutes les parties avaient été filigranées ET inscrites au
-     registre, et l'écran revenait au repos sans un mot — le bibliothécaire
-     croit avoir téléchargé, nous croyons qu'il l'a fait. */
+     d'oratorio dépasse ce qu'un navigateur accepte d'allouer d'un bloc. Sans ce
+     filet, toutes les voix avaient été filigranées ET inscrites au registre, et
+     l'écran revenait au repos sans un mot — le chef de chœur croit avoir
+     téléchargé, nous croyons qu'il l'a fait. */
   try {
     const nomLot = [c.spectacle || 'Partitions', c.destinataire].filter(Boolean).join(' - ') + '.zip';
     CurieuxZip.enregistrer(CurieuxZip.creer(entrees), nomLot);
   } catch(e) {
-    console.error('[envoi] archive', e && e.message);
+    console.error('[choeur] archive', e && e.message);
     alert(T('archiveImpossible'));
     return;
   }

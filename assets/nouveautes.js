@@ -33,6 +33,20 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-20-1',
+    titre: 'L\'espace du chœur',
+    points: [
+      "Un spectacle qui porte un chœur ne se distribue pas comme un spectacle qui n'en porte pas : ses voix ne sont pas des parties d'orchestre, et le chœur est presque toujours un ensemble extérieur dont les choristes ne sont pas dans notre annuaire. La fiche du spectacle gagne un bloc « Le chœur », et la page un quatrième onglet.",
+      "Un pupitre « Chœur » s'ajoute, DISTINCT de « Chant » qui désigne les solistes. La distinction n'est pas cosmétique : un lot de chœur « tout le chœur » ne porte QUE les voix — jamais le matériel d'orchestre, même par mégarde. La règle est en base, pas seulement dans l'écran.",
+      "LA TONALITÉ se note enfin quelque part. Sur la voix quand tout le jeu est dans un ton, sur le numéro quand un seul descend d'un demi-ton. C'est la première chose qu'un chef de chœur demande, la seule que le matériel d'orchestre n'a jamais besoin de porter, et jusqu'ici elle se perdait entre la réunion où elle se décide et le mail où on la redemande. « reb M », « Eb major », « fa# mineur » se saisissent comme ils viennent et se relisent tous de la même façon.",
+      "Le chef ou la cheffe de chœur reçoit une page à lui, en français ou en anglais : ses voix rangées dans l'ordre des tessitures — soprano, alto, ténor, basse, et non l'ordre du conducteur, qui met les altos avec les cordes —, leurs tonalités en tête, et tout se prend d'un bloc en une archive ou voix par voix.",
+      "Rien n'est assoupli : le fichier propre ne sort jamais du stockage, chaque exemplaire est filigrané à la volée au nom du chœur et journalisé un par un. Lien, code communiqué séparément, date de fin, révocation immédiate — le dispositif est celui des transmissions, parce que c'est le bon.",
+      "L'effectif annoncé se saisit là où on parle au chœur, et non par mail trois semaines avant : c'est lui qui chiffre les loges, le transport et les repas. L'onglet « Chœurs » l'additionne sur les lots ouverts.",
+      "Deux boutons préparent le mail au chef de chœur, en français ou en anglais : le lien, les voix, leurs tonalités, la fenêtre d'accès, les conditions d'usage — et la demande d'effectif. Le code, lui, reste à envoyer par un autre canal, comme partout ailleurs.",
+      "Le même garde-fou que pour les orchestres invités : un chœur est un TIERS au sens des contrats, même quand il chante avec nous. Le matériel de location ne lui est pas plus retransmissible qu'à un autre ensemble.",
+    ],
+  },
+  {
     version: '2026-09-19-5',
     titre: 'Supprimer un spectacle',
     points: [

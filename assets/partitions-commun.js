@@ -28,7 +28,7 @@ const PARTITIONS_ORDRE_CONDUCTEUR = [
   'cor', 'trompette', 'cornet', 'saxhorn', 'trombone', 'trombone basse', 'tuba',
   'timbales', 'percussion', 'batterie', 'vibraphone', 'marimba', 'xylophone',
   'harpe', 'piano', 'celesta', 'clavier', 'orgue', 'accordeon', 'guitare', 'basse',
-  'voix', 'choeur', 'soprano', 'alto voix', 'tenor', 'basse voix',
+  'voix', 'choeur', 'chorale', 'soprano', 'mezzo', 'alto voix', 'tenor', 'baryton', 'basse voix',
   'violon', 'violon 1', 'violon 2', 'alto', 'violoncelle', 'contrebasse',
   'conducteur',
 ];
@@ -44,7 +44,20 @@ const PARTITIONS_PUPITRES = [
   { pupitre: 'Bois',        motifs: ['piccolo', 'flute', 'flûte', 'hautbois', 'cor anglais', 'clarinette', 'basson', 'saxophone'] },
   { pupitre: 'Cuivres',     motifs: ['cor', 'trompette', 'cornet', 'saxhorn', 'trombone', 'tuba', 'bugle', 'euphonium'] },
   { pupitre: 'Percussions', motifs: ['percussion', 'timbale', 'batterie', 'vibraphone', 'marimba', 'xylophone', 'glockenspiel', 'cymbale', 'caisse claire'] },
-  { pupitre: 'Chant',       motifs: ['voix', 'chant', 'choeur', 'chœur', 'soprano', 'mezzo', 'tenor', 'ténor', 'baryton'] },
+  /* LE CHŒUR AVANT LE CHANT, et sur des marqueurs EXPLICITES seulement.
+     « Soprano » tout court est une ambiguïté irréductible : c'est une soliste
+     dans un oratorio, un pupitre de vingt personnes dans un chœur, et le nom
+     du fichier ne le dit pas. On ne range donc dans Chœur que ce qui se
+     nomme chœur — le reste va dans Chant, et la production le bascule d'un
+     geste depuis le bloc « Le chœur ». Deviner ici serait envoyer le matériel
+     d'une soliste à cinquante choristes, ou l'inverse. */
+  /* Les motifs se comparent en DÉBUT DE MOT, pas en mot entier (voir
+     partitionsPupitreDe) : « coro » attraperait « Coronation Anthem » et
+     « sab » un fichier nommé « Sabre » — deux parties d'orchestre rangées au
+     chœur, donc deux parties qu'un chef de chœur recevrait sans raison. On ne
+     garde que ce qui ne peut pas commencer autre chose. */
+  { pupitre: 'Chœur',       motifs: ['choeur', 'chœur', 'chorale', 'chorus', 'choir', 'satb', 'ssaa', 'ttbb'] },
+  { pupitre: 'Chant',       motifs: ['voix', 'chant', 'soprano', 'mezzo', 'tenor', 'ténor', 'baryton'] },
   { pupitre: 'Cordes',      motifs: ['violon', 'alto', 'violoncelle', 'cello', 'contrebasse', 'harpe'] },
   { pupitre: 'Autre',       motifs: ['piano', 'clavier', 'celesta', 'orgue', 'synth', 'accordeon', 'accordéon', 'guitare', 'basse', 'conducteur', 'partition'] },
 ];
@@ -201,7 +214,7 @@ function partitionsNouveauCode() {
 /* L'ordre du conducteur, appliqué aux pupitres. C'est celui de la partition,
    pas l'alphabet : les bois en haut, les cordes en bas, le chef à part. */
 const PARTITIONS_PUPITRE_ORDRE = [
-  "Chef d'orchestre", 'Bois', 'Cuivres', 'Percussions', 'Chant', 'Cordes', 'Autre',
+  "Chef d'orchestre", 'Bois', 'Cuivres', 'Percussions', 'Chœur', 'Chant', 'Cordes', 'Autre',
 ];
 
 /* Ramener une valeur de pupitre à l'une des sept. partitions_parties.pupitre
@@ -252,7 +265,7 @@ function partitionsPupitreHtml(pupitre, options) {
 function partitionsPupitreVar(pupitre, encre) {
   const cle = {
     "Chef d'orchestre": 'chef', 'Cordes': 'cordes', 'Bois': 'bois', 'Cuivres': 'cuivres',
-    'Percussions': 'percussions', 'Chant': 'chant', 'Autre': 'autre',
+    'Percussions': 'percussions', 'Chœur': 'choeur', 'Chant': 'chant', 'Autre': 'autre',
   }[partitionsPupitreNormalise(pupitre)] || 'autre';
   return `var(--pup-${cle}${encre ? '-ink' : ''})`;
 }
@@ -292,6 +305,109 @@ function partitionsInitiales(nom) {
   return (mots[0][0] + second[0]).toUpperCase();
 }
 
+/* ============================================================================
+ * LE CHŒUR — l'ordre des voix, et la tonalité.
+ *
+ * POURQUOI LES VOIX NE SE TRIENT PAS COMME LES INSTRUMENTS
+ * -------------------------------------------------------
+ * L'ordre du conducteur range par famille ; un chœur se range par TESSITURE,
+ * du plus aigu au plus grave, et c'est un ordre que tout choriste connaît par
+ * cœur : soprano, alto, ténor, basse. Passer par PARTITIONS_ORDRE_CONDUCTEUR
+ * donnait « Soprano, Ténor, Basse, Alto » — parce qu'« Alto » y désigne d'abord
+ * l'instrument à cordes, rangé plus bas. Un chef de chœur qui lit sa liste dans
+ * cet ordre croit qu'il manque une voix.
+ *
+ * Le tri se fait À L'AFFICHAGE et non au dépôt : partitions_parties.ordre est
+ * figé à la création de la partie, et les spectacles déjà rangés ne doivent pas
+ * avoir à être repris pour que leur chœur se lise droit.
+ * ========================================================================== */
+
+/* Les voix, de l'aigu au grave. Les divisi (« Soprano 1 », « Alto 2 ») sont
+   portés par le numéro, comme pour les instruments : ils se rangent sous leur
+   voix et dans l'ordre. */
+const PARTITIONS_VOIX = [
+  'soprano', 'mezzo soprano', 'mezzo', 'alto', 'contralto',
+  'tenor', 'baryton', 'basse', 'baryton basse',
+];
+
+/* Le rang d'une partie de chœur dans l'ordre des tessitures. Une partie qu'on
+   ne sait pas classer passe à la fin — comme ailleurs : mieux vaut en bas de
+   liste qu'intercalée entre les ténors et les basses. */
+function partitionsOrdreVoix(nom) {
+  const n = partitionsNormaliser(nom);
+  if (!n) return 9000;
+  let meilleur = -1, rang = 9000;
+  PARTITIONS_VOIX.forEach((cle, i) => {
+    const c = partitionsNormaliser(cle);
+    if (_motEntier(c, n) && c.length > meilleur) { meilleur = c.length; rang = i * 10; }
+  });
+  if (rang === 9000) return 9000;
+  const num = n.match(/(\d+)/);
+  return rang + (num ? Math.min(9, Number(num[1])) : 0);
+}
+
+/* Trier des parties de chœur. Utilisé à l'affichage, des deux côtés — l'écran
+   de production et la page du chef de chœur doivent donner la MÊME liste dans
+   le MÊME ordre, sans quoi on se parle au téléphone en comptant des lignes. */
+function partitionsTrierVoix(parties) {
+  return (parties || []).slice().sort((a, b) =>
+    (partitionsOrdreVoix(a.nom) - partitionsOrdreVoix(b.nom))
+    || String(a.nom || '').localeCompare(String(b.nom || ''), 'fr'));
+}
+
+const _TONALITE_MODES = {
+  maj: 'majeur', majeur: 'majeur', major: 'majeur', dur: 'majeur',
+  min: 'mineur', mineur: 'mineur', minor: 'mineur', moll: 'mineur',
+};
+
+/* La tonalité, remise en forme — et JAMAIS perdue.
+   ----------------------------------------------
+   Le champ est libre, et il le reste : une tonalité se saisit vite, entre deux
+   coups de fil, et on y tape « reb M », « Eb major », « fa# mineur ». Une
+   colonne où l'on lit ces trois formes côte à côte ne se compare pas d'un coup
+   d'œil — or c'est exactement ce qu'un chef de chœur y cherche : voir en une
+   seconde que le n° 4 descend d'un demi-ton.
+   On normalise donc l'altération (♭ et ♯, les vrais signes, pas « b » ni « # »)
+   et le mode (« majeur », « mineur »), et on laisse la note DANS LE SYSTÈME OÙ
+   ELLE A ÉTÉ SAISIE — latin ou anglo-saxon. Traduire « Eb » en « Mi♭ » serait
+   imposer une notation à qui en emploie une autre, souvent parce que sa
+   partition la porte.
+   CE QU'ON NE RECONNAÎT PAS RESSORT TEL QUEL. « Mode dorien », « idem n° 3 »,
+   « à confirmer » sont des réponses justes : les mutiler serait pire que de ne
+   rien faire. */
+function partitionsTonalite(texte) {
+  const brut = String(texte || '').trim().replace(/\s+/g, ' ');
+  if (!brut) return '';
+  const m = brut.match(
+    /^(?:([Dd]o|[Rr][ée]|[Mm]i|[Ff]a|[Ss]ol|[Ll]a|[Ss]i|[A-Ga-g]))\s*(di[eè]se|b[ée]mol|#|♯|b|♭)?\s*(.*)$/);
+  if (!m) return brut;
+  const [, note, alteration, reste] = m;
+  const suite = (reste || '').trim();
+  // « M » majuscule est majeur, « m » minuscule est mineur : la casse porte
+  // ici toute l'information, elle est donc lue AVANT de passer en minuscules.
+  const mode = suite === 'M' ? 'majeur'
+    : suite === 'm' ? 'mineur'
+    : suite === '' ? ''
+    : _TONALITE_MODES[suite.toLowerCase()];
+  // Une suite qu'on ne reconnaît pas : ce n'est pas une tonalité qu'on sait
+  // lire, et « Basse continue » ne doit pas ressortir « B♭ asse continue ».
+  if (mode === undefined) return brut;
+  const signe = !alteration ? ''
+    : /^(#|♯|di)/i.test(alteration) ? '♯' : '♭';
+  const tete = note.length > 1
+    ? note[0].toUpperCase() + note.slice(1).toLowerCase()
+    : note.toUpperCase();
+  return (tete + signe + (mode ? ' ' + mode : '')).replace('Re', 'Ré');
+}
+
+/* La même, pour la page bilingue du chœur. Seul le mode change : les notes
+   restent telles qu'elles ont été saisies, et « ♭ » se lit partout. */
+function partitionsTonaliteLangue(texte, langue) {
+  const t = partitionsTonalite(texte);
+  if (langue !== 'en' || !t) return t;
+  return t.replace(/\bmajeur\b/, 'major').replace(/\bmineur\b/, 'minor');
+}
+
 if (typeof window !== 'undefined') {
   window.PARTITIONS_ORDRE_CONDUCTEUR = PARTITIONS_ORDRE_CONDUCTEUR;
   window.partitionsNormaliser = partitionsNormaliser;
@@ -309,4 +425,9 @@ if (typeof window !== 'undefined') {
   window.partitionsPupitreVar = partitionsPupitreVar;
   window.partitionsJaugeHtml = partitionsJaugeHtml;
   window.partitionsInitiales = partitionsInitiales;
+  window.PARTITIONS_VOIX = PARTITIONS_VOIX;
+  window.partitionsOrdreVoix = partitionsOrdreVoix;
+  window.partitionsTrierVoix = partitionsTrierVoix;
+  window.partitionsTonalite = partitionsTonalite;
+  window.partitionsTonaliteLangue = partitionsTonaliteLangue;
 }

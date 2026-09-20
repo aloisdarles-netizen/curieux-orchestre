@@ -7009,3 +7009,334 @@ begin
 end;
 $$;
 grant execute on function journaliser_telechargement_envoi(text, text, text, bigint) to anon, authenticated;
+
+-- ============================================================================
+-- L'ESPACE DU CHŒUR — 20 septembre 2026
+-- ============================================================================
+-- Un spectacle symphonique qui porte un chœur ne se distribue pas comme un
+-- spectacle qui n'en porte pas. Le chœur est un ENSEMBLE, souvent extérieur —
+-- une maîtrise, un chœur régional, une chorale amateur associée à la
+-- production —, et ses quarante ou cent choristes ne sont pas dans notre
+-- annuaire. C'est exactement la situation de la transmission à un tiers, à
+-- trois différences près, et ce sont elles qui justifient un espace à part.
+--
+-- 1. LE CHŒUR A SES PROPRES PARTIES, ET ELLES NE SONT PAS CELLES DE L'ORCHESTRE
+--    -------------------------------------------------------------------------
+--    Soprano, Alto, Ténor, Basse — et leurs divisi. Elles se rangent dans le
+--    même matériel que les cordes et les bois (un spectacle, un jeu de
+--    parties), mais elles se CONFIENT séparément : envoyer les trente parties
+--    d'orchestre à un chef de chœur, c'est lui faire chercher les quatre qui
+--    le concernent, et c'est surtout diffuser le matériel d'orchestre à un
+--    ensemble qui n'a aucune raison de l'avoir. D'où le pupitre « Chœur »,
+--    distinct de « Chant » qui désigne les solistes : un lot de chœur « tout
+--    le spectacle » ne porte QUE les parties de chœur (voir plus bas, dans
+--    envoi_partitions et partition_pour_envoi — la règle est en base, pas
+--    seulement dans la page).
+--
+-- 2. LA TONALITÉ
+--    -----------
+--    C'est l'information que demande un chef de chœur avant toutes les autres,
+--    et la seule que le matériel d'orchestre n'a jamais besoin de porter : un
+--    chœur chante ce que sa tessiture permet, et un numéro descendu d'un
+--    demi-ton pour ménager les ténors est une décision artistique qui se prend
+--    en amont, se note quelque part, et se perd systématiquement. Elle se note
+--    ici, à deux niveaux : sur la PARTIE quand tout le jeu est dans un ton, sur
+--    le FICHIER quand le lot compte plusieurs numéros — un concert narratif en
+--    aligne huit, rarement dans le même ton. Le fichier qui ne dit rien hérite
+--    de sa partie.
+--    Le champ est TEXTE LIBRE et le reste : « Ré♭ majeur », mais aussi
+--    « comme au disque », « à confirmer avec le chef ». Une liste fermée
+--    obligerait à mentir le jour où la réponse n'est pas une tonalité.
+--
+-- 3. LE NOMBRE DE CHORISTES
+--    ----------------------
+--    Il ne sert à rien côté partitions, et à tout côté production : loges,
+--    transport, repas, jauge de plateau, temps de placement. On le saisit une
+--    fois, là où on parle au chœur, plutôt que de le redemander par mail trois
+--    semaines avant.
+--
+-- POURQUOI LA MÊME TABLE QUE LES TRANSMISSIONS, ET PAS UNE DE PLUS
+-- ----------------------------------------------------------------
+-- Parce que le dispositif est rigoureusement le même : un lien, un code, une
+-- personne qui en répond, une fenêtre d'accès, un filigrane par exemplaire et
+-- une ligne de journal. Une seconde table aurait dupliqué la fonction
+-- d'autorisation, la fonction de journalisation et la branche de
+-- /api/partition — trois endroits où une correction de sécurité doit ensuite
+-- être portée deux fois, et où elle ne le sera pas. Surtout, elle aurait cassé
+-- la règle qui donne son sens au journal : UN exemplaire retrouvé se cherche à
+-- UN seul endroit. La colonne `type` sépare les deux espaces dans les écrans ;
+-- elle ne sépare rien du reste.
+-- ----------------------------------------------------------------------------
+
+-- La tonalité, sur la partie et sur le fichier. Vide partout ailleurs : elle
+-- n'a de sens que pour ce qui se chante, et un « » ne coûte rien.
+alter table partitions_parties  add column if not exists tonalite text not null default '';
+alter table partitions_fichiers add column if not exists tonalite text not null default '';
+
+-- Le pupitre « Chœur ». La contrainte d'origine énumérait six valeurs ; elle
+-- en refusait une septième que le code connaissait déjà — « Chef d'orchestre »,
+-- présent dans PARTITIONS_PUPITRE_ORDRE (partitions-commun.js) mais absent de
+-- la base : une partie rangée à la main sous ce pupitre aurait été refusée à
+-- l'écriture, sans que rien ne l'annonce. On pose les deux d'un coup.
+-- Le nom de la contrainte d'origine est celui que PostgreSQL a choisi ; on la
+-- retrouve par sa définition plutôt que par un nom deviné.
+do $$
+declare c record;
+begin
+  for c in
+    select con.conname
+      from pg_constraint con
+      join pg_class rel on rel.oid = con.conrelid
+      join pg_namespace ns on ns.oid = rel.relnamespace
+     where ns.nspname = 'public'
+       and rel.relname = 'partitions_parties'
+       and con.contype = 'c'
+       and pg_get_constraintdef(con.oid) ilike '%pupitre%'
+  loop
+    execute format('alter table partitions_parties drop constraint %I', c.conname);
+  end loop;
+  alter table partitions_parties
+    add constraint partitions_parties_pupitre_valide
+    check (pupitre in ('', 'Chef d''orchestre', 'Cordes', 'Bois', 'Cuivres',
+                       'Percussions', 'Chœur', 'Chant', 'Autre'));
+end $$;
+
+-- Le type de lot, et l'effectif annoncé. `type` vaut 'tiers' par défaut : tous
+-- les lots existants sont des transmissions à un ensemble tiers, et ils doivent
+-- le rester sans qu'on y touche.
+alter table partitions_envois add column if not exists type text not null default 'tiers';
+alter table partitions_envois add column if not exists effectif integer not null default 0;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'partitions_envois_type_valide') then
+    update partitions_envois set type = 'tiers' where type is null or type not in ('tiers', 'choeur');
+    alter table partitions_envois
+      add constraint partitions_envois_type_valide check (type in ('tiers', 'choeur'));
+  end if;
+end $$;
+create index if not exists idx_partitions_envois_type on partitions_envois(type);
+
+-- ----------------------------------------------------------------------------
+-- CE QUE VOIT LE DESTINATAIRE, chœur compris.
+--
+-- Deux ajouts et une règle. Les ajouts : `type` (la page du chœur et celle des
+-- ensembles tiers ne disent pas la même chose, et c'est la base qui tranche
+-- laquelle parle) et `tonalite`, sur la partie comme sur le fichier.
+--
+-- LA RÈGLE, ELLE, EST UNE RÈGLE DE SÉCURITÉ, et c'est pourquoi elle est ici et
+-- pas dans la page : un lot de chœur qui porte « tout le spectacle » ne donne
+-- QUE les parties de chœur. Sans elle, cocher « tout le spectacle » pour une
+-- chorale amateur lui remettrait le matériel d'orchestre complet — trente
+-- parties qu'elle n'a aucune raison d'avoir, et dont certaines sont de
+-- location. Une sélection explicite reste souveraine : si la production coche
+-- nommément la réduction piano ou le conducteur, c'est qu'elle l'a voulu.
+-- ----------------------------------------------------------------------------
+create or replace function envoi_partitions(p_jeton text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  e        record;
+  v_ouvert boolean;
+  resultat jsonb;
+begin
+  select * into e from partitions_envois where jeton = p_jeton;
+  if not found then
+    return null;   -- la page dira « ce lien n'est pas valide »
+  end if;
+
+  v_ouvert := e.actif
+    and (e.ouvert_le is null or e.ouvert_le <= current_date)
+    and (e.expire_le is null or e.expire_le >= current_date);
+
+  select jsonb_build_object(
+    'type',         coalesce(e.type, 'tiers'),
+    'destinataire', e.destinataire,
+    'contactNom',   e.contact_nom,
+    'effectif',     coalesce(e.effectif, 0),
+    'spectacle',    sp.nom,
+    'compositeur',  sp.compositeur,
+    'arrangeur',    sp.arrangeur,
+    'operation',    coalesce((select t.nom from tournees t where t.id = e.tournee_id), ''),
+    'codeRequis',   (e.code <> ''),
+    'nominatif',    e.nominatif,
+    'actif',        e.actif,
+    'ouvert',       v_ouvert,
+    -- POURQUOI LA BASE DIT AUSSI **POURQUOI** C'EST FERMÉ : voir la version
+    -- d'origine plus haut. Un seul juge, et il dit son motif.
+    'etat', case when not e.actif then 'revoque'
+                 when e.expire_le is not null and e.expire_le < current_date then 'expire'
+                 when e.ouvert_le is not null and e.ouvert_le > current_date then 'attente'
+                 else 'ouvert' end,
+    'ouvertLe',     e.ouvert_le,
+    'expireLe',     e.expire_le,
+    'note',         e.note,
+    'genereLe', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    -- L'inventaire ne sort que si le lot est ouvert : révoquer, c'est fermer
+    -- pour de bon, y compris la liste de ce qu'on ne donne plus.
+    'parties', case when not v_ouvert then '[]'::jsonb else coalesce((
+      select jsonb_agg(p.ligne order by p.ordre, p.nom)
+      from (
+        select pa.ordre, pa.nom,
+          jsonb_build_object(
+            'partieId', pa.id,
+            'nom',      pa.nom,
+            'pupitre',  pa.pupitre,
+            'tonalite', coalesce(pa.tonalite, ''),
+            'fichiers', coalesce((
+              select jsonb_agg(jsonb_build_object(
+                       'id', fi.id, 'titre', fi.titre,
+                       'octets', fi.octets, 'pages', fi.pages,
+                       -- Le fichier qui ne dit rien hérite de sa partie : une
+                       -- colonne de tonalités à moitié vide se lit « on ne sait
+                       -- pas », alors qu'on sait.
+                       'tonalite', coalesce(nullif(fi.tonalite, ''), pa.tonalite, ''))
+                     order by fi.ordre, fi.titre)
+                from partitions_fichiers fi where fi.partie_id = pa.id
+            ), '[]'::jsonb)
+          ) as ligne
+        from partitions_parties pa
+        where pa.spectacle_id = e.spectacle_id
+          and (
+            e.parties ? pa.id
+            or (e.toutes_parties
+                and (coalesce(e.type, 'tiers') <> 'choeur' or pa.pupitre = 'Chœur'))
+          )
+      ) p
+    ), '[]'::jsonb) end
+  ) into resultat
+  from partitions_spectacles sp
+  where sp.id = e.spectacle_id;
+
+  return resultat;
+end;
+$$;
+grant execute on function envoi_partitions(text) to anon, authenticated;
+
+-- L'autorisation de télécharger UN fichier, au titre d'un lot confié ou d'un
+-- lot de chœur. Mêmes refus muets, même filigrane, même journal — et la même
+-- règle de portée qu'au-dessus, réécrite ici parce qu'un contrôle d'accès ne
+-- se délègue jamais à l'écran qui l'a précédé.
+create or replace function partition_pour_envoi(p_jeton text, p_fichier_id text, p_code text, p_pour text)
+returns table(
+  chemin text, personne text, operation text, partie text,
+  jeton_filigrane text, chiffrer boolean, destinataire text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  e          record;
+  f          record;
+  v_contexte text;
+  v_operation text;
+  v_personne text;
+  v_type     text;
+  v_jeton    text;
+begin
+  select * into e from partitions_envois where jeton = p_jeton;
+  if not found then return; end if;
+  if not e.actif then return; end if;
+  if e.ouvert_le is not null and e.ouvert_le > current_date then return; end if;
+  if e.expire_le is not null and e.expire_le < current_date then return; end if;
+  -- La comparaison ignore la casse : un code se lit à voix haute, il se retape
+  -- en minuscules aussi souvent qu'en majuscules.
+  if e.code <> '' and upper(e.code) <> upper(coalesce(p_code, '')) then return; end if;
+  -- Le nom par exemplaire, quand il est exigé, l'est ICI et pas dans la page :
+  -- un navigateur ne protège rien.
+  if e.nominatif and btrim(coalesce(p_pour, '')) = '' then return; end if;
+
+  v_type := coalesce(e.type, 'tiers');
+
+  select fi.chemin as chemin, pa.id as partie_id, pa.nom as partie_nom,
+         pa.pupitre as pupitre,
+         sp.id as spectacle_id, sp.nom as spectacle_nom, sp.chiffrer as chiffrer
+    into f
+    from partitions_fichiers fi
+    join partitions_parties pa on pa.id = fi.partie_id
+    join partitions_spectacles sp on sp.id = pa.spectacle_id
+   where fi.id = p_fichier_id;
+  if not found or f.chemin = '' then return; end if;
+
+  -- Le fichier doit relever du spectacle confié, ET de la portée du lot.
+  if f.spectacle_id <> e.spectacle_id then return; end if;
+  if not (e.parties ? f.partie_id) then
+    if not e.toutes_parties then return; end if;
+    -- « Tout le spectacle » pour un chœur ne veut pas dire le matériel
+    -- d'orchestre. Voir le commentaire d'envoi_partitions.
+    if v_type = 'choeur' and coalesce(f.pupitre, '') <> 'Chœur' then return; end if;
+  end if;
+
+  select t.nom into v_operation from tournees t where t.id = e.tournee_id;
+  v_contexte := coalesce(f.spectacle_nom, '')
+    || case when coalesce(v_operation, '') <> '' then ' · ' || v_operation else '' end;
+
+  -- Le nom qui se pose en tête de page : celui du choriste ou du musicien
+  -- quand le destinataire distribue nominativement, celui de l'ensemble sinon.
+  if btrim(coalesce(e.destinataire, '')) = '' then return; end if;
+  v_personne := case when e.nominatif then btrim(p_pour) else e.destinataire end;
+
+  v_jeton := 'CX-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4))
+                   || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4))
+                   || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4))
+                   || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4));
+
+  -- Le même journal que tout le reste. `person_type` distingue le chœur de
+  -- l'ensemble tiers — deux espaces dans les écrans, un seul registre — et
+  -- `person_id` porte l'identifiant du lot, de quoi remonter à l'ensemble et
+  -- au contact qui en répond.
+  insert into partitions_telechargements
+    (id, jeton_filigrane, fichier_id, tournee_id, person_type, person_id,
+     personne, partie, spectacle, operation)
+  values
+    ('tel' || replace(gen_random_uuid()::text, '-', ''), v_jeton, p_fichier_id, e.tournee_id,
+     case when v_type = 'choeur' then 'choeur' else 'tiers' end, e.id,
+     coalesce(v_personne, ''), coalesce(f.partie_nom, ''), coalesce(f.spectacle_nom, ''),
+     coalesce(v_contexte, ''));
+
+  return query select f.chemin, coalesce(v_personne, ''), coalesce(v_contexte, ''),
+                      coalesce(f.partie_nom, ''), v_jeton, coalesce(f.chiffrer, false),
+                      coalesce(e.destinataire, '');
+end;
+$$;
+grant execute on function partition_pour_envoi(text, text, text, text) to anon, authenticated;
+
+-- Le compte des exemplaires pris par lot, chœurs compris. Une seule fonction
+-- pour les deux espaces : l'écran les sépare ensuite par `type`, et la base
+-- n'a aucune raison de compter deux fois la même chose.
+create or replace function prises_tiers_par_envoi()
+returns table(envoi_id text, nb bigint, derniere timestamptz)
+language sql
+stable
+set search_path = public
+as $$
+  select te.person_id, count(*), max(te.created_at)
+    from partitions_telechargements te
+   where te.person_type in ('tiers', 'choeur')
+   group by te.person_id;
+$$;
+grant execute on function prises_tiers_par_envoi() to authenticated;
+
+-- Le poids réellement servi. Même indifférence à l'échec qu'ailleurs : un
+-- journal ne doit jamais empêcher une livraison.
+create or replace function journaliser_telechargement_envoi(
+  p_jeton text, p_fichier_id text, p_jeton_filigrane text, p_octets bigint
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update partitions_telechargements
+     set octets = coalesce(p_octets, 0)
+   where jeton_filigrane = p_jeton_filigrane
+     and fichier_id = p_fichier_id
+     and person_type in ('tiers', 'choeur')
+     and person_id = (select e.id from partitions_envois e where e.jeton = p_jeton);
+end;
+$$;
+grant execute on function journaliser_telechargement_envoi(text, text, text, bigint) to anon, authenticated;
