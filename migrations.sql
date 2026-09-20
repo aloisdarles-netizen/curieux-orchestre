@@ -6,12 +6,20 @@
 
 -- Fonction partagée : met à jour updated_at à chaque UPDATE.
 create or replace function set_updated_at()
-returns trigger as $$
+returns trigger
+language plpgsql
+-- Chemin de recherche FIGÉ. Sans lui, le schéma résolu dépend de qui appelle :
+-- une table « updated_at » plantée dans un schéma temporaire par n'importe
+-- quel rôle passerait avant la vraie. Le risque est théorique ici — la
+-- fonction ne touche qu'à NEW — mais elle est posée en déclencheur sur une
+-- quarantaine de tables, et c'est la règle qu'on applique partout ailleurs.
+set search_path = public
+as $$
 begin
   new.updated_at = now();
   return new;
 end;
-$$ language plpgsql;
+$$;
 
 -- ----------------------------------------------------------------------------
 -- musiciens  (← localStorage 'musiciens-v1')
@@ -4543,6 +4551,7 @@ create or replace function projeter_disponibilites(
   p_type text, p_id text, p_dispos jsonb, p_commentaires jsonb, p_reponses jsonb
 ) returns void
 language plpgsql
+set search_path = public
 as $$
 begin
   delete from disponibilites where personne_type = p_type and personne_id = p_id;
@@ -4654,6 +4663,7 @@ create or replace function dates_demandees(p_demande_id text)
 returns table(date_id text, jour date)
 language sql
 stable
+set search_path = public
 as $$
   select d.date_id, d.jour
     from dispo_demandes dd
@@ -4673,6 +4683,7 @@ create or replace function avancement_demande(p_demande_id text)
 returns table(total int, repondues int, en_attente boolean)
 language sql
 stable
+set search_path = public
 as $$
   with d as (select * from dispo_demandes where id = p_demande_id),
        attendues as (select * from dates_demandees(p_demande_id)),
@@ -4699,6 +4710,7 @@ create or replace function personnes_du_jour(p_jour date)
 returns table(personne_type text, personne_id text, statut text, affectee boolean)
 language sql
 stable
+set search_path = public
 as $$
   select x.personne_type, x.personne_id, x.statut,
          exists (
@@ -4754,6 +4766,7 @@ create or replace function saison_de(p_jour date)
 returns text
 language sql
 stable
+set search_path = public
 as $$
   select id from saisons where p_jour between debut and fin order by debut limit 1;
 $$;
@@ -4788,6 +4801,7 @@ grant execute on function saison_de(date) to anon, authenticated;
 
 create or replace function trg_effacer_traces_personne() returns trigger
 language plpgsql
+set search_path = public
 as $$
 declare
   v_type text := tg_argv[0];
