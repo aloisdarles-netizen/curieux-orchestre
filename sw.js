@@ -231,7 +231,20 @@
 //     chœur.
 // Les deux pages sont servies réseau d'abord ; c'est l'incrément, et lui seul,
 // qui leur donne les actifs qu'elles attendent.
-// v137 : un correctif d'écriture, et il vaut pour TOUTES les tables. db.js ne
+// v137 : « Devis et budgets » et « Suivi des dépenses » passent sous
+// Production, et le droit d'accès descend de la section à l'entrée. Trois
+// actifs changent ensemble :
+//   — nav.js porte le nouveau rangement et le tri par droit ;
+//   — global-search.js lit ce tri au même endroit. Un navigateur qui garderait
+//     l'ancien appellerait estSectionAffichee, qui n'existe plus : la
+//     condition tomberait à faux et la recherche proposerait les écrans
+//     réservés à toute l'équipe — des noms d'écrans, pas des données, mais
+//     des portes qui répondraient « Accès réservé » ;
+//   — base.css resserre les pastilles du sous-menu de 17 à 14 px. Sans elle,
+//     Production — neuf écrans pour un compte admin — repasse sur deux lignes
+//     à 1440 px, soit 108 px de bandeau collant au lieu de 61 sur chaque
+//     écran de production. Elle pose aussi la butée de hauteur du déroulant.
+// v138 : un correctif d'écriture, et il vaut pour TOUTES les tables. db.js ne
 // retire plus jamais la CLÉ d'une ligne : le mécanisme qui écrit sans une
 // colonne que la base ne connaît pas encore retirait aussi `id` quand
 // PostgREST nommait la clé de conflit — la ligne repartait alors en insertion
@@ -242,7 +255,7 @@
 // — la base refuse le pupitre « Chœur », et le proposer promettait un échec.
 // Sans cet incrément, un navigateur déjà venu garde l'ancien db.js : le bogue
 // reste, sur toutes les pages qui écrivent.
-const VERSION = 'curieux-v137';
+const VERSION = 'curieux-v138';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
