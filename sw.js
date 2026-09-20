@@ -262,7 +262,30 @@
 // livraison — personne dans l'équipe ne saurait que le tri a changé de règle.
 // recap.html change au même moment, mais c'est une page, servie réseau
 // d'abord : elle se rafraîchit d'elle-même.
-// v140 : db.js ne laisse plus partir une ligne dont il n'envoie pas toutes les
+// v140 : le budget redevient un seul menu, « Comptes et accès » en sort, et le
+// bandeau passe à six entrées pour un compte admin. Deux actifs changent
+// ensemble :
+//   — nav.js porte le nouveau rangement et le lien simple d'une section à
+//     écran unique ;
+//   — base.css l'habille et remesure les seuils du bandeau : la recherche
+//     s'efface à 1260 px au lieu de 1100, le panneau téléphone prend la main à
+//     1100 au lieu de 1024. Un navigateur qui garderait l'ancienne feuille
+//     aurait un lien « Admin » sans pastille ni survol, et surtout une rangée
+//     qui redéfilerait horizontalement entre 1100 et 1260 px — barre de
+//     défilement masquée, donc sans rien pour le dire.
+// v141 : l'accueil est refait, et deux actifs le portent. nav.js donne à
+// chaque section son accroche et filtre les entrées réservées de la planche
+// d'accueil (curieuxHomeSections) ; nouveautes.js annonce la page. Sans cet
+// incrément, un navigateur déjà venu chargerait le nouvel accueil.html (les
+// pages sont servies réseau d'abord) avec l'ancien nav.js — des cartes sans
+// accroche ni groupes.
+// v142 : les liens d'écran des cartes « Où aller » de l'accueil deviennent des
+// touches de pupitre de régie. Le composant (.co-navkey) vit dans base.css, et
+// nouveautes.js l'annonce : deux actifs mis en cache. Sans cet incrément, un
+// navigateur déjà venu chargerait le nouvel accueil.html avec l'ancienne
+// feuille — des liens nus, sans touche ni voyant — et la fenêtre « Ce qui a
+// changé » ne dirait rien de la livraison.
+// v143 : db.js ne laisse plus partir une ligne dont il n'envoie pas toutes les
 // colonnes qu'il annonce. JSON.stringify EFFACE les propriétés à `undefined` ;
 // supabase-js, lui, calcule le paramètre `columns=` sur Object.keys, où elles
 // figurent encore. La requête annonçait donc sept colonnes et n'en envoyait que
@@ -274,7 +297,7 @@
 // partitions.html refuse de la même façon, à la source, une partie sans
 // identifiant ou sans spectacle. Sans cet incrément, un navigateur déjà venu
 // garde l'ancien db.js : le bogue reste, sur toutes les pages qui écrivent.
-const VERSION = 'curieux-v140';
+const VERSION = 'curieux-v143';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

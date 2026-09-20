@@ -33,6 +33,25 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-20-5',
+    titre: 'Des touches de régie pour aller d’un écran à l’autre',
+    points: [
+      "Sur l’accueil, dans les cartes « Où aller », les liens vers les écrans prennent la forme d’une touche de pupitre de régie : blanche, posée sur une épaisseur noire, avec un voyant. Au survol, la touche s’enfonce et le voyant s’allume en orange.",
+      "Toutes les touches sont blanches, sur les cartes claires comme sur les sombres : la couleur reste à la carte de la section, qui dit de quel métier il s’agit.",
+      "Le petit chevron « › » disparaît des liens : la forme de touche suffit à dire qu’on va quelque part.",
+    ],
+  },
+  {
+    version: '2026-09-20-4',
+    titre: 'Un nouvel accueil',
+    points: [
+      "L'accueil ne répète plus le menu : le bandeau donne déjà chaque écran en un clic. Il dit désormais où l'on en est — le jour, quatre chiffres, et la prochaine date avec son compte à rebours.",
+      "Les six prochaines dates se lisent à gauche, avec leur statut. À droite, ce qui attend une réponse : options à confirmer sous trente jours, demandes de dispo restées sans réponse, feuilles de route à créer — et, pour la direction technique, les tâches en retard et les remarques de salle à traiter. Rien ne s'affiche quand tout est à jour.",
+      "Les dernières mises à jour de l'outil sont rappelées en trois lignes, avec un bouton pour rouvrir cette fenêtre.",
+      "Les sections restent en bas de page, en cartes qui disent à quoi chacune sert, leurs écrans rangés par groupe comme dans le menu. Les portes réservées n'y apparaissent que pour les comptes qui y ont droit.",
+    ],
+  },
+  {
     version: '2026-09-20-3',
     titre: "« Mon ordre » mêle titulaires et remplaçant·es",
     points: [
