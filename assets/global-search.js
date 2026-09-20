@@ -51,7 +51,7 @@
    */
   // Personne ne tape « matériel » avec son accent dans un champ de recherche.
   function sansAccent(s){
-    return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
 
   function chercherPages(q){
@@ -61,11 +61,12 @@
     const out = [];
     curieuxModele().forEach(sec => {
       /* Une section réservée ne se cherche que si le bandeau l'affiche, donc
-         si le compte y a droit (voir ajouterEntreesAdmin) : sans ce filtre,
+         si le compte y a droit (voir ajouterEntreesReservees) : sans ce filtre,
          taper « budget » proposerait à toute l'équipe quatre portes fermées.
          Tant que la réponse d'isSuperAdmin n'est pas arrivée, elles restent
          absentes — même prudence que le bandeau. */
-      if(sec.admin && typeof estSectionAffichee === 'function' && !estSectionAffichee(sec)) return;
+      if(typeof curieuxDroitSection === 'function' && curieuxDroitSection(sec)
+         && typeof estSectionAffichee === 'function' && !estSectionAffichee(sec)) return;
       const entrees = (sec.entrees && sec.entrees.length)
         ? sec.entrees
         : [{ libelle: sec.libelle, href: sec.href }];
