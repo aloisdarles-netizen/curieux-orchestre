@@ -482,6 +482,9 @@
   /* Le tri des lignes, et le mot d'explication de « Mon ordre ». */
   .tri-indice{font-size:12px; color:var(--secondary); font-weight:700;}
   .tri-indice[hidden]{display:none;}
+  .tri-indice .lien-nu{color:var(--muted); font-weight:600; margin-left:6px;}
+  .tri-indice .lien-nu:hover{color:var(--accent-dark);}
+  .tri-indice .lien-nu[hidden]{display:none;}
   .reinit-affichage{margin-left:auto; font-size:12px; color:var(--muted); white-space:nowrap;}
   .reinit-affichage:hover{color:var(--accent-dark);}
 
@@ -495,6 +498,11 @@
     color:var(--muted); font-size:12px; letter-spacing:-2px; line-height:1.2;
   }
   .co-matrix-name.poignee:hover::before{color:var(--accent-dark);}
+  /* Une ligne indentée porte maintenant les deux signes : les pointillés
+     gardent la gauche, la flèche de rattachement se range derrière eux, et le
+     nom leur laisse la place. Sans ce décalage, les deux se superposent. */
+  .co-matrix-row.sous-remplacant .co-matrix-name.poignee{padding-left:42px;}
+  .co-matrix-row.sous-remplacant .co-matrix-name.poignee .fleche-sous{left:27px;}
   .co-matrix-row.en-vol{opacity:.4;}
   .co-matrix-row.cible-avant{box-shadow:inset 0 3px 0 var(--accent);}
   .co-matrix-row.cible-apres{box-shadow:inset 0 -3px 0 var(--accent);}
@@ -502,6 +510,8 @@
   @media (max-width:760px){
     .co-matrix-name.poignee{cursor:default; padding-left:14px;}
     .co-matrix-name.poignee::before{display:none;}
+    .co-matrix-row.sous-remplacant .co-matrix-name.poignee{padding-left:26px;}
+    .co-matrix-row.sous-remplacant .co-matrix-name.poignee .fleche-sous{left:11px;}
   }
 
   /* Les bandes de pupitre. Elles n'ont pas de cases : la rangée s'arrête à la
@@ -738,7 +748,7 @@
     <span id="rechercheEtat" class="recherche-etat"></span>
     <label for="triLignes" style="margin-left:8px;">Trier :</label>
     <select id="triLignes"
-            title="L'ordre des lignes. « Mon ordre » se construit en glissant les noms, et n'appartient qu'à toi.">
+            title="L'ordre des lignes. « Mon ordre » se construit en glissant les noms — titulaires et remplaçant·es dans la même liste — et n'appartient qu'à toi.">
       <option value="orchestre" selected>Ordre de l'orchestre</option>
       <option value="nom">Nom de famille</option>
       <option value="instrument">Instrument et position</option>
@@ -746,7 +756,8 @@
       <option value="reponses">Taux de réponse</option>
       <option value="perso">Mon ordre</option>
     </select>
-    <span id="triIndice" class="tri-indice" hidden>Glisse un nom pour le déplacer — cet ordre n'est visible que par toi.</span>
+    <span id="triIndice" class="tri-indice" hidden>Glisse un nom pour le déplacer — titulaires et remplaçant·es se mêlent librement, et cet ordre n'est visible que par toi.<button type="button" class="lien-nu" id="oublierOrdre" hidden
+            title="Efface l'ordre construit en glissant les noms : tout le monde repart dans l'ordre de l'orchestre, et les remplaçant·es retournent sous leur titulaire.">Tout remettre dans l'ordre de l'orchestre</button></span>
     <button type="button" class="chip-precisions" id="chipPrecisions" hidden
             title="Aller à la prochaine précision qui attend une réponse"></button>
     <button type="button" class="lien-nu reinit-affichage" id="reinitAffichage"
@@ -939,6 +950,7 @@ function memoriserRecherches(){
 const PREFS_PAGE = 'recap';
 const CLE_TRI = 'curieuxRecapTri';
 const CLE_ORDRE = 'curieuxRecapOrdre';
+const CLE_AFFRANCHIES = 'curieuxRecapAffranchies';
 const TRIS = ['orchestre', 'nom', 'instrument', 'dates', 'reponses', 'perso'];
 let triLignes = (()=>{
   try{ const v = localStorage.getItem(CLE_TRI); return TRIS.includes(v) ? v : 'orchestre'; }
@@ -953,6 +965,19 @@ function ordreNormalise(o){
 let ordrePerso = ordreNormalise(null);
 try{ ordrePerso = ordreNormalise(JSON.parse(localStorage.getItem(CLE_ORDRE) || 'null')); }catch(e){}
 
+/* Deux listes, et non une.
+ *
+ * ordrePerso dit OÙ chaque ligne se place ; lignesAffranchies dit QUI a
+ * cessé d'être rangé·e sous un·e titulaire. Confondre les deux se payait
+ * aussitôt : un seul glissement inscrit d'un coup toutes les lignes à
+ * l'écran dans l'ordre — c'est ce qui fait qu'il ressemble à ce qu'on a sous
+ * les yeux — et aurait donc affranchi tout le monde d'un geste, vidant le
+ * mode « Titulaires + leurs remplaçant·es » de sa raison d'être. Seule la
+ * ligne qu'on a réellement prise en main entre ici.
+ */
+let lignesAffranchies = ordreNormalise(null);
+try{ lignesAffranchies = ordreNormalise(JSON.parse(localStorage.getItem(CLE_AFFRANCHIES) || 'null')); }catch(e){}
+
 function ecrireLocal(cle, valeur){ try{ localStorage.setItem(cle, valeur); }catch(e){} }
 function memoriserTri(){
   ecrireLocal(CLE_TRI, triLignes);
@@ -960,7 +985,8 @@ function memoriserTri(){
 }
 function memoriserOrdre(){
   ecrireLocal(CLE_ORDRE, JSON.stringify(ordrePerso));
-  retenirPreference({ ordre: ordrePerso });
+  ecrireLocal(CLE_AFFRANCHIES, JSON.stringify(lignesAffranchies));
+  retenirPreference({ ordre: ordrePerso, affranchies: lignesAffranchies });
 }
 
 // Tout ce que la page retient, tel quel. C'est l'instantané entier qui part à
@@ -971,7 +997,8 @@ function memoriserOrdre(){
 // toujours raison, et il a raison sur tout.
 function instantanePreferences(){
   return {
-    tri: triLignes, ordre: ordrePerso, projetsMasques: [...projetsMasques],
+    tri: triLignes, ordre: ordrePerso, affranchies: lignesAffranchies,
+    projetsMasques: [...projetsMasques],
     fenetreMois, datesRecherche: showDatesRecherche, groupesReplies: [...groupesReplies],
   };
 }
@@ -1025,6 +1052,10 @@ function appliquerPreferences(prefs){
   if(prefs.ordre && typeof prefs.ordre === 'object'){
     ordrePerso = ordreNormalise(prefs.ordre);
     ecrireLocal(CLE_ORDRE, JSON.stringify(ordrePerso));
+  }
+  if(prefs.affranchies && typeof prefs.affranchies === 'object'){
+    lignesAffranchies = ordreNormalise(prefs.affranchies);
+    ecrireLocal(CLE_AFFRANCHIES, JSON.stringify(lignesAffranchies));
   }
   // Les commandes suivent l'état, jamais l'inverse.
   const cr = document.getElementById('showDatesRecherche'); if(cr) cr.checked = showDatesRecherche;
@@ -1277,7 +1308,9 @@ function libelleMetier(m, ptype){
  * Le noyau reste devant les remplaçant·es dans chaque tri sauf « Mon
  * ordre » : le menu « Tou·tes (titulaires en premier) » le promet, et un tri
  * qui mêlerait les deux ferait mentir le libellé. Sous « Mon ordre », c'est
- * la personne qui décide de tout.
+ * la personne qui décide de tout — y compris de mêler les deux, ce qui est
+ * précisément ce qu'on lui demande : un·e remplaçant·e en violon a sa place
+ * parmi les violons, et l'y mettre ne doit tenir qu'à un geste.
  */
 const OPTIONS_FR = { sensitivity: 'base' };
 const OPTIONS_FR_NUM = { numeric: true, sensitivity: 'base' };
@@ -1365,12 +1398,20 @@ function comparateurCourant(ptype){
       // Les lignes que l'ordre ne connaît pas encore — personne arrivée
       // depuis, ou jamais déplacée — ferment la marche dans l'ordre de
       // l'orchestre : on les retrouve là où on a l'habitude de les voir.
+      //
+      // Dans l'ordre de l'orchestre SEUL, sans le passage des titulaires
+      // devant : c'est curieuxComparePupitrePuisNom et non
+      // compareByStatutThenName. Un·e remplaçant·e en violon que personne
+      // n'a inscrit·e sur sa liste tombait sinon tout en bas du tableau,
+      // à quarante lignes des violons — trop loin pour qu'un glissement
+      // l'y ramène, et c'est la seule façon de l'y mettre. Elle ou il
+      // apparaît maintenant au milieu des violons, d'où le geste part.
       const index = new Map(ordrePerso[ptype].map((id, i)=> [id, i]));
       return (a, b)=>{
         const ca = index.has(a.id), cb = index.has(b.id);
         if(ca && cb) return index.get(a.id) - index.get(b.id);
         if(ca !== cb) return ca ? -1 : 1;
-        return compareByStatutThenName(a, b);
+        return curieuxComparePupitrePuisNom(a, b);
       };
     }
     default: return compareByStatutThenName;
@@ -1593,8 +1634,13 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
   // Sous « Mon ordre », la colonne des noms devient une poignée. Pas pendant
   // une recherche — déplacer une ligne dans une liste dont on ne voit que
   // trois noms produirait un ordre qu'on ne comprendrait plus une fois le
-  // champ vidé — et pas pour un·e remplaçant·e rangé·e sous son ou sa
-  // titulaire : sa place vient de la liste de celui-ci ou celle-ci.
+  // champ vidé.
+  //
+  // Y compris pour un·e remplaçant·e rangé·e sous son ou sa titulaire : la
+  // ligne était la seule du tableau qu'on ne pouvait pas prendre, et donc la
+  // seule qu'on ne pouvait jamais sortir de son rattachement. La glisser
+  // l'en affranchit (voir ordreNoyauEtRemplacants), ce qui est exactement ce
+  // que le geste veut dire.
   const glissable = triLignes === 'perso' && !termeRecherche();
 
   let groupePrecedent = null;
@@ -1625,7 +1671,7 @@ function renderPeopleMatrix(people, assignField, holderId, emptyLinkHref, emptyL
     }
     if(avecGroupes && groupesReplies.has(ptypeMatrice + ':' + g)) return bande;
 
-    const poignee = glissable && !sous;
+    const poignee = glissable;
     return bande + `
       <div class="co-matrix-row${sous ? ' sous-remplacant' : ''}" data-ligne="${escapeAttr(m.id)}" data-ligne-type="${ptypeMatrice}">
         <div class="co-matrix-name${poignee ? ' poignee' : ''}"${poignee ? ' draggable="true" title="Glisser pour déplacer cette ligne"' : ''}>${sous ? '<span class="fleche-sous" aria-hidden="true">↳</span>' : ''}<b>${escapeHtml(fullName(m))}</b><small>${escapeHtml(metier)}${
@@ -1916,31 +1962,47 @@ function prefsDe(personId, ptype){
  * sous la première, une ligne par personne et non par lien. Celles qu'on a
  * sollicitées sans qu'elles soient sur aucune liste ferment la marche : on ne
  * les fait pas disparaître sous prétexte que personne ne les a nommées.
+ *
+ * Sous « Mon ordre », ce mode et le tri se contredisaient, et le mode
+ * gagnait : on glissait un nom, le rendu suivant le remettait sous son ou sa
+ * titulaire — ou tout en bas, faute de titulaire pour l'accueillir — et le
+ * geste paraissait sans effet. Le tri l'emporte désormais, ligne par ligne :
+ * une personne que l'on a soi-même prise en main (donc inscrite dans
+ * lignesAffranchies) devient une ligne de plein droit, à la place choisie ;
+ * celles qu'on n'a jamais touchées gardent leur rattachement, flèche
+ * comprise. Le mode continue donc de faire ce qu'il promet, pour tout ce
+ * qu'on lui a laissé.
  */
 function ordreNoyauEtRemplacants(liste, ptype, comparer){
   const vus = idsSollicites(ptype);
   const parId = new Map(liste.map(p=> [p.id, p]));
   const sous = sousRemplacants[ptype];
   sous.clear();
+  const estRemplacant = p=> (p.statutPoste || 'titulaire') === 'remplacant';
+  // Les lignes affranchies du regroupement : sous « Mon ordre » seulement, et
+  // seulement celles que la personne a elle-même glissées.
+  const affranchies = triLignes === 'perso' ? new Set(lignesAffranchies[ptype]) : new Set();
   const ordre = [];
   const place = new Set();
   // Le tri choisi s'applique aux titulaires ; leurs remplaçant·es suivent,
   // dans l'ordre de leur liste — c'est le regroupement qui fait ce mode.
-  liste.filter(p=> (p.statutPoste || 'titulaire') !== 'remplacant')
+  liste.filter(p=> !estRemplacant(p) || (affranchies.has(p.id) && vus.has(p.id)))
     .sort(comparer)
     .forEach(t=>{
+      if(place.has(t.id)) return;
       ordre.push(t); place.add(t.id);
+      if(estRemplacant(t)) return;   // un·e remplaçant·e n'a pas de liste à dérouler ici
       prefsDe(t.id, ptype)
         .slice()
         .sort((a, b)=> (a.rang || 99) - (b.rang || 99))
         .forEach(item=>{
           if(item.source !== 'roster' || !item.personId) return;   // un nom libre n'a pas de fiche
           const r = parId.get(item.personId);
-          if(!r || place.has(r.id) || !vus.has(r.id)) return;
+          if(!r || place.has(r.id) || !vus.has(r.id) || affranchies.has(r.id)) return;
           ordre.push(r); place.add(r.id); sous.add(r.id);
         });
     });
-  liste.filter(p=> (p.statutPoste || 'titulaire') === 'remplacant' && vus.has(p.id) && !place.has(p.id))
+  liste.filter(p=> estRemplacant(p) && vus.has(p.id) && !place.has(p.id))
     .sort(comparer)
     .forEach(p=>{ ordre.push(p); place.add(p.id); });
   return ordre;
@@ -2094,9 +2156,33 @@ champFenetre.addEventListener('change', e=>{
 
 // Le mot d'explication de « Mon ordre » ne s'affiche que sous ce tri : à
 // demeure, il serait une ligne de plus dans une barre qui en a déjà trois.
+// Le retour en arrière n'apparaît qu'une fois l'ordre commencé : tant que
+// rien n'a bougé, il proposerait d'effacer le vide.
 function majIndiceTri(){
   const indice = document.getElementById('triIndice');
   if(indice) indice.hidden = triLignes !== 'perso';
+  const oubli = document.getElementById('oublierOrdre');
+  if(oubli) oubli.hidden = !(ordrePerso.musicien.length || ordrePerso.technicien.length);
+}
+
+/* Défaire « Mon ordre ».
+ *
+ * Il n'en existait aucun moyen : « Réinitialiser l'affichage » épargne
+ * l'ordre personnel à dessein — il a coûté des gestes — et rien d'autre ne
+ * l'effaçait. Tant qu'un glissement ne faisait que ranger des lignes, on
+ * pouvait s'en passer ; maintenant qu'il affranchit un·e remplaçant·e de son
+ * rattachement, l'absence de retour deviendrait un piège : on ne remet pas
+ * une flèche à la main. Les deux répertoires partent ensemble — l'ordre est
+ * une façon de regarder la page, pas un réglage par tableau.
+ */
+function oublierOrdrePerso(){
+  if(!(ordrePerso.musicien.length || ordrePerso.technicien.length)) return;
+  if(!confirm("Oublier l'ordre construit en glissant les noms ?\n\nTout le monde repart dans l'ordre de l'orchestre, et les remplaçant·es retournent sous leur titulaire.")) return;
+  ordrePerso = ordreNormalise(null);
+  lignesAffranchies = ordreNormalise(null);
+  memoriserOrdre();
+  majIndiceTri();
+  renderAll();
 }
 const champTri = document.getElementById('triLignes');
 champTri.value = triLignes;
@@ -2108,6 +2194,7 @@ champTri.addEventListener('change', e=>{
   renderAll();
 });
 document.getElementById('reinitAffichage').addEventListener('click', reinitialiserAffichage);
+document.getElementById('oublierOrdre').addEventListener('click', oublierOrdrePerso);
 
 /* Glisser une ligne — « Mon ordre ».
  *
@@ -2127,8 +2214,10 @@ document.getElementById('reinitAffichage').addEventListener('click', reinitialis
  */
 let glisser = null;   // { ptype, pid }
 
-// La ligne visée, et de quel côté : un·e remplaçant·e indenté·e n'est pas une
-// cible en soi — on tombe après son ou sa titulaire, sous son groupe.
+// La ligne visée, et de quel côté : un·e remplaçant·e encore indenté·e n'est
+// pas une cible en soi — sa place ne tient qu'au rattachement, pas à l'ordre
+// personnel, et l'on tombe donc après son ou sa titulaire, sous son groupe.
+// Se glisser soi-même reste possible : c'est ainsi qu'on s'en affranchit.
 function cibleDeDepot(e){
   let ligne = e.target.closest && e.target.closest('[data-ligne]');
   if(!ligne || !glisser || ligne.dataset.ligneType !== glisser.ptype) return null;
@@ -2150,14 +2239,23 @@ function finirGlisser(){
   try{ _curieuxRejouerSiLibre(); }catch(e){}
 }
 
-// L'ordre complet : ce qu'on avait retenu, puis les lignes à l'écran qu'il ne
-// connaissait pas encore, dans l'ordre où elles s'affichent — c'est celui
-// que la personne a sous les yeux. Les lignes retenues mais absentes de la
-// vue (filtrées) gardent leur place : on ne perd pas un ordre en changeant
-// de filtre.
+/* L'ordre complet : ce qu'on avait retenu, puis les lignes à l'écran qu'il ne
+ * connaissait pas encore, dans l'ordre où elles s'affichent — c'est celui que
+ * la personne a sous les yeux. Les lignes retenues mais absentes de la vue
+ * (filtrées) gardent leur place : on ne perd pas un ordre en changeant de
+ * filtre.
+ *
+ * Les remplaçant·es encore indenté·es sous leur titulaire sont du voyage,
+ * elles et eux aussi : leur place à l'écran est une place comme une autre, et
+ * les laisser de côté les renvoyait en fin de liste dès qu'on changeait de
+ * filtre — un nom glissé, un autre qui saute à l'autre bout du tableau sans
+ * qu'on y soit pour rien. Prendre une position ne les affranchit pas pour
+ * autant : seule la ligne réellement glissée entre dans lignesAffranchies, et
+ * c'est elle seule qui quitte son rattachement.
+ */
 function deplacerLigne(ptype, pid, cibleId, apres){
   if(pid === cibleId) return;
-  const affichees = [...document.querySelectorAll(`[data-ligne][data-ligne-type="${ptype}"]:not(.sous-remplacant)`)]
+  const affichees = [...document.querySelectorAll(`[data-ligne][data-ligne-type="${ptype}"]`)]
     .map(l=> l.dataset.ligne);
   const liste = ordrePerso[ptype].slice();
   affichees.forEach(id=>{ if(!liste.includes(id)) liste.push(id); });
@@ -2165,7 +2263,12 @@ function deplacerLigne(ptype, pid, cibleId, apres){
   const i = sans.indexOf(cibleId);
   if(i === -1) sans.push(pid); else sans.splice(apres ? i + 1 : i, 0, pid);
   ordrePerso = Object.assign({}, ordrePerso, { [ptype]: sans });
+  const libres = lignesAffranchies[ptype].includes(pid)
+    ? lignesAffranchies[ptype]
+    : lignesAffranchies[ptype].concat(pid);
+  lignesAffranchies = Object.assign({}, lignesAffranchies, { [ptype]: libres });
   memoriserOrdre();
+  majIndiceTri();   // le premier glissement fait apparaître le retour en arrière
   renderAll();
 }
 

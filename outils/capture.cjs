@@ -34,6 +34,12 @@ MUS.push(
   { id:'demo-mus-16', prenom:'Jules', nom:'Moreau', instrument:'Violoncelle', pupitre:'Cordes',
     statutPoste:'remplacant', rang:2, telephone:'06 27 46 67 85', email:'jules@mail.com',
     disponibilites:{'2027-03-15':'dispo'} },
+  // Sollicité·e sans figurer sur la liste de personne : c'est le cas que la
+  // récap rangeait tout en bas, hors de portée d'un glissement (« Mon
+  // ordre »). Violon, donc sa place est au milieu des violons.
+  { id:'demo-mus-17', prenom:'Nour', nom:'Aït-Saïd', instrument:'Violon', pupitre:'Cordes',
+    statutPoste:'remplacant', rang:2, telephone:'06 28 47 68 86', email:'nour@mail.com',
+    disponibilites:{'2027-03-15':'dispo','2027-03-18':'incertain'} },
 );
 
 // Trois soirs de suite au même endroit (Épernay) : c'est le cas qui met à
@@ -169,6 +175,29 @@ const SEED = {
       auteur:'Karim (stage manager)', sujet:'Déchargement',
       message:'La fosse est inaccessible en semi, il faut passer par le côté cour.',
       traitee:true, createdAt:'2026-08-19T16:40:00Z' },
+  ],
+  /* Qui a reçu une demande de dispo. Sans ces lignes, idsSollicites ne
+     renvoie rien : la récap n'affiche aucun·e remplaçant·e dans ses deux
+     filtres par défaut, et aucune capture ne dit jamais ce qu'ils valent.
+     Les trois remplaçant·es y sont, dont une — demo-mus-17 — que personne
+     n'a inscrite sur sa liste. */
+  dispo_demandes: [
+    ...['demo-mus-01','demo-mus-02','demo-mus-03','demo-mus-04','demo-mus-05',
+        'demo-mus-06','demo-mus-07','demo-mus-08'].map((id, i) => ({
+      id:`dem-${id}`, tourneeId:'demo-tour1', personType:'musicien', personId:id, dates:[],
+      createdAt:'2026-08-01T10:00:00Z',
+      lastReminderAt: i % 3 === 0 ? '2026-08-20T09:00:00Z' : '',
+    })),
+    { id:'dem-demo-mus-15', tourneeId:'demo-tour1', personType:'musicien', personId:'demo-mus-15',
+      dates:['d6'], createdAt:'2026-08-05T10:00:00Z', lastReminderAt:'2026-08-21T09:00:00Z' },
+    { id:'dem-demo-mus-16', tourneeId:'demo-tour1', personType:'musicien', personId:'demo-mus-16',
+      dates:['d6'], createdAt:'2026-08-05T10:00:00Z', lastReminderAt:'' },
+    { id:'dem-demo-mus-17', tourneeId:'demo-tour1', personType:'musicien', personId:'demo-mus-17',
+      dates:['d6','d7'], createdAt:'2026-08-06T10:00:00Z', lastReminderAt:'' },
+    ...['demo-tech-01','demo-tech-02'].map(id => ({
+      id:`dem-${id}`, tourneeId:'demo-tour1', personType:'technicien', personId:id, dates:[],
+      createdAt:'2026-08-01T10:00:00Z', lastReminderAt:'',
+    })),
   ],
   // Trois listes de remplaçant·es aux trois états : complète, incomplète, vide.
   remplacant_prefs: [
@@ -521,6 +550,11 @@ const __seed = ${JSON.stringify(SEED)};
 window.__ecrits = [];
 const CurieuxDB = new Proxy({
   fetchAll: async t => JSON.parse(JSON.stringify(__seed[t] || [])),
+  // La lecture qui DIT si elle a échoué : elle rend { data, error } et non une
+  // liste. Le repli du Proxy rend [], que les appelants déstructurent en
+  // data:undefined — « Suivi des dispos » levait donc au chargement, et toute
+  // capture de cette page montrait un écran arrêté en plein rendu.
+  fetchAllOuEchec: async t => ({ data: JSON.parse(JSON.stringify(__seed[t] || [])), error: null }),
   // Lit le jeu de démo, comme fetchAll : une page de détail (fiche de salle,
   // devis…) rendait sinon « introuvable » alors que la ligne est dans le seed.
   fetchOne: async (t, id) => {

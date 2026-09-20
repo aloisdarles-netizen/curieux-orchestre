@@ -201,7 +201,7 @@
 // « Autre ». Sans cet incrément, un navigateur déjà venu garderait l'ancien
 // fichier : le bouton « Reclasser » de l'écran de production ne verrait aucun
 // écart à corriger, et le prochain dépôt se tromperait encore.
-const VERSION = 'curieux-v134';
+const VERSION = 'curieux-v135';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
