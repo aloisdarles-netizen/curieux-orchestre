@@ -255,13 +255,31 @@
 // — la base refuse le pupitre « Chœur », et le proposer promettait un échec.
 // Sans cet incrément, un navigateur déjà venu garde l'ancien db.js : le bogue
 // reste, sur toutes les pages qui écrivent.
-// v139 : l'accueil est refait, et deux actifs le portent. nav.js donne à
+// v139 : assets/nouveautes.js annonce que « Mon ordre » mêle titulaires et
+// remplaçant·es sur le Tableau de service. Le fichier est un actif mis en
+// cache : sans cet incrément, un navigateur déjà venu garderait la liste
+// précédente et la fenêtre « Ce qui a changé » ne s'ouvrirait jamais sur cette
+// livraison — personne dans l'équipe ne saurait que le tri a changé de règle.
+// recap.html change au même moment, mais c'est une page, servie réseau
+// d'abord : elle se rafraîchit d'elle-même.
+// v140 : le budget redevient un seul menu, « Comptes et accès » en sort, et le
+// bandeau passe à six entrées pour un compte admin. Deux actifs changent
+// ensemble :
+//   — nav.js porte le nouveau rangement et le lien simple d'une section à
+//     écran unique ;
+//   — base.css l'habille et remesure les seuils du bandeau : la recherche
+//     s'efface à 1260 px au lieu de 1100, le panneau téléphone prend la main à
+//     1100 au lieu de 1024. Un navigateur qui garderait l'ancienne feuille
+//     aurait un lien « Admin » sans pastille ni survol, et surtout une rangée
+//     qui redéfilerait horizontalement entre 1100 et 1260 px — barre de
+//     défilement masquée, donc sans rien pour le dire.
+// v141 : l'accueil est refait, et deux actifs le portent. nav.js donne à
 // chaque section son accroche et filtre les entrées réservées de la planche
 // d'accueil (curieuxHomeSections) ; nouveautes.js annonce la page. Sans cet
 // incrément, un navigateur déjà venu chargerait le nouvel accueil.html (les
 // pages sont servies réseau d'abord) avec l'ancien nav.js — des cartes sans
-// accroche ni groupes, et « Devis et budgets » proposé à toute l'équipe.
-const VERSION = 'curieux-v139';
+// accroche ni groupes.
+const VERSION = 'curieux-v141';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

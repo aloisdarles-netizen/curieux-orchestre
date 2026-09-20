@@ -131,3 +131,29 @@ les catalogues système, et c'est très bien ainsi.
 `--verifier` ne réécrit rien et sort en échec si la documentation ne correspond
 plus à la base — de quoi le lancer après chaque strate ajoutée à
 `migrations.sql`.
+
+---
+
+# Les tests
+
+Trois scripts rejouent un bug précis, chacun dans un vrai navigateur. Ils
+sortent en échec (code 1) dès qu'une vérification tombe : de quoi les enchaîner
+avant un déploiement.
+
+```sh
+npm i playwright-core --no-save
+python3 -m http.server 8099 &           # les trois servent le site en local
+node outils/test-recap-mon-ordre.cjs
+node outils/test-remplacants.cjs
+node outils/test-suivi-dispo-doublons.cjs
+```
+
+| Script | Ce qu'il garde |
+| --- | --- |
+| `test-recap-mon-ordre.cjs` | Sous « Mon ordre », titulaires et remplaçant·es se rangent dans la même liste : un nom glissé y reste, une ligne indentée peut en sortir, et changer de filtre ne déplace personne d'autre. |
+| `test-remplacants.cjs` | Les quatre issues de « Enregistrer ma liste » — dont celle qui laissait le bouton figé sur « Enregistrement… ». |
+| `test-suivi-dispo-doublons.cjs` | Une lecture en échec n'est plus prise pour un inventaire vide : le suivi des dispos ne recrée pas 85 demandes existantes. |
+
+Chacun porte en tête le récit du bug qu'il surveille — c'est ce qui permet, des
+mois plus tard, de savoir si une vérification qui gêne protège encore quelque
+chose.

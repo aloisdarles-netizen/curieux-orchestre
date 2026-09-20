@@ -68,6 +68,11 @@
   .voix:first-of-type{border-top:none; padding-top:0; margin-top:4px;}
   .voix-tete{display:flex; gap:9px; align-items:center; flex-wrap:wrap;}
   .voix-tete .nom{font-weight:800; font-size:14.5px;}
+  /* La glose, en retrait : c'est un appoint, pas le nom. Le nom reste celui
+     qui est imprimé sur la partition et sur le fichier téléchargé — afficher
+     « Alt » pour un fichier « Alto.pdf » ferait chercher une voix qui ne
+     manque pas. */
+  .voix-trad{font-size:12.5px; color:var(--muted); font-weight:600;}
   .ton{
     display:inline-block; font-size:11.5px; font-weight:800; padding:2px 9px; border-radius:999px;
     background:var(--pup-choeur); color:var(--pup-choeur-ink); white-space:nowrap;
@@ -171,63 +176,95 @@
 const params = new URLSearchParams(location.search);
 const JETON = params.get('c') || params.get('choeur') || params.get('e') || '';
 
-/* Les deux langues, côte à côte. Pas de fichier de traduction ni de mécanique :
-   une trentaine de chaînes, lues et corrigées d'un coup d'œil. Une chaîne
-   manquante retombe sur le français plutôt que d'afficher sa clé. */
+/* Les langues servies, côte à côte — les mêmes que la page du matériel confié,
+   et pour la même raison : une coproduction amène des chœurs qui ne lisent pas
+   le français, et une page en français devant un Chorleiter de Leipzig, c'est
+   un appel téléphonique et deux jours perdus. Pas de fichier de traduction ni
+   de mécanique : une quarantaine de chaînes par langue, lues et corrigées d'un
+   coup d'œil. Une chaîne manquante retombe sur le français plutôt que
+   d'afficher sa clé.
+
+   EN AJOUTER UNE : une entrée dans LANGUES (code, étiquette, nom, locale) et un
+   bloc dans TEXTES, recopié sur l'anglais. Rien d'autre — la barre de langues,
+   la date, le poids, les voix et les tonalités suivent tout seuls. */
+const LANGUES = [
+  { code: 'fr', etiquette: 'FR', nom: 'Français',   locale: 'fr-FR' },
+  { code: 'en', etiquette: 'EN', nom: 'English',    locale: 'en-GB' },
+  { code: 'de', etiquette: 'DE', nom: 'Deutsch',    locale: 'de-DE' },
+  { code: 'es', etiquette: 'ES', nom: 'Español',    locale: 'es-ES' },
+  { code: 'it', etiquette: 'IT', nom: 'Italiano',   locale: 'it-IT' },
+  { code: 'nl', etiquette: 'NL', nom: 'Nederlands', locale: 'nl-NL' },
+  { code: 'ja', etiquette: 'JA', nom: '日本語',      locale: 'ja-JP' },
+];
+
+/* Le poids se lit dans les conventions du lecteur : « 18,4 Mo » devant un chef
+   de chœur de Leipzig se lit comme une coquille — l'unité ET la virgule
+   décimale sont françaises. Une seule mécanique, deux réglages. Les seuils sont
+   ceux de partitionsPoids. */
+function poidsFormate(octets, unites, virgule){
+  const n = Number(octets) || 0;
+  const dec = (x, d)=> x.toFixed(d).replace('.', virgule);
+  if(n < 1024) return n + ' ' + unites[0];
+  if(n < 1048576) return dec(n / 1024, 0) + ' ' + unites[1];
+  const mo = n / 1048576;
+  if(mo < 10) return dec(mo, 1) + ' ' + unites[2];
+  if(mo < 1024) return dec(mo, 0) + ' ' + unites[2];
+  return dec(mo / 1024, 2) + ' ' + unites[3];
+}
+const OCTETS_INTL = ['B', 'KB', 'MB', 'GB'];
+
 const TEXTES = {
   fr: {
     titre: 'Partitions du chœur',
     pourEnsemble: (e)=> `Partitions — ${e}`,
     sousTitre: 'Les voix que nous vous transmettons pour le travail de votre chœur.',
-    lienInvalide: "Ce lien n’est pas valide. Reprenez celui qui vous a été envoyé, ou demandez-nous de vous le renvoyer.",
-    pasActive: "Cette page n’est pas encore active sur ce serveur. Prévenez la production — il lui reste une mise à jour à appliquer.",
-    revoque: "Ce lien a été révoqué par la production. Contactez-nous avant de chercher les partitions ailleurs.",
+    lienInvalide: 'Ce lien n’est pas valide. Reprenez celui qui vous a été envoyé, ou demandez-nous de vous le renvoyer.',
+    pasActive: 'Cette page n’est pas encore active sur ce serveur. Prévenez la production — il lui reste une mise à jour à appliquer.',
+    revoque: 'Ce lien a été révoqué par la production. Contactez-nous avant de chercher les partitions ailleurs.',
     expire: (d)=> `Ce lien a expiré le ${d}. Contactez-nous pour le rouvrir si vous en avez encore besoin.`,
     pasOuvert: (d)=> `Les partitions seront disponibles à partir du ${d}.`,
     /* Un lien de transmission ouvert ici n'est pas une erreur du destinataire :
        c'est une adresse recopiée de travers, ou notre mail qui portait la
-       mauvaise. On ne dit donc pas « lien invalide » — on l'emmène au bon
-       endroit, d'un clic, plutôt que de lui faire rappeler la production. */
+       mauvaise. On l'emmène au bon endroit, d'un clic, plutôt que de lui faire
+       rappeler la production. */
     mauvaisePage: 'Ce lien ouvre un lot de matériel d’orchestre, et non les voix d’un chœur.',
     mauvaisePageLien: 'Ouvrir la page du matériel confié',
     datesTitre: 'Vos dates',
-    datesAide: "Les dates auxquelles votre chœur est attendu. Si l’une d’elles ne correspond pas à ce qui a été convenu, prévenez-nous avant de convoquer vos choristes.",
-    natures: { concert:'Concert', repetition:'Répétition', residence:'Résidence',
-               prise:'Séance d’enregistrement', overdub:'Overdub', mixage:'Mixage' },
+    datesAide: 'Les dates auxquelles votre chœur est attendu. Si l’une d’elles ne correspond pas à ce qui a été convenu, prévenez-nous avant de convoquer vos choristes.',
+    natures: { concert: 'Concert', repetition: 'Répétition', residence: 'Résidence',
+               prise: 'Séance d’enregistrement', overdub: 'Overdub', mixage: 'Mixage' },
     codeTitre: 'Code d’accès',
-    codeAide: "Le code vous a été communiqué séparément de ce lien. Vous ne le saisissez qu’une fois : il est retenu quatorze jours sur cet appareil.",
+    codeAide: 'Le code vous a été communiqué séparément de ce lien. Vous ne le saisissez qu’une fois : il est retenu quatorze jours sur cet appareil.',
     codeChamp: 'code',
     ouvrir: 'Ouvrir',
+    valider: 'Valider',
     oublier: 'oublier le code',
     nomTitre: 'Nom du ou de la choriste qui reçoit cet exemplaire',
-    nomAide: "Ces partitions sont distribuées nominativement : chaque exemplaire porte le nom du ou de la choriste à qui il est remis. Saisissez-le avant de télécharger — il s’inscrit sur la partition et dans notre registre.",
+    nomAide: 'Ces partitions sont distribuées nominativement : chaque exemplaire porte le nom du ou de la choriste à qui il est remis. Saisissez-le avant de télécharger — il s’inscrit sur la partition et dans notre registre.',
     nomChamp: 'Prénom et nom',
     nomManque: 'Saisissez d’abord le nom du ou de la choriste à qui cet exemplaire est remis.',
-    codeInvalide: "Ce code ne ressemble pas à l’un des nôtres : lettres et chiffres uniquement, sans espace. Reprenez celui qui vous a été communiqué.",
+    codeInvalide: 'Ce code ne ressemble pas à l’un des nôtres : lettres et chiffres uniquement, sans espace. Reprenez celui qui vous a été communiqué.',
     nomInvalide: 'Ce nom contient des caractères que nous ne pouvons pas inscrire sur la partition. Lettres, espaces, traits d’union, apostrophes, points et virgules — de deux à soixante caractères.',
     lot: 'Les voix',
     voixN: (n)=> `${n} voix`,
     fichiersN: (n)=> `${n} fichier${n > 1 ? 's' : ''}`,
     toutPrendre: 'Tout télécharger (.zip)',
-    pasDArchive: "Ces partitions sont distribuées nominativement : elles se prennent une par une, chacune au nom de la personne qui la reçoit. Une archive complète porterait le même nom sur tout le jeu, et le registre désignerait quelqu’un qui n’a jamais eu ces partitions.",
+    pasDArchive: 'Ces partitions sont distribuées nominativement : elles se prennent une par une, chacune au nom de la personne qui la reçoit. Une archive complète porterait le même nom sur tout le jeu, et le registre désignerait quelqu’un qui n’a jamais eu ces partitions.',
     enCours: (a, b)=> `Préparation ${a} / ${b}…`,
     echecPartiel: (n)=> n > 1
       ? `${n} fichiers n’ont pas pu être préparés et ne sont pas dans l’archive. Reprenez-les à l’unité.`
-      : "Un fichier n’a pas pu être préparé et ne figure pas dans l’archive. Reprenez-le à l’unité.",
-    echecTotal: "Le téléchargement a échoué. Vérifiez le code, puis réessayez — ou prenez les voix à l’unité.",
-    archiveImpossible: "Ce jeu est trop lourd pour être assemblé en une seule archive sur cet appareil. Prenez les voix à l’unité — elles sont toutes dans la liste ci-dessous.",
-    rien: "Aucune voix n’est encore déposée. Nous vous prévenons dès que c’est fait.",
+      : 'Un fichier n’a pas pu être préparé et ne figure pas dans l’archive. Reprenez-le à l’unité.',
+    echecTotal: 'Le téléchargement a échoué. Vérifiez le code, puis réessayez — ou prenez les voix à l’unité.',
+    archiveImpossible: 'Ce jeu est trop lourd pour être assemblé en une seule archive sur cet appareil. Prenez les voix à l’unité — elles sont toutes dans la liste ci-dessous.',
+    rien: 'Aucune voix n’est encore déposée. Nous vous prévenons dès que c’est fait.',
     expireLe: (d)=> `à télécharger avant le ${d}`,
     pages: (n)=> `${n} page${n > 1 ? 's' : ''}`,
-    /* Les poids aussi se traduisent : « 18,4 Mo » se lit comme une coquille
-       devant un chef de chœur de Leipzig — l’unité et la virgule décimale
-       sont françaises, et tout le reste de la page est dans sa langue. */
-    poids: (o)=> partitionsPoids(o),
-    piedTonalite: "Les tonalités indiquées sont celles du matériel transmis. Si l’une d’elles ne correspond pas à ce qui a été convenu avec la direction musicale, prévenez-nous avant de faire travailler le chœur : une voix apprise dans le mauvais ton se réapprend rarement.",
-    piedFiligrane: "Chaque exemplaire téléchargé porte le nom de votre chœur, en tête et en pied de page, ainsi qu’une marque invisible qui permet d’identifier l’origine d’un exemplaire qui circulerait. La musique n’est jamais recouverte.",
-    piedUsage: (avecDate)=> "Ces partitions vous sont remises pour le seul travail convenu entre nos deux maisons. Elles n’ont pas à être rediffusées au-delà de vos choristes, ni conservées "
+    poids: (o)=> poidsFormate(o, ['o', 'Ko', 'Mo', 'Go'], ','),
+    piedTonalite: 'Les tonalités indiquées sont celles du matériel transmis. Si l’une d’elles ne correspond pas à ce qui a été convenu avec la direction musicale, prévenez-nous avant de faire travailler le chœur : une voix apprise dans le mauvais ton se réapprend rarement.',
+    piedFiligrane: 'Chaque exemplaire téléchargé porte le nom de votre chœur, en tête et en pied de page, ainsi qu’une marque invisible qui permet d’identifier l’origine d’un exemplaire qui circulerait. La musique n’est jamais recouverte.',
+    piedUsage: (avecDate)=> 'Ces partitions vous sont remises pour le seul travail convenu entre nos deux maisons. Elles n’ont pas à être rediffusées au-delà de vos choristes, ni conservées '
       + (avecDate ? 'au-delà de la date indiquée ci-dessus.' : 'au-delà du travail convenu.'),
-    piedContact: "Une voix manquante, une version qui ne correspond pas à ce que vous attendez ? Écrivez à la personne qui vous a transmis ce lien — ne cherchez pas les partitions ailleurs.",
+    piedContact: 'Une voix manquante, une version qui ne correspond pas à ce que vous attendez ? Écrivez à la personne qui vous a transmis ce lien — ne cherchez pas les partitions ailleurs.',
   },
   en: {
     titre: 'Choir parts',
@@ -242,12 +279,13 @@ const TEXTES = {
     mauvaisePageLien: 'Open the orchestral material page',
     datesTitre: 'Your dates',
     datesAide: 'The dates your choir is expected on. If any of them does not match what was agreed, please tell us before you call your singers.',
-    natures: { concert:'Concert', repetition:'Rehearsal', residence:'Residency',
-               prise:'Recording session', overdub:'Overdub', mixage:'Mixing' },
+    natures: { concert: 'Concert', repetition: 'Rehearsal', residence: 'Residency',
+               prise: 'Recording session', overdub: 'Overdub', mixage: 'Mixing' },
     codeTitre: 'Access code',
     codeAide: 'The code was sent to you separately from this link. You only enter it once: it is remembered on this device for fourteen days.',
     codeChamp: 'code',
     ouvrir: 'Open',
+    valider: 'Confirm',
     oublier: 'forget the code',
     nomTitre: 'Name of the singer receiving this copy',
     nomAide: 'These parts are distributed by name: each copy carries the name of the singer it is handed to. Enter it before downloading — it is printed on the part and recorded in our register.',
@@ -269,24 +307,254 @@ const TEXTES = {
     rien: 'No voice part has been uploaded yet. We will let you know as soon as it is done.',
     expireLe: (d)=> `available until ${d}`,
     pages: (n)=> `${n} page${n > 1 ? 's' : ''}`,
-    poids: (o)=> {
-      const n = Number(o) || 0;
-      if(n < 1024) return n + ' B';
-      if(n < 1048576) return Math.round(n / 1024) + ' KB';
-      const mo = n / 1048576;
-      if(mo < 10) return mo.toFixed(1) + ' MB';
-      if(mo < 1024) return mo.toFixed(0) + ' MB';
-      return (mo / 1024).toFixed(2) + ' GB';
-    },
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, '.'),
     piedTonalite: 'The keys shown are those of the material as sent. If any of them does not match what was agreed with the musical director, please tell us before your choir starts work: a part learnt in the wrong key is rarely relearnt.',
     piedFiligrane: 'Every copy downloaded carries your choir’s name at the top and bottom of each page, together with an invisible mark that identifies the origin of any copy found in circulation. The music itself is never covered.',
     piedUsage: (avecDate)=> 'These parts are entrusted to you for the agreed work only. They must not be passed on beyond your singers, nor kept '
       + (avecDate ? 'beyond the date shown above.' : 'beyond the agreed work.'),
     piedContact: 'A missing voice part, or a version that does not match what you expect? Write to the person who sent you this link — please do not look for the parts elsewhere.',
   },
+  de: {
+    titre: 'Chorstimmen',
+    pourEnsemble: (e)=> `Chorstimmen — ${e}`,
+    sousTitre: 'Die Stimmen, die wir Ihnen für die Arbeit Ihres Chores übersenden.',
+    lienInvalide: 'Dieser Link ist ungültig. Bitte verwenden Sie den Link, den wir Ihnen geschickt haben, oder bitten Sie uns, ihn erneut zu senden.',
+    pasActive: 'Diese Seite ist auf diesem Server noch nicht aktiv. Bitte informieren Sie das Produktionsbüro — eine Aktualisierung steht noch aus.',
+    revoque: 'Dieser Link wurde von der Produktion zurückgezogen. Bitte wenden Sie sich an uns, bevor Sie die Noten anderswo suchen.',
+    expire: (d)=> `Dieser Link ist am ${d} abgelaufen. Melden Sie sich, wenn Sie ihn noch benötigen — wir öffnen ihn wieder.`,
+    pasOuvert: (d)=> `Die Stimmen stehen ab dem ${d} zur Verfügung.`,
+    mauvaisePage: 'Dieser Link öffnet ein Orchestermaterial, nicht die Stimmen eines Chores.',
+    mauvaisePageLien: 'Zur Seite des überlassenen Materials',
+    datesTitre: 'Ihre Termine',
+    datesAide: 'Die Termine, zu denen Ihr Chor erwartet wird. Sollte einer davon nicht dem Vereinbarten entsprechen, sagen Sie uns bitte Bescheid, bevor Sie Ihre Sängerinnen und Sänger einladen.',
+    natures: { concert: 'Konzert', repetition: 'Probe', residence: 'Probenphase',
+               prise: 'Aufnahmesitzung', overdub: 'Overdub', mixage: 'Mischung' },
+    codeTitre: 'Zugangscode',
+    codeAide: 'Den Code haben Sie getrennt von diesem Link erhalten. Sie geben ihn nur einmal ein: er bleibt vierzehn Tage auf diesem Gerät gespeichert.',
+    codeChamp: 'Code',
+    ouvrir: 'Öffnen',
+    valider: 'Bestätigen',
+    oublier: 'Code löschen',
+    nomTitre: 'Name des Chormitglieds, das dieses Exemplar erhält',
+    nomAide: 'Diese Stimmen werden namentlich verteilt: jedes Exemplar trägt den Namen der Person, der es ausgehändigt wird. Bitte geben Sie ihn vor dem Herunterladen ein — er wird auf die Noten gedruckt und in unser Register eingetragen.',
+    nomChamp: 'Vor- und Nachname',
+    nomManque: 'Bitte geben Sie zuerst den Namen der Person ein, die dieses Exemplar erhält.',
+    codeInvalide: 'Das sieht nicht nach einem unserer Codes aus: nur Buchstaben und Ziffern, ohne Leerzeichen. Bitte verwenden Sie den Code, den wir Ihnen mitgeteilt haben.',
+    nomInvalide: 'Dieser Name enthält Zeichen, die wir nicht auf die Noten drucken können. Buchstaben, Leerzeichen, Bindestriche, Apostrophe, Punkte und Kommas — zwischen zwei und sechzig Zeichen.',
+    lot: 'Die Stimmen',
+    voixN: (n)=> `${n} Stimme${n > 1 ? 'n' : ''}`,
+    fichiersN: (n)=> `${n} Datei${n > 1 ? 'en' : ''}`,
+    toutPrendre: 'Alles herunterladen (.zip)',
+    pasDArchive: 'Diese Stimmen werden namentlich verteilt und daher einzeln heruntergeladen, jede auf den Namen der Person, die sie erhält. Ein Gesamtarchiv trüge einen einzigen Namen über den ganzen Satz, und unser Register wiese auf jemanden, der diese Noten nie erhalten hat.',
+    enCours: (a, b)=> `Vorbereitung ${a} / ${b}…`,
+    echecPartiel: (n)=> n > 1
+      ? `${n} Dateien konnten nicht vorbereitet werden und fehlen im Archiv. Bitte laden Sie sie einzeln herunter.`
+      : 'Eine Datei konnte nicht vorbereitet werden und fehlt im Archiv. Bitte laden Sie sie einzeln herunter.',
+    echecTotal: 'Der Download ist fehlgeschlagen. Prüfen Sie den Code und versuchen Sie es erneut — oder laden Sie die Stimmen einzeln herunter.',
+    archiveImpossible: 'Dieser Satz ist zu umfangreich, um auf diesem Gerät in ein einziges Archiv gepackt zu werden. Bitte laden Sie die Stimmen einzeln herunter — sie stehen alle in der Liste unten.',
+    rien: 'Es ist noch keine Stimme hinterlegt. Wir melden uns, sobald es so weit ist.',
+    expireLe: (d)=> `abrufbar bis zum ${d}`,
+    pages: (n)=> `${n} Seite${n > 1 ? 'n' : ''}`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, ','),
+    piedTonalite: 'Die angegebenen Tonarten sind die des übersandten Materials. Sollte eine davon nicht dem entsprechen, was mit der musikalischen Leitung vereinbart wurde, sagen Sie uns bitte Bescheid, bevor Ihr Chor zu proben beginnt: eine in der falschen Tonart gelernte Stimme wird selten neu gelernt.',
+    piedFiligrane: 'Jedes heruntergeladene Exemplar trägt den Namen Ihres Chores am Kopf und am Fuß jeder Seite sowie eine unsichtbare Markierung, die die Herkunft eines in Umlauf geratenen Exemplars erkennen lässt. Die Noten selbst werden nie überdeckt.',
+    piedUsage: (avecDate)=> 'Diese Stimmen werden Ihnen ausschließlich für die vereinbarte Arbeit überlassen. Sie dürfen nicht über Ihre Sängerinnen und Sänger hinaus weitergegeben und nicht '
+      + (avecDate ? 'über das oben genannte Datum hinaus aufbewahrt werden.' : 'über die vereinbarte Arbeit hinaus aufbewahrt werden.'),
+    piedContact: 'Eine fehlende Stimme, oder eine Fassung, die nicht dem entspricht, was Sie erwarten? Schreiben Sie an die Person, die Ihnen diesen Link geschickt hat — bitte suchen Sie die Noten nicht anderswo.',
+  },
+  es: {
+    titre: 'Partituras del coro',
+    pourEnsemble: (e)=> `Partituras — ${e}`,
+    sousTitre: 'Las voces que le enviamos para el trabajo de su coro.',
+    lienInvalide: 'Este enlace no es válido. Utilice el que le enviamos, o pídanos que se lo reenviemos.',
+    pasActive: 'Esta página aún no está activa en este servidor. Avise a la oficina de producción — queda una actualización por aplicar.',
+    revoque: 'Este enlace ha sido revocado por la producción. Póngase en contacto con nosotros antes de buscar las partituras en otro sitio.',
+    expire: (d)=> `Este enlace caducó el ${d}. Escríbanos si todavía lo necesita y volveremos a abrirlo.`,
+    pasOuvert: (d)=> `Las partituras estarán disponibles a partir del ${d}.`,
+    mauvaisePage: 'Este enlace abre un lote de material de orquesta, no las voces de un coro.',
+    mauvaisePageLien: 'Abrir la página del material confiado',
+    datesTitre: 'Sus fechas',
+    datesAide: 'Las fechas en las que se espera a su coro. Si alguna no corresponde a lo acordado, avísenos antes de convocar a sus coristas.',
+    natures: { concert: 'Concierto', repetition: 'Ensayo', residence: 'Residencia',
+               prise: 'Sesión de grabación', overdub: 'Overdub', mixage: 'Mezcla' },
+    codeTitre: 'Código de acceso',
+    codeAide: 'El código se le comunicó por separado de este enlace. Solo lo introduce una vez: se recuerda catorce días en este dispositivo.',
+    codeChamp: 'código',
+    ouvrir: 'Abrir',
+    valider: 'Confirmar',
+    oublier: 'olvidar el código',
+    nomTitre: 'Nombre de la persona que recibe este ejemplar',
+    nomAide: 'Estas partituras se distribuyen nominalmente: cada ejemplar lleva el nombre de la persona a la que se entrega. Introdúzcalo antes de descargar — se imprime en la partitura y queda en nuestro registro.',
+    nomChamp: 'Nombre y apellidos',
+    nomManque: 'Introduzca primero el nombre de la persona que recibe este ejemplar.',
+    codeInvalide: 'Esto no se parece a uno de nuestros códigos: solo letras y cifras, sin espacios. Utilice el que le comunicamos.',
+    nomInvalide: 'Este nombre contiene caracteres que no podemos imprimir en la partitura. Letras, espacios, guiones, apóstrofos, puntos y comas — entre dos y sesenta caracteres.',
+    lot: 'Las voces',
+    voixN: (n)=> `${n} vo${n > 1 ? 'ces' : 'z'}`,
+    fichiersN: (n)=> `${n} archivo${n > 1 ? 's' : ''}`,
+    toutPrendre: 'Descargar todo (.zip)',
+    pasDArchive: 'Estas partituras se distribuyen nominalmente, por lo que se descargan una a una, cada una a nombre de la persona que la recibe. Un archivo completo llevaría un solo nombre en todo el juego, y nuestro registro señalaría a alguien que nunca las recibió.',
+    enCours: (a, b)=> `Preparando ${a} / ${b}…`,
+    echecPartiel: (n)=> n > 1
+      ? `${n} archivos no se han podido preparar y no están en el archivo comprimido. Descárguelos de uno en uno.`
+      : 'Un archivo no se ha podido preparar y no está en el archivo comprimido. Descárguelo por separado.',
+    echecTotal: 'La descarga ha fallado. Compruebe el código y vuelva a intentarlo — o descargue las voces de una en una.',
+    archiveImpossible: 'Este juego es demasiado pesado para comprimirse en un solo archivo en este dispositivo. Descargue las voces de una en una — están todas en la lista de abajo.',
+    rien: 'Todavía no se ha subido ninguna voz. Le avisaremos en cuanto esté.',
+    expireLe: (d)=> `descargable hasta el ${d}`,
+    pages: (n)=> `${n} página${n > 1 ? 's' : ''}`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, ','),
+    piedTonalite: 'Las tonalidades indicadas son las del material enviado. Si alguna no corresponde a lo acordado con la dirección musical, avísenos antes de poner a trabajar al coro: una voz aprendida en el tono equivocado rara vez se vuelve a aprender.',
+    piedFiligrane: 'Cada ejemplar descargado lleva el nombre de su coro en la cabecera y el pie de cada página, junto con una marca invisible que permite identificar el origen de un ejemplar que circulara. La música nunca queda cubierta.',
+    piedUsage: (avecDate)=> 'Estas partituras se le confían únicamente para el trabajo acordado. No deben difundirse más allá de sus coristas ni conservarse '
+      + (avecDate ? 'más allá de la fecha indicada arriba.' : 'más allá del trabajo acordado.'),
+    piedContact: '¿Falta una voz, o una versión no corresponde a lo que esperaba? Escriba a la persona que le envió este enlace — no busque las partituras en otro sitio.',
+  },
+  it: {
+    titre: 'Parti del coro',
+    pourEnsemble: (e)=> `Parti — ${e}`,
+    sousTitre: 'Le voci che vi trasmettiamo per il lavoro del vostro coro.',
+    lienInvalide: 'Questo link non è valido. Utilizzate quello che vi abbiamo inviato, oppure chiedeteci di rinviarvelo.',
+    pasActive: 'Questa pagina non è ancora attiva su questo server. Avvisate l’ufficio produzione — manca un aggiornamento.',
+    revoque: 'Questo link è stato revocato dalla produzione. Contattateci prima di cercare le parti altrove.',
+    expire: (d)=> `Questo link è scaduto il ${d}. Scriveteci se vi serve ancora e lo riapriremo.`,
+    pasOuvert: (d)=> `Le parti saranno disponibili a partire dal ${d}.`,
+    mauvaisePage: 'Questo link apre un materiale d’orchestra, non le voci di un coro.',
+    mauvaisePageLien: 'Apri la pagina del materiale affidato',
+    datesTitre: 'Le vostre date',
+    datesAide: 'Le date in cui il vostro coro è atteso. Se una di esse non corrisponde a quanto concordato, avvisateci prima di convocare i coristi.',
+    natures: { concert: 'Concerto', repetition: 'Prova', residence: 'Residenza',
+               prise: 'Sessione di registrazione', overdub: 'Overdub', mixage: 'Missaggio' },
+    codeTitre: 'Codice di accesso',
+    codeAide: 'Il codice vi è stato comunicato separatamente da questo link. Lo inserite una sola volta: resta memorizzato quattordici giorni su questo dispositivo.',
+    codeChamp: 'codice',
+    ouvrir: 'Apri',
+    valider: 'Conferma',
+    oublier: 'dimentica il codice',
+    nomTitre: 'Nome della persona che riceve questa copia',
+    nomAide: 'Queste parti sono distribuite nominalmente: ogni copia porta il nome della persona a cui viene consegnata. Inseritelo prima di scaricare — viene stampato sulla parte e registrato da noi.',
+    nomChamp: 'Nome e cognome',
+    nomManque: 'Inserite prima il nome della persona che riceve questa copia.',
+    codeInvalide: 'Questo non somiglia a uno dei nostri codici: solo lettere e cifre, senza spazi. Utilizzate quello che vi abbiamo comunicato.',
+    nomInvalide: 'Questo nome contiene caratteri che non possiamo stampare sulla parte. Lettere, spazi, trattini, apostrofi, punti e virgole — da due a sessanta caratteri.',
+    lot: 'Le voci',
+    voixN: (n)=> `${n} voc${n > 1 ? 'i' : 'e'}`,
+    fichiersN: (n)=> `${n} file`,
+    toutPrendre: 'Scarica tutto (.zip)',
+    pasDArchive: 'Queste parti sono distribuite nominalmente, quindi si scaricano una alla volta, ciascuna a nome della persona che la riceve. Un archivio unico porterebbe lo stesso nome su tutto il materiale, e il nostro registro indicherebbe qualcuno che non ha mai ricevuto queste parti.',
+    enCours: (a, b)=> `Preparazione ${a} / ${b}…`,
+    echecPartiel: (n)=> n > 1
+      ? `${n} file non sono stati preparati e non figurano nell’archivio. Scaricateli singolarmente.`
+      : 'Un file non è stato preparato e non figura nell’archivio. Scaricatelo singolarmente.',
+    echecTotal: 'Lo scaricamento non è riuscito. Verificate il codice e riprovate — oppure scaricate le voci una alla volta.',
+    archiveImpossible: 'Questo materiale è troppo pesante per essere riunito in un solo archivio su questo dispositivo. Scaricate le voci una alla volta — sono tutte nell’elenco qui sotto.',
+    rien: 'Non è ancora stata caricata alcuna voce. Vi avvisiamo appena pronto.',
+    expireLe: (d)=> `da scaricare entro il ${d}`,
+    pages: (n)=> `${n} pagin${n > 1 ? 'e' : 'a'}`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, ','),
+    piedTonalite: 'Le tonalità indicate sono quelle del materiale trasmesso. Se una di esse non corrisponde a quanto concordato con la direzione musicale, avvisateci prima di far lavorare il coro: una voce imparata nella tonalità sbagliata raramente si reimpara.',
+    piedFiligrane: 'Ogni copia scaricata porta il nome del vostro coro in testa e in calce a ogni pagina, oltre a un contrassegno invisibile che permette di identificare l’origine di una copia in circolazione. La musica non viene mai coperta.',
+    piedUsage: (avecDate)=> 'Queste parti vi sono affidate unicamente per il lavoro concordato. Non devono essere diffuse oltre i vostri coristi, né conservate '
+      + (avecDate ? 'oltre la data indicata sopra.' : 'oltre il lavoro concordato.'),
+    piedContact: 'Manca una voce, o una versione non corrisponde a quanto vi aspettate? Scrivete alla persona che vi ha inviato questo link — non cercate le parti altrove.',
+  },
+  nl: {
+    titre: 'Koorpartijen',
+    pourEnsemble: (e)=> `Koorpartijen — ${e}`,
+    sousTitre: 'De stempartijen die wij u toesturen voor het werk van uw koor.',
+    lienInvalide: 'Deze link is niet geldig. Gebruik de link die wij u hebben gestuurd, of vraag ons hem opnieuw te sturen.',
+    pasActive: 'Deze pagina is op deze server nog niet actief. Laat het productiebureau weten — er staat nog een update open.',
+    revoque: 'Deze link is door de productie ingetrokken. Neem contact met ons op voordat u de partijen elders zoekt.',
+    expire: (d)=> `Deze link is op ${d} verlopen. Laat het ons weten als u hem nog nodig hebt — wij openen hem opnieuw.`,
+    pasOuvert: (d)=> `De partijen zijn beschikbaar vanaf ${d}.`,
+    mauvaisePage: 'Deze link opent orkestmateriaal, niet de stempartijen van een koor.',
+    mauvaisePageLien: 'Naar de pagina met het toevertrouwde materiaal',
+    datesTitre: 'Uw data',
+    datesAide: 'De data waarop uw koor wordt verwacht. Klopt er een niet met wat is afgesproken, laat het ons dan weten voordat u uw koorleden oproept.',
+    natures: { concert: 'Concert', repetition: 'Repetitie', residence: 'Werkperiode',
+               prise: 'Opnamesessie', overdub: 'Overdub', mixage: 'Mix' },
+    codeTitre: 'Toegangscode',
+    codeAide: 'De code hebt u los van deze link ontvangen. U voert hem één keer in: hij blijft veertien dagen op dit apparaat bewaard.',
+    codeChamp: 'code',
+    ouvrir: 'Openen',
+    valider: 'Bevestigen',
+    oublier: 'code wissen',
+    nomTitre: 'Naam van het koorlid dat dit exemplaar ontvangt',
+    nomAide: 'Deze partijen worden op naam verspreid: elk exemplaar draagt de naam van degene aan wie het wordt gegeven. Vul die in voordat u downloadt — hij wordt op de partij gedrukt en in ons register opgenomen.',
+    nomChamp: 'Voor- en achternaam',
+    nomManque: 'Vul eerst de naam in van degene die dit exemplaar ontvangt.',
+    codeInvalide: 'Dit lijkt niet op een van onze codes: alleen letters en cijfers, zonder spaties. Gebruik de code die wij u hebben gegeven.',
+    nomInvalide: 'Deze naam bevat tekens die wij niet op de partij kunnen drukken. Letters, spaties, koppeltekens, apostrofs, punten en komma’s — tussen twee en zestig tekens.',
+    lot: 'De stempartijen',
+    voixN: (n)=> `${n} stempartij${n > 1 ? 'en' : ''}`,
+    fichiersN: (n)=> `${n} bestand${n > 1 ? 'en' : ''}`,
+    toutPrendre: 'Alles downloaden (.zip)',
+    pasDArchive: 'Deze partijen worden op naam verspreid en dus één voor één gedownload, elk op naam van degene die ze ontvangt. Eén archief zou dezelfde naam over het hele stel dragen, en ons register zou wijzen op iemand die deze partijen nooit heeft gekregen.',
+    enCours: (a, b)=> `Voorbereiden ${a} / ${b}…`,
+    echecPartiel: (n)=> n > 1
+      ? `${n} bestanden konden niet worden voorbereid en ontbreken in het archief. Download ze afzonderlijk.`
+      : 'Eén bestand kon niet worden voorbereid en ontbreekt in het archief. Download het afzonderlijk.',
+    echecTotal: 'Het downloaden is mislukt. Controleer de code en probeer het opnieuw — of download de stempartijen afzonderlijk.',
+    archiveImpossible: 'Dit stel is te groot om op dit apparaat in één archief te worden verpakt. Download de stempartijen afzonderlijk — ze staan allemaal in de lijst hieronder.',
+    rien: 'Er is nog geen stempartij geplaatst. Wij laten het weten zodra het zover is.',
+    expireLe: (d)=> `te downloaden tot ${d}`,
+    pages: (n)=> `${n} pagina${n > 1 ? '’s' : ''}`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, ','),
+    piedTonalite: 'De vermelde toonsoorten zijn die van het toegestuurde materiaal. Klopt er een niet met wat met de muzikale leiding is afgesproken, laat het ons dan weten voordat uw koor aan het werk gaat: een partij die in de verkeerde toonsoort is ingestudeerd, wordt zelden opnieuw geleerd.',
+    piedFiligrane: 'Elk gedownload exemplaar draagt de naam van uw koor boven- en onderaan elke pagina, samen met een onzichtbaar merkteken waarmee de herkomst van een rondgaand exemplaar is vast te stellen. De muziek zelf wordt nooit afgedekt.',
+    piedUsage: (avecDate)=> 'Deze partijen worden u uitsluitend voor het afgesproken werk toevertrouwd. Zij mogen niet buiten uw koorleden worden verspreid en niet '
+      + (avecDate ? 'na de hierboven genoemde datum worden bewaard.' : 'na het afgesproken werk worden bewaard.'),
+    piedContact: 'Ontbreekt er een stempartij, of komt een versie niet overeen met wat u verwacht? Schrijf naar de persoon die u deze link heeft gestuurd — zoek de partijen niet elders.',
+  },
+  ja: {
+    titre: '合唱譜',
+    pourEnsemble: (e)=> `合唱譜 — ${e}`,
+    sousTitre: '貴合唱団の練習のためにお送りする声部譜です。',
+    lienInvalide: 'このリンクは無効です。お送りしたリンクをご利用いただくか、再送をご依頼ください。',
+    pasActive: 'このページはこのサーバーでまだ有効になっていません。制作部にお知らせください — 更新が残っています。',
+    revoque: 'このリンクは制作部により取り消されました。他をお探しになる前にご連絡ください。',
+    expire: (d)=> `このリンクは${d}に期限切れとなりました。まだ必要でしたらご連絡ください。再度有効にいたします。`,
+    pasOuvert: (d)=> `楽譜は${d}からご利用いただけます。`,
+    mauvaisePage: 'このリンクはオーケストラ譜の一式を開くもので、合唱の声部ではありません。',
+    mauvaisePageLien: '貸与資料のページを開く',
+    datesTitre: '公演日程',
+    datesAide: '貴合唱団にご出演いただく日程です。お約束の内容と異なる場合は、団員の方々を招集される前にご一報ください。',
+    natures: { concert: '本番', repetition: 'リハーサル', residence: '滞在制作',
+               prise: '録音セッション', overdub: 'オーバーダビング', mixage: 'ミックス' },
+    codeTitre: 'アクセスコード',
+    codeAide: 'コードはこのリンクとは別にお送りしています。入力は一度だけです。この端末に十四日間保持されます。',
+    codeChamp: 'コード',
+    ouvrir: '開く',
+    valider: '確定',
+    oublier: 'コードを消去',
+    nomTitre: 'この譜面を受け取る団員のお名前',
+    nomAide: 'この楽譜は記名配布です。各部には受け取る方のお名前が入ります。ダウンロード前にご入力ください — 譜面に印字され、当方の記録にも残ります。',
+    nomChamp: '姓名',
+    nomManque: 'まず、この譜面を受け取る方のお名前をご入力ください。',
+    codeInvalide: '当方のコードとは形式が異なります。英数字のみ、空白なしでご入力ください。お知らせしたコードをご利用ください。',
+    nomInvalide: 'このお名前には譜面に印字できない文字が含まれています。文字・空白・ハイフン・アポストロフィ・ピリオド・カンマのみ、二文字から六十文字までです。',
+    lot: '声部',
+    voixN: (n)=> `${n}声部`,
+    fichiersN: (n)=> `${n}ファイル`,
+    toutPrendre: 'すべてダウンロード（.zip）',
+    pasDArchive: 'この楽譜は記名配布のため、受け取る方のお名前ごとに一部ずつダウンロードします。一括ダウンロードでは全部に同じお名前が入り、実際には受け取っていない方が記録に残ってしまいます。',
+    enCours: (a, b)=> `準備中 ${a} / ${b}…`,
+    echecPartiel: (n)=> `${n}件のファイルを準備できず、アーカイブに含まれていません。個別にダウンロードしてください。`,
+    echecTotal: 'ダウンロードに失敗しました。コードをご確認のうえ、もう一度お試しください。個別のダウンロードも可能です。',
+    archiveImpossible: 'この一式は、この端末で一つのアーカイブにまとめるには大きすぎます。下の一覧から個別にダウンロードしてください。',
+    rien: '声部はまだ登録されていません。準備ができ次第ご連絡いたします。',
+    expireLe: (d)=> `${d}までダウンロード可能`,
+    pages: (n)=> `${n}ページ`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, '.'),
+    piedTonalite: '記載の調は、お送りした楽譜のものです。音楽監督とのお約束と異なる場合は、合唱の練習を始められる前にご一報ください。誤った調で覚えた声部を覚え直すことは、ほとんどありません。',
+    piedFiligrane: 'ダウンロードされた各部には、貴合唱団の名称が各ページの上下に入り、流出した際に出所を特定できる不可視の印も付きます。楽譜そのものが覆われることはありません。',
+    piedUsage: (avecDate)=> 'この楽譜はお約束の用途に限りお預けするものです。貴合唱団の外に再配布なさらず、'
+      + (avecDate ? '上記の期日を超えて保管なさらないようお願いいたします。' : 'お約束の作業を超えて保管なさらないようお願いいたします。'),
+    piedContact: '声部が足りない、想定と異なる版である、といった場合は、このリンクをお送りした担当者にご連絡ください。他所でお探しにならないようお願いいたします。',
+  },
 };
 
-const CLE_LANGUE = 'curieuxEnvoiLangue';       // la même que l'autre page : une maison, une langue choisie
+const CLE_LANGUE = 'curieuxEnvoiLangue';       // la même clé que l'autre page : une maison, une langue choisie
 const CLE_CODE = 'curieuxChoeurCode:' + JETON;
 /* PAS DE CLÉ POUR LE NOM, et c'est délibéré. Le code, lui, se retient quatorze
    jours : il désigne le LOT, il ne change pas d'un exemplaire à l'autre. Le nom
@@ -295,14 +563,27 @@ const CLE_CODE = 'curieuxChoeurCode:' + JETON;
    quelqu'un qui n'a jamais reçu cette partition, ce qui est pire que pas de
    registre du tout. Il vit le temps de la page, et se retape. */
 
+/* La langue du chef de chœur, dans cet ordre : son choix retenu, le `lang` du
+   lien — c'est lui qu'on met dans le courriel d'envoi quand on SAIT à qui on
+   écrit —, puis ses préférences de navigateur, dans l'ordre où il les a
+   déclarées. L'anglais en dernier recours : devant un lecteur dont on ne sert
+   pas la langue, c'est lui qui a le plus de chances d'être lu. */
 function langueInitiale(){
+  const connue = (v)=> LANGUES.some(l => l.code === String(v || '').slice(0, 2).toLowerCase())
+    ? String(v).slice(0, 2).toLowerCase() : '';
   try{
-    const retenu = localStorage.getItem(CLE_LANGUE);
-    if(retenu === 'fr' || retenu === 'en') return retenu;
+    const retenu = connue(localStorage.getItem(CLE_LANGUE));
+    if(retenu) return retenu;
   }catch(e){}
-  if(params.get('lang') === 'en') return 'en';
-  if(params.get('lang') === 'fr') return 'fr';
-  return /^fr\b/i.test(navigator.language || '') ? 'fr' : 'en';
+  const demande = connue(params.get('lang'));
+  if(demande) return demande;
+  const preferees = (navigator.languages && navigator.languages.length)
+    ? navigator.languages : [navigator.language || ''];
+  for(let i = 0; i < preferees.length; i++){
+    const c = connue(preferees[i]);
+    if(c) return c;
+  }
+  return 'en';
 }
 let LANGUE = langueInitiale();
 function T(cle){ return TEXTES[LANGUE][cle] !== undefined ? TEXTES[LANGUE][cle] : TEXTES.fr[cle]; }
@@ -323,11 +604,13 @@ function ecrireRetenu(cle, valeur){
 /* Le jour de la semaine compte ICI et nulle part ailleurs sur cette page : un
    chef de chœur convoque quarante bénévoles, et « samedi » ou « mardi » décide
    de la moitié des réponses. Sur une date d'expiration, ce serait du bruit. */
+const _locale = ()=> (LANGUES.find(x => x.code === LANGUE) || {}).locale || 'en-GB';
+
 function jourAvecSemaine(iso){
   if(!iso) return '';
   const d = new Date(iso + 'T12:00:00');
   if(isNaN(d)) return iso;
-  return d.toLocaleDateString(LANGUE === 'fr' ? 'fr-FR' : 'en-GB',
+  return d.toLocaleDateString(_locale(),
     { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
@@ -335,8 +618,7 @@ function jourLisible(iso){
   if(!iso) return '';
   const d = new Date(iso + 'T12:00:00');
   if(isNaN(d)) return iso;
-  return d.toLocaleDateString(LANGUE === 'fr' ? 'fr-FR' : 'en-GB',
-    { day: 'numeric', month: 'long', year: 'numeric' });
+  return d.toLocaleDateString(_locale(), { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 let CHARGE = null;
@@ -359,8 +641,10 @@ function etat(html){
 }
 
 function rendreLangues(){
-  document.getElementById('langues').innerHTML = ['fr', 'en'].map(l =>
-    `<button type="button" data-langue="${l}" class="${l === LANGUE ? 'actif' : ''}">${l.toUpperCase()}</button>`).join('');
+  document.getElementById('langues').innerHTML = LANGUES.map(l =>
+    `<button type="button" data-langue="${l.code}" lang="${l.code}"
+       class="${l.code === LANGUE ? 'actif' : ''}"${l.code === LANGUE ? ' aria-current="true"' : ''}
+       title="${escapeAttr(l.nom)}" aria-label="${escapeAttr(l.nom)}">${escapeHtml(l.etiquette)}</button>`).join('');
   document.querySelectorAll('[data-langue]').forEach(b => b.onclick = ()=>{
     LANGUE = b.dataset.langue;
     try{ localStorage.setItem(CLE_LANGUE, LANGUE); }catch(e){}
@@ -500,7 +784,7 @@ function rendre(){
         <input class="co-input" id="inpNom" style="width:min(300px,100%)" maxlength="60"
                placeholder="${escapeAttr(T('nomChamp'))}" aria-label="${escapeAttr(T('nomTitre'))}"
                value="${escapeAttr(NOM)}">
-        <button type="submit" class="co-btn sm">${escapeHtml(T('ouvrir'))}</button>
+        <button type="submit" class="co-btn sm">${escapeHtml(T('valider'))}</button>
       </form>
       <p class="erreur" id="errNom"></p>
       <p class="aide">${escapeHtml(T('nomAide'))}</p>
@@ -524,8 +808,17 @@ function rendre(){
   } else {
     voix.forEach(p => {
       const tonVoix = ton(p.tonalite);
+      /* LE NOM DE LA VOIX NE CHANGE PAS, la glose s'ajoute à côté. Un jeu
+         français annonce « Alto » ; devant un Chorleiter, c'est « Alt », et
+         surtout pas « Bratsche » — le glossaire des VOIX est distinct de celui
+         des instruments, voir partitions-commun.js. La glose n'est écrite que
+         si elle apprend quelque chose : « Soprano » ne gagne rien à être
+         doublé de « Soprano ». */
+      const glose = partitionsVoixTraduite(p.nom, LANGUE);
+      const utile = partitionsNormaliser(glose) !== partitionsNormaliser(p.nom);
       html += `<div class="voix"><div class="voix-tete">
         <span class="nom">${escapeHtml(p.nom)}</span>
+        ${utile ? `<span class="voix-trad" lang="${escapeAttr(LANGUE)}">${escapeHtml(glose)}</span>` : ''}
         ${tonVoix ? `<span class="ton">${escapeHtml(tonVoix)}</span>` : ''}
       </div>`;
       (p.fichiers || []).forEach(f => {
