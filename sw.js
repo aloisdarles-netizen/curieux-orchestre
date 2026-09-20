@@ -297,7 +297,13 @@
 // partitions.html refuse de la même façon, à la source, une partie sans
 // identifiant ou sans spectacle. Sans cet incrément, un navigateur déjà venu
 // garde l'ancien db.js : le bogue reste, sur toutes les pages qui écrivent.
-const VERSION = 'curieux-v143';
+// v144 : le refus d'écriture nomme le geste. « Une modification n'a pas été
+// enregistrée » n'apprend rien à qui travaille : il ne sait ni ce qu'il vient
+// de perdre, ni quoi refaire, ni quoi nous dire. db.js lit la pile d'appel,
+// en saute ses propres cadres, et met dans le message la fonction appelante et
+// l'intitulé de la ligne — « geste : versChoeur, sur « Basse » ». Dix mots qui
+// répondent aux trois questions, sans ouvrir la console.
+const VERSION = 'curieux-v144';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

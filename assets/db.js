@@ -1138,6 +1138,29 @@ const CurieuxDB = (()=>{
      insérer sous une clé nulle serait un doublon anonyme. On refuse, on le dit
      en clair, et on journalise la pile d'appel — c'est elle qui nommera
      l'appelant fautif la prochaine fois. */
+  /* D'où vient l'écriture, en une phrase lisible : le geste (la première
+     fonction de la pile qui n'appartient pas à cette couche) et, quand la
+     ligne porte un intitulé, cet intitulé. Tout est enveloppé — une aide au
+     diagnostic ne doit jamais, elle, faire échouer quoi que ce soit. */
+  function _ouEtCeParti(table, ligne, pile){
+    let geste = '';
+    try{
+      const interne = /_nettoyerIndefinis|_upsertTolerant|upsertOne|_ecrire|CurieuxDB|db\.js/;
+      const cadres = String(pile || '').split('\n').slice(1);
+      for(const c of cadres){
+        const m = c.match(/at\s+(?:async\s+)?([A-Za-z0-9_$.]+)\s*\(/);
+        if(m && m[1] && !interne.test(m[1])){ geste = m[1]; break; }
+      }
+    }catch(e){}
+    let quoi = '';
+    try{
+      const l = ligne || {};
+      quoi = l.nom || l.titre || l.destinataire || l.id || '';
+    }catch(e){}
+    return (geste ? ` (geste : ${geste}${quoi ? ', sur « ' + quoi + ' »' : ''}, table ${table})`
+                  : ` (table ${table}${quoi ? ', sur « ' + quoi + ' »' : ''})`) + '.';
+  }
+
   function _nettoyerIndefinis(table, rows, cles){
     const perdues = new Set();
     const propres = rows.map(r => {
@@ -1148,12 +1171,20 @@ const CurieuxDB = (()=>{
     if(!perdues.size) return { rows: propres, error: null };
     const cleManquante = [...perdues].find(k => cles.has(k));
     if(cleManquante){
+      const pile = (new Error('pile d\'appel').stack || '');
       console.error(`[CurieuxDB] ${table} : « ${cleManquante} » vaut undefined dans la ligne à écrire. `
         + 'Écriture refusée — elle serait partie sans clé et se serait insérée à NULL. '
-        + 'Ligne : ' + JSON.stringify(propres[0]) + '\n' + (new Error('pile d\'appel').stack || ''));
+        + 'Ligne : ' + JSON.stringify(propres[0]) + '\n' + pile);
+      /* LE MESSAGE NOMME LE GESTE, et ce n'est pas un luxe de développeur.
+         « une modification n'a pas été enregistrée » n'apprend rien à qui
+         travaille : il ne sait ni ce qu'il vient de perdre, ni quoi refaire, ni
+         quoi nous dire. Le nom de la fonction appelante et l'intitulé de la
+         ligne tiennent en dix mots et répondent aux trois questions. On le lit
+         dans la pile d'appel, en sautant les cadres de cette couche-ci. */
       return { rows: propres, error: { code: 'CURIEUX_CLE_ABSENTE', message:
-        `La modification n'a pas de « ${cleManquante} » : elle n'a pas été envoyée, pour ne pas créer une ligne anonyme. `
-        + 'Recharge la page et recommence — si ça se reproduit, la console en garde la trace.' } };
+        `La modification n'a pas de « ${cleManquante} » : elle n'a pas été envoyée, pour ne pas créer une ligne anonyme.`
+        + _ouEtCeParti(table, propres[0], pile)
+        + ' Recharge la page et recommence.' } };
     }
     console.warn(`[CurieuxDB] ${table} : ${[...perdues].join(', ')} à undefined — colonne(s) retirée(s) de l'écriture.`);
     return { rows: propres, error: null };
