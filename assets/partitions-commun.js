@@ -22,31 +22,65 @@
 /* L'ordre du conducteur. Une liste de parties triée par ordre alphabétique se
    lit comme un annuaire ; triée ainsi, elle se lit comme une partition — et un
    trou saute aux yeux, ce qui est tout l'intérêt au moment du dépôt. */
+/* L'ANGLAIS EST LÀ PARCE QUE DORICO EXPORTE EN ANGLAIS. Un jeu sorti tel quel
+   donne « 120 Oboe », « 510 Violin1 », « 560 DoubleBass » : aucun de ces noms
+   n'a de mot français dedans, et la liste entière retombait donc en fin
+   d'ordre, à plat. Les deux langues cohabitent dans la même case de la liste —
+   c'est le même instrument, il a une seule place dans le conducteur. */
 const PARTITIONS_ORDRE_CONDUCTEUR = [
-  'piccolo', 'flute', 'hautbois', 'cor anglais', 'clarinette', 'clarinette basse',
-  'basson', 'contrebasson', 'saxophone',
-  'cor', 'trompette', 'cornet', 'saxhorn', 'trombone', 'trombone basse', 'tuba',
-  'timbales', 'percussion', 'batterie', 'vibraphone', 'marimba', 'xylophone',
-  'harpe', 'piano', 'celesta', 'clavier', 'orgue', 'accordeon', 'guitare', 'basse',
-  'voix', 'choeur', 'soprano', 'alto voix', 'tenor', 'basse voix',
-  'violon', 'violon 1', 'violon 2', 'alto', 'violoncelle', 'contrebasse',
-  'conducteur',
+  'piccolo', 'flute', 'hautbois', 'oboe', 'cor anglais', 'english horn',
+  'clarinette', 'clarinet', 'clarinette basse', 'bass clarinet',
+  'basson', 'bassoon', 'contrebasson', 'contrabassoon', 'saxophone',
+  'cor', 'horn', 'french horn', 'trompette', 'trumpet', 'cornet', 'saxhorn',
+  'trombone', 'trombone basse', 'bass trombone', 'tuba',
+  'timbales', 'timpani', 'percussion', 'batterie', 'drums', 'vibraphone',
+  'marimba', 'xylophone', 'glockenspiel',
+  'harpe', 'harp', 'piano', 'celesta', 'clavier', 'keyboard', 'orgue', 'organ',
+  'accordeon', 'accordion', 'guitare', 'guitar', 'basse',
+  'voix', 'voice', 'choeur', 'choir', 'chorus', 'soprano', 'alto voix', 'tenor', 'basse voix',
+  'violon', 'violin', 'violon 1', 'violin 1', 'violon 2', 'violin 2',
+  'alto', 'viola', 'violoncelle', 'violoncello', 'cello',
+  'contrebasse', 'contrabass', 'double bass', 'doublebass',
+  'conducteur', 'score',
 ];
 
 /* Le pupitre d'une partie, déduit de son nom. Six valeurs, celles que la maison
    emploie déjà (musiciens.pupitre est propre, contrairement à instrument).
    L'ordre des règles compte : « clarinette basse » doit tomber dans Bois avant
    que « basse » ne l'envoie dans Cordes. */
+/* L'ANGLAIS, ICI AUSSI, ET POUR LA MÊME RAISON. Sur un jeu sorti de Dorico
+   — « Oboe », « Clarinet », « Bassoon », « Horn », « Violin1 », « Viola »,
+   « DoubleBass » —, onze parties sur seize tombaient dans « Autre » : la liste
+   ne connaissait que des noms français. Le pupitre se lit alors à la main,
+   partie par partie, au moment précis où l'on vient de gagner du temps sur le
+   dépôt.
+
+   CE QU'ON N'AJOUTE PAS, et c'est délibéré : le mot « bass » seul. Il désigne
+   la contrebasse, mais aussi la clarinette basse (un bois) et le trombone
+   basse (un cuivre) ; un motif si court renverrait donc aux cordes deux
+   instruments qui n'en sont pas. On nomme les formes complètes — « double
+   bass », « contrabass » — et on laisse « bass clarinet » et « bass trombone »
+   tomber sur leur instrument, qui est écrit juste à côté. */
 const PARTITIONS_PUPITRES = [
   // « cor anglais » et « saxophone » AVANT les cuivres : sans cette priorité,
   // « cor » attrape le cor anglais, qui est un hautbois. Et « saxhorn » est un
   // cuivre, pas un saxophone — un motif « sax » les confondait.
-  { pupitre: 'Bois',        motifs: ['piccolo', 'flute', 'flûte', 'hautbois', 'cor anglais', 'clarinette', 'basson', 'saxophone'] },
-  { pupitre: 'Cuivres',     motifs: ['cor', 'trompette', 'cornet', 'saxhorn', 'trombone', 'tuba', 'bugle', 'euphonium'] },
-  { pupitre: 'Percussions', motifs: ['percussion', 'timbale', 'batterie', 'vibraphone', 'marimba', 'xylophone', 'glockenspiel', 'cymbale', 'caisse claire'] },
-  { pupitre: 'Chant',       motifs: ['voix', 'chant', 'choeur', 'chœur', 'soprano', 'mezzo', 'tenor', 'ténor', 'baryton'] },
-  { pupitre: 'Cordes',      motifs: ['violon', 'alto', 'violoncelle', 'cello', 'contrebasse', 'harpe'] },
-  { pupitre: 'Autre',       motifs: ['piano', 'clavier', 'celesta', 'orgue', 'synth', 'accordeon', 'accordéon', 'guitare', 'basse', 'conducteur', 'partition'] },
+  // Même piège en anglais, et il est pire : « english horn » EST le cor
+  // anglais, donc un bois, et « horn » seul est le cor d'harmonie. Les bois
+  // passant les premiers, l'ordre suffit à les départager.
+  { pupitre: 'Bois',        motifs: ['piccolo', 'flute', 'flûte', 'hautbois', 'oboe', 'cor anglais', 'english horn',
+                                     'clarinette', 'clarinet', 'basson', 'bassoon', 'contrebasson', 'contrabassoon', 'saxophone'] },
+  { pupitre: 'Cuivres',     motifs: ['cor', 'horn', 'trompette', 'trumpet', 'cornet', 'saxhorn', 'trombone', 'tuba',
+                                     'bugle', 'flugelhorn', 'euphonium'] },
+  { pupitre: 'Percussions', motifs: ['percussion', 'timbale', 'timpani', 'batterie', 'drums', 'snare', 'vibraphone',
+                                     'marimba', 'xylophone', 'glockenspiel', 'cymbale', 'cymbal', 'caisse claire'] },
+  { pupitre: 'Chant',       motifs: ['voix', 'voice', 'chant', 'choeur', 'chœur', 'choir', 'chorus',
+                                     'soprano', 'mezzo', 'tenor', 'ténor', 'baryton', 'baritone'] },
+  { pupitre: 'Cordes',      motifs: ['violon', 'violin', 'alto', 'viola', 'violoncelle', 'violoncello', 'cello',
+                                     'contrebasse', 'contrabass', 'double bass', 'doublebass', 'harpe', 'harp'] },
+  { pupitre: 'Autre',       motifs: ['piano', 'clavier', 'keyboard', 'celesta', 'orgue', 'organ', 'synth',
+                                     'accordeon', 'accordéon', 'accordion', 'guitare', 'guitar', 'basse',
+                                     'conducteur', 'score', 'partition'] },
 ];
 
 function partitionsNormaliser(texte) {
@@ -109,7 +143,15 @@ function partitionsPupitreDe(nom) {
    passent à la fin plutôt qu'au début : une partie qu'on n'a pas su classer se
    relit mieux en bas de liste qu'intercalée au milieu des bois. */
 function partitionsOrdreDe(nom) {
-  const n = partitionsNormaliser(nom);
+  /* Le chiffre collé au nom est décollé ICI, et seulement ici. Dorico sort
+     « Violin1 », « Violoncello2 », « Synth1 » — sans espace. La recherche se
+     fait sur des MOTS ENTIERS (voir _motEntier, et la raison qui l'impose :
+     « violon » ne doit pas attraper « violoncelle »), si bien que « violin1 »
+     n'était aucun des instruments connus et que toute la corde repartait en
+     fin de liste, à plat. On ne touche pas à partitionsNormaliser pour autant :
+     elle sert aussi à dire si deux parties portent le même nom, et ce n'est pas
+     la même question. */
+  const n = partitionsNormaliser(nom).replace(/([a-z])(\d)/g, '$1 $2');
   if (!n) return 9000;
   // On cherche l'instrument N'IMPORTE OÙ dans le nom, pas seulement en tête :
   // beaucoup de fichiers sortent préfixés du nom du spectacle
