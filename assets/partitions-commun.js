@@ -28,27 +28,36 @@
    d'ordre, à plat. Les deux langues cohabitent dans la même case de la liste —
    c'est le même instrument, il a une seule place dans le conducteur. */
 const PARTITIONS_ORDRE_CONDUCTEUR = [
-  'piccolo', 'flute', 'hautbois', 'oboe', 'cor anglais', 'english horn',
-  'clarinette', 'clarinet', 'clarinette basse', 'bass clarinet',
-  'basson', 'bassoon', 'contrebasson', 'contrabassoon', 'saxophone',
-  'cor', 'horn', 'french horn', 'trompette', 'trumpet', 'cornet', 'saxhorn',
-  'trombone', 'trombone basse', 'bass trombone', 'tuba',
-  'timbales', 'timpani', 'percussion', 'batterie', 'drums', 'vibraphone',
-  'marimba', 'xylophone', 'glockenspiel',
-  'harpe', 'harp', 'piano', 'celesta', 'clavier', 'keyboard', 'orgue', 'organ',
-  'accordeon', 'accordion', 'guitare', 'guitar', 'basse',
-  'voix', 'voice', 'choeur', 'choir', 'chorus', 'soprano', 'alto voix', 'tenor', 'basse voix',
-  'violon', 'violin', 'violon 1', 'violin 1', 'violon 2', 'violin 2',
-  'alto', 'viola', 'violoncelle', 'violoncello', 'cello',
-  'contrebasse', 'contrabass', 'double bass', 'doublebass',
-  'conducteur', 'score',
+  'piccolo', 'ottavino', 'flute', 'flauto', 'hautbois', 'oboe', 'cor anglais',
+  'english horn', 'corno inglese', 'clarinette', 'clarinet', 'clarinetto',
+  'clarinette basse', 'bass clarinet', 'basson', 'bassoon', 'fagotto',
+  'contrebasson', 'contrabassoon', 'saxophone', 'saxofono',
+  'cor', 'corno', 'corni', 'horn', 'french horn', 'trompette', 'trumpet',
+  'tromba', 'trombe', 'cornet', 'saxhorn', 'trombone', 'tromboni', 'posaune',
+  'trombone basse', 'bass trombone', 'tuba', 'euphonium',
+  'timbales', 'timpani', 'percussion', 'percussioni', 'batterie', 'drums',
+  'drum kit', 'caisse claire', 'snare', 'vibraphone', 'marimba', 'xylophone',
+  'glockenspiel',
+  'harpe', 'harp', 'arpa', 'piano', 'celesta', 'clavier', 'keyboard', 'synth',
+  'orgue', 'organ', 'clavecin', 'harpsichord', 'accordeon', 'accordion',
+  'guitare', 'guitar', 'basse',
+  'voix', 'voice', 'choeur', 'chorale', 'chorus', 'choir',
+  'soprano', 'mezzo', 'alto voix', 'contralto', 'tenor', 'baryton', 'baritone',
+  'basse voix',
+  'violon', 'violin', 'violino', 'violini', 'violon 1', 'violin 1',
+  'violon 2', 'violin 2', 'alto', 'viola', 'viole', 'violoncelle',
+  'violoncello', 'violoncelli', 'cello',
+  'contrebasse', 'contrabass', 'double bass', 'doublebass', 'kontrabass',
+  'conducteur', 'conductor', 'score', 'full score',
 ];
 
-/* Le pupitre d'une partie, déduit de son nom. Six valeurs, celles que la maison
-   emploie déjà (musiciens.pupitre est propre, contrairement à instrument).
-   L'ordre des règles compte : « clarinette basse » doit tomber dans Bois avant
-   que « basse » ne l'envoie dans Cordes. */
-/* L'ANGLAIS, ICI AUSSI, ET POUR LA MÊME RAISON. Sur un jeu sorti de Dorico
+/* Les pupitres que la maison emploie (musiciens.pupitre est propre,
+   contrairement à instrument), plus le chœur. Ce n'est plus l'ORDRE des règles
+   qui départage les cas ambigus mais la LONGUEUR du motif — voir
+   partitionsPupitreDe : « clarinette » (10) l'emporte sur « basse » (5) sans
+   qu'on ait à ranger les bois au-dessus des cordes.
+
+   L'ANGLAIS, ICI AUSSI, ET POUR LA MÊME RAISON. Sur un jeu sorti de Dorico
    — « Oboe », « Clarinet », « Bassoon », « Horn », « Violin1 », « Viola »,
    « DoubleBass » —, onze parties sur seize tombaient dans « Autre » : la liste
    ne connaissait que des noms français. Le pupitre se lit alors à la main,
@@ -62,25 +71,41 @@ const PARTITIONS_ORDRE_CONDUCTEUR = [
    bass », « contrabass » — et on laisse « bass clarinet » et « bass trombone »
    tomber sur leur instrument, qui est écrit juste à côté. */
 const PARTITIONS_PUPITRES = [
-  // « cor anglais » et « saxophone » AVANT les cuivres : sans cette priorité,
-  // « cor » attrape le cor anglais, qui est un hautbois. Et « saxhorn » est un
-  // cuivre, pas un saxophone — un motif « sax » les confondait.
-  // Même piège en anglais, et il est pire : « english horn » EST le cor
-  // anglais, donc un bois, et « horn » seul est le cor d'harmonie. Les bois
-  // passant les premiers, l'ordre suffit à les départager.
-  { pupitre: 'Bois',        motifs: ['piccolo', 'flute', 'flûte', 'hautbois', 'oboe', 'cor anglais', 'english horn',
-                                     'clarinette', 'clarinet', 'basson', 'bassoon', 'contrebasson', 'contrabassoon', 'saxophone'] },
-  { pupitre: 'Cuivres',     motifs: ['cor', 'horn', 'trompette', 'trumpet', 'cornet', 'saxhorn', 'trombone', 'tuba',
-                                     'bugle', 'flugelhorn', 'euphonium'] },
-  { pupitre: 'Percussions', motifs: ['percussion', 'timbale', 'timpani', 'batterie', 'drums', 'snare', 'vibraphone',
-                                     'marimba', 'xylophone', 'glockenspiel', 'cymbale', 'cymbal', 'caisse claire'] },
-  { pupitre: 'Chant',       motifs: ['voix', 'voice', 'chant', 'choeur', 'chœur', 'choir', 'chorus',
-                                     'soprano', 'mezzo', 'tenor', 'ténor', 'baryton', 'baritone'] },
-  { pupitre: 'Cordes',      motifs: ['violon', 'violin', 'alto', 'viola', 'violoncelle', 'violoncello', 'cello',
-                                     'contrebasse', 'contrabass', 'double bass', 'doublebass', 'harpe', 'harp'] },
-  { pupitre: 'Autre',       motifs: ['piano', 'clavier', 'keyboard', 'celesta', 'orgue', 'organ', 'synth',
-                                     'accordeon', 'accordéon', 'accordion', 'guitare', 'guitar', 'basse',
-                                     'conducteur', 'score', 'partition'] },
+  /* LE CHŒUR PASSE D'ABORD, ET IL L'EMPORTE MÊME S'IL EST PLUS LONG AILLEURS
+     (voir partitionsPupitreDe) : « chœur » ne nomme pas un instrument, il nomme
+     une SECTION. « Chœur Soprano » est un pupitre de vingt personnes, pas une
+     soliste, et c'est le premier mot qui le dit. Il est distinct de « Chant »,
+     qui désigne les solistes — et la distinction n'est pas cosmétique : un lot
+     de chœur ne porte que les parties de chœur.
+     Les motifs se comparent en DÉBUT DE MOT : on n'y met donc que ce qui ne
+     peut pas commencer autre chose. « coro » en est exclu pour cette raison —
+     il attraperait « Coronation Anthem ». */
+  { pupitre: 'Chœur',       motifs: ['choeur', 'chœur', 'chorale', 'chorus', 'choir', 'satb', 'ssaa', 'ttbb'] },
+  /* L'ITALIEN À CÔTÉ DE L'ANGLAIS, pour la même raison : un matériel gravé en
+     Italie arrive en « Corno », « Fagotto », « Violini ». C'est plus rare qu'un
+     export Dorico en anglais, et ça ne coûte qu'une ligne de liste. */
+  { pupitre: 'Bois',        motifs: ['piccolo', 'ottavino', 'flute', 'flûte', 'flauto', 'hautbois', 'oboe',
+                                     'cor anglais', 'english horn', 'corno inglese',
+                                     'clarinette', 'clarinet', 'clarinetto',
+                                     'basson', 'bassoon', 'fagotto', 'fagott',
+                                     'contrebasson', 'contrabassoon', 'controfagotto',
+                                     'saxophone', 'saxofono'] },
+  { pupitre: 'Cuivres',     motifs: ['cor', 'corno', 'corni', 'horn', 'french horn', 'trompette', 'trumpet',
+                                     'tromba', 'trombe', 'cornet', 'saxhorn', 'trombone', 'tromboni',
+                                     'posaune', 'tuba', 'bugle', 'euphonium', 'flugelhorn'] },
+  { pupitre: 'Percussions', motifs: ['percussion', 'percussioni', 'timbale', 'timpani', 'batterie', 'drum',
+                                     'vibraphone', 'marimba', 'xylophone', 'glockenspiel', 'cymbale',
+                                     'cymbal', 'caisse claire', 'snare', 'tam-tam', 'triangle'] },
+  { pupitre: 'Chant',       motifs: ['voix', 'voice', 'chant', 'soprano', 'mezzo', 'tenor', 'ténor',
+                                     'baryton', 'baritone', 'contralto'] },
+  { pupitre: 'Cordes',      motifs: ['violon', 'violin', 'violino', 'violini', 'alto', 'viola', 'viole',
+                                     'violoncelle', 'violoncello', 'violoncelli', 'cello',
+                                     'contrebasse', 'contrabass', 'double bass', 'doublebass', 'kontrabass',
+                                     'harpe', 'harp', 'arpa'] },
+  { pupitre: 'Autre',       motifs: ['piano', 'clavier', 'keyboard', 'celesta', 'orgue', 'organ',
+                                     'clavecin', 'harpsichord', 'synth', 'accordeon', 'accordéon',
+                                     'accordion', 'guitare', 'guitar', 'basse', 'conducteur', 'conductor',
+                                     'score', 'partition'] },
 ];
 
 function partitionsNormaliser(texte) {
@@ -125,18 +150,52 @@ function _motEntier(aiguille, meule) {
   return false;
 }
 
+/* Le motif commence-t-il un mot du nom ? « cor » ne doit pas attraper
+   « accordeon », et « alto » pas « altoparlante ». On n'exige PAS qu'il
+   finisse un mot : « Violons », « Flûtes », « Cors 1-2 » sont les formes
+   courantes, et un motif au pluriel par instrument serait une liste à
+   maintenir deux fois. */
+function _motifCommence(motif, nom) {
+  const m = partitionsNormaliser(motif);
+  if (!m) return false;
+  return new RegExp('(^|\\s)' + m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(nom);
+}
+
+/* Le pupitre d'une partie, déduit de son nom.
+
+   LE PLUS LONG MOTIF GAGNE, et non la première règle qui répond. C'est la
+   correction d'un défaut qui ne se voyait qu'au dépôt de répertoire choral :
+   « cor » commence « Coronation Anthem », donc « Coronation Anthem - Violin 1 »
+   partait aux cuivres. Comparer les longueurs tranche sans liste d'exceptions —
+   « violin » (6) l'emporte sur « cor » (3) —, et fait tomber du même coup les
+   priorités qu'il fallait jusqu'ici obtenir par l'ORDRE des règles :
+   « English horn » va aux bois parce que « english horn » (12) bat « horn »
+   (4), « Clarinette basse » aux bois parce que « clarinette » (10) bat
+   « basse » (5). À longueur égale, la première règle l'emporte.
+
+   LE CHŒUR EST HORS CONCOURS. « Chœur Soprano » doit aller au chœur, alors que
+   « soprano » (7) bat « chœur » (5) : c'est qu'un nom de SECTION n'est pas un
+   nom d'instrument, et qu'il qualifie ce qui suit au lieu de rivaliser avec
+   lui. C'est la seule exception, et elle se justifie seule.
+
+   ON NE RECLASSE JAMAIS L'EXISTANT : cette fonction ne tourne qu'à la création
+   d'une partie. Les pupitres déjà corrigés à la main le restent. */
 function partitionsPupitreDe(nom) {
   const n = partitionsNormaliser(nom);
   if (!n) return '';
+  let gagnant = '';
+  let longueur = -1;
   for (const regle of PARTITIONS_PUPITRES) {
     for (const motif of regle.motifs) {
       const m = partitionsNormaliser(motif);
-      // Un motif doit commencer un mot : « cor » ne doit pas attraper
-      // « accordeon », et « alto » ne doit pas attraper « altoparlante ».
-      if (new RegExp('(^|\\s)' + m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(n)) return regle.pupitre;
+      if (m.length <= longueur) continue;            // déjà battu, inutile d'essayer
+      if (!_motifCommence(motif, n)) continue;
+      if (regle.pupitre === 'Chœur') return 'Chœur';  // hors concours, voir ci-dessus
+      gagnant = regle.pupitre;
+      longueur = m.length;
     }
   }
-  return 'Autre';
+  return gagnant || 'Autre';
 }
 
 /* La place d'une partie dans l'ordre du conducteur. Les parties inconnues
@@ -243,7 +302,7 @@ function partitionsNouveauCode() {
 /* L'ordre du conducteur, appliqué aux pupitres. C'est celui de la partition,
    pas l'alphabet : les bois en haut, les cordes en bas, le chef à part. */
 const PARTITIONS_PUPITRE_ORDRE = [
-  "Chef d'orchestre", 'Bois', 'Cuivres', 'Percussions', 'Chant', 'Cordes', 'Autre',
+  "Chef d'orchestre", 'Bois', 'Cuivres', 'Percussions', 'Chœur', 'Chant', 'Cordes', 'Autre',
 ];
 
 /* Ramener une valeur de pupitre à l'une des sept. partitions_parties.pupitre
@@ -294,6 +353,7 @@ const PARTITIONS_PUPITRE_LANGUES = {
   'Bois':             { en: 'Woodwind',   de: 'Holzbläser',  es: 'Viento madera', it: 'Legni',        nl: 'Houtblazers',  ja: '木管' },
   'Cuivres':          { en: 'Brass',      de: 'Blechbläser', es: 'Metales',       it: 'Ottoni',       nl: 'Koperblazers', ja: '金管' },
   'Percussions':      { en: 'Percussion', de: 'Schlagwerk',  es: 'Percusión',     it: 'Percussioni',  nl: 'Slagwerk',     ja: '打楽器' },
+  'Chœur':            { en: 'Choir',      de: 'Chor',        es: 'Coro',          it: 'Coro',         nl: 'Koor',         ja: '合唱' },
   'Chant':            { en: 'Voices',     de: 'Gesang',      es: 'Canto',         it: 'Canto',        nl: 'Zang',         ja: '声楽' },
   'Cordes':           { en: 'Strings',    de: 'Streicher',   es: 'Cuerdas',       it: 'Archi',        nl: 'Strijkers',    ja: '弦楽器' },
   'Autre':            { en: 'Other',      de: 'Sonstige',    es: 'Otros',         it: 'Altri',        nl: 'Overig',       ja: 'その他' },
@@ -326,7 +386,7 @@ function partitionsPupitreHtml(pupitre, options) {
 function partitionsPupitreVar(pupitre, encre) {
   const cle = {
     "Chef d'orchestre": 'chef', 'Cordes': 'cordes', 'Bois': 'bois', 'Cuivres': 'cuivres',
-    'Percussions': 'percussions', 'Chant': 'chant', 'Autre': 'autre',
+    'Percussions': 'percussions', 'Chœur': 'choeur', 'Chant': 'chant', 'Autre': 'autre',
   }[partitionsPupitreNormalise(pupitre)] || 'autre';
   return `var(--pup-${cle}${encre ? '-ink' : ''})`;
 }
@@ -514,6 +574,109 @@ function partitionsInitiales(nom) {
   return (mots[0][0] + second[0]).toUpperCase();
 }
 
+/* ============================================================================
+ * LE CHŒUR — l'ordre des voix, et la tonalité.
+ *
+ * POURQUOI LES VOIX NE SE TRIENT PAS COMME LES INSTRUMENTS
+ * -------------------------------------------------------
+ * L'ordre du conducteur range par famille ; un chœur se range par TESSITURE,
+ * du plus aigu au plus grave, et c'est un ordre que tout choriste connaît par
+ * cœur : soprano, alto, ténor, basse. Passer par PARTITIONS_ORDRE_CONDUCTEUR
+ * donnait « Soprano, Ténor, Basse, Alto » — parce qu'« Alto » y désigne d'abord
+ * l'instrument à cordes, rangé plus bas. Un chef de chœur qui lit sa liste dans
+ * cet ordre croit qu'il manque une voix.
+ *
+ * Le tri se fait À L'AFFICHAGE et non au dépôt : partitions_parties.ordre est
+ * figé à la création de la partie, et les spectacles déjà rangés ne doivent pas
+ * avoir à être repris pour que leur chœur se lise droit.
+ * ========================================================================== */
+
+/* Les voix, de l'aigu au grave. Les divisi (« Soprano 1 », « Alto 2 ») sont
+   portés par le numéro, comme pour les instruments : ils se rangent sous leur
+   voix et dans l'ordre. */
+const PARTITIONS_VOIX = [
+  'soprano', 'mezzo soprano', 'mezzo', 'alto', 'contralto',
+  'tenor', 'baryton', 'basse', 'baryton basse',
+];
+
+/* Le rang d'une partie de chœur dans l'ordre des tessitures. Une partie qu'on
+   ne sait pas classer passe à la fin — comme ailleurs : mieux vaut en bas de
+   liste qu'intercalée entre les ténors et les basses. */
+function partitionsOrdreVoix(nom) {
+  const n = partitionsNormaliser(nom);
+  if (!n) return 9000;
+  let meilleur = -1, rang = 9000;
+  PARTITIONS_VOIX.forEach((cle, i) => {
+    const c = partitionsNormaliser(cle);
+    if (_motEntier(c, n) && c.length > meilleur) { meilleur = c.length; rang = i * 10; }
+  });
+  if (rang === 9000) return 9000;
+  const num = n.match(/(\d+)/);
+  return rang + (num ? Math.min(9, Number(num[1])) : 0);
+}
+
+/* Trier des parties de chœur. Utilisé à l'affichage, des deux côtés — l'écran
+   de production et la page du chef de chœur doivent donner la MÊME liste dans
+   le MÊME ordre, sans quoi on se parle au téléphone en comptant des lignes. */
+function partitionsTrierVoix(parties) {
+  return (parties || []).slice().sort((a, b) =>
+    (partitionsOrdreVoix(a.nom) - partitionsOrdreVoix(b.nom))
+    || String(a.nom || '').localeCompare(String(b.nom || ''), 'fr'));
+}
+
+const _TONALITE_MODES = {
+  maj: 'majeur', majeur: 'majeur', major: 'majeur', dur: 'majeur',
+  min: 'mineur', mineur: 'mineur', minor: 'mineur', moll: 'mineur',
+};
+
+/* La tonalité, remise en forme — et JAMAIS perdue.
+   ----------------------------------------------
+   Le champ est libre, et il le reste : une tonalité se saisit vite, entre deux
+   coups de fil, et on y tape « reb M », « Eb major », « fa# mineur ». Une
+   colonne où l'on lit ces trois formes côte à côte ne se compare pas d'un coup
+   d'œil — or c'est exactement ce qu'un chef de chœur y cherche : voir en une
+   seconde que le n° 4 descend d'un demi-ton.
+   On normalise donc l'altération (♭ et ♯, les vrais signes, pas « b » ni « # »)
+   et le mode (« majeur », « mineur »), et on laisse la note DANS LE SYSTÈME OÙ
+   ELLE A ÉTÉ SAISIE — latin ou anglo-saxon. Traduire « Eb » en « Mi♭ » serait
+   imposer une notation à qui en emploie une autre, souvent parce que sa
+   partition la porte.
+   CE QU'ON NE RECONNAÎT PAS RESSORT TEL QUEL. « Mode dorien », « idem n° 3 »,
+   « à confirmer » sont des réponses justes : les mutiler serait pire que de ne
+   rien faire. */
+function partitionsTonalite(texte) {
+  const brut = String(texte || '').trim().replace(/\s+/g, ' ');
+  if (!brut) return '';
+  const m = brut.match(
+    /^(?:([Dd]o|[Rr][ée]|[Mm]i|[Ff]a|[Ss]ol|[Ll]a|[Ss]i|[A-Ga-g]))\s*(di[eè]se|b[ée]mol|#|♯|b|♭)?\s*(.*)$/);
+  if (!m) return brut;
+  const [, note, alteration, reste] = m;
+  const suite = (reste || '').trim();
+  // « M » majuscule est majeur, « m » minuscule est mineur : la casse porte
+  // ici toute l'information, elle est donc lue AVANT de passer en minuscules.
+  const mode = suite === 'M' ? 'majeur'
+    : suite === 'm' ? 'mineur'
+    : suite === '' ? ''
+    : _TONALITE_MODES[suite.toLowerCase()];
+  // Une suite qu'on ne reconnaît pas : ce n'est pas une tonalité qu'on sait
+  // lire, et « Basse continue » ne doit pas ressortir « B♭ asse continue ».
+  if (mode === undefined) return brut;
+  const signe = !alteration ? ''
+    : /^(#|♯|di)/i.test(alteration) ? '♯' : '♭';
+  const tete = note.length > 1
+    ? note[0].toUpperCase() + note.slice(1).toLowerCase()
+    : note.toUpperCase();
+  return (tete + signe + (mode ? ' ' + mode : '')).replace('Re', 'Ré');
+}
+
+/* La même, pour la page bilingue du chœur. Seul le mode change : les notes
+   restent telles qu'elles ont été saisies, et « ♭ » se lit partout. */
+function partitionsTonaliteLangue(texte, langue) {
+  const t = partitionsTonalite(texte);
+  if (langue !== 'en' || !t) return t;
+  return t.replace(/\bmajeur\b/, 'major').replace(/\bmineur\b/, 'minor');
+}
+
 if (typeof window !== 'undefined') {
   window.PARTITIONS_ORDRE_CONDUCTEUR = PARTITIONS_ORDRE_CONDUCTEUR;
   window.partitionsNormaliser = partitionsNormaliser;
@@ -535,4 +698,9 @@ if (typeof window !== 'undefined') {
   window.partitionsPupitreVar = partitionsPupitreVar;
   window.partitionsJaugeHtml = partitionsJaugeHtml;
   window.partitionsInitiales = partitionsInitiales;
+  window.PARTITIONS_VOIX = PARTITIONS_VOIX;
+  window.partitionsOrdreVoix = partitionsOrdreVoix;
+  window.partitionsTrierVoix = partitionsTrierVoix;
+  window.partitionsTonalite = partitionsTonalite;
+  window.partitionsTonaliteLangue = partitionsTonaliteLangue;
 }

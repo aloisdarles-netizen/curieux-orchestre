@@ -33,6 +33,34 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-20-2',
+    titre: 'La reconnaissance des parties se départage autrement, et apprend l\'italien',
+    points: [
+      "La détection savait déjà lire l'anglais de Dorico. Elle tranchait en revanche par l'ORDRE des règles — la première qui répondait gagnait —, et les motifs se comparent sur le DÉBUT d'un mot : « cor » attrapait donc « Coronation Anthem », et toute une œuvre chorale partait aux cuivres. C'est désormais le MOTIF LE PLUS LONG qui l'emporte : « violin » (6) bat « cor » (3).",
+      "Le même changement corrige « Harpsichord », que « harp » rangeait dans les cordes alors que c'est un clavier, et « Corno inglese », qui allait aux cuivres alors que c'est un hautbois. Il rend au passage inutiles les priorités qu'il fallait obtenir en rangeant les bois au-dessus des cuivres — « English horn » gagne par sa longueur, pas par sa place dans la liste.",
+      "L'italien s'ajoute à l'anglais : « Corno », « Fagotto », « Violini », « Arpa ». Un matériel gravé en Italie arrive tel quel, et ça ne coûte qu'une ligne de liste. « Synth1 » rentre enfin dans l'ordre du conducteur, où il manquait.",
+      "Vérifié par comparaison avant/après sur les seize parties réelles du dépôt et sur une matrice de 56 noms courants (français, anglais, italien, pluriels, divisi) : 56 sur 56 justes, sept cas corrigés, aucune régression.",
+      "Rien n'est reclassé rétroactivement : les pupitres corrigés à la main le restent. À côté du bouton « Reclasser N parties… », qui corrige le PUPITRE, un second bouton « Remettre dans l'ordre (N) » corrige la PLACE dans l'ordre du conducteur — et n'apparaît que si la liste se lirait vraiment autrement. Il ne touche ni les pupitres, ni les fichiers, ni les affectations.",
+    ],
+  },
+  {
+    version: '2026-09-20-1',
+    titre: 'L\'espace du chœur',
+    points: [
+      "Un spectacle qui porte un chœur ne se distribue pas comme un spectacle qui n'en porte pas : ses voix ne sont pas des parties d'orchestre, et le chœur est presque toujours un ensemble extérieur dont les choristes ne sont pas dans notre annuaire. La fiche du spectacle gagne un bloc « Le chœur », et la page un quatrième onglet.",
+      "Un pupitre « Chœur » s'ajoute, DISTINCT de « Chant » qui désigne les solistes. La distinction n'est pas cosmétique : un lot de chœur « tout le chœur » ne porte QUE les voix — jamais le matériel d'orchestre, même par mégarde. La règle est en base, pas seulement dans l'écran.",
+      "LA TONALITÉ se note enfin quelque part. Sur la voix quand tout le jeu est dans un ton, sur le numéro quand un seul descend d'un demi-ton. C'est la première chose qu'un chef de chœur demande, la seule que le matériel d'orchestre n'a jamais besoin de porter, et jusqu'ici elle se perdait entre la réunion où elle se décide et le mail où on la redemande. « reb M », « Eb major », « fa# mineur » se saisissent comme ils viennent et se relisent tous de la même façon.",
+      "Le chef ou la cheffe de chœur reçoit une page à lui, en français ou en anglais : ses voix rangées dans l'ordre des tessitures — soprano, alto, ténor, basse, et non l'ordre du conducteur, qui met les altos avec les cordes —, leurs tonalités en tête, et tout se prend d'un bloc en une archive ou voix par voix.",
+      "Rien n'est assoupli : le fichier propre ne sort jamais du stockage, chaque exemplaire est filigrané à la volée au nom du chœur et journalisé un par un. Lien, code communiqué séparément, date de fin, révocation immédiate — le dispositif est celui des transmissions, parce que c'est le bon.",
+      "PLUSIEURS CHŒURS SUR UNE MÊME SÉRIE, parce que c'est la règle et non l'exception : un chœur amateur ne part pas en tournée, et on chante avec la maîtrise à Rennes, le chœur régional à Nantes, une chorale locale pour la dernière. Chaque chœur a son lot, son lien, son code, sa fenêtre — et ses DATES, cochées parmi celles de l'opération.",
+      "L'onglet « Chœurs » se lit dès lors par journée : qui chante le 24 janvier, à quel endroit, et combien ils sont. Deux chœurs sur la même date s'y voient d'un coup d'œil, un lot sans date aussi — c'est presque toujours un oubli, et il ne se verrait nulle part ailleurs.",
+      "L'effectif annoncé se saisit là où on parle au chœur, et non par mail trois semaines avant : c'est lui qui chiffre les loges, le transport et les repas. Le chiffre mis en avant n'est plus le total de la série — additionner trois chœurs qui ne se croisent jamais ne correspond à aucune journée — mais LE JOUR LE PLUS CHARGÉ, qui est ce sur quoi on commande.",
+      "Le chef de chœur voit ses dates en haut de sa page, avant les partitions et avant même le code : c'est sa première question, et le mail les lui redonne. Une date annulée ne lui est jamais montrée.",
+      "Deux boutons préparent le mail au chef de chœur, en français ou en anglais : le lien, les voix, leurs tonalités, la fenêtre d'accès, les conditions d'usage — et la demande d'effectif. Le code, lui, reste à envoyer par un autre canal, comme partout ailleurs.",
+      "Le même garde-fou que pour les orchestres invités : un chœur est un TIERS au sens des contrats, même quand il chante avec nous. Le matériel de location ne lui est pas plus retransmissible qu'à un autre ensemble.",
+    ],
+  },
+  {
     version: '2026-09-19-5',
     titre: 'Supprimer un spectacle',
     points: [

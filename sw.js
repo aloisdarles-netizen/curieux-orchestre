@@ -209,7 +209,29 @@
 // fixe. assets/global-search.js change au même moment — il lit désormais le
 // modèle du bandeau pour indexer les écrans, et refuse ceux dont le compte
 // n'a pas le droit. Les trois fichiers doivent repartir ensemble.
-const VERSION = 'curieux-v135';
+// v136 : l'espace du chœur, et plusieurs chœurs sur une même série. Quatre
+// actifs communs changent ensemble, et aucun ne suffit seul :
+//   — base.css apprend la teinte --pup-choeur. Sans elle, la pastille du
+//     pupitre « Chœur » naît grise, comme « Autre », et la seule distinction
+//     que l'écran fait entre le chœur et les solistes disparaît.
+//   — partitions-commun.js apprend le pupitre « Chœur » (dans les sept
+//     langues), l'ordre des tessitures et la mise en forme des tonalités. Sans
+//     lui, partition-choeur.html appelle partitionsTrierVoix et
+//     partitionsTonaliteLangue, qui n'existent pas : la page du chef de chœur
+//     reste blanche. Sa reconnaissance gagne au passage l'italien et le
+//     départage par le motif le plus long — « cor » n'attrape plus
+//     « Coronation Anthem ».
+//   — db.js apprend `type`, `effectif`, `dates` et `tonalite`. Sans eux, un lot
+//     de chœur relu depuis la base repasse pour une transmission ordinaire, et
+//     perd les journées chantées : l'écran compte alors des loges sur rien.
+//   — partitions.html et partition-choeur.html chargent statuts-date.js, qu'
+//     elles ne chargeaient pas. Sans cet incrément, un navigateur déjà venu le
+//     prendrait au réseau pendant que le reste sort du cache, et `estAnnulee`
+//     manquerait le temps d'un rendu : une date annulée s'afficherait à un
+//     chœur.
+// Les deux pages sont servies réseau d'abord ; c'est l'incrément, et lui seul,
+// qui leur donne les actifs qu'elles attendent.
+const VERSION = 'curieux-v136';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

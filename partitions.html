@@ -10,6 +10,7 @@
 <script src="assets/nouveautes.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/partitions-commun.js"></script>
+<script src="assets/statuts-date.js"></script>
 <script src="assets/annuler.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
@@ -205,6 +206,38 @@
   }
   .part-fic .nom{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text);}
   .part-manque{font-size:11.5px; font-weight:800; color:var(--ko);}
+
+  /* ---------------------------------------------------------------------
+     LE CHŒUR. Des tuiles plus larges que celles du matériel, et c'est voulu :
+     une voix porte un champ de saisie (sa tonalité) que les autres parties
+     n'ont pas, et une tuile de 228 px le coinçait contre son nom. Quatre voix
+     tiennent alors sur deux colonnes, ce qui est exactement la lecture qu'on
+     cherche — on compare des tonalités, on ne parcourt pas une liste.
+     --------------------------------------------------------------------- */
+  .voix-grille{display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:9px; margin-top:4px;}
+  .voix-tuile{
+    border:1px solid var(--border); border-left:4px solid var(--pup-choeur-ink); border-radius:10px;
+    padding:9px 11px; background:var(--bg); display:flex; flex-direction:column; gap:5px; min-width:0;
+  }
+  .voix-tuile.sans-fichier{border-style:dashed; border-left-style:solid; border-color:var(--ko); background:var(--ko-tint);}
+  .voix-tete{display:flex; gap:8px; align-items:center; font-size:13.5px; min-width:0;}
+  .voix-tete b{font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .voix-tete .det{font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums; margin-left:auto; white-space:nowrap;}
+  .voix-fic{
+    display:flex; gap:7px; align-items:center; font-size:11.5px; color:var(--muted);
+    padding:3px 0; border-top:1px solid var(--border); min-width:0;
+  }
+  .voix-fic .nom{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text);}
+  .voix-fic .det{font-variant-numeric:tabular-nums; white-space:nowrap;}
+  /* Le champ de tonalité. Étroit, tabulaire, et sans les 44 px de hauteur des
+     saisies de formulaire : il y en a une par voix et une par numéro, et une
+     colonne de gros champs ferait de la tuile un formulaire. La cible tactile
+     reste servie sous 760 px, où base.css les rétablit. */
+  .co-input.ton{
+    width:106px; min-height:0; padding:3px 7px; font-size:11.5px; font-weight:700;
+    text-align:center; letter-spacing:.01em; flex:none;
+  }
+  .co-input.ton::placeholder{font-weight:400; opacity:.6;}
 
   .sans-lecteur{color:var(--ko); font-weight:700;}
 
@@ -439,6 +472,10 @@
     .dep-ligne{grid-template-columns:minmax(0,1fr); gap:6px;}
     .dep-ligne.aRegler{margin:0 -14px; padding:9px 14px;}
     .part-grille{grid-template-columns:1fr;}
+    .voix-grille{grid-template-columns:1fr;}
+    /* La cible tactile reprend ses droits : 16 px de police (sans quoi iOS
+       zoome sur la saisie) et une hauteur qu'on peut viser du pouce. */
+    .co-input.ton{width:100%; min-height:38px; font-size:16px !important;}
     .spec-grille{grid-template-columns:1fr;}
     .ret-ligne{grid-template-columns:minmax(0,1fr) auto;}
     input, select{font-size:16px !important;}
@@ -468,6 +505,7 @@
       <button type="button" class="co-btn" data-vue="spectacles">Spectacles</button>
       <button type="button" class="co-btn" data-vue="operations">Par opération</button>
       <button type="button" class="co-btn" data-vue="retraits">Retraits</button>
+      <button type="button" class="co-btn" data-vue="choeurs">Chœurs</button>
       <button type="button" class="co-btn" data-vue="transmissions">Transmissions</button>
     </div>
   </div>
@@ -550,7 +588,7 @@
 const PLAFOND_STOCKAGE = 1024 * 1024 * 1024;   // le plan Supabase gratuit
 
 let state = {
-  vue: 'spectacles',   // 'spectacles' | 'spectacle' | 'depot' | 'operations' | 'retraits' | 'transmissions'
+  vue: 'spectacles',   // 'spectacles' | 'spectacle' | 'depot' | 'operations' | 'retraits' | 'choeurs' | 'transmissions'
   spectacles: [], programmations: [], parties: [], fichiers: [], affectations: [], acces: [], envois: [],
   tournees: [], musiciens: [], techniciens: [],
   spectacleId: '',
@@ -587,13 +625,24 @@ let state = {
   // majorité et ne s'affichent nulle part ici. Lu au premier écran qui en a
   // besoin ET qui a quelque chose à en dire, une seule fois ensuite.
   // Voir chargerJournalTiers.
-  prisesTiers: null,          // { parEnvoi: { <envoiId>: {nb, derniere} }, total }
+  /* { parEnvoi: { <envoiId>: {nb, derniere} } }. PAS de total global : les
+     deux écrans comptent ce qui les concerne — les transmissions d'un côté,
+     les chœurs de l'autre —, et un nombre qui mêlerait les deux ne
+     répondrait à la question d'aucun des deux. */
+  prisesTiers: null,
   prisesTiersEnCours: false,
   // Le compte est-il « admin » ? La page entière est derrière requireAdminAuth
   // (toute l'équipe y entre) ; la SUPPRESSION d'un spectacle, elle, est
   // réservée aux comptes admin, comme le budget et les devis. Lu une fois au
   // chargement : le rôle ne change pas en cours de session.
   admin: false,
+  /* La colonne `type` de partitions_envois est-elle absente de la base ?
+     Ce n'est pas une coquetterie : sans elle, un lot de chœur s'enregistre
+     comme une transmission à un ensemble tiers (db.js retire la colonne
+     inconnue et réécrit), et « tout le spectacle » remettrait alors le
+     matériel d'orchestre complet à une chorale. On préfère refuser la
+     création et le dire. */
+  typeAbsent: false,
   chargement: true,
 };
 
@@ -611,6 +660,58 @@ function fichiersDe(partieId){
   return state.fichiers.filter(f => f.partieId === partieId)
     .sort((a, b) => (a.ordre - b.ordre) || a.titre.localeCompare(b.titre, 'fr'));
 }
+/* Les parties dont le RANG stocké ne correspond plus à ce que l'ordre du
+   conducteur donnerait aujourd'hui.
+
+   POURQUOI CE DÉCALAGE EXISTE. Le rang est figé à la création de la partie —
+   c'est ce qui permet de le corriger à la main sans qu'un redépôt l'écrase.
+   Mais quand la reconnaissance des noms s'améliore (elle vient d'apprendre
+   l'anglais et l'italien, que les graveurs emploient), le matériel déjà rangé
+   garde l'ancien classement : douze parties sur seize en fin de liste, là où
+   l'ordre du conducteur est justement ce qui fait voir les trous.
+
+   ON NE TOUCHE QUE LE RANG, JAMAIS LE PUPITRE. Les pupitres ont souvent été
+   corrigés à la main, un par un ; les réécrire serait défaire ce travail au
+   moment précis où l'on croit le compléter. */
+function reclassement(spectacleId){
+  const actuel = partiesDe(spectacleId);
+  const vise = actuel.slice().sort((a, b) =>
+    (partitionsOrdreDe(a.nom) - partitionsOrdreDe(b.nom))
+    || String(a.nom).localeCompare(String(b.nom), 'fr'));
+  /* ON COMPARE LA SUITE, PAS LES NUMÉROS. Quand la reconnaissance des noms
+     s'enrichit, TOUS les rangs se décalent — et proposer de « remettre dans
+     l'ordre » seize parties déjà dans l'ordre, pour ne changer que leurs
+     numéros, c'est un bouton qui ment. On ne propose donc que si la liste se
+     LIT différemment ; sinon il n'y a rien à faire, et on se tait. */
+  const bougent = actuel.filter((p, i) => vise[i] && vise[i].id !== p.id);
+  if(!bougent.length) return { bougent: [], aEcrire: [] };
+  return {
+    bougent: vise.filter((p, i) => actuel[i] && actuel[i].id !== p.id),
+    aEcrire: actuel.filter(p => partitionsOrdreDe(p.nom) !== (Number(p.ordre) || 0)),
+  };
+}
+
+async function remettreDansLOrdre(){
+  const s = spectacleCourant();
+  if(!s) return;
+  const { bougent, aEcrire } = reclassement(s.id);
+  if(!aEcrire.length) return;
+  if(!confirm(`Remettre ${bougent.length} partie${bougent.length > 1 ? 's' : ''} à sa place dans l'ordre du conducteur ?\n\n`
+    + bougent.slice(0, 8).map(p => '  · ' + p.nom).join('\n')
+    + (bougent.length > 8 ? `\n  · … et ${bougent.length - 8} autre${bougent.length - 8 > 1 ? 's' : ''}` : '')
+    + "\n\nSeul l'ordre d'affichage change. Les pupitres, les fichiers et les affectations ne bougent pas.")) return;
+  aEcrire.forEach(p => { p.ordre = partitionsOrdreDe(p.nom); });
+  rendre();
+  for(const p of aEcrire){
+    const res = await CurieuxDB.upsertOne('partitions_parties', p);
+    if(res && res.error){
+      alert("Le nouvel ordre est affiché mais n'a pas été entièrement enregistré : " + (res.error.message || 'échec'));
+      return;
+    }
+  }
+  try{ curieuxFlash('Matériel remis dans l\'ordre du conducteur.'); }catch(e){}
+}
+
 function poidsSpectacle(spectacleId){
   const ids = new Set(partiesDe(spectacleId).map(p => p.id));
   return state.fichiers.filter(f => ids.has(f.partieId)).reduce((s, f) => s + (f.octets || 0), 0);
@@ -834,7 +935,7 @@ function mediaPetitEcran(){
 
 async function charger(){
   const [spectacles, programmations, parties, fichiers, affectations, acces, envois,
-         tournees, musiciens, techniciens, migrationAbsente, envoisAbsents, admin] = await Promise.all([
+         tournees, musiciens, techniciens, migrationAbsente, envoisAbsents, typeAbsent, admin] = await Promise.all([
     CurieuxDB.fetchAll('partitions_spectacles').catch(()=> []),
     CurieuxDB.fetchAll('partitions_programmations').catch(()=> []),
     CurieuxDB.fetchAll('partitions_parties').catch(()=> []),
@@ -847,15 +948,16 @@ async function charger(){
     CurieuxDB.fetchAll('techniciens').catch(()=> []),
     CurieuxDB.tableManquante('partitions_programmations').catch(()=> false),
     CurieuxDB.tableManquante('partitions_envois').catch(()=> false),
+    CurieuxDB.colonneManquante('partitions_envois', 'type,dates').catch(()=> false),
     CurieuxDB.isSuperAdmin().catch(()=> false),
   ]);
   Object.assign(state, { spectacles, programmations, parties, fichiers, affectations, acces, envois,
-                         tournees, musiciens, techniciens, admin, chargement: false });
+                         tournees, musiciens, techniciens, admin, typeAbsent, chargement: false });
   // Une liste vide se lit « rien n'est programmé » ; la vérité peut être « la
   // migration n'est pas jouée ». Ce n'est pas la même chose à faire ensuite —
   // et deux migrations peuvent manquer, sans les mêmes conséquences : on nomme
   // celle qui manque plutôt que d'afficher le texte de l'autre.
-  poserBandeauMigration(migrationAbsente, envoisAbsents);
+  poserBandeauMigration(migrationAbsente, envoisAbsents, typeAbsent && !envoisAbsents);
 
   const url = new URLSearchParams(location.search);
   const spectacle = url.get('spectacle') || '';
@@ -882,7 +984,7 @@ async function charger(){
    conséquences : le bandeau nomme celle qui manque et ce qu'elle empêche.
    Afficher le texte de l'une pendant que l'autre manque enverrait jouer le
    mauvais bloc de migrations.sql. */
-function poserBandeauMigration(programmationsAbsentes, envoisAbsents){
+function poserBandeauMigration(programmationsAbsentes, envoisAbsents, choeurAbsent){
   const manques = [];
   if(programmationsAbsentes) manques.push(`La table <code>partitions_programmations</code> n'existe pas encore dans Supabase :
     aucun spectacle ne peut être rattaché à une opération, et le matériel déjà rangé s'affiche donc comme non distribué.
@@ -890,6 +992,15 @@ function poserBandeauMigration(programmationsAbsentes, envoisAbsents){
   if(envoisAbsents) manques.push(`La table <code>partitions_envois</code> n'existe pas encore dans Supabase :
     aucun lot ne peut être confié à un ensemble tiers, et un lien créé ici ne serait enregistré nulle part.
     Colle le bloc <b>LA TRANSMISSION À UN TIERS</b> de <code>migrations.sql</code> dans l'éditeur SQL.`);
+  /* La colonne manque, mais la table est là : le bloc précédent a été joué,
+     celui du chœur non. On ne dit donc pas « la table n'existe pas » — ce
+     serait envoyer rejouer le mauvais bloc — et on nomme ce que ça empêche
+     VRAIMENT : un lot de chœur enregistré sans son type redeviendrait une
+     transmission à un ensemble tiers, qui emporte tout le matériel. */
+  if(choeurAbsent) manques.push(`La table <code>partitions_envois</code> n'a pas encore les colonnes de l'espace du chœur
+    (<code>type</code>, <code>dates</code>) : cet espace est en lecture seule, et aucun lot de chœur ne peut être créé —
+    il s'enregistrerait comme une transmission ordinaire, donc avec le matériel d'orchestre complet, et sans les dates chantées.
+    Colle le bloc <b>L'ESPACE DU CHŒUR</b> de <code>migrations.sql</code> dans l'éditeur SQL — il se rejoue sans risque s'il l'a déjà été.`);
   const banniere = document.getElementById('migrationBanner');
   banniere.hidden = !manques.length;
   if(manques.length){
@@ -909,6 +1020,7 @@ function poserBandeauMigration(programmationsAbsentes, envoisAbsents){
 function rendre(){
   const onglet = state.vue === 'operations' ? 'operations'
                : state.vue === 'retraits' ? 'retraits'
+               : state.vue === 'choeurs' ? 'choeurs'
                : state.vue === 'transmissions' ? 'transmissions' : 'spectacles';
   document.querySelectorAll('[data-vue]').forEach(b => b.classList.toggle('primary', b.dataset.vue === onglet));
   const el = document.getElementById('page');
@@ -922,6 +1034,7 @@ function rendre(){
   el.innerHTML = state.vue === 'operations' ? vueOperations()
                : state.vue === 'depot' ? vueDepot()
                : state.vue === 'retraits' ? vueRetraits()
+               : state.vue === 'choeurs' ? vueChoeurs()
                : state.vue === 'transmissions' ? vueTransmissions()
                : state.vue === 'spectacle' ? vueSpectacle()
                : vueSpectacles();
@@ -1060,7 +1173,8 @@ function vueSpectacles(){
 function vueSpectacle(){
   const s = spectacleCourant();
   if(!s) return '<div class="co-card co-pad vide">Ce spectacle n\'existe plus. <button type="button" class="co-btn sm" id="btnRetourListe">Revenir à la liste</button></div>';
-  return blocFil(s) + blocOperations(s) + blocMateriel(s) + blocDistribution(s) + blocTransmissions(s) + blocReglages(s);
+  return blocFil(s) + blocOperations(s) + blocMateriel(s) + blocDistribution(s)
+       + blocChoeur(s) + blocTransmissions(s) + blocReglages(s);
 }
 
 function blocFil(s){
@@ -1140,6 +1254,11 @@ function blocMateriel(s){
   const parties = partiesDe(s.id);
   const groupes = partitionsGrouperParPupitre(parties);
   const manquantes = parties.filter(p => !aUnFichier(p)).length;
+  /* Deux commandes voisines et deux gestes différents, qu'il ne faut pas
+     confondre : `aReclasser` corrige le PUPITRE d'une partie mal lue (« Oboe »
+     rangé dans Autre), `aReordonner` corrige sa PLACE dans l'ordre du
+     conducteur. On peut avoir l'un sans l'autre. */
+  const aReordonner = reclassement(s.id).bougent;
 
   const tuile = (p, encre) => {
     const fs = fichiersDe(p.id);
@@ -1175,7 +1294,17 @@ function blocMateriel(s){
           <button type="button" class="part-x" data-retirer-partie="${escapeAttr(p.id)}"
                   title="Retirer cette partie" aria-label="Retirer la partie ${escapeAttr(p.nom)}">×</button>
         </span>
-        ${fs.length > 1 ? `<span class="part-meta">${fs.length} fichiers · ${partitionsPoids(poids)}</span>` : ''}
+        ${(()=>{
+          /* La tonalité se lit ICI aussi, et pas seulement dans le bloc du
+             chœur : c'est dans le matériel qu'on relit le spectacle en entier,
+             et une voix sans ton s'y repère au même titre qu'une partie sans
+             fichier. Elle est vide partout ailleurs — l'orchestre n'en porte
+             pas. */
+          const ton = partitionsTonalite(p.tonalite);
+          const gauche = fs.length > 1 ? `${fs.length} fichiers · ${partitionsPoids(poids)}` : '';
+          const droite = ton ? (gauche ? ' · ' : '') + ton : '';
+          return gauche || droite ? `<span class="part-meta">${escapeHtml(gauche)}${escapeHtml(droite)}</span>` : '';
+        })()}
         ${corps}
       </div>`;
   };
@@ -1223,6 +1352,8 @@ function blocMateriel(s){
           <button type="button" class="co-btn sm primary" id="btnDeposer">Déposer des fichiers</button>
           <button type="button" class="co-btn sm ghost" id="btnNouvellePartie">Ajouter une partie</button>
           ${aReclasser.length ? `<button type="button" class="co-btn sm ghost" id="btnReclasser">Reclasser ${aReclasser.length} partie${aReclasser.length > 1 ? 's' : ''}…</button>` : ''}
+          ${aReordonner.length ? `<button type="button" class="co-btn sm ghost" id="btnReordonner"
+            title="${escapeAttr(aReordonner.length + ' partie' + (aReordonner.length > 1 ? 's ne sont' : ' n\'est') + ' pas à sa place dans l\'ordre du conducteur. Les pupitres ne bougent pas.')}">Remettre dans l'ordre (${aReordonner.length})</button>` : ''}
         </span>
       </h2>
       ${parties.length ? partitionsJaugeHtml(parties, aUnFichier) : ''}
@@ -1623,7 +1754,7 @@ function blocSuppression(s){
     <div class="ligne">
       <span class="l-nom">
         <span class="l-titre sans-lecteur">Supprimer définitivement ce spectacle</span>
-        <span class="l-sous">Emporte ${inv.parties.length} partie${inv.parties.length > 1 ? 's' : ''}, ${inv.fichiers.length} fichier${inv.fichiers.length > 1 ? 's' : ''}${inv.poids ? ' (' + partitionsPoids(inv.poids) + ')' : ''}, ${inv.affectations.length} affectation${inv.affectations.length > 1 ? 's' : ''} et ${inv.envois.length} transmission${inv.envois.length > 1 ? 's' : ''}. Pour un spectacle qui ne se joue plus, archive-le : rien n'est perdu et il sort des listes.</span>
+        <span class="l-sous">Emporte ${inv.parties.length} partie${inv.parties.length > 1 ? 's' : ''}, ${inv.fichiers.length} fichier${inv.fichiers.length > 1 ? 's' : ''}${inv.poids ? ' (' + partitionsPoids(inv.poids) + ')' : ''}, ${inv.affectations.length} affectation${inv.affectations.length > 1 ? 's' : ''} et ${inv.envois.length} remise${inv.envois.length > 1 ? 's' : ''} à l'extérieur. Pour un spectacle qui ne se joue plus, archive-le : rien n'est perdu et il sort des listes.</span>
       </span>
       <span></span>
       <button type="button" class="co-btn sm" id="btnSupprimerSpectacle">Supprimer…</button>
@@ -1932,9 +2063,127 @@ function vueRetraits(){
 
 const ENVOI_DUREE_PROPOSEE = 90;   // jours — le temps d'une préparation d'orchestre
 
+/* Le lien d'un lot. DEUX PAGES ET NON UNE, et ce n'est pas cosmétique : un chef
+   de chœur et un bibliothécaire d'orchestre ne cherchent pas la même chose en
+   ouvrant leur lien. Le premier veut ses quatre voix, leurs tonalités et de quoi
+   faire travailler quarante choristes ; le second veut trente parties et une
+   archive. Une page unique qui aurait dit les deux aurait mal dit les deux. */
 function lienEnvoi(e){
-  return `${location.origin}/partition-envoi.html?e=${encodeURIComponent(e.jeton)}`;
+  const page = estChoeur(e) ? 'partition-choeur.html?c=' : 'partition-envoi.html?e=';
+  return `${location.origin}/${page}${encodeURIComponent(e.jeton)}`;
 }
+
+const estChoeur = (e) => (e || {}).type === 'choeur';
+
+/* ---------------------------------------------------------------------------
+   LES DATES D'UN LOT — et pourquoi un chœur en a besoin quand un orchestre
+   invité n'en a pas.
+
+   Un orchestre invité reprend LE PROGRAMME : il joue ses propres dates, chez
+   lui, et nos dates ne le regardent pas. Un chœur, lui, chante AVEC NOUS, et il
+   change d'une date à l'autre — une maîtrise à Rennes, un chœur régional à
+   Nantes, une chorale locale pour la dernière. C'est la règle plus que
+   l'exception : un chœur amateur ne part pas en tournée.
+
+   Plusieurs chœurs sur un même spectacle étaient déjà possibles — un lot
+   chacun, un lien chacun, un code chacun. Ce qui manquait, c'est QUI CHANTE
+   QUAND, et c'est cette question qui commande les loges, le transport, les
+   repas et la jauge de plateau. Sans elle, l'effectif s'additionnait à
+   l'échelle de la série et ne correspondait à aucune journée réelle.
+   --------------------------------------------------------------------------- */
+
+function datesOperation(tourneeId){
+  const t = operationDe(tourneeId);
+  return ((t || {}).dates || [])
+    .filter(d => d && d.id && d.date)
+    .slice()
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+/* Les dates d'un lot, résolues. Une date supprimée de l'opération depuis laisse
+   un identifiant orphelin : on ne l'invente pas, on le compte (voir
+   datesOrphelines) — et l'écran le dit, plutôt que d'afficher un lot qui
+   semble porter trois dates alors qu'il n'en porte plus que deux. */
+function datesDuLot(e){
+  const ids = new Set((e || {}).dates || []);
+  if(!ids.size) return [];
+  return datesOperation(e.tourneeId).filter(d => ids.has(d.id));
+}
+const datesOrphelines = (e) => ((e || {}).dates || []).length - datesDuLot(e).length;
+
+function jourDate(iso, options){
+  const d = new Date(String(iso || '') + 'T12:00:00');
+  if(isNaN(d)) return String(iso || '');
+  return d.toLocaleDateString('fr-FR', options || { day: 'numeric', month: 'short' });
+}
+
+/* La nature d'une date dans le vocabulaire du projet : une tournée a des
+   concerts et des répétitions, un recording a des prises et des overdubs. On
+   ne redéfinit pas la liste ici — elle est dans ui-helpers.js, et le jour où
+   elle bouge, elle bouge partout. */
+function natureDate(tourneeId, d){
+  const voc = vocabulaireProjet(operationDe(tourneeId));
+  const ligne = (voc.typesDate || []).find(([cle]) => cle === (d || {}).type);
+  return ligne ? ligne[1] : '';
+}
+
+function libelleDate(tourneeId, d){
+  const lieu = [d.ville, d.lieu].filter(Boolean)
+    .filter((v, i, a) => a.findIndex(x => String(x).toLowerCase() === String(v).toLowerCase()) === i)
+    .join(' · ');
+  const nature = natureDate(tourneeId, d);
+  return [jourDate(d.date), lieu, nature].filter(Boolean).join(' · ');
+}
+
+/* Le résumé des dates d'un lot, tel qu'il se lit dans une ligne. Une date :
+   on la nomme. Plusieurs : on donne les bornes — « 12 → 14 mars », ce qu'un
+   œil lit sans compter. Aucune : on le DIT, parce qu'un lot de chœur sans date
+   est presque toujours un oubli, et qu'il ne se verra nulle part ailleurs. */
+function resumeDatesLot(e){
+  const dates = datesDuLot(e);
+  const orphelines = datesOrphelines(e);
+  const annulees = dates.filter(d => estAnnulee(d)).length;
+  if(!dates.length && !orphelines) return { texte: 'aucune date précisée', alerte: true };
+  const vives = dates.filter(d => !estAnnulee(d));
+  const base = !vives.length ? 'toutes les dates annulées'
+    : vives.length === 1 ? jourDate(vives[0].date, { day: 'numeric', month: 'long' })
+    : `${vives.length} dates · ${jourDate(vives[0].date)} → ${jourDate(vives[vives.length - 1].date)}`;
+  const bouts = [base];
+  if(annulees) bouts.push(annulees + (annulees > 1 ? ' annulées' : ' annulée'));
+  if(orphelines) bouts.push(orphelines + (orphelines > 1 ? ' dates supprimées' : ' date supprimée'));
+  return { texte: bouts.join(' · '), alerte: !vives.length || !!orphelines };
+}
+
+/* La liste à cocher des dates d'une opération. Elle se REDESSINE SEULE quand on
+   change d'opération dans le formulaire, sans rendu complet : un rendu
+   effacerait le nom du chœur qu'on vient de taper. */
+function htmlChoixDates(tourneeId, coches){
+  const dates = datesOperation(tourneeId);
+  if(!tourneeId){
+    return `<span class="l-sous">Choisis d'abord une opération : les dates en viennent.</span>`;
+  }
+  if(!dates.length){
+    return `<span class="l-sous sans-lecteur">Cette opération n'a aucune date. Elles se posent dans l'écran des tournées.</span>`;
+  }
+  const dejaCoche = new Set(coches || []);
+  return `<span class="lecteurs">
+      ${dates.map(d => {
+        const off = estAnnulee(d);
+        return `<label class="lecteur" style="padding:3px 10px${off ? ';opacity:.55;text-decoration:line-through' : ''}"
+          ${off ? 'title="Date annulée — elle ne sera pas montrée au chœur."' : ''}><input type="checkbox" data-cho-date="${escapeAttr(d.id)}"${dejaCoche.has(d.id) ? ' checked' : ''} style="margin-right:6px"> ${escapeHtml(libelleDate(tourneeId, d))}</label>`;
+      }).join('')}
+    </span>
+    <span class="l-sous">Le chef de chœur voit ces dates sur sa page, avant les partitions : c'est ce qu'il regarde d'abord. Une date annulée ne lui est jamais montrée.</span>`;
+}
+
+/* Les parties de chœur d'un spectacle, dans l'ordre des tessitures — soprano,
+   alto, ténor, basse — et non dans celui du conducteur : voir
+   partitionsTrierVoix dans partitions-commun.js. */
+function partiesChoeur(spectacleId){
+  return partitionsTrierVoix(
+    partiesDe(spectacleId).filter(p => partitionsPupitreNormalise(p.pupitre) === 'Chœur'));
+}
+
 
 /* Une date d'écran et de courrier, jamais la forme ISO. « 2026-12-01 » se lit
    dans une base de données ; dans un mail à un bibliothécaire, il se lit comme
@@ -1960,9 +2209,21 @@ function etatEnvoi(e){
   return { cle: 'ouvert', libelle: 'ouvert', classe: 'ok' };
 }
 
+/* Ce qu'un lot porte RÉELLEMENT. La règle du chœur est la même ici qu'en base
+   (voir envoi_partitions) : « tout le spectacle » pour un chœur ne veut pas dire
+   le matériel d'orchestre. L'écran doit compter ce que le destinataire recevra,
+   sinon il annonce « 34 parties » pour un lot qui en porte quatre, et la
+   production croit avoir diffusé ce qu'elle n'a pas diffusé — ou l'inverse. */
 function partiesDuLot(e){
   const parties = partiesDe(e.spectacleId);
-  return e.toutesParties ? parties : parties.filter(p => (e.parties || []).includes(p.id));
+  if(!e.toutesParties) return parties.filter(p => (e.parties || []).includes(p.id));
+  // Trié par tessiture pour un chœur : cette liste sert aussi à écrire le mail
+  // au chef de chœur, et « Soprano, Ténor, Basse, Alto » s'y lit comme une
+  // erreur de saisie — « Alto » est rangé avec les cordes dans l'ordre du
+  // conducteur, qui est celui du matériel.
+  return estChoeur(e)
+    ? partitionsTrierVoix(parties.filter(p => partitionsPupitreNormalise(p.pupitre) === 'Chœur'))
+    : parties;
 }
 
 /* Ce qu'un lot a donné : le nombre d'exemplaires pris et la date du dernier.
@@ -1980,6 +2241,97 @@ function prisesDe(envoiId){
    accompagnée d'un mot en français, c'est un appel téléphonique et deux jours
    perdus. */
 function messageEnvoi(e, langue){
+  return estChoeur(e) ? messageChoeur(e, langue) : messageTiers(e, langue);
+}
+
+/* Le mot au chef de chœur. Il ne dit PAS la même chose qu'au bibliothécaire
+   d'un orchestre invité, et ce n'est pas une question de ton : ce qu'un chef de
+   chœur doit lire avant de répondre, c'est QUELLES VOIX et DANS QUEL TON. Ces
+   deux lignes lui évitent d'ouvrir le lien pour savoir s'il a de quoi
+   commencer — et nous évitent l'appel du lendemain. */
+function messageChoeur(e, langue){
+  const spectacle = (state.spectacles.find(x => x.id === e.spectacleId) || {}).nom || '';
+  const operation = (state.tournees.find(t => t.id === e.tourneeId) || {}).nom || '';
+  const voix = partitionsTrierVoix(partiesDuLot(e));
+  const lien = lienEnvoi(e);
+  // « Soprano (Ré♭ majeur), Alto, Ténor, Basse » — la tonalité seulement
+  // là où elle est renseignée : une parenthèse vide se lit comme un oubli.
+  const liste = voix.map(p => {
+    const t = partitionsTonalite(p.tonalite);
+    return p.nom + (t ? ` (${langue === 'en' ? partitionsTonaliteLangue(p.tonalite, 'en') : t})` : '');
+  }).join(', ');
+  const de = /^[aeiouœ]/.test(String(spectacle).normalize('NFD').replace(/[\u0300-\u036F]/g, '').toLowerCase())
+    ? "d'" : 'de ';
+  /* LES DATES AVANT LES PARTITIONS. Un chef de chœur qui reçoit ce mail
+     commence par regarder s'il est libre : lui faire ouvrir le lien pour le
+     savoir, c'est une réponse en deux jours au lieu de deux heures. Les dates
+     annulées ne sont jamais écrites — une date annulée n'est pas une date. */
+  const quand = datesDuLot(e).filter(d => !estAnnulee(d));
+  const listeDates = quand.map(d => {
+    const lieu = [d.ville, d.lieu].filter(Boolean)
+      .filter((v, i, a) => a.findIndex(x => String(x).toLowerCase() === String(v).toLowerCase()) === i)
+      .join(', ');
+    const jour = langue === 'en'
+      ? new Date(d.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
+      : jourDate(d.date, { day: 'numeric', month: 'long' });
+    return '  · ' + jour + (lieu ? ' — ' + lieu : '');
+  }).join('\n');
+
+  if(langue === 'en'){
+    return [
+      `Dear ${e.contactNom || 'colleague'},`,
+      '',
+      `Please find below the choral material for ${spectacle}${operation ? ` (${operation})` : ''}, for your choir to work from.`,
+      '',
+      listeDates ? `Your choir is expected on:` : null,
+      listeDates || null,
+      listeDates ? '' : null,
+      `Link:  ${lien}`,
+      '',
+      liste ? `Voice parts: ${liste}.` : 'The voice parts are listed on the page.',
+      e.nominatif
+        ? 'Parts are downloaded one at a time, each under the name of the singer receiving it: the page asks for that name before every download.'
+        : 'You can download everything as a single archive, or voice by voice.',
+      e.ouvertLe ? `The link opens on ${jourEnvoi(e.ouvertLe, 'en')}.` : null,
+      e.expireLe ? `The link stays open until ${jourEnvoi(e.expireLe, 'en')}.` : null,
+      '',
+      e.code ? 'I am sending you the access code separately — it is needed to download.' : null,
+      e.code ? '' : null,
+      'Every copy downloaded carries your choir\u2019s name and an invisible mark identifying the origin of any copy found in circulation. Please do not pass the material on beyond your singers.',
+      '',
+      'Could you confirm the number of singers, so we can plan dressing rooms, transport and catering?',
+      '',
+      'With best regards,',
+    ].filter(l => l !== null).join('\n');
+  }
+  return [
+    e.contactNom ? `Bonjour ${e.contactNom},` : 'Bonjour,',
+    '',
+    `Vous trouverez ci-dessous le matériel choral ${de}${spectacle}${operation ? ` (${operation})` : ''}, pour le travail de votre chœur.`,
+    '',
+    listeDates ? `Votre chœur est attendu :` : null,
+    listeDates || null,
+    listeDates ? '' : null,
+    `Lien : ${lien}`,
+    '',
+    liste ? `Voix transmises : ${liste}.` : 'Les voix sont détaillées sur la page.',
+    e.nominatif
+      ? 'Les parties se prennent une par une, chacune au nom du ou de la choriste à qui vous la remettez : la page vous demande ce nom avant chaque téléchargement.'
+      : "Tout se télécharge d'un bloc, ou voix par voix.",
+    e.ouvertLe ? `Le lien s'ouvre le ${jourEnvoi(e.ouvertLe)}.` : null,
+    e.expireLe ? `Le lien reste ouvert jusqu'au ${jourEnvoi(e.expireLe)}.` : null,
+    '',
+    e.code ? "Je vous communique le code d'accès par un autre canal — il est nécessaire pour télécharger." : null,
+    e.code ? '' : null,
+    "Chaque exemplaire téléchargé porte le nom de votre chœur, ainsi qu'une marque invisible permettant d'identifier l'origine d'un exemplaire qui circulerait. Merci de ne pas le diffuser au-delà de vos choristes.",
+    '',
+    'Pourriez-vous nous confirmer votre effectif ? Il conditionne les loges, le transport et la restauration.',
+    '',
+    'Bien cordialement,',
+  ].filter(l => l !== null).join('\n');
+}
+
+function messageTiers(e, langue){
   const spectacle = (state.spectacles.find(x => x.id === e.spectacleId) || {}).nom || '';
   const operation = (state.tournees.find(t => t.id === e.tourneeId) || {}).nom || '';
   const nb = partiesDuLot(e).length;
@@ -2061,15 +2413,14 @@ function chargerJournalTiers(){
   // Rien de confié, rien à compter. Sans ce refus, ouvrir n'importe quelle
   // fiche de spectacle — le geste le plus courant de la page — lancerait une
   // requête sur le journal des téléchargements pour afficher trois zéros.
-  if(!state.envois.length){ state.prisesTiers = { parEnvoi: {}, total: 0 }; return; }
+  if(!state.envois.length){ state.prisesTiers = { parEnvoi: {} }; return; }
   state.prisesTiersEnCours = true;
   CurieuxDB.prisesTiersParEnvoi()
     .catch(()=> [])
     .then(lignes => {
       const parEnvoi = {};
-      let total = 0;
-      (lignes || []).forEach(l => { parEnvoi[l.envoiId] = l; total += l.nb; });
-      state.prisesTiers = { parEnvoi, total };
+      (lignes || []).forEach(l => { parEnvoi[l.envoiId] = l; });
+      state.prisesTiers = { parEnvoi };
       state.prisesTiersEnCours = false;
       /* On ne re-rend QUE les écrans qui affichent ces nombres. Le journal met
          parfois plusieurs secondes à revenir : un rendu tombé pendant un dépôt
@@ -2094,13 +2445,22 @@ function chargerJournalTiers(){
    dates portent une valeur par défaut, et les comparer ferait croire à une
    saisie sur un formulaire intact. */
 function formulaireEnvoiEntame(){
-  const texte = ['envDestinataire', 'envContact', 'envEmail', 'envNote']
+  const texte = ['envDestinataire', 'envContact', 'envEmail', 'envNote',
+                 'choDestinataire', 'choContact', 'choEmail', 'choEffectif', 'choNote']
     .some(id => ((document.getElementById(id) || {}).value || '').trim() !== '');
-  const coches = ['envNominatif', 'envDroits']
+  const coches = ['envNominatif', 'envDroits', 'choNominatif', 'choDroits']
     .some(id => !!(document.getElementById(id) || {}).checked);
-  const portee = ((document.getElementById('envPortee') || {}).value || 'tout') !== 'tout';
+  const portee = ((document.getElementById('envPortee') || {}).value || 'tout') !== 'tout'
+    || ((document.getElementById('choPortee') || {}).value || 'tout') !== 'tout';
   const parties = Array.from(document.querySelectorAll('[data-env-partie]')).some(c => c.checked);
-  return texte || coches || portee || parties;
+  const datesCochees = Array.from(document.querySelectorAll('[data-cho-date]')).some(c => c.checked);
+  /* UNE TONALITÉ EN COURS DE FRAPPE EST UNE SAISIE COMME UNE AUTRE. Le champ
+     n'a pas encore été quitté, donc rien n'est enregistré : un rendu tombé là
+     (le journal des retraits qui revient, par exemple) l'effacerait sans un
+     mot, et on croirait l'avoir notée. */
+  const actif = document.activeElement;
+  const tonEnCours = !!(actif && actif.matches && actif.matches('[data-ton-partie], [data-ton-fichier]'));
+  return texte || coches || portee || parties || datesCochees || tonEnCours;
 }
 
 function rendreQuandLaSaisieEstFinie(){
@@ -2128,26 +2488,40 @@ function rendreQuandLaSaisieEstFinie(){
 }
 
 /* Une ligne de lot confié, la même dans la fiche du spectacle et dans l'écran
-   de supervision. Seul le rappel du spectacle change : dans sa propre fiche,
-   le répéter à chaque ligne est du bruit. */
+   de supervision, pour un ensemble tiers comme pour un chœur. Seuls changent le
+   rappel du spectacle — dans sa propre fiche, le répéter à chaque ligne est du
+   bruit — et le VOCABULAIRE : un chœur a des voix et un effectif, un orchestre
+   invité a des parties. Écrire « 4 parties » à un chef de chœur, c'est lui
+   demander de traduire à chaque lecture. */
 function ligneEnvoi(e, options){
   const o = options || {};
   const et = etatEnvoi(e);
+  const choeur = estChoeur(e);
   const sp = (state.spectacles.find(x => x.id === e.spectacleId) || {}).nom || 'Spectacle supprimé';
   const op = e.tourneeId ? nomOperation(e.tourneeId) : '';
   const nb = partiesDuLot(e).length;
   const prises = prisesDe(e.id);
   const derniere = prises && prises.derniere ? String(prises.derniere).slice(0, 10) : '';
-  const contexte = [o.avecSpectacle ? sp : '', op, e.contactNom, e.contactEmail].filter(Boolean).join(' · ');
+  const contexte = [o.avecSpectacle ? sp : '', op, e.contactNom, e.contactEmail,
+                    choeur && e.effectif ? e.effectif + ' choristes' : ''].filter(Boolean).join(' · ');
+  // Les dates ne se lisent que sur un lot de chœur, et seulement s'il porte une
+  // opération : un orchestre invité joue chez lui, notre calendrier ne le
+  // concerne pas.
+  const quand = choeur && e.tourneeId ? resumeDatesLot(e) : null;
+  const unite = choeur ? (nb > 1 ? 'voix' : 'voix') : (nb > 1 ? 'parties' : 'partie');
+  const portee = e.toutesParties
+    ? (choeur ? ' (tout le chœur)' : ' (tout le spectacle)')
+    : ' (sélection)';
   return `
     <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
       <span class="l-nom">
-        <span class="l-titre">${escapeHtml(e.destinataire || 'Sans destinataire')}
+        <span class="l-titre">${escapeHtml(e.destinataire || (choeur ? 'Chœur sans nom' : 'Sans destinataire'))}
           <span class="sur ${et.classe === 'ok' ? 'exacte' : et.classe === 'maybe' ? 'probable' : 'aucune'}">${escapeHtml(et.libelle)}</span>
           ${e.nominatif ? '<span class="sur probable">nominatif</span>' : ''}
         </span>
         ${contexte ? `<span class="l-sous">${escapeHtml(contexte)}</span>` : ''}
-        <span class="l-sous">${nb} partie${nb > 1 ? 's' : ''}${e.toutesParties ? ' (tout le spectacle)' : ' (sélection)'}
+        ${quand ? `<span class="l-sous${quand.alerte ? ' sans-lecteur' : ''}">${escapeHtml(quand.texte)}</span>` : ''}
+        <span class="l-sous">${nb} ${unite}${portee}
           ${e.expireLe ? ' · jusqu\'au ' + escapeHtml(jourEnvoi(e.expireLe)) : ' · sans date de fin'}
           ${prises ? ' · ' + prises.nb + ' exemplaire' + (prises.nb > 1 ? 's' : '') + ' pris' + (derniere ? ', dernier le ' + escapeHtml(jourEnvoi(derniere)) : '') : ''}
           ${e.droitsConfirmes ? '' : ' · <b class="sans-lecteur">droits non confirmés</b>'}</span>
@@ -2186,17 +2560,22 @@ function trierEnvois(liste){
 function vueTransmissions(){
   chargerJournalTiers();
 
-  const lots = trierEnvois(state.envois);
+  // Les lots de chœur ont leur propre écran : les mêler ici ferait lire
+  // « 6 lots ouverts » là où il y en a deux qui relèvent de cette page.
+  const tous = state.envois.filter(e => !estChoeur(e));
+  const lots = trierEnvois(tous);
   const ouverts = lots.filter(e => etatEnvoi(e).cle === 'ouvert');
-  const sansDroits = state.envois.filter(e => !e.droitsConfirmes).length;
-  const prises = state.prisesTiers ? state.prisesTiers.total : null;
+  const sansDroits = tous.filter(e => !e.droitsConfirmes).length;
+  const prises = state.prisesTiers
+    ? tous.reduce((n, e) => n + ((state.prisesTiers.parEnvoi[e.id] || {}).nb || 0), 0)
+    : null;
 
   return `
     <div class="chiffres">
       <div class="chiffre"><b>${ouverts.length}</b><span>lot${ouverts.length > 1 ? 's' : ''} ouvert${ouverts.length > 1 ? 's' : ''}</span>
         <small>${ouverts.length ? escapeHtml(ouverts.slice(0, 3).map(e => e.destinataire).join(', ')) + (ouverts.length > 3 ? '…' : '') : 'Aucun matériel confié à l\'extérieur en ce moment'}</small></div>
       <div class="chiffre"><b>${prises === null ? '…' : prises}</b><span>exemplaire${(prises || 0) > 1 ? 's' : ''} pris par des tiers</span>
-        <small>sur ${state.envois.length} transmission${state.envois.length > 1 ? 's' : ''} au total, révoquées et expirées comprises — le journal, lui, ne s'efface pas</small></div>
+        <small>sur ${tous.length} transmission${tous.length > 1 ? 's' : ''} au total, révoquées et expirées comprises — le journal, lui, ne s'efface pas</small></div>
       <div class="chiffre${sansDroits ? ' alerte' : ''}"><b>${sansDroits}</b><span>lot${sansDroits > 1 ? 's' : ''} sans vérification des droits</span>
         <small>${sansDroits ? 'Le matériel de location ne se retransmet pas : c\'est l\'éditeur qui loue au second ensemble.' : 'Droits vérifiés sur tous les lots confiés'}</small></div>
     </div>
@@ -2208,7 +2587,371 @@ function vueTransmissions(){
     </section>`;
 }
 
-/* Bloc 5 — CONFIER À UN ENSEMBLE TIERS. Dans la fiche du spectacle, après la
+/* ---------------------------------------------------------------------------
+   Bloc 5 — LE CHŒUR.
+
+   POURQUOI UN BLOC À PART, ET PAS UNE LIGNE DE PLUS DANS LE MATÉRIEL
+   -----------------------------------------------------------------
+   Parce qu'un chœur pose trois questions que l'orchestre ne pose jamais, et
+   qu'elles se posent ENSEMBLE : quelles voix, dans quel ton, et à qui on les
+   envoie. Éparpillées — les voix dans le matériel, le ton nulle part, l'envoi
+   dans les transmissions —, elles obligent à traverser l'écran trois fois et
+   à recroiser de tête ; réunies, elles se répondent d'un coup d'œil.
+
+   LA TONALITÉ SE SAISIT ICI ET NULLE PART AILLEURS. C'est le seul endroit de
+   l'application où elle a un sens, et c'est le moment où l'on y pense : on la
+   note en sortant de la réunion où le chef l'a annoncée, pas trois semaines
+   plus tard en cherchant dans quel écran elle se range.
+
+   SUR UN SPECTACLE SANS CHŒUR, LE BLOC SE TAIT — deux lignes et deux gestes,
+   pas un formulaire. Le masquer complètement aurait été pire : un chœur qui
+   s'ajoute en cours de production ne se cherche pas dans un menu, et la
+   question « où range-t-on les voix ? » se pose une fois par spectacle.
+   --------------------------------------------------------------------------- */
+
+const CHOEUR_DUREE_PROPOSEE = 120;   // jours — un chœur apprend par cœur, ça prend plus longtemps qu'un orchestre ne déchiffre
+
+function blocChoeur(s){
+  chargerJournalTiers();
+
+  const voix = partiesChoeur(s.id);
+  const lots = trierEnvois(state.envois.filter(e => e.spectacleId === s.id && estChoeur(e)));
+  const autres = partiesDe(s.id).filter(p => partitionsPupitreNormalise(p.pupitre) !== 'Chœur');
+  const opes = operationsDe(s.id);
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+
+  /* Rien, nulle part : on propose, on n'impose pas. Une ligne, un sélecteur,
+     et le bloc se déplie de lui-même dès qu'une voix y entre. */
+  if(!voix.length && !lots.length){
+    return `
+      <section class="bloc" id="blocChoeur">
+        <h2>Le chœur</h2>
+        <p class="vide">Ce spectacle n'a aucune partie de chœur. S'il en porte un, range ses voix ici : elles se
+          transmettent alors séparément du matériel d'orchestre, avec leurs tonalités, à un lien qui n'ouvre
+          que sur elles.</p>
+        ${autres.length ? `
+        <div class="ligne" style="grid-template-columns:minmax(0,1fr) 280px">
+          <span class="l-nom">
+            <span class="l-titre">Rattacher une partie existante au chœur</span>
+            <span class="l-sous">Les voix déjà rangées sous « Chant » y sont souvent : ce pupitre désigne les solistes, le chœur est à part.</span>
+          </span>
+          <select class="co-select" id="selVersChoeur">
+            <option value="">— choisir une partie —</option>
+            ${autres.map(p => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.nom)}${p.pupitre ? ' · ' + escapeHtml(p.pupitre) : ''}</option>`).join('')}
+          </select>
+        </div>` : ''}
+        <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
+          <span class="l-nom">
+            <span class="l-titre">Ou créer les voix</span>
+            <span class="l-sous">Soprano, Alto, Ténor, Basse — et leurs divisi. Le dépôt des PDF suit, comme pour le reste du matériel.</span>
+          </span>
+          <button type="button" class="co-btn sm" id="btnVoixSATB">Créer les quatre voix</button>
+        </div>
+      </section>`;
+  }
+
+  /* Le tableau des voix. Une ligne par voix, sa tonalité à saisir, ses
+     fichiers dessous avec la leur quand elle diffère. La tonalité d'un fichier
+     vide n'est PAS laissée vide à l'écran : elle affiche celle de sa partie,
+     en gris, parce que c'est ce que le chef de chœur recevra — la base
+     applique la même règle (voir envoi_partitions). */
+  const lignesVoix = voix.map(p => {
+    const fs = fichiersDe(p.id);
+    const poids = fs.reduce((t, f) => t + (f.octets || 0), 0);
+    const tonPartie = partitionsTonalite(p.tonalite);
+    const fichiers = fs.length
+      ? fs.map(f => {
+          const propre = partitionsTonalite(f.tonalite);
+          return `<span class="voix-fic">
+            <span class="nom">${escapeHtml(f.titre || f.nomOrigine)}</span>
+            <span class="det">${partitionsPoids(f.octets)}${f.pages ? ' · ' + f.pages + ' p.' : ''}</span>
+            <input class="co-input ton" data-ton-fichier="${escapeAttr(f.id)}" maxlength="40"
+                   value="${escapeAttr(propre)}"
+                   placeholder="${escapeAttr(tonPartie || 'ton')}"
+                   title="${escapeAttr(propre ? 'Tonalité de ce numéro'
+                     : tonPartie ? 'Vide : ce numéro prend la tonalité de la voix — ' + tonPartie
+                     : 'Tonalité de ce numéro')}">
+          </span>`;
+        }).join('')
+      : '<span class="part-manque">Aucun fichier déposé</span>';
+    return `
+      <div class="voix-tuile${fs.length ? '' : ' sans-fichier'}">
+        <span class="voix-tete">
+          <b>${escapeHtml(p.nom)}</b>
+          <input class="co-input ton" data-ton-partie="${escapeAttr(p.id)}" maxlength="40"
+                 value="${escapeAttr(tonPartie)}" placeholder="tonalité"
+                 title="Tonalité de cette voix — elle s'applique à ses numéros qui n'en portent pas d'autre">
+          <span class="det">${fs.length ? fs.length + ' fichier' + (fs.length > 1 ? 's' : '') + ' · ' + partitionsPoids(poids) : ''}</span>
+          <button type="button" class="part-x" data-hors-choeur="${escapeAttr(p.id)}"
+                  title="Cette partie n'est pas une voix de chœur" aria-label="Sortir ${escapeAttr(p.nom)} du chœur">×</button>
+        </span>
+        ${fichiers}
+      </div>`;
+  }).join('');
+
+  const sansFichier = voix.filter(p => !aUnFichier(p)).length;
+  const sansTon = voix.filter(p => !String(p.tonalite || '').trim()).length;
+
+  const formulaire = `
+    <div class="ligne" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+      <span class="l-nom">
+        <span class="l-titre">Nom du chœur</span>
+        <input class="co-input" id="choDestinataire" style="width:100%" maxlength="120" placeholder="Maîtrise de Bretagne">
+      </span>
+      <span class="l-nom">
+        <span class="l-titre">Au titre de quelle opération <em style="font-weight:400;color:var(--muted)">— facultatif</em></span>
+        <select class="co-select" id="choOperation" style="width:100%">
+          <option value="">— aucune de notre côté —</option>
+          ${opes.map(o => `<option value="${escapeAttr(o.tourneeId)}">${escapeHtml(o.nom)}${o.periode ? ' · ' + escapeHtml(o.periode) : ''}</option>`).join('')}
+        </select>
+      </span>
+    </div>
+    <div class="ligne" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) 140px">
+      <span class="l-nom">
+        <span class="l-titre">Chef ou cheffe de chœur <em style="font-weight:400;color:var(--muted)">— la personne qui en répond</em></span>
+        <input class="co-input" id="choContact" style="width:100%" maxlength="120" placeholder="Prénom et nom">
+      </span>
+      <span class="l-nom">
+        <span class="l-titre">Son adresse</span>
+        <input class="co-input" type="email" id="choEmail" style="width:100%" maxlength="160" placeholder="chef@…">
+      </span>
+      <span class="l-nom">
+        <span class="l-titre">Effectif</span>
+        <input class="co-input" type="number" id="choEffectif" style="width:100%" min="0" max="500" step="1" placeholder="48"
+               title="Le nombre de choristes annoncé. Il ne sert à rien pour les partitions, et à tout pour les loges, le transport et les repas.">
+      </span>
+    </div>
+    <div class="ligne" id="choBlocDates" style="grid-template-columns:minmax(0,1fr)">
+      <span class="l-nom">
+        <span class="l-titre">Dates chantées par ce chœur</span>
+        <span class="l-sous">Sur une même série, le chœur change souvent d'une ville à l'autre : un chœur amateur ne part pas en tournée.
+          C'est ici que ça se dit — et c'est ce qui permet de compter les loges, les places de car et les repas journée par journée.</span>
+        <span id="choDates">${htmlChoixDates('', [])}</span>
+      </span>
+    </div>
+    <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto auto">
+      <span class="l-nom">
+        <span class="l-titre">Ce qu'on remet</span>
+        <span class="l-sous">« Tout le chœur » ne porte QUE les voix ci-dessus — jamais le matériel d'orchestre, même par mégarde : la règle est en base.
+          Une voix ajoutée après coup entre dans le lot sans qu'on y retouche.</span>
+      </span>
+      <select class="co-select" id="choPortee">
+        <option value="tout">Tout le chœur (${voix.length} voix)</option>
+        <option value="selection">Une sélection</option>
+      </select>
+      <span></span>
+    </div>
+    <div class="ligne" id="choListeParties" style="display:none;grid-template-columns:minmax(0,1fr)">
+      <span class="l-nom">
+        <span class="lecteurs">
+          ${partiesDe(s.id).map(p => {
+            const estVoix = partitionsPupitreNormalise(p.pupitre) === 'Chœur';
+            const vide = !fichiersDe(p.id).length;
+            return `<label class="lecteur" style="padding:3px 10px${vide ? ';border-color:var(--ko);color:var(--ko)' : ''}"
+              ${vide ? 'title="Aucun fichier déposé : le lot la porterait vide."' : ''}><input type="checkbox" data-cho-partie="${escapeAttr(p.id)}"${estVoix ? ' checked' : ''} style="margin-right:6px"> ${escapeHtml(p.nom)}</label>`;
+          }).join('')}
+        </span>
+        <span class="l-sous">Les voix de chœur sont cochées d'office. Une réduction piano ou un conducteur de chant se cochent ici — et seulement ici : c'est une décision, pas un défaut.</span>
+      </span>
+    </div>
+    <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto auto">
+      <span class="l-nom">
+        <span class="l-titre">Fenêtre d'accès</span>
+        <span class="l-sous">Un chœur apprend par cœur : quatre mois n'ont rien d'excessif, là où trois suffisent à un orchestre pour déchiffrer.</span>
+      </span>
+      <input class="co-input" type="date" id="choOuvertLe" value="" title="Ouvrir à partir du">
+      <input class="co-input" type="date" id="choExpireLe" value="${escapeAttr(addDaysIso(aujourdHui, CHOEUR_DUREE_PROPOSEE))}" title="Fermer le">
+    </div>
+    <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
+      <span class="l-nom">
+        <span class="l-titre">Distribution nominative</span>
+        <span class="l-sous">Chaque exemplaire porte le nom du ou de la choriste. À convenir avec le chef de chœur : c'est LUI qui saisit, quarante fois.
+          Sur un chœur amateur, c'est en général un refus — et l'archive complète est alors possible, ce qu'un lot nominatif interdit.</span>
+      </span>
+      <label class="co-check"><input type="checkbox" id="choNominatif"> <span>Exiger un nom</span></label>
+    </div>
+    <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
+      <span class="l-nom">
+        <span class="l-titre sans-lecteur">Droits de diffusion</span>
+        <span class="l-sous">Un chœur invité est un TIERS au sens des contrats, même quand il chante avec nous : le matériel de location ne se lui transmet pas davantage qu'à un orchestre.
+          Cette case n'autorise rien — elle enregistre, avec la date et l'auteur, que quelqu'un l'a vérifié.</span>
+      </span>
+      <label class="co-check"><input type="checkbox" id="choDroits"> <span>Vérifié</span></label>
+    </div>
+    <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
+      <span class="l-nom">
+        <span class="l-titre">Mot affiché au chœur <em style="font-weight:400;color:var(--muted)">— facultatif</em></span>
+        <input class="co-input" id="choNote" style="width:100%" maxlength="240" placeholder="Le n° 7 descend d'un demi-ton — version définitive le 12 mars.">
+      </span>
+      <button type="button" class="co-btn primary" id="btnCreerChoeur"${state.typeAbsent ? ' disabled title="La migration du chœur n\'est pas jouée — voir le bandeau en haut de page."' : ''}>Créer le lien</button>
+    </div>`;
+
+  return `
+    <section class="bloc" id="blocChoeur">
+      <h2>Le chœur
+        <span class="h2-total">
+          ${voix.length} voix${lots.length ? ' · ' + lots.length + ' lot' + (lots.length > 1 ? 's' : '') : ''}
+          <button type="button" class="co-btn sm" id="btnAjouterVoix">Ajouter une voix</button>
+        </span>
+      </h2>
+      ${voix.length ? partitionsJaugeHtml(voix, aUnFichier) : ''}
+      ${sansFichier ? `<p class="vide sans-lecteur">${sansFichier} voix sur ${voix.length} ${sansFichier > 1 ? 'sont annoncées' : 'est annoncée'} sans aucun fichier déposé.</p>` : ''}
+      ${voix.length && sansTon ? `<p class="vide">${sansTon === voix.length ? 'Aucune tonalité renseignée' : sansTon + ' voix sans tonalité'} — c'est la première chose qu'un chef de chœur demande, et la seule qu'on ne retrouve nulle part ailleurs.</p>` : ''}
+      <div class="voix-grille">${lignesVoix}</div>
+      ${autres.length ? `
+      <div class="ligne" style="grid-template-columns:minmax(0,1fr) 280px;margin-top:6px">
+        <span class="l-nom">
+          <span class="l-titre">Rattacher une autre partie au chœur</span>
+          <span class="l-sous">Une voix rangée sous « Chant » n'entre pas dans un lot de chœur : « Chant » désigne les solistes.</span>
+        </span>
+        <select class="co-select" id="selVersChoeur">
+          <option value="">— choisir une partie —</option>
+          ${autres.map(p => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.nom)}${p.pupitre ? ' · ' + escapeHtml(p.pupitre) : ''}</option>`).join('')}
+        </select>
+      </div>` : ''}
+
+      <h2 style="margin-top:18px">Remettre les partitions au chœur</h2>
+      <p class="vide">Un chœur invité n'a pas ses choristes dans notre annuaire, et il n'est pas question d'écrire à quarante personnes.
+        On remet le lot à la MAISON : un lien, un code, une personne qui en répond, une date de fin.
+        Chaque exemplaire pris porte le nom du chœur et reste traçable.</p>
+      ${lots.map(e => ligneEnvoi(e, { avecSpectacle: false })).join('')}
+      ${voix.length ? formulaire : '<p class="vide sans-lecteur">Range d\'abord les voix : on ne remet pas un lot vide.</p>'}
+    </section>`;
+}
+
+/* Les journées où un chœur chante, tous spectacles confondus, du plus proche au
+   plus lointain. Une journée porte ses chœurs, et non l'inverse : c'est ainsi
+   qu'on la lit quand on commande des loges.
+
+   LES LOTS RÉVOQUÉS SONT EXCLUS — leur matériel a été rappelé, le chœur ne
+   chante plus. Les lots expirés, NON : un lien expire après que le chœur a pris
+   ses partitions, et il chante quand même. Confondre les deux ferait disparaître
+   du calendrier les chœurs les mieux préparés.
+   Les dates annulées sont exclues aussi : une date annulée n'est pas une date. */
+function journeesChorales(){
+  const parDate = new Map();
+  state.envois.filter(e => estChoeur(e) && e.actif && e.tourneeId).forEach(e => {
+    datesDuLot(e).filter(d => !estAnnulee(d)).forEach(d => {
+      const cle = e.tourneeId + '|' + d.id;
+      if(!parDate.has(cle)){
+        parDate.set(cle, {
+          date: d.date, ville: d.ville || '', lieu: d.lieu || '',
+          nature: natureDate(e.tourneeId, d),
+          operation: nomOperation(e.tourneeId),
+          spectacleId: e.spectacleId,
+          lots: [], effectif: 0,
+        });
+      }
+      const j = parDate.get(cle);
+      j.lots.push(e);
+      j.effectif += Number(e.effectif) || 0;
+    });
+  });
+  return Array.from(parDate.values())
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+/* L'ÉCRAN DE SUPERVISION DES CHŒURS. Même raison d'être que celui des
+   transmissions : « quel chœur travaille sur quoi, en ce moment ? » est une
+   question qui ne se pose jamais spectacle par spectacle. On n'y crée rien —
+   remettre un lot suppose de choisir des voix, donc d'être dans la fiche du
+   spectacle. */
+function vueChoeurs(){
+  chargerJournalTiers();
+
+  const tous = state.envois.filter(e => estChoeur(e));
+  const lots = trierEnvois(tous);
+  const ouverts = lots.filter(e => etatEnvoi(e).cle === 'ouvert');
+  const journees = journeesChorales();
+  /* LE CHIFFRE N'EST PLUS LE TOTAL DE LA SÉRIE, et c'est la correction qui
+     compte. Additionner trois chœurs qui ne se croisent jamais donnait 130
+     choristes — un nombre qui ne correspond à aucune journée, et sur lequel on
+     ne peut ni commander des loges, ni réserver un car, ni compter des repas.
+     Ce qui dimensionne, c'est LE JOUR LE PLUS CHARGÉ. */
+  const pic = journees.reduce((max, j) => j.effectif > (max ? max.effectif : -1) ? j : max, null);
+  const sansDroits = tous.filter(e => !e.droitsConfirmes).length;
+  const prises = state.prisesTiers
+    ? tous.reduce((n, e) => n + ((state.prisesTiers.parEnvoi[e.id] || {}).nb || 0), 0)
+    : null;
+  // Les spectacles qui portent des voix, qu'un chœur les ait reçues ou non :
+  // c'est là que se lit le travail qui reste à faire.
+  const avecVoix = state.spectacles
+    .filter(sp => !sp.archive && partiesChoeur(sp.id).length)
+    .map(sp => ({ sp, voix: partiesChoeur(sp.id), lots: tous.filter(e => e.spectacleId === sp.id) }));
+  // Les lots encore vivants qui ne disent pas quand ils chantent. Presque
+  // toujours un oubli, et il ne se verrait nulle part ailleurs.
+  const sansDates = tous.filter(e => e.actif && e.tourneeId && !datesDuLot(e).filter(d => !estAnnulee(d)).length);
+
+  return `
+    <div class="chiffres">
+      <div class="chiffre"><b>${ouverts.length}</b><span>chœur${ouverts.length > 1 ? 's' : ''} servi${ouverts.length > 1 ? 's' : ''}</span>
+        <small>${ouverts.length ? escapeHtml(ouverts.slice(0, 3).map(e => e.destinataire).join(', ')) + (ouverts.length > 3 ? '…' : '') : 'Aucune partition de chœur dehors en ce moment'}</small></div>
+      <div class="chiffre"><b>${pic && pic.effectif ? pic.effectif : '—'}</b><span>choristes, jour le plus chargé</span>
+        <small>${pic && pic.effectif
+          ? escapeHtml(jourDate(pic.date, { day: 'numeric', month: 'long' })
+              + (pic.ville ? ' · ' + pic.ville : '')
+              + ' — ' + pic.lots.map(e => e.destinataire).join(', ')
+              + '. C\'est ce nombre qui dimensionne les loges, le car et les repas, pas le total de la série.')
+          : 'Aucun effectif rattaché à une date — c\'est ce qui chiffre les loges, le transport et les repas.'}</small></div>
+      <div class="chiffre"><b>${prises === null ? '…' : prises}</b><span>exemplaire${(prises || 0) > 1 ? 's' : ''} pris</span>
+        <small>sur ${tous.length} remise${tous.length > 1 ? 's' : ''} au total, révoquées et expirées comprises</small></div>
+      <div class="chiffre${sansDroits ? ' alerte' : ''}"><b>${sansDroits}</b><span>lot${sansDroits > 1 ? 's' : ''} sans vérification des droits</span>
+        <small>${sansDroits ? 'Un chœur invité est un tiers au sens des contrats, même quand il chante avec nous.' : 'Droits vérifiés sur tous les lots de chœur'}</small></div>
+    </div>
+
+    <section class="bloc">
+      <h2>Ce qui est remis <span class="h2-total">${lots.length} remise${lots.length > 1 ? 's' : ''}</span></h2>
+      ${lots.map(e => ligneEnvoi(e, { avecSpectacle: true })).join('')
+        || '<p class="vide">Aucune partition de chœur remise. Ça se prépare depuis la fiche du spectacle, dans le bloc « Le chœur » — c\'est là que se lisent les voix et leurs tonalités.</p>'}
+    </section>
+
+    <section class="bloc">
+      <h2>Qui chante quand <span class="h2-total">${journees.length} journée${journees.length > 1 ? 's' : ''}</span></h2>
+      <p class="vide">Un chœur amateur ne part pas en tournée : sur une même série, il change d'une ville à l'autre.
+        Cette lecture-là est celle de l'exploitation — les loges, le car et les repas se commandent par journée, pas par série.
+        Les lots révoqués n'y figurent pas : leur matériel a été rappelé.</p>
+      ${journees.map(j => `
+        <div class="ligne">
+          <span class="l-nom">
+            <span class="l-titre">${escapeHtml(jourDate(j.date, { weekday: 'short', day: 'numeric', month: 'long' }))}
+              ${j.lots.length > 1 ? '<span class="sur probable">' + j.lots.length + ' chœurs</span>' : ''}
+            </span>
+            <span class="l-sous">${escapeHtml([j.ville, j.lieu].filter(Boolean).join(' · ') || 'Lieu non précisé')}${j.nature ? ' · ' + escapeHtml(j.nature) : ''} — ${escapeHtml(j.operation)}</span>
+            <span class="l-sous">${j.lots.map(e => escapeHtml(e.destinataire) + (e.effectif ? ' (' + e.effectif + ')' : ' <b class="sans-lecteur">effectif inconnu</b>')).join(' · ')}</span>
+          </span>
+          <span class="l-num">${j.effectif || '—'}</span>
+          <button type="button" class="co-btn sm" data-ouvrir-choeur="${escapeAttr(j.spectacleId)}">Ouvrir</button>
+        </div>`).join('')
+        || '<p class="vide">Aucune journée chorale. Les dates se cochent à la création du lot, dans la fiche du spectacle.</p>'}
+      ${sansDates.length ? `<p class="vide sans-lecteur">${sansDates.length} lot${sansDates.length > 1 ? 's' : ''} sans date précisée :
+        ${escapeHtml(sansDates.map(e => e.destinataire).join(', '))}. Leur effectif n'est compté sur aucune journée, et leur chef de chœur ne voit pas quand il chante.</p>` : ''}
+    </section>
+
+    <section class="bloc">
+      <h2>Les spectacles qui portent un chœur <span class="h2-total">${avecVoix.length}</span></h2>
+      ${avecVoix.map(({ sp, voix, lots: l }) => {
+        const sansTon = voix.filter(v => !String(v.tonalite || '').trim()).length;
+        const sansFichier = voix.filter(v => !aUnFichier(v)).length;
+        const ouvertsIci = l.filter(e => etatEnvoi(e).cle === 'ouvert');
+        return `
+          <div class="ligne">
+            <span class="l-nom">
+              <span class="l-titre">${escapeHtml(sp.nom)}</span>
+              <span class="l-sous">${voix.length} voix : ${escapeHtml(voix.map(v => v.nom).join(', '))}</span>
+              <span class="l-sous${sansFichier || sansTon ? ' sans-lecteur' : ''}">
+                ${sansFichier ? sansFichier + ' sans fichier' : 'Toutes les voix ont un fichier'}
+                ${sansTon ? ' · ' + sansTon + ' sans tonalité' : ' · tonalités renseignées'}
+                ${ouvertsIci.length ? ' · ' + escapeHtml(ouvertsIci.map(e => e.destinataire).join(', ')) : ' · remis à personne'}</span>
+            </span>
+            <span class="l-num">${partitionsPoids(voix.reduce((t, v) => t + fichiersDe(v.id).reduce((u, f) => u + (f.octets || 0), 0), 0))}</span>
+            <button type="button" class="co-btn sm" data-ouvrir-choeur="${escapeAttr(sp.id)}">Ouvrir</button>
+          </div>`;
+      }).join('')
+        || '<p class="vide">Aucun spectacle ne porte de partie de chœur. Elles se rangent dans la fiche d\'un spectacle, bloc « Le chœur ».</p>'}
+    </section>`;
+}
+
+/* Bloc 6 — CONFIER À UN ENSEMBLE TIERS. Dans la fiche du spectacle, après la
    distribution interne, parce que c'est l'ordre réel : on sert son orchestre,
    puis on confie à l'invité. Le spectacle est déjà choisi — c'est celui qu'on
    a ouvert — et les opérations proposées sont les siennes, pas les cent
@@ -2216,7 +2959,7 @@ function vueTransmissions(){
 function blocTransmissions(s){
   chargerJournalTiers();
 
-  const lots = trierEnvois(state.envois.filter(e => e.spectacleId === s.id));
+  const lots = trierEnvois(state.envois.filter(e => e.spectacleId === s.id && !estChoeur(e)));
   const parties = partiesDe(s.id);
   const opes = operationsDe(s.id);
   const aujourdHui = new Date().toISOString().slice(0, 10);
@@ -2386,6 +3129,7 @@ function cablerVue(){
   if(q('btnNouveauSpectacle')) q('btnNouveauSpectacle').onclick = ()=> ficheSpectacle(null);
   if(q('btnModifierSpectacle')) q('btnModifierSpectacle').onclick = ()=> ficheSpectacle(spectacleCourant());
   if(q('btnNouvellePartie')) q('btnNouvellePartie').onclick = fichePartie;
+  if(q('btnReordonner')) q('btnReordonner').onclick = remettreDansLOrdre;
   if(q('btnDeposer')) q('btnDeposer').onclick = ()=>{ state.vue = 'depot'; state.depot = []; rendre(); };
 
   if(q('chkChiffrer')) q('chkChiffrer').onchange = (e)=> majSpectacle({ chiffrer: e.target.checked });
@@ -2502,6 +3246,38 @@ function cablerVue(){
   };
   if(q('btnCreerEnvoi')) q('btnCreerEnvoi').onclick = creerEnvoi;
 
+  // --- le chœur ---
+  if(q('choPortee')) q('choPortee').onchange = (e)=>{
+    const liste = q('choListeParties');
+    if(liste) liste.style.display = e.target.value === 'selection' ? 'grid' : 'none';
+  };
+  /* Changer d'opération redessine les dates SANS rendu complet : un rendu
+     reconstruirait le formulaire et effacerait le nom du chœur qu'on vient de
+     taper. Les cases déjà cochées ne survivent pas au changement, et c'est
+     juste — ce sont les dates d'une AUTRE opération. */
+  if(q('choOperation')) q('choOperation').onchange = (ev)=>{
+    const zone = q('choDates');
+    if(zone) zone.innerHTML = htmlChoixDates(ev.target.value, []);
+  };
+  if(q('btnCreerChoeur')) q('btnCreerChoeur').onclick = creerChoeur;
+  if(q('btnAjouterVoix')) q('btnAjouterVoix').onclick = ficheVoix;
+  if(q('btnVoixSATB')) q('btnVoixSATB').onclick = creerVoixSATB;
+  if(q('selVersChoeur')) q('selVersChoeur').onchange = (e)=>{ if(e.target.value) versChoeur(e.target.value); };
+  el.querySelectorAll('[data-hors-choeur]').forEach(b => b.onclick = ()=> horsChoeur(b.dataset.horsChoeur));
+  el.querySelectorAll('[data-ouvrir-choeur]').forEach(b => b.onclick = ()=> ouvrirSpectacle(b.dataset.ouvrirChoeur));
+  /* « change » et non « input » : on enregistre quand le champ est quitté ou
+     validé, pas à chaque lettre — une tonalité s'écrit en six frappes, et six
+     écritures pour une valeur intermédiaire (« R », « Ré », « Ré♭ »…) est du
+     bruit dans le journal d'audit comme sur le réseau. */
+  el.querySelectorAll('[data-ton-partie]').forEach(inp => {
+    inp.onchange = ()=> majTonalitePartie(inp.dataset.tonPartie, inp.value, inp);
+    inp.onkeydown = (ev)=>{ if(ev.key === 'Enter'){ ev.preventDefault(); inp.blur(); } };
+  });
+  el.querySelectorAll('[data-ton-fichier]').forEach(inp => {
+    inp.onchange = ()=> majTonaliteFichier(inp.dataset.tonFichier, inp.value, inp);
+    inp.onkeydown = (ev)=>{ if(ev.key === 'Enter'){ ev.preventDefault(); inp.blur(); } };
+  });
+
   el.querySelectorAll('[data-copier-lien]').forEach(b => b.onclick = ()=>{
     const e = state.envois.find(x => x.id === b.dataset.copierLien);
     if(e) copierTexte(lienEnvoi(e), 'Lien copié.');
@@ -2521,7 +3297,7 @@ function cablerVue(){
   el.querySelectorAll('[data-basculer]').forEach(b => b.onclick = ()=>{
     const e = state.envois.find(x => x.id === b.dataset.basculer);
     if(!e) return;
-    if(e.actif && !confirm(`Révoquer le lot confié à « ${e.destinataire} » ?\n\nLe lien cesse immédiatement de fonctionner. Les exemplaires déjà téléchargés, eux, restent chez eux — la révocation ne les rappelle pas.`)) return;
+    if(e.actif && !confirm(`Révoquer ${estChoeur(e) ? 'les partitions remises au chœur' : 'le lot confié à'} « ${e.destinataire} » ?\n\nLe lien cesse immédiatement de fonctionner. Les exemplaires déjà téléchargés, eux, restent chez eux — la révocation ne les rappelle pas.`)) return;
     majEnvoi(e.id, { actif: !e.actif });
   });
   el.querySelectorAll('[data-prolonger]').forEach(b => b.onclick = ()=>{
@@ -2873,6 +3649,10 @@ async function majSpectacle(champs){
 function fichePartie(existant){
   const s = spectacleCourant();
   if(!s) return;
+  /* La liste vient de PARTITIONS_PUPITRE_ORDRE : « Chœur » y figure, et il est
+     DISTINCT de « Chant », qui désigne les solistes. La confusion n'est pas
+     cosmétique — une voix rangée sous « Chant » n'entre pas dans un lot de
+     chœur, et le chef de chœur ne la voit jamais. */
   const p = existant || null;
   const pupitres = PARTITIONS_PUPITRE_ORDRE;
   const devine = p ? partitionsPupitreNormalise(partitionsPupitreDe(p.nom)) : '';
@@ -2924,6 +3704,7 @@ function creerPartieLocale(nom, pupitre){
   const p = {
     id: genId('part'), spectacleId: state.spectacleId, nom,
     pupitre: pupitre || partitionsPupitreDe(nom), ordre: partitionsOrdreDe(nom), note: '',
+    tonalite: '',
   };
   state.parties.push(p);
   return p;
@@ -2961,11 +3742,16 @@ function inventaireSpectacle(s){
    servent plus personne. */
 function lotsContenant(partie){
   const jour = new Date().toISOString().slice(0, 10);
+  const auChoeur = partitionsPupitreNormalise(partie.pupitre) === 'Chœur';
   return state.envois.filter(e =>
     e.spectacleId === partie.spectacleId
     && e.actif
     && (!e.expireLe || e.expireLe >= jour)
-    && (e.toutesParties || (e.parties || []).includes(partie.id)));
+    && ((e.parties || []).includes(partie.id)
+        // Un lot de chœur « tout le spectacle » ne contient pas les cordes :
+        // le prétendre ferait refuser le retrait d'une partie d'orchestre au
+        // motif qu'une chorale travaille dessus, ce qui est faux.
+        || (e.toutesParties && (!estChoeur(e) || auChoeur))));
 }
 
 /* SUPPRIMER UN SPECTACLE, et tout ce qui pend après lui.
@@ -3001,9 +3787,9 @@ async function supprimerSpectacle(s){
      seule personne que la page ne peut pas prévenir. Révoquer d'abord est un
      clic, et ce clic est une décision qu'on prend les yeux ouverts. */
   if(inv.dehors.length){
-    alert(`Ce spectacle est confié à ${inv.dehors.length} ensemble${inv.dehors.length > 1 ? 's' : ''} en ce moment :\n`
-      + inv.dehors.map(e => '  · ' + e.destinataire).join('\n')
-      + `\n\nLeur lien cesserait de fonctionner sans qu'ils en soient avertis. Révoque ${inv.dehors.length > 1 ? 'ces transmissions' : 'cette transmission'} d'abord, puis supprime.`);
+    alert(`Ce matériel est dehors chez ${inv.dehors.length} ensemble${inv.dehors.length > 1 ? 's' : ''} en ce moment :\n`
+      + inv.dehors.map(e => '  · ' + e.destinataire + (estChoeur(e) ? ' (chœur)' : '')).join('\n')
+      + `\n\nLeur lien cesserait de fonctionner sans qu'ils en soient avertis. Révoque ${inv.dehors.length > 1 ? 'ces remises' : 'cette remise'} d'abord, puis supprime.`);
     return;
   }
 
@@ -3012,7 +3798,15 @@ async function supprimerSpectacle(s){
     `${inv.fichiers.length} fichier${inv.fichiers.length > 1 ? 's' : ''}${inv.poids ? ' — ' + partitionsPoids(inv.poids) + ', retirés du stockage' : ''}`,
     inv.affectations.length ? `${inv.affectations.length} affectation${inv.affectations.length > 1 ? 's' : ''} chez ${inv.personnes} personne${inv.personnes > 1 ? 's' : ''} — ces partitions disparaîtront de leur espace` : '',
     inv.programmations.length ? `${inv.programmations.length} rattachement${inv.programmations.length > 1 ? 's' : ''} à une opération` : '',
-    inv.envois.length ? `${inv.envois.length} transmission${inv.envois.length > 1 ? 's' : ''} (révoquée${inv.envois.length > 1 ? 's' : ''} ou périmée${inv.envois.length > 1 ? 's' : ''})` : '',
+    (()=>{
+      const tiers = inv.envois.filter(e => !estChoeur(e)).length;
+      const choeurs = inv.envois.filter(estChoeur).length;
+      const bouts = [
+        tiers ? `${tiers} transmission${tiers > 1 ? 's' : ''}` : '',
+        choeurs ? `${choeurs} remise${choeurs > 1 ? 's' : ''} à un chœur` : '',
+      ].filter(Boolean);
+      return bouts.length ? bouts.join(' et ') + ' (révoquée' + (inv.envois.length > 1 ? 's' : '') + ' ou périmée' + (inv.envois.length > 1 ? 's' : '') + ')' : '';
+    })(),
   ].filter(Boolean);
 
   ouvrirFiche({
@@ -3337,6 +4131,228 @@ async function reprendreAffectation(sourceId){
    et on laisse passer si la personne assume, parce qu'il existe des cas
    légitimes (matériel propre, arrangement maison, domaine public) que la page
    ne peut pas distinguer. */
+/* ---------------------------------------------------------------------------
+   LES GESTES DU CHŒUR
+   --------------------------------------------------------------------------- */
+
+/* La tonalité se saisit AU FIL DE LA FRAPPE et s'enregistre à la sortie du
+   champ — jamais par un bouton « Enregistrer ». Il y en a une par voix et une
+   par numéro : douze boutons sur un écran, c'est douze occasions d'en oublier
+   un, et une tonalité notée mais pas enregistrée est pire que pas de tonalité
+   du tout — on croit l'avoir dite.
+
+   ON NE RE-REND PAS L'ÉCRAN. Un rendu complet reconstruirait la grille des
+   voix et arracherait le curseur du champ suivant, qu'on est justement en
+   train de remplir : on tape quatre tonalités à la suite, pas une par visite.
+   On met donc à jour ce qui doit l'être — la valeur normalisée, et les
+   pense-bêtes des fichiers qui héritent de cette voix — et rien d'autre. */
+async function majTonalitePartie(partieId, valeur, champ){
+  const p = state.parties.find(x => x.id === partieId);
+  if(!p) return;
+  const propre = partitionsTonalite(valeur);
+  if(propre === (p.tonalite || '')) return;
+  p.tonalite = propre;
+  if(champ) champ.value = propre;
+  // Les numéros sans tonalité propre affichent désormais celle-ci en
+  // pense-bête : c'est ce qu'ils porteront réellement.
+  document.querySelectorAll('[data-ton-fichier]').forEach(inp => {
+    const f = state.fichiers.find(x => x.id === inp.dataset.tonFichier);
+    if(f && f.partieId === partieId && !String(f.tonalite || '').trim()){
+      inp.placeholder = propre || 'ton';
+    }
+  });
+  const res = await CurieuxDB.upsertOne('partitions_parties', p);
+  if(res && res.error) alert("La tonalité n'a pas pu être enregistrée : " + (res.error.message || 'échec'));
+}
+
+async function majTonaliteFichier(fichierId, valeur, champ){
+  const f = state.fichiers.find(x => x.id === fichierId);
+  if(!f) return;
+  const propre = partitionsTonalite(valeur);
+  if(propre === (f.tonalite || '')) return;
+  f.tonalite = propre;
+  if(champ) champ.value = propre;
+  const res = await CurieuxDB.upsertOne('partitions_fichiers', f);
+  if(res && res.error) alert("La tonalité n'a pas pu être enregistrée : " + (res.error.message || 'échec'));
+}
+
+/* Faire entrer une partie dans le chœur, ou l'en sortir. C'est un changement
+   de PUPITRE, pas une copie : la partie reste une et unique dans le matériel,
+   et ses fichiers ne bougent pas. Ce qui change, c'est qui la reçoit — un lot
+   de chœur « tout le chœur » la porte désormais, et un lot d'orchestre « tout
+   le spectacle » la porte toujours. */
+async function versChoeur(partieId){
+  const p = state.parties.find(x => x.id === partieId);
+  if(!p) return;
+  p.pupitre = 'Chœur';
+  rendre();
+  const res = await CurieuxDB.upsertOne('partitions_parties', p);
+  if(res && res.error){
+    alert("Le pupitre n'a pas pu être enregistré : " + (res.error.message || 'échec')
+      + "\n\nSi la base n'accepte pas encore la valeur « Chœur », joue le bloc L'ESPACE DU CHŒUR de migrations.sql.");
+  }
+}
+
+async function horsChoeur(partieId){
+  const p = state.parties.find(x => x.id === partieId);
+  if(!p) return;
+  /* UN LOT OUVERT FAIT PRÉVENIR. Sortir une voix du chœur la retire des lots
+     « tout le chœur » en cours : le chef de chœur qui rouvre son lien ne la
+     trouve plus, et personne ne le lui a dit. Ce n'est pas un refus — il y a
+     de bonnes raisons de le faire —, c'est une seconde de réflexion. */
+  const lots = lotsContenant(p).filter(estChoeur).filter(e => e.toutesParties);
+  if(lots.length && !confirm(
+      `« ${p.nom} » est actuellement remise à ${lots.map(e => e.destinataire).join(', ')}.\n\n`
+      + "La sortir du chœur la retire de ces lots : le lien reste valide, mais cette voix n'y sera plus. Continuer ?")) return;
+  // On la remet au pupitre que son nom suggère, et non à « Autre » : une voix
+  // sortie du chœur est le plus souvent une partie de soliste, donc « Chant ».
+  p.pupitre = partitionsPupitreDe(p.nom) || 'Autre';
+  if(partitionsPupitreNormalise(p.pupitre) === 'Chœur') p.pupitre = 'Chant';
+  rendre();
+  await CurieuxDB.upsertOne('partitions_parties', p);
+}
+
+/* Les quatre voix d'un coup. C'est le geste de départ neuf fois sur dix —
+   soprano, alto, ténor, basse — et le faire à la main, c'est quatre fois la
+   même fiche modale pour taper quatre mots qu'on connaît d'avance. Les divisi
+   s'ajoutent ensuite un par un, parce qu'eux ne se devinent pas. */
+async function creerVoixSATB(){
+  const s = spectacleCourant();
+  if(!s) return;
+  const existantes = new Set(partiesDe(s.id).map(p => partitionsNormaliser(p.nom)));
+  const neuves = ['Soprano', 'Alto', 'Ténor', 'Basse']
+    .filter(nom => !existantes.has(partitionsNormaliser(nom)))
+    .map(nom => creerPartieLocale(nom, 'Chœur'));
+  if(!neuves.length){
+    alert('Les quatre voix existent déjà dans ce spectacle. Rattache-les au chœur depuis le sélecteur ci-dessous.');
+    return;
+  }
+  rendre();
+  for(const p of neuves){
+    const res = await CurieuxDB.upsertOne('partitions_parties', p);
+    if(res && res.error){
+      alert("Les voix sont affichées mais n'ont pas toutes été enregistrées : " + (res.error.message || 'échec')
+        + "\n\nSi la base n'accepte pas encore le pupitre « Chœur », joue le bloc L'ESPACE DU CHŒUR de migrations.sql.");
+      return;
+    }
+  }
+}
+
+/* Une voix de plus — un divisi, un chœur d'enfants, une voix de récitant. La
+   tonalité se demande ICI plutôt qu'après : c'est le moment où on l'a en tête. */
+function ficheVoix(){
+  const s = spectacleCourant();
+  if(!s) return;
+  ouvrirFiche({
+    titre: 'Ajouter une voix',
+    sous: "L'unité qu'on remet au chœur : Soprano, Alto 1, Ténor, Basse 2. La tonalité peut attendre — mais elle ne s'écrit nulle part ailleurs.",
+    libelleOk: 'Ajouter',
+    corps: `
+      <label class="co-label" for="fVoix">Nom de la voix</label>
+      <input class="co-input" id="fVoix" autocomplete="off" placeholder="Soprano 1">
+      <label class="co-label" for="fVoixTon" style="margin-top:12px">Tonalité <em style="font-weight:400;color:var(--muted)">— facultatif</em></label>
+      <input class="co-input" id="fVoixTon" autocomplete="off" maxlength="40" placeholder="Ré♭ majeur">`,
+    valider: async (ov)=>{
+      const nom = ov.querySelector('#fVoix').value.trim();
+      if(!nom) return 'Il faut un nom de voix.';
+      const cle = partitionsNormaliser(nom);
+      if(partiesDe(s.id).some(p => partitionsNormaliser(p.nom) === cle))
+        return 'Cette partie existe déjà dans ce spectacle.';
+      const p = creerPartieLocale(nom, 'Chœur');
+      p.tonalite = partitionsTonalite(ov.querySelector('#fVoixTon').value);
+      rendre();
+      const res = await CurieuxDB.upsertOne('partitions_parties', p);
+      if(res && res.error) return "Enregistrement refusé : " + (res.error.message || 'échec');
+      return '';
+    },
+  });
+}
+
+/* REMETTRE LES PARTITIONS À UN CHŒUR. Même dispositif que la transmission à un
+   ensemble tiers — un lien, un code, une fenêtre, un filigrane par exemplaire —
+   et deux garde-fous de plus, qui tiennent à ce qu'est un chœur :
+
+   1. LA MIGRATION D'ABORD. Sans la colonne `type`, db.js retirerait la colonne
+      inconnue et réécrirait la ligne : le lot s'enregistrerait comme une
+      transmission ordinaire, et « tout le chœur » deviendrait « tout le
+      spectacle » — le matériel d'orchestre complet chez une chorale amateur,
+      sans que personne ne s'en aperçoive. On refuse plutôt que de réparer
+      après.
+   2. LA PORTÉE EST EXPLICITE. « Tout le chœur » n'envoie que les voix ; la
+      base applique la même règle de son côté, pour que l'écran ne soit pas le
+      seul rempart. */
+async function creerChoeur(){
+  const val = (id)=> (document.getElementById(id) || {}).value || '';
+  const coche = (id)=> !!(document.getElementById(id) || {}).checked;
+  if(!state.spectacleId){
+    alert("Ouvre d'abord le spectacle : c'est lui qui décide des voix du lot.");
+    return;
+  }
+  if(state.typeAbsent){
+    alert("La base n'a pas encore les colonnes « type » et « dates » de partitions_envois.\n\n"
+      + "Un lot de chœur créé maintenant s'enregistrerait comme une transmission ordinaire — "
+      + "donc avec le matériel d'orchestre complet, et sans les dates chantées. "
+      + "Joue le bloc L'ESPACE DU CHŒUR de migrations.sql (il se rejoue sans risque s'il l'a déjà été), "
+      + "puis recharge cette page.");
+    return;
+  }
+  const destinataire = val('choDestinataire').trim();
+  if(!destinataire){
+    alert("Le nom du chœur est obligatoire : c'est lui qui se pose sur chaque exemplaire téléchargé, et c'est ce qui rend la remise traçable.");
+    return;
+  }
+  const portee = val('choPortee');
+  const choisies = Array.from(document.querySelectorAll('[data-cho-partie]'))
+    .filter(c => c.checked).map(c => c.dataset.choPartie);
+  if(portee === 'selection' && !choisies.length){
+    alert('Aucune voix sélectionnée. Coche celles que tu remets, ou repasse sur « tout le chœur ».');
+    return;
+  }
+  const effectif = Math.max(0, Math.min(500, Number(val('choEffectif')) || 0));
+  const dates = Array.from(document.querySelectorAll('[data-cho-date]'))
+    .filter(c => c.checked).map(c => c.dataset.choDate);
+  /* PAS DE REFUS, MAIS UNE QUESTION. Un lot sans date reste légitime — une
+     préparation sans calendrier arrêté, un chœur qu'on met au travail avant de
+     savoir où il chantera. Mais neuf fois sur dix c'est un oubli, et il ne se
+     verrait nulle part ailleurs : ni dans les loges, ni dans le transport, ni
+     dans les repas. */
+  if(val('choOperation') && !dates.length
+     && !confirm("Aucune date n'est cochée pour ce chœur.\n\nSon effectif ne sera compté sur aucune journée, et le chef de chœur ne verra pas quand il chante. Créer quand même le lien ?")) return;
+  if(!coche('choDroits') && !confirm("Les droits de diffusion n'ont pas été vérifiés.\n\nUn chœur invité est un TIERS au sens des contrats, même quand il chante avec nous : le matériel de location ne lui est pas retransmissible. Créer quand même le lien ?")) return;
+
+  const e = {
+    id: genId('pcho'),
+    type: 'choeur',
+    spectacleId: state.spectacleId,
+    tourneeId: val('choOperation'),
+    destinataire,
+    contactNom: val('choContact').trim(),
+    contactEmail: val('choEmail').trim(),
+    effectif,
+    jeton: CurieuxDB.nouveauJetonEnvoi(),
+    code: partitionsNouveauCode(),
+    dates,
+    toutesParties: portee !== 'selection',
+    parties: portee === 'selection' ? choisies : [],
+    ouvertLe: val('choOuvertLe'),
+    expireLe: val('choExpireLe'),
+    actif: true,
+    nominatif: coche('choNominatif'),
+    droitsConfirmes: coche('choDroits'),
+    note: val('choNote').trim(),
+    createdAt: new Date().toISOString(),
+  };
+  state.envois.push(e);
+  rendre();
+  const res = await CurieuxDB.upsertOne('partitions_envois', e);
+  if(res && res.error){
+    alert("Le lien est affiché mais n'a pas encore été enregistré : " + (res.error.message || 'échec')
+      + "\n\nSi la base n'a pas encore le bloc L'ESPACE DU CHŒUR, joue la migration avant de communiquer ce lien.");
+    return;
+  }
+  try{ curieuxFlash('Lien créé. « Message FR » ou « Message EN » prépare le mail au chef de chœur.'); }catch(err){}
+}
+
 async function creerEnvoi(){
   const val = (id)=> (document.getElementById(id) || {}).value || '';
   const coche = (id)=> !!(document.getElementById(id) || {}).checked;
@@ -3418,7 +4434,7 @@ function retirerEnvoi(id){
   state.envois = state.envois.filter(x => x.id !== id);
   rendre();
   CurieuxAnnuler.proposer({
-    texte: `Transmission à « ${e.destinataire} » retirée`,
+    texte: `${estChoeur(e) ? 'Remise au chœur' : 'Transmission à'} « ${e.destinataire} » retirée`,
     retablir: ()=>{ state.envois.push(e); rendre(); },
     purger: async ()=>{ await CurieuxDB.removeOne('partitions_envois', id); },
   });
