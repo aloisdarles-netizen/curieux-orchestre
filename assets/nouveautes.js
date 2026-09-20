@@ -33,6 +33,16 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-20-3',
+    titre: 'Un nouvel accueil',
+    points: [
+      "L'accueil ne répète plus le menu : le bandeau donne déjà chaque écran en un clic. Il dit désormais où l'on en est — le jour, quatre chiffres, et la prochaine date avec son compte à rebours.",
+      "Les six prochaines dates se lisent à gauche, avec leur statut. À droite, ce qui attend une réponse : options à confirmer sous trente jours, demandes de dispo restées sans réponse, feuilles de route à créer — et, pour la direction technique, les tâches en retard et les remarques de salle à traiter. Rien ne s'affiche quand tout est à jour.",
+      "Les dernières mises à jour de l'outil sont rappelées en trois lignes, avec un bouton pour rouvrir cette fenêtre.",
+      "Les sections restent en bas de page, en cartes qui disent à quoi chacune sert, leurs écrans rangés par groupe comme dans le menu. Les portes réservées n'y apparaissent que pour les comptes qui y ont droit — y compris « Devis et budgets » et « Suivi des dépenses », qui s'y montraient à tout le monde.",
+    ],
+  },
+  {
     version: '2026-09-20-2',
     titre: 'La reconnaissance des parties se départage autrement, et apprend l\'italien',
     points: [

@@ -255,7 +255,13 @@
 // — la base refuse le pupitre « Chœur », et le proposer promettait un échec.
 // Sans cet incrément, un navigateur déjà venu garde l'ancien db.js : le bogue
 // reste, sur toutes les pages qui écrivent.
-const VERSION = 'curieux-v138';
+// v139 : l'accueil est refait, et deux actifs le portent. nav.js donne à
+// chaque section son accroche et filtre les entrées réservées de la planche
+// d'accueil (curieuxHomeSections) ; nouveautes.js annonce la page. Sans cet
+// incrément, un navigateur déjà venu chargerait le nouvel accueil.html (les
+// pages sont servies réseau d'abord) avec l'ancien nav.js — des cartes sans
+// accroche ni groupes, et « Devis et budgets » proposé à toute l'équipe.
+const VERSION = 'curieux-v139';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -205,6 +205,7 @@ const CURIEUX_SECTIONS_V2 = [
      survit à l'opération, d'où son propre groupe « Bibliothèque » et non une
      place à la suite des feuilles de route. */
   { libelle:'Production', href:'tournees.html',
+    accroche:'Tournées, recordings, feuilles de route, partitions : tout ce qui se date et se joue.',
     sticker:{ fond:'#CEE1F4', encre:'#791649', chip:'♩', chipFond:'#791649', chipEncre:'#FCF2F0', chipTilt:'-6deg', tilt:'-1.1deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#791649' },
     entrees:[
       /* « Gérer les » est tombé, sur les deux entrées. Dans le déroulant,
@@ -246,6 +247,7 @@ const CURIEUX_SECTIONS_V2 = [
      lecture : le tableau croisé pour décider, la feuille par date pour le dire
      à quelqu'un d'extérieur. */
   { libelle:'Distribution', href:'recap.html',
+    accroche:'Qui joue quoi, et quand : le tableau de service, les disponibilités, les messages à l’équipe.',
     sticker:{ fond:'#FEC9E0', encre:'#791649', chip:'✓', chipFond:'#EC4B15', chipEncre:'#FCF2F0', chipTilt:'5deg', tilt:'.9deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#791649' },
     entrees:[
       { groupe:'Décider', libelle:'Tableau de service', href:'recap.html', pages:['recap.html'] },
@@ -269,6 +271,7 @@ const CURIEUX_SECTIONS_V2 = [
      toute l'équipe huit portes dont aucune ne s'ouvrait. À plat, ça passait
      presque inaperçu ; un déroulant de huit refus, non. */
   { libelle:'Technique', href:'technique-taches.html', droit:'technique',
+    accroche:'Salles, matériel, véhicules, fiches techniques : la logistique de chaque date.',
     sticker:{ fond:'#141617', encre:'#FCF2F0', chip:'⚙', chipFond:'#FCF2F0', chipEncre:'#141617', chipTilt:'-5deg', tilt:'-.8deg', lienFond:'rgba(252,242,240,.19)', lienEncre:'#FCF2F0' },
     entrees:[
       // Le tableau de bord en tête : la page Avancement dit l'état, le tableau
@@ -289,6 +292,7 @@ const CURIEUX_SECTIONS_V2 = [
      tenues par les titulaires, donc une propriété des fiches, pas un acte de
      distribution. */
   { libelle:'Annuaires', href:'annuaire.html',
+    accroche:'Les fiches des musicien·nes et des technicien·nes, les remplacements, le cadre social.',
     sticker:{ fond:'#791649', encre:'#FCF2F0', chip:'☎', chipFond:'#FEC9E0', chipEncre:'#791649', chipTilt:'5deg', tilt:'1deg', lienFond:'rgba(252,242,240,.19)', lienEncre:'#FCF2F0' },
     entrees:[
       { groupe:'Personnes', libelle:'Musicien·nes', href:'annuaire.html', pages:['annuaire.html'] },
@@ -314,6 +318,7 @@ const CURIEUX_SECTIONS_V2 = [
      déplacer créerait un menu à permissions mixtes où une entrée sur cinq
      renvoie une porte fermée. */
   { libelle:'Gestion', href:'budget.html', droit:'admin',
+    accroche:'Le budget de tous les projets, le fichier clients, les comptes et les accès à l’outil.',
     sticker:{ fond:'#EC4B15', encre:'#FCF2F0', chip:'€', chipFond:'#FCF2F0', chipEncre:'#EC4B15', chipTilt:'-5deg', tilt:'-.9deg', lienFond:'rgba(252,242,240,.22)', lienEncre:'#FCF2F0' },
     entrees:[
       // « Devis et budgets » et « Suivi des dépenses » sont partis sous
@@ -972,25 +977,53 @@ function initCurieuxAvatar(){
 // la planche complète une fois les droits connus. L'accueil dessine donc deux
 // fois. C'est le même parti que le bandeau — on ajoute une porte quand on sait
 // qu'elle s'ouvre, on n'en retire jamais une sous les yeux.
-function curieuxTuileAccueil(sec){
+/* La tuile d'accueil d'une section : son titre, son accroche, sa porte
+ * d'entrée, et ses écrans rangés par groupe — les mêmes groupes que le
+ * déroulant, dans le même ordre. L'accueil les montre titrés : c'est ce qui
+ * permet à quelqu'un qui arrive de comprendre que « Partitions » est une
+ * bibliothèque et non une feuille de route de plus.
+ *
+ * `entrees` est la liste déjà filtrée par les droits : une entrée réservée
+ * (« Devis et budgets » sous Production) ne doit pas plus apparaître sur
+ * l'accueil que dans le déroulant. La planche lisait autrefois toutes les
+ * entrées de la section, droit ou pas — deux portes fermées proposées à toute
+ * l'équipe, exactement ce que le bandeau venait de cesser de faire.
+ */
+function curieuxTuileAccueil(sec, entrees){
+  const visibles = entrees || (sec.entrees || []);
+  const groupes = [];
+  visibles.forEach(e => {
+    const titre = e.groupe || '';
+    const dernier = groupes[groupes.length - 1];
+    if(dernier && dernier.titre === titre) dernier.liens.push([e.libelle, e.href]);
+    else groupes.push({ titre, liens:[[e.libelle, e.href]] });
+  });
   return Object.assign({
     titre: sec.libelle,
-    liens: (sec.entrees || []).map(e => [e.libelle, e.href]),
+    accroche: sec.accroche || '',
+    href: sec.href,
+    liens: visibles.map(e => [e.libelle, e.href]),
+    groupes,
   }, sec.sticker || {});
 }
 
 function curieuxHomeSections(secours){
   if(curieuxNavVersion() === 'v1') return secours;
-  return CURIEUX_SECTIONS_V2.filter(sec => !curieuxDroitSection(sec)).map(curieuxTuileAccueil);
+  return CURIEUX_SECTIONS_V2
+    .filter(sec => !curieuxDroitSection(sec))
+    .map(sec => curieuxTuileAccueil(sec, (sec.entrees || []).filter(e => !e.droit)));
 }
 
 async function curieuxHomeSectionsAutorisees(secours){
   if(curieuxNavVersion() === 'v1') return secours;
   const accordes = await curieuxDroitsAccordes(CURIEUX_SECTIONS_V2);
-  return CURIEUX_SECTIONS_V2.filter(sec => {
-    const droit = curieuxDroitSection(sec);
-    return !droit || accordes[droit];
-  }).map(curieuxTuileAccueil);
+  return CURIEUX_SECTIONS_V2
+    .filter(sec => {
+      const droit = curieuxDroitSection(sec);
+      return !droit || accordes[droit];
+    })
+    .map(sec => curieuxTuileAccueil(sec,
+      (sec.entrees || []).filter(e => !e.droit || accordes[e.droit])));
 }
 
 // --- Pied de page partagé -------------------------------------------------
