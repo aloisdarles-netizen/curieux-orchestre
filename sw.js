@@ -201,7 +201,15 @@
 // « Autre ». Sans cet incrément, un navigateur déjà venu garderait l'ancien
 // fichier : le bouton « Reclasser » de l'écran de production ne verrait aucun
 // écart à corriger, et le prochain dépôt se tromperait encore.
-// v135 : l'espace du chœur, et plusieurs chœurs sur une même série. Quatre
+// v135 : le menu passe à cinq déroulants nommés par métier (assets/nav.js), et
+// le bandeau ne tient debout qu'avec les règles ajoutées à assets/base.css —
+// le bloc « 2 bis », les déroulants, le panneau téléphone. Un navigateur déjà
+// venu garderait sa feuille de style : les menus s'ouvriraient sans fond ni
+// ombre, par-dessus la page, et le panneau téléphone n'aurait plus de position
+// fixe. assets/global-search.js change au même moment — il lit désormais le
+// modèle du bandeau pour indexer les écrans, et refuse ceux dont le compte
+// n'a pas le droit. Les trois fichiers doivent repartir ensemble.
+// v136 : l'espace du chœur, et plusieurs chœurs sur une même série. Quatre
 // actifs communs changent ensemble, et aucun ne suffit seul :
 //   — base.css apprend la teinte --pup-choeur. Sans elle, la pastille du
 //     pupitre « Chœur » naît grise, comme « Autre », et la seule distinction
@@ -223,7 +231,7 @@
 //     chœur.
 // Les deux pages sont servies réseau d'abord ; c'est l'incrément, et lui seul,
 // qui leur donne les actifs qu'elles attendent.
-const VERSION = 'curieux-v135';
+const VERSION = 'curieux-v136';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

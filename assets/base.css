@@ -477,7 +477,9 @@ body.co-has-topbar > .co-footer{ padding-left:16px; padding-right:16px; }
    menu passent avant, elles sont le seul chemin vers les écrans. Le seuil était
    à 1060 px du temps des six sections ; à huit, un portable de 1280 px n'a plus
    la place des deux. Au-dessus, les deux tiennent (mesuré à 1366 px). */
-@media (max-width:1320px){ .co-topbar .gsearch-wrap{ display:none; } }
+/* Le seuil ne vaut que pour la rangée plate (v1) : la v2 n'a que cinq entrées
+   de niveau 1, la recherche tient donc bien plus bas (voir le bloc 2 bis). */
+@media (max-width:1320px){ body:not(.co-nav-v2) .co-topbar .gsearch-wrap{ display:none; } }
 
 .co-theme-btn, .co-topbar-btn{
   cursor:pointer; border:1px solid rgba(252,242,240,.35); background:transparent;
@@ -518,6 +520,157 @@ body.co-has-topbar > .co-footer{ padding-left:16px; padding-right:16px; }
 /* Prune littéral et non var(--accent) : en thème sombre l'accent devient bleu
    clair, et la pastille active se confondait avec le fond de carte. */
 .co-subnav a[aria-current]{ background:var(--prune); color:var(--blanc); border-color:var(--prune); }
+
+/* --- 2 bis. Menu v2 : cinq déroulants nommés par métier --------------------
+   Tout ce bloc est conditionné à la classe .co-nav-v2, posée sur le <body> par
+   assets/nav.js. Repasser CURIEUX_NAV_DEFAUT à 'v1' — ou ouvrir n'importe
+   quelle page avec ?nav=v1 — le neutralise entièrement, sans rien retirer
+   d'ici : le menu actuel reprend la main tel quel.
+
+   Le sous-menu contextuel ci-dessus reste actif en v2, et c'est le point
+   important : le déroulant sert à atteindre n'importe quel écran depuis
+   n'importe où, le sous-menu à circuler dans la section courante sans rien
+   rouvrir — l'irritant qui avait fait supprimer les déroulants d'origine.
+   -------------------------------------------------------------------------- */
+
+/* La rangée plate défile horizontalement, masque de dégradé compris. Un
+   déroulant ne peut pas vivre dans un conteneur qui défile : il serait rogné à
+   la hauteur du bandeau. En v2 la nav ne défile plus — cinq entrées tiennent
+   dans ~550 px — et elle ne prend plus toute la place restante, pour que le
+   raccourci et la recherche se posent à droite. */
+body.co-nav-v2 .co-topnav{
+  flex:0 1 auto; overflow:visible;
+  -webkit-mask-image:none; mask-image:none;
+}
+
+body.co-nav-v2 .co-nav-item{ position:relative; flex:0 0 auto; }
+body.co-nav-v2 .co-nav-btn{
+  display:inline-flex; align-items:center; gap:6px;
+  font-family:inherit; font-size:13px; font-weight:700; white-space:nowrap;
+  padding:8px 11px; border-radius:999px; border:0; cursor:pointer;
+  color:var(--blanc); background:transparent; transition:background .15s;
+}
+body.co-nav-v2 .co-nav-btn:hover{ background:rgba(252,242,240,.16); }
+body.co-nav-v2 .co-nav-item.ouvert > .co-nav-btn{ background:rgba(252,242,240,.24); }
+/* La section courante est une pastille pleine — le prune du bandeau ne peut
+   pas servir de fond actif, on prend donc le blanc cassé de la charte. */
+body.co-nav-v2 .co-nav-btn[data-courante]{ background:var(--blanc); color:var(--prune); }
+body.co-nav-v2 .co-nav-btn[data-courante]:hover{ background:var(--blanc); color:var(--prune); }
+
+.co-nav-caret{
+  flex:0 0 auto; width:5px; height:5px;
+  border-right:1.8px solid currentColor; border-bottom:1.8px solid currentColor;
+  transform:translateY(-1.5px) rotate(45deg); opacity:.65;
+  transition:transform .14s ease;
+}
+body.co-nav-v2 .co-nav-item.ouvert .co-nav-caret{ transform:translateY(1.5px) rotate(225deg); }
+
+body.co-nav-v2 .co-nav-menu{
+  position:absolute; top:calc(100% + 7px); left:0; z-index:60;
+  min-width:236px; padding:8px; border-radius:var(--radius-md);
+  background:var(--card); border:1px solid var(--border);
+  box-shadow:0 14px 34px rgba(20,15,10,.20);
+}
+/* Le déroulant le plus à droite déborderait de la fenêtre : il s'aligne sur son
+   bord droit. Marqué par nav.js, pas deviné en CSS. */
+body.co-nav-v2 .co-nav-item[data-aligne-droite] .co-nav-menu{ left:auto; right:0; }
+
+/* Les groupes titrés sont ce qui remplace les quatre entrées de niveau 1
+   absorbées : « Partitions » n'est pas rangé à la suite des feuilles de route,
+   il a son propre intitulé dans le menu Production. */
+body.co-nav-v2 .co-nav-groupe + .co-nav-groupe{
+  margin-top:7px; padding-top:7px; border-top:1px solid var(--border);
+}
+body.co-nav-v2 .co-nav-groupe-titre{
+  margin:2px 0 5px; padding:0 10px;
+  font-size:10.5px; font-weight:800; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted);
+}
+body.co-nav-v2 .co-nav-menu a{
+  display:block; padding:8px 10px; border-radius:9px;
+  font-family:var(--font-body); font-size:13.5px; font-weight:700;
+  text-decoration:none; color:var(--text); white-space:nowrap;
+}
+body.co-nav-v2 .co-nav-menu a:hover,
+body.co-nav-v2 .co-nav-menu a:focus{ background:var(--accent-tint); color:var(--tint-ink); outline:none; }
+body.co-nav-v2 .co-nav-menu a[aria-current]{ background:var(--prune); color:var(--blanc); }
+
+/* Le raccourci : un bouton plein, pas un déroulant. Le tableau de service est
+   la page la plus ouverte de l'application — la mettre à deux clics serait un
+   recul. Il ne porte aucun écran en propre : il pointe vers l'entrée déclarée
+   sous Distribution (voir CURIEUX_RACCOURCIS_V2 dans nav.js). */
+body.co-nav-v2 .co-raccourci{
+  margin-left:auto; flex-shrink:0; text-decoration:none; white-space:nowrap;
+  font-family:var(--font-body); font-size:13px; font-weight:800;
+  padding:7px 14px; border-radius:999px;
+  background:rgba(252,242,240,.16); color:var(--blanc);
+  border:1px solid rgba(252,242,240,.35);
+}
+body.co-nav-v2 .co-raccourci:hover{ background:rgba(252,242,240,.28); }
+body.co-nav-v2 .co-raccourci[aria-current]{ background:var(--blanc); color:var(--prune); border-color:var(--blanc); }
+/* La recherche ne pousse plus : c'est le raccourci qui tient la marge
+   automatique, sans quoi tout se recollerait à gauche dès qu'elle disparaît. */
+body.co-nav-v2 .co-topbar .gsearch-wrap{ margin-left:0; }
+@media (max-width:1100px){ body.co-nav-v2 .co-topbar .gsearch-wrap{ display:none; } }
+
+/* --- Panneau téléphone ----------------------------------------------------
+   Cinq déroulants ne tiennent pas sous 900 px, et l'application est
+   installable (PWA) : elle se consulte en tournée. Le panneau affiche tout à
+   plat — sections, écrans — plutôt qu'en accordéons : sur un écran qui défile,
+   un accordéon ajoute un appui par section pour épargner un défilement qui ne
+   coûte rien. */
+body.co-nav-v2 .co-burger{
+  display:none; flex:0 0 auto; cursor:pointer; font-size:17px; line-height:1;
+  padding:6px 10px; border-radius:999px; font-family:inherit;
+  border:1px solid rgba(252,242,240,.35); background:transparent; color:var(--blanc);
+}
+body.co-nav-v2 .co-burger:hover{ background:rgba(252,242,240,.16); }
+.co-nav-mobile{
+  position:fixed; top:56px; left:0; right:0; bottom:0; z-index:45;
+  background:var(--bg); overflow-y:auto; -webkit-overflow-scrolling:touch;
+  border-top:1px solid var(--border);
+}
+.co-nav-mobile-in{ padding:14px 16px 48px; display:grid; gap:18px; }
+.co-nav-mobile-titre{
+  margin:0 0 7px; font-size:11px; font-weight:800; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted);
+}
+.co-nav-mobile-bloc a{
+  display:block; min-height:46px; padding:13px 14px; margin-bottom:6px;
+  border:1px solid var(--border); border-radius:12px; background:var(--card);
+  font-family:var(--font-body); font-size:14.5px; font-weight:700;
+  text-decoration:none; color:var(--text);
+}
+.co-nav-mobile-bloc a[aria-current]{ background:var(--prune); color:var(--blanc); border-color:var(--prune); }
+/* Le changement de groupe, marqué par un écart plutôt que par un intertitre. */
+.co-nav-mobile-bloc a.debut-groupe{ margin-top:14px; }
+.co-nav-mobile-theme{
+  width:100%; min-height:46px; padding:13px 14px; cursor:pointer;
+  border:1px solid var(--border); border-radius:12px; background:var(--card);
+  font-family:var(--font-body); font-size:14.5px; font-weight:700;
+  color:var(--text); text-align:left;
+}
+.co-nav-mobile-reglages{ display:none; }
+/* Seuil mesuré, pas choisi : à 1024 px les cinq déroulants tiennent tout
+   juste (iPad en paysage), à 960 px il manque 40 px et la rangée se remettait
+   à défiler. En dessous, le panneau prend la main. */
+@media (max-width:1023px){
+  body.co-nav-v2 .co-topnav{ display:none; }
+  body.co-nav-v2 .co-burger{ display:inline-flex; }
+  body.co-nav-v2 .co-raccourci{ font-size:12px; padding:7px 11px; }
+}
+/* Sous 640 px, le bandeau ne tient que s'il se limite à l'essentiel : menu,
+   logo, tableau de service, compte. La bascule de thème passe dans le panneau
+   (voir construirePanneauMobile). */
+@media (max-width:640px){
+  body.co-nav-v2 .co-theme-btn{ display:none; }
+  body.co-nav-v2 .co-nav-mobile-reglages{ display:block; }
+  body.co-nav-v2 .co-topbar-logo{ height:26px; }
+  body.co-nav-v2 .co-raccourci{ font-size:11.5px; padding:7px 10px; }
+}
+/* Ouvert sur téléphone puis fenêtre élargie : le panneau resterait posé
+   par-dessus la page, sans bouton pour le refermer. */
+@media (min-width:1024px){ body.co-nav-v2 .co-nav-mobile{ display:none; } }
 
 /* --- 3. En-tête de page ---------------------------------------------------- */
 .co-page-head{
