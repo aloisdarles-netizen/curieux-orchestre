@@ -4,8 +4,9 @@
    réelles de musiciens.instrument (pluriels, accents, espace final, « Violon
    solo », « Violon 2 ») et les formes de Dorico côté parties (« Violoncello1 »,
    « DoubleBass », « 120 Oboe ») doivent tomber sur le même instrument. Ensuite
-   la PROPOSITION : ce qui est sûr, ce qui est probable, ce qui se demande, et
-   ce qui ne se devine pas — et surtout ce qu'on ne touche jamais.
+   la PROPOSITION : chacun reçoit les parties de son instrument, le numéro de
+   la fiche restreint, un choix dans le pupitre sinon — et surtout ce qu'on ne
+   touche jamais.
 
      node outils/test-partitions-proposition.cjs                              */
 const vm = require('vm');
@@ -141,24 +142,24 @@ const M = (id, nom, pupitre, instrument, extra) => Object.assign(
 const effectif = [
   M('m-ob', 'Coralie', 'Bois', 'Hautbois'),
   M('m-cl', 'Alberto', 'Bois', 'Clarinette'),
-  M('m-fl', 'Christelle', 'Bois', 'Flûtes'),          // aucune flûte dans ce jeu → autres du pupitre
+  M('m-fl', 'Christelle', 'Bois', 'Flûtes'),          // aucune flûte dans ce jeu → à choisir dans les bois
   M('m-bn', 'Nil', 'Bois', 'Basson'),
-  M('m-hn-a', 'Elodie', 'Cuivres', 'Cor'),             // deux parties de cor, pas de numéro → à trancher
-  M('m-hn-b', 'Hugo', 'Cuivres', 'Cor 3'),             // le 3 tranche
-  M('m-hn-c', 'Camille', 'Cuivres', 'Premier cor'),    // l'ordinal devant tranche
+  M('m-hn-a', 'Elodie', 'Cuivres', 'Cor'),             // deux parties de cor, pas de numéro → les deux
+  M('m-hn-b', 'Hugo', 'Cuivres', 'Cor 3'),             // le 3 restreint
+  M('m-hn-c', 'Camille', 'Cuivres', 'Premier cor'),    // l'ordinal devant restreint
   M('m-tbn', 'Abel', 'Cuivres', 'Trombone'),
-  M('m-sxh', 'Amelie', 'Cuivres', 'Saxhorn'),          // pas de saxhorn → autres du pupitre
-  M('m-perc', 'Théo', 'Percussions', 'Percussions'),   // une seule « Percussion » → sûre ; les timbales ne lui sont pas proposées
+  M('m-sxh', 'Amelie', 'Cuivres', 'Saxhorn'),          // pas de saxhorn → à choisir dans les cuivres
+  M('m-perc', 'Théo', 'Percussions', 'Percussions'),   // une seule « Percussion » ; les timbales ne lui sont pas proposées
   M('m-pno', 'Lou', 'Autre', 'Piano'),
-  M('m-vn-solo', 'Alec', 'Cordes', 'Violon solo'),     // probable → Violin1
-  M('m-vn2', 'Mariane', 'Cordes', 'Violon 2'),         // sûr → Violin2
-  M('m-vn', 'Sacha', 'Cordes', 'Violons'),             // à trancher entre 1 et 2
-  M('m-va', 'Jules', 'Cordes', 'Altos'),               // sûr → Viola, PAS la voix d'alto du chœur
-  M('m-vc-solo', 'Inès', 'Cordes', 'Violoncelle solo'),// probable → Violoncello1
-  M('m-vc', 'Paul', 'Cordes', 'Violoncelles '),        // à trancher entre 1 et 2
-  M('m-db', 'Lilas', 'Cordes', 'Contrebasses'),        // sûr → DoubleBass
+  M('m-vn-solo', 'Alec', 'Cordes', 'Violon solo'),     // le violon solo a tout
+  M('m-vn2', 'Mariane', 'Cordes', 'Violon 2'),         // le numéro restreint
+  M('m-vn', 'Sacha', 'Cordes', 'Violons'),             // les deux
+  M('m-va', 'Jules', 'Cordes', 'Altos'),               // Viola, PAS la voix d'alto du chœur
+  M('m-vc-solo', 'Inès', 'Cordes', 'Violoncelle solo'),// le violoncelle solo a tout
+  M('m-vc', 'Paul', 'Cordes', 'Violoncelles '),        // les deux
+  M('m-db', 'Lilas', 'Cordes', 'Contrebasses'),        // DoubleBass
   M('m-voix', 'Rose', 'Chant', 'Voix'),                // rien : les voix sont au chœur, exclues
-  M('m-chef', 'Léo', "Chef d'orchestre", ''),          // sûr → Full score
+  M('m-chef', 'Léo', "Chef d'orchestre", ''),          // Full score
   M('m-vide', 'Anonyme', 'Autre', ''),                 // sans proposition : « Autre » ne dit rien
   M('m-deja', 'Déjà', 'Cordes', 'Violon 2'),           // déjà servi : jamais touché
   M('m-hors', 'Fantôme', 'Cordes', 'Alto', { horsEffectif: true, nbDates: 0 }),
@@ -169,72 +170,70 @@ const affectations = [
   { id: 'op::hn12::x', tourneeId: 'op', partieId: 'hn12', personType: 'musicien', personId: 'x' },
 ];
 
-console.log('\n3. Proposer');
+console.log('\n3. Proposer — chacun reçoit les parties de son instrument');
 const prop = proposer(parties, effectif, affectations);
-const sure = Object.fromEntries(prop.sures.map(x => [x.personne.personId, x.partie.id]));
-const prob = Object.fromEntries(prop.probables.map(x => [x.personne.personId, x.partie.id]));
-const tran = Object.fromEntries(prop.aTrancher.map(x => [x.personne.personId, { memes: x.memes.map(p => p.id), autres: x.autres.map(p => p.id) }]));
+const prop_ = Object.fromEntries(prop.proposees.map(x => [x.personne.personId, x.parties.map(p => p.id)]));
+const motifs = Object.fromEntries(prop.proposees.map(x => [x.personne.personId, x.motif]));
+const choix = Object.fromEntries(prop.aChoisir.map(x => [x.personne.personId, x.choix.map(p => p.id)]));
 const sans = prop.sansProposition.map(x => x.personne.personId);
 
-verifier('sûres', sure, {
-  'm-ob': 'ob', 'm-cl': 'cl', 'm-bn': 'bn', 'm-hn-b': 'hn34', 'm-hn-c': 'hn12', 'm-tbn': 'tbn',
-  'm-perc': 'perc', 'm-pno': 'pno', 'm-vn2': 'vn2', 'm-va': 'va', 'm-db': 'db', 'm-chef': 'sc',
+verifier('proposées', prop_, {
+  'm-ob': ['ob'], 'm-cl': ['cl'], 'm-bn': ['bn'],
+  'm-hn-a': ['hn12', 'hn34'],          // « Cor » : les deux, le pupitre décide
+  'm-hn-b': ['hn34'],                  // « Cor 3 » : le numéro restreint
+  'm-hn-c': ['hn12'],                  // « Premier cor »
+  'm-tbn': ['tbn'], 'm-perc': ['perc'], 'm-pno': ['pno'],
+  'm-vn-solo': ['vn1', 'vn2'],         // le violon solo a tout
+  'm-vn2': ['vn2'],                    // « Violon 2 » : le numéro restreint
+  'm-vn': ['vn1', 'vn2'],              // « Violons » : les deux
+  'm-va': ['va'], 'm-vc-solo': ['vc1', 'vc2'], 'm-vc': ['vc1', 'vc2'], 'm-db': ['db'],
+  'm-chef': ['sc'],
 });
-verifier('probables', prob, { 'm-vn-solo': 'vn1', 'm-vc-solo': 'vc1' });
-verifier('à trancher — cor sans numéro : le 3-4 (sans lecteur) en tête', tran['m-hn-a'], { memes: ['hn34', 'hn12'], autres: ['tbn'] });
-verifier('à trancher — violons', tran['m-vn'], { memes: ['vn1', 'vn2'], autres: ['va', 'vc1', 'vc2', 'db'] });
-verifier('à trancher — violoncelles : le Violin2 déjà lu passe en queue', tran['m-vc'], { memes: ['vc1', 'vc2'], autres: ['vn1', 'va', 'db', 'vn2'] });
-verifier('à trancher — flûte sans partie : les autres bois', tran['m-fl'], { memes: [], autres: ['ob', 'cl', 'bn'] });
-verifier('à trancher — saxhorn sans partie : les autres cuivres', tran['m-sxh'], { memes: [], autres: ['hn34', 'tbn', 'hn12'] });
+verifier('motifs', [motifs['m-ob'], motifs['m-hn-a'], motifs['m-hn-b'], motifs['m-chef']],
+  ['la seule partie « Hautbois »', 'toutes les parties « Cor » — le pupitre décide', 'le 3 de la fiche', 'le conducteur, pour le chef']);
+verifier('à choisir — flûte sans partie : les autres bois', choix['m-fl'], ['ob', 'cl', 'bn']);
+verifier('à choisir — saxhorn sans partie : les cuivres, la partie déjà lue en queue', choix['m-sxh'], ['hn34', 'tbn', 'hn12']);
 verifier('sans proposition', sans, ['m-voix', 'm-vide']);
 verifier('déjà servis : comptés, jamais proposés', prop.dejaServis, 1);
 verifier('techniciens : comptés, jamais proposés', prop.techniciens, 1);
-verifier('hors effectif : ni proposé ni compté', [sure['m-hors'], prob['m-hors'], tran['m-hors'], sans.includes('m-hors')], [undefined, undefined, undefined, false]);
+verifier('hors effectif : ni proposé ni compté', [prop_['m-hors'], choix['m-hors'], sans.includes('m-hors')], [undefined, undefined, false]);
 verifier('la voix d’alto du chœur ne reçoit jamais un altiste',
-  [...prop.sures, ...prop.probables].some(x => x.partie.id === 'alt' || x.partie.id === 'sop'), false);
+  prop.proposees.some(x => x.parties.some(p => p.id === 'alt' || p.id === 'sop')), false);
 verifier('le conducteur ne va qu’au chef',
-  [...prop.sures, ...prop.probables].filter(x => x.partie.id === 'sc').map(x => x.personne.personId), ['m-chef']);
-verifier('ordre : celui de l’effectif', prop.sures.map(x => x.personne.personId),
-  ['m-ob', 'm-cl', 'm-bn', 'm-hn-b', 'm-hn-c', 'm-tbn', 'm-perc', 'm-pno', 'm-vn2', 'm-va', 'm-db', 'm-chef']);
+  prop.proposees.filter(x => x.parties.some(p => p.id === 'sc')).map(x => x.personne.personId), ['m-chef']);
+verifier('ordre : celui de l’effectif', prop.proposees.map(x => x.personne.personId),
+  ['m-ob', 'm-cl', 'm-bn', 'm-hn-a', 'm-hn-b', 'm-hn-c', 'm-tbn', 'm-perc', 'm-pno', 'm-vn-solo', 'm-vn2', 'm-vn', 'm-va', 'm-vc-solo', 'm-vc', 'm-db', 'm-chef']);
 
 console.log('\n4. Cas limites');
-verifier('un seul cor, fiche « Cor 3 » : sûr — il n\u2019y a que celui-là',
-  (() => { const p = proposer([P('hn', 'Cor', 'Cuivres')], [M('a', 'A', 'Cuivres', 'Cor 3')], []); return [p.sures.map(x => x.partie.id), p.probables.length]; })(),
-  [['hn'], 0]);
-verifier('un seul violon, numéroté 1, fiche « Violon 2 » : à trancher, jamais coché d’avance',
-  (() => { const p = proposer([P('vn1', 'Violin1', 'Cordes')], [M('a', 'A', 'Cordes', 'Violon 2')], []);
-    return [p.sures.length, p.probables.length, p.aTrancher.map(x => [x.memes.map(q => q.id), x.motif])]; })(),
-  [0, 0, [[['vn1'], 'seule partie « Violon », mais numérotée 1 quand la fiche dit 2']]]);
-verifier('une partie « Violon solo » existe : à trancher, la partie solo en tête',
-  (() => { const p = proposer([P('s', 'Violon solo', 'Cordes'), P('v1', 'Violon 1', 'Cordes'), P('v2', 'Violon 2', 'Cordes')],
-    [M('a', 'A', 'Cordes', 'Violon solo')], []); return [p.probables.length, p.aTrancher.map(x => x.memes.map(q => q.id))]; })(),
-  [0, [['s', 'v1', 'v2']]]);
+const seules = (p) => p.proposees.map(x => x.parties.map(q => q.id));
+verifier('un seul cor, fiche « Cor 3 » : la seule partie',
+  seules(proposer([P('hn', 'Cor', 'Cuivres')], [M('a', 'A', 'Cuivres', 'Cor 3')], [])), [['hn']]);
+verifier('un seul violon numéroté 1, fiche « Violon 2 » : la seule partie quand même',
+  seules(proposer([P('vn1', 'Violin1', 'Cordes')], [M('a', 'A', 'Cordes', 'Violon 2')], [])), [['vn1']]);
+verifier('deux parties portent le même numéro : les deux',
+  seules(proposer([P('a', 'Violon 1 divisi a', 'Cordes'), P('b', 'Violon 1 divisi b', 'Cordes'), P('c', 'Violon 2', 'Cordes')],
+    [M('m', 'M', 'Cordes', 'Violon 1')], [])), [['a', 'b']]);
+verifier('une partie « Violon solo » ne va pas aux tutti',
+  seules(proposer([P('s', 'Violon solo', 'Cordes'), P('v1', 'Violon 1', 'Cordes'), P('v2', 'Violon 2', 'Cordes')],
+    [M('a', 'A', 'Cordes', 'Violons')], [])), [['v1', 'v2']]);
+verifier('… mais au violon solo, avec le reste',
+  seules(proposer([P('s', 'Violon solo', 'Cordes'), P('v1', 'Violon 1', 'Cordes'), P('v2', 'Violon 2', 'Cordes')],
+    [M('a', 'A', 'Cordes', 'Violon solo')], [])), [['s', 'v1', 'v2']]);
 verifier('deux pupitres instrumentaux différents ne se répondent pas : partie rangée aux Bois, altiste des Cordes',
-  (() => { const p = proposer([P('x', 'Alto', 'Bois')], [M('a', 'A', 'Cordes', 'Altos')], []); return [p.sures.length, p.sansProposition.length]; })(),
+  (() => { const p = proposer([P('x', 'Alto', 'Bois')], [M('a', 'A', 'Cordes', 'Altos')], []); return [p.proposees.length, p.sansProposition.length]; })(),
   [0, 1]);
-verifier('la partie de même pupitre reste proposée « même pupitre » quand la lecture du nom ne suffit pas',
+verifier('la partie de même pupitre reste proposée en choix quand la lecture du nom ne suffit pas',
   (() => { const p = proposer([P('x', 'Alto', 'Bois'), P('y', 'Violon', 'Cordes')], [M('a', 'A', 'Cordes', 'Altos')], []);
-    return p.aTrancher.map(t => [t.memes.map(q => q.id), t.autres.map(q => q.id)]); })(),
-  [[[], ['y']]]);
-verifier('deux parties portent le même numéro : à trancher entre elles',
-  (() => { const p = proposer([P('a', 'Violon 1 divisi a', 'Cordes'), P('b', 'Violon 1 divisi b', 'Cordes'), P('c', 'Violon 2', 'Cordes')],
-    [M('m', 'M', 'Cordes', 'Violon 1')], []); return p.aTrancher.map(x => x.memes.map(q => q.id)); })(),
-  [['a', 'b']]);
-verifier('violon solo sans « 1 » nulle part : à trancher, pas probable',
-  (() => { const p = proposer([P('a', 'Violon A', 'Cordes'), P('b', 'Violon B', 'Cordes')], [M('m', 'M', 'Cordes', 'Violon solo')], []);
-    return [p.probables.length, p.aTrancher.length]; })(),
-  [0, 1]);
+    return p.aChoisir.map(t => t.choix.map(q => q.id)); })(), [['y']]);
 verifier('un alto (voix) en pupitre Chant ne prend pas la partie d’alto (cordes)',
-  (() => { const p = proposer([P('va', 'Alto', 'Cordes')], [M('m', 'M', 'Chant', 'Alto')], []); return [p.sures.length, p.sansProposition.length]; })(),
+  (() => { const p = proposer([P('va', 'Alto', 'Cordes')], [M('m', 'M', 'Chant', 'Alto')], []); return [p.proposees.length, p.sansProposition.length]; })(),
   [0, 1]);
 verifier('pupitre vide côté partie : l’instrument suffit',
-  (() => { const p = proposer([P('va', 'Alto', '')], [M('m', 'M', 'Cordes', 'Altos')], []); return p.sures.map(x => x.partie.id); })(),
-  ['va']);
+  seules(proposer([P('va', 'Alto', '')], [M('m', 'M', 'Cordes', 'Altos')], [])), [['va']]);
 verifier('partie « Chef d’orchestre » par pupitre, même sans nom connu',
-  (() => { const p = proposer([P('x', 'WZO', "Chef d'orchestre")], [M('m', 'M', "Chef d'orchestre", '')], []); return p.sures.map(x => x.partie.id); })(),
-  ['x']);
+  seules(proposer([P('x', 'WZO', "Chef d'orchestre")], [M('m', 'M', "Chef d'orchestre", '')], [])), [['x']]);
 verifier('effectif vide, parties vides : rien ne casse',
-  proposer([], [], []), { sures: [], probables: [], aTrancher: [], sansProposition: [], dejaServis: 0, techniciens: 0 });
+  proposer([], [], []), { proposees: [], aChoisir: [], sansProposition: [], dejaServis: 0, techniciens: 0 });
 
 console.log(`\n${total - echecs}/${total} vérifications passent${echecs ? ` — ${echecs} ÉCHEC(S)` : ''}.`);
 process.exit(echecs ? 1 : 0);

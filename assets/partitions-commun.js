@@ -691,18 +691,25 @@ function partitionsTonaliteLangue(texte, langue) {
    serait trompé, et l'erreur ne se serait vue qu'à la première répétition.
 
    Ce qui change, ce n'est pas la confiance dans le texte, c'est le GESTE : on
-   ne pose rien, on PROPOSE. Chaque ligne est graduée — sûre, probable, à
-   trancher —, relue et cochée avant d'être écrite, et une affectation déjà
-   posée à la main n'est jamais touchée. Le texte libre, lui, se lit avec les
-   outils déjà faits pour les noms de fichiers : accents et pluriels effacés,
-   formes anglaises de Dorico reconnues (PARTITIONS_INSTRUMENTS), chiffre
-   collé décollé, « DoubleBass » aéré.
+   ne pose rien, on PROPOSE, et la proposition se relit cochée avant d'être
+   écrite. Une affectation déjà posée à la main n'est jamais touchée. Le
+   texte libre, lui, se lit avec les outils déjà faits pour les noms de
+   fichiers : accents et pluriels effacés, formes anglaises de Dorico
+   reconnues (PARTITIONS_INSTRUMENTS), chiffre collé décollé, « DoubleBass »
+   aéré.
+
+   LE PRINCIPE EST CELUI DU MÉTIER : un violoniste a accès aux parties de
+   violon — toutes —, et c'est le pupitre qui décide en répétition qui lit
+   laquelle. La page ne tranche donc pas Violon 1 contre Violon 2 à la place
+   du chef d'attaque : elle donne les deux. Quand la fiche porte un numéro
+   (« Violon 2 », « Cor 3 »), elle restreint à la partie qui le porte, si elle
+   existe ; sinon elle donne tout. Une partie qui porte elle-même « solo » ne
+   va qu'à une fiche qui dit « solo » — le concerto n'est pas pour les tutti.
 
    CE QU'ON NE DEVINE PAS, et qu'on dit :
-   — le numéro dans la famille quand la fiche ne le porte pas. « Cor » devant
-     « Cor 1-2 » et « Cor 3-4 » n'a pas de bonne réponse : la personne passe
-     « à trancher », les deux parties en choix, la bonne en tête si l'une est
-     encore sans lecteur ;
+   — un instrument sans partie dans le spectacle. Le saxhorn devant un jeu
+     sans saxhorn passe « à choisir » parmi les parties de son pupitre, ou
+     reste sans proposition ;
    — les doublures. Le hautbois 2 qui prend le cor anglais, la flûte 2 le
      piccolo : c'est une décision de pupitre, pas une lecture de fiche. La
      partie reste « sans lecteur », et le compteur de la page le dit ;
@@ -844,10 +851,9 @@ function _partitionsPupitresCompatibles(a, b) {
      parties      — celles du spectacle
      effectif     — les personnes de l'opération (effectifAffichable)
      affectations — celles déjà posées sur ce spectacle et cette opération
-   Rend quatre listes, dans l'ordre de l'effectif :
-     sures            [{ personne, partie, lu, motif }]
-     probables        [{ personne, partie, lu, motif }]
-     aTrancher        [{ personne, lu, memes: [partie], autres: [partie], motif }]
+   Rend trois listes, dans l'ordre de l'effectif :
+     proposees        [{ personne, lu, parties: [partie], motif }]   — cochées d'avance
+     aChoisir         [{ personne, lu, choix: [partie], motif }]     — un choix dans le pupitre
      sansProposition  [{ personne, lu, motif }]
    et deux comptes : dejaServis (personnes qui ont déjà une partie ici, jamais
    touchées) et techniciens (pas de partition pour eux). */
@@ -860,11 +866,11 @@ function partitionsProposerAffectations(parties, effectif, affectations) {
   (affectations || []).forEach(a => lecteurs.set(a.partieId, (lecteurs.get(a.partieId) || 0) + 1));
   const servis = new Set((affectations || []).map(a => a.personType + '|' + a.personId));
 
-  const out = { sures: [], probables: [], aTrancher: [], sansProposition: [], dejaServis: 0, techniciens: 0 };
-  /* Une partie encore sans lecteur passe en tête des choix : quand il faut
-     trancher entre « Cor 1-2 » déjà lu par deux personnes et « Cor 3-4 » que
-     personne n'a, la seconde est la réponse neuf fois sur dix. */
+  const out = { proposees: [], aChoisir: [], sansProposition: [], dejaServis: 0, techniciens: 0 };
+  /* Dans un choix, une partie encore sans lecteur passe en tête : c'est la
+     réponse neuf fois sur dix. */
   const parManque = (a, b) => (lecteurs.get(a.id) || 0) - (lecteurs.get(b.id) || 0);
+  const inconnu = (personne) => personne.instrument ? `« ${personne.instrument} » n'est pas un instrument connu` : 'instrument non renseigné';
 
   (effectif || []).forEach(personne => {
     if (personne.personType !== 'musicien') { out.techniciens++; return; }
@@ -875,9 +881,7 @@ function partitionsProposerAffectations(parties, effectif, affectations) {
 
     // Le chef : le conducteur, et rien d'autre.
     if (pupitre === "Chef d'orchestre") {
-      const libres = conducteurs.map(x => x.partie);
-      if (libres.length === 1) out.sures.push({ personne, partie: libres[0], lu, motif: 'chef d\'orchestre → conducteur' });
-      else if (libres.length > 1) out.aTrancher.push({ personne, lu, memes: libres.slice().sort(parManque), autres: [], motif: 'plusieurs conducteurs' });
+      if (conducteurs.length) out.proposees.push({ personne, lu, parties: conducteurs.map(x => x.partie), motif: 'le conducteur, pour le chef' });
       else out.sansProposition.push({ personne, lu, motif: 'aucun conducteur dans ce spectacle' });
       return;
     }
@@ -885,54 +889,35 @@ function partitionsProposerAffectations(parties, effectif, affectations) {
     const memePupitre = distribuables
       .filter(x => pupitre !== 'Autre' && partitionsPupitreNormalise(x.partie.pupitre) === pupitre)
       .map(x => x.partie);
+    const aChoisir = (motif) => out.aChoisir.push({ personne, lu, choix: memePupitre.slice().sort(parManque), motif });
 
     if (!lu) {
-      if (memePupitre.length) out.aTrancher.push({ personne, lu, memes: [], autres: memePupitre.slice().sort(parManque),
-        motif: personne.instrument ? `« ${personne.instrument} » n'est pas un instrument connu` : 'instrument non renseigné' });
-      else out.sansProposition.push({ personne, lu, motif: personne.instrument ? `« ${personne.instrument} » n'est pas un instrument connu` : 'instrument non renseigné' });
+      if (memePupitre.length) aChoisir(inconnu(personne));
+      else out.sansProposition.push({ personne, lu, motif: inconnu(personne) });
       return;
     }
 
     const memes = distribuables
       .filter(x => x.lu && x.lu.entree === lu.entree && _partitionsPupitresCompatibles(personne.pupitre, x.partie.pupitre));
-    const autres = memePupitre.filter(p => !memes.some(x => x.partie === p));
-    const aTrancher = (liste, motif) => out.aTrancher.push({ personne, lu,
-      memes: liste.map(x => x.partie).sort(parManque), autres: autres.slice().sort(parManque), motif });
-
     if (!memes.length) {
-      if (autres.length) aTrancher([], `aucune partie « ${lu.nom} » — le pupitre en a d'autres`);
+      if (memePupitre.length) aChoisir(`aucune partie « ${lu.nom} » — le pupitre en a d'autres`);
       else out.sansProposition.push({ personne, lu, motif: `aucune partie « ${lu.nom} » dans ce spectacle` });
       return;
     }
-    if (memes.length === 1) {
-      const x = memes[0];
-      const numsPartie = x.lu.numeros;
-      const accord = !lu.numeros.length || !numsPartie.length || lu.numeros.some(n => numsPartie.includes(n));
-      if (accord) out.sures.push({ personne, partie: x.partie, lu, motif: `seule partie « ${lu.nom} »` });
-      /* La fiche dit 2, la seule partie dit 1 : l'une des deux se trompe, ou
-         le jeu n'est pas fini d'être déposé. Ce n'est pas à la page de
-         trancher, et surtout pas d'avance. */
-      else aTrancher(memes, `seule partie « ${lu.nom} », mais numérotée ${numsPartie.join('-')} quand la fiche dit ${lu.numeros.join('-')}`);
-      return;
-    }
-    // Plusieurs parties du même instrument : c'est le numéro qui tranche.
+
+    // Toutes les parties de l'instrument — le numéro de la fiche restreint
+    // quand une partie le porte, la partie « solo » ne va qu'à une fiche solo.
+    let choisies = memes, motif = '';
     if (lu.numeros.length) {
       const exacts = memes.filter(x => lu.numeros.some(n => x.lu.numeros.includes(n)));
-      if (exacts.length === 1) out.sures.push({ personne, partie: exacts[0].partie, lu, motif: `le ${lu.numeros.join('-')} de la fiche est celui de la partie` });
-      else if (exacts.length > 1) aTrancher(exacts, `plusieurs parties portent le ${lu.numeros.join('-')}`);
-      else aTrancher(memes, `aucune partie ne porte le ${lu.numeros.join('-')}`);
-      return;
+      if (exacts.length) { choisies = exacts; motif = `le ${lu.numeros.join('-')} de la fiche`; }
     }
-    if (lu.solo) {
-      /* Une partie porte elle-même « solo » — un concerto. Le violon solo de
-         l'orchestre n'est pas forcément le soliste : on demande, la partie
-         solo en tête. */
-      const solos = memes.filter(x => x.lu.solo);
-      if (solos.length) { aTrancher(solos.concat(memes.filter(x => !x.lu.solo)), 'une partie porte « solo » — soliste ou premier violon solo ?'); return; }
-      const premieres = memes.filter(x => x.lu.numeros.includes(1));
-      if (premieres.length === 1) { out.probables.push({ personne, partie: premieres[0].partie, lu, motif: 'solo → 1' }); return; }
+    if (!lu.solo) {
+      const tutti = choisies.filter(x => !x.lu.solo);
+      if (tutti.length) choisies = tutti;
     }
-    aTrancher(memes, `${memes.length} parties « ${lu.nom} », la fiche ne dit pas laquelle`);
+    if (!motif) motif = choisies.length === 1 ? `la seule partie « ${lu.nom} »` : `toutes les parties « ${lu.nom} » — le pupitre décide`;
+    out.proposees.push({ personne, lu, parties: choisies.map(x => x.partie), motif });
   });
   return out;
 }

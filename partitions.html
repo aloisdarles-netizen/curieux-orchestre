@@ -611,9 +611,11 @@
      « Violoncelles » à espace final. Un appariement appliqué en silence se
      tromperait, et l'erreur ne se découvrirait qu'à la première répétition.
      Elle le PROPOSE — « Proposer d'après les instruments », dans la
-     distribution — ligne par ligne, graduée (sûre, probable, à trancher),
-     et rien ne s'écrit avant d'avoir été relu et coché. Ce qui est déjà posé
-     à la main ne bouge jamais. Voir partitionsProposerAffectations.
+     distribution — sur le principe du métier : un violoniste a accès aux
+     parties de violon, toutes, et le pupitre décide en répétition qui lit
+     laquelle ; le numéro de la fiche restreint quand il existe. Rien ne
+     s'écrit avant d'avoir été relu et coché ; ce qui est déjà posé à la main
+     ne bouge jamais. Voir partitionsProposerAffectations.
    — Elle ne lit PAS la nomenclature de l'opération pour savoir qui joue.
      tournees.nomenclature est un prévisionnel de devis : EXP33-REC-ORCHESTRE
      SYMPHONIQUE y annonce 49 postes et n'a que 16 musiciens affectés. L'effectif
@@ -3604,9 +3606,9 @@ async function affecterEnMasse(paires, texte){
 /* PROPOSER D'APRÈS LES INSTRUMENTS. La page sait l'instrument de chacun et le
    nom de chaque partie ; elle peut donc dire, pour la plus grande part de
    l'effectif, qui lit quoi — et elle le DIT, elle ne l'écrit pas. La fiche
-   liste chaque proposition avec sa sûreté, cochée d'avance quand elle est
-   sûre ou probable, à choisir dans une liste quand la fiche de la personne ne
-   suffit pas à trancher. On décoche, on choisit, on valide : seul ce qui est
+   liste, par personne, toutes les parties de son instrument, cochées
+   d'avance ; un choix dans le pupitre quand l'instrument n'a aucune partie.
+   On décoche, on choisit, on valide : seul ce qui est
    coché ou choisi s'écrit, et par le même chemin que l'en-tête de colonne —
    même ruban d'annulation groupé. Les personnes qui ont déjà une partie DE CE
    SPECTACLE ici ne sont pas dans la liste : la proposition sert à qui n'a
@@ -3623,12 +3625,12 @@ function ficheProposition(){
   const nomPartie = (p) => escapeHtml(p.nom);
   const sousNom = (x) => escapeHtml([x.personne.pupitre, x.personne.instrument].filter(Boolean).join(' · ') || 'pupitre et instrument non renseignés');
 
-  const ligne = (x, surete, coche) => `
-    <label class="prop-ligne ${surete}">
-      <input type="checkbox" data-prop="${escapeAttr(x.partie.id + '§' + x.personne.personType + '§' + x.personne.personId)}"${coche ? ' checked' : ''}>
+  const ligne = (x) => `
+    <label class="prop-ligne exacte">
+      <input type="checkbox" data-prop="${escapeAttr(x.parties.map(p => p.id).join(',') + '§' + x.personne.personType + '§' + x.personne.personId)}" checked>
       <span class="prop-qui"><b>${escapeHtml(x.personne.nom)}</b><small>${sousNom(x)}</small></span>
-      <span class="prop-vers">→ <b>${nomPartie(x.partie)}</b><small>${escapeHtml(x.motif)}</small></span>
-      <span class="sur ${surete}">${surete === 'exacte' ? 'sûre' : 'probable'}</span>
+      <span class="prop-vers">→ <b>${x.parties.map(nomPartie).join(' · ')}</b><small>${escapeHtml(x.motif)}</small></span>
+      <span class="sur exacte">${x.parties.length} partie${x.parties.length > 1 ? 's' : ''}</span>
     </label>`;
   const choix = (x) => `
     <div class="prop-ligne incertaine">
@@ -3637,12 +3639,11 @@ function ficheProposition(){
         <select class="co-select" data-prop-choix="${escapeAttr(x.personne.personType + '§' + x.personne.personId)}"
                 aria-label="Partie pour ${escapeAttr(x.personne.nom)}">
           <option value="">— choisir, ou laisser —</option>
-          ${x.memes.length ? `<optgroup label="Même instrument">${x.memes.map(p => `<option value="${escapeAttr(p.id)}">${nomPartie(p)}</option>`).join('')}</optgroup>` : ''}
-          ${x.autres.length ? `<optgroup label="Même pupitre">${x.autres.map(p => `<option value="${escapeAttr(p.id)}">${nomPartie(p)}</option>`).join('')}</optgroup>` : ''}
+          ${x.choix.map(p => `<option value="${escapeAttr(p.id)}">${nomPartie(p)}</option>`).join('')}
         </select>
         <small>${escapeHtml(x.motif)}</small>
       </span>
-      <span class="sur incertaine">à trancher</span>
+      <span class="sur incertaine">à choisir</span>
     </div>`;
   const sans = (x) => `
     <div class="prop-ligne aucune">
@@ -3654,7 +3655,7 @@ function ficheProposition(){
     ${aide ? `<p class="sous" style="margin:0 0 6px">${aide}</p>` : ''}
     ${corps}` : '';
 
-  const nProposables = prop.sures.length + prop.probables.length + prop.aTrancher.length;
+  const nProposables = prop.proposees.length + prop.aChoisir.length;
   if(!nProposables && !prop.sansProposition.length){
     try{ curieuxFlash(prop.dejaServis ? 'Tout le monde a déjà une partie de ce spectacle sur cette opération.' : 'Personne à proposer.'); }catch(e){}
     return;
@@ -3665,17 +3666,15 @@ function ficheProposition(){
 
   const ov = ouvrirFiche({
     titre: "Proposer d'après les instruments",
-    sous: `Ce que l'instrument de chacun dit de sa partie dans « ${escapeHtml(s.nom)} », sur ${escapeHtml(nomOperation(state.tourneeId))}. `
-      + "Rien n'est enregistré avant « Affecter » ; ce qui est décoché ou laissé sans choix reste à faire dans la matrice.",
+    sous: `Chacun reçoit les parties de son instrument dans « ${escapeHtml(s.nom)} », sur ${escapeHtml(nomOperation(state.tourneeId))} — le pupitre décide ensuite qui lit laquelle. `
+      + "Rien n'est enregistré avant « Affecter » ; ce qui est décoché ou laissé sans choix reste à faire dans la matrice, qui sert aussi à corriger après coup.",
     libelleOk: 'Affecter',
     corps: `
       <div class="prop-liste">
-        ${section('Sûres', prop.sures.length, prop.sures.map(x => ligne(x, 'exacte', true)).join(''),
-          "Une seule partie pour cet instrument dans ce spectacle, ou le numéro de la fiche est celui de la partie — et le conducteur pour le chef.")}
-        ${section('Probables', prop.probables.length, prop.probables.map(x => ligne(x, 'probable', true)).join(''),
-          "Une convention plutôt qu'une lecture : le violon solo au premier violon. À relire.")}
-        ${section('À trancher', prop.aTrancher.length, prop.aTrancher.map(choix).join(''),
-          "La fiche ne dit pas laquelle. Les parties encore sans lecteur sont en tête de liste.")}
+        ${section('Proposées', prop.proposees.length, prop.proposees.map(ligne).join(''),
+          "Toutes les parties de l'instrument de la fiche — ou seulement celle du numéro quand la fiche en porte un. Décoche ce qui ne doit pas partir.")}
+        ${section('À choisir', prop.aChoisir.length, prop.aChoisir.map(choix).join(''),
+          "Aucune partie de cet instrument dans ce spectacle : une partie du même pupitre, ou rien. Les parties sans lecteur sont en tête.")}
         ${section('Sans proposition', prop.sansProposition.length, prop.sansProposition.map(sans).join(''),
           "Instrument non reconnu, ou aucune partie pour lui ni pour son pupitre dans ce spectacle. Un instrument à renseigner dans l'annuaire, ou une partie qui manque.")}
       </div>
@@ -3684,8 +3683,8 @@ function ficheProposition(){
       const paires = [];
       ov.querySelectorAll('[data-prop]').forEach(c => {
         if(!c.checked) return;
-        const [partieId, personType, personId] = c.dataset.prop.split('§');
-        paires.push({ partieId, personType, personId });
+        const [partieIds, personType, personId] = c.dataset.prop.split('§');
+        partieIds.split(',').forEach(partieId => paires.push({ partieId, personType, personId }));
       });
       ov.querySelectorAll('[data-prop-choix]').forEach(sel => {
         if(!sel.value) return;

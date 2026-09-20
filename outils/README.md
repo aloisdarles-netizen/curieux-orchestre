@@ -145,7 +145,7 @@ node outils/test-partitions-proposition.cjs      # la proposition d'affectation 
 ```
 
 Le dernier lit les 25 valeurs réelles de `musiciens.instrument` et les noms de
-parties tels que Dorico les sort, puis rejoue la proposition graduée — sûre,
-probable, à trancher, sans proposition — sur un jeu complet et sur ses cas
-limites. À relancer après toute modification de `PARTITIONS_INSTRUMENTS` ou de
+parties tels que Dorico les sort, puis rejoue la proposition — toutes les
+parties de l'instrument, le numéro de la fiche quand il existe, un choix dans
+le pupitre sinon — sur un jeu complet et sur ses cas limites. À relancer après toute modification de `PARTITIONS_INSTRUMENTS` ou de
 `partitionsProposerAffectations` dans `assets/partitions-commun.js`.
