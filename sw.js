@@ -201,7 +201,57 @@
 // « Autre ». Sans cet incrément, un navigateur déjà venu garderait l'ancien
 // fichier : le bouton « Reclasser » de l'écran de production ne verrait aucun
 // écart à corriger, et le prochain dépôt se tromperait encore.
-const VERSION = 'curieux-v135';
+// v135 : le menu passe à cinq déroulants nommés par métier (assets/nav.js), et
+// le bandeau ne tient debout qu'avec les règles ajoutées à assets/base.css —
+// le bloc « 2 bis », les déroulants, le panneau téléphone. Un navigateur déjà
+// venu garderait sa feuille de style : les menus s'ouvriraient sans fond ni
+// ombre, par-dessus la page, et le panneau téléphone n'aurait plus de position
+// fixe. assets/global-search.js change au même moment — il lit désormais le
+// modèle du bandeau pour indexer les écrans, et refuse ceux dont le compte
+// n'a pas le droit. Les trois fichiers doivent repartir ensemble.
+// v136 : l'espace du chœur, et plusieurs chœurs sur une même série. Quatre
+// actifs communs changent ensemble, et aucun ne suffit seul :
+//   — base.css apprend la teinte --pup-choeur. Sans elle, la pastille du
+//     pupitre « Chœur » naît grise, comme « Autre », et la seule distinction
+//     que l'écran fait entre le chœur et les solistes disparaît.
+//   — partitions-commun.js apprend le pupitre « Chœur » (dans les sept
+//     langues), l'ordre des tessitures et la mise en forme des tonalités. Sans
+//     lui, partition-choeur.html appelle partitionsTrierVoix et
+//     partitionsTonaliteLangue, qui n'existent pas : la page du chef de chœur
+//     reste blanche. Sa reconnaissance gagne au passage l'italien et le
+//     départage par le motif le plus long — « cor » n'attrape plus
+//     « Coronation Anthem ».
+//   — db.js apprend `type`, `effectif`, `dates` et `tonalite`. Sans eux, un lot
+//     de chœur relu depuis la base repasse pour une transmission ordinaire, et
+//     perd les journées chantées : l'écran compte alors des loges sur rien.
+//   — partitions.html et partition-choeur.html chargent statuts-date.js, qu'
+//     elles ne chargeaient pas. Sans cet incrément, un navigateur déjà venu le
+//     prendrait au réseau pendant que le reste sort du cache, et `estAnnulee`
+//     manquerait le temps d'un rendu : une date annulée s'afficherait à un
+//     chœur.
+// Les deux pages sont servies réseau d'abord ; c'est l'incrément, et lui seul,
+// qui leur donne les actifs qu'elles attendent.
+// v137 : « Devis et budgets » et « Suivi des dépenses » passent sous
+// Production, et le droit d'accès descend de la section à l'entrée. Trois
+// actifs changent ensemble :
+//   — nav.js porte le nouveau rangement et le tri par droit ;
+//   — global-search.js lit ce tri au même endroit. Un navigateur qui garderait
+//     l'ancien appellerait estSectionAffichee, qui n'existe plus : la
+//     condition tomberait à faux et la recherche proposerait les écrans
+//     réservés à toute l'équipe — des noms d'écrans, pas des données, mais
+//     des portes qui répondraient « Accès réservé » ;
+//   — base.css resserre les pastilles du sous-menu de 17 à 14 px. Sans elle,
+//     Production — neuf écrans pour un compte admin — repasse sur deux lignes
+//     à 1440 px, soit 108 px de bandeau collant au lieu de 61 sur chaque
+//     écran de production. Elle pose aussi la butée de hauteur du déroulant.
+// v138 : assets/nouveautes.js annonce que « Mon ordre » mêle titulaires et
+// remplaçant·es sur le Tableau de service. Le fichier est un actif mis en
+// cache : sans cet incrément, un navigateur déjà venu garderait la liste
+// précédente et la fenêtre « Ce qui a changé » ne s'ouvrirait jamais sur cette
+// livraison — personne dans l'équipe ne saurait que le tri a changé de règle.
+// recap.html change au même moment, mais c'est une page, servie réseau
+// d'abord : elle se rafraîchit d'elle-même.
+const VERSION = 'curieux-v138';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

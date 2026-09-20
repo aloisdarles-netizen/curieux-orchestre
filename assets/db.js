@@ -808,14 +808,20 @@ const CurieuxDB = (()=>{
         note: r.note || '', _updatedAt: r.updated_at
       })
     },
+    /* `tonalite` est vide partout sauf au chœur : c'est la seule information
+       que le matériel d'orchestre n'a pas besoin de porter, et la première que
+       demande un chef de chœur. Texte libre — « Ré♭ majeur », mais aussi
+       « à confirmer », qui est une réponse juste. */
     partitions_parties: {
       toDb: (p)=> ({
         id: p.id, spectacle_id: p.spectacleId, nom: p.nom || '',
-        pupitre: p.pupitre || '', ordre: Number(p.ordre) || 0, note: p.note || ''
+        pupitre: p.pupitre || '', ordre: Number(p.ordre) || 0, note: p.note || '',
+        tonalite: p.tonalite || ''
       }),
       fromDb: (r)=> ({
         id: r.id, spectacleId: r.spectacle_id, nom: r.nom || '',
         pupitre: r.pupitre || '', ordre: Number(r.ordre) || 0, note: r.note || '',
+        tonalite: r.tonalite || '',
         _updatedAt: r.updated_at
       })
     },
@@ -826,13 +832,17 @@ const CurieuxDB = (()=>{
         octets: Number(f.octets) || 0,
         // null et non 0 : « nombre de pages inconnu » n'est pas « zéro page ».
         pages: f.pages == null || f.pages === '' ? null : Number(f.pages),
-        empreinte: f.empreinte || '', ordre: Number(f.ordre) || 0
+        empreinte: f.empreinte || '', ordre: Number(f.ordre) || 0,
+        // La tonalité d'UN numéro, quand un lot en compte plusieurs. Vide, le
+        // fichier hérite de celle de sa partie (voir envoi_partitions).
+        tonalite: f.tonalite || ''
       }),
       fromDb: (r)=> ({
         id: r.id, partieId: r.partie_id, titre: r.titre || '',
         chemin: r.chemin || '', nomOrigine: r.nom_origine || '',
         octets: Number(r.octets) || 0, pages: r.pages == null ? null : Number(r.pages),
         empreinte: r.empreinte || '', ordre: Number(r.ordre) || 0,
+        tonalite: r.tonalite || '',
         _updatedAt: r.updated_at
       })
     },
@@ -868,6 +878,15 @@ const CurieuxDB = (()=>{
     partitions_envois: {
       toDb: (e)=> ({
         id: e.id, spectacle_id: e.spectacleId, tournee_id: e.tourneeId || '',
+        // 'tiers' (un orchestre invité) ou 'choeur' (une maîtrise, un chœur
+        // régional). Deux espaces dans les écrans, un seul registre derrière —
+        // et, en base, une portée différente : « tout le spectacle » pour un
+        // chœur ne donne QUE les parties de chœur.
+        type: e.type === 'choeur' ? 'choeur' : 'tiers',
+        effectif: Number(e.effectif) || 0,
+        // Les identifiants des dates chantées — jamais les dates elles-mêmes :
+        // une date se déplace, et le chœur reste sur la sienne.
+        dates: Array.isArray(e.dates) ? e.dates : [],
         destinataire: e.destinataire || '', contact_nom: e.contactNom || '',
         contact_email: e.contactEmail || '', jeton: e.jeton, code: e.code || '',
         toutes_parties: e.toutesParties !== false,
@@ -878,6 +897,9 @@ const CurieuxDB = (()=>{
       }),
       fromDb: (r)=> ({
         id: r.id, spectacleId: r.spectacle_id, tourneeId: r.tournee_id || '',
+        type: r.type === 'choeur' ? 'choeur' : 'tiers',
+        effectif: Number(r.effectif) || 0,
+        dates: Array.isArray(r.dates) ? r.dates : [],
         destinataire: r.destinataire || '', contactNom: r.contact_nom || '',
         contactEmail: r.contact_email || '', jeton: r.jeton, code: r.code || '',
         toutesParties: r.toutes_parties !== false,
@@ -1058,6 +1080,31 @@ const CurieuxDB = (()=>{
     try{
       const res = await supabaseClient.from(table).select('id').limit(1);
       return _tableAbsente(res && res.error);
+    }catch(e){ return false; }
+  }
+
+  /* UNE COLONNE MANQUANTE NE SE DEVINE PAS À LA LECTURE, et c'est tout
+     l'intérêt de ce sondage. _reessayerSansColonne (plus bas) rattrape une
+     écriture qui porte une colonne absente en la RETIRANT puis en réécrivant :
+     le reste s'enregistre, et rien ne casse. C'est la bonne réponse partout —
+     sauf là où la colonne retirée change le SENS de la ligne. Un lot de chœur
+     enregistré sans sa colonne `type` redevient une transmission à un ensemble
+     tiers : « tout le spectacle » lui remettrait alors le matériel d'orchestre
+     complet, sans qu'aucun écran ne s'en aperçoive. Là, il faut SAVOIR avant
+     d'écrire — d'où cette lecture d'une ligne, qui échoue si la colonne n'est
+     pas là. */
+  // `colonne` accepte une liste séparée par des virgules — « type,dates » —
+  // et répond vrai dès qu'une seule manque : c'est bien ce qu'on veut savoir.
+  async function colonneManquante(table, colonne){
+    if(!supabaseClient) return false;
+    try{
+      const res = await supabaseClient.from(table).select(colonne).limit(1);
+      const err = res && res.error;
+      if(!err) return false;
+      // Une table absente n'est pas une colonne absente : la page a déjà un
+      // message pour ça, et il envoie jouer un autre bloc de migrations.sql.
+      if(_tableAbsente(err)) return false;
+      return !!_colonneManquante(err) || /column .* does not exist/i.test(err.message || '');
     }catch(e){ return false; }
   }
 
@@ -2366,7 +2413,7 @@ const CurieuxDB = (()=>{
   }
 
   return {
-    fetchAll, fetchAllOuEchec, fetchOne, tableManquante, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
+    fetchAll, fetchAllOuEchec, fetchOne, tableManquante, colonneManquante, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
     fetchReglages, fetchPreferences, savePreferences, setPhaseTest, setVillesBase, setTechniqueSeuils, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegarde,

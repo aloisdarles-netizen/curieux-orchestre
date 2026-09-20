@@ -36,15 +36,80 @@
     return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
+  /* Les écrans eux-mêmes, lus dans le modèle du bandeau (assets/nav.js).
+   *
+   * Ils manquaient : la recherche ne trouvait que des données — des personnes
+   * et des tournées — jamais une page. Tant que les vingt-six écrans tenaient
+   * à plat dans le bandeau, ça se voyait peu ; avec des déroulants, chaque
+   * écran est à deux gestes, et une recherche qui ne sait pas dire « Matériel »
+   * ne peut pas compenser cette profondeur.
+   *
+   * Le libellé du groupe et celui de la section entrent dans le texte cherché :
+   * « budget » trouve « Suivi des dépenses », « studio » trouve « Feuilles de
+   * studio ». Les doublons sont écartés par href — une même page peut être
+   * déclarée sous deux clés (tournees.html et tournees.html?type=recording).
+   */
+  // Personne ne tape « matériel » avec son accent dans un champ de recherche.
+  function sansAccent(s){
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function chercherPages(q){
+    if(typeof curieuxModele !== 'function') return [];
+    const aigu = sansAccent(q);
+    const vus = new Set();
+    const out = [];
+    curieuxModele().forEach(sec => {
+      /* Une porte réservée ne se cherche que si le compte y a droit : sans ce
+         filtre, taper « budget » proposerait à toute l'équipe des écrans qui
+         répondraient « Accès réservé ». Le tri se fait au même endroit que
+         pour le bandeau — curieuxEntreesVisibles — donc sans risque que les
+         deux divergent. Tant que la base n'a pas répondu, ces portes restent
+         absentes : on ne propose pas ce dont on ne sait pas si ça s'ouvre. */
+      if(typeof curieuxAccesAccorde === 'function'
+         && !curieuxAccesAccorde(curieuxDroitSection(sec))) return;
+      const visibles = (typeof curieuxEntreesVisibles === 'function')
+        ? curieuxEntreesVisibles(sec, null)
+        : (sec.entrees || []);
+      const entrees = visibles.length
+        ? visibles
+        : (sec.entrees && sec.entrees.length ? [] : [{ libelle: sec.libelle, href: sec.href }]);
+      entrees.forEach(e => {
+        if(vus.has(e.href)) return;
+        const hay = sansAccent([e.libelle, e.groupe, sec.libelle].filter(Boolean).join(' '));
+        if(!hay.includes(aigu)) return;
+        vus.add(e.href);
+        out.push({
+          type: 'page',
+          label: e.libelle,
+          sub: e.groupe ? `${sec.libelle} · ${e.groupe}` : sec.libelle,
+          href: e.href,
+        });
+      });
+    });
+    return out.slice(0, 5);
+  }
+
   async function runSearch(query){
     const q = query.trim().toLowerCase();
-    if(q.length < 2 || typeof CurieuxDB === 'undefined') return [];
-    const [musiciens, techniciens, tournees] = await Promise.all([
-      CurieuxDB.fetchAll('musiciens'),
-      CurieuxDB.fetchAll('techniciens'),
-      CurieuxDB.fetchAll('tournees'),
-    ]);
-    const results = [];
+    if(q.length < 2) return [];
+    const pages = chercherPages(q);
+    if(typeof CurieuxDB === 'undefined') return pages;
+    // Les écrans se cherchent dans le modèle du bandeau, en mémoire : ils
+    // doivent rester trouvables quand la base ne répond pas. Sans ce garde,
+    // une table injoignable emportait tout le résultat, y compris la partie
+    // qui n'avait rien demandé à personne.
+    let musiciens = [], techniciens = [], tournees = [];
+    try{
+      [musiciens, techniciens, tournees] = await Promise.all([
+        CurieuxDB.fetchAll('musiciens'),
+        CurieuxDB.fetchAll('techniciens'),
+        CurieuxDB.fetchAll('tournees'),
+      ]);
+    }catch(e){ return pages; }
+    // Les écrans en tête : on tape « matériel » pour y aller, pas pour lire la
+    // liste des personnes dont le poste contient le mot.
+    const results = pages.slice();
     musiciens.forEach(m=>{
       const name = `${m.prenom || ''} ${m.nom || ''}`.trim();
       const hay = [m.prenom, m.nom, m.instrument, m.pupitre].filter(Boolean).join(' ').toLowerCase();
@@ -71,7 +136,7 @@
     return results.slice(0, 12);
   }
 
-  const TYPE_LABEL = { musicien:'Musicien·ne', technicien:'Technicien·ne', tournee:'Tournée' };
+  const TYPE_LABEL = { page:'Écran', musicien:'Musicien·ne', technicien:'Technicien·ne', tournee:'Tournée' };
 
   window.initGlobalSearch = function(navEl){
     if(!navEl || document.getElementById('globalSearchWrap')) return;
