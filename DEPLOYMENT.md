@@ -55,7 +55,33 @@ framework" — dans ce cas, il faut simplement omettre le champ.
 
 ## Variables d'environnement / secrets
 
-**Aucune variable d'environnement Vercel n'est nécessaire.** Les identifiants
+**Pour le site lui-même, aucune variable d'environnement n'est nécessaire** — mais
+les fonctions serverless du dossier `api/`, elles, en demandent. Sans elles, la
+route concernée répond `501` et le reste du site continue de fonctionner :
+
+| Variable | Utilisée par | Rôle |
+|---|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | `api/sauvegarde.js`, `api/partition.js`, `api/creer-compte-equipe.js`, `api/deposer-plan-salle.js` | Lire et écrire malgré les règles RLS. **Secret** : ne jamais l'exposer côté navigateur. |
+| `CRON_SECRET` | `api/sauvegarde.js` | Jeton présenté par le planificateur Vercel, pour qu'une route qui lit toute la base ne réponde pas au premier venu. |
+| `PARTITIONS_MOT_DE_PASSE_PROPRIETAIRE` | `api/partition.js` | Mot de passe propriétaire des PDF filigranés (facultatif). |
+| `SAUVEGARDES_A_CONSERVER` | `api/sauvegarde.js` | Nombre d'archives quotidiennes gardées (défaut : 30). |
+| `AUDIT_RETENTION_JOURS` | `api/sauvegarde.js` | Âge au-delà duquel le journal d'audit est allégé (défaut : 365 ; `0` désactive la purge). |
+
+## Tâche planifiée (sauvegarde)
+
+`vercel.json` déclare un cron quotidien à 3 h sur `/api/sauvegarde` : il archive
+toute la base dans le bucket privé `sauvegardes` (un fichier comprimé par jour,
+plus le journal d'audit par mois), allège le journal au-delà d'un an et balaie les
+exemplaires de partitions temporaires. Le plan gratuit Vercel n'autorise qu'une
+exécution quotidienne par tâche : ne pas passer à un pas plus court sans vérifier
+le plan. La même route s'appelle à la main depuis le tableau de bord admin, avec
+le jeton de session de l'administrateur — mêmes effets, mêmes archives.
+
+Sur le plan Supabase gratuit, **aucune sauvegarde automatique n'est faite par
+Supabase** : ce cron est le seul filet. Vérifier de temps en temps que des
+archives récentes apparaissent bien dans le tableau de bord.
+
+Les identifiants publics
 Supabase (`SUPABASE_URL`, clé anonyme) sont écrits en dur dans
 [assets/db.js](assets/db.js) — c'est volontaire : cette app n'a pas de build step
 pour lire des env vars au runtime, et la clé anonyme Supabase n'est de toute façon

@@ -176,46 +176,60 @@ async function journaliser(cleService, fonction, charge) {
    la jauge de la page des partitions ne les compte pas : elle additionne le
    matériel rangé, si bien qu'elle annonce de la place qui n'existe plus.
 
-   On balaie ici plutôt que par une tâche planifiée : aucun cron à déclarer, et
-   le balayage n'a lieu que sur le chemin qui SALIT. Il est borné (une page de
-   listing, cent suppressions au plus), il ne s'exécute qu'APRÈS avoir répondu,
-   et il échoue en silence — un ménage qui empêcherait une partition d'arriver
-   la veille d'une première serait un mauvais échange. */
+   Le balayage se fait à deux endroits, et il faut les deux. ICI, sur le chemin
+   qui SALIT : c'est immédiat, borné (une page de listing, cent suppressions au
+   plus), et ça ne coûte rien puisqu'on y passe déjà. Mais ce passage-ci ne
+   garantit rien — il s'exécute APRÈS la réponse, et une fonction serverless peut
+   être gelée à la seconde où elle a répondu ; surtout, il ne part que si
+   quelqu'un télécharge : le dernier exemplaire d'une saison n'a personne
+   derrière lui pour le ramasser. La garantie est ailleurs, dans la sauvegarde de
+   nuit (api/sauvegarde.js), qui appelle cette même fonction une fois par jour,
+   quoi qu'il arrive.
+   Ici comme là-bas, il échoue en silence — un ménage qui empêcherait une
+   partition d'arriver la veille d'une première serait un mauvais échange. */
 const AGE_TELECHARGEMENT_MS = 60 * 60 * 1000;   // une heure, pour une URL qui vit cinq minutes
 
-async function balayerTelechargements(cleService) {
+export async function balayerTelechargements(cleService, pages = 1) {
+  let retires = 0;
   try {
-    const rep = await fetch(`${SUPABASE_URL}/storage/v1/object/list/partitions`, {
-      method: 'POST',
-      headers: {
-        apikey: cleService,
-        Authorization: `Bearer ${cleService}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ prefix: '_telechargements/', limit: 100, sortBy: { column: 'created_at', order: 'asc' } }),
-    });
-    if (!rep.ok) throw new Error(`listing ${rep.status}`);
-    const objets = await rep.json();
-    if (!Array.isArray(objets) || !objets.length) return;
-    const limite = Date.now() - AGE_TELECHARGEMENT_MS;
-    const perimes = objets
-      .filter((o) => o && o.name && Date.parse(o.created_at || o.updated_at || '') < limite)
-      .map((o) => `_telechargements/${o.name}`);
-    if (!perimes.length) return;
-    const suppression = await fetch(`${SUPABASE_URL}/storage/v1/object/partitions`, {
-      method: 'DELETE',
-      headers: {
-        apikey: cleService,
-        Authorization: `Bearer ${cleService}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ prefixes: perimes }),
-    });
-    if (!suppression.ok) throw new Error(`suppression ${suppression.status}`);
-    console.log(`[partition] balayage : ${perimes.length} exemplaire(s) temporaire(s) retiré(s)`);
+    // Les plus anciens d'abord : dès qu'une page n'a plus rien de périmé, les
+    // suivantes sont plus récentes encore, il n'y a plus rien à y chercher.
+    for (let i = 0; i < pages; i++) {
+      const rep = await fetch(`${SUPABASE_URL}/storage/v1/object/list/partitions`, {
+        method: 'POST',
+        headers: {
+          apikey: cleService,
+          Authorization: `Bearer ${cleService}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prefix: '_telechargements/', limit: 100, sortBy: { column: 'created_at', order: 'asc' } }),
+      });
+      if (!rep.ok) throw new Error(`listing ${rep.status}`);
+      const objets = await rep.json();
+      if (!Array.isArray(objets) || !objets.length) break;
+      const limite = Date.now() - AGE_TELECHARGEMENT_MS;
+      const perimes = objets
+        .filter((o) => o && o.name && Date.parse(o.created_at || o.updated_at || '') < limite)
+        .map((o) => `_telechargements/${o.name}`);
+      if (!perimes.length) break;
+      const suppression = await fetch(`${SUPABASE_URL}/storage/v1/object/partitions`, {
+        method: 'DELETE',
+        headers: {
+          apikey: cleService,
+          Authorization: `Bearer ${cleService}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prefixes: perimes }),
+      });
+      if (!suppression.ok) throw new Error(`suppression ${suppression.status}`);
+      retires += perimes.length;
+      console.log(`[partition] balayage : ${perimes.length} exemplaire(s) temporaire(s) retiré(s)`);
+      if (perimes.length < objets.length) break;   // la page contenait déjà du frais
+    }
   } catch (e) {
     console.error('[partition] balayage', e && e.message);
   }
+  return retires;
 }
 
 /* Le filigrane lui-même. Rien ici ne doit croiser une portée : le nom se pose
