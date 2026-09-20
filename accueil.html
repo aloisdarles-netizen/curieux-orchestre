@@ -10,257 +10,695 @@
 <script src="assets/nouveautes.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/statuts-date.js"></script>
+<script src="assets/selection-projets.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
 <style>
   /* ==========================================================================
-     Accueil — « planche de stickers ».
+     Accueil — le point de départ de la journée.
 
-     L'accueil précédent était un menu d'accordéons : chaque section devait être
-     dépliée pour révéler ses liens, et c'était le seul chemin d'un écran à
-     l'autre. Deux choses changent ici :
+     L'accueil précédent était une planche de cinq étiquettes de couleur,
+     vingt-trois boutons, chacune posée de travers : le bandeau à cinq
+     déroulants proposant déjà tous ces écrans en un clic, la planche ne
+     faisait que le répéter, en plus lourd. Et elle ne disait rien de ce qui
+     se passe — c'est pourtant la première chose que l'on vient chercher.
 
-       - tous les sous-liens sont visibles d'emblée, plus rien à déplier ;
-       - le tableau de service passait en tête, en étiquette pleine largeur (retiré depuis), avec ses
-         chiffres clés — c'est l'élément primaire demandé.
+     La page se lit désormais de haut en bas dans l'ordre des questions qu'on
+     se pose en arrivant :
 
-     La forme reprend le langage graphique de la charte Les Alfredines :
-     l'étiquette découpée posée de travers, contour blanc franc, ombre nette.
-     Les aplats sont les six couleurs de la charte, réparties pour qu'aucune ne
-     se touche. Au survol, l'étiquette se redresse.
+       1. où en est-on ? — le bonjour, la date du jour, quatre chiffres, et la
+          prochaine date en étiquette de charte, avec son compte à rebours ;
+       2. qu'est-ce qui approche, qu'est-ce qui attend ? — les prochaines
+          dates à gauche, ce qui demande une action à droite, et ce qui a
+          changé dans l'outil ;
+       3. où aller ? — les sections du bandeau, en cartes calmes qui disent
+          à quoi chacune sert, avec leurs écrans rangés par groupe, chaque
+          écran en touche de pupitre de régie (.co-navkey, base.css).
+
+     Les couleurs de la charte restent, mais en accents : la pastille de
+     chaque section, une teinte légère sur sa carte, et une seule étiquette
+     prune, pour la prochaine date. Les animations sont courtes et servent
+     l'entrée en matière : apparition en cascade, chiffres qui se comptent,
+     symbole qui flotte, cartes qui se soulèvent — toutes coupées quand le
+     système demande moins de mouvement.
      ========================================================================== */
-  .home-hero{ display:flex; align-items:center; gap:16px; margin-bottom:18px; }
-  .home-hero img{ height:58px; width:auto; transform:rotate(-8deg); flex-shrink:0; }
+  .wrap{ max-width:1240px; margin:0 auto; }
+
+  /* Entrée en cascade : chaque bloc porte son rang dans --i. */
+  .home-fade{ animation:coFadeUp .5s ease both; animation-delay:calc(var(--i, 0) * 80ms); }
+
+  /* --- 1. En-tête ---------------------------------------------------------- */
+  .home-hero{
+    position:relative; isolation:isolate;
+    display:grid; grid-template-columns:minmax(0, 1fr) 300px;
+    gap:28px; align-items:center; padding:14px 0 28px;
+  }
+  /* Deux halos de charte derrière l'en-tête, bleu piscine et rose spectacle,
+     qui dérivent lentement. La couche est découpée à la largeur de la page :
+     un halo qui dépasse ferait défiler la page latéralement sur téléphone. */
+  .home-fond{ position:absolute; inset:-60px 0 0 0; overflow:hidden; z-index:-1; pointer-events:none; }
+  .home-fond i{ position:absolute; border-radius:50%; display:block; }
+  .home-fond i:first-child{
+    width:560px; height:560px; left:-140px; top:-220px; opacity:.6;
+    background:radial-gradient(closest-side, var(--bleu), transparent 72%);
+    animation:homeDerive 24s ease-in-out infinite alternate;
+  }
+  .home-fond i:last-child{
+    width:460px; height:460px; right:-80px; top:-160px; opacity:.5;
+    background:radial-gradient(closest-side, var(--rose-spectacle), transparent 72%);
+    animation:homeDerive 30s ease-in-out infinite alternate-reverse;
+  }
+  :root[data-theme="dark"] .home-fond i:first-child{ opacity:.16; }
+  :root[data-theme="dark"] .home-fond i:last-child{ opacity:.14; }
+  @keyframes homeDerive{ from{ transform:translate(0, 0); } to{ transform:translate(48px, 26px); } }
+
+  .home-hero-texte{ display:flex; gap:18px; align-items:flex-start; min-width:0; }
+  .home-symbole{ height:66px; width:auto; flex-shrink:0; margin-top:4px; animation:homeFlotte 6s ease-in-out infinite; }
+  @keyframes homeFlotte{
+    0%, 100%{ transform:rotate(-8deg) translateY(0); }
+    50%{ transform:rotate(-4deg) translateY(-5px); }
+  }
   .home-eyebrow{
-    margin:0 0 4px; font-size:12px; font-weight:800; letter-spacing:.14em;
+    margin:0 0 6px; font-size:12px; font-weight:800; letter-spacing:var(--tracking-eyebrow);
     text-transform:uppercase; color:var(--tonic);
   }
   .home-hero h1{
-    font-family:var(--font-display); font-size:34px; margin:0; font-weight:500;
-    letter-spacing:.01em; color:var(--accent); line-height:1.1;
+    font-family:var(--font-display); font-size:clamp(34px, 4.4vw, 52px); margin:0;
+    font-weight:500; letter-spacing:.01em; color:var(--accent); line-height:1.02;
+  }
+  .home-date{ margin:8px 0 0; font-size:15px; font-weight:600; color:var(--muted); }
+
+  /* Les quatre chiffres, en pastilles : chacune est une porte. */
+  .home-chips{ display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 0; padding:0; list-style:none; }
+  .home-chip{
+    display:inline-flex; align-items:baseline; gap:7px; padding:8px 14px 8px 12px;
+    border-radius:999px; background:var(--card); border:1px solid var(--border);
+    text-decoration:none; color:var(--text); font-size:13px; font-weight:600; line-height:1.2;
+    transition:transform .16s cubic-bezier(.34,1.5,.6,1), border-color .16s ease, box-shadow .16s ease;
+  }
+  .home-chip b{
+    font-family:var(--font-display); font-size:21px; line-height:1; font-weight:500;
+    color:var(--accent); min-width:1ch; font-variant-numeric:tabular-nums;
+  }
+  .home-chip:hover{ transform:translateY(-2px); border-color:var(--accent); box-shadow:var(--shadow-card); }
+  .home-chip.att b{ color:var(--maybe); }
+
+  /* La prochaine date : la seule étiquette de charte de la page. */
+  .home-prochaine{
+    display:block; text-decoration:none; color:var(--blanc);
+    background:var(--prune); padding:18px 20px 17px; --co-tilt:-1.4deg;
+  }
+  :root[data-theme="dark"] .home-prochaine{ background:#4c0f2e; }
+  .home-prochaine-eyebrow{ margin:0; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; opacity:.85; }
+  .home-prochaine-j{
+    margin:6px 0 6px; font-family:var(--font-display); font-size:56px; line-height:.95;
+    font-weight:500; letter-spacing:.01em; font-variant-numeric:tabular-nums;
+  }
+  .home-prochaine-j.mot{ font-size:34px; line-height:1.05; margin-top:10px; }
+  .home-prochaine-quand{ margin:0; font-weight:800; font-size:15px; }
+  .home-prochaine-ou{ margin:2px 0 0; font-size:13.5px; opacity:.92; }
+  .home-prochaine-projet{ margin:9px 0 0; font-size:12.5px; opacity:.8; line-height:1.4; }
+  .home-prochaine .co-pill{ margin-top:11px; }
+  .home-prochaine.vide{ background:var(--card); color:var(--text); border:1px solid var(--border); }
+  .home-prochaine.vide .home-prochaine-eyebrow{ color:var(--tonic); opacity:1; }
+  .home-prochaine.vide .home-prochaine-projet{ opacity:1; color:var(--muted); }
+  .home-prochaine.vide .home-prochaine-ou{ color:var(--accent); font-weight:800; opacity:1; }
+
+  /* --- 2. Deux colonnes : les dates, et ce qui attend ---------------------- */
+  .home-deux{
+    display:grid; grid-template-columns:minmax(0, 1.55fr) minmax(280px, 1fr);
+    gap:18px; align-items:start; margin-bottom:30px;
+  }
+  .home-colonne{ display:grid; gap:18px; }
+  .home-bloc-titre{ margin:0 0 10px; }
+
+  .home-dates{ list-style:none; margin:0; padding:0; }
+  .home-dates li + li{ border-top:1px solid var(--border); }
+  .home-date-ligne{
+    display:grid; grid-template-columns:52px minmax(0, 1fr) auto; gap:14px; align-items:center;
+    padding:10px 8px; border-radius:12px; text-decoration:none; color:inherit;
+    transition:background .15s ease;
+  }
+  .home-date-ligne:hover{ background:var(--accent-tint); }
+  .home-date-jour{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+    width:52px; height:52px; border-radius:12px; background:var(--bg); border:1px solid var(--border);
+    transform:rotate(-2deg); transition:transform .18s cubic-bezier(.34,1.5,.6,1);
+  }
+  .home-date-ligne:hover .home-date-jour{ transform:rotate(0) scale(1.06); }
+  .home-date-jour b{ font-family:var(--font-display); font-size:23px; line-height:1; font-weight:500; color:var(--accent); }
+  .home-date-jour small{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  /* Sous huit jours, le jour passe en rose : c'est ce qui se prépare maintenant. */
+  .home-date-ligne.proche .home-date-jour{ background:var(--rose); border-color:transparent; }
+  .home-date-ligne.proche .home-date-jour b{ color:var(--prune-ink); }
+  .home-date-texte{ min-width:0; }
+  .home-date-texte b{ display:block; font-size:14px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .home-date-texte small{ display:block; font-size:12.5px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .home-date-texte small em{ font-style:normal; font-weight:800; color:var(--tonic); }
+  .home-plus{
+    display:inline-flex; align-items:center; gap:6px; margin-top:12px;
+    font-size:13px; font-weight:800; color:var(--accent); text-decoration:none;
+  }
+  .home-plus::after{ content:'→'; transition:transform .16s ease; }
+  .home-plus:hover::after{ transform:translateX(3px); }
+
+  /* Ce qui attend : une ligne par point, le chiffre en tête. */
+  .home-suivre{ list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+  .home-suivre a{
+    display:grid; grid-template-columns:44px minmax(0, 1fr) auto; gap:12px; align-items:center;
+    padding:9px 10px 9px 8px; border-radius:12px; text-decoration:none; color:inherit;
+    transition:background .15s ease, transform .16s ease;
+  }
+  .home-suivre a:hover{ background:var(--bg); transform:translateX(2px); }
+  .home-suivre b{
+    font-family:var(--font-display); font-size:26px; line-height:1; font-weight:500; text-align:center;
+    color:var(--maybe); font-variant-numeric:tabular-nums;
+  }
+  .home-suivre a.ko b{ color:var(--ko); }
+  .home-suivre span{ font-size:13.5px; font-weight:600; line-height:1.3; }
+  .home-suivre span small{ display:block; font-size:12px; color:var(--muted); font-weight:600; margin-top:1px; }
+  .home-suivre i{
+    width:7px; height:7px; border-radius:50%; background:var(--maybe); display:block;
+    animation:homePulse 2.4s ease-in-out infinite;
+  }
+  .home-suivre a.ko i{ background:var(--ko); }
+  @keyframes homePulse{ 0%, 100%{ transform:scale(1); opacity:1; } 50%{ transform:scale(1.5); opacity:.55; } }
+  .home-calme{ display:flex; gap:12px; align-items:center; color:var(--muted); font-size:13.5px; line-height:1.45; margin:0; }
+  .home-calme i{
+    flex:0 0 auto; width:34px; height:34px; border-radius:10px; display:grid; place-items:center;
+    background:var(--ok-tint); color:var(--ok); font-style:normal; font-weight:900; font-size:16px;
+    transform:rotate(-4deg);
   }
 
-  /* Le rembourrage de 6 px laisse respirer l'ombre portée et le contour des
-     étiquettes : sans lui, l'étiquette la plus inclinée était rognée. */
-  .home-board{
-    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
-    column-gap:18px; row-gap:14px; padding:6px; align-items:start;
+  /* Ce qui a changé : les dernières livraisons, et le bouton qui rouvre tout. */
+  .home-nouveau{ list-style:none; margin:0; padding:0; display:grid; gap:9px; }
+  .home-nouveau li{ display:grid; grid-template-columns:auto minmax(0, 1fr); gap:10px; align-items:baseline; }
+  .home-nouveau time{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--tonic); white-space:nowrap; }
+  .home-nouveau span{ font-size:13.5px; font-weight:600; line-height:1.35; }
+  .home-nouveau-btn{ margin-top:12px; }
+
+  /* --- 3. Les sections ---------------------------------------------------- */
+  .home-board{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:16px; align-items:stretch; }
+  /* Trois colonnes, et jamais de trou : le compte des cartes dépend du compte
+     (trois pour l'équipe, quatre pour la direction technique, six pour un
+     admin). Production, la plus fournie, prend deux colonnes quand ça tombe
+     juste ; à trois ou six cartes, les rangées sont pleines sans elle ; à
+     quatre, la dernière carte comble la seconde rangée. */
+  .home-board > .home-porte:first-child{ grid-column:span 2; }
+  .home-board > .home-porte:nth-child(4):last-child{ grid-column:span 2; }
+  .home-board:has(> .home-porte:nth-child(3):last-child) > .home-porte:first-child,
+  .home-board:has(> .home-porte:nth-child(6):last-child) > .home-porte:first-child{ grid-column:auto; }
+
+  .home-porte{
+    position:relative; display:flex; flex-direction:column; border-radius:18px; padding:18px 18px 16px;
+    border:1px solid var(--border); background:var(--card);
+    background:color-mix(in srgb, var(--porte) 13%, var(--card));
+    transition:transform .2s cubic-bezier(.34,1.5,.6,1), box-shadow .2s ease;
   }
-  .home-board .co-sticker.wide{ grid-column:1 / -1; }
-  @media (max-width:980px){ .home-board{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
-  @media (max-width:640px){ .home-board{ grid-template-columns:1fr; } }
-
-  .home-sticker-head{ display:flex; gap:11px; align-items:center; margin-bottom:12px; }
-
-  /* ------------------------------------------------------------------------
-     Les portes de chaque étiquette : de vrais boutons, tous de la même taille.
-
-     Elles étaient en ligne, à se suivre et à passer à la ligne quand la place
-     manquait. Le résultat dépendait de la longueur des mots : « Salles » et
-     « Matériel » côte à côte, « Véhicules & chauffeurs » seul en dessous,
-     « Page salle (vue publique) » encore en dessous — une bordure en dents de
-     scie, où l'œil ne peut plus deviner où sera la porte suivante.
-
-     Une grille de deux colonnes règle les deux problèmes d'un coup : toutes
-     les portes font la même largeur, et elles s'alignent. Une porte impaire en
-     fin de liste prend les deux colonnes plutôt que de laisser un trou.
-     ------------------------------------------------------------------------ */
-  .home-links{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:7px; }
-  .home-links a{
-    display:flex; align-items:center; justify-content:space-between; gap:9px;
-    min-height:44px; padding:9px 12px; border-radius:11px; cursor:pointer;
-    border:1px solid transparent; font-family:var(--font-body); text-decoration:none;
-    font-size:12px; font-weight:700; letter-spacing:0; line-height:1.25;
-    transition:transform .14s cubic-bezier(.34,1.5,.6,1), border-color .14s ease, filter .14s ease;
+  :root[data-theme="dark"] .home-porte{ background:color-mix(in srgb, var(--porte-nuit) 55%, var(--card)); }
+  .home-porte:hover{ transform:translateY(-3px); box-shadow:var(--shadow-card); }
+  .home-porte-tete{ display:flex; gap:13px; align-items:flex-start; text-decoration:none; color:inherit; }
+  .home-porte-tete .co-badge{
+    background:var(--porte); color:var(--porte-encre); --co-tilt:-5deg;
+    transition:transform .22s cubic-bezier(.34,1.5,.6,1);
   }
-  /* Seule, ou dernière d'un compte impair : elle occupe toute la largeur. */
-  .home-links a:last-child:nth-child(odd){ grid-column:1 / -1; }
+  :root[data-theme="dark"] .home-porte-tete .co-badge{ background:var(--porte-nuit); color:var(--blanc); }
+  .home-porte:hover .home-porte-tete .co-badge{ transform:rotate(0) scale(1.08); }
+  .home-porte h3{
+    font-family:var(--font-display); font-size:21px; line-height:1.1; margin:0;
+    letter-spacing:.02em; text-transform:uppercase; font-weight:500; color:var(--accent);
+  }
+  .home-porte-tete:hover h3{ text-decoration:underline; text-decoration-thickness:2px; text-underline-offset:3px; }
+  .home-porte-accroche{ margin:4px 0 0; font-size:13px; color:var(--muted); line-height:1.45; text-wrap:pretty; }
+  /* Les écrans d'une section, en touches de pupitre de régie (.co-navkey,
+     base.css) : blanches sur toutes les cartes, claires comme sombres — la
+     couleur reste à la carte. Le voyant s'allume au survol, la touche
+     s'enfonce ; plus de chevron, la forme dit déjà qu'on va quelque part. */
+  .home-porte-groupes{ display:flex; flex-wrap:wrap; gap:14px 22px; margin-top:16px; }
+  .home-porte-groupe-titre{
+    margin:0 0 8px; font-size:10.5px; font-weight:800; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--muted);
+  }
+  /* En bas de carte, quelle que soit la hauteur de la voisine : les chiffres
+     de deux cartes côte à côte se lisent sur la même ligne. */
+  .home-porte-chiffre{ margin:auto 0 0; padding-top:14px; font-size:12.5px; font-weight:600; color:var(--muted); }
+  .home-porte-chiffre b{ font-family:var(--font-display); font-size:17px; font-weight:500; color:var(--accent); font-variant-numeric:tabular-nums; }
+  .home-porte-chiffre[hidden]{ display:none; }
 
-  /* Le chevron, dessiné en CSS : il fait la différence entre une étiquette et
-     un bouton sur lequel on peut appuyer, et il avance à l'approche. */
-  .home-links a::after{
-    content:''; flex:0 0 auto; width:6px; height:6px; margin-right:1px;
-    border-right:1.8px solid currentColor; border-top:1.8px solid currentColor;
-    transform:rotate(45deg); opacity:.45;
-    transition:transform .14s ease, opacity .14s ease;
+  /* --- Repli ---------------------------------------------------------------- */
+  @media (max-width:980px){
+    .home-board{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    /* Deux colonnes : Production prend la rangée quand le compte est impair,
+       et les autres vont par deux. */
+    .home-board:has(> .home-porte:nth-child(3):last-child) > .home-porte:first-child{ grid-column:span 2; }
+    .home-board:has(> .home-porte:nth-child(6):last-child) > .home-porte:first-child{ grid-column:auto; }
   }
-  .home-links a:hover{ transform:translateY(-1px); border-color:currentColor; filter:brightness(1.03); }
-  .home-links a:hover::after{ opacity:.95; transform:rotate(45deg) translate(1.5px, -1.5px); }
-  .home-links a:active{ transform:translateY(0) scale(.985); }
-  @media (prefers-reduced-motion: reduce){
-    .home-links a:hover, .home-links a:active{ transform:none; }
-    .home-links a:hover::after{ transform:rotate(45deg); }
+  @media (max-width:760px){
+    .home-hero{ grid-template-columns:1fr; gap:22px; padding-bottom:22px; }
+    .home-prochaine{ --co-tilt:-.8deg; }
+    .home-deux{ grid-template-columns:1fr; }
   }
-  /* Sur téléphone, l'étiquette occupe toute la colonne : deux portes par rangée
-     couperaient « Véhicules & chauffeurs » en deux lignes pour rien. */
   @media (max-width:640px){
-    .home-links{ grid-template-columns:1fr; }
-    .home-links a{ min-height:46px; }
+    .home-symbole{ height:52px; }
+    .home-board{ grid-template-columns:1fr; }
+    .home-board > .home-porte{ grid-column:auto !important; }
+    .home-date-texte b, .home-date-texte small{ white-space:normal; }
   }
-
-  .wrap{ max-width:1240px; margin:0 auto; }
+  @media (prefers-reduced-motion: reduce){
+    .home-fade{ animation:none; }
+    .home-fond i, .home-symbole, .home-suivre i{ animation:none; }
+    .home-symbole{ transform:rotate(-8deg); }
+    .home-chip:hover, .home-porte:hover, .home-suivre a:hover,
+    .home-date-ligne:hover .home-date-jour, .home-porte:hover .home-porte-tete .co-badge{ transform:none; }
+    .home-date-jour{ transform:none; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="home-hero co-fade">
-    <img src="assets/images/symbole-prune-bleu.png" alt="">
-    <div>
-      <p class="home-eyebrow">Outils de production</p>
-      <h1 id="homeGreeting">Bonjour</h1>
+  <header class="home-hero home-fade" style="--i:0">
+    <div class="home-fond" aria-hidden="true"><i></i><i></i></div>
+    <div class="home-hero-texte">
+      <img class="home-symbole" src="assets/images/symbole-prune-bleu.png" alt="">
+      <div style="min-width:0;">
+        <p class="home-eyebrow">Outils de production</p>
+        <h1 id="homeGreeting">Bonjour</h1>
+        <p class="home-date" id="homeDate"></p>
+        <ul class="home-chips" id="homeChips" aria-label="En un coup d’œil" aria-busy="true">
+          <li><span class="home-chip"><b>–</b>projets en cours</span></li>
+          <li><span class="home-chip"><b>–</b>dates à venir</span></li>
+          <li><span class="home-chip"><b>–</b>validées</span></li>
+          <li><span class="home-chip"><b>–</b>à confirmer</span></li>
+        </ul>
+      </div>
+    </div>
+    <a class="home-prochaine co-sticker" id="homeProchaine" href="recap.html" aria-live="polite">
+      <p class="home-prochaine-eyebrow">Prochaine date</p>
+      <p class="home-prochaine-j">…</p>
+      <p class="home-prochaine-quand">&nbsp;</p>
+      <p class="home-prochaine-ou">&nbsp;</p>
+    </a>
+  </header>
+
+  <div class="home-deux">
+    <section class="co-card co-pad home-fade" style="--i:1" aria-labelledby="homeAgendaTitre">
+      <h2 class="co-h2 home-bloc-titre" id="homeAgendaTitre" style="margin-top:4px;">Les prochaines dates</h2>
+      <ol class="home-dates" id="homeDates">
+        <li><p class="home-calme" style="padding:6px 8px;">Chargement des dates…</p></li>
+      </ol>
+      <a class="home-plus" href="recap.html">Tout le tableau de service</a>
+    </section>
+
+    <div class="home-colonne">
+      <section class="co-card co-pad home-fade" style="--i:2" aria-labelledby="homeSuivreTitre">
+        <h2 class="co-h2 home-bloc-titre" id="homeSuivreTitre" style="margin-top:4px;">À suivre</h2>
+        <div id="homeSuivre"><p class="home-calme" style="padding:6px 0;">Un instant…</p></div>
+      </section>
+
+      <section class="co-card co-pad home-fade" style="--i:3" id="homeNouveauBloc" hidden aria-labelledby="homeNouveauTitre">
+        <h2 class="co-h2 home-bloc-titre" id="homeNouveauTitre" style="margin-top:4px;">Ce qui a changé</h2>
+        <ul class="home-nouveau" id="homeNouveau"></ul>
+        <button type="button" class="co-btn secondary home-nouveau-btn" id="homeNouveauBtn">Tout lire</button>
+      </section>
     </div>
   </div>
 
-  <div class="home-board co-fade" id="homeBoard"></div>
+  <section class="home-fade" style="--i:4" aria-labelledby="homeBoardTitre">
+    <h2 class="co-h2" id="homeBoardTitre" style="margin-top:0;">Où aller</h2>
+    <div class="home-board" id="homeBoard"></div>
+  </section>
 </div>
 
 <script>
-// --- Structure de l'accueil -------------------------------------------------
-// Une entrée par étiquette. « teinte » et « chip » viennent de la charte ; les
-// inclinaisons sont fixées à la main plutôt que tirées au hasard, pour que la
-// planche soit toujours composée de la même façon.
-/* L'étiquette de tête — le tableau de service pleine largeur, coiffé de sept
-   chiffres clés — a été retirée. Elle prenait le haut de l'accueil, se lisait
-   une fois à la première visite puis plus jamais (personne n'ouvre l'accueil
-   pour apprendre qu'il y a 42 dates à venir), et repoussait sous la ligne de
-   flottaison les portes qu'on vient réellement chercher. Le tableau de service
-   garde son entrée dans le bandeau et dans l'étiquette Disponibilités. */
+// --- Repli v1 ---------------------------------------------------------------
+// Avec le menu v1 (CURIEUX_NAV_DEFAUT = 'v1', ou ?nav=v1), la planche garde sa
+// liste d'origine : c'est le chemin de retour, on ne le réécrit pas.
 const HOME_SECTIONS_V1 = [
-  { titre:'Tournées',
-    fond:'#CEE1F4', encre:'#791649', chip:'♩', chipFond:'#791649', chipEncre:'#FCF2F0',
-    chipTilt:'-6deg', tilt:'-1.1deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#791649',
+  { titre:'Tournées', fond:'#CEE1F4', encre:'#791649', chip:'♩',
     liens:[['Gérer les tournées','tournees.html'],['Feuilles de route','feuilles-de-route.html'],['Journal des changements','newsletter.html']] },
-
-  // Le recording a sa propre liste de feuilles : ce sont des feuilles de
-  // studio, elles n'ont rien à faire dans celle des tournées.
-  { titre:'Recording',
-    fond:'#f3ddd0', encre:'#791649', chip:'◉', chipFond:'#791649', chipEncre:'#FCF2F0',
-    chipTilt:'4deg', tilt:'.7deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#791649',
+  { titre:'Recording', fond:'#f3ddd0', encre:'#791649', chip:'◉',
     liens:[['Gérer les recordings','tournees.html?type=recording'],['Feuilles de studio','feuilles-de-route.html?type=recording']] },
-
-  { titre:'Disponibilités',
-    fond:'#FEC9E0', encre:'#791649', chip:'✓', chipFond:'#EC4B15', chipEncre:'#FCF2F0',
-    chipTilt:'5deg', tilt:'.9deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#791649',
+  { titre:'Disponibilités', fond:'#FEC9E0', encre:'#791649', chip:'✓',
     liens:[['Demandes titulaires','suivi-dispo.html'],['Tableau de service','recap.html'],['Documents','documents.html']] },
-
-  { titre:'Direction technique',
-    fond:'#141617', encre:'#FCF2F0', chip:'⚙', chipFond:'#FCF2F0', chipEncre:'#141617',
-    chipTilt:'-5deg', tilt:'-.8deg', lienFond:'rgba(252,242,240,.19)', lienEncre:'#FCF2F0',
+  { titre:'Direction technique', fond:'#141617', encre:'#FCF2F0', chip:'⚙',
     liens:[['Tableau de bord','technique-taches.html'],['Avancement par date','technique.html'],['Salles','salles.html'],['Matériel','materiel.html'],['Véhicules & chauffeurs','vehicules.html'],['Fiches techniques','fiches-techniques.html'],['Partage','partage.html'],['Page salle publique','page-salle.html']] },
-
-  { titre:'Annuaires',
-    fond:'#791649', encre:'#FCF2F0', chip:'☎', chipFond:'#FEC9E0', chipEncre:'#791649',
-    chipTilt:'5deg', tilt:'1deg', lienFond:'rgba(252,242,240,.19)', lienEncre:'#FCF2F0',
+  { titre:'Annuaires', fond:'#791649', encre:'#FCF2F0', chip:'☎',
     liens:[['Musicien·nes','annuaire.html'],['Technicien·nes','techniciens.html'],['Remplacements','remplacements.html'],['Infos sociales','infos-sociales.html']] },
-
-  // Le budget a sa tuile : chiffrer est un travail de production, pas un
-  // réglage. La porte reste celle des comptes 'admin' (voir budget.html).
-  { titre:'Budget',
-    fond:'#CEE1F4', encre:'#3d5876', chip:'€', chipFond:'#3d5876', chipEncre:'#FCF2F0',
-    chipTilt:'4deg', tilt:'.6deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#3d5876',
+  { titre:'Budget', fond:'#CEE1F4', encre:'#3d5876', chip:'€',
     liens:[['Tableau de bord','budget.html'],['Devis et budgets','devis.html'],['Clients','devis-clients.html']] },
-
-  { titre:'Administration',
-    fond:'#EC4B15', encre:'#FCF2F0', chip:'⚿', chipFond:'#FCF2F0', chipEncre:'#EC4B15',
-    chipTilt:'-5deg', tilt:'-.9deg', lienFond:'rgba(252,242,240,.22)', lienEncre:'#FCF2F0',
+  { titre:'Administration', fond:'#EC4B15', encre:'#FCF2F0', chip:'⚿',
     liens:[['Tableau de bord admin','admin-dashboard.html']] },
 ];
 
-/* La planche lisait sa propre liste de liens, distincte de celle du bandeau.
-   Les deux ont divergé : cinq écrans que le bandeau proposait manquaient ici
-   (Invitations, Partitions, Messages, Plateau par date, Suivi des dépenses).
+// La nuit, les aplats de la charte sont trop saturés pour une pastille et
+// trop clairs pour teinter une carte sombre : chacun a sa version assombrie.
+const HOME_SOMBRE = {
+  '#791649':'#4c0f2e', '#CEE1F4':'#26364a', '#FEC9E0':'#4e2a3c',
+  '#EC4B15':'#7e2a0c', '#141617':'#2a2d30', '#f3ddd0':'#3a2a22', '#FCF2F0':'#2b2023',
+};
 
-   Avec le menu v2, la planche lit le modèle du bandeau — les tuiles sont ses
-   cinq menus, les portes ses entrées, et la divergence redevient impossible.
-   Avec le menu v1 (CURIEUX_NAV_DEFAUT = 'v1', ou ?nav=v1), la liste ci-dessus
-   reprend la main telle quelle.
-
-   Deux temps, comme le bandeau : d'abord ce qui est ouvert à tout le monde,
-   puis les tuiles réservées (Technique, Gestion) une fois les droits connus.
-   Une tuile qui apparaît ne dérange personne ; une tuile qui disparaît sous
-   les yeux, si. Voir curieuxHomeSectionsAutorisees dans assets/nav.js. */
+// Avec le menu v2, la planche lit le modèle du bandeau : mêmes sections,
+// mêmes groupes, mêmes droits (voir curieuxHomeSections dans assets/nav.js).
+// D'abord ce qui est ouvert à tout le monde, puis les portes réservées quand
+// la base a répondu — on ajoute une porte, on n'en retire jamais sous les yeux.
 let HOME_SECTIONS = (typeof curieuxHomeSections === 'function')
   ? curieuxHomeSections(HOME_SECTIONS_V1)
   : HOME_SECTIONS_V1;
 
-// En thème sombre, les aplats de la charte sont trop saturés pour couvrir un
-// écran entier : on les assombrit, et toutes les encres passent au blanc cassé.
-// Le contour, lui, suit var(--card) — l'étiquette reste découpée.
-const HOME_SOMBRE = {
-  '#791649':'#4c0f2e', '#CEE1F4':'#26364a', '#FEC9E0':'#4e2a3c',
-  '#EC4B15':'#7e2a0c', '#141617':'#101112',
-  // Le sable de l'étiquette Recording manquait à l'appel : la nuit, son aplat
-  // restait clair pendant que l'encre passait au blanc cassé — un titre blanc
-  // sur fond crème, illisible, et deux portes qui disparaissaient avec lui.
-  '#f3ddd0':'#3a2a22',
-  // Le blanc cassé doit être traduit lui aussi : la nuit, toutes les encres
-  // passent au blanc cassé, donc un aplat resté blanc donnait du blanc sur
-  // blanc — c'est ce qui rendait invisibles la première tuile de chiffre clé et
-  // les pastilles d'icône blanches (⚙ technique, ⚿ administration).
-  '#FCF2F0':'#2b2023',
-};
+const AUJOURDHUI = new Date().toISOString().slice(0, 10);
+const ANNEE = AUJOURDHUI.slice(0, 4);
+const avecAnnee = (texte, iso)=> (String(iso).slice(0, 4) === ANNEE ? texte : texte + ' ' + String(iso).slice(0, 4));
+const pl = (n, un, plusieurs)=> (n > 1 ? plusieurs : un);
+const reduit = ()=> !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-// Inclinaisons des mini-tuiles de chiffres clés, dans l'ordre.
-function sombre(){ return document.documentElement.getAttribute('data-theme') === 'dark'; }
-
-function stickerHtml(sec, nuit){
-  const fond = nuit ? (HOME_SOMBRE[sec.fond] || sec.fond) : sec.fond;
-  const encre = nuit ? '#FCF2F0' : sec.encre;
-  const lienFond = nuit ? 'rgba(252,242,240,.16)' : sec.lienFond;
-  const lienEncre = nuit ? '#FCF2F0' : sec.lienEncre;
-  const chipFond = nuit ? (HOME_SOMBRE[sec.chipFond] || sec.chipFond) : sec.chipFond;
-  const chipEncre = nuit ? '#FCF2F0' : sec.chipEncre;
-  return `<section class="co-sticker${sec.wide ? ' wide' : ''}" style="--co-tilt:${sec.tilt}; background:${fond};">
-    <div class="home-sticker-head">
-      <span class="co-badge" style="--co-tilt:${sec.chipTilt}; background:${chipFond}; color:${chipEncre};" aria-hidden="true">${sec.chip}</span>
-      <h2 class="co-sticker-title" style="color:${encre};">${escapeHtml(sec.titre)}</h2>
-    </div>
-    <div class="home-links">${sec.liens.map(([label, href])=>
-      `<a href="${href}" style="background:${lienFond}; color:${lienEncre};">${escapeHtml(label)}</a>`
-    ).join('')}</div>
-  </section>`;
+// Un chiffre qui se compte jusqu'à sa valeur, en deux tiers de seconde. Coupé
+// quand le système demande moins de mouvement — le nombre s'écrit d'un coup.
+function compter(el, valeur){
+  const fin = Math.max(0, Math.round(Number(valeur) || 0));
+  if(!el) return;
+  if(reduit() || fin === 0){ el.textContent = String(fin); return; }
+  const debut = performance.now(), duree = 650;
+  const pas = (t)=>{
+    const p = Math.min(1, (t - debut) / duree);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = String(Math.round(fin * e));
+    if(p < 1) requestAnimationFrame(pas);
+  };
+  requestAnimationFrame(pas);
 }
 
-function renderBoard(){
-  const nuit = sombre();
-  document.getElementById('homeBoard').innerHTML =
-    HOME_SECTIONS.map(sec=> stickerHtml(sec, nuit)).join('');
+// --- Bonjour -----------------------------------------------------------------
+// Le prénom de qui vient d'ouvrir la page, tiré de son adresse (michel@… →
+// Michel) : il n'y a pas de champ nom sur les comptes de l'équipe.
+function poserDate(){
+  const el = document.getElementById('homeDate');
+  const texte = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  el.textContent = texte.charAt(0).toUpperCase() + texte.slice(1);
 }
-
-// --- Bonjour ---------------------------------------------------------------
-// Le prénom de qui vient d'ouvrir la page, tiré de son adresse : la seule
-// chose que l'accueil sache dire de personnel, et la seule qui vaille.
 async function poserSalutation(){
+  const h = new Date().getHours();
+  const mot = (h >= 18 || h < 5) ? 'Bonsoir' : 'Bonjour';
+  const el = document.getElementById('homeGreeting');
+  el.textContent = mot;
   if(typeof CurieuxDB === 'undefined' || !CurieuxDB.getSession) return;
   try{
     const session = await CurieuxDB.getSession();
     const email = session && session.user && session.user.email;
     if(!email) return;
-    // Le prénom se déduit de la partie locale de l'email (michel@… → Michel) :
-    // il n'y a pas de champ nom sur les comptes admin.
     const prenom = email.split('@')[0].split(/[._-]/)[0];
-    document.getElementById('homeGreeting').textContent =
-      'Salut ' + prenom.charAt(0).toUpperCase() + prenom.slice(1);
+    el.textContent = mot + ' ' + prenom.charAt(0).toUpperCase() + prenom.slice(1);
   }catch(e){}
 }
 
-renderBoard();
-poserSalutation();
+// --- Les sections ------------------------------------------------------------
+// Une touche de régie par écran (voir .co-navkey dans base.css) : le voyant,
+// puis le libellé.
+function toucheHtml(label, lien){
+  return `<a class="co-navkey" href="${escapeAttr(lien)}">
+    <span class="co-navkey-cap"><span class="co-navkey-led" aria-hidden="true"></span>${escapeHtml(label)}</span></a>`;
+}
+function porteHtml(sec, i){
+  const fond = sec.fond || '#CEE1F4';
+  const groupes = (sec.groupes && sec.groupes.length) ? sec.groupes : [{ titre:'', liens:sec.liens || [] }];
+  const href = sec.href || ((sec.liens || [])[0] || [])[1] || '#';
+  return `<article class="home-porte" data-section="${escapeAttr(sec.titre)}"
+      style="--porte:${fond}; --porte-encre:${sec.encre || '#141617'}; --porte-nuit:${HOME_SOMBRE[fond] || fond};">
+    <a class="home-porte-tete" href="${escapeAttr(href)}">
+      <span class="co-badge" aria-hidden="true">${sec.chip || '·'}</span>
+      <span style="min-width:0;">
+        <h3>${escapeHtml(sec.titre)}</h3>
+        ${sec.accroche ? `<p class="home-porte-accroche">${escapeHtml(sec.accroche)}</p>` : ''}
+      </span>
+    </a>
+    <div class="home-porte-groupes">${groupes.map(g => `
+      <div class="home-porte-groupe">
+        ${g.titre ? `<p class="home-porte-groupe-titre">${escapeHtml(g.titre)}</p>` : ''}
+        <div class="co-navkeys">${g.liens.map(([label, lien])=> toucheHtml(label, lien)).join('')}</div>
+      </div>`).join('')}
+    </div>
+    <p class="home-porte-chiffre" data-chiffre="${escapeAttr(sec.titre)}" hidden></p>
+  </article>`;
+}
 
-// Les tuiles réservées arrivent quand la base a répondu. Un échec les laisse
+function renderBoard(){
+  document.getElementById('homeBoard').innerHTML = HOME_SECTIONS.map(porteHtml).join('');
+  poserChiffresSections();
+}
+
+// Ce que chaque carte de section dit de vivant, une fois les données lues.
+let CHIFFRES_SECTIONS = {};
+function poserChiffresSections(){
+  document.querySelectorAll('[data-chiffre]').forEach(el => {
+    const c = CHIFFRES_SECTIONS[el.getAttribute('data-chiffre')];
+    if(!c){ el.hidden = true; return; }
+    el.hidden = false;
+    el.innerHTML = c.map(([n, label])=> (n == null ? '' : `<b data-n="${escapeAttr(String(n))}">${escapeHtml(String(n))}</b> `) + escapeHtml(label)).join(' <span aria-hidden="true">·</span> ');
+    // Le chiffre se compte à la première apparition seulement : un redessin
+    // (droits arrivés) ne doit pas le faire repartir de zéro.
+    if(!el.dataset.compte){
+      el.dataset.compte = '1';
+      el.querySelectorAll('b').forEach(b => compter(b, b.getAttribute('data-n')));
+    }
+  });
+}
+
+// --- Les données -------------------------------------------------------------
+// Chaque lecture peut échouer (droit refusé, base injoignable) sans rien
+// casser : une liste vide, et le bloc concerné dit simplement qu'il n'a rien.
+function lire(table){
+  if(typeof CurieuxDB === 'undefined' || !CurieuxDB.fetchAll) return Promise.resolve([]);
+  return Promise.resolve(CurieuxDB.fetchAll(table)).then(l => Array.isArray(l) ? l : []).catch(()=> []);
+}
+
+// Les dates à venir de tous les projets, non annulées, avec leur projet.
+function datesAVenir(tournees){
+  const liste = [];
+  tournees.forEach(t => (t.dates || []).forEach(d => {
+    if(!d.date || d.date < AUJOURDHUI || estAnnulee(d)) return;
+    liste.push(Object.assign({}, d, { projet:t }));
+  }));
+  liste.sort((a, b)=> a.date.localeCompare(b.date));
+  return liste;
+}
+
+function lienProjet(t){
+  return t && t.type === 'recording' ? 'tournees.html?type=recording' : 'tournees.html';
+}
+function lieuDe(d){
+  return [d.ville, d.lieu].filter(Boolean).join(' — ') || 'Lieu à préciser';
+}
+
+// L'étiquette de la prochaine date. Le mot d'en-tête suit le statut : une
+// option n'est pas une date, et une date à l'étude encore moins.
+function poserProchaine(prochaine){
+  const el = document.getElementById('homeProchaine');
+  if(!prochaine){
+    el.classList.add('vide');
+    el.href = 'tournees.html';
+    el.innerHTML = `<p class="home-prochaine-eyebrow">Prochaine date</p>
+      <p class="home-prochaine-j mot">Rien de posé</p>
+      <p class="home-prochaine-projet">Aucune date à venir pour l’instant.</p>
+      <p class="home-prochaine-ou">Ouvrir les tournées</p>`;
+    return;
+  }
+  const s = statutDate(prochaine);
+  const entete = s === 'validee' ? 'Prochaine date' : s === 'option' ? 'Prochaine option' : 'Prochaine date à l’étude';
+  const reste = daysBetween(AUJOURDHUI, prochaine.date);
+  const compte = reste === 0 ? 'Aujourd’hui' : reste === 1 ? 'Demain' : 'J-' + reste;
+  const jour = avecAnnee(CurieuxSelection.jourLong(prochaine.date), prochaine.date);
+  el.href = lienProjet(prochaine.projet);
+  el.innerHTML = `<p class="home-prochaine-eyebrow">${escapeHtml(entete)}</p>
+    <p class="home-prochaine-j${reste <= 1 ? ' mot' : ''}">${reste <= 1 ? escapeHtml(compte) : 'J-<span data-j>0</span>'}</p>
+    <p class="home-prochaine-quand">${escapeHtml(jour.charAt(0).toUpperCase() + jour.slice(1))}</p>
+    <p class="home-prochaine-ou">${escapeHtml(lieuDe(prochaine))}</p>
+    <p class="home-prochaine-projet">${escapeHtml(prochaine.projet.nom || 'Projet sans nom')}</p>
+    <span class="co-pill ${pillStatut(prochaine)}">${escapeHtml(courtStatut(prochaine))}</span>`;
+  const j = el.querySelector('[data-j]');
+  if(j) compter(j, reste);
+}
+
+// Les quatre chiffres sous le bonjour : chacun ouvre la page qui le détaille.
+function poserChips(stats){
+  const items = [
+    [stats.projets, pl(stats.projets, 'projet en cours', 'projets en cours'), 'tournees.html', ''],
+    [stats.aVenir, pl(stats.aVenir, 'date à venir', 'dates à venir'), 'recap.html', ''],
+    [stats.validees, pl(stats.validees, 'validée', 'validées'), 'recap.html', ''],
+    [stats.aConfirmer, 'à confirmer', 'recap.html', stats.aConfirmer ? 'att' : ''],
+  ];
+  const ul = document.getElementById('homeChips');
+  ul.removeAttribute('aria-busy');
+  ul.innerHTML = items.map(([n, label, href, classe])=>
+    `<li><a class="home-chip ${classe}" href="${href}"><b>0</b>${escapeHtml(label)}</a></li>`).join('');
+  ul.querySelectorAll('b').forEach((b, i)=> compter(b, items[i][0]));
+}
+
+// Les prochaines dates : six au plus, le jour en tuile, le projet en dessous.
+function poserDates(aVenir){
+  const ol = document.getElementById('homeDates');
+  const six = aVenir.slice(0, 6);
+  if(!six.length){
+    ol.innerHTML = `<li><p class="home-calme" style="padding:6px 8px;"><i>♩</i><span>Aucune date à venir. Les prochaines s’ajoutent depuis les tournées.</span></p></li>`;
+    return;
+  }
+  ol.innerHTML = six.map(d => {
+    const reste = daysBetween(AUJOURDHUI, d.date);
+    const [, m, j] = d.date.split('-');
+    const mois = CurieuxSelection.MOIS_COURTS[parseInt(m, 10) - 1] || '';
+    const semaine = CurieuxSelection.jourLong(d.date).split(' ')[0];
+    const quand = reste === 0 ? '<em>Aujourd’hui</em>' : reste === 1 ? '<em>Demain</em>'
+      : escapeHtml(avecAnnee(semaine + ' ' + CurieuxSelection.jourCourt(d.date), d.date));
+    const projet = d.projet.nom || 'Projet sans nom';
+    return `<li><a class="home-date-ligne${reste <= 7 ? ' proche' : ''}" href="${lienProjet(d.projet)}">
+      <span class="home-date-jour" aria-hidden="true"><b>${parseInt(j, 10)}</b><small>${escapeHtml(mois)}</small></span>
+      <span class="home-date-texte">
+        <b>${escapeHtml(lieuDe(d))}</b>
+        <small>${quand} · ${escapeHtml(projet)}</small>
+      </span>
+      <span class="co-pill ${pillStatut(d)}">${escapeHtml(courtStatut(d))}</span>
+    </a></li>`;
+  }).join('');
+}
+
+// Ce qui attend une action. Chaque ligne ne s'affiche que si elle compte
+// quelque chose : un accueil qui liste des zéros ne rassure personne.
+function poserSuivre(points){
+  const el = document.getElementById('homeSuivre');
+  const utiles = points.filter(p => p.n > 0);
+  if(!utiles.length){
+    el.innerHTML = `<p class="home-calme"><i>✓</i><span>Rien n’attend de réponse pour l’instant. Bonne journée.</span></p>`;
+    return;
+  }
+  el.innerHTML = `<ul class="home-suivre">${utiles.map(p =>
+    `<li><a href="${p.href}" class="${p.sev || ''}"><b>0</b><span>${escapeHtml(p.label)}${p.sous ? `<small>${escapeHtml(p.sous)}</small>` : ''}</span><i aria-hidden="true"></i></a></li>`
+  ).join('')}</ul>`;
+  el.querySelectorAll('b').forEach((b, i)=> compter(b, utiles[i].n));
+}
+
+// Les tâches techniques en retard, calculées comme sur le tableau de bord
+// technique : l'échéance d'une tâche rattachée à une date se compte en jours
+// avant cette date (t.j), sinon c'est la date d'échéance posée à la main.
+function tachesEnRetard(taches, tournees){
+  const dates = {};
+  tournees.forEach(t => (t.dates || []).forEach(d => { if(d.id) dates[d.id] = d; }));
+  return taches.filter(t => {
+    if(t.fait || t.genre !== 'technique') return false;
+    let ech = t.echeance || '';
+    if(t.dateId && dates[t.dateId] && dates[t.dateId].date){
+      ech = addDaysIso(dates[t.dateId].date, -(t.j || 0));
+    }
+    return ech && ech < AUJOURDHUI;
+  }).length;
+}
+
+async function charger(){
+  const [tournees, fdr, demandes, musiciens, techniciens] = await Promise.all([
+    lire('tournees'), lire('feuilles_route'), lire('dispo_demandes'), lire('musiciens'), lire('techniciens'),
+  ]);
+  const aVenir = datesAVenir(tournees);
+  const projetsEnCours = new Set(aVenir.map(d => d.projet.id));
+  const sous30 = aVenir.filter(d => daysBetween(AUJOURDHUI, d.date) <= 30);
+  const datesAvecFdr = new Set(fdr.map(f => f.eventDate).filter(Boolean));
+
+  const stats = {
+    projets: projetsEnCours.size,
+    aVenir: aVenir.length,
+    validees: aVenir.filter(estValidee).length,
+    aConfirmer: aVenir.filter(estHypothese).length,
+  };
+  poserChips(stats);
+  poserProchaine(aVenir[0] || null);
+  poserDates(aVenir);
+
+  const optionsProches = sous30.filter(estHypothese).length;
+  const fdrManquantes = sous30.filter(d => estValidee(d) && !datesAvecFdr.has(d.date)).length;
+  // Une demande sans aucune réponse, sur un projet qui a encore des dates à
+  // venir : les projets passés ne réclament plus rien.
+  const sansReponse = demandes.filter(d => !d.lastRespondedAt && projetsEnCours.has(d.tourneeId)).length;
+
+  const points = [
+    { n:optionsProches, label:pl(optionsProches, 'option à confirmer', 'options à confirmer'), sous:'sous trente jours', href:'recap.html', sev:'' },
+    { n:sansReponse, label:pl(sansReponse, 'demande de dispo sans réponse', 'demandes de dispo sans réponse'), sous:'sur les projets en cours', href:'suivi-dispo.html', sev:'' },
+    { n:fdrManquantes, label:pl(fdrManquantes, 'feuille de route à créer', 'feuilles de route à créer'), sous:'date validée sous trente jours', href:'feuilles-de-route.html', sev:'' },
+  ];
+
+  CHIFFRES_SECTIONS = {
+    'Production': [[stats.projets, pl(stats.projets, 'projet en cours', 'projets en cours')]],
+    'Distribution': sansReponse
+      ? [[sansReponse, pl(sansReponse, 'demande de dispo sans réponse', 'demandes de dispo sans réponse')]]
+      : [[null, 'Toutes les demandes de dispo ont une réponse']],
+    'Annuaires': [
+      [musiciens.length, pl(musiciens.length, 'musicien·ne', 'musicien·nes')],
+      [techniciens.length, pl(techniciens.length, 'technicien·ne', 'technicien·nes')],
+    ],
+    'Tournées': [[stats.projets, pl(stats.projets, 'projet en cours', 'projets en cours')]],
+  };
+  poserChiffresSections();
+
+  // Ce qui relève de la direction technique ne se lit que si l'on y a droit :
+  // la base refuserait de toute façon, autant ne pas le demander.
+  let technique = false;
+  try{ if(typeof curieuxDroitAccorde === 'function') technique = await curieuxDroitAccorde('technique'); }catch(e){}
+  if(technique){
+    const [taches, remarques] = await Promise.all([lire('comm_taches'), lire('remarques')]);
+    const retard = tachesEnRetard(taches, tournees);
+    const aTraiter = remarques.filter(r => !r.traitee).length;
+    points.push(
+      { n:retard, label:pl(retard, 'tâche technique en retard', 'tâches techniques en retard'), sous:'', href:'technique-taches.html', sev:'ko' },
+      { n:aTraiter, label:pl(aTraiter, 'remarque de salle à traiter', 'remarques de salle à traiter'), sous:'reçue depuis un lien partagé', href:'technique-taches.html', sev:'' },
+    );
+    CHIFFRES_SECTIONS['Technique'] = retard
+      ? [[retard, pl(retard, 'tâche en retard', 'tâches en retard')]]
+      : [[aVenir.filter(estValidee).length, pl(stats.validees, 'date validée à préparer', 'dates validées à préparer')]];
+    CHIFFRES_SECTIONS['Direction technique'] = CHIFFRES_SECTIONS['Technique'];
+    poserChiffresSections();
+  }
+  poserSuivre(points);
+}
+
+// --- Ce qui a changé -----------------------------------------------------------
+// Les trois dernières livraisons, en titres : le bouton rouvre la fenêtre
+// complète (assets/nouveautes.js), la même que celle qui s'ouvre après une
+// mise à jour — on ne dessine pas une deuxième liste.
+function poserNouveautes(){
+  if(typeof CURIEUX_NOUVEAUTES === 'undefined' || !CURIEUX_NOUVEAUTES.length) return;
+  const bloc = document.getElementById('homeNouveauBloc');
+  const ul = document.getElementById('homeNouveau');
+  const recentes = CURIEUX_NOUVEAUTES.slice().sort((a, b)=> (a.version < b.version ? 1 : -1)).slice(0, 3);
+  const jour = (v)=>{
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v || '');
+    if(!m) return '';
+    const d = new Date(`${m[1]}-${m[2]}-${m[3]}T12:00:00`);
+    return isNaN(d) ? '' : d.toLocaleDateString('fr-FR', { day:'numeric', month:'short' });
+  };
+  ul.innerHTML = recentes.map(e =>
+    `<li><time>${escapeHtml(jour(e.version))}</time><span>${escapeHtml(e.titre || (e.points || [''])[0])}</span></li>`).join('');
+  bloc.hidden = false;
+  document.getElementById('homeNouveauBtn').addEventListener('click', ()=>{
+    if(typeof ouvrirNouveautes === 'function') ouvrirNouveautes(CURIEUX_NOUVEAUTES.slice());
+  });
+}
+
+// --- Départ ------------------------------------------------------------------
+poserDate();
+poserSalutation();
+renderBoard();
+poserNouveautes();
+charger().catch(e => console.warn('[accueil]', e && e.message ? e.message : e));
+
+// Les portes réservées arrivent quand la base a répondu. Un échec les laisse
 // absentes : on ne propose pas une porte dont on ne sait pas si elle s'ouvre.
+// On compare ce qui s'affiche, pas le nombre de sections : un compte admin
+// gagne aussi des entrées à l'intérieur d'une section ouverte à tous.
+const empreinte = (liste)=> liste.map(s => s.titre + ':' + (s.liens || []).map(l => l[1]).join(',')).join('|');
 if(typeof curieuxHomeSectionsAutorisees === 'function'){
   curieuxHomeSectionsAutorisees(HOME_SECTIONS_V1).then(liste => {
-    if(liste.length === HOME_SECTIONS.length) return;
+    if(empreinte(liste) === empreinte(HOME_SECTIONS)) return;
     HOME_SECTIONS = liste;
     renderBoard();
   }).catch(()=>{});
 }
-// Le thème peut basculer après le rendu (bascule du bandeau, thème système) :
-// les aplats de la charte sont posés en style inline, il faut donc redessiner.
-new MutationObserver(renderBoard).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
 setInterval(applyAutoTheme, 5 * 60 * 1000);
 </script>
 </body>

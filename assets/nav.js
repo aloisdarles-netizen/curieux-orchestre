@@ -166,7 +166,7 @@ const CURIEUX_SECTIONS = [
     { libelle:'Clients', href:'devis-clients.html', pages:['devis-clients.html'] },
   ]},
   // Réservée aux comptes 'admin' : elle n'entre dans le bandeau qu'après
-  // vérification (voir ajouterEntreesReservees), pour éviter d'afficher à toute
+  // vérification (voir appliquerDroits), pour éviter d'afficher à toute
   // l'équipe une porte qui lui serait refusée.
   { libelle:'Admin', href:'admin-dashboard.html', admin:true, entrees:[
     { libelle:'Tableau de bord', href:'admin-dashboard.html', pages:['admin-dashboard.html'] },
@@ -205,18 +205,33 @@ const CURIEUX_SECTIONS_V2 = [
      survit à l'opération, d'où son propre groupe « Bibliothèque » et non une
      place à la suite des feuilles de route. */
   { libelle:'Production', href:'tournees.html',
+    accroche:'Tournées, recordings, feuilles de route, partitions : tout ce qui se date et se joue.',
     sticker:{ fond:'#CEE1F4', encre:'#791649', chip:'♩', chipFond:'#791649', chipEncre:'#FCF2F0', chipTilt:'-6deg', tilt:'-1.1deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#791649' },
     entrees:[
-      { groupe:'Tournées', libelle:'Gérer les tournées', href:'tournees.html', pages:['tournees.html'] },
+      /* « Gérer les » est tombé, sur les deux entrées. Dans le déroulant,
+         l'intitulé de groupe dit déjà « Tournées » : le verbe ne distinguait
+         rien. Dans le sous-menu, où il n'y a pas d'intitulé de groupe, il
+         coûtait 148 px — exactement ce qui faisait passer le sous-menu de
+         Production sur deux lignes pour un compte admin à 1440 px, soit 108 px
+         de bandeau collant au lieu de 61 sur chaque écran de production. */
+      { groupe:'Tournées', libelle:'Tournées', href:'tournees.html', pages:['tournees.html'] },
       { groupe:'Tournées', libelle:'Feuilles de route', href:'feuilles-de-route.html', pages:['feuilles-de-route.html','feuille-de-route.html'] },
       // Mêmes pages que les tournées, filtrées par ?type=recording : mêmes
       // dates, mêmes affectations, mêmes feuilles, seul le vocabulaire change
       // (voir CURIEUX_VOCABULAIRE).
-      { groupe:'Recording', libelle:'Gérer les recordings', href:'tournees.html?type=recording', pages:['tournees.html?type=recording'] },
+      { groupe:'Recording', libelle:'Recordings', href:'tournees.html?type=recording', pages:['tournees.html?type=recording'] },
       { groupe:'Recording', libelle:'Feuilles de studio', href:'feuilles-de-route.html?type=recording', pages:['feuilles-de-route.html?type=recording','feuille-de-route.html?type=recording'] },
       { groupe:'Autour de la date', libelle:'Invitations', href:'invitations.html', pages:['invitations.html'] },
       { groupe:'Autour de la date', libelle:'Journal des changements', href:'newsletter.html', pages:['newsletter.html'] },
       { groupe:'Bibliothèque', libelle:'Partitions', href:'partitions.html', pages:['partitions.html','partitions.html?type=recording'] },
+      /* « Devis et budgets » et « Suivi des dépenses » ont fait un aller-retour
+         par ici, au motif que chiffrer un projet est un travail de production.
+         L'argument tient, mais il coûtait plus qu'il ne rapportait : le budget
+         se retrouvait coupé en deux, la moitié sous Production et l'autre dans
+         un menu Gestion, et on ne savait plus où chercher un chiffre. Un devis
+         se monte avec le tableau de bord sous les yeux et se solde au suivi des
+         dépenses : les quatre écrans se tiennent, ils restent ensemble.
+         Voir la section Budget plus bas. */
     ]},
 
   /* DISTRIBUTION — qui joue quoi, quand.
@@ -226,6 +241,7 @@ const CURIEUX_SECTIONS_V2 = [
      lecture : le tableau croisé pour décider, la feuille par date pour le dire
      à quelqu'un d'extérieur. */
   { libelle:'Distribution', href:'recap.html',
+    accroche:'Qui joue quoi, et quand : le tableau de service, les disponibilités, les messages à l’équipe.',
     sticker:{ fond:'#FEC9E0', encre:'#791649', chip:'✓', chipFond:'#EC4B15', chipEncre:'#FCF2F0', chipTilt:'5deg', tilt:'.9deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#791649' },
     entrees:[
       { groupe:'Décider', libelle:'Tableau de service', href:'recap.html', pages:['recap.html'] },
@@ -249,6 +265,7 @@ const CURIEUX_SECTIONS_V2 = [
      toute l'équipe huit portes dont aucune ne s'ouvrait. À plat, ça passait
      presque inaperçu ; un déroulant de huit refus, non. */
   { libelle:'Technique', href:'technique-taches.html', droit:'technique',
+    accroche:'Salles, matériel, véhicules, fiches techniques : la logistique de chaque date.',
     sticker:{ fond:'#141617', encre:'#FCF2F0', chip:'⚙', chipFond:'#FCF2F0', chipEncre:'#141617', chipTilt:'-5deg', tilt:'-.8deg', lienFond:'rgba(252,242,240,.19)', lienEncre:'#FCF2F0' },
     entrees:[
       // Le tableau de bord en tête : la page Avancement dit l'état, le tableau
@@ -269,6 +286,7 @@ const CURIEUX_SECTIONS_V2 = [
      tenues par les titulaires, donc une propriété des fiches, pas un acte de
      distribution. */
   { libelle:'Annuaires', href:'annuaire.html',
+    accroche:'Les fiches des musicien·nes et des technicien·nes, les remplacements, le cadre social.',
     sticker:{ fond:'#791649', encre:'#FCF2F0', chip:'☎', chipFond:'#FEC9E0', chipEncre:'#791649', chipTilt:'5deg', tilt:'1deg', lienFond:'rgba(252,242,240,.19)', lienEncre:'#FCF2F0' },
     entrees:[
       { groupe:'Personnes', libelle:'Musicien·nes', href:'annuaire.html', pages:['annuaire.html'] },
@@ -277,30 +295,52 @@ const CURIEUX_SECTIONS_V2 = [
       { groupe:'Cadre social', libelle:'Infos sociales', href:'infos-sociales.html', pages:['infos-sociales.html'] },
     ]},
 
-  /* GESTION — réservée aux comptes 'admin' (voir requireSuperAdminAuth sur
-     chaque page) : les cachets et les marges ne se montrent pas à toute
-     l'équipe.
+  /* BUDGET — les quatre écrans de l'argent, ensemble et dans l'ordre où on
+     les ouvre : on regarde où en est le projet, on monte le devis, on suit ce
+     qu'il consomme, et le client est la fiche qui va avec.
 
-     Fusionne l'ex-« Budget » et l'ex-« Admin », qui n'avait qu'un seul écran —
-     une entrée de niveau 1 pour une page, c'était le symptôme le plus net de
-     la rangée plate.
+     Ils l'avaient été coupés en deux — le chiffrage sous Production, le
+     tableau de bord et les clients sous un menu « Gestion » — au motif que
+     chiffrer est un travail de production. L'argument est juste et ne suffit
+     pas : un budget qui se cherche dans deux menus ne se cherche pas, il
+     s'oublie. Le menu se lit d'un bloc ou ne sert à rien.
 
-     Placée en dernier, et c'est délibéré : le rôle se lit de façon asynchrone
-     (isSuperAdmin), donc ce menu apparaît après le premier rendu. En bout de
-     bandeau, rien de ce qui précède ne se décale sous le curseur.
+     Pas d'intitulés de groupe : quatre entrées qui se suivent dans l'ordre du
+     travail n'ont rien à séparer.
 
-     « Clients » reste ici plutôt que de rejoindre les Annuaires, dont c'est
-     pourtant un : devis-clients.html est sous requireSuperAdminAuth, le
-     déplacer créerait un menu à permissions mixtes où une entrée sur cinq
-     renvoie une porte fermée. */
-  { libelle:'Gestion', href:'budget.html', droit:'admin',
-    sticker:{ fond:'#EC4B15', encre:'#FCF2F0', chip:'€', chipFond:'#FCF2F0', chipEncre:'#EC4B15', chipTilt:'-5deg', tilt:'-.9deg', lienFond:'rgba(252,242,240,.22)', lienEncre:'#FCF2F0' },
+     Réservée aux comptes 'admin' (requireSuperAdminAuth sur chacune des quatre
+     pages) : les cachets et les marges ne se montrent pas à toute l'équipe.
+     Le rôle se lisant de façon asynchrone, le menu apparaît après le premier
+     rendu — d'où sa place en fin de bandeau, où rien de ce qui précède ne se
+     décale sous le curseur.
+
+     « Clients » est ici plutôt qu'aux Annuaires, dont c'en est pourtant un :
+     devis-clients.html est sous la même porte réservée, le déplacer créerait
+     un menu à permissions mixtes où une entrée sur cinq serait refusée. */
+  { libelle:'Budget', href:'budget.html', droit:'admin',
+    accroche:'Vue d’ensemble, devis, suivi des dépenses, clients : l’argent de chaque projet, dans l’ordre où on le travaille.',
+    sticker:{ fond:'#f3ddd0', encre:'#3d5876', chip:'€', chipFond:'#3d5876', chipEncre:'#FCF2F0', chipTilt:'4deg', tilt:'.6deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#3d5876' },
     entrees:[
-      { groupe:'Budget', libelle:'Tableau de bord', href:'budget.html', pages:['budget.html'] },
-      { groupe:'Budget', libelle:'Devis et budgets', href:'devis.html', pages:['devis.html','devis-editeur.html'] },
-      { groupe:'Budget', libelle:'Suivi des dépenses', href:'suivi.html', pages:['suivi.html'] },
-      { groupe:'Budget', libelle:'Clients', href:'devis-clients.html', pages:['devis-clients.html'] },
-      { groupe:'Administration', libelle:'Comptes et accès', href:'admin-dashboard.html', pages:['admin-dashboard.html'] },
+      { libelle:'Vue d’ensemble', href:'budget.html', pages:['budget.html'] },
+      { libelle:'Devis et budgets', href:'devis.html', pages:['devis.html','devis-editeur.html'] },
+      { libelle:'Suivi des dépenses', href:'suivi.html', pages:['suivi.html'] },
+      { libelle:'Clients', href:'devis-clients.html', pages:['devis-clients.html'] },
+    ]},
+
+  /* ADMIN — les comptes et leurs accès. Un seul écran, donc un lien simple et
+     pas un déroulant : ouvrir un menu pour y trouver une seule ligne est un
+     geste pour rien (voir construireEntreeBandeau).
+
+     Il avait été rangé sous « Gestion » avec le budget, pour éviter une entrée
+     de niveau 1 ne portant qu'une page. La raison ne tient plus : ce qui
+     rendait une telle entrée coûteuse, c'était une rangée de onze qui
+     débordait déjà. Il y en a cinq, et gérer des comptes n'est pas gérer de
+     l'argent — le ranger sous « Budget » serait un contresens de plus. */
+  { libelle:'Admin', href:'admin-dashboard.html', droit:'admin',
+    accroche:'Les comptes de l’équipe et leurs accès à l’outil.',
+    sticker:{ fond:'#EC4B15', encre:'#FCF2F0', chip:'⚿', chipFond:'#FCF2F0', chipEncre:'#EC4B15', chipTilt:'-5deg', tilt:'-.9deg', lienFond:'rgba(252,242,240,.22)', lienEncre:'#FCF2F0' },
+    entrees:[
+      { libelle:'Comptes et accès', href:'admin-dashboard.html', pages:['admin-dashboard.html'] },
     ]},
 ];
 
@@ -346,6 +386,23 @@ function curieuxDroitSection(sec){
   return sec.admin ? 'admin' : null;
 }
 
+/* Une ENTRÉE peut porter son propre droit, indépendamment de sa section.
+ *
+ * C'est ce qui permet à « Devis et budgets » et « Suivi des dépenses » de se
+ * ranger sous Production — chiffrer et suivre un projet sont un travail de
+ * production, pas un réglage de l'outil — tout en restant sous la même porte
+ * qu'avant, les comptes 'admin' seulement (requireSuperAdminAuth sur chacune
+ * des deux pages) : les cachets et les marges ne se montrent pas à toute
+ * l'équipe. Sans ce droit par entrée, les ranger dans un menu ouvert à tous
+ * aurait remis deux portes fermées dans la navigation, ce qu'on venait
+ * justement de retirer.
+ *
+ * À défaut, une entrée hérite du droit de sa section.
+ */
+function curieuxDroitEntree(entree, sec){
+  return entree.droit || curieuxDroitSection(sec);
+}
+
 /* Un droit se demande à la base une seule fois par page, quel que soit le
  * nombre d'endroits qui s'en servent : le bandeau, le panneau et l'accueil
  * partagent la même promesse. Sans réponse — page publique à jeton, session
@@ -370,68 +427,99 @@ function curieuxDroitAccorde(nom){
 
 // Les droits distincts d'une liste de sections, résolus en parallèle.
 async function curieuxDroitsAccordes(sections){
-  const noms = [...new Set(sections.map(curieuxDroitSection).filter(Boolean))];
+  const noms = new Set();
+  sections.forEach(sec => {
+    const d = curieuxDroitSection(sec);
+    if(d) noms.add(d);
+    (sec.entrees || []).forEach(e => { if(e.droit) noms.add(e.droit); });
+  });
   const accordes = {};
-  await Promise.all(noms.map(async n => { accordes[n] = await curieuxDroitAccorde(n); }));
+  await Promise.all([...noms].map(async n => { accordes[n] = await curieuxDroitAccorde(n); }));
   return accordes;
 }
 
-/* Les entrées réservées du bandeau (v1 : Budget, Admin ; v2 : Technique,
- * Gestion), ajoutées après coup.
+/* Ce que la base a répondu, ou null tant qu'elle n'a rien dit.
+ *
+ * Toutes les surfaces lisent cette variable — bandeau, sous-menu, panneau
+ * téléphone, recherche — au lieu d'aller regarder ce que le bandeau affiche
+ * déjà. Une porte proposée à un endroit et refusée à un autre, c'est le défaut
+ * qu'on a corrigé sur les écrans puis sur les droits : la seule façon de ne
+ * pas le refaire est qu'il n'y ait qu'un endroit où la question se pose.
+ */
+let CURIEUX_DROITS_RESOLUS = null;
+
+// null (pas de réponse) vaut refus : on n'affiche pas une porte dont on ne
+// sait pas si elle s'ouvre.
+function curieuxAccesAccorde(droit){
+  if(!droit) return true;
+  return !!(CURIEUX_DROITS_RESOLUS && CURIEUX_DROITS_RESOLUS[droit] === true);
+}
+
+/* Les entrées d'une section que ce compte peut voir.
+ *
+ * L'écran courant fait exception et s'affiche toujours : si on est dessus,
+ * c'est que le garde de la page a laissé passer — la question est tranchée,
+ * inutile d'attendre la base pour la reposer. C'est ce qui évite qu'en
+ * arrivant sur « Devis », le sous-menu s'affiche une fraction de seconde sans
+ * l'entrée où l'on se trouve.
+ */
+function curieuxEntreesVisibles(sec, page){
+  return (sec.entrees || []).filter(e =>
+    curieuxAccesAccorde(curieuxDroitEntree(e, sec))
+    || (page && (e.pages || [e.href]).includes(page)));
+}
+
+// Les sections du bandeau, même règle : la section courante passe toujours.
+function curieuxSectionsVisibles(sectionCourante){
+  return curieuxModele().filter(sec =>
+    curieuxAccesAccorde(curieuxDroitSection(sec)) || sec === sectionCourante);
+}
+
+/* Les portes réservées, une fois la base consultée.
  *
  * Le droit se lit côté base, donc de façon asynchrone : attendre cette réponse
  * avant de dessiner le bandeau ferait clignoter toute la navigation à chaque
- * page. On dessine donc sans elles, et on les ajoute si le compte y a droit —
- * ce qui évite au passage de montrer une porte qui serait refusée.
+ * page. On dessine donc avec ce qu'on sait — c'est-à-dire sans les portes
+ * réservées, sauf celle où l'on se trouve — puis on redessine si la réponse
+ * change quelque chose.
  *
- * Toutes les sections portant un droit sont traitées, dans l'ordre du modèle —
- * la section courante est déjà dessinée par le bandeau, on la saute. Et c'est
- * bien elle qui compte : si on est SUR un écran technique, c'est que le garde
- * de la page a laissé passer, donc le menu Technique est là dès le premier
- * rendu, sans attendre quoi que ce soit.
+ * Un redessin plutôt qu'une insertion au bon endroit : depuis que les DEUX
+ * niveaux peuvent être réservés (une section entière comme Technique, une
+ * entrée seule comme « Devis et budgets » dans Production), il faudrait sinon
+ * insérer au bon rang dans le bandeau, dans le déroulant concerné, dans le
+ * sous-menu et dans le panneau téléphone. Le rendu, lui, sait déjà placer
+ * chaque chose : on le rejoue.
+ *
+ * Rien n'est redessiné si la réponse ne change rien — le cas de tous les
+ * comptes sans droit particulier, et de toutes les pages sans porte réservée.
  */
-async function ajouterEntreesReservees(topbar, sectionCourante){
+async function appliquerDroits(topbar, page, section){
   const modele = curieuxModele();
-  const reservees = modele.filter(s => curieuxDroitSection(s) && s !== sectionCourante);
-  if(!reservees.length) return;
-  const nav = topbar.querySelector('.co-topnav');
-  if(!nav || typeof CurieuxDB === 'undefined') return;
+  const aDesPortesReservees = modele.some(sec =>
+    curieuxDroitSection(sec) || (sec.entrees || []).some(e => e.droit));
+  if(!aDesPortesReservees || typeof CurieuxDB === 'undefined') return;
 
-  const accordes = await curieuxDroitsAccordes(reservees);
-  const v2 = curieuxNavVersion() === 'v2';
-  let ajout = false;
+  const avant = empreinteNav(page, section);
+  CURIEUX_DROITS_RESOLUS = await curieuxDroitsAccordes(modele);
+  if(empreinteNav(page, section) === avant) return;
 
-  /* Chaque entrée se place à SA position du modèle, pas en bout de bandeau :
-     « Technique » vient avant « Gestion » quel que soit l'écran d'où l'on
-     vient. La section courante, elle, est déjà dans le bandeau — on insère
-     avant le premier élément qui, dans le modèle, la suit. */
-  reservees.forEach(sec => {
-    if(!accordes[curieuxDroitSection(sec)]) return;
-    if(nav.querySelector(`[data-section="${sec.libelle}"]`)) return;
-    const rang = modele.indexOf(sec);
-    const elements = Array.from(nav.children);
-    const suivant = elements.find(el => {
-      const s = modele.find(x => x.libelle === el.getAttribute('data-section'));
-      return s && modele.indexOf(s) > rang;
-    });
-    const el = v2 ? construireDeroulant(sec, null) : construireLienPlat(sec);
-    el.setAttribute('data-entree-reservee', '1');
-    nav.insertBefore(el, suivant || null);
-    if(v2) brancherDeroulant(el);
-    ajout = true;
-  });
-
-  // Le panneau téléphone est dessiné d'un bloc : on le redessine plutôt que
-  // d'y insérer la section au bon endroit à la main.
-  if(v2 && ajout) redessinerPanneauMobile();
+  /* Un déroulant ouvert serait refermé par le redessin. En pratique la réponse
+     arrive avant qu'on ait pu cliquer — la page elle-même est masquée jusqu'à
+     la vérification de session, qui est du même ordre — mais si ça arrive, on
+     attend la fermeture plutôt que de couper le geste en cours. */
+  if(document.querySelector('.co-nav-item.ouvert')){
+    document.addEventListener('click', ()=> dessinerNav(topbar, page, section), { once:true });
+    return;
+  }
+  dessinerNav(topbar, page, section);
 }
 
-function construireLienPlat(sec){
-  const lien = document.createElement('a');
-  lien.href = sec.href;
-  lien.textContent = sec.libelle;
-  lien.setAttribute('data-section', sec.libelle);
-  return lien;
+// Ce que la navigation montre, réduit à une chaîne : sert à savoir si la
+// réponse de la base change quelque chose à l'écran.
+function empreinteNav(page, section){
+  return curieuxSectionsVisibles(section)
+    .map(sec => sec.libelle + '>' + curieuxEntreesVisibles(sec, page).map(e => e.href).join(','))
+    .join('|');
 }
 
 // La clé d'une page, telle que les sections la déclarent. C'est le nom de
@@ -463,6 +551,25 @@ function curieuxSectionCourante(page){
 // menus de système d'exploitation, et il évite de refermer/rouvrir pour
 // comparer deux menus.
 // ---------------------------------------------------------------------------
+/* L'entrée de bandeau d'une section : un déroulant, ou un lien simple quand la
+ * section ne mène qu'à un seul écran — « Admin ». Ouvrir un menu pour y
+ * trouver une seule ligne est un geste pour rien, et le chevron promet un
+ * choix qui n'existe pas.
+ */
+function construireEntreeBandeau(sec, page){
+  const entrees = curieuxEntreesVisibles(sec, page);
+  if(entrees.length > 1) return construireDeroulant(sec, page);
+
+  const lien = document.createElement('a');
+  lien.className = 'co-nav-lien';
+  lien.setAttribute('data-section', sec.libelle);
+  lien.href = entrees.length ? entrees[0].href : sec.href;
+  lien.textContent = sec.libelle;
+  const cible = entrees.length ? (entrees[0].pages || [entrees[0].href]) : (sec.pages || [sec.href]);
+  if(page && cible.includes(page)) lien.setAttribute('aria-current', 'page');
+  return lien;
+}
+
 function construireDeroulant(sec, page){
   const item = document.createElement('div');
   item.className = 'co-nav-item';
@@ -473,9 +580,11 @@ function construireDeroulant(sec, page){
 
   // Les entrées sont regroupées dans l'ordre du modèle : un groupe est une
   // suite d'entrées portant le même libellé de groupe, pas un tri. L'ordre du
-  // modèle est donc l'ordre affiché, groupes compris.
+  // modèle est donc l'ordre affiché, groupes compris. Un groupe entièrement
+  // réservé — « Chiffrage » sous Production — disparaît donc avec ses entrées,
+  // intitulé compris : pas de titre orphelin.
   const groupes = [];
-  (sec.entrees || []).forEach(e => {
+  curieuxEntreesVisibles(sec, page).forEach(e => {
     const titre = e.groupe || '';
     const dernier = groupes[groupes.length - 1];
     if(dernier && dernier.titre === titre) dernier.entrees.push(e);
@@ -597,10 +706,11 @@ function brancherFermetureGlobale(){
 // accordéons : sur un écran qui défile, un accordéon ajoute un appui par
 // section pour économiser un défilement qui ne coûte rien.
 // ---------------------------------------------------------------------------
-function construirePanneauMobile(page){
-  const sections = curieuxModele().filter(sec => !curieuxDroitSection(sec) || estSectionAffichee(sec));
+function construirePanneauMobile(page, section){
+  const sections = curieuxSectionsVisibles(section);
   const blocs = sections.map(sec => {
-    const entrees = (sec.entrees && sec.entrees.length) ? sec.entrees : [{ libelle:sec.libelle, href:sec.href, pages:sec.pages }];
+    const visibles = curieuxEntreesVisibles(sec, page);
+    const entrees = visibles.length ? visibles : [{ libelle:sec.libelle, href:sec.href, pages:sec.pages }];
     // Les groupes ne sont pas titrés ici : cinq sections déjà titrées plus
     // treize intertitres feraient plus d'étiquettes que de portes sur un
     // écran de téléphone. Un simple écart marque le changement de groupe —
@@ -655,20 +765,79 @@ function brancherThemeMobile(panneau){
   new MutationObserver(maj).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
 }
 
-// Une section réservée n'entre dans le panneau que si elle est déjà dans le
-// bandeau : c'est ajouterEntreesReservees qui tranche, et redessinerPanneauMobile
-// qui rejoue ce rendu une fois la réponse arrivée.
-function estSectionAffichee(sec){
-  const nav = document.querySelector('.co-topnav');
-  if(!nav) return false;
-  return !!nav.querySelector(`[data-section="${sec.libelle}"]`);
+/* Le rendu de la navigation, rejouable.
+ *
+ * Il est appelé deux fois : au premier rendu, avec ce qu'on sait des droits —
+ * c'est-à-dire rien — puis à nouveau si la réponse de la base change ce qui
+ * doit s'afficher (voir appliquerDroits). Tout ce qui dépend d'un droit passe
+ * par ici : le bandeau, le sous-menu contextuel et le panneau téléphone.
+ *
+ * Ce qui n'en dépend pas — logo, raccourci, champ de recherche, bascule de
+ * thème, pastille de compte — n'est pas touché : le deuxième rendu ne vide pas
+ * une recherche en cours de frappe.
+ */
+function dessinerNav(topbar, page, section){
+  const v2 = curieuxNavVersion() === 'v2';
+  const nav = topbar.querySelector('.co-topnav');
+  const sections = curieuxSectionsVisibles(section);
+
+  if(nav){
+    nav.innerHTML = '';
+    sections.forEach(sec => {
+      if(v2){
+        const item = construireEntreeBandeau(sec, page);
+        nav.appendChild(item);
+        if(item.classList.contains('co-nav-item')) brancherDeroulant(item);
+      }else{
+        const lien = document.createElement('a');
+        lien.href = sec.href;
+        lien.textContent = sec.libelle;
+        lien.setAttribute('data-section', sec.libelle);
+        if(sec === section) lien.setAttribute('aria-current', 'page');
+        nav.appendChild(lien);
+      }
+    });
+  }
+
+  if(v2){
+    if(document.getElementById('coNavMobile')) redessinerPanneauMobile(page, section);
+    else topbar.insertAdjacentElement('afterend', construirePanneauMobile(page, section));
+  }
+
+  dessinerSousMenu(topbar, page, section);
 }
 
-function redessinerPanneauMobile(){
+/* Sous-menu de la section courante. Conservé en v2 : c'est lui qui évite de
+ * rouvrir un déroulant pour passer d'un écran à l'autre d'une même section —
+ * l'irritant qui avait fait supprimer les déroulants d'origine. L'accueil n'en
+ * a pas : un seul écran, une barre vide serait du bruit.
+ */
+function dessinerSousMenu(topbar, page, section){
+  const ancien = document.querySelector('.co-subnav');
+  const entrees = section ? curieuxEntreesVisibles(section, page) : [];
+  // Une seule entrée : rien à parcourir, une barre d'une pastille serait du
+  // bruit collant sur toute la hauteur de la page.
+  if(entrees.length < 2){ if(ancien) ancien.remove(); return; }
+
+  const sub = document.createElement('div');
+  sub.className = 'co-subnav';
+  const items = entrees.map(e => {
+    const actif = (e.pages || [e.href]).includes(page) ? ' aria-current="page"' : '';
+    return `<a href="${e.href}"${actif}>${e.libelle}</a>`;
+  }).join('');
+  sub.innerHTML = `<div class="co-subnav-in">
+      <span class="co-subnav-title">${section.libelle}</span>${items}
+    </div>`;
+
+  if(ancien) ancien.replaceWith(sub);
+  else (document.getElementById('coNavMobile') || topbar).insertAdjacentElement('afterend', sub);
+}
+
+function redessinerPanneauMobile(page, section){
   const ancien = document.getElementById('coNavMobile');
   if(!ancien) return;
   const ouvert = !ancien.hidden;
-  const neuf = construirePanneauMobile(curieuxPageCourante());
+  const neuf = construirePanneauMobile(page, section);
   neuf.hidden = !ouvert;
   ancien.replaceWith(neuf);
 }
@@ -698,15 +867,6 @@ function initCurieuxTopbar(){
   topbar.className = 'co-topbar';
   if(v2) document.body.classList.add('co-nav-v2');
 
-  // En v1, les sections réservées ne s'affichent que si on y est déjà ; en v2
-  // c'est identique, ajouterEntreesReservees fait le reste dans les deux cas.
-  const liens = v2 ? '' : curieuxModele()
-    .filter(sec => !curieuxDroitSection(sec) || sec === section)
-    .map(sec => {
-      const actif = sec === section ? ' aria-current="page"' : '';
-      return `<a href="${sec.href}" data-section="${sec.libelle}"${actif}>${sec.libelle}</a>`;
-    }).join('');
-
   const raccourcis = v2 ? CURIEUX_RACCOURCIS_V2.map(r => {
     const actif = (r.pages || [r.href]).includes(page) ? ' aria-current="page"' : '';
     return `<a class="co-raccourci" href="${r.href}"${actif}>${r.libelle}</a>`;
@@ -722,7 +882,7 @@ function initCurieuxTopbar(){
       <a class="co-topbar-logo-link" href="accueil.html" aria-label="Accueil — Curieux orchestre">
         <img class="co-topbar-logo" src="assets/images/logo-droit-noir.png" alt="Curieux orchestre">
       </a>
-      <nav class="co-topnav" aria-label="Sections">${liens}</nav>
+      <nav class="co-topnav" aria-label="Sections"></nav>
       ${raccourcis}
       <div class="page-nav co-topbar-actions" style="display:contents;"></div>
       <button type="button" class="co-theme-btn" id="curieuxThemeToggle" title="Basculer clair / sombre">Sombre</button>
@@ -731,16 +891,9 @@ function initCurieuxTopbar(){
   document.body.insertBefore(topbar, document.body.firstChild);
   document.body.classList.add('co-has-topbar');
 
+  dessinerNav(topbar, page, section);
+
   if(v2){
-    const nav = topbar.querySelector('.co-topnav');
-    curieuxModele()
-      .filter(sec => !curieuxDroitSection(sec) || sec === section)
-      .forEach(sec => {
-        const item = construireDeroulant(sec, page);
-        nav.appendChild(item);
-        brancherDeroulant(item);
-      });
-    topbar.insertAdjacentElement('afterend', construirePanneauMobile(page));
     const btnBurger = topbar.querySelector('.co-burger');
     if(btnBurger){
       btnBurger.addEventListener('click', (e)=>{
@@ -756,31 +909,13 @@ function initCurieuxTopbar(){
     brancherFermetureGlobale();
   }
 
-  // Sous-menu de la section courante. Conservé en v2 : c'est lui qui évite de
-  // rouvrir un déroulant pour passer d'un écran à l'autre d'une même section —
-  // l'irritant qui avait fait supprimer les déroulants d'origine.
-  // L'accueil n'en a pas : un seul écran, une barre vide serait du bruit.
-  if(section && section.entrees && section.entrees.length){
-    const sub = document.createElement('div');
-    sub.className = 'co-subnav';
-    const items = section.entrees.map(e => {
-      const actif = (e.pages || [e.href]).includes(page) ? ' aria-current="page"' : '';
-      return `<a href="${e.href}"${actif}>${e.libelle}</a>`;
-    }).join('');
-    sub.innerHTML = `<div class="co-subnav-in">
-        <span class="co-subnav-title">${section.libelle}</span>${items}
-      </div>`;
-    const apres = document.getElementById('coNavMobile') || topbar;
-    apres.insertAdjacentElement('afterend', sub);
-  }
-
   // L'ancien en-tête (logo + rangée de menus déroulants) est retiré : son rôle
   // est repris par le bandeau. On le retire plutôt que de le masquer, pour ne
   // pas laisser deux menus dans l'ordre de tabulation.
   document.querySelectorAll('.brand-header').forEach(el => el.remove());
   document.querySelectorAll('nav.page-nav[data-curieux-nav]').forEach(el => el.remove());
 
-  ajouterEntreesReservees(topbar, section);
+  appliquerDroits(topbar, page, section);
   initCurieuxThemeToggle();
   initCurieuxAvatar();
   try{ if(typeof initGlobalSearch === 'function') initGlobalSearch(topbar.querySelector('.co-topbar-actions')); }catch(e){}
@@ -875,25 +1010,53 @@ function initCurieuxAvatar(){
 // la planche complète une fois les droits connus. L'accueil dessine donc deux
 // fois. C'est le même parti que le bandeau — on ajoute une porte quand on sait
 // qu'elle s'ouvre, on n'en retire jamais une sous les yeux.
-function curieuxTuileAccueil(sec){
+/* La tuile d'accueil d'une section : son titre, son accroche, sa porte
+ * d'entrée, et ses écrans rangés par groupe — les mêmes groupes que le
+ * déroulant, dans le même ordre. L'accueil les montre titrés : c'est ce qui
+ * permet à quelqu'un qui arrive de comprendre que « Partitions » est une
+ * bibliothèque et non une feuille de route de plus.
+ *
+ * `entrees` est la liste déjà filtrée par les droits : une entrée réservée
+ * ne doit pas plus apparaître sur l'accueil que dans le déroulant. La planche
+ * lisait autrefois toutes les entrées de la section, droit ou pas — des
+ * portes fermées proposées à toute l'équipe, exactement ce que le bandeau
+ * venait de cesser de faire.
+ */
+function curieuxTuileAccueil(sec, entrees){
+  const visibles = entrees || (sec.entrees || []);
+  const groupes = [];
+  visibles.forEach(e => {
+    const titre = e.groupe || '';
+    const dernier = groupes[groupes.length - 1];
+    if(dernier && dernier.titre === titre) dernier.liens.push([e.libelle, e.href]);
+    else groupes.push({ titre, liens:[[e.libelle, e.href]] });
+  });
   return Object.assign({
     titre: sec.libelle,
-    liens: (sec.entrees || []).map(e => [e.libelle, e.href]),
+    accroche: sec.accroche || '',
+    href: sec.href,
+    liens: visibles.map(e => [e.libelle, e.href]),
+    groupes,
   }, sec.sticker || {});
 }
 
 function curieuxHomeSections(secours){
   if(curieuxNavVersion() === 'v1') return secours;
-  return CURIEUX_SECTIONS_V2.filter(sec => !curieuxDroitSection(sec)).map(curieuxTuileAccueil);
+  return CURIEUX_SECTIONS_V2
+    .filter(sec => !curieuxDroitSection(sec))
+    .map(sec => curieuxTuileAccueil(sec, (sec.entrees || []).filter(e => !e.droit)));
 }
 
 async function curieuxHomeSectionsAutorisees(secours){
   if(curieuxNavVersion() === 'v1') return secours;
   const accordes = await curieuxDroitsAccordes(CURIEUX_SECTIONS_V2);
-  return CURIEUX_SECTIONS_V2.filter(sec => {
-    const droit = curieuxDroitSection(sec);
-    return !droit || accordes[droit];
-  }).map(curieuxTuileAccueil);
+  return CURIEUX_SECTIONS_V2
+    .filter(sec => {
+      const droit = curieuxDroitSection(sec);
+      return !droit || accordes[droit];
+    })
+    .map(sec => curieuxTuileAccueil(sec,
+      (sec.entrees || []).filter(e => !e.droit || accordes[e.droit])));
 }
 
 // --- Pied de page partagé -------------------------------------------------

@@ -510,10 +510,14 @@ body.co-has-topbar > .co-footer{ padding-left:16px; padding-right:16px; }
   font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
   color:var(--muted); margin-right:8px;
 }
+/* 14 px et non 17 : le sous-menu le plus fourni — Production, neuf écrans pour
+   un compte admin — tient sur une ligne à 1440 px, et Technique n'en passe plus
+   à deux à 1280. Le collant ne mange alors que 61 px sur chaque page au lieu
+   de 108. */
 .co-subnav a{
   text-decoration:none; font-family:var(--font-body);
   border:1px solid var(--border); font-size:13.5px; font-weight:700;
-  padding:8px 17px; border-radius:999px; background:transparent; color:var(--text);
+  padding:8px 14px; border-radius:999px; background:transparent; color:var(--text);
   white-space:nowrap;
 }
 .co-subnav a:hover{ border-color:var(--prune); color:var(--text); }
@@ -544,6 +548,16 @@ body.co-nav-v2 .co-topnav{
 }
 
 body.co-nav-v2 .co-nav-item{ position:relative; flex:0 0 auto; }
+/* Le lien simple d'une section à écran unique (« Admin ») : même pastille que
+   le bouton d'un déroulant, sans le chevron qui promettrait un choix. */
+body.co-nav-v2 .co-nav-lien{
+  flex:0 0 auto; text-decoration:none; white-space:nowrap;
+  font-family:inherit; font-size:13px; font-weight:700;
+  padding:8px 11px; border-radius:999px;
+  color:var(--blanc); background:transparent; transition:background .15s;
+}
+body.co-nav-v2 .co-nav-lien:hover{ background:rgba(252,242,240,.16); }
+body.co-nav-v2 .co-nav-lien[aria-current]{ background:var(--blanc); color:var(--prune); }
 body.co-nav-v2 .co-nav-btn{
   display:inline-flex; align-items:center; gap:6px;
   font-family:inherit; font-size:13px; font-weight:700; white-space:nowrap;
@@ -570,6 +584,11 @@ body.co-nav-v2 .co-nav-menu{
   min-width:236px; padding:8px; border-radius:var(--radius-md);
   background:var(--card); border:1px solid var(--border);
   box-shadow:0 14px 34px rgba(20,15,10,.20);
+  /* Production fait 518 px déplié pour un compte admin — cinq groupes. Ça
+     tient dans une fenêtre de 600 px, mais un menu ne doit jamais pouvoir
+     sortir de l'écran sans moyen d'atteindre le bas : la butée est posée une
+     fois pour toutes, elle ne coûte rien tant qu'elle ne sert pas. */
+  max-height:calc(100vh - 80px); overflow-y:auto;
 }
 /* Le déroulant le plus à droite déborderait de la fenêtre : il s'aligne sur son
    bord droit. Marqué par nav.js, pas deviné en CSS. */
@@ -611,7 +630,12 @@ body.co-nav-v2 .co-raccourci[aria-current]{ background:var(--blanc); color:var(-
 /* La recherche ne pousse plus : c'est le raccourci qui tient la marge
    automatique, sans quoi tout se recollerait à gauche dès qu'elle disparaît. */
 body.co-nav-v2 .co-topbar .gsearch-wrap{ margin-left:0; }
-@media (max-width:1100px){ body.co-nav-v2 .co-topbar .gsearch-wrap{ display:none; } }
+/* Seuils mesurés au navigateur, pour un compte admin — six entrées, c'est le
+   cas le plus chargé. Les menus réclament 561 px : avec la recherche ils
+   tiennent jusqu'à 1240 px, sans elle jusqu'à 1080. Les seuils sont posés
+   vingt pixels au-dessus, de quoi absorber une police qui ne se charge pas
+   tout à fait pareil. */
+@media (max-width:1259px){ body.co-nav-v2 .co-topbar .gsearch-wrap{ display:none; } }
 
 /* --- Panneau téléphone ----------------------------------------------------
    Cinq déroulants ne tiennent pas sous 900 px, et l'application est
@@ -651,10 +675,10 @@ body.co-nav-v2 .co-burger:hover{ background:rgba(252,242,240,.16); }
   color:var(--text); text-align:left;
 }
 .co-nav-mobile-reglages{ display:none; }
-/* Seuil mesuré, pas choisi : à 1024 px les cinq déroulants tiennent tout
-   juste (iPad en paysage), à 960 px il manque 40 px et la rangée se remettait
-   à défiler. En dessous, le panneau prend la main. */
-@media (max-width:1023px){
+/* Sous 1100 px, même sans la recherche, six entrées ne tiennent plus : le
+   panneau prend la main. Le seuil était à 1024 px du temps où le bandeau en
+   comptait cinq. */
+@media (max-width:1099px){
   body.co-nav-v2 .co-topnav{ display:none; }
   body.co-nav-v2 .co-burger{ display:inline-flex; }
   body.co-nav-v2 .co-raccourci{ font-size:12px; padding:7px 11px; }
@@ -670,7 +694,7 @@ body.co-nav-v2 .co-burger:hover{ background:rgba(252,242,240,.16); }
 }
 /* Ouvert sur téléphone puis fenêtre élargie : le panneau resterait posé
    par-dessus la page, sans bouton pour le refermer. */
-@media (min-width:1024px){ body.co-nav-v2 .co-nav-mobile{ display:none; } }
+@media (min-width:1100px){ body.co-nav-v2 .co-nav-mobile{ display:none; } }
 
 /* --- 3. En-tête de page ---------------------------------------------------- */
 .co-page-head{
@@ -908,6 +932,71 @@ a.co-sticker, button.co-sticker{ display:block; text-align:left; cursor:pointer;
 .co-btn.block{ width:100%; }
 .co-btn[disabled]{ opacity:.45; cursor:default; }
 .co-actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+
+/* --- 9 bis. Touche de navigation « pupitre de régie » --------------------
+   Le lien-bouton vers un écran de l'outil : une touche de console, blanche,
+   posée sur une épaisseur noire, avec un voyant qui s'allume au survol. C'est
+   le seul composant pour les liens de navigation interne (les groupes
+   d'écrans des cartes « Où aller » de l'accueil, et tout lien-bouton du même
+   type ailleurs). Les boutons d'action (.co-btn) et les pastilles d'état
+   (.co-pill) ne sont pas concernés.
+
+   Piste retenue : « 5c » du dossier de remise « Boutons de navigation ».
+   Haute fidélité : les valeurs sont celles du dossier, à l'identique.
+
+   Structure :
+     <a class="co-navkey" href="…">        ← enveloppe transparente ; ses 3 px
+       <span class="co-navkey-cap">           de bas réservent la place de
+         <span class="co-navkey-led"></span>  l'épaisseur, pour que la touche
+         Libellé                              enfoncée ne bouge pas la ligne
+       </span>
+     </a>
+
+   Règles : toutes les touches sont blanches — pas de couleur par domaine, la
+   couleur reste portée par la carte de rubrique ; l'orange n'apparaît que sur
+   le voyant ; pas d'icône ni de chevron dans la touche, sa forme dit déjà
+   qu'elle mène quelque part. La nuit, la touche ne change pas : blanc de la
+   charte, épaisseur et contour noirs, même sur une carte sombre. */
+.co-navkey{
+  display:inline-block; background:transparent; border:0; padding:0 0 3px;
+  cursor:pointer; text-decoration:none; color:inherit; font:inherit; text-align:left;
+}
+.co-navkey-cap{
+  display:flex; flex-direction:column; align-items:flex-start; gap:8px;
+  min-width:110px; padding:9px 14px 10px; border-radius:4px;
+  background:#FCF2F0; color:#141617;
+  box-shadow:0 3px 0 #141617, inset 0 0 0 1.5px #141617;
+  font-family:var(--font-body); font-weight:700; font-size:12px; line-height:1.2;
+  letter-spacing:.16em; text-transform:uppercase;
+  transition:transform 90ms, box-shadow 90ms;
+}
+.co-navkey-led{
+  display:block; width:22px; height:4px; border-radius:2px;
+  background:rgba(20,22,23,.18);
+  transition:background 120ms, box-shadow 120ms;
+}
+/* Survol et focus clavier : la touche s'enfonce de 2 px (l'épaisseur passe de
+   3 à 1 px) et le voyant s'allume en orange. */
+.co-navkey:hover .co-navkey-cap,
+.co-navkey:focus-visible .co-navkey-cap{
+  transform:translateY(2px); box-shadow:0 1px 0 #141617, inset 0 0 0 1.5px #141617;
+}
+.co-navkey:hover .co-navkey-led,
+.co-navkey:focus-visible .co-navkey-led,
+.co-navkey[aria-current="page"] .co-navkey-led{
+  background:#EC4B15; box-shadow:0 0 8px #EC4B15;
+}
+.co-navkey:focus-visible{ outline:2px solid #EC4B15; outline-offset:3px; }
+/* Enfoncée à fond pendant le clic : plus d'épaisseur du tout. */
+.co-navkey:active .co-navkey-cap{
+  transform:translateY(3px); box-shadow:0 0 0 #141617, inset 0 0 0 1.5px #141617;
+}
+.co-navkey[aria-disabled="true"], .co-navkey:disabled{ opacity:.45; pointer-events:none; }
+/* Un groupe de touches : à la suite, à la ligne quand il faut. */
+.co-navkeys{ display:flex; flex-wrap:wrap; gap:10px; }
+@media (prefers-reduced-motion: reduce){
+  .co-navkey-cap, .co-navkey-led{ transition:none; }
+}
 
 /* --- 10. Champs ---------------------------------------------------------- */
 .co-label{

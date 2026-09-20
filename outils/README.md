@@ -132,20 +132,30 @@ les catalogues système, et c'est très bien ainsi.
 plus à la base — de quoi le lancer après chaque strate ajoutée à
 `migrations.sql`.
 
-# Vérifier la logique pure
+---
 
-Trois tests s'exécutent avec Node seul, sans navigateur ni base. Ils tiennent
-ce qu'aucune capture ne montre : une règle qui rend faux sur une entrée
-précise.
+# Les tests
+
+Quatre scripts rejouent un bug précis — trois dans un vrai navigateur, le
+quatrième avec Node seul. Ils sortent en échec (code 1) dès qu'une vérification
+tombe : de quoi les enchaîner avant un déploiement.
 
 ```sh
-node outils/test-remplacants.cjs                 # « Enregistrer ma liste », les quatre issues
-node outils/test-suivi-dispo-doublons.cjs        # le suivi des dispos ne compte personne deux fois
-node outils/test-partitions-proposition.cjs      # la proposition d'affectation d'après les instruments
+npm i playwright-core --no-save
+python3 -m http.server 8099 &           # les trois servent le site en local
+node outils/test-recap-mon-ordre.cjs
+node outils/test-remplacants.cjs
+node outils/test-suivi-dispo-doublons.cjs
+node outils/test-partitions-proposition.cjs   # sans serveur ni navigateur
 ```
 
-Le dernier lit les 25 valeurs réelles de `musiciens.instrument` et les noms de
-parties tels que Dorico les sort, puis rejoue la proposition — toutes les
-parties de l'instrument, le numéro de la fiche quand il existe, un choix dans
-le pupitre sinon — sur un jeu complet et sur ses cas limites. À relancer après toute modification de `PARTITIONS_INSTRUMENTS` ou de
-`partitionsProposerAffectations` dans `assets/partitions-commun.js`.
+| Script | Ce qu'il garde |
+| --- | --- |
+| `test-recap-mon-ordre.cjs` | Sous « Mon ordre », titulaires et remplaçant·es se rangent dans la même liste : un nom glissé y reste, une ligne indentée peut en sortir, et changer de filtre ne déplace personne d'autre. |
+| `test-remplacants.cjs` | Les quatre issues de « Enregistrer ma liste » — dont celle qui laissait le bouton figé sur « Enregistrement… ». |
+| `test-partitions-proposition.cjs` | La proposition d'affectation d'après les instruments : les 25 valeurs réelles de `musiciens.instrument` et les noms de parties tels que Dorico les sort se lisent juste ; chacun reçoit les parties de son instrument, le numéro de la fiche restreint, et ce qui est déjà posé ne bouge jamais. À relancer après toute modification de `PARTITIONS_INSTRUMENTS`. |
+| `test-suivi-dispo-doublons.cjs` | Une lecture en échec n'est plus prise pour un inventaire vide : le suivi des dispos ne recrée pas 85 demandes existantes. |
+
+Chacun porte en tête le récit du bug qu'il surveille — c'est ce qui permet, des
+mois plus tard, de savoir si une vérification qui gêne protège encore quelque
+chose.

@@ -38,6 +38,12 @@ const selecteur = process.argv[3] || '[data-pdf]';
   // pdf-charte.js) : sans cette pause, on capture un document sans logo.
   await page.waitForTimeout(1200);
 
+  // Le voile des nouveautés s'ouvre par-dessus la page au premier passage et
+  // avale tous les clics : le bouton d'export restait injoignable, et l'outil
+  // rendait « aucun téléchargement » là où la page marchait très bien.
+  // capture.cjs l'écartait déjà de son côté ; il manquait ici.
+  await page.evaluate(() => { const v = document.getElementById('curieuxNouveautes'); if (v) v.remove(); });
+
   // Quatrième argument : les sélecteurs à cliquer d'abord, séparés par « | » —
   // pour atteindre la date voulue, ou cocher les arrêts d'une mission, avant
   // d'appuyer sur le bouton d'export.

@@ -1119,12 +1119,107 @@ const CurieuxDB = (()=>{
    * la colonne nommée n'est même pas dans ce qu'on envoie — sans quoi une
    * erreur mal formée tournerait en rond.
    */
+  /* UNE CLÉ À `undefined` N'EST PAS UNE COLONNE ABSENTE — c'est une ligne
+     mutilée en chemin, et supabase-js ne le voit pas.
+
+     LE PIÈGE, EXACTEMENT. `JSON.stringify` EFFACE les propriétés qui valent
+     `undefined` ; supabase-js, lui, calcule le paramètre `columns=` sur
+     `Object.keys(row)`, où elles figurent encore. La requête annonce donc sept
+     colonnes et n'en envoie que cinq — et PostgREST, qui construit son INSERT
+     sur `columns`, met NULL dans les deux qui manquent. Sur la clé primaire,
+     ça donne « null value in column "id" violates not-null constraint » : une
+     écriture perdue, et un message qui ne désigne ni la cause ni l'appelant.
+     (Vérifié sur une requête réelle : corps de 72 octets pour sept colonnes
+     annoncées.)
+
+     LA RÈGLE. Une valeur `undefined` veut dire « je n'ai rien à écrire dans
+     cette colonne » : on retire la clé, et `columns` retrouve le corps.
+     Sauf pour la CLÉ DE CONFLIT : là, il n'y a pas d'écriture raisonnable, et
+     insérer sous une clé nulle serait un doublon anonyme. On refuse, on le dit
+     en clair, et on journalise la pile d'appel — c'est elle qui nommera
+     l'appelant fautif la prochaine fois. */
+  /* D'où vient l'écriture, en une phrase lisible : le geste (la première
+     fonction de la pile qui n'appartient pas à cette couche) et, quand la
+     ligne porte un intitulé, cet intitulé. Tout est enveloppé — une aide au
+     diagnostic ne doit jamais, elle, faire échouer quoi que ce soit. */
+  function _ouEtCeParti(table, ligne, pile){
+    let geste = '';
+    try{
+      const interne = /_nettoyerIndefinis|_upsertTolerant|upsertOne|_ecrire|CurieuxDB|db\.js/;
+      const cadres = String(pile || '').split('\n').slice(1);
+      for(const c of cadres){
+        const m = c.match(/at\s+(?:async\s+)?([A-Za-z0-9_$.]+)\s*\(/);
+        if(m && m[1] && !interne.test(m[1])){ geste = m[1]; break; }
+      }
+    }catch(e){}
+    let quoi = '';
+    try{
+      const l = ligne || {};
+      quoi = l.nom || l.titre || l.destinataire || l.id || '';
+    }catch(e){}
+    return (geste ? ` (geste : ${geste}${quoi ? ', sur « ' + quoi + ' »' : ''}, table ${table})`
+                  : ` (table ${table}${quoi ? ', sur « ' + quoi + ' »' : ''})`) + '.';
+  }
+
+  function _nettoyerIndefinis(table, rows, cles){
+    const perdues = new Set();
+    const propres = rows.map(r => {
+      const c = {};
+      Object.keys(r).forEach(k => { if(r[k] === undefined) perdues.add(k); else c[k] = r[k]; });
+      return c;
+    });
+    if(!perdues.size) return { rows: propres, error: null };
+    const cleManquante = [...perdues].find(k => cles.has(k));
+    if(cleManquante){
+      const pile = (new Error('pile d\'appel').stack || '');
+      console.error(`[CurieuxDB] ${table} : « ${cleManquante} » vaut undefined dans la ligne à écrire. `
+        + 'Écriture refusée — elle serait partie sans clé et se serait insérée à NULL. '
+        + 'Ligne : ' + JSON.stringify(propres[0]) + '\n' + pile);
+      /* LE MESSAGE NOMME LE GESTE, et ce n'est pas un luxe de développeur.
+         « une modification n'a pas été enregistrée » n'apprend rien à qui
+         travaille : il ne sait ni ce qu'il vient de perdre, ni quoi refaire, ni
+         quoi nous dire. Le nom de la fonction appelante et l'intitulé de la
+         ligne tiennent en dix mots et répondent aux trois questions. On le lit
+         dans la pile d'appel, en sautant les cadres de cette couche-ci. */
+      return { rows: propres, error: { code: 'CURIEUX_CLE_ABSENTE', message:
+        `La modification n'a pas de « ${cleManquante} » : elle n'a pas été envoyée, pour ne pas créer une ligne anonyme.`
+        + _ouEtCeParti(table, propres[0], pile)
+        + ' Recharge la page et recommence.' } };
+    }
+    console.warn(`[CurieuxDB] ${table} : ${[...perdues].join(', ')} à undefined — colonne(s) retirée(s) de l'écriture.`);
+    return { rows: propres, error: null };
+  }
+
   async function _upsertTolerant(table, rows, onConflict){
-    let payload = rows;
+    /* LA CLÉ N'EST JAMAIS RETIRÉE, et c'est le garde-fou le plus important de
+       cette fonction.
+
+       Le mécanisme ci-dessous retire du payload la colonne que l'erreur nomme.
+       C'est juste pour une colonne NOUVELLE, que la base n'a pas encore : on
+       écrit sans elle, le reste s'enregistre. Ça ne l'est plus du tout quand la
+       colonne nommée est la CLÉ — et PostgREST la nomme, avec le même code
+       PGRST204, quand il n'arrive pas à résoudre la cible du « on conflict »
+       (son cache de schéma est en retard d'une migration, par exemple). On
+       retirait alors `id` de la ligne, on réécrivait, et Postgres répondait
+       « null value in column "id" violates not-null constraint » : une écriture
+       perdue, et un message qui ne désigne pas sa cause.
+
+       Retirer la clé ne peut JAMAIS être la bonne réponse : sans elle, un
+       upsert devient une insertion anonyme. On rend donc l'erreur telle quelle,
+       et le ruban « modification non enregistrée » fait son travail. */
+    const cles = new Set(String(onConflict || 'id').split(',').map(c => c.trim()).filter(Boolean));
+    const nettoye = _nettoyerIndefinis(table, rows, cles);
+    if(nettoye.error) return { error: nettoye.error, data: null };
+    let payload = nettoye.rows;
     for(let essai = 0; essai < 3; essai++){
       const res = await supabaseClient.from(table).upsert(payload, { onConflict });
       const colonne = _colonneManquante(res && res.error);
       if(!colonne || !payload.some(r=> colonne in r)) return res;
+      if(cles.has(colonne)){
+        console.error(`[CurieuxDB] ${table} : la base ne reconnaît pas la clé « ${colonne} ». `
+          + 'Écriture abandonnée plutôt que rejouée sans clé — une migration est probablement à jouer.');
+        return res;
+      }
       console.warn(`[CurieuxDB] colonne « ${colonne} » absente de ${table} — écriture sans elle (migration à jouer).`);
       payload = payload.map(r=>{ const c = Object.assign({}, r); delete c[colonne]; return c; });
     }
@@ -1140,6 +1235,19 @@ const CurieuxDB = (()=>{
     }
     if(/fetch|network|Failed to fetch|timeout/i.test(m)){
       return "Pas de connexion — la modification n'est pas encore enregistrée.";
+    }
+    /* Les deux signatures d'une migration en retard. La première se lit
+       « la base ne connaît pas encore cette colonne », la seconde
+       « la valeur écrite n'est pas dans la liste autorisée » — dans les deux
+       cas, le SQL n'a pas été joué, et c'est ÇA qu'il faut lire plutôt que le
+       nom d'une contrainte. */
+    if(/violates check constraint/i.test(m)){
+      return "La base refuse cette valeur : il lui manque une mise à jour. "
+        + "Joue les migrations en attente, puis recharge la page. (" + m + ")";
+    }
+    if(/Could not find the .* column|does not exist|schema cache/i.test(m)){
+      return "La base n'a pas encore cette colonne : il lui manque une mise à jour. "
+        + "Joue les migrations en attente, puis recharge la page. (" + m + ")";
     }
     return m;
   }

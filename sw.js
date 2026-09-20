@@ -231,7 +231,94 @@
 //     chœur.
 // Les deux pages sont servies réseau d'abord ; c'est l'incrément, et lui seul,
 // qui leur donne les actifs qu'elles attendent.
-const VERSION = 'curieux-v137';
+// v137 : « Devis et budgets » et « Suivi des dépenses » passent sous
+// Production, et le droit d'accès descend de la section à l'entrée. Trois
+// actifs changent ensemble :
+//   — nav.js porte le nouveau rangement et le tri par droit ;
+//   — global-search.js lit ce tri au même endroit. Un navigateur qui garderait
+//     l'ancien appellerait estSectionAffichee, qui n'existe plus : la
+//     condition tomberait à faux et la recherche proposerait les écrans
+//     réservés à toute l'équipe — des noms d'écrans, pas des données, mais
+//     des portes qui répondraient « Accès réservé » ;
+//   — base.css resserre les pastilles du sous-menu de 17 à 14 px. Sans elle,
+//     Production — neuf écrans pour un compte admin — repasse sur deux lignes
+//     à 1440 px, soit 108 px de bandeau collant au lieu de 61 sur chaque
+//     écran de production. Elle pose aussi la butée de hauteur du déroulant.
+// v138 : un correctif d'écriture, et il vaut pour TOUTES les tables. db.js ne
+// retire plus jamais la CLÉ d'une ligne : le mécanisme qui écrit sans une
+// colonne que la base ne connaît pas encore retirait aussi `id` quand
+// PostgREST nommait la clé de conflit — la ligne repartait alors en insertion
+// anonyme, et Postgres répondait « null value in column "id" ». Une écriture
+// perdue, et un message qui ne désigne pas sa cause. db.js apprend au passage
+// à traduire les deux signatures d'une migration en retard. partitions.html
+// met l'espace du chœur en lecture seule tant que son bloc SQL n'est pas joué
+// — la base refuse le pupitre « Chœur », et le proposer promettait un échec.
+// Sans cet incrément, un navigateur déjà venu garde l'ancien db.js : le bogue
+// reste, sur toutes les pages qui écrivent.
+// v139 : assets/nouveautes.js annonce que « Mon ordre » mêle titulaires et
+// remplaçant·es sur le Tableau de service. Le fichier est un actif mis en
+// cache : sans cet incrément, un navigateur déjà venu garderait la liste
+// précédente et la fenêtre « Ce qui a changé » ne s'ouvrirait jamais sur cette
+// livraison — personne dans l'équipe ne saurait que le tri a changé de règle.
+// recap.html change au même moment, mais c'est une page, servie réseau
+// d'abord : elle se rafraîchit d'elle-même.
+// v140 : le budget redevient un seul menu, « Comptes et accès » en sort, et le
+// bandeau passe à six entrées pour un compte admin. Deux actifs changent
+// ensemble :
+//   — nav.js porte le nouveau rangement et le lien simple d'une section à
+//     écran unique ;
+//   — base.css l'habille et remesure les seuils du bandeau : la recherche
+//     s'efface à 1260 px au lieu de 1100, le panneau téléphone prend la main à
+//     1100 au lieu de 1024. Un navigateur qui garderait l'ancienne feuille
+//     aurait un lien « Admin » sans pastille ni survol, et surtout une rangée
+//     qui redéfilerait horizontalement entre 1100 et 1260 px — barre de
+//     défilement masquée, donc sans rien pour le dire.
+// v141 : l'accueil est refait, et deux actifs le portent. nav.js donne à
+// chaque section son accroche et filtre les entrées réservées de la planche
+// d'accueil (curieuxHomeSections) ; nouveautes.js annonce la page. Sans cet
+// incrément, un navigateur déjà venu chargerait le nouvel accueil.html (les
+// pages sont servies réseau d'abord) avec l'ancien nav.js — des cartes sans
+// accroche ni groupes.
+// v142 : les liens d'écran des cartes « Où aller » de l'accueil deviennent des
+// touches de pupitre de régie. Le composant (.co-navkey) vit dans base.css, et
+// nouveautes.js l'annonce : deux actifs mis en cache. Sans cet incrément, un
+// navigateur déjà venu chargerait le nouvel accueil.html avec l'ancienne
+// feuille — des liens nus, sans touche ni voyant — et la fenêtre « Ce qui a
+// changé » ne dirait rien de la livraison.
+// v143 : db.js ne laisse plus partir une ligne dont il n'envoie pas toutes les
+// colonnes qu'il annonce. JSON.stringify EFFACE les propriétés à `undefined` ;
+// supabase-js, lui, calcule le paramètre `columns=` sur Object.keys, où elles
+// figurent encore. La requête annonçait donc sept colonnes et n'en envoyait que
+// cinq, et PostgREST insérait NULL dans les deux manquantes — « null value in
+// column "id" » sur la clé primaire, une écriture perdue et un message qui ne
+// désigne pas sa cause. Les clés indéfinies sont désormais retirées (le corps
+// et `columns` redeviennent d'accord), et si l'une d'elles est la CLÉ, la ligne
+// ne part pas du tout : refus explicite et pile d'appel en console.
+// partitions.html refuse de la même façon, à la source, une partie sans
+// identifiant ou sans spectacle. Sans cet incrément, un navigateur déjà venu
+// garde l'ancien db.js : le bogue reste, sur toutes les pages qui écrivent.
+// v144 : le refus d'écriture nomme le geste. « Une modification n'a pas été
+// enregistrée » n'apprend rien à qui travaille : il ne sait ni ce qu'il vient
+// de perdre, ni quoi refaire, ni quoi nous dire. db.js lit la pile d'appel,
+// en saute ses propres cadres, et met dans le message la fonction appelante et
+// l'intitulé de la ligne — « geste : versChoeur, sur « Basse » ». Dix mots qui
+// répondent aux trois questions, sans ouvrir la console.
+// v145 : créer une partie ne dépend plus de rien. L'identifiant se fabrique
+// sur place quand celui de ui-helpers.js revient vide — pour une ligne NEUVE,
+// un identifiant tiré au hasard est juste par construction, il n'y a rien à
+// préserver donc rien à refuser —, et le spectacle se retrouve à trois
+// endroits : l'état, l'écran affiché, l'adresse. Le même filet couvre les
+// fichiers déposés, les lots et les spectacles. partitions.html seule change,
+// mais elle s'appuie sur le db.js de la version précédente : sans l'incrément,
+// un navigateur déjà venu garderait l'ancien et perdrait le filet du dessous.
+// v146 : les partitions se proposent d'après les instruments. Deux actifs
+// changent ensemble : partitions-commun.js porte la lecture des fiches et la
+// proposition (partitionsInstrumentDe, partitionsProposerAffectations), et
+// nouveautes.js l'annonce. Sans cet incrément, un navigateur déjà venu
+// chargerait la nouvelle partitions.html (servie réseau d'abord) avec
+// l'ancien partitions-commun.js : le bouton appellerait une fonction qui
+// n'existe pas.
+const VERSION = 'curieux-v146';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
