@@ -279,7 +279,13 @@
 // incrément, un navigateur déjà venu chargerait le nouvel accueil.html (les
 // pages sont servies réseau d'abord) avec l'ancien nav.js — des cartes sans
 // accroche ni groupes.
-const VERSION = 'curieux-v141';
+// v142 : les liens d'écran des cartes « Où aller » de l'accueil deviennent des
+// touches de pupitre de régie. Le composant (.co-navkey) vit dans base.css, et
+// nouveautes.js l'annonce : deux actifs mis en cache. Sans cet incrément, un
+// navigateur déjà venu chargerait le nouvel accueil.html avec l'ancienne
+// feuille — des liens nus, sans touche ni voyant — et la fenêtre « Ce qui a
+// changé » ne dirait rien de la livraison.
+const VERSION = 'curieux-v142';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

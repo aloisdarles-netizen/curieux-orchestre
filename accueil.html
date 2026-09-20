@@ -34,7 +34,8 @@
           dates à gauche, ce qui demande une action à droite, et ce qui a
           changé dans l'outil ;
        3. où aller ? — les sections du bandeau, en cartes calmes qui disent
-          à quoi chacune sert, avec leurs écrans rangés par groupe.
+          à quoi chacune sert, avec leurs écrans rangés par groupe, chaque
+          écran en touche de pupitre de régie (.co-navkey, base.css).
 
      Les couleurs de la charte restent, mais en accents : la pastille de
      chaque section, une teinte légère sur sa carte, et une seule étiquette
@@ -231,24 +232,15 @@
   }
   .home-porte-tete:hover h3{ text-decoration:underline; text-decoration-thickness:2px; text-underline-offset:3px; }
   .home-porte-accroche{ margin:4px 0 0; font-size:13px; color:var(--muted); line-height:1.45; text-wrap:pretty; }
-  .home-porte-groupes{ display:flex; flex-wrap:wrap; gap:10px 20px; margin-top:14px; }
+  /* Les écrans d'une section, en touches de pupitre de régie (.co-navkey,
+     base.css) : blanches sur toutes les cartes, claires comme sombres — la
+     couleur reste à la carte. Le voyant s'allume au survol, la touche
+     s'enfonce ; plus de chevron, la forme dit déjà qu'on va quelque part. */
+  .home-porte-groupes{ display:flex; flex-wrap:wrap; gap:14px 22px; margin-top:16px; }
   .home-porte-groupe-titre{
-    margin:0 0 4px; font-size:10.5px; font-weight:800; letter-spacing:.1em;
+    margin:0 0 8px; font-size:10.5px; font-weight:800; letter-spacing:.1em;
     text-transform:uppercase; color:var(--muted);
   }
-  .home-porte-groupe a{
-    display:inline-flex; align-items:center; gap:5px; margin:0 4px 4px 0; min-height:34px;
-    padding:6px 11px; border-radius:9px; font-size:13px; font-weight:700; line-height:1.2;
-    color:var(--text); text-decoration:none; background:var(--card); border:1px solid var(--border);
-    transition:transform .14s cubic-bezier(.34,1.5,.6,1), border-color .14s ease;
-  }
-  .home-porte-groupe a::after{
-    content:''; width:5px; height:5px; margin-left:1px; opacity:.4;
-    border-right:1.6px solid currentColor; border-top:1.6px solid currentColor; transform:rotate(45deg);
-    transition:transform .14s ease, opacity .14s ease;
-  }
-  .home-porte-groupe a:hover{ transform:translateY(-1px); border-color:var(--accent); }
-  .home-porte-groupe a:hover::after{ opacity:1; transform:rotate(45deg) translate(1.5px, -1.5px); }
   /* En bas de carte, quelle que soit la hauteur de la voisine : les chiffres
      de deux cartes côte à côte se lisent sur la même ligne. */
   .home-porte-chiffre{ margin:auto 0 0; padding-top:14px; font-size:12.5px; font-weight:600; color:var(--muted); }
@@ -272,14 +264,13 @@
     .home-symbole{ height:52px; }
     .home-board{ grid-template-columns:1fr; }
     .home-board > .home-porte{ grid-column:auto !important; }
-    .home-porte-groupe a{ min-height:40px; }
     .home-date-texte b, .home-date-texte small{ white-space:normal; }
   }
   @media (prefers-reduced-motion: reduce){
     .home-fade{ animation:none; }
     .home-fond i, .home-symbole, .home-suivre i{ animation:none; }
     .home-symbole{ transform:rotate(-8deg); }
-    .home-chip:hover, .home-porte:hover, .home-suivre a:hover, .home-porte-groupe a:hover,
+    .home-chip:hover, .home-porte:hover, .home-suivre a:hover,
     .home-date-ligne:hover .home-date-jour, .home-porte:hover .home-porte-tete .co-badge{ transform:none; }
     .home-date-jour{ transform:none; }
   }
@@ -422,6 +413,12 @@ async function poserSalutation(){
 }
 
 // --- Les sections ------------------------------------------------------------
+// Une touche de régie par écran (voir .co-navkey dans base.css) : le voyant,
+// puis le libellé.
+function toucheHtml(label, lien){
+  return `<a class="co-navkey" href="${escapeAttr(lien)}">
+    <span class="co-navkey-cap"><span class="co-navkey-led" aria-hidden="true"></span>${escapeHtml(label)}</span></a>`;
+}
 function porteHtml(sec, i){
   const fond = sec.fond || '#CEE1F4';
   const groupes = (sec.groupes && sec.groupes.length) ? sec.groupes : [{ titre:'', liens:sec.liens || [] }];
@@ -438,7 +435,7 @@ function porteHtml(sec, i){
     <div class="home-porte-groupes">${groupes.map(g => `
       <div class="home-porte-groupe">
         ${g.titre ? `<p class="home-porte-groupe-titre">${escapeHtml(g.titre)}</p>` : ''}
-        ${g.liens.map(([label, lien])=> `<a href="${escapeAttr(lien)}">${escapeHtml(label)}</a>`).join('')}
+        <div class="co-navkeys">${g.liens.map(([label, lien])=> toucheHtml(label, lien)).join('')}</div>
       </div>`).join('')}
     </div>
     <p class="home-porte-chiffre" data-chiffre="${escapeAttr(sec.titre)}" hidden></p>

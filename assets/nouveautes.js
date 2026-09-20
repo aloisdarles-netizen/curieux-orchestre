@@ -33,6 +33,15 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-20-5',
+    titre: 'Des touches de régie pour aller d’un écran à l’autre',
+    points: [
+      "Sur l’accueil, dans les cartes « Où aller », les liens vers les écrans prennent la forme d’une touche de pupitre de régie : blanche, posée sur une épaisseur noire, avec un voyant. Au survol, la touche s’enfonce et le voyant s’allume en orange.",
+      "Toutes les touches sont blanches, sur les cartes claires comme sur les sombres : la couleur reste à la carte de la section, qui dit de quel métier il s’agit.",
+      "Le petit chevron « › » disparaît des liens : la forme de touche suffit à dire qu’on va quelque part.",
+    ],
+  },
+  {
     version: '2026-09-20-4',
     titre: 'Un nouvel accueil',
     points: [
