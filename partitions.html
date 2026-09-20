@@ -260,6 +260,48 @@
   .onglet.actif small{color:rgba(255,255,255,.82);}
   .onglet.alerte{border-color:var(--ko);}
 
+  /* ---------------------------------------------------------------------
+     LES VOLETS DE LA FICHE D'UN SPECTACLE.
+
+     La fiche empilait sept blocs : opérations, matériel, distribution, chœur,
+     ensembles tiers, réglages. Le chœur et les ensembles tiers venaient après
+     la matrice, donc après tout — et un spectacle qui a servi quarante chœurs
+     poussait ses réglages hors de portée. La fiche se lit maintenant en
+     quatre volets, un par question, et la barre reste collée sous le menu :
+     on change de volet d'où l'on est, sans remonter.
+
+     Le dessin est distinct des .onglet d'opération, qui vivent DANS le volet
+     du matériel : deux niveaux de navigation ne doivent pas se ressembler.
+     Le décalage collant (--volets-top) est mesuré en JS sur la barre et le
+     sous-menu réels — voir poserHautVolets() — parce que leur hauteur n'est
+     pas la même à toutes les largeurs.
+     --------------------------------------------------------------------- */
+  .volets{
+    position:sticky; top:var(--volets-top, 0px); z-index:20;
+    display:flex; gap:2px; flex-wrap:wrap; align-items:stretch;
+    margin:0 0 14px; padding:6px 0 0; background:var(--bg);
+    border-bottom:1px solid var(--border);
+  }
+  .volet{
+    font-family:inherit; font-size:13px; font-weight:800; color:var(--muted); cursor:pointer;
+    background:none; border:none; border-bottom:3px solid transparent; border-radius:0;
+    padding:8px 14px 9px; margin-bottom:-1px; line-height:1.2; text-align:left;
+    display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:3px; min-width:0;
+  }
+  .volet small{font-size:11px; font-weight:600; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .volet:hover{color:var(--text);}
+  .volet.actif{color:var(--text); border-bottom-color:var(--accent);}
+  .volet.alerte small{color:var(--ko);}
+  .volet:focus-visible{outline:2px solid var(--text); outline-offset:-2px; border-radius:6px;}
+  /* Ce vers quoi on saute — le formulaire d'un lot, les onglets d'opération —
+     ne doit pas atterrir SOUS la barre collante. */
+  .ancre, .onglets{scroll-margin-top:calc(var(--volets-top, 0px) + 72px);}
+
+  /* Les lots clos, repliés. Le même pli que le dépôt : une ligne qui compte,
+     et qui s'ouvre d'un clic. */
+  .pli > summary{cursor:pointer; font-size:12px; font-weight:800; color:var(--muted); padding:9px 0;}
+  .pli > summary:hover{color:var(--text);}
+
   /* Le fil d'Ariane de l'atelier. Sans lui, on ne sait plus dans quel spectacle
      on dépose — et on dépose dans le mauvais. */
   .fil{
@@ -473,9 +515,17 @@
     .dep-ligne.aRegler{margin:0 -14px; padding:9px 14px;}
     .part-grille{grid-template-columns:1fr;}
     .voix-grille{grid-template-columns:1fr;}
+    /* Quatre volets sur deux lignes au besoin ; l'appoint peut se replier,
+       sinon « 12 parties · 3 sans fichier » déborde du bouton. */
+    .volet{padding:8px 10px 9px; font-size:12.5px;}
+    .volet small{white-space:normal;}
     /* La cible tactile reprend ses droits : 16 px de police (sans quoi iOS
        zoome sur la saisie) et une hauteur qu'on peut viser du pouce. */
-    .co-input.ton{width:100%; min-height:38px; font-size:16px !important;}
+    .co-input.ton{width:auto; flex:1 1 110px; min-width:0; min-height:38px; font-size:16px !important;}
+    /* La tête de voix et ses fichiers passent à la ligne au besoin : le champ
+       de tonalité prenait toute la largeur D'UNE LIGNE qui porte aussi le
+       nom, le poids et la croix, et la tuile débordait de l'écran. */
+    .voix-tete, .voix-fic{flex-wrap:wrap;}
     .spec-grille{grid-template-columns:1fr;}
     .ret-ligne{grid-template-columns:minmax(0,1fr) auto;}
     input, select{font-size:16px !important;}
@@ -539,9 +589,11 @@
      2. j'ouvre ce spectacle et j'y range ses PARTIES et leurs fichiers ;
      3. dans ce même écran, j'y lie les MUSICIENS, opération par opération.
 
-   Tout tient dans une seule page par spectacle. L'écran « Par opération » ne
-   sert qu'à la relecture d'avant première répétition : sur cette opé, qu'a-t-on
-   programmé, et qui n'a rien à jouer.
+   Tout tient dans une seule page par spectacle, lue en quatre volets — le
+   matériel et sa distribution, le chœur, les ensembles tiers, les réglages —
+   sous une barre qui reste collée à l'écran (voir VOLETS). L'écran « Par
+   opération » ne sert qu'à la relecture d'avant première répétition : sur
+   cette opé, qu'a-t-on programmé, et qui n'a rien à jouer.
 
    TROIS NIVEAUX, ET C'EST CELUI DU MILIEU QUI TRAVAILLE :
      le SPECTACLE  — EXPEDITION 33. On y dépose le matériel UNE FOIS.
@@ -589,6 +641,14 @@ const PLAFOND_STOCKAGE = 1024 * 1024 * 1024;   // le plan Supabase gratuit
 
 let state = {
   vue: 'spectacles',   // 'spectacles' | 'spectacle' | 'depot' | 'operations' | 'retraits' | 'choeurs' | 'transmissions'
+  /* Le volet ouvert dans la fiche d'un spectacle — voir VOLETS. Il se remet
+     au matériel à chaque ouverture : le volet « Chœur » de EXPEDITION 33 ne
+     dit rien du spectacle qu'on ouvre ensuite. */
+  volet: 'materiel',
+  /* Les plis de lots clos qu'on a ouverts, par écran : { choeur: true, … }.
+     Sans mémoire, retirer trois vieux lots d'affilée refermerait la liste
+     trois fois. */
+  plis: {},
   spectacles: [], programmations: [], parties: [], fichiers: [], affectations: [], acces: [], envois: [],
   tournees: [], musiciens: [], techniciens: [],
   spectacleId: '',
@@ -976,13 +1036,14 @@ async function charger(){
   const url = new URLSearchParams(location.search);
   const spectacle = url.get('spectacle') || '';
   const operation = url.get('operation') || '';
+  const volet = url.get('volet') || '';   // materiel | choeur | tiers | reglages
   if(operation) state.tourneeId = operation;
   // Les anciens noms de vue restent valides : des liens et des signets les
   // portent, et ils ne doivent pas atterrir sur un écran au hasard.
   const LEGACY = { bibliotheque: 'spectacles', affectation: 'operations' };
   const vue = url.get('vue');
   if(vue) state.vue = LEGACY[vue] || vue;
-  if(spectacle && state.spectacles.some(s => s.id === spectacle)){ ouvrirSpectacle(spectacle, operation); return; }
+  if(spectacle && state.spectacles.some(s => s.id === spectacle)){ ouvrirSpectacle(spectacle, operation, volet); return; }
   /* Une vue demandée gagne toujours ; une opération SANS vue ouvre son écran.
      L'ancienne règle forçait « Par opération » dès qu'une opération
      accompagnait une vue, si bien qu'un lien ?vue=transmissions&operation=…
@@ -1053,6 +1114,7 @@ function rendre(){
                : state.vue === 'spectacle' ? vueSpectacle()
                : vueSpectacles();
   cablerVue();
+  poserHautVolets();
 
   if(place){
     const neuf = el.querySelector('.co-matrix');
@@ -1184,12 +1246,117 @@ function vueSpectacles(){
 
 /* --- VUE 2 : L'ATELIER D'UN SPECTACLE ------------------------------------- */
 
+/* LA FICHE D'UN SPECTACLE SE LIT EN QUATRE VOLETS, et c'est une correction.
+
+   Elle empilait sept blocs. L'ordre était juste — opérations, matériel,
+   distribution, puis le chœur, les ensembles tiers, les réglages — mais la
+   matrice tient tout l'écran, et ce qui venait après ne se trouvait qu'en
+   descendant « tout en bas ». Un spectacle repris chaque saison y accumule
+   ses chœurs : à quarante lots, les réglages n'étaient plus atteignables.
+
+   Un volet par question :
+     MATÉRIEL ET DISTRIBUTION — pour quoi, quoi, à qui. Les trois gestes de
+                                l'en-tête de page, dans leur ordre.
+     CHŒUR                    — les voix, leurs tonalités, les remises.
+     ENSEMBLES TIERS          — le matériel confié à une autre maison.
+     RÉGLAGES                 — chiffrement, Drive, archivage, suppression.
+
+   La barre est COLLANTE : on passe d'un volet à l'autre depuis le fond de la
+   matrice, sans remonter. Et chaque volet porte son compte sur le bouton —
+   « 4 voix · 2 lots », « 3 sans fichier » — pour qu'un volet fermé ne cache
+   pas un manque. */
+const VOLETS = [
+  { cle: 'materiel', libelle: 'Matériel et distribution' },
+  { cle: 'choeur',   libelle: 'Chœur' },
+  { cle: 'tiers',    libelle: 'Ensembles tiers' },
+  { cle: 'reglages', libelle: 'Réglages' },
+];
+const voletCourant = () => VOLETS.some(v => v.cle === state.volet) ? state.volet : 'materiel';
+
 function vueSpectacle(){
   const s = spectacleCourant();
   if(!s) return '<div class="co-card co-pad vide">Ce spectacle n\'existe plus. <button type="button" class="co-btn sm" id="btnRetourListe">Revenir à la liste</button></div>';
-  return blocFil(s) + blocOperations(s) + blocMateriel(s) + blocDistribution(s)
-       + blocChoeur(s) + blocTransmissions(s) + blocReglages(s);
+  const volet = voletCourant();
+  const panneau = volet === 'choeur' ? blocChoeur(s)
+                : volet === 'tiers' ? blocTransmissions(s)
+                : volet === 'reglages' ? blocReglages(s)
+                : blocOperations(s) + blocMateriel(s) + blocDistribution(s);
+  return blocFil(s) + barreVolets(s) + `<div class="volet-panneau">${panneau}</div>`;
 }
+
+/* Un lot clos — expiré ou révoqué — n'attend plus rien de personne. */
+const LOT_CLOS = new Set(['expire', 'revoque']);
+const lotsVivants = (lots) => lots.filter(e => !LOT_CLOS.has(etatEnvoi(e).cle));
+/* Le compte des lots dit ce qui est DEHORS, et sépare ce qui ne l'est plus :
+   « 2 lots · 12 clos » se lit en une fois, « 14 lots » obligeait à ouvrir
+   pour savoir. Le même libellé partout — barre des volets, titres de bloc —
+   pour qu'un chiffre ne contredise pas l'autre. */
+function compteLots(lots){
+  if(!lots.length) return 'aucun lot';
+  const vivants = lotsVivants(lots).length;
+  return vivants + ' lot' + (vivants > 1 ? 's' : '') + (vivants < lots.length ? ' · ' + (lots.length - vivants) + ' clos' : '');
+}
+
+function barreVolets(s){
+  const volet = voletCourant();
+  const parties = partiesDe(s.id);
+  const voix = partiesChoeur(s.id);
+  const lotsChoeur = state.envois.filter(e => e.spectacleId === s.id && estChoeur(e));
+  const lotsTiers = state.envois.filter(e => e.spectacleId === s.id && !estChoeur(e));
+  const manquantes = parties.filter(p => !aUnFichier(p)).length;
+  const voixSansFichier = voix.filter(p => !aUnFichier(p)).length;
+  const sansDroits = (lots) => lotsVivants(lots).filter(e => !e.droitsConfirmes).length;
+  const pl = (n, mot) => n + ' ' + mot + (n > 1 ? 's' : '');
+  const detail = {
+    materiel: {
+      texte: parties.length ? pl(parties.length, 'partie') + (manquantes ? ' · ' + manquantes + ' sans fichier' : '') : 'aucune partie',
+      alerte: manquantes > 0,
+    },
+    choeur: {
+      texte: voix.length ? voix.length + ' voix · ' + compteLots(lotsChoeur) : 'aucune voix',
+      alerte: voixSansFichier > 0 || sansDroits(lotsChoeur) > 0,
+    },
+    tiers: { texte: compteLots(lotsTiers), alerte: sansDroits(lotsTiers) > 0 },
+    reglages: {
+      texte: [s.chiffrer ? 'chiffré' : '', s.archive ? 'archivé' : ''].filter(Boolean).join(' · ') || 'chiffrement, Drive, archivage',
+      alerte: false,
+    },
+  };
+  return `
+    <div class="volets" role="tablist" aria-label="Volets de la fiche">
+      ${VOLETS.map(v => `<button type="button" role="tab" class="volet${v.cle === volet ? ' actif' : ''}${detail[v.cle].alerte ? ' alerte' : ''}"
+          data-volet="${v.cle}" aria-selected="${v.cle === volet ? 'true' : 'false'}">${v.libelle}<small>${escapeHtml(detail[v.cle].texte)}</small></button>`).join('')}
+    </div>`;
+}
+
+/* Changer de volet remonte AU DÉBUT DU VOLET, pas en haut de la page : on
+   arrive au début de ce qu'on a demandé, la barre juste au-dessus. Et on ne
+   bouge pas si le début est déjà à l'écran — cliquer un volet depuis le haut
+   de la fiche ne doit pas faire sauter l'écran. */
+function montrerVolet(volet){
+  if(!VOLETS.some(v => v.cle === volet) || voletCourant() === volet) return;
+  state.volet = volet;
+  rendre();
+  const barre = document.querySelector('.volets');
+  const panneau = document.querySelector('.volet-panneau');
+  if(!barre || !panneau) return;
+  const colle = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--volets-top')) || 0;
+  const cible = panneau.getBoundingClientRect().top + window.scrollY - barre.offsetHeight - colle - 6;
+  if(window.scrollY > cible) window.scrollTo({ top: Math.max(0, cible), behavior: 'smooth' });
+}
+
+/* La barre des volets se colle sous ce qui est déjà collé — la barre de
+   navigation et le sous-menu de section, quand il y en a un. Leur hauteur
+   change avec la largeur d'écran, et le sous-menu peut manquer : on la MESURE
+   plutôt que de la supposer, à chaque rendu et à chaque redimensionnement. */
+function poserHautVolets(){
+  const haut = ['.co-topbar', '.co-subnav'].reduce((total, sel) => {
+    const n = document.querySelector(sel);
+    return total + (n && getComputedStyle(n).position === 'sticky' ? n.offsetHeight : 0);
+  }, 0);
+  document.documentElement.style.setProperty('--volets-top', haut + 'px');
+}
+window.addEventListener('resize', poserHautVolets);
 
 function blocFil(s){
   return `
@@ -2578,6 +2745,28 @@ function trierEnvois(liste){
     || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 }
 
+/* La liste des lots d'un écran. Les lots VIVANTS — ouverts, ou qui ouvrent
+   plus tard — en clair ; les lots CLOS — expirés, révoqués — repliés derrière
+   une ligne qui les compte. Un spectacle repris chaque saison accumule ses
+   chœurs d'hier : quarante lignes qui ne demandent plus rien poussaient hors
+   d'atteinte le formulaire et tout ce qui suit. Rien n'est caché pour autant :
+   la ligne dit combien, et le journal des exemplaires pris ne s'efface pas.
+   `cle` nomme l'écran (state.plis) : le pli survit au redessin. */
+function htmlLots(lots, cle, options){
+  const vivants = lotsVivants(lots);
+  const clos = lots.filter(e => LOT_CLOS.has(etatEnvoi(e).cle));
+  if(!clos.length) return vivants.map(e => ligneEnvoi(e, options)).join('');
+  const expires = clos.filter(e => etatEnvoi(e).cle === 'expire').length;
+  const revoques = clos.length - expires;
+  const detail = [expires ? expires + ' expiré' + (expires > 1 ? 's' : '') : '',
+                  revoques ? revoques + ' révoqué' + (revoques > 1 ? 's' : '') : ''].filter(Boolean).join(', ');
+  return vivants.map(e => ligneEnvoi(e, options)).join('') + `
+    <details class="pli" data-pli="${escapeAttr(cle)}"${state.plis[cle] ? ' open' : ''}>
+      <summary>${clos.length} lot${clos.length > 1 ? 's' : ''} clos — ${detail}. Le lien ne fonctionne plus ; le journal, lui, reste.</summary>
+      ${clos.map(e => ligneEnvoi(e, options)).join('')}
+    </details>`;
+}
+
 /* L'ÉCRAN DE SUPERVISION. La question qu'on se pose en arrivant ici est
    « qu'est-ce qui est dehors, en ce moment, et chez qui ? » — elle ne se pose
    jamais spectacle par spectacle, d'où un onglet à part. On n'y CRÉE rien :
@@ -2610,7 +2799,7 @@ function vueTransmissions(){
 
     <section class="bloc">
       <h2>Ce qui est confié <span class="h2-total">${lots.length} transmission${lots.length > 1 ? 's' : ''}</span></h2>
-      ${lots.map(e => ligneEnvoi(e, { avecSpectacle: true })).join('')
+      ${htmlLots(lots, 'vueTransmissions', { avecSpectacle: true })
         || '<p class="vide">Aucune transmission. Un lot confié remplace l\'envoi individuel à cinquante musiciens qui ne sont pas les nôtres : un lien, un code, une personne qui en répond.<br>Ça se prépare depuis la fiche du spectacle — c\'est là que se choisissent les parties et l\'opération.</p>'}
     </section>`;
 }
@@ -2635,6 +2824,11 @@ function vueTransmissions(){
    pas un formulaire. Le masquer complètement aurait été pire : un chœur qui
    s'ajoute en cours de production ne se cherche pas dans un menu, et la
    question « où range-t-on les voix ? » se pose une fois par spectacle.
+
+   IL A SON VOLET dans la fiche du spectacle (voir VOLETS) : il venait après
+   la matrice, donc après tout, et un spectacle à quarante chœurs poussait
+   les réglages hors de portée. Les lots clos y sont repliés (htmlLots) et
+   « Nouveau chœur » saute au formulaire, qui reste après la liste.
    --------------------------------------------------------------------------- */
 
 const CHOEUR_DUREE_PROPOSEE = 120;   // jours — un chœur apprend par cœur, ça prend plus longtemps qu'un orchestre ne déchiffre
@@ -2821,7 +3015,7 @@ function blocChoeur(s){
     <section class="bloc" id="blocChoeur">
       <h2>Le chœur
         <span class="h2-total">
-          ${voix.length} voix${lots.length ? ' · ' + lots.length + ' lot' + (lots.length > 1 ? 's' : '') : ''}
+          ${voix.length} voix${lots.length ? ' · ' + compteLots(lots) : ''}
           <button type="button" class="co-btn sm" id="btnAjouterVoix"${state.choeurAbsent ? ' disabled' : ''}>Ajouter une voix</button>
         </span>
       </h2>
@@ -2844,12 +3038,17 @@ function blocChoeur(s){
         </select>
       </div>` : ''}
 
-      <h2 style="margin-top:18px">Remettre les partitions au chœur</h2>
+      <h2 style="margin-top:18px">Remettre les partitions au chœur
+        <span class="h2-total">
+          ${lots.length ? compteLots(lots) : ''}
+          ${voix.length ? '<button type="button" class="co-btn sm" data-aller="formChoeur">Nouveau chœur</button>' : ''}
+        </span>
+      </h2>
       <p class="vide">Un chœur invité n'a pas ses choristes dans notre annuaire, et il n'est pas question d'écrire à quarante personnes.
         On remet le lot à la MAISON : un lien, un code, une personne qui en répond, une date de fin.
         Chaque exemplaire pris porte le nom du chœur et reste traçable.</p>
-      ${lots.map(e => ligneEnvoi(e, { avecSpectacle: false })).join('')}
-      ${voix.length ? formulaire : '<p class="vide sans-lecteur">Range d\'abord les voix : on ne remet pas un lot vide.</p>'}
+      ${htmlLots(lots, 'choeur', { avecSpectacle: false })}
+      ${voix.length ? `<div class="ancre" id="formChoeur">${formulaire}</div>` : '<p class="vide sans-lecteur">Range d\'abord les voix : on ne remet pas un lot vide.</p>'}
     </section>`;
 }
 
@@ -2935,8 +3134,8 @@ function vueChoeurs(){
 
     <section class="bloc">
       <h2>Ce qui est remis <span class="h2-total">${lots.length} remise${lots.length > 1 ? 's' : ''}</span></h2>
-      ${lots.map(e => ligneEnvoi(e, { avecSpectacle: true })).join('')
-        || '<p class="vide">Aucune partition de chœur remise. Ça se prépare depuis la fiche du spectacle, dans le bloc « Le chœur » — c\'est là que se lisent les voix et leurs tonalités.</p>'}
+      ${htmlLots(lots, 'vueChoeurs', { avecSpectacle: true })
+        || '<p class="vide">Aucune partition de chœur remise. Ça se prépare depuis la fiche du spectacle, dans son volet « Chœur » — c\'est là que se lisent les voix et leurs tonalités.</p>'}
     </section>
 
     <section class="bloc">
@@ -2981,15 +3180,15 @@ function vueChoeurs(){
             <button type="button" class="co-btn sm" data-ouvrir-choeur="${escapeAttr(sp.id)}">Ouvrir</button>
           </div>`;
       }).join('')
-        || '<p class="vide">Aucun spectacle ne porte de partie de chœur. Elles se rangent dans la fiche d\'un spectacle, bloc « Le chœur ».</p>'}
+        || '<p class="vide">Aucun spectacle ne porte de partie de chœur. Elles se rangent dans la fiche d\'un spectacle, volet « Chœur ».</p>'}
     </section>`;
 }
 
-/* Bloc 6 — CONFIER À UN ENSEMBLE TIERS. Dans la fiche du spectacle, après la
-   distribution interne, parce que c'est l'ordre réel : on sert son orchestre,
-   puis on confie à l'invité. Le spectacle est déjà choisi — c'est celui qu'on
-   a ouvert — et les opérations proposées sont les siennes, pas les cent
-   autres. */
+/* Bloc 6 — CONFIER À UN ENSEMBLE TIERS. Dans la fiche du spectacle, dans son
+   propre volet après celui du chœur, parce que c'est l'ordre réel : on sert
+   son orchestre, puis on confie à l'invité. Le spectacle est déjà choisi —
+   c'est celui qu'on a ouvert — et les opérations proposées sont les siennes,
+   pas les cent autres. */
 function blocTransmissions(s){
   chargerJournalTiers();
 
@@ -3080,11 +3279,14 @@ function blocTransmissions(s){
   return `
     <section class="bloc" id="blocTransmissions">
       <h2>Confier à un ensemble tiers
-        <span class="h2-total">${lots.length ? lots.length + ' lot' + (lots.length > 1 ? 's' : '') : ''}</span>
+        <span class="h2-total">
+          ${lots.length ? compteLots(lots) : ''}
+          ${parties.length ? '<button type="button" class="co-btn sm" data-aller="formTiers">Nouvel ensemble</button>' : ''}
+        </span>
       </h2>
       <p class="vide">Un orchestre invité qui reprend le programme n'a pas ses musiciens dans notre annuaire — et il n'est pas question de leur écrire un par un. On confie le lot à la MAISON : un lien, un code, une personne qui en répond, une date de fin. Chaque exemplaire pris porte le nom de l'ensemble et reste traçable.</p>
-      ${lots.map(e => ligneEnvoi(e, { avecSpectacle: false })).join('')}
-      ${parties.length ? formulaire : '<p class="vide sans-lecteur">Range d\'abord les parties de ce spectacle : on ne confie pas un lot vide.</p>'}
+      ${htmlLots(lots, 'tiers', { avecSpectacle: false })}
+      ${parties.length ? `<div class="ancre" id="formTiers">${formulaire}</div>` : '<p class="vide sans-lecteur">Range d\'abord les parties de ce spectacle : on ne confie pas un lot vide.</p>'}
     </section>`;
 }
 
@@ -3188,6 +3390,18 @@ function cablerVue(){
     if(cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   el.querySelectorAll('[data-onglet]').forEach(b => b.onclick = ()=>{ state.tourneeId = b.dataset.onglet; state.selection = new Set(); rendre(); });
+  el.querySelectorAll('[data-volet]').forEach(b => b.onclick = ()=> montrerVolet(b.dataset.volet));
+  // « Nouveau chœur », « Nouvel ensemble » : un saut au formulaire, qui est
+  // après la liste des lots — quarante lignes plus bas quand il y en a
+  // quarante. Le premier champ prend le focus : on est venu pour taper un nom.
+  el.querySelectorAll('[data-aller]').forEach(b => b.onclick = ()=>{
+    const cible = q(b.dataset.aller);
+    if(!cible) return;
+    cible.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const champ = cible.querySelector('input:not([type=checkbox]):not([type=date]):not([disabled])');
+    if(champ) champ.focus({ preventScroll: true });
+  });
+  el.querySelectorAll('[data-pli]').forEach(d => d.ontoggle = ()=>{ state.plis[d.dataset.pli] = d.open; });
 
   // --- dépôt ---
   // Deux zones, le même geste : celle de l'écran de dépôt, et celle posée au
@@ -3298,7 +3512,7 @@ function cablerVue(){
   if(q('btnVoixSATB')) q('btnVoixSATB').onclick = creerVoixSATB;
   if(q('selVersChoeur')) q('selVersChoeur').onchange = (e)=>{ if(e.target.value) versChoeur(e.target.value); };
   el.querySelectorAll('[data-hors-choeur]').forEach(b => b.onclick = ()=> horsChoeur(b.dataset.horsChoeur));
-  el.querySelectorAll('[data-ouvrir-choeur]').forEach(b => b.onclick = ()=> ouvrirSpectacle(b.dataset.ouvrirChoeur));
+  el.querySelectorAll('[data-ouvrir-choeur]').forEach(b => b.onclick = ()=> ouvrirSpectacle(b.dataset.ouvrirChoeur, '', 'choeur'));
   /* « change » et non « input » : on enregistre quand le champ est quitté ou
      validé, pas à chaque lettre — une tonalité s'écrit en six frappes, et six
      écritures pour une valeur intermédiaire (« R », « Ré », « Ré♭ »…) est du
@@ -3581,8 +3795,9 @@ function copierRelance(){
 /* Ouvrir un spectacle, c'est aussi choisir l'opération qu'on va distribuer.
    On garde celle d'où l'on vient si le spectacle y est programmé — c'est le
    cas quand on arrive depuis l'écran « Par opération » —, sinon la première. */
-function ouvrirSpectacle(id, tourneeId){
+function ouvrirSpectacle(id, tourneeId, volet){
   state.spectacleId = id;
+  state.volet = VOLETS.some(v => v.cle === volet) ? volet : 'materiel';
   // Une sélection de noms n'a de sens que dans la matrice où elle a été faite :
   // la traîner d'un spectacle à l'autre ferait affecter les violons d'hier.
   state.selection = new Set();
