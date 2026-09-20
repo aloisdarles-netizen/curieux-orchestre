@@ -223,20 +223,14 @@ const CURIEUX_SECTIONS_V2 = [
       { groupe:'Autour de la date', libelle:'Invitations', href:'invitations.html', pages:['invitations.html'] },
       { groupe:'Autour de la date', libelle:'Journal des changements', href:'newsletter.html', pages:['newsletter.html'] },
       { groupe:'Bibliothèque', libelle:'Partitions', href:'partitions.html', pages:['partitions.html','partitions.html?type=recording'] },
-      /* Chiffrer un projet et suivre ce qu'il coûte sont un travail de
-         production, pas un réglage de l'outil : ces deux écrans quittent le
-         menu Gestion pour se ranger ici, à côté des tournées qu'ils chiffrent.
-
-         Ils gardent la porte qu'ils avaient — les comptes 'admin' seulement,
-         voir requireSuperAdminAuth sur devis.html et suivi.html : les cachets
-         et les marges ne se montrent pas à toute l'équipe. D'où le droit posé
-         sur l'entrée et non sur la section, Production restant ouverte à tous.
-
-         Le groupe est en dernier, comme Gestion est en dernier dans le
-         bandeau : il apparaît quand la base a répondu, et rien de ce qui le
-         précède ne se décale sous le curseur. */
-      { groupe:'Chiffrage', droit:'admin', libelle:'Devis et budgets', href:'devis.html', pages:['devis.html','devis-editeur.html'] },
-      { groupe:'Chiffrage', droit:'admin', libelle:'Suivi des dépenses', href:'suivi.html', pages:['suivi.html'] },
+      /* « Devis et budgets » et « Suivi des dépenses » ont fait un aller-retour
+         par ici, au motif que chiffrer un projet est un travail de production.
+         L'argument tient, mais il coûtait plus qu'il ne rapportait : le budget
+         se retrouvait coupé en deux, la moitié sous Production et l'autre dans
+         un menu Gestion, et on ne savait plus où chercher un chiffre. Un devis
+         se monte avec le tableau de bord sous les yeux et se solde au suivi des
+         dépenses : les quatre écrans se tiennent, ils restent ensemble.
+         Voir la section Budget plus bas. */
     ]},
 
   /* DISTRIBUTION — qui joue quoi, quand.
@@ -297,33 +291,50 @@ const CURIEUX_SECTIONS_V2 = [
       { groupe:'Cadre social', libelle:'Infos sociales', href:'infos-sociales.html', pages:['infos-sociales.html'] },
     ]},
 
-  /* GESTION — réservée aux comptes 'admin' (voir requireSuperAdminAuth sur
-     chaque page) : les cachets et les marges ne se montrent pas à toute
-     l'équipe.
+  /* BUDGET — les quatre écrans de l'argent, ensemble et dans l'ordre où on
+     les ouvre : on regarde où en est le projet, on monte le devis, on suit ce
+     qu'il consomme, et le client est la fiche qui va avec.
 
-     Fusionne l'ex-« Budget » et l'ex-« Admin », qui n'avait qu'un seul écran —
-     une entrée de niveau 1 pour une page, c'était le symptôme le plus net de
-     la rangée plate.
+     Ils l'avaient été coupés en deux — le chiffrage sous Production, le
+     tableau de bord et les clients sous un menu « Gestion » — au motif que
+     chiffrer est un travail de production. L'argument est juste et ne suffit
+     pas : un budget qui se cherche dans deux menus ne se cherche pas, il
+     s'oublie. Le menu se lit d'un bloc ou ne sert à rien.
 
-     Placée en dernier, et c'est délibéré : le rôle se lit de façon asynchrone
-     (isSuperAdmin), donc ce menu apparaît après le premier rendu. En bout de
-     bandeau, rien de ce qui précède ne se décale sous le curseur.
+     Pas d'intitulés de groupe : quatre entrées qui se suivent dans l'ordre du
+     travail n'ont rien à séparer.
 
-     « Clients » reste ici plutôt que de rejoindre les Annuaires, dont c'est
-     pourtant un : devis-clients.html est sous requireSuperAdminAuth, le
-     déplacer créerait un menu à permissions mixtes où une entrée sur cinq
-     renvoie une porte fermée. */
-  { libelle:'Gestion', href:'budget.html', droit:'admin',
-    sticker:{ fond:'#EC4B15', encre:'#FCF2F0', chip:'€', chipFond:'#FCF2F0', chipEncre:'#EC4B15', chipTilt:'-5deg', tilt:'-.9deg', lienFond:'rgba(252,242,240,.22)', lienEncre:'#FCF2F0' },
+     Réservée aux comptes 'admin' (requireSuperAdminAuth sur chacune des quatre
+     pages) : les cachets et les marges ne se montrent pas à toute l'équipe.
+     Le rôle se lisant de façon asynchrone, le menu apparaît après le premier
+     rendu — d'où sa place en fin de bandeau, où rien de ce qui précède ne se
+     décale sous le curseur.
+
+     « Clients » est ici plutôt qu'aux Annuaires, dont c'en est pourtant un :
+     devis-clients.html est sous la même porte réservée, le déplacer créerait
+     un menu à permissions mixtes où une entrée sur cinq serait refusée. */
+  { libelle:'Budget', href:'budget.html', droit:'admin',
+    sticker:{ fond:'#f3ddd0', encre:'#3d5876', chip:'€', chipFond:'#3d5876', chipEncre:'#FCF2F0', chipTilt:'4deg', tilt:'.6deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#3d5876' },
     entrees:[
-      // « Devis et budgets » et « Suivi des dépenses » sont partis sous
-      // Production : on chiffre et on suit un projet en le produisant. Restent
-      // ici la vue d'ensemble — les chiffres de tous les projets à la fois,
-      // qu'on lit pour arbitrer et non pour monter un devis — et le fichier
-      // clients, qui est un annuaire de tiers, pas une pièce d'opération.
-      { groupe:'Budget', libelle:'Vue d’ensemble', href:'budget.html', pages:['budget.html'] },
-      { groupe:'Budget', libelle:'Clients', href:'devis-clients.html', pages:['devis-clients.html'] },
-      { groupe:'Administration', libelle:'Comptes et accès', href:'admin-dashboard.html', pages:['admin-dashboard.html'] },
+      { libelle:'Vue d’ensemble', href:'budget.html', pages:['budget.html'] },
+      { libelle:'Devis et budgets', href:'devis.html', pages:['devis.html','devis-editeur.html'] },
+      { libelle:'Suivi des dépenses', href:'suivi.html', pages:['suivi.html'] },
+      { libelle:'Clients', href:'devis-clients.html', pages:['devis-clients.html'] },
+    ]},
+
+  /* ADMIN — les comptes et leurs accès. Un seul écran, donc un lien simple et
+     pas un déroulant : ouvrir un menu pour y trouver une seule ligne est un
+     geste pour rien (voir construireEntreeBandeau).
+
+     Il avait été rangé sous « Gestion » avec le budget, pour éviter une entrée
+     de niveau 1 ne portant qu'une page. La raison ne tient plus : ce qui
+     rendait une telle entrée coûteuse, c'était une rangée de onze qui
+     débordait déjà. Il y en a cinq, et gérer des comptes n'est pas gérer de
+     l'argent — le ranger sous « Budget » serait un contresens de plus. */
+  { libelle:'Admin', href:'admin-dashboard.html', droit:'admin',
+    sticker:{ fond:'#EC4B15', encre:'#FCF2F0', chip:'⚿', chipFond:'#FCF2F0', chipEncre:'#EC4B15', chipTilt:'-5deg', tilt:'-.9deg', lienFond:'rgba(252,242,240,.22)', lienEncre:'#FCF2F0' },
+    entrees:[
+      { libelle:'Comptes et accès', href:'admin-dashboard.html', pages:['admin-dashboard.html'] },
     ]},
 ];
 
@@ -534,6 +545,25 @@ function curieuxSectionCourante(page){
 // menus de système d'exploitation, et il évite de refermer/rouvrir pour
 // comparer deux menus.
 // ---------------------------------------------------------------------------
+/* L'entrée de bandeau d'une section : un déroulant, ou un lien simple quand la
+ * section ne mène qu'à un seul écran — « Admin ». Ouvrir un menu pour y
+ * trouver une seule ligne est un geste pour rien, et le chevron promet un
+ * choix qui n'existe pas.
+ */
+function construireEntreeBandeau(sec, page){
+  const entrees = curieuxEntreesVisibles(sec, page);
+  if(entrees.length > 1) return construireDeroulant(sec, page);
+
+  const lien = document.createElement('a');
+  lien.className = 'co-nav-lien';
+  lien.setAttribute('data-section', sec.libelle);
+  lien.href = entrees.length ? entrees[0].href : sec.href;
+  lien.textContent = sec.libelle;
+  const cible = entrees.length ? (entrees[0].pages || [entrees[0].href]) : (sec.pages || [sec.href]);
+  if(page && cible.includes(page)) lien.setAttribute('aria-current', 'page');
+  return lien;
+}
+
 function construireDeroulant(sec, page){
   const item = document.createElement('div');
   item.className = 'co-nav-item';
@@ -749,9 +779,9 @@ function dessinerNav(topbar, page, section){
     nav.innerHTML = '';
     sections.forEach(sec => {
       if(v2){
-        const item = construireDeroulant(sec, page);
+        const item = construireEntreeBandeau(sec, page);
         nav.appendChild(item);
-        brancherDeroulant(item);
+        if(item.classList.contains('co-nav-item')) brancherDeroulant(item);
       }else{
         const lien = document.createElement('a');
         lien.href = sec.href;
@@ -779,7 +809,9 @@ function dessinerNav(topbar, page, section){
 function dessinerSousMenu(topbar, page, section){
   const ancien = document.querySelector('.co-subnav');
   const entrees = section ? curieuxEntreesVisibles(section, page) : [];
-  if(!entrees.length){ if(ancien) ancien.remove(); return; }
+  // Une seule entrée : rien à parcourir, une barre d'une pastille serait du
+  // bruit collant sur toute la hauteur de la page.
+  if(entrees.length < 2){ if(ancien) ancien.remove(); return; }
 
   const sub = document.createElement('div');
   sub.className = 'co-subnav';
