@@ -14,6 +14,7 @@
 <script src="assets/brand-assets.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/partitions-commun.js"></script>
+<script src="assets/statuts-date.js"></script>
 <script src="assets/zip.js"></script>
 <script>try{ injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); }catch(e){}</script>
 <link rel="stylesheet" href="assets/base.css">
@@ -71,6 +72,14 @@
     display:inline-block; font-size:11.5px; font-weight:800; padding:2px 9px; border-radius:999px;
     background:var(--pup-choeur); color:var(--pup-choeur-ink); white-space:nowrap;
   }
+
+  /* Les dates. Une ligne par journée, le jour en gras à gauche : c'est la
+     seule chose que le chef de chœur lit avant de répondre, et il la lit en
+     diagonale. */
+  .dat{display:flex; gap:10px; align-items:baseline; padding:7px 0; border-bottom:1px solid var(--border); font-size:13.5px;}
+  .dat:last-child{border-bottom:none;}
+  .dat b{min-width:215px; font-weight:800;}
+  .dat span{color:var(--muted); font-size:12.5px;}
 
   .fic{
     display:flex; gap:10px; align-items:center; text-decoration:none; color:inherit;
@@ -181,6 +190,10 @@ const TEXTES = {
        endroit, d'un clic, plutôt que de lui faire rappeler la production. */
     mauvaisePage: 'Ce lien ouvre un lot de matériel d’orchestre, et non les voix d’un chœur.',
     mauvaisePageLien: 'Ouvrir la page du matériel confié',
+    datesTitre: 'Vos dates',
+    datesAide: "Les dates auxquelles votre chœur est attendu. Si l’une d’elles ne correspond pas à ce qui a été convenu, prévenez-nous avant de convoquer vos choristes.",
+    natures: { concert:'Concert', repetition:'Répétition', residence:'Résidence',
+               prise:'Séance d’enregistrement', overdub:'Overdub', mixage:'Mixage' },
     codeTitre: 'Code d’accès',
     codeAide: "Le code vous a été communiqué séparément de ce lien. Vous ne le saisissez qu’une fois : il est retenu quatorze jours sur cet appareil.",
     codeChamp: 'code',
@@ -227,6 +240,10 @@ const TEXTES = {
     pasOuvert: (d)=> `The parts will be available from ${d}.`,
     mauvaisePage: 'This link opens a set of orchestral material, not a choir’s voice parts.',
     mauvaisePageLien: 'Open the orchestral material page',
+    datesTitre: 'Your dates',
+    datesAide: 'The dates your choir is expected on. If any of them does not match what was agreed, please tell us before you call your singers.',
+    natures: { concert:'Concert', repetition:'Rehearsal', residence:'Residency',
+               prise:'Recording session', overdub:'Overdub', mixage:'Mixing' },
     codeTitre: 'Access code',
     codeAide: 'The code was sent to you separately from this link. You only enter it once: it is remembered on this device for fourteen days.',
     codeChamp: 'code',
@@ -301,6 +318,17 @@ function lireRetenu(cle){
 }
 function ecrireRetenu(cle, valeur){
   try{ localStorage.setItem(cle, JSON.stringify({ quand: Date.now(), valeur })); }catch(e){}
+}
+
+/* Le jour de la semaine compte ICI et nulle part ailleurs sur cette page : un
+   chef de chœur convoque quarante bénévoles, et « samedi » ou « mardi » décide
+   de la moitié des réponses. Sur une date d'expiration, ce serait du bruit. */
+function jourAvecSemaine(iso){
+  if(!iso) return '';
+  const d = new Date(iso + 'T12:00:00');
+  if(isNaN(d)) return iso;
+  return d.toLocaleDateString(LANGUE === 'fr' ? 'fr-FR' : 'en-GB',
+    { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function jourLisible(iso){
@@ -423,7 +451,30 @@ function rendre(){
 
   let html = '';
 
-  // Le code d'abord : sans lui, la liste s'affiche mais rien ne se télécharge.
+  /* LES DATES AVANT TOUT LE RESTE, code compris. Un chef de chœur qui ouvre ce
+     lien commence par vérifier qu'il est libre : c'est sa première question, et
+     elle ne demande pas de code. Les dates annulées ne sont jamais montrées —
+     une date annulée n'est pas une date, et l'afficher barrée ferait appeler la
+     production pour demander si elle tient encore. */
+  const dates = (c.dates || []).filter(d => d && d.date && !estAnnulee(d));
+  if(dates.length){
+    html += `<section class="bloc">
+      <h2>${escapeHtml(T('datesTitre'))} <span class="total">${dates.length}</span></h2>
+      ${dates.map(d => {
+        const lieu = [d.ville, d.lieu].filter(Boolean)
+          .filter((v, i, a) => a.findIndex(x => String(x).toLowerCase() === String(v).toLowerCase()) === i)
+          .join(' · ');
+        const nature = (T('natures') || {})[d.type] || '';
+        return `<div class="dat">
+          <b>${escapeHtml(jourAvecSemaine(d.date))}</b>
+          <span>${escapeHtml([lieu, nature].filter(Boolean).join(' · '))}</span>
+        </div>`;
+      }).join('')}
+      <p class="aide">${escapeHtml(T('datesAide'))}</p>
+    </section>`;
+  }
+
+  // Le code ensuite : sans lui, la liste s'affiche mais rien ne se télécharge.
   // On le demande APRÈS avoir dit ce que contient le lot — un champ nu, sans
   // savoir ce qu'il ouvre, ne se remplit pas.
   if(c.codeRequis && !CODE){

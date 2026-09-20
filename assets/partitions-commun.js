@@ -23,14 +23,25 @@
    lit comme un annuaire ; triée ainsi, elle se lit comme une partition — et un
    trou saute aux yeux, ce qui est tout l'intérêt au moment du dépôt. */
 const PARTITIONS_ORDRE_CONDUCTEUR = [
-  'piccolo', 'flute', 'hautbois', 'cor anglais', 'clarinette', 'clarinette basse',
-  'basson', 'contrebasson', 'saxophone',
-  'cor', 'trompette', 'cornet', 'saxhorn', 'trombone', 'trombone basse', 'tuba',
-  'timbales', 'percussion', 'batterie', 'vibraphone', 'marimba', 'xylophone',
-  'harpe', 'piano', 'celesta', 'clavier', 'orgue', 'accordeon', 'guitare', 'basse',
-  'voix', 'choeur', 'chorale', 'soprano', 'mezzo', 'alto voix', 'tenor', 'baryton', 'basse voix',
-  'violon', 'violon 1', 'violon 2', 'alto', 'violoncelle', 'contrebasse',
-  'conducteur',
+  'piccolo', 'ottavino', 'flute', 'flauto', 'hautbois', 'oboe', 'cor anglais',
+  'english horn', 'corno inglese', 'clarinette', 'clarinet', 'clarinetto',
+  'clarinette basse', 'bass clarinet', 'basson', 'bassoon', 'fagotto',
+  'contrebasson', 'contrabassoon', 'saxophone', 'saxofono',
+  'cor', 'corno', 'corni', 'horn', 'trompette', 'trumpet', 'tromba', 'trombe',
+  'cornet', 'saxhorn', 'trombone', 'tromboni', 'posaune', 'trombone basse',
+  'bass trombone', 'tuba', 'euphonium',
+  'timbales', 'timpani', 'percussion', 'percussioni', 'batterie', 'drums',
+  'drum kit', 'caisse claire', 'snare', 'vibraphone', 'marimba', 'xylophone',
+  'glockenspiel',
+  'harpe', 'harp', 'arpa', 'piano', 'celesta', 'clavier', 'keyboard', 'synth', 'orgue',
+  'organ', 'clavecin', 'harpsichord', 'accordeon', 'guitare', 'guitar', 'basse',
+  'voix', 'voice', 'choeur', 'chorale', 'chorus', 'choir',
+  'soprano', 'mezzo', 'alto voix', 'contralto', 'tenor', 'baryton', 'baritone',
+  'basse voix',
+  'violon', 'violin', 'violino', 'violini', 'violon 1', 'violon 2', 'alto',
+  'viola', 'viole', 'violoncelle', 'violoncello', 'violoncelli', 'cello',
+  'contrebasse', 'contrabass', 'double bass', 'doublebass', 'kontrabass',
+  'conducteur', 'conductor', 'full score',
 ];
 
 /* Le pupitre d'une partie, déduit de son nom. Six valeurs, celles que la maison
@@ -38,28 +49,41 @@ const PARTITIONS_ORDRE_CONDUCTEUR = [
    L'ordre des règles compte : « clarinette basse » doit tomber dans Bois avant
    que « basse » ne l'envoie dans Cordes. */
 const PARTITIONS_PUPITRES = [
-  // « cor anglais » et « saxophone » AVANT les cuivres : sans cette priorité,
-  // « cor » attrape le cor anglais, qui est un hautbois. Et « saxhorn » est un
-  // cuivre, pas un saxophone — un motif « sax » les confondait.
-  { pupitre: 'Bois',        motifs: ['piccolo', 'flute', 'flûte', 'hautbois', 'cor anglais', 'clarinette', 'basson', 'saxophone'] },
-  { pupitre: 'Cuivres',     motifs: ['cor', 'trompette', 'cornet', 'saxhorn', 'trombone', 'tuba', 'bugle', 'euphonium'] },
-  { pupitre: 'Percussions', motifs: ['percussion', 'timbale', 'batterie', 'vibraphone', 'marimba', 'xylophone', 'glockenspiel', 'cymbale', 'caisse claire'] },
-  /* LE CHŒUR AVANT LE CHANT, et sur des marqueurs EXPLICITES seulement.
-     « Soprano » tout court est une ambiguïté irréductible : c'est une soliste
-     dans un oratorio, un pupitre de vingt personnes dans un chœur, et le nom
-     du fichier ne le dit pas. On ne range donc dans Chœur que ce qui se
-     nomme chœur — le reste va dans Chant, et la production le bascule d'un
-     geste depuis le bloc « Le chœur ». Deviner ici serait envoyer le matériel
-     d'une soliste à cinquante choristes, ou l'inverse. */
-  /* Les motifs se comparent en DÉBUT DE MOT, pas en mot entier (voir
-     partitionsPupitreDe) : « coro » attraperait « Coronation Anthem » et
-     « sab » un fichier nommé « Sabre » — deux parties d'orchestre rangées au
-     chœur, donc deux parties qu'un chef de chœur recevrait sans raison. On ne
-     garde que ce qui ne peut pas commencer autre chose. */
+  /* LE CHŒUR PASSE D'ABORD, ET IL L'EMPORTE MÊME S'IL EST PLUS COURT (voir
+     partitionsPupitreDe) : « chœur » ne nomme pas un instrument, il nomme une
+     SECTION. « Chœur Soprano » est un pupitre de vingt personnes, pas une
+     soliste, et c'est le premier mot qui le dit.
+     Les motifs se comparent en DÉBUT DE MOT : on n'y met donc que ce qui ne
+     peut pas commencer autre chose. « coro » en est exclu pour cette raison —
+     il attraperait « Coronation Anthem ». */
   { pupitre: 'Chœur',       motifs: ['choeur', 'chœur', 'chorale', 'chorus', 'choir', 'satb', 'ssaa', 'ttbb'] },
-  { pupitre: 'Chant',       motifs: ['voix', 'chant', 'soprano', 'mezzo', 'tenor', 'ténor', 'baryton'] },
-  { pupitre: 'Cordes',      motifs: ['violon', 'alto', 'violoncelle', 'cello', 'contrebasse', 'harpe'] },
-  { pupitre: 'Autre',       motifs: ['piano', 'clavier', 'celesta', 'orgue', 'synth', 'accordeon', 'accordéon', 'guitare', 'basse', 'conducteur', 'partition'] },
+  /* LES NOMS ANGLAIS ET ITALIENS SONT LÀ POUR UNE RAISON CONCRÈTE : Dorico,
+     Sibelius et Finale exportent dans la langue de leur interface, et un
+     matériel gravé à l'étranger arrive tel quel. « Oboe », « Horn », « Viola »
+     tombaient dans « Autre », et il fallait les reclasser un par un — trente
+     fois par spectacle. */
+  { pupitre: 'Bois',        motifs: ['piccolo', 'ottavino', 'flute', 'flûte', 'flauto', 'hautbois', 'oboe',
+                                     'cor anglais', 'english horn', 'corno inglese',
+                                     'clarinette', 'clarinet', 'clarinetto',
+                                     'basson', 'bassoon', 'fagotto', 'fagott',
+                                     'contrebasson', 'contrabassoon', 'controfagotto',
+                                     'saxophone', 'saxofono'] },
+  { pupitre: 'Cuivres',     motifs: ['cor', 'corno', 'corni', 'horn', 'trompette', 'trumpet', 'tromba', 'trombe',
+                                     'cornet', 'saxhorn', 'trombone', 'tromboni', 'posaune', 'tuba',
+                                     'bugle', 'euphonium', 'flugelhorn'] },
+  { pupitre: 'Percussions', motifs: ['percussion', 'percussioni', 'timbale', 'timpani', 'batterie', 'drum',
+                                     'vibraphone', 'marimba', 'xylophone', 'glockenspiel', 'cymbale',
+                                     'cymbal', 'caisse claire', 'snare', 'tam-tam', 'triangle'] },
+  { pupitre: 'Chant',       motifs: ['voix', 'voice', 'chant', 'soprano', 'mezzo', 'tenor', 'ténor',
+                                     'baryton', 'baritone', 'contralto'] },
+  { pupitre: 'Cordes',      motifs: ['violon', 'violin', 'violino', 'violini', 'alto', 'viola', 'viole',
+                                     'violoncelle', 'violoncello', 'violoncelli', 'cello',
+                                     'contrebasse', 'contrabass', 'double bass', 'doublebass', 'kontrabass',
+                                     'harpe', 'harp', 'arpa'] },
+  { pupitre: 'Autre',       motifs: ['piano', 'clavier', 'keyboard', 'celesta', 'orgue', 'organ',
+                                     'clavecin', 'harpsichord', 'synth', 'accordeon', 'accordéon',
+                                     'guitare', 'guitar', 'basse', 'conducteur', 'conductor',
+                                     'score', 'partition'] },
 ];
 
 function partitionsNormaliser(texte) {
@@ -67,6 +91,14 @@ function partitionsNormaliser(texte) {
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/[_\-.]+/g, ' ')
+    /* UNE LETTRE COLLÉE À UN CHIFFRE EST DEUX MOTS. Dorico exporte
+       « Violin1 », « Violoncello2 », « Synth1 » : sans cette coupure, aucun
+       motif ne commence un mot dans « violin1 », et trente parties d'un
+       matériel gravé à l'étranger tombent dans « Autre » et hors de l'ordre
+       du conducteur. La coupure vaut aussi pour la comparaison des noms :
+       « Violon1 » et « Violon 1 » désignent la même partie, et l'écran doit
+       le voir avant d'en créer deux. */
+    .replace(/([a-z])(\d)/g, '$1 $2')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -104,18 +136,52 @@ function _motEntier(aiguille, meule) {
   return false;
 }
 
+/* Le motif commence-t-il un mot du nom ? « cor » ne doit pas attraper
+   « accordeon », et « alto » pas « altoparlante ». On n'exige PAS qu'il
+   finisse un mot : « Violons », « Flûtes », « Cors 1-2 » sont les formes
+   courantes, et un motif au pluriel par instrument serait une liste à
+   maintenir deux fois. */
+function _motifCommence(motif, nom) {
+  const m = partitionsNormaliser(motif);
+  if (!m) return false;
+  return new RegExp('(^|\\s)' + m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(nom);
+}
+
+/* Le pupitre d'une partie, déduit de son nom.
+
+   LE PLUS LONG MOTIF GAGNE, et non la première règle qui répond. C'est la
+   correction d'un défaut qui ne se voyait qu'au dépôt de répertoire choral :
+   « cor » commence « Coronation Anthem », donc « Coronation Anthem - Violin 1 »
+   partait aux cuivres. Comparer les longueurs tranche sans liste d'exceptions —
+   « violin » (6) l'emporte sur « cor » (3) —, et fait tomber du même coup les
+   priorités qu'il fallait jusqu'ici obtenir par l'ORDRE des règles :
+   « English horn » va aux bois parce que « english horn » (12) bat « horn »
+   (4), « Clarinette basse » aux bois parce que « clarinette » (10) bat
+   « basse » (5). À longueur égale, la première règle l'emporte.
+
+   LE CHŒUR EST HORS CONCOURS. « Chœur Soprano » doit aller au chœur, alors que
+   « soprano » (7) bat « chœur » (5) : c'est qu'un nom de SECTION n'est pas un
+   nom d'instrument, et qu'il qualifie ce qui suit au lieu de rivaliser avec
+   lui. C'est la seule exception, et elle se justifie seule.
+
+   ON NE RECLASSE JAMAIS L'EXISTANT : cette fonction ne tourne qu'à la création
+   d'une partie. Les pupitres déjà corrigés à la main le restent. */
 function partitionsPupitreDe(nom) {
   const n = partitionsNormaliser(nom);
   if (!n) return '';
+  let gagnant = '';
+  let longueur = -1;
   for (const regle of PARTITIONS_PUPITRES) {
     for (const motif of regle.motifs) {
       const m = partitionsNormaliser(motif);
-      // Un motif doit commencer un mot : « cor » ne doit pas attraper
-      // « accordeon », et « alto » ne doit pas attraper « altoparlante ».
-      if (new RegExp('(^|\\s)' + m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(n)) return regle.pupitre;
+      if (m.length <= longueur) continue;            // déjà battu, inutile d'essayer
+      if (!_motifCommence(motif, n)) continue;
+      if (regle.pupitre === 'Chœur') return 'Chœur';  // hors concours, voir ci-dessus
+      gagnant = regle.pupitre;
+      longueur = m.length;
     }
   }
-  return 'Autre';
+  return gagnant || 'Autre';
 }
 
 /* La place d'une partie dans l'ordre du conducteur. Les parties inconnues

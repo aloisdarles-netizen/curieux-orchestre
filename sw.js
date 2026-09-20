@@ -206,7 +206,18 @@
 // repasse pour une transmission ordinaire. partitions.html et
 // partition-choeur.html sont des PAGES, servies réseau d'abord : c'est
 // l'incrément, et lui seul, qui leur donne les actifs qu'elles attendent.
-const VERSION = 'curieux-v134';
+// v135 : plusieurs chœurs sur une même série, et la reconnaissance des noms
+// de parties qui apprend l'anglais et l'italien. partitions-commun.js change
+// deux fois : ses listes d'instruments (un matériel gravé à l'étranger arrive
+// en « Oboe », « Horn », « Viola », qui tombaient dans « Autre ») et sa
+// normalisation (« Violin1 » est deux mots). db.js apprend la colonne `dates`
+// d'un lot — sans elle, un lot relu depuis la base perd les journées chantées,
+// et l'écran compte des loges sur rien. partitions.html et
+// partition-choeur.html chargent en outre statuts-date.js, qu'elles ne
+// chargeaient pas : sans cet incrément, un navigateur déjà venu le prendrait
+// au réseau pendant que le reste sort du cache — et `estAnnulee` manquerait le
+// temps d'un rendu, donc une date annulée s'afficherait à un chœur.
+const VERSION = 'curieux-v135';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

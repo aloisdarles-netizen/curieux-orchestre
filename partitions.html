@@ -10,6 +10,7 @@
 <script src="assets/nouveautes.js"></script>
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/partitions-commun.js"></script>
+<script src="assets/statuts-date.js"></script>
 <script src="assets/annuler.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
@@ -627,6 +628,58 @@ function fichiersDe(partieId){
   return state.fichiers.filter(f => f.partieId === partieId)
     .sort((a, b) => (a.ordre - b.ordre) || a.titre.localeCompare(b.titre, 'fr'));
 }
+/* Les parties dont le RANG stocké ne correspond plus à ce que l'ordre du
+   conducteur donnerait aujourd'hui.
+
+   POURQUOI CE DÉCALAGE EXISTE. Le rang est figé à la création de la partie —
+   c'est ce qui permet de le corriger à la main sans qu'un redépôt l'écrase.
+   Mais quand la reconnaissance des noms s'améliore (elle vient d'apprendre
+   l'anglais et l'italien, que les graveurs emploient), le matériel déjà rangé
+   garde l'ancien classement : douze parties sur seize en fin de liste, là où
+   l'ordre du conducteur est justement ce qui fait voir les trous.
+
+   ON NE TOUCHE QUE LE RANG, JAMAIS LE PUPITRE. Les pupitres ont souvent été
+   corrigés à la main, un par un ; les réécrire serait défaire ce travail au
+   moment précis où l'on croit le compléter. */
+function reclassement(spectacleId){
+  const actuel = partiesDe(spectacleId);
+  const vise = actuel.slice().sort((a, b) =>
+    (partitionsOrdreDe(a.nom) - partitionsOrdreDe(b.nom))
+    || String(a.nom).localeCompare(String(b.nom), 'fr'));
+  /* ON COMPARE LA SUITE, PAS LES NUMÉROS. Quand la reconnaissance des noms
+     s'enrichit, TOUS les rangs se décalent — et proposer de « remettre dans
+     l'ordre » seize parties déjà dans l'ordre, pour ne changer que leurs
+     numéros, c'est un bouton qui ment. On ne propose donc que si la liste se
+     LIT différemment ; sinon il n'y a rien à faire, et on se tait. */
+  const bougent = actuel.filter((p, i) => vise[i] && vise[i].id !== p.id);
+  if(!bougent.length) return { bougent: [], aEcrire: [] };
+  return {
+    bougent: vise.filter((p, i) => actuel[i] && actuel[i].id !== p.id),
+    aEcrire: actuel.filter(p => partitionsOrdreDe(p.nom) !== (Number(p.ordre) || 0)),
+  };
+}
+
+async function remettreDansLOrdre(){
+  const s = spectacleCourant();
+  if(!s) return;
+  const { bougent, aEcrire } = reclassement(s.id);
+  if(!aEcrire.length) return;
+  if(!confirm(`Remettre ${bougent.length} partie${bougent.length > 1 ? 's' : ''} à sa place dans l'ordre du conducteur ?\n\n`
+    + bougent.slice(0, 8).map(p => '  · ' + p.nom).join('\n')
+    + (bougent.length > 8 ? `\n  · … et ${bougent.length - 8} autre${bougent.length - 8 > 1 ? 's' : ''}` : '')
+    + "\n\nSeul l'ordre d'affichage change. Les pupitres, les fichiers et les affectations ne bougent pas.")) return;
+  aEcrire.forEach(p => { p.ordre = partitionsOrdreDe(p.nom); });
+  rendre();
+  for(const p of aEcrire){
+    const res = await CurieuxDB.upsertOne('partitions_parties', p);
+    if(res && res.error){
+      alert("Le nouvel ordre est affiché mais n'a pas été entièrement enregistré : " + (res.error.message || 'échec'));
+      return;
+    }
+  }
+  try{ curieuxFlash('Matériel remis dans l\'ordre du conducteur.'); }catch(e){}
+}
+
 function poidsSpectacle(spectacleId){
   const ids = new Set(partiesDe(spectacleId).map(p => p.id));
   return state.fichiers.filter(f => ids.has(f.partieId)).reduce((s, f) => s + (f.octets || 0), 0);
@@ -863,7 +916,7 @@ async function charger(){
     CurieuxDB.fetchAll('techniciens').catch(()=> []),
     CurieuxDB.tableManquante('partitions_programmations').catch(()=> false),
     CurieuxDB.tableManquante('partitions_envois').catch(()=> false),
-    CurieuxDB.colonneManquante('partitions_envois', 'type').catch(()=> false),
+    CurieuxDB.colonneManquante('partitions_envois', 'type,dates').catch(()=> false),
     CurieuxDB.isSuperAdmin().catch(()=> false),
   ]);
   Object.assign(state, { spectacles, programmations, parties, fichiers, affectations, acces, envois,
@@ -912,10 +965,10 @@ function poserBandeauMigration(programmationsAbsentes, envoisAbsents, choeurAbse
      serait envoyer rejouer le mauvais bloc — et on nomme ce que ça empêche
      VRAIMENT : un lot de chœur enregistré sans son type redeviendrait une
      transmission à un ensemble tiers, qui emporte tout le matériel. */
-  if(choeurAbsent) manques.push(`La table <code>partitions_envois</code> n'a pas encore la colonne <code>type</code> :
-    l'espace du chœur est en lecture seule, et aucun lot de chœur ne peut être créé — il s'enregistrerait
-    comme une transmission ordinaire, donc avec le matériel d'orchestre complet.
-    Colle le bloc <b>L'ESPACE DU CHŒUR</b> de <code>migrations.sql</code> dans l'éditeur SQL.`);
+  if(choeurAbsent) manques.push(`La table <code>partitions_envois</code> n'a pas encore les colonnes de l'espace du chœur
+    (<code>type</code>, <code>dates</code>) : cet espace est en lecture seule, et aucun lot de chœur ne peut être créé —
+    il s'enregistrerait comme une transmission ordinaire, donc avec le matériel d'orchestre complet, et sans les dates chantées.
+    Colle le bloc <b>L'ESPACE DU CHŒUR</b> de <code>migrations.sql</code> dans l'éditeur SQL — il se rejoue sans risque s'il l'a déjà été.`);
   const banniere = document.getElementById('migrationBanner');
   banniere.hidden = !manques.length;
   if(manques.length){
@@ -1158,6 +1211,7 @@ function blocMateriel(s){
   const parties = partiesDe(s.id);
   const groupes = partitionsGrouperParPupitre(parties);
   const manquantes = parties.filter(p => !aUnFichier(p)).length;
+  const aReclasser = reclassement(s.id).bougent;
 
   const sections = groupes.map(g => {
     const teinte = partitionsPupitreVar(g.pupitre);
@@ -1216,6 +1270,8 @@ function blocMateriel(s){
     <section class="bloc">
       <h2>Matériel
         <span class="h2-total">
+          ${aReclasser.length ? `<button type="button" class="co-btn sm" id="btnReclasser"
+            title="${escapeAttr(aReclasser.length + ' partie' + (aReclasser.length > 1 ? 's' : '') + ' ne ' + (aReclasser.length > 1 ? 'sont' : 'est') + ' pas à sa place dans l\'ordre du conducteur')}">Remettre dans l'ordre du conducteur (${aReclasser.length})</button>` : ''}
           <button type="button" class="co-btn sm primary" id="btnDeposer">Déposer des fichiers</button>
           <button type="button" class="co-btn sm" id="btnNouvellePartie">Ajouter une partie</button>
         </span>
@@ -1924,6 +1980,107 @@ function lienEnvoi(e){
 
 const estChoeur = (e) => (e || {}).type === 'choeur';
 
+/* ---------------------------------------------------------------------------
+   LES DATES D'UN LOT — et pourquoi un chœur en a besoin quand un orchestre
+   invité n'en a pas.
+
+   Un orchestre invité reprend LE PROGRAMME : il joue ses propres dates, chez
+   lui, et nos dates ne le regardent pas. Un chœur, lui, chante AVEC NOUS, et il
+   change d'une date à l'autre — une maîtrise à Rennes, un chœur régional à
+   Nantes, une chorale locale pour la dernière. C'est la règle plus que
+   l'exception : un chœur amateur ne part pas en tournée.
+
+   Plusieurs chœurs sur un même spectacle étaient déjà possibles — un lot
+   chacun, un lien chacun, un code chacun. Ce qui manquait, c'est QUI CHANTE
+   QUAND, et c'est cette question qui commande les loges, le transport, les
+   repas et la jauge de plateau. Sans elle, l'effectif s'additionnait à
+   l'échelle de la série et ne correspondait à aucune journée réelle.
+   --------------------------------------------------------------------------- */
+
+function datesOperation(tourneeId){
+  const t = operationDe(tourneeId);
+  return ((t || {}).dates || [])
+    .filter(d => d && d.id && d.date)
+    .slice()
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+/* Les dates d'un lot, résolues. Une date supprimée de l'opération depuis laisse
+   un identifiant orphelin : on ne l'invente pas, on le compte (voir
+   datesOrphelines) — et l'écran le dit, plutôt que d'afficher un lot qui
+   semble porter trois dates alors qu'il n'en porte plus que deux. */
+function datesDuLot(e){
+  const ids = new Set((e || {}).dates || []);
+  if(!ids.size) return [];
+  return datesOperation(e.tourneeId).filter(d => ids.has(d.id));
+}
+const datesOrphelines = (e) => ((e || {}).dates || []).length - datesDuLot(e).length;
+
+function jourDate(iso, options){
+  const d = new Date(String(iso || '') + 'T12:00:00');
+  if(isNaN(d)) return String(iso || '');
+  return d.toLocaleDateString('fr-FR', options || { day: 'numeric', month: 'short' });
+}
+
+/* La nature d'une date dans le vocabulaire du projet : une tournée a des
+   concerts et des répétitions, un recording a des prises et des overdubs. On
+   ne redéfinit pas la liste ici — elle est dans ui-helpers.js, et le jour où
+   elle bouge, elle bouge partout. */
+function natureDate(tourneeId, d){
+  const voc = vocabulaireProjet(operationDe(tourneeId));
+  const ligne = (voc.typesDate || []).find(([cle]) => cle === (d || {}).type);
+  return ligne ? ligne[1] : '';
+}
+
+function libelleDate(tourneeId, d){
+  const lieu = [d.ville, d.lieu].filter(Boolean)
+    .filter((v, i, a) => a.findIndex(x => String(x).toLowerCase() === String(v).toLowerCase()) === i)
+    .join(' · ');
+  const nature = natureDate(tourneeId, d);
+  return [jourDate(d.date), lieu, nature].filter(Boolean).join(' · ');
+}
+
+/* Le résumé des dates d'un lot, tel qu'il se lit dans une ligne. Une date :
+   on la nomme. Plusieurs : on donne les bornes — « 12 → 14 mars », ce qu'un
+   œil lit sans compter. Aucune : on le DIT, parce qu'un lot de chœur sans date
+   est presque toujours un oubli, et qu'il ne se verra nulle part ailleurs. */
+function resumeDatesLot(e){
+  const dates = datesDuLot(e);
+  const orphelines = datesOrphelines(e);
+  const annulees = dates.filter(d => estAnnulee(d)).length;
+  if(!dates.length && !orphelines) return { texte: 'aucune date précisée', alerte: true };
+  const vives = dates.filter(d => !estAnnulee(d));
+  const base = !vives.length ? 'toutes les dates annulées'
+    : vives.length === 1 ? jourDate(vives[0].date, { day: 'numeric', month: 'long' })
+    : `${vives.length} dates · ${jourDate(vives[0].date)} → ${jourDate(vives[vives.length - 1].date)}`;
+  const bouts = [base];
+  if(annulees) bouts.push(annulees + (annulees > 1 ? ' annulées' : ' annulée'));
+  if(orphelines) bouts.push(orphelines + (orphelines > 1 ? ' dates supprimées' : ' date supprimée'));
+  return { texte: bouts.join(' · '), alerte: !vives.length || !!orphelines };
+}
+
+/* La liste à cocher des dates d'une opération. Elle se REDESSINE SEULE quand on
+   change d'opération dans le formulaire, sans rendu complet : un rendu
+   effacerait le nom du chœur qu'on vient de taper. */
+function htmlChoixDates(tourneeId, coches){
+  const dates = datesOperation(tourneeId);
+  if(!tourneeId){
+    return `<span class="l-sous">Choisis d'abord une opération : les dates en viennent.</span>`;
+  }
+  if(!dates.length){
+    return `<span class="l-sous sans-lecteur">Cette opération n'a aucune date. Elles se posent dans l'écran des tournées.</span>`;
+  }
+  const dejaCoche = new Set(coches || []);
+  return `<span class="lecteurs">
+      ${dates.map(d => {
+        const off = estAnnulee(d);
+        return `<label class="lecteur" style="padding:3px 10px${off ? ';opacity:.55;text-decoration:line-through' : ''}"
+          ${off ? 'title="Date annulée — elle ne sera pas montrée au chœur."' : ''}><input type="checkbox" data-cho-date="${escapeAttr(d.id)}"${dejaCoche.has(d.id) ? ' checked' : ''} style="margin-right:6px"> ${escapeHtml(libelleDate(tourneeId, d))}</label>`;
+      }).join('')}
+    </span>
+    <span class="l-sous">Le chef de chœur voit ces dates sur sa page, avant les partitions : c'est ce qu'il regarde d'abord. Une date annulée ne lui est jamais montrée.</span>`;
+}
+
 /* Les parties de chœur d'un spectacle, dans l'ordre des tessitures — soprano,
    alto, ténor, basse — et non dans celui du conducteur : voir
    partitionsTrierVoix dans partitions-commun.js. */
@@ -2010,6 +2167,20 @@ function messageChoeur(e, langue){
   }).join(', ');
   const de = /^[aeiouœ]/.test(String(spectacle).normalize('NFD').replace(/[\u0300-\u036F]/g, '').toLowerCase())
     ? "d'" : 'de ';
+  /* LES DATES AVANT LES PARTITIONS. Un chef de chœur qui reçoit ce mail
+     commence par regarder s'il est libre : lui faire ouvrir le lien pour le
+     savoir, c'est une réponse en deux jours au lieu de deux heures. Les dates
+     annulées ne sont jamais écrites — une date annulée n'est pas une date. */
+  const quand = datesDuLot(e).filter(d => !estAnnulee(d));
+  const listeDates = quand.map(d => {
+    const lieu = [d.ville, d.lieu].filter(Boolean)
+      .filter((v, i, a) => a.findIndex(x => String(x).toLowerCase() === String(v).toLowerCase()) === i)
+      .join(', ');
+    const jour = langue === 'en'
+      ? new Date(d.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
+      : jourDate(d.date, { day: 'numeric', month: 'long' });
+    return '  · ' + jour + (lieu ? ' — ' + lieu : '');
+  }).join('\n');
 
   if(langue === 'en'){
     return [
@@ -2017,6 +2188,9 @@ function messageChoeur(e, langue){
       '',
       `Please find below the choral material for ${spectacle}${operation ? ` (${operation})` : ''}, for your choir to work from.`,
       '',
+      listeDates ? `Your choir is expected on:` : null,
+      listeDates || null,
+      listeDates ? '' : null,
       `Link:  ${lien}`,
       '',
       liste ? `Voice parts: ${liste}.` : 'The voice parts are listed on the page.',
@@ -2040,6 +2214,9 @@ function messageChoeur(e, langue){
     '',
     `Vous trouverez ci-dessous le matériel choral ${de}${spectacle}${operation ? ` (${operation})` : ''}, pour le travail de votre chœur.`,
     '',
+    listeDates ? `Votre chœur est attendu :` : null,
+    listeDates || null,
+    listeDates ? '' : null,
     `Lien : ${lien}`,
     '',
     liste ? `Voix transmises : ${liste}.` : 'Les voix sont détaillées sur la page.',
@@ -2181,13 +2358,14 @@ function formulaireEnvoiEntame(){
   const portee = ((document.getElementById('envPortee') || {}).value || 'tout') !== 'tout'
     || ((document.getElementById('choPortee') || {}).value || 'tout') !== 'tout';
   const parties = Array.from(document.querySelectorAll('[data-env-partie]')).some(c => c.checked);
+  const datesCochees = Array.from(document.querySelectorAll('[data-cho-date]')).some(c => c.checked);
   /* UNE TONALITÉ EN COURS DE FRAPPE EST UNE SAISIE COMME UNE AUTRE. Le champ
      n'a pas encore été quitté, donc rien n'est enregistré : un rendu tombé là
      (le journal des retraits qui revient, par exemple) l'effacerait sans un
      mot, et on croirait l'avoir notée. */
   const actif = document.activeElement;
   const tonEnCours = !!(actif && actif.matches && actif.matches('[data-ton-partie], [data-ton-fichier]'));
-  return texte || coches || portee || parties || tonEnCours;
+  return texte || coches || portee || parties || datesCochees || tonEnCours;
 }
 
 function rendreQuandLaSaisieEstFinie(){
@@ -2231,6 +2409,10 @@ function ligneEnvoi(e, options){
   const derniere = prises && prises.derniere ? String(prises.derniere).slice(0, 10) : '';
   const contexte = [o.avecSpectacle ? sp : '', op, e.contactNom, e.contactEmail,
                     choeur && e.effectif ? e.effectif + ' choristes' : ''].filter(Boolean).join(' · ');
+  // Les dates ne se lisent que sur un lot de chœur, et seulement s'il porte une
+  // opération : un orchestre invité joue chez lui, notre calendrier ne le
+  // concerne pas.
+  const quand = choeur && e.tourneeId ? resumeDatesLot(e) : null;
   const unite = choeur ? (nb > 1 ? 'voix' : 'voix') : (nb > 1 ? 'parties' : 'partie');
   const portee = e.toutesParties
     ? (choeur ? ' (tout le chœur)' : ' (tout le spectacle)')
@@ -2243,6 +2425,7 @@ function ligneEnvoi(e, options){
           ${e.nominatif ? '<span class="sur probable">nominatif</span>' : ''}
         </span>
         ${contexte ? `<span class="l-sous">${escapeHtml(contexte)}</span>` : ''}
+        ${quand ? `<span class="l-sous${quand.alerte ? ' sans-lecteur' : ''}">${escapeHtml(quand.texte)}</span>` : ''}
         <span class="l-sous">${nb} ${unite}${portee}
           ${e.expireLe ? ' · jusqu\'au ' + escapeHtml(jourEnvoi(e.expireLe)) : ' · sans date de fin'}
           ${prises ? ' · ' + prises.nb + ' exemplaire' + (prises.nb > 1 ? 's' : '') + ' pris' + (derniere ? ', dernier le ' + escapeHtml(jourEnvoi(derniere)) : '') : ''}
@@ -2443,6 +2626,14 @@ function blocChoeur(s){
                title="Le nombre de choristes annoncé. Il ne sert à rien pour les partitions, et à tout pour les loges, le transport et les repas.">
       </span>
     </div>
+    <div class="ligne" id="choBlocDates" style="grid-template-columns:minmax(0,1fr)">
+      <span class="l-nom">
+        <span class="l-titre">Dates chantées par ce chœur</span>
+        <span class="l-sous">Sur une même série, le chœur change souvent d'une ville à l'autre : un chœur amateur ne part pas en tournée.
+          C'est ici que ça se dit — et c'est ce qui permet de compter les loges, les places de car et les repas journée par journée.</span>
+        <span id="choDates">${htmlChoixDates('', [])}</span>
+      </span>
+    </div>
     <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto auto">
       <span class="l-nom">
         <span class="l-titre">Ce qu'on remet</span>
@@ -2533,6 +2724,38 @@ function blocChoeur(s){
     </section>`;
 }
 
+/* Les journées où un chœur chante, tous spectacles confondus, du plus proche au
+   plus lointain. Une journée porte ses chœurs, et non l'inverse : c'est ainsi
+   qu'on la lit quand on commande des loges.
+
+   LES LOTS RÉVOQUÉS SONT EXCLUS — leur matériel a été rappelé, le chœur ne
+   chante plus. Les lots expirés, NON : un lien expire après que le chœur a pris
+   ses partitions, et il chante quand même. Confondre les deux ferait disparaître
+   du calendrier les chœurs les mieux préparés.
+   Les dates annulées sont exclues aussi : une date annulée n'est pas une date. */
+function journeesChorales(){
+  const parDate = new Map();
+  state.envois.filter(e => estChoeur(e) && e.actif && e.tourneeId).forEach(e => {
+    datesDuLot(e).filter(d => !estAnnulee(d)).forEach(d => {
+      const cle = e.tourneeId + '|' + d.id;
+      if(!parDate.has(cle)){
+        parDate.set(cle, {
+          date: d.date, ville: d.ville || '', lieu: d.lieu || '',
+          nature: natureDate(e.tourneeId, d),
+          operation: nomOperation(e.tourneeId),
+          spectacleId: e.spectacleId,
+          lots: [], effectif: 0,
+        });
+      }
+      const j = parDate.get(cle);
+      j.lots.push(e);
+      j.effectif += Number(e.effectif) || 0;
+    });
+  });
+  return Array.from(parDate.values())
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
 /* L'ÉCRAN DE SUPERVISION DES CHŒURS. Même raison d'être que celui des
    transmissions : « quel chœur travaille sur quoi, en ce moment ? » est une
    question qui ne se pose jamais spectacle par spectacle. On n'y crée rien —
@@ -2544,7 +2767,13 @@ function vueChoeurs(){
   const tous = state.envois.filter(e => estChoeur(e));
   const lots = trierEnvois(tous);
   const ouverts = lots.filter(e => etatEnvoi(e).cle === 'ouvert');
-  const choristes = ouverts.reduce((n, e) => n + (Number(e.effectif) || 0), 0);
+  const journees = journeesChorales();
+  /* LE CHIFFRE N'EST PLUS LE TOTAL DE LA SÉRIE, et c'est la correction qui
+     compte. Additionner trois chœurs qui ne se croisent jamais donnait 130
+     choristes — un nombre qui ne correspond à aucune journée, et sur lequel on
+     ne peut ni commander des loges, ni réserver un car, ni compter des repas.
+     Ce qui dimensionne, c'est LE JOUR LE PLUS CHARGÉ. */
+  const pic = journees.reduce((max, j) => j.effectif > (max ? max.effectif : -1) ? j : max, null);
   const sansDroits = tous.filter(e => !e.droitsConfirmes).length;
   const prises = state.prisesTiers
     ? tous.reduce((n, e) => n + ((state.prisesTiers.parEnvoi[e.id] || {}).nb || 0), 0)
@@ -2554,13 +2783,21 @@ function vueChoeurs(){
   const avecVoix = state.spectacles
     .filter(sp => !sp.archive && partiesChoeur(sp.id).length)
     .map(sp => ({ sp, voix: partiesChoeur(sp.id), lots: tous.filter(e => e.spectacleId === sp.id) }));
+  // Les lots encore vivants qui ne disent pas quand ils chantent. Presque
+  // toujours un oubli, et il ne se verrait nulle part ailleurs.
+  const sansDates = tous.filter(e => e.actif && e.tourneeId && !datesDuLot(e).filter(d => !estAnnulee(d)).length);
 
   return `
     <div class="chiffres">
       <div class="chiffre"><b>${ouverts.length}</b><span>chœur${ouverts.length > 1 ? 's' : ''} servi${ouverts.length > 1 ? 's' : ''}</span>
         <small>${ouverts.length ? escapeHtml(ouverts.slice(0, 3).map(e => e.destinataire).join(', ')) + (ouverts.length > 3 ? '…' : '') : 'Aucune partition de chœur dehors en ce moment'}</small></div>
-      <div class="chiffre"><b>${choristes || '—'}</b><span>choristes annoncés</span>
-        <small>${choristes ? 'Sur les lots ouverts. À reporter dans les loges, le transport et la restauration.' : 'Aucun effectif saisi sur les lots ouverts — c\'est ce qui chiffre les loges et les repas.'}</small></div>
+      <div class="chiffre"><b>${pic && pic.effectif ? pic.effectif : '—'}</b><span>choristes, jour le plus chargé</span>
+        <small>${pic && pic.effectif
+          ? escapeHtml(jourDate(pic.date, { day: 'numeric', month: 'long' })
+              + (pic.ville ? ' · ' + pic.ville : '')
+              + ' — ' + pic.lots.map(e => e.destinataire).join(', ')
+              + '. C\'est ce nombre qui dimensionne les loges, le car et les repas, pas le total de la série.')
+          : 'Aucun effectif rattaché à une date — c\'est ce qui chiffre les loges, le transport et les repas.'}</small></div>
       <div class="chiffre"><b>${prises === null ? '…' : prises}</b><span>exemplaire${(prises || 0) > 1 ? 's' : ''} pris</span>
         <small>sur ${tous.length} remise${tous.length > 1 ? 's' : ''} au total, révoquées et expirées comprises</small></div>
       <div class="chiffre${sansDroits ? ' alerte' : ''}"><b>${sansDroits}</b><span>lot${sansDroits > 1 ? 's' : ''} sans vérification des droits</span>
@@ -2571,6 +2808,28 @@ function vueChoeurs(){
       <h2>Ce qui est remis <span class="h2-total">${lots.length} remise${lots.length > 1 ? 's' : ''}</span></h2>
       ${lots.map(e => ligneEnvoi(e, { avecSpectacle: true })).join('')
         || '<p class="vide">Aucune partition de chœur remise. Ça se prépare depuis la fiche du spectacle, dans le bloc « Le chœur » — c\'est là que se lisent les voix et leurs tonalités.</p>'}
+    </section>
+
+    <section class="bloc">
+      <h2>Qui chante quand <span class="h2-total">${journees.length} journée${journees.length > 1 ? 's' : ''}</span></h2>
+      <p class="vide">Un chœur amateur ne part pas en tournée : sur une même série, il change d'une ville à l'autre.
+        Cette lecture-là est celle de l'exploitation — les loges, le car et les repas se commandent par journée, pas par série.
+        Les lots révoqués n'y figurent pas : leur matériel a été rappelé.</p>
+      ${journees.map(j => `
+        <div class="ligne">
+          <span class="l-nom">
+            <span class="l-titre">${escapeHtml(jourDate(j.date, { weekday: 'short', day: 'numeric', month: 'long' }))}
+              ${j.lots.length > 1 ? '<span class="sur probable">' + j.lots.length + ' chœurs</span>' : ''}
+            </span>
+            <span class="l-sous">${escapeHtml([j.ville, j.lieu].filter(Boolean).join(' · ') || 'Lieu non précisé')}${j.nature ? ' · ' + escapeHtml(j.nature) : ''} — ${escapeHtml(j.operation)}</span>
+            <span class="l-sous">${j.lots.map(e => escapeHtml(e.destinataire) + (e.effectif ? ' (' + e.effectif + ')' : ' <b class="sans-lecteur">effectif inconnu</b>')).join(' · ')}</span>
+          </span>
+          <span class="l-num">${j.effectif || '—'}</span>
+          <button type="button" class="co-btn sm" data-ouvrir-choeur="${escapeAttr(j.spectacleId)}">Ouvrir</button>
+        </div>`).join('')
+        || '<p class="vide">Aucune journée chorale. Les dates se cochent à la création du lot, dans la fiche du spectacle.</p>'}
+      ${sansDates.length ? `<p class="vide sans-lecteur">${sansDates.length} lot${sansDates.length > 1 ? 's' : ''} sans date précisée :
+        ${escapeHtml(sansDates.map(e => e.destinataire).join(', '))}. Leur effectif n'est compté sur aucune journée, et leur chef de chœur ne voit pas quand il chante.</p>` : ''}
     </section>
 
     <section class="bloc">
@@ -2775,6 +3034,7 @@ function cablerVue(){
   if(q('btnNouveauSpectacle')) q('btnNouveauSpectacle').onclick = ()=> ficheSpectacle(null);
   if(q('btnModifierSpectacle')) q('btnModifierSpectacle').onclick = ()=> ficheSpectacle(spectacleCourant());
   if(q('btnNouvellePartie')) q('btnNouvellePartie').onclick = fichePartie;
+  if(q('btnReclasser')) q('btnReclasser').onclick = remettreDansLOrdre;
   if(q('btnDeposer')) q('btnDeposer').onclick = ()=>{ state.vue = 'depot'; state.depot = []; rendre(); };
 
   if(q('chkChiffrer')) q('chkChiffrer').onchange = (e)=> majSpectacle({ chiffrer: e.target.checked });
@@ -2892,6 +3152,14 @@ function cablerVue(){
   if(q('choPortee')) q('choPortee').onchange = (e)=>{
     const liste = q('choListeParties');
     if(liste) liste.style.display = e.target.value === 'selection' ? 'grid' : 'none';
+  };
+  /* Changer d'opération redessine les dates SANS rendu complet : un rendu
+     reconstruirait le formulaire et effacerait le nom du chœur qu'on vient de
+     taper. Les cases déjà cochées ne survivent pas au changement, et c'est
+     juste — ce sont les dates d'une AUTRE opération. */
+  if(q('choOperation')) q('choOperation').onchange = (ev)=>{
+    const zone = q('choDates');
+    if(zone) zone.innerHTML = htmlChoixDates(ev.target.value, []);
   };
   if(q('btnCreerChoeur')) q('btnCreerChoeur').onclick = creerChoeur;
   if(q('btnAjouterVoix')) q('btnAjouterVoix').onclick = ficheVoix;
@@ -3761,9 +4029,10 @@ async function creerChoeur(){
     return;
   }
   if(state.typeAbsent){
-    alert("La base n'a pas encore la colonne « type » de partitions_envois.\n\n"
+    alert("La base n'a pas encore les colonnes « type » et « dates » de partitions_envois.\n\n"
       + "Un lot de chœur créé maintenant s'enregistrerait comme une transmission ordinaire — "
-      + "donc avec le matériel d'orchestre complet. Joue le bloc L'ESPACE DU CHŒUR de migrations.sql, "
+      + "donc avec le matériel d'orchestre complet, et sans les dates chantées. "
+      + "Joue le bloc L'ESPACE DU CHŒUR de migrations.sql (il se rejoue sans risque s'il l'a déjà été), "
       + "puis recharge cette page.");
     return;
   }
@@ -3780,6 +4049,15 @@ async function creerChoeur(){
     return;
   }
   const effectif = Math.max(0, Math.min(500, Number(val('choEffectif')) || 0));
+  const dates = Array.from(document.querySelectorAll('[data-cho-date]'))
+    .filter(c => c.checked).map(c => c.dataset.choDate);
+  /* PAS DE REFUS, MAIS UNE QUESTION. Un lot sans date reste légitime — une
+     préparation sans calendrier arrêté, un chœur qu'on met au travail avant de
+     savoir où il chantera. Mais neuf fois sur dix c'est un oubli, et il ne se
+     verrait nulle part ailleurs : ni dans les loges, ni dans le transport, ni
+     dans les repas. */
+  if(val('choOperation') && !dates.length
+     && !confirm("Aucune date n'est cochée pour ce chœur.\n\nSon effectif ne sera compté sur aucune journée, et le chef de chœur ne verra pas quand il chante. Créer quand même le lien ?")) return;
   if(!coche('choDroits') && !confirm("Les droits de diffusion n'ont pas été vérifiés.\n\nUn chœur invité est un TIERS au sens des contrats, même quand il chante avec nous : le matériel de location ne lui est pas retransmissible. Créer quand même le lien ?")) return;
 
   const e = {
@@ -3793,6 +4071,7 @@ async function creerChoeur(){
     effectif,
     jeton: CurieuxDB.nouveauJetonEnvoi(),
     code: partitionsNouveauCode(),
+    dates,
     toutesParties: portee !== 'selection',
     parties: portee === 'selection' ? choisies : [],
     ouvertLe: val('choOuvertLe'),

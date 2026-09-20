@@ -33,6 +33,16 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-20-2',
+    titre: 'Le dépôt des partitions reconnaît enfin le matériel gravé à l\'étranger',
+    points: [
+      "Dorico, Sibelius et Finale exportent dans la langue de leur interface : un matériel arrive en « Oboe », « Horn », « Viola », « DoubleBass ». La page ne connaissait que le français — ces parties tombaient dans « Autre », hors de l'ordre du conducteur, et il fallait les reclasser une par une. Sur le seul spectacle déposé à ce jour, onze parties sur seize étaient dans ce cas.",
+      "Les noms anglais et italiens sont désormais reconnus, et « Violin1 » — collé, sans espace, comme l'écrit Dorico — l'est aussi.",
+      "Un défaut plus ancien est corrigé du même geste : les noms se comparaient sur leur début, si bien que « cor » attrapait « Coronation Anthem » et envoyait toute une œuvre chorale aux cuivres. C'est le MOTIF LE PLUS LONG qui tranche maintenant — « violin » l'emporte sur « cor » —, ce qui fait tomber au passage plusieurs cas qu'il fallait jusqu'ici régler à la main : « English horn » va aux bois, « Clarinette basse » aussi.",
+      "Rien n'est reclassé rétroactivement : les pupitres corrigés à la main le restent. Pour le matériel déjà rangé, un bouton « Remettre dans l'ordre du conducteur » apparaît dans la fiche du spectacle — et seulement quand la liste se lirait vraiment autrement. Il ne touche que l'ordre d'affichage.",
+    ],
+  },
+  {
     version: '2026-09-20-1',
     titre: 'L\'espace du chœur',
     points: [
@@ -41,7 +51,10 @@ const CURIEUX_NOUVEAUTES = [
       "LA TONALITÉ se note enfin quelque part. Sur la voix quand tout le jeu est dans un ton, sur le numéro quand un seul descend d'un demi-ton. C'est la première chose qu'un chef de chœur demande, la seule que le matériel d'orchestre n'a jamais besoin de porter, et jusqu'ici elle se perdait entre la réunion où elle se décide et le mail où on la redemande. « reb M », « Eb major », « fa# mineur » se saisissent comme ils viennent et se relisent tous de la même façon.",
       "Le chef ou la cheffe de chœur reçoit une page à lui, en français ou en anglais : ses voix rangées dans l'ordre des tessitures — soprano, alto, ténor, basse, et non l'ordre du conducteur, qui met les altos avec les cordes —, leurs tonalités en tête, et tout se prend d'un bloc en une archive ou voix par voix.",
       "Rien n'est assoupli : le fichier propre ne sort jamais du stockage, chaque exemplaire est filigrané à la volée au nom du chœur et journalisé un par un. Lien, code communiqué séparément, date de fin, révocation immédiate — le dispositif est celui des transmissions, parce que c'est le bon.",
-      "L'effectif annoncé se saisit là où on parle au chœur, et non par mail trois semaines avant : c'est lui qui chiffre les loges, le transport et les repas. L'onglet « Chœurs » l'additionne sur les lots ouverts.",
+      "PLUSIEURS CHŒURS SUR UNE MÊME SÉRIE, parce que c'est la règle et non l'exception : un chœur amateur ne part pas en tournée, et on chante avec la maîtrise à Rennes, le chœur régional à Nantes, une chorale locale pour la dernière. Chaque chœur a son lot, son lien, son code, sa fenêtre — et ses DATES, cochées parmi celles de l'opération.",
+      "L'onglet « Chœurs » se lit dès lors par journée : qui chante le 24 janvier, à quel endroit, et combien ils sont. Deux chœurs sur la même date s'y voient d'un coup d'œil, un lot sans date aussi — c'est presque toujours un oubli, et il ne se verrait nulle part ailleurs.",
+      "L'effectif annoncé se saisit là où on parle au chœur, et non par mail trois semaines avant : c'est lui qui chiffre les loges, le transport et les repas. Le chiffre mis en avant n'est plus le total de la série — additionner trois chœurs qui ne se croisent jamais ne correspond à aucune journée — mais LE JOUR LE PLUS CHARGÉ, qui est ce sur quoi on commande.",
+      "Le chef de chœur voit ses dates en haut de sa page, avant les partitions et avant même le code : c'est sa première question, et le mail les lui redonne. Une date annulée ne lui est jamais montrée.",
       "Deux boutons préparent le mail au chef de chœur, en français ou en anglais : le lien, les voix, leurs tonalités, la fenêtre d'accès, les conditions d'usage — et la demande d'effectif. Le code, lui, reste à envoyer par un autre canal, comme partout ailleurs.",
       "Le même garde-fou que pour les orchestres invités : un chœur est un TIERS au sens des contrats, même quand il chante avec nous. Le matériel de location ne lui est pas plus retransmissible qu'à un autre ensemble.",
     ],

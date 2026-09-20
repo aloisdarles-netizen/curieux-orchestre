@@ -884,6 +884,9 @@ const CurieuxDB = (()=>{
         // chœur ne donne QUE les parties de chœur.
         type: e.type === 'choeur' ? 'choeur' : 'tiers',
         effectif: Number(e.effectif) || 0,
+        // Les identifiants des dates chantées — jamais les dates elles-mêmes :
+        // une date se déplace, et le chœur reste sur la sienne.
+        dates: Array.isArray(e.dates) ? e.dates : [],
         destinataire: e.destinataire || '', contact_nom: e.contactNom || '',
         contact_email: e.contactEmail || '', jeton: e.jeton, code: e.code || '',
         toutes_parties: e.toutesParties !== false,
@@ -896,6 +899,7 @@ const CurieuxDB = (()=>{
         id: r.id, spectacleId: r.spectacle_id, tourneeId: r.tournee_id || '',
         type: r.type === 'choeur' ? 'choeur' : 'tiers',
         effectif: Number(r.effectif) || 0,
+        dates: Array.isArray(r.dates) ? r.dates : [],
         destinataire: r.destinataire || '', contactNom: r.contact_nom || '',
         contactEmail: r.contact_email || '', jeton: r.jeton, code: r.code || '',
         toutesParties: r.toutes_parties !== false,
@@ -1089,6 +1093,8 @@ const CurieuxDB = (()=>{
      complet, sans qu'aucun écran ne s'en aperçoive. Là, il faut SAVOIR avant
      d'écrire — d'où cette lecture d'une ligne, qui échoue si la colonne n'est
      pas là. */
+  // `colonne` accepte une liste séparée par des virgules — « type,dates » —
+  // et répond vrai dès qu'une seule manque : c'est bien ce qu'on veut savoir.
   async function colonneManquante(table, colonne){
     if(!supabaseClient) return false;
     try{

@@ -7106,6 +7106,24 @@ end $$;
 -- le rester sans qu'on y touche.
 alter table partitions_envois add column if not exists type text not null default 'tiers';
 alter table partitions_envois add column if not exists effectif integer not null default 0;
+-- LES DATES QUE CE CHŒUR CHANTE, et c'est le quatrième point qui distingue un
+-- chœur d'un orchestre invité : sur une même série, le chœur CHANGE. Une
+-- maîtrise à Rennes, un chœur régional à Nantes, une chorale locale pour la
+-- dernière — c'est la règle plus que l'exception, parce qu'un chœur amateur ne
+-- part pas en tournée.
+--
+-- Rien n'empêchait déjà de créer deux lots sur le même spectacle : chacun a son
+-- lien, son code, sa fenêtre. Ce qui manquait, c'est QUI CHANTE QUAND — et
+-- c'est la question qui commande les loges, le transport, les repas et la jauge
+-- de plateau. Sans elle, l'effectif s'additionnait à l'échelle de la série, ce
+-- qui ne correspond à aucune journée réelle.
+--
+-- On stocke les IDENTIFIANTS des dates (tournees.dates[].id) et non les dates
+-- elles-mêmes : une date se déplace, et un chœur reste sur la sienne. Pas de
+-- clé étrangère — les dates vivent en jsonb, comme partout dans ce projet, et
+-- une tournée doit rester supprimable depuis tournees.html. Un identifiant
+-- orphelin se lit « date supprimée » et se décoche.
+alter table partitions_envois add column if not exists dates jsonb not null default '[]'::jsonb;
 do $$
 begin
   if not exists (select 1 from pg_constraint where conname = 'partitions_envois_type_valide') then
@@ -7174,6 +7192,26 @@ begin
     'expireLe',     e.expire_le,
     'note',         e.note,
     'genereLe', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    -- LES DATES, RÉSOLUES ICI ET PAS DANS LA PAGE. Le destinataire n'a pas
+    -- accès à tournees : il reçoit les dates qui le concernent, avec leur
+    -- ville, leur nature et leur statut, et rien d'autre de la série. C'est
+    -- aussi la première chose qu'un chef de chœur vérifie — avant les
+    -- partitions, il regarde s'il est libre.
+    -- Les dates sortent MÊME SI LE LOT EST FERMÉ : un chœur dont le lien a
+    -- expiré doit pouvoir relire à quelles dates il s'était engagé. Ce sont
+    -- les PARTITIONS qu'une révocation retire, pas le calendrier.
+    'dates', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'date',   d->>'date',
+               'ville',  d->>'ville',
+               'lieu',   d->>'lieu',
+               'type',   d->>'type',
+               'statut', d->>'statut')
+             order by d->>'date')
+        from tournees t, jsonb_array_elements(coalesce(t.dates, '[]'::jsonb)) d
+       where t.id = e.tournee_id
+         and coalesce(e.dates, '[]'::jsonb) ? (d->>'id')
+    ), '[]'::jsonb),
     -- L'inventaire ne sort que si le lot est ouvert : révoquer, c'est fermer
     -- pour de bon, y compris la liste de ce qu'on ne donne plus.
     'parties', case when not v_ouvert then '[]'::jsonb else coalesce((
