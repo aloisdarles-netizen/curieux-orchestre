@@ -127,7 +127,7 @@
    pour apprendre qu'il y a 42 dates à venir), et repoussait sous la ligne de
    flottaison les portes qu'on vient réellement chercher. Le tableau de service
    garde son entrée dans le bandeau et dans l'étiquette Disponibilités. */
-const HOME_SECTIONS = [
+const HOME_SECTIONS_V1 = [
   { titre:'Tournées',
     fond:'#CEE1F4', encre:'#791649', chip:'♩', chipFond:'#791649', chipEncre:'#FCF2F0',
     chipTilt:'-6deg', tilt:'-1.1deg', lienFond:'rgba(252,242,240,.9)', lienEncre:'#791649',
@@ -167,6 +167,18 @@ const HOME_SECTIONS = [
     chipTilt:'-5deg', tilt:'-.9deg', lienFond:'rgba(252,242,240,.22)', lienEncre:'#FCF2F0',
     liens:[['Tableau de bord admin','admin-dashboard.html']] },
 ];
+
+/* La planche lisait sa propre liste de liens, distincte de celle du bandeau.
+   Les deux ont divergé : cinq écrans que le bandeau proposait manquaient ici
+   (Invitations, Partitions, Messages, Plateau par date, Suivi des dépenses).
+
+   Avec le menu v2, la planche lit le modèle du bandeau — les tuiles sont ses
+   cinq menus, les portes ses entrées, et la divergence redevient impossible.
+   Avec le menu v1 (CURIEUX_NAV_DEFAUT = 'v1', ou ?nav=v1), la liste ci-dessus
+   reprend la main telle quelle. */
+const HOME_SECTIONS = (typeof curieuxHomeSections === 'function')
+  ? curieuxHomeSections(HOME_SECTIONS_V1)
+  : HOME_SECTIONS_V1;
 
 // En thème sombre, les aplats de la charte sont trop saturés pour couvrir un
 // écran entier : on les assombrit, et toutes les encres passent au blanc cassé.
