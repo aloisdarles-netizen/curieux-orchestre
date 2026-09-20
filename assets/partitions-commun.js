@@ -279,6 +279,38 @@ function partitionsGrouperParPupitre(parties) {
     .map(pup => ({ pupitre: pup, parties: seaux.get(pup) }));
 }
 
+/* ----------------------------------------------------------------------------
+   LE MÊME VOCABULAIRE, DANS LA LANGUE DU DESTINATAIRE.
+
+   Le matériel part à l'étranger (voir partition-envoi.html) : le bibliothécaire
+   de Leipzig ou de Bilbao lit une page dans sa langue, et sept pastilles
+   « BOIS / CUIVRES / CORDES » au milieu. Il les devine — ou il appelle la
+   production. Le pupitre CANONIQUE reste français : c'est lui qui est en base,
+   qui trie, et qui porte la teinte (data-pup, voir base.css). Seul le MOT
+   AFFICHÉ change.
+   -------------------------------------------------------------------------- */
+const PARTITIONS_PUPITRE_LANGUES = {
+  "Chef d'orchestre": { en: 'Conductor',  de: 'Dirigent',    es: 'Dirección',     it: 'Direttore',    nl: 'Dirigent',     ja: '指揮者' },
+  'Bois':             { en: 'Woodwind',   de: 'Holzbläser',  es: 'Viento madera', it: 'Legni',        nl: 'Houtblazers',  ja: '木管' },
+  'Cuivres':          { en: 'Brass',      de: 'Blechbläser', es: 'Metales',       it: 'Ottoni',       nl: 'Koperblazers', ja: '金管' },
+  'Percussions':      { en: 'Percussion', de: 'Schlagwerk',  es: 'Percusión',     it: 'Percussioni',  nl: 'Slagwerk',     ja: '打楽器' },
+  'Chant':            { en: 'Voices',     de: 'Gesang',      es: 'Canto',         it: 'Canto',        nl: 'Zang',         ja: '声楽' },
+  'Cordes':           { en: 'Strings',    de: 'Streicher',   es: 'Cuerdas',       it: 'Archi',        nl: 'Strijkers',    ja: '弦楽器' },
+  'Autre':            { en: 'Other',      de: 'Sonstige',    es: 'Otros',         it: 'Altri',        nl: 'Overig',       ja: 'その他' },
+};
+
+/* Le nom affichable d'un pupitre. Sans langue, ou dans une langue qu'on ne
+   sert pas, c'est le français : tous les écrans de production l'appellent
+   ainsi, et une traduction manquante ne doit jamais laisser une pastille
+   vide. */
+function partitionsPupitreNom(pupitre, langue) {
+  const pup = partitionsPupitreNormalise(pupitre);
+  const l = String(langue || '').slice(0, 2).toLowerCase();
+  if (!l || l === 'fr') return pup;
+  const entree = PARTITIONS_PUPITRE_LANGUES[pup];
+  return (entree && entree[l]) || pup;
+}
+
 /* La pastille de pupitre. Le nom y est écrit en toutes lettres : la couleur
    accélère la lecture, elle ne la porte pas seule — un daltonien, une
    impression en noir et blanc et un écran mal réglé doivent donner la même
@@ -286,7 +318,7 @@ function partitionsGrouperParPupitre(parties) {
 function partitionsPupitreHtml(pupitre, options) {
   const pup = partitionsPupitreNormalise(pupitre);
   const o = options || {};
-  const texte = o.texte != null ? o.texte : pup;
+  const texte = o.texte != null ? o.texte : partitionsPupitreNom(pup, o.langue);
   return `<span class="co-pup" data-pup="${escapeAttr(pup)}"${o.titre ? ` title="${escapeAttr(o.titre)}"` : ''}>${escapeHtml(texte)}</span>`;
 }
 
@@ -297,6 +329,154 @@ function partitionsPupitreVar(pupitre, encre) {
     'Percussions': 'percussions', 'Chant': 'chant', 'Autre': 'autre',
   }[partitionsPupitreNormalise(pupitre)] || 'autre';
   return `var(--pup-${cle}${encre ? '-ink' : ''})`;
+}
+
+/* ----------------------------------------------------------------------------
+   LE NOM DES PARTIES, GLOSÉ DANS LA LANGUE DU DESTINATAIRE.
+
+   Un jeu français annonce « Cor 1-2 », « Alto », « Basson ». Devant un
+   bibliothécaire allemand, « Alto » est un piège : il lit une voix d'alto là
+   où il y a un pupitre d'altos — et il distribue de travers.
+
+   CE QUI NE CHANGE PAS : le nom de la partie, ni celui du fichier téléchargé.
+   Une page qui afficherait « Horn 1-2 » pour un fichier « Cor 1-2.pdf » ferait
+   chercher une partie qui ne manque pas. La traduction est une GLOSE, posée à
+   côté du nom, et seulement quand elle apprend quelque chose.
+
+   Les formes étrangères sont indexées elles aussi : beaucoup de jeux arrivent
+   déjà en anglais ou en italien (« Violoncello », « Klavier »), et le
+   destinataire n'a pas à deviner mieux que nous.
+   -------------------------------------------------------------------------- */
+const PARTITIONS_INSTRUMENTS = [
+  // Bois
+  { fr: 'Piccolo',           en: 'Piccolo',            de: 'Piccoloflöte',    es: 'Flautín',          it: 'Ottavino',            nl: 'Piccolo',         ja: 'ピッコロ' },
+  { fr: 'Flûte',             en: 'Flute',              de: 'Flöte',           es: 'Flauta',           it: 'Flauto',              nl: 'Fluit',           ja: 'フルート' },
+  { fr: 'Flûte alto',        en: 'Alto flute',         de: 'Altflöte',        es: 'Flauta alto',      it: 'Flauto contralto',    nl: 'Altfluit',        ja: 'アルトフルート' },
+  { fr: 'Hautbois',          en: 'Oboe',               de: 'Oboe',            es: 'Oboe',             it: 'Oboe',                nl: 'Hobo',            ja: 'オーボエ' },
+  { fr: 'Cor anglais',       en: 'English horn',       de: 'Englischhorn',    es: 'Corno inglés',     it: 'Corno inglese',       nl: 'Althobo',         ja: 'イングリッシュホルン' },
+  { fr: 'Clarinette',        en: 'Clarinet',           de: 'Klarinette',      es: 'Clarinete',        it: 'Clarinetto',          nl: 'Klarinet',        ja: 'クラリネット' },
+  { fr: 'Clarinette basse',  en: 'Bass clarinet',      de: 'Bassklarinette',  es: 'Clarinete bajo',   it: 'Clarinetto basso',    nl: 'Basklarinet',     ja: 'バスクラリネット' },
+  { fr: 'Basson',            en: 'Bassoon',            de: 'Fagott',          es: 'Fagot',            it: 'Fagotto',             nl: 'Fagot',           ja: 'ファゴット' },
+  { fr: 'Contrebasson',      en: 'Contrabassoon',      de: 'Kontrafagott',    es: 'Contrafagot',      it: 'Controfagotto',       nl: 'Contrafagot',     ja: 'コントラファゴット' },
+  { fr: 'Saxophone',         en: 'Saxophone',          de: 'Saxophon',        es: 'Saxofón',          it: 'Sassofono',           nl: 'Saxofoon',        ja: 'サクソフォン' },
+  { fr: 'Saxophone alto',    en: 'Alto saxophone',     de: 'Altsaxophon',     es: 'Saxofón alto',     it: 'Sassofono contralto', nl: 'Altsaxofoon',     ja: 'アルトサクソフォン' },
+  { fr: 'Saxophone ténor',   en: 'Tenor saxophone',    de: 'Tenorsaxophon',   es: 'Saxofón tenor',    it: 'Sassofono tenore',    nl: 'Tenorsaxofoon',   ja: 'テナーサクソフォン' },
+  { fr: 'Saxophone baryton', en: 'Baritone saxophone', de: 'Baritonsaxophon', es: 'Saxofón barítono', it: 'Sassofono baritono',  nl: 'Baritonsaxofoon', ja: 'バリトンサクソフォン' },
+
+  // Cuivres
+  { fr: 'Cor',               en: 'Horn',               de: 'Horn',            es: 'Trompa',           it: 'Corno',               nl: 'Hoorn',           ja: 'ホルン' },
+  { fr: 'Trompette',         en: 'Trumpet',            de: 'Trompete',        es: 'Trompeta',         it: 'Tromba',              nl: 'Trompet',         ja: 'トランペット' },
+  { fr: 'Cornet',            en: 'Cornet',             de: 'Kornett',         es: 'Corneta',          it: 'Cornetta',            nl: 'Kornet',          ja: 'コルネット' },
+  { fr: 'Bugle',             en: 'Flugelhorn',         de: 'Flügelhorn',      es: 'Fiscorno',         it: 'Flicorno',            nl: 'Bugel',           ja: 'フリューゲルホルン' },
+  { fr: 'Saxhorn',           en: 'Saxhorn',            de: 'Saxhorn',         es: 'Saxhorn',          it: 'Flicorno basso',      nl: 'Saxhoorn',        ja: 'サクソルン' },
+  { fr: 'Trombone',          en: 'Trombone',           de: 'Posaune',         es: 'Trombón',          it: 'Trombone',            nl: 'Trombone',        ja: 'トロンボーン' },
+  { fr: 'Trombone basse',    en: 'Bass trombone',      de: 'Bassposaune',     es: 'Trombón bajo',     it: 'Trombone basso',      nl: 'Bastrombone',     ja: 'バストロンボーン' },
+  { fr: 'Tuba',              en: 'Tuba',               de: 'Tuba',            es: 'Tuba',             it: 'Tuba',                nl: 'Tuba',            ja: 'チューバ' },
+  { fr: 'Euphonium',         en: 'Euphonium',          de: 'Euphonium',       es: 'Bombardino',       it: 'Eufonio',             nl: 'Eufonium',        ja: 'ユーフォニアム' },
+
+  // Percussions
+  { fr: 'Timbales',          en: 'Timpani',            de: 'Pauken',          es: 'Timbales',         it: 'Timpani',             nl: 'Pauken',          ja: 'ティンパニ' },
+  { fr: 'Percussion',        en: 'Percussion',         de: 'Schlagwerk',      es: 'Percusión',        it: 'Percussioni',         nl: 'Slagwerk',        ja: '打楽器' },
+  { fr: 'Batterie',          en: 'Drum kit',           de: 'Drumset',         es: 'Batería',          it: 'Batteria',            nl: 'Drumstel',        ja: 'ドラムセット' },
+  { fr: 'Vibraphone',        en: 'Vibraphone',         de: 'Vibraphon',       es: 'Vibráfono',        it: 'Vibrafono',           nl: 'Vibrafoon',       ja: 'ヴィブラフォン' },
+  { fr: 'Marimba',           en: 'Marimba',            de: 'Marimba',         es: 'Marimba',          it: 'Marimba',             nl: 'Marimba',         ja: 'マリンバ' },
+  { fr: 'Xylophone',         en: 'Xylophone',          de: 'Xylophon',        es: 'Xilófono',         it: 'Xilofono',            nl: 'Xylofoon',        ja: 'シロフォン' },
+  { fr: 'Glockenspiel',      en: 'Glockenspiel',       de: 'Glockenspiel',    es: 'Carillón',         it: 'Campanelli',          nl: 'Klokkenspel',     ja: 'グロッケンシュピール' },
+  { fr: 'Cymbales',          en: 'Cymbals',            de: 'Becken',          es: 'Platillos',        it: 'Piatti',              nl: 'Bekkens',         ja: 'シンバル' },
+  { fr: 'Caisse claire',     en: 'Snare drum',         de: 'Kleine Trommel',  es: 'Caja',             it: 'Tamburo militare',    nl: 'Kleine trom',     ja: 'スネアドラム' },
+  { fr: 'Grosse caisse',     en: 'Bass drum',          de: 'Große Trommel',   es: 'Bombo',            it: 'Gran cassa',          nl: 'Grote trom',      ja: 'バスドラム' },
+  { fr: 'Triangle',          en: 'Triangle',           de: 'Triangel',        es: 'Triángulo',        it: 'Triangolo',           nl: 'Triangel',        ja: 'トライアングル' },
+  { fr: 'Tambourin',         en: 'Tambourine',         de: 'Tamburin',        es: 'Pandereta',        it: 'Tamburello',          nl: 'Tamboerijn',      ja: 'タンバリン', alias: ['タンブリン'] },
+
+  // Claviers, harpe, guitares
+  { fr: 'Harpe',             en: 'Harp',               de: 'Harfe',           es: 'Arpa',             it: 'Arpa',                nl: 'Harp',            ja: 'ハープ' },
+  { fr: 'Piano',             en: 'Piano',              de: 'Klavier',         es: 'Piano',            it: 'Pianoforte',          nl: 'Piano',           ja: 'ピアノ' },
+  { fr: 'Célesta',           en: 'Celesta',            de: 'Celesta',         es: 'Celesta',          it: 'Celesta',             nl: 'Celesta',         ja: 'チェレスタ' },
+  { fr: 'Clavier',           en: 'Keyboard',           de: 'Keyboard',        es: 'Teclado',          it: 'Tastiera',            nl: 'Keyboard',        ja: 'キーボード' },
+  { fr: 'Orgue',             en: 'Organ',              de: 'Orgel',           es: 'Órgano',           it: 'Organo',              nl: 'Orgel',           ja: 'オルガン' },
+  { fr: 'Accordéon',         en: 'Accordion',          de: 'Akkordeon',       es: 'Acordeón',         it: 'Fisarmonica',         nl: 'Accordeon',       ja: 'アコーディオン' },
+  { fr: 'Guitare',           en: 'Guitar',             de: 'Gitarre',         es: 'Guitarra',         it: 'Chitarra',            nl: 'Gitaar',          ja: 'ギター' },
+  { fr: 'Guitare basse',     en: 'Bass guitar',        de: 'E-Bass',          es: 'Bajo eléctrico',   it: 'Basso elettrico',     nl: 'Basgitaar',       ja: 'ベースギター' },
+
+  // Chant
+  { fr: 'Voix',              en: 'Voice',              de: 'Singstimme',      es: 'Voz',              it: 'Voce',                nl: 'Zangstem',        ja: '声楽' },
+  { fr: 'Chœur',             en: 'Choir',              de: 'Chor',            es: 'Coro',             it: 'Coro',                nl: 'Koor',            ja: '合唱' },
+  { fr: 'Soprano',           en: 'Soprano',            de: 'Sopran',          es: 'Soprano',          it: 'Soprano',             nl: 'Sopraan',         ja: 'ソプラノ' },
+  { fr: 'Mezzo-soprano',     en: 'Mezzo-soprano',      de: 'Mezzosopran',     es: 'Mezzosoprano',     it: 'Mezzosoprano',        nl: 'Mezzosopraan',    ja: 'メゾソプラノ' },
+  { fr: 'Ténor',             en: 'Tenor',              de: 'Tenor',           es: 'Tenor',            it: 'Tenore',              nl: 'Tenor',           ja: 'テノール' },
+  { fr: 'Baryton',           en: 'Baritone',           de: 'Bariton',         es: 'Barítono',         it: 'Baritono',            nl: 'Bariton',         ja: 'バリトン' },
+
+  /* « Alto » est LE faux ami du métier : en français c'est le pupitre d'altos,
+     partout ailleurs c'est une voix. Le pupitre des parties, lui, range déjà
+     « alto » dans les Cordes (PARTITIONS_PUPITRES) — on gloserait donc de la
+     même façon, et c'est précisément le mot qu'il fallait traduire. */
+  { fr: 'Alto',              en: 'Viola',              de: 'Bratsche',        es: 'Viola',            it: 'Viola',               nl: 'Altviool',        ja: 'ヴィオラ' },
+  { fr: 'Violon',            en: 'Violin',             de: 'Violine',         es: 'Violín',           it: 'Violino',             nl: 'Viool',           ja: 'ヴァイオリン' },
+  { fr: 'Violoncelle',       en: 'Cello',              de: 'Violoncello',     es: 'Violonchelo',      it: 'Violoncello',         nl: 'Cello',           ja: 'チェロ', alias: ['cello'] },
+  { fr: 'Contrebasse',       en: 'Double bass',        de: 'Kontrabass',      es: 'Contrabajo',       it: 'Contrabbasso',        nl: 'Contrabas',       ja: 'コントラバス' },
+
+  // Le reste : la basse au sens large, et le conducteur.
+  { fr: 'Basse',             en: 'Bass',               de: 'Bass',            es: 'Bajo',             it: 'Basso',               nl: 'Bas',             ja: 'バス', alias: ['ベース'] },
+  { fr: 'Conducteur',        en: 'Full score',         de: 'Partitur',        es: 'Partitura',        it: 'Partitura',           nl: 'Partituur',       ja: '総譜' },
+  { fr: 'Partition',         en: 'Score',              de: 'Partitur',        es: 'Partitura',        it: 'Partitura',           nl: 'Partituur',       ja: '楽譜' },
+];
+
+/* L'index de toutes les formes connues — française, étrangères, variantes —
+   vers l'entrée qui les traduit. La PREMIÈRE rencontrée gagne : « Partitur »
+   vaut pour le conducteur comme pour la partition, et les deux disent la même
+   chose. */
+const PARTITIONS_INSTRUMENTS_INDEX = (function () {
+  const index = new Map();
+  PARTITIONS_INSTRUMENTS.forEach(e => {
+    [e.fr, e.en, e.de, e.es, e.it, e.nl, e.ja].concat(e.alias || []).forEach(forme => {
+      const cle = partitionsNormaliser(forme);
+      if (cle && !index.has(cle)) index.set(cle, e);
+    });
+  });
+  return index;
+})();
+
+/* Traduire le nom d'une partie sans en perdre la structure. On avance mot à
+   mot, en essayant TOUJOURS le motif le plus long d'abord : sans cela,
+   « Clarinette basse » devient « Clarinet bass » et « Cor anglais » devient
+   « Horn english ». Ce qui n'est pas un instrument — un numéro, « 1-2 », un
+   préfixe de spectacle, « solo », « divisi » — est recopié tel quel : c'est
+   souvent ce qui distingue deux parties, et le perdre serait pire que ne pas
+   traduire. */
+function partitionsNomTraduit(nom, langue) {
+  const l = String(langue || '').slice(0, 2).toLowerCase();
+  const source = String(nom || '');
+  if (!l || l === 'fr') return source;
+  const mots = source.trim().split(/\s+/).filter(Boolean);
+  if (!mots.length) return source;
+
+  /* Un groupe de mots ne se teste que si CHACUN porte une lettre. Sans ce
+     garde-fou, « EXP33 - Violon 2 » perdait son tiret : partitionsNormaliser
+     efface la ponctuation, « - Violon » devenait « violon », et le séparateur
+     était mangé par l'appariement. */
+  const _aUneLettre = (mot) => /\p{L}/u.test(mot);
+  const sortie = [];
+  let i = 0;
+  while (i < mots.length) {
+    let pris = 0, texte = '';
+    for (let n = Math.min(3, mots.length - i); n >= 1; n--) {
+      const groupe = mots.slice(i, i + n);
+      if (!groupe.every(_aUneLettre)) continue;
+      const entree = PARTITIONS_INSTRUMENTS_INDEX.get(partitionsNormaliser(groupe.join(' ')));
+      if (entree && entree[l]) { pris = n; texte = entree[l]; break; }
+    }
+    /* Dorico sort parfois « Violoncello2 », sans espace. Le chiffre collé
+       n'empêche pas de reconnaître l'instrument — et il doit rester collé,
+       parce que c'est lui qui distingue les deux pupitres. */
+    if (!pris) {
+      const colle = mots[i].match(/^(\p{L}[\p{L}\p{M}'\u2019]*)([0-9].*)$/u);
+      const entree = colle && PARTITIONS_INSTRUMENTS_INDEX.get(partitionsNormaliser(colle[1]));
+      if (entree && entree[l]) { pris = 1; texte = entree[l] + colle[2]; }
+    }
+    if (pris) { sortie.push(texte); i += pris; }
+    else { sortie.push(mots[i]); i += 1; }
+  }
+  return sortie.join(' ');
 }
 
 /* La jauge segmentée d'un ensemble de parties : un segment par partie, vert si
@@ -347,7 +527,11 @@ if (typeof window !== 'undefined') {
   window.partitionsPupitreNormalise = partitionsPupitreNormalise;
   window.partitionsRangPupitre = partitionsRangPupitre;
   window.partitionsGrouperParPupitre = partitionsGrouperParPupitre;
+  window.PARTITIONS_PUPITRE_LANGUES = PARTITIONS_PUPITRE_LANGUES;
+  window.partitionsPupitreNom = partitionsPupitreNom;
   window.partitionsPupitreHtml = partitionsPupitreHtml;
+  window.PARTITIONS_INSTRUMENTS = PARTITIONS_INSTRUMENTS;
+  window.partitionsNomTraduit = partitionsNomTraduit;
   window.partitionsPupitreVar = partitionsPupitreVar;
   window.partitionsJaugeHtml = partitionsJaugeHtml;
   window.partitionsInitiales = partitionsInitiales;
