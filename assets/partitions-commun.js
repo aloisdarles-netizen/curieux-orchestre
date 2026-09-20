@@ -7,16 +7,18 @@
  * main, c'est quarante minutes et deux erreurs ; deviné correctement, c'est
  * deux minutes de relecture.
  *
- * CE FICHIER NE DEVINE PAS L'INSTRUMENT D'UNE PERSONNE, et c'est délibéré.
+ * CE FICHIER N'APPLIQUE JAMAIS SEUL L'INSTRUMENT D'UNE PERSONNE À UNE PARTIE.
  * musiciens.instrument est du texte libre : 25 valeurs distinctes sur 114
  * fiches, avec « Flutes » et « Flûtes », « Alto » et « Altos », « Contrebasse »
- * et « Contrebasses », et un « Violoncelles » à espace final. On ne peut RIEN
- * y apparier automatiquement sans se tromper. L'affectation reste donc
- * nominative — c'est un choix, pas un renoncement : une partie donnée à la
- * mauvaise personne se découvre à la première répétition.
+ * et « Contrebasses », et un « Violoncelles » à espace final. Il sait le LIRE
+ * (partitionsInstrumentDe) et en tirer une PROPOSITION graduée
+ * (partitionsProposerAffectations, en bas de ce fichier) ; la décision reste
+ * à qui relit la liste et la coche — une partie donnée à la mauvaise personne
+ * se découvre à la première répétition, et ce n'est pas un risque qu'on prend
+ * en silence.
  *
- * Ce qu'on devine ici, c'est seulement le lien FICHIER → PARTIE, où les deux
- * côtés sont saisis par la même personne dans le même vocabulaire.
+ * Ce qu'on devine sans relecture, c'est seulement le lien FICHIER → PARTIE,
+ * où les deux côtés sont saisis par la même personne dans le même vocabulaire.
  * ========================================================================== */
 
 /* L'ordre du conducteur. Une liste de parties triée par ordre alphabétique se
@@ -424,19 +426,19 @@ const PARTITIONS_INSTRUMENTS = [
   { fr: 'Saxophone baryton', en: 'Baritone saxophone', de: 'Baritonsaxophon', es: 'Saxofón barítono', it: 'Sassofono baritono',  nl: 'Baritonsaxofoon', ja: 'バリトンサクソフォン' },
 
   // Cuivres
-  { fr: 'Cor',               en: 'Horn',               de: 'Horn',            es: 'Trompa',           it: 'Corno',               nl: 'Hoorn',           ja: 'ホルン' },
-  { fr: 'Trompette',         en: 'Trumpet',            de: 'Trompete',        es: 'Trompeta',         it: 'Tromba',              nl: 'Trompet',         ja: 'トランペット' },
+  { fr: 'Cor',               en: 'Horn',               de: 'Horn',            es: 'Trompa',           it: 'Corno',               nl: 'Hoorn',           ja: 'ホルン', alias: ['corni', 'french horn'] },
+  { fr: 'Trompette',         en: 'Trumpet',            de: 'Trompete',        es: 'Trompeta',         it: 'Tromba',              nl: 'Trompet',         ja: 'トランペット', alias: ['trombe'] },
   { fr: 'Cornet',            en: 'Cornet',             de: 'Kornett',         es: 'Corneta',          it: 'Cornetta',            nl: 'Kornet',          ja: 'コルネット' },
   { fr: 'Bugle',             en: 'Flugelhorn',         de: 'Flügelhorn',      es: 'Fiscorno',         it: 'Flicorno',            nl: 'Bugel',           ja: 'フリューゲルホルン' },
   { fr: 'Saxhorn',           en: 'Saxhorn',            de: 'Saxhorn',         es: 'Saxhorn',          it: 'Flicorno basso',      nl: 'Saxhoorn',        ja: 'サクソルン' },
-  { fr: 'Trombone',          en: 'Trombone',           de: 'Posaune',         es: 'Trombón',          it: 'Trombone',            nl: 'Trombone',        ja: 'トロンボーン' },
+  { fr: 'Trombone',          en: 'Trombone',           de: 'Posaune',         es: 'Trombón',          it: 'Trombone',            nl: 'Trombone',        ja: 'トロンボーン', alias: ['tromboni'] },
   { fr: 'Trombone basse',    en: 'Bass trombone',      de: 'Bassposaune',     es: 'Trombón bajo',     it: 'Trombone basso',      nl: 'Bastrombone',     ja: 'バストロンボーン' },
   { fr: 'Tuba',              en: 'Tuba',               de: 'Tuba',            es: 'Tuba',             it: 'Tuba',                nl: 'Tuba',            ja: 'チューバ' },
   { fr: 'Euphonium',         en: 'Euphonium',          de: 'Euphonium',       es: 'Bombardino',       it: 'Eufonio',             nl: 'Eufonium',        ja: 'ユーフォニアム' },
 
   // Percussions
-  { fr: 'Timbales',          en: 'Timpani',            de: 'Pauken',          es: 'Timbales',         it: 'Timpani',             nl: 'Pauken',          ja: 'ティンパニ' },
-  { fr: 'Percussion',        en: 'Percussion',         de: 'Schlagwerk',      es: 'Percusión',        it: 'Percussioni',         nl: 'Slagwerk',        ja: '打楽器' },
+  { fr: 'Timbales',          en: 'Timpani',            de: 'Pauken',          es: 'Timbales',         it: 'Timpani',             nl: 'Pauken',          ja: 'ティンパニ', alias: ['timbale'] },
+  { fr: 'Percussion',        en: 'Percussion',         de: 'Schlagwerk',      es: 'Percusión',        it: 'Percussioni',         nl: 'Slagwerk',        ja: '打楽器', alias: ['percussions'] },
   { fr: 'Batterie',          en: 'Drum kit',           de: 'Drumset',         es: 'Batería',          it: 'Batteria',            nl: 'Drumstel',        ja: 'ドラムセット' },
   { fr: 'Vibraphone',        en: 'Vibraphone',         de: 'Vibraphon',       es: 'Vibráfono',        it: 'Vibrafono',           nl: 'Vibrafoon',       ja: 'ヴィブラフォン' },
   { fr: 'Marimba',           en: 'Marimba',            de: 'Marimba',         es: 'Marimba',          it: 'Marimba',             nl: 'Marimba',         ja: 'マリンバ' },
@@ -454,7 +456,7 @@ const PARTITIONS_INSTRUMENTS = [
   { fr: 'Célesta',           en: 'Celesta',            de: 'Celesta',         es: 'Celesta',          it: 'Celesta',             nl: 'Celesta',         ja: 'チェレスタ' },
   { fr: 'Clavier',           en: 'Keyboard',           de: 'Keyboard',        es: 'Teclado',          it: 'Tastiera',            nl: 'Keyboard',        ja: 'キーボード' },
   { fr: 'Orgue',             en: 'Organ',              de: 'Orgel',           es: 'Órgano',           it: 'Organo',              nl: 'Orgel',           ja: 'オルガン' },
-  { fr: 'Accordéon',         en: 'Accordion',          de: 'Akkordeon',       es: 'Acordeón',         it: 'Fisarmonica',         nl: 'Accordeon',       ja: 'アコーディオン' },
+  { fr: 'Accordéon',         en: 'Accordion',          de: 'Akkordeon',       es: 'Acordeón',         it: 'Fisarmonica',         nl: 'Accordeon',       ja: 'アコーディオン', alias: ['accordeon'] },
   { fr: 'Guitare',           en: 'Guitar',             de: 'Gitarre',         es: 'Guitarra',         it: 'Chitarra',            nl: 'Gitaar',          ja: 'ギター' },
   { fr: 'Guitare basse',     en: 'Bass guitar',        de: 'E-Bass',          es: 'Bajo eléctrico',   it: 'Basso elettrico',     nl: 'Basgitaar',       ja: 'ベースギター' },
 
@@ -471,9 +473,9 @@ const PARTITIONS_INSTRUMENTS = [
      « alto » dans les Cordes (PARTITIONS_PUPITRES) — on gloserait donc de la
      même façon, et c'est précisément le mot qu'il fallait traduire. */
   { fr: 'Alto',              en: 'Viola',              de: 'Bratsche',        es: 'Viola',            it: 'Viola',               nl: 'Altviool',        ja: 'ヴィオラ' },
-  { fr: 'Violon',            en: 'Violin',             de: 'Violine',         es: 'Violín',           it: 'Violino',             nl: 'Viool',           ja: 'ヴァイオリン' },
-  { fr: 'Violoncelle',       en: 'Cello',              de: 'Violoncello',     es: 'Violonchelo',      it: 'Violoncello',         nl: 'Cello',           ja: 'チェロ', alias: ['cello'] },
-  { fr: 'Contrebasse',       en: 'Double bass',        de: 'Kontrabass',      es: 'Contrabajo',       it: 'Contrabbasso',        nl: 'Contrabas',       ja: 'コントラバス' },
+  { fr: 'Violon',            en: 'Violin',             de: 'Violine',         es: 'Violín',           it: 'Violino',             nl: 'Viool',           ja: 'ヴァイオリン', alias: ['violini'] },
+  { fr: 'Violoncelle',       en: 'Cello',              de: 'Violoncello',     es: 'Violonchelo',      it: 'Violoncello',         nl: 'Cello',           ja: 'チェロ', alias: ['cello', 'violoncelli'] },
+  { fr: 'Contrebasse',       en: 'Double bass',        de: 'Kontrabass',      es: 'Contrabajo',       it: 'Contrabbasso',        nl: 'Contrabas',       ja: 'コントラバス', alias: ['contrabass', 'contrabassi'] },
 
   // Le reste : la basse au sens large, et le conducteur.
   { fr: 'Basse',             en: 'Bass',               de: 'Bass',            es: 'Bajo',             it: 'Basso',               nl: 'Bas',             ja: 'バス', alias: ['ベース'] },
@@ -677,6 +679,204 @@ function partitionsTonaliteLangue(texte, langue) {
   return t.replace(/\bmajeur\b/, 'major').replace(/\bmineur\b/, 'minor');
 }
 
+/* ============================================================================
+   PROPOSER UNE AFFECTATION D'APRÈS L'INSTRUMENT.
+
+   Ce fichier refusait de le faire, et la raison tenait : musiciens.instrument
+   est du texte libre — « Flutes » et « Flûtes », « Alto » et « Altos », un
+   « Violoncelles » à espace final. Un appariement APPLIQUÉ sur ce texte se
+   serait trompé, et l'erreur ne se serait vue qu'à la première répétition.
+
+   Ce qui change, ce n'est pas la confiance dans le texte, c'est le GESTE : on
+   ne pose rien, on PROPOSE. Chaque ligne est graduée — sûre, probable, à
+   trancher —, relue et cochée avant d'être écrite, et une affectation déjà
+   posée à la main n'est jamais touchée. Le texte libre, lui, se lit avec les
+   outils déjà faits pour les noms de fichiers : accents et pluriels effacés,
+   formes anglaises de Dorico reconnues (PARTITIONS_INSTRUMENTS), chiffre
+   collé décollé, « DoubleBass » aéré.
+
+   CE QU'ON NE DEVINE PAS, et qu'on dit :
+   — le numéro dans la famille quand la fiche ne le porte pas. « Cor » devant
+     « Cor 1-2 » et « Cor 3-4 » n'a pas de bonne réponse : la personne passe
+     « à trancher », les deux parties en choix, la bonne en tête si l'une est
+     encore sans lecteur ;
+   — les doublures. Le hautbois 2 qui prend le cor anglais, la flûte 2 le
+     piccolo : c'est une décision de pupitre, pas une lecture de fiche. La
+     partie reste « sans lecteur », et le compteur de la page le dit ;
+   — une seconde partie pour quelqu'un qui en a déjà une. La proposition ne
+     sert qu'à qui n'a rien ; le reste se fait dans la matrice.
+   ========================================================================== */
+
+/* Les ordinaux qu'on rencontre DEVANT l'instrument : « 2e violon », « second
+   violin », « premier cor ». Après lui, ce sont des chiffres — « Violon 2 »,
+   « Cor 1-2 », « Violin II ». */
+const _PARTITIONS_ORDINAUX = {
+  premier: 1, premiere: 1, premiers: 1, premieres: 1, '1er': 1, '1ere': 1, '1re': 1, '1ers': 1, '1res': 1,
+  first: 1, '1st': 1,
+  second: 2, seconde: 2, seconds: 2, secondes: 2, deuxieme: 2, deuxiemes: 2,
+  '2e': 2, '2eme': 2, '2emes': 2, '2nd': 2, '2nde': 2, '2nds': 2,
+  troisieme: 3, troisiemes: 3, '3e': 3, '3eme': 3, third: 3, '3rd': 3,
+  quatrieme: 4, quatriemes: 4, '4e': 4, '4eme': 4, fourth: 4, '4th': 4,
+};
+const _PARTITIONS_ROMAINS = { i: 1, ii: 2, iii: 3, iv: 4 };
+/* « Violon solo » n'est pas un numéro : c'est le chef d'attaque, et il lit le
+   premier violon. On le retient pour proposer le 1 — en « probable », parce
+   que c'est une convention et non une lecture. */
+const _PARTITIONS_SOLO = new Set(['solo', 'soliste', 'solist', 'principal', 'principale', 'concertmaster', 'konzertmeister']);
+
+/* Lire un instrument dans un texte libre — la fiche d'une personne comme le
+   nom d'une partie. Rend { entree, nom, numeros, solo } ou null.
+     « Violoncelles  »        → Violoncelle, []
+     « Violon 2 »             → Violon, [2]
+     « Violon solo »          → Violon, [], solo
+     « WZO – 540 Violoncello1 » → Violoncelle, [1]   (le 540 est un numéro d'œuvre, pas de pupitre)
+     « Cor 1-2 »              → Cor, [1, 2]
+     « 560 DoubleBass »       → Contrebasse, []
+   Le plus long groupe de mots connu l'emporte, le plus à gauche à longueur
+   égale — « Alto Flute » est une flûte alto, pas un alto. Un mot inconnu au
+   pluriel se réessaie au singulier : « Flutes », « Altos », « Cors ». */
+function partitionsInstrumentDe(texte) {
+  const brut = String(texte || '')
+    .replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2')   // DoubleBass → Double Bass
+    .replace(/(\p{L})(\d)/gu, '$1 $2');        // Violoncello1 → Violoncello 1
+  const mots = partitionsNormaliser(brut).split(' ').filter(Boolean);
+  if (!mots.length) return null;
+  const aUneLettre = (m) => /\p{L}/u.test(m);
+  const singulier = (m) => (m.length > 3 && m.endsWith('s')) ? m.slice(0, -1) : m;
+  let trouve = null;
+  for (let i = 0; i < mots.length && !trouve; i++) {
+    for (let n = Math.min(3, mots.length - i); n >= 1; n--) {
+      const groupe = mots.slice(i, i + n);
+      if (!groupe.every(aUneLettre)) continue;
+      const entree = PARTITIONS_INSTRUMENTS_INDEX.get(groupe.join(' '))
+        || PARTITIONS_INSTRUMENTS_INDEX.get(groupe.map(singulier).join(' '));
+      if (entree) { trouve = { entree, debut: i, fin: i + n }; break; }
+    }
+  }
+  if (!trouve) return null;
+  const numeros = [];
+  for (let j = trouve.fin; j < mots.length; j++) {
+    const m = mots[j];
+    if (/^\d{1,2}$/.test(m)) numeros.push(Number(m));
+    else if (_PARTITIONS_ROMAINS[m]) numeros.push(_PARTITIONS_ROMAINS[m]);
+    else if (!/[\p{L}\d]/u.test(m)) continue;   // un tiret long, une parenthèse : on passe
+    else break;
+  }
+  const avant = mots[trouve.debut - 1];
+  if (avant && _PARTITIONS_ORDINAUX[avant] && !numeros.includes(_PARTITIONS_ORDINAUX[avant])) {
+    numeros.push(_PARTITIONS_ORDINAUX[avant]);
+  }
+  const solo = mots.slice(trouve.fin).some(m => _PARTITIONS_SOLO.has(m));
+  return { entree: trouve.entree, nom: trouve.entree.fr, numeros, solo };
+}
+
+/* Le conducteur n'est pas une partie qu'on distribue à l'instrument : il va au
+   chef, et à personne d'autre. Reconnu par son pupitre ou par son nom. */
+function _partitionsEstConducteur(partie, lu) {
+  if (partitionsPupitreNormalise(partie.pupitre) === "Chef d'orchestre") return true;
+  return !!(lu && (lu.nom === 'Conducteur' || lu.nom === 'Partition'));
+}
+
+/* Deux pupitres peuvent-ils se répondre ? La seule collision réelle est entre
+   ce qui se chante et ce qui se joue : « Alto » est un pupitre de cordes dans
+   une fiche de musicien et une voix dans un programme de solistes. Le reste
+   — un « Autre », un pupitre vide — ne dit rien et ne bloque rien. */
+function _partitionsPupitresCompatibles(a, b) {
+  const pa = partitionsPupitreNormalise(a), pb = partitionsPupitreNormalise(b);
+  if (pa === 'Autre' || pb === 'Autre' || pa === pb) return true;
+  const chante = (p) => p === 'Chant' || p === 'Chœur';
+  return chante(pa) === chante(pb);
+}
+
+/* La proposition elle-même.
+     parties      — celles du spectacle
+     effectif     — les personnes de l'opération (effectifAffichable)
+     affectations — celles déjà posées sur ce spectacle et cette opération
+   Rend quatre listes, dans l'ordre de l'effectif :
+     sures            [{ personne, partie, lu, motif }]
+     probables        [{ personne, partie, lu, motif }]
+     aTrancher        [{ personne, lu, memes: [partie], autres: [partie], motif }]
+     sansProposition  [{ personne, lu, motif }]
+   et deux comptes : dejaServis (personnes qui ont déjà une partie ici, jamais
+   touchées) et techniciens (pas de partition pour eux). */
+function partitionsProposerAffectations(parties, effectif, affectations) {
+  const lues = (parties || []).map(p => ({ partie: p, lu: partitionsInstrumentDe(p.nom) }))
+    .filter(x => partitionsPupitreNormalise(x.partie.pupitre) !== 'Chœur');
+  const conducteurs = lues.filter(x => _partitionsEstConducteur(x.partie, x.lu));
+  const distribuables = lues.filter(x => !conducteurs.includes(x));
+  const lecteurs = new Map();   // partieId → nombre de lecteurs déjà posés
+  (affectations || []).forEach(a => lecteurs.set(a.partieId, (lecteurs.get(a.partieId) || 0) + 1));
+  const servis = new Set((affectations || []).map(a => a.personType + '|' + a.personId));
+
+  const out = { sures: [], probables: [], aTrancher: [], sansProposition: [], dejaServis: 0, techniciens: 0 };
+  /* Une partie encore sans lecteur passe en tête des choix : quand il faut
+     trancher entre « Cor 1-2 » déjà lu par deux personnes et « Cor 3-4 » que
+     personne n'a, la seconde est la réponse neuf fois sur dix. */
+  const parManque = (a, b) => (lecteurs.get(a.id) || 0) - (lecteurs.get(b.id) || 0);
+
+  (effectif || []).forEach(personne => {
+    if (personne.personType !== 'musicien') { out.techniciens++; return; }
+    if (servis.has(personne.personType + '|' + personne.personId)) { out.dejaServis++; return; }
+    if (personne.horsEffectif) return;   // une anomalie à régler, pas une personne à servir
+    const lu = partitionsInstrumentDe(personne.instrument);
+    const pupitre = partitionsPupitreNormalise(personne.pupitre);
+
+    // Le chef : le conducteur, et rien d'autre.
+    if (pupitre === "Chef d'orchestre") {
+      const libres = conducteurs.map(x => x.partie);
+      if (libres.length === 1) out.sures.push({ personne, partie: libres[0], lu, motif: 'chef d’orchestre → conducteur' });
+      else if (libres.length > 1) out.aTrancher.push({ personne, lu, memes: libres.slice().sort(parManque), autres: [], motif: 'plusieurs conducteurs' });
+      else out.sansProposition.push({ personne, lu, motif: 'aucun conducteur dans ce spectacle' });
+      return;
+    }
+
+    const memePupitre = distribuables
+      .filter(x => pupitre !== 'Autre' && partitionsPupitreNormalise(x.partie.pupitre) === pupitre)
+      .map(x => x.partie);
+
+    if (!lu) {
+      if (memePupitre.length) out.aTrancher.push({ personne, lu, memes: [], autres: memePupitre.slice().sort(parManque),
+        motif: personne.instrument ? `« ${personne.instrument} » n’est pas un instrument connu` : 'instrument non renseigné' });
+      else out.sansProposition.push({ personne, lu, motif: personne.instrument ? `« ${personne.instrument} » n’est pas un instrument connu` : 'instrument non renseigné' });
+      return;
+    }
+
+    const memes = distribuables
+      .filter(x => x.lu && x.lu.entree === lu.entree && _partitionsPupitresCompatibles(personne.pupitre, x.partie.pupitre));
+    const autres = memePupitre.filter(p => !memes.some(x => x.partie === p));
+    const aTrancher = (liste, motif) => out.aTrancher.push({ personne, lu,
+      memes: liste.map(x => x.partie).sort(parManque), autres: autres.slice().sort(parManque), motif });
+
+    if (!memes.length) {
+      if (autres.length) aTrancher([], `aucune partie « ${lu.nom} » — le pupitre en a d’autres`);
+      else out.sansProposition.push({ personne, lu, motif: `aucune partie « ${lu.nom} » dans ce spectacle` });
+      return;
+    }
+    if (memes.length === 1) {
+      const x = memes[0];
+      const numsPartie = x.lu.numeros;
+      const accord = !lu.numeros.length || !numsPartie.length || lu.numeros.some(n => numsPartie.includes(n));
+      if (accord) out.sures.push({ personne, partie: x.partie, lu, motif: `seule partie « ${lu.nom} »` });
+      else out.probables.push({ personne, partie: x.partie, lu, motif: `seule partie « ${lu.nom} », mais numérotée autrement` });
+      return;
+    }
+    // Plusieurs parties du même instrument : c'est le numéro qui tranche.
+    if (lu.numeros.length) {
+      const exacts = memes.filter(x => lu.numeros.some(n => x.lu.numeros.includes(n)));
+      if (exacts.length === 1) out.sures.push({ personne, partie: exacts[0].partie, lu, motif: `${lu.nom} ${lu.numeros.join('-')}` });
+      else if (exacts.length > 1) aTrancher(exacts, `plusieurs parties portent le ${lu.numeros.join('-')}`);
+      else aTrancher(memes, `aucune partie ne porte le ${lu.numeros.join('-')}`);
+      return;
+    }
+    if (lu.solo) {
+      const premieres = memes.filter(x => x.lu.numeros.includes(1));
+      if (premieres.length === 1) { out.probables.push({ personne, partie: premieres[0].partie, lu, motif: 'solo → 1' }); return; }
+    }
+    aTrancher(memes, `${memes.length} parties « ${lu.nom} », la fiche ne dit pas laquelle`);
+  });
+  return out;
+}
+
 if (typeof window !== 'undefined') {
   window.PARTITIONS_ORDRE_CONDUCTEUR = PARTITIONS_ORDRE_CONDUCTEUR;
   window.partitionsNormaliser = partitionsNormaliser;
@@ -703,4 +903,6 @@ if (typeof window !== 'undefined') {
   window.partitionsTrierVoix = partitionsTrierVoix;
   window.partitionsTonalite = partitionsTonalite;
   window.partitionsTonaliteLangue = partitionsTonaliteLangue;
+  window.partitionsInstrumentDe = partitionsInstrumentDe;
+  window.partitionsProposerAffectations = partitionsProposerAffectations;
 }

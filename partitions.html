@@ -299,6 +299,41 @@
   .sur.probable{background:var(--maybe-tint); color:var(--maybe);}
   .sur.incertaine, .sur.aucune{background:var(--ko-tint); color:var(--ko);}
 
+  /* La fiche de proposition. Trois colonnes — qui, vers quoi, à quel point on
+     en est sûr — et un liseré de la couleur de la sûreté, le même code que
+     les lignes du dépôt : ce qu'on a appris à lire là-bas se relit ici. */
+  .prop-liste{display:flex; flex-direction:column; gap:0; max-height:56vh; overflow:auto; margin-top:4px;}
+  .prop-titre{font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:14px 0 4px; display:flex; align-items:center; gap:8px;}
+  .prop-titre:first-child{margin-top:0;}
+  .prop-ligne{
+    display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) auto; gap:10px; align-items:center;
+    padding:7px 8px 7px 10px; border-left:3px solid var(--border); border-bottom:1px solid var(--border); font-size:13px;
+  }
+  label.prop-ligne{grid-template-columns:auto minmax(0,1.1fr) minmax(0,1.4fr) auto; cursor:pointer;}
+  .prop-ligne input[type=checkbox]{width:16px; height:16px; margin:0; accent-color:var(--accent);}
+  .prop-ligne.exacte{border-left-color:var(--ok);}
+  .prop-ligne.probable{border-left-color:var(--maybe);}
+  .prop-ligne.incertaine{border-left-color:var(--ko);}
+  .prop-ligne.aucune{border-left-color:var(--border); color:var(--muted);}
+  .prop-ligne b{font-weight:800;}
+  .prop-ligne small{display:block; font-size:11.5px; color:var(--muted); line-height:1.35;}
+  .prop-qui, .prop-vers{min-width:0;}
+  .prop-vers .co-select{width:100%; margin-bottom:2px;}
+  /* Sous 640 px, deux rangs : qui et la pastille en haut, la partie en
+     dessous. Chaque cellule a sa place ÉCRITE — laissé à l'auto-placement,
+     la partie passait sous la case à cocher, dans une colonne de 16 px. */
+  @media (max-width:640px){
+    .prop-ligne{grid-template-columns:minmax(0,1fr) auto; row-gap:4px;}
+    .prop-ligne .prop-qui{grid-row:1; grid-column:1;}
+    .prop-ligne .sur{grid-row:1; grid-column:2; align-self:start;}
+    .prop-ligne .prop-vers{grid-row:2; grid-column:1 / -1;}
+    label.prop-ligne{grid-template-columns:auto minmax(0,1fr) auto;}
+    label.prop-ligne input[type=checkbox]{grid-row:1 / span 2; grid-column:1; align-self:start; margin-top:3px;}
+    label.prop-ligne .prop-qui{grid-column:2;}
+    label.prop-ligne .sur{grid-column:3;}
+    label.prop-ligne .prop-vers{grid-column:2 / -1;}
+  }
+
   /* La progression du dépôt. Elle était portée par le LIBELLÉ du bouton, qui
      changeait de largeur à chaque fichier et faisait sauter la ligne de titre ;
      et un bouton qui se réécrit n'a plus l'air désactivé. */
@@ -567,12 +602,15 @@
 
    CE QUE CETTE PAGE NE FAIT PAS, et qui est un bon refus :
 
-   — Elle n'apparie PAS automatiquement une partie à une personne d'après son
+   — Elle n'AFFECTE PAS toute seule une partie à une personne d'après son
      instrument. musiciens.instrument est du texte libre : 25 valeurs sur 114
      fiches, avec « Flutes » et « Flûtes », « Alto » et « Altos », et un
-     « Violoncelles » à espace final. Un appariement automatique se tromperait,
-     et l'erreur ne se découvrirait qu'à la première répétition. L'affectation
-     est donc nominative, et la page se contente de la rendre rapide.
+     « Violoncelles » à espace final. Un appariement appliqué en silence se
+     tromperait, et l'erreur ne se découvrirait qu'à la première répétition.
+     Elle le PROPOSE — « Proposer d'après les instruments », dans la
+     distribution — ligne par ligne, graduée (sûre, probable, à trancher),
+     et rien ne s'écrit avant d'avoir été relu et coché. Ce qui est déjà posé
+     à la main ne bouge jamais. Voir partitionsProposerAffectations.
    — Elle ne lit PAS la nomenclature de l'opération pour savoir qui joue.
      tournees.nomenclature est un prévisionnel de devis : EXP33-REC-ORCHESTRE
      SYMPHONIQUE y annonce 49 postes et n'a que 16 musiciens affectés. L'effectif
@@ -1458,11 +1496,13 @@ function blocDistribution(s){
         <div class="chiffre${sansPartie.length ? ' alerte' : ''}"><b>${sansPartie.length}</b><span>personnes sans partie</span>
           <small>${sansPartie.length ? escapeHtml(sansPartie.slice(0, 4).map(p => p.nom).join(', ')) + (sansPartie.length > 4 ? '…' : '') : 'Tout le monde a de quoi jouer'}</small></div>
       </div>
-      ${autres.length ? `<div class="barre">
-        <select class="co-select" id="selReprendre" style="width:280px">
+      ${parties.length && effectif.length ? `<div class="barre">
+        <button type="button" class="co-btn sm ghost" id="btnProposer"
+          title="Lit l'instrument de chacun et propose sa partie. Rien n'est enregistré avant relecture.">Proposer d'après les instruments…</button>
+        ${autres.length ? `<select class="co-select" id="selReprendre" style="width:280px">
           <option value="">Reprendre l'affectation d'une autre opération…</option>
           ${autres.map(o => `<option value="${escapeAttr(o.tourneeId)}">${escapeHtml(o.nom)} (${affectationsDeSpectacle(s.id, o.tourneeId).length})</option>`).join('')}
-        </select>
+        </select>` : ''}
       </div>` : ''}
       ${corps}
     </section>
@@ -1489,11 +1529,12 @@ function blocDistribution(s){
    découvrait à la première répétition. La matrice les donne ensemble, avec
    la colonne des noms collée à gauche et la ligne des parties collée en haut.
 
-   AUCUN APPARIEMENT AUTOMATIQUE, ici non plus. On ne devine pas qui joue
-   « Violon 1 » : musiciens.instrument est du texte libre et se trompe. Ce
-   qu'on accélère, c'est le GESTE — on coche les huit violons dans la colonne
-   des noms, on clique l'en-tête « Violon 1 », et les huit sont affectés d'un
-   coup. La décision reste humaine, la saisie ne l'est plus.
+   RIEN NE S'AFFECTE SEUL, ici non plus. musiciens.instrument est du texte
+   libre et se trompe ; ce que la page en tire, c'est une PROPOSITION relue
+   (ficheProposition), jamais une écriture. Ce qu'on accélère ensuite, c'est
+   le GESTE — on coche les huit violons dans la colonne des noms, on clique
+   l'en-tête « Violon 1 », et les huit sont affectés d'un coup. La décision
+   reste humaine, la saisie ne l'est plus.
    --------------------------------------------------------------------------- */
 function matriceAffectation(parties, effectif, aff, retraits){
   const mode = state.matriceMode;
@@ -3231,6 +3272,7 @@ function cablerVue(){
   if(q('btnNouveauCode')) q('btnNouveauCode').onclick = ()=> majAcces(state.tourneeId, { code: partitionsNouveauCode() });
   if(q('inpOuvertLe')) q('inpOuvertLe').onchange = (e)=> majAcces(state.tourneeId, { ouvertLe: e.target.value });
   if(q('selReprendre')) q('selReprendre').onchange = (e)=>{ if(e.target.value) reprendreAffectation(e.target.value); };
+  if(q('btnProposer')) q('btnProposer').onclick = ficheProposition;
 
   // --- retraits ---
   if(q('selOperationRet')) q('selOperationRet').onchange = (e)=>{ state.tourneeId = e.target.value; rendre(); };
@@ -3499,17 +3541,32 @@ async function affecterSelection(partieId){
     return;
   }
   const partie = state.parties.find(p => p.id === partieId);
-  const nouvelles = [];
-  selection.forEach(cle => {
+  const paires = selection.map(cle => {
     const [personType, personId] = cle.split('|');
+    return { partieId, personType, personId };
+  });
+  const n = await affecterEnMasse(paires, (k) => `${k} affectation${k > 1 ? 's' : ''} sur « ${partie ? partie.nom : ''} »`);
+  if(n === 0){
+    try{ curieuxFlash('Ces personnes lisent déjà « ' + (partie ? partie.nom : '') + ' »'); }catch(e){}
+  }
+}
+
+/* Poser plusieurs affectations d'un coup, sur l'opération en cours. C'est le
+   seul chemin d'écriture groupée : l'en-tête de colonne et la fiche de
+   proposition passent tous deux par ici. Ce qui existe déjà est ignoré sans
+   bruit. Rend le nombre d'affectations réellement posées.
+   `texte` reçoit ce nombre et rend le libellé du ruban d'annulation. */
+async function affecterEnMasse(paires, texte){
+  if(!state.tourneeId) return 0;
+  const nouvelles = [];
+  const vus = new Set();
+  paires.forEach(({ partieId, personType, personId }) => {
     const id = `${state.tourneeId}::${partieId}::${personId}`;
-    if(state.affectations.some(a => a.id === id)) return;
+    if(vus.has(id) || state.affectations.some(a => a.id === id)) return;
+    vus.add(id);
     nouvelles.push({ id, tourneeId: state.tourneeId, partieId, personType, personId });
   });
-  if(!nouvelles.length){
-    try{ curieuxFlash('Ces personnes lisent déjà « ' + (partie ? partie.nom : '') + ' »'); }catch(e){}
-    return;
-  }
+  if(!nouvelles.length) return 0;
   await assurerAcces(state.tourneeId);
   state.affectations.push(...nouvelles);
   rendre();
@@ -3518,7 +3575,7 @@ async function affecterSelection(partieId){
      se retirer d'un clic. Vingt rubans successifs ne s'annulent pas, ils se
      recouvrent. */
   CurieuxAnnuler.proposer({
-    texte: `${nouvelles.length} affectation${nouvelles.length > 1 ? 's' : ''} sur « ${partie ? partie.nom : ''} »`,
+    texte: texte(nouvelles.length),
     retablir: async ()=>{
       const ids = new Set(nouvelles.map(a => a.id));
       state.affectations = state.affectations.filter(a => !ids.has(a.id));
@@ -3527,6 +3584,105 @@ async function affecterSelection(partieId){
     },
     purger: async ()=>{},
   });
+  return nouvelles.length;
+}
+
+/* PROPOSER D'APRÈS LES INSTRUMENTS. La page sait l'instrument de chacun et le
+   nom de chaque partie ; elle peut donc dire, pour quatre-vingts pour cent de
+   l'effectif, qui lit quoi — et elle le DIT, elle ne l'écrit pas. La fiche
+   liste chaque proposition avec sa sûreté, cochée d'avance quand elle est
+   sûre ou probable, à choisir dans une liste quand la fiche de la personne ne
+   suffit pas à trancher. On décoche, on choisit, on valide : seul ce qui est
+   coché s'écrit, et par le même chemin que l'en-tête de colonne — même ruban
+   d'annulation groupé. Les personnes qui ont déjà une partie ici ne sont pas
+   dans la liste : la proposition sert à qui n'a rien, et ne défait rien. */
+function ficheProposition(){
+  const s = spectacleCourant();
+  if(!s || !state.tourneeId) return;
+  const parties = partiesDe(s.id);
+  const effectif = effectifAffichable(state.tourneeId, s.id);
+  const aff = affectationsDeSpectacle(s.id, state.tourneeId);
+  const prop = partitionsProposerAffectations(parties, effectif, aff);
+  const nomPartie = (p) => escapeHtml(p.nom);
+  const sousNom = (x) => escapeHtml([x.personne.pupitre, x.personne.instrument].filter(Boolean).join(' · ') || 'pupitre et instrument non renseignés');
+
+  const ligne = (x, surete, coche) => `
+    <label class="prop-ligne ${surete}">
+      <input type="checkbox" data-prop="${escapeAttr(x.partie.id + '§' + x.personne.personType + '§' + x.personne.personId)}"${coche ? ' checked' : ''}>
+      <span class="prop-qui"><b>${escapeHtml(x.personne.nom)}</b><small>${sousNom(x)}</small></span>
+      <span class="prop-vers">→ <b>${nomPartie(x.partie)}</b><small>${escapeHtml(x.motif)}</small></span>
+      <span class="sur ${surete}">${surete === 'exacte' ? 'sûre' : 'probable'}</span>
+    </label>`;
+  const choix = (x) => `
+    <div class="prop-ligne incertaine">
+      <span class="prop-qui"><b>${escapeHtml(x.personne.nom)}</b><small>${sousNom(x)}</small></span>
+      <span class="prop-vers">
+        <select class="co-select" data-prop-choix="${escapeAttr(x.personne.personType + '§' + x.personne.personId)}">
+          <option value="">— choisir, ou laisser —</option>
+          ${x.memes.length ? `<optgroup label="Même instrument">${x.memes.map(p => `<option value="${escapeAttr(p.id)}">${nomPartie(p)}</option>`).join('')}</optgroup>` : ''}
+          ${x.autres.length ? `<optgroup label="Même pupitre">${x.autres.map(p => `<option value="${escapeAttr(p.id)}">${nomPartie(p)}</option>`).join('')}</optgroup>` : ''}
+        </select>
+        <small>${escapeHtml(x.motif)}</small>
+      </span>
+      <span class="sur incertaine">à trancher</span>
+    </div>`;
+  const sans = (x) => `
+    <div class="prop-ligne aucune">
+      <span class="prop-qui"><b>${escapeHtml(x.personne.nom)}</b><small>${sousNom(x)}</small></span>
+      <span class="prop-vers"><small>${escapeHtml(x.motif)}</small></span>
+    </div>`;
+  const section = (titre, n, corps, aide) => n ? `
+    <h3 class="prop-titre">${titre} — ${n}</h3>
+    ${aide ? `<p class="sous" style="margin:0 0 6px">${aide}</p>` : ''}
+    ${corps}` : '';
+
+  const nProposables = prop.sures.length + prop.probables.length + prop.aTrancher.length;
+  if(!nProposables && !prop.sansProposition.length){
+    try{ curieuxFlash(prop.dejaServis ? 'Tout le monde a déjà une partie de ce spectacle sur cette opération.' : 'Personne à proposer.'); }catch(e){}
+    return;
+  }
+  const restes = [];
+  if(prop.dejaServis) restes.push(`${prop.dejaServis} personne${prop.dejaServis > 1 ? 's ont' : ' a'} déjà une partie de ce spectacle ici — non touchée${prop.dejaServis > 1 ? 's' : ''}`);
+  if(prop.techniciens) restes.push(`${prop.techniciens} technicien${prop.techniciens > 1 ? 's' : ''}, sans partition`);
+
+  ouvrirFiche({
+    titre: "Proposer d'après les instruments",
+    sous: `Ce que l'instrument de chacun dit de sa partie dans « ${escapeHtml(s.nom)} », sur ${escapeHtml(nomOperation(state.tourneeId))}. `
+      + "Rien n'est enregistré avant « Affecter » ; ce qui est décoché ou laissé sans choix reste à faire dans la matrice.",
+    libelleOk: 'Affecter',
+    corps: `
+      <div class="prop-liste">
+        ${section('Sûres', prop.sures.length, prop.sures.map(x => ligne(x, 'exacte', true)).join(''),
+          "Un seul instrument possible, ou le numéro de la fiche est celui de la partie.")}
+        ${section('Probables', prop.probables.length, prop.probables.map(x => ligne(x, 'probable', true)).join(''),
+          "Une convention plutôt qu'une lecture : le violon solo au premier violon, par exemple. À relire.")}
+        ${section('À trancher', prop.aTrancher.length, prop.aTrancher.map(choix).join(''),
+          "La fiche ne dit pas laquelle. Les parties encore sans lecteur sont en tête de liste.")}
+        ${section('Sans proposition', prop.sansProposition.length, prop.sansProposition.map(sans).join(''),
+          "Ni instrument reconnu, ni partie de ce pupitre. Un instrument à renseigner dans l'annuaire, ou une partie qui manque.")}
+      </div>
+      ${restes.length ? `<p class="sous" style="margin:12px 0 0">${restes.map(escapeHtml).join(' · ')}.</p>` : ''}`,
+    valider: async (ov)=>{
+      const paires = [];
+      ov.querySelectorAll('[data-prop]').forEach(c => {
+        if(!c.checked) return;
+        const [partieId, personType, personId] = c.dataset.prop.split('§');
+        paires.push({ partieId, personType, personId });
+      });
+      ov.querySelectorAll('[data-prop-choix]').forEach(sel => {
+        if(!sel.value) return;
+        const [personType, personId] = sel.dataset.propChoix.split('§');
+        paires.push({ partieId: sel.value, personType, personId });
+      });
+      if(!paires.length) return 'Rien de coché, rien de choisi — il n\'y a rien à affecter.';
+      const n = await affecterEnMasse(paires, (k) => `${k} affectation${k > 1 ? 's' : ''} proposée${k > 1 ? 's' : ''} d'après les instruments`);
+      try{ curieuxFlash(n ? `${n} affectation${n > 1 ? 's posées' : ' posée'}. La matrice reste là pour le reste.` : 'Ces affectations existaient déjà.'); }catch(e){}
+      return '';
+    },
+  });
+  // La fiche est plus large que les autres : elle porte trois colonnes.
+  const bo = document.querySelector('#ficheOv .fiche-bo');
+  if(bo) bo.style.maxWidth = '720px';
 }
 
 /* Les noms à relancer, prêts à coller dans un message groupé. On copie les
