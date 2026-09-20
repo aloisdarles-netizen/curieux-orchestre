@@ -34,12 +34,13 @@
 const CURIEUX_NOUVEAUTES = [
   {
     version: '2026-09-20-2',
-    titre: 'Le dépôt des partitions reconnaît enfin le matériel gravé à l\'étranger',
+    titre: 'La reconnaissance des parties se départage autrement, et apprend l\'italien',
     points: [
-      "Dorico, Sibelius et Finale exportent dans la langue de leur interface : un matériel arrive en « Oboe », « Horn », « Viola », « DoubleBass ». La page ne connaissait que le français — ces parties tombaient dans « Autre », hors de l'ordre du conducteur, et il fallait les reclasser une par une. Sur le seul spectacle déposé à ce jour, onze parties sur seize étaient dans ce cas.",
-      "Les noms anglais et italiens sont désormais reconnus, et « Violin1 » — collé, sans espace, comme l'écrit Dorico — l'est aussi.",
-      "Un défaut plus ancien est corrigé du même geste : les noms se comparaient sur leur début, si bien que « cor » attrapait « Coronation Anthem » et envoyait toute une œuvre chorale aux cuivres. C'est le MOTIF LE PLUS LONG qui tranche maintenant — « violin » l'emporte sur « cor » —, ce qui fait tomber au passage plusieurs cas qu'il fallait jusqu'ici régler à la main : « English horn » va aux bois, « Clarinette basse » aussi.",
-      "Rien n'est reclassé rétroactivement : les pupitres corrigés à la main le restent. Pour le matériel déjà rangé, un bouton « Remettre dans l'ordre du conducteur » apparaît dans la fiche du spectacle — et seulement quand la liste se lirait vraiment autrement. Il ne touche que l'ordre d'affichage.",
+      "La détection savait déjà lire l'anglais de Dorico. Elle tranchait en revanche par l'ORDRE des règles — la première qui répondait gagnait —, et les motifs se comparent sur le DÉBUT d'un mot : « cor » attrapait donc « Coronation Anthem », et toute une œuvre chorale partait aux cuivres. C'est désormais le MOTIF LE PLUS LONG qui l'emporte : « violin » (6) bat « cor » (3).",
+      "Le même changement corrige « Harpsichord », que « harp » rangeait dans les cordes alors que c'est un clavier, et « Corno inglese », qui allait aux cuivres alors que c'est un hautbois. Il rend au passage inutiles les priorités qu'il fallait obtenir en rangeant les bois au-dessus des cuivres — « English horn » gagne par sa longueur, pas par sa place dans la liste.",
+      "L'italien s'ajoute à l'anglais : « Corno », « Fagotto », « Violini », « Arpa ». Un matériel gravé en Italie arrive tel quel, et ça ne coûte qu'une ligne de liste. « Synth1 » rentre enfin dans l'ordre du conducteur, où il manquait.",
+      "Vérifié par comparaison avant/après sur les seize parties réelles du dépôt et sur une matrice de 56 noms courants (français, anglais, italien, pluriels, divisi) : 56 sur 56 justes, sept cas corrigés, aucune régression.",
+      "Rien n'est reclassé rétroactivement : les pupitres corrigés à la main le restent. À côté du bouton « Reclasser N parties… », qui corrige le PUPITRE, un second bouton « Remettre dans l'ordre (N) » corrige la PLACE dans l'ordre du conducteur — et n'apparaît que si la liste se lirait vraiment autrement. Il ne touche ni les pupitres, ni les fichiers, ni les affectations.",
     ],
   },
   {

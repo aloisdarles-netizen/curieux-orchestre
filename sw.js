@@ -194,29 +194,35 @@
 // les cartes de spectacle s'afficheraient sans teinte, les tuiles de matériel
 // sans bordure de pupitre et la matrice sans colonne collante — un écran de
 // production illisible là où il doit justement montrer les trous.
-// v134 : l'espace du chœur. Trois actifs communs changent ensemble, et aucun
-// ne suffit seul : base.css apprend la teinte --pup-choeur (sans elle, la
-// pastille du pupitre « Chœur » naît grise, comme « Autre » — la seule
-// distinction que l'écran fait entre le chœur et les solistes disparaît),
-// partitions-commun.js apprend l'ordre des tessitures, la reconnaissance du
-// pupitre et la mise en forme des tonalités (sans lui, partition-choeur.html
-// appelle partitionsTrierVoix et partitionsTonaliteLangue, qui n'existent pas
-// : la page du chef de chœur reste blanche), et db.js apprend `type`,
-// `effectif` et `tonalite` — sans quoi un lot de chœur relu depuis la base
-// repasse pour une transmission ordinaire. partitions.html et
-// partition-choeur.html sont des PAGES, servies réseau d'abord : c'est
-// l'incrément, et lui seul, qui leur donne les actifs qu'elles attendent.
-// v135 : plusieurs chœurs sur une même série, et la reconnaissance des noms
-// de parties qui apprend l'anglais et l'italien. partitions-commun.js change
-// deux fois : ses listes d'instruments (un matériel gravé à l'étranger arrive
-// en « Oboe », « Horn », « Viola », qui tombaient dans « Autre ») et sa
-// normalisation (« Violin1 » est deux mots). db.js apprend la colonne `dates`
-// d'un lot — sans elle, un lot relu depuis la base perd les journées chantées,
-// et l'écran compte des loges sur rien. partitions.html et
-// partition-choeur.html chargent en outre statuts-date.js, qu'elles ne
-// chargeaient pas : sans cet incrément, un navigateur déjà venu le prendrait
-// au réseau pendant que le reste sort du cache — et `estAnnulee` manquerait le
-// temps d'un rendu, donc une date annulée s'afficherait à un chœur.
+// v134 : partitions-commun.js apprend les noms d'instruments EN ANGLAIS.
+// Dorico exporte « Oboe », « Clarinet », « Bassoon », « Horn », « Violin1 »,
+// « Viola », « DoubleBass » : la liste des pupitres ne connaissait que le
+// français, et onze parties sur seize d'un import réel tombaient dans
+// « Autre ». Sans cet incrément, un navigateur déjà venu garderait l'ancien
+// fichier : le bouton « Reclasser » de l'écran de production ne verrait aucun
+// écart à corriger, et le prochain dépôt se tromperait encore.
+// v135 : l'espace du chœur, et plusieurs chœurs sur une même série. Quatre
+// actifs communs changent ensemble, et aucun ne suffit seul :
+//   — base.css apprend la teinte --pup-choeur. Sans elle, la pastille du
+//     pupitre « Chœur » naît grise, comme « Autre », et la seule distinction
+//     que l'écran fait entre le chœur et les solistes disparaît.
+//   — partitions-commun.js apprend le pupitre « Chœur » (dans les sept
+//     langues), l'ordre des tessitures et la mise en forme des tonalités. Sans
+//     lui, partition-choeur.html appelle partitionsTrierVoix et
+//     partitionsTonaliteLangue, qui n'existent pas : la page du chef de chœur
+//     reste blanche. Sa reconnaissance gagne au passage l'italien et le
+//     départage par le motif le plus long — « cor » n'attrape plus
+//     « Coronation Anthem ».
+//   — db.js apprend `type`, `effectif`, `dates` et `tonalite`. Sans eux, un lot
+//     de chœur relu depuis la base repasse pour une transmission ordinaire, et
+//     perd les journées chantées : l'écran compte alors des loges sur rien.
+//   — partitions.html et partition-choeur.html chargent statuts-date.js, qu'
+//     elles ne chargeaient pas. Sans cet incrément, un navigateur déjà venu le
+//     prendrait au réseau pendant que le reste sort du cache, et `estAnnulee`
+//     manquerait le temps d'un rendu : une date annulée s'afficherait à un
+//     chœur.
+// Les deux pages sont servies réseau d'abord ; c'est l'incrément, et lui seul,
+// qui leur donne les actifs qu'elles attendent.
 const VERSION = 'curieux-v135';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;

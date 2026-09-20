@@ -3783,10 +3783,12 @@ insert into devis_reglages (id, data) values (1, jsonb_build_object(
 -- ============================================================================
 -- Sauvegardes automatiques (août 2026)
 --
--- Un bucket PRIVÉ où la tâche planifiée dépose chaque nuit un export JSON des
--- devis (voir api/sauvegarde-devis.js). Privé, contrairement au bucket des
--- fiches techniques : une sauvegarde contient les montants, les marges et les
--- coordonnées des clients — rien qui doive être lisible par une URL devinée.
+-- Un bucket PRIVÉ où la tâche planifiée dépose chaque nuit un export JSON de
+-- TOUTE la base, comprimé (voir api/sauvegarde.js ; l'export ne portait que les
+-- six tables de devis jusqu'en septembre 2026). Privé, contrairement au bucket
+-- des fiches techniques : une sauvegarde contient les montants, les marges, les
+-- coordonnées des clients et les infos sociales de l'équipe — rien qui doive
+-- être lisible par une URL devinée.
 --
 -- L'écriture est faite par la clé service_role, qui ignore RLS : aucune policy
 -- d'insertion n'est donc nécessaire. Seule la lecture est ouverte, et

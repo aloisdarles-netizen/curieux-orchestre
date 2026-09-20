@@ -2077,36 +2077,58 @@ const CurieuxDB = (()=>{
   }
 
   // --- Sauvegardes automatiques ---------------------------------------------
-  // Les archives de devis déposées chaque nuit par api/sauvegarde-devis.js dans
-  // le bucket privé « sauvegardes ». La lecture est ouverte aux seuls comptes
-  // 'admin' par policy ; le lien de téléchargement est signé, donc temporaire.
+  // Les archives déposées chaque nuit par api/sauvegarde.js dans le bucket privé
+  // « sauvegardes ». La lecture est ouverte aux seuls comptes 'admin' par policy ;
+  // le lien de téléchargement est signé, donc temporaire.
   async function listerSauvegardes(){
     if(!supabaseClient) return [];
-    const { data, error } = await supabaseClient.storage.from('sauvegardes')
-      .list('devis', { limit: 60, sortBy: { column: 'name', order: 'desc' } });
-    if(error){ console.warn('[CurieuxDB] listerSauvegardes', error.message); return []; }
-    return (data || []).filter(o=> o.name && o.name.endsWith('.json'));
+    // Trois dossiers : « base » (l'archive complète de la nuit), « journal » (le
+    // journal d'audit, un fichier par mois) et « devis » — l'ancien emplacement,
+    // du temps où seul l'espace Devis était sauvegardé. On liste toujours ce
+    // dernier pour que les archives d'alors restent téléchargeables.
+    const dossiers = [['base','base'], ['journal','journal'], ['devis','devis']];
+    const archives = [];
+    for(const [prefixe, nature] of dossiers){
+      const { data, error } = await supabaseClient.storage.from('sauvegardes')
+        .list(prefixe, { limit: 60, sortBy: { column: 'name', order: 'desc' } });
+      if(error){ console.warn('[CurieuxDB] listerSauvegardes', prefixe, error.message); continue; }
+      for(const o of (data || [])){
+        if(!o || !o.name || !/\.json(\.gz)?$/.test(o.name)) continue;
+        archives.push({ ...o, nature, chemin: `${prefixe}/${o.name}` });
+      }
+    }
+    return archives;
   }
-  async function lienSauvegarde(nom){
-    if(!supabaseClient) return '';
+  async function lienSauvegarde(chemin){
+    if(!supabaseClient || !chemin) return '';
+    // Un nom sans dossier désigne encore l'ancien emplacement : un onglet resté
+    // ouvert depuis la veille de la migration ne doit pas tomber sur un 404.
+    const cible = String(chemin).includes('/') ? chemin : `devis/${chemin}`;
     const { data, error } = await supabaseClient.storage.from('sauvegardes')
-      .createSignedUrl(`devis/${nom}`, 120);
+      .createSignedUrl(cible, 120);
     if(error){ console.warn('[CurieuxDB] lienSauvegarde', error.message); return ''; }
     return (data && data.signedUrl) || '';
   }
   // Déclenche une sauvegarde immédiate, avec le jeton de session de l'admin :
   // c'est la même route que le planificateur appelle chaque nuit.
-  async function lancerSauvegardeDevis(){
+  async function lancerSauvegarde(){
     if(!supabaseClient) return { erreur: 'Supabase non chargé' };
     const { data } = await supabaseClient.auth.getSession();
     const jeton = data && data.session && data.session.access_token;
     if(!jeton) return { erreur: 'Session expirée — reconnecte-toi.' };
     try{
-      const rep = await fetch('/api/sauvegarde-devis', {
+      const rep = await fetch('/api/sauvegarde', {
         method: 'POST', headers: { Authorization: `Bearer ${jeton}` },
       });
       const corps = await rep.json().catch(()=> ({}));
-      if(!rep.ok) return { erreur: corps.erreur || `Erreur ${rep.status}` };
+      if(!rep.ok){
+        // Une archive peut avoir été déposée alors qu'une table a refusé de se
+        // lire : la route répond 502 avec le détail, et ce détail vaut mieux
+        // qu'un « Erreur 502 » qui n'apprend rien à qui doit décider quoi faire.
+        return { ...corps, erreur: corps.erreur
+          || (corps.echecs && corps.echecs.length ? corps.echecs.join(' · ') : '')
+          || `Erreur ${rep.status}` };
+      }
       return corps;
     }catch(e){ return { erreur: e.message }; }
   }
@@ -2394,7 +2416,7 @@ const CurieuxDB = (()=>{
     fetchAll, fetchAllOuEchec, fetchOne, tableManquante, colonneManquante, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
     fetchReglages, fetchPreferences, savePreferences, setPhaseTest, setVillesBase, setTechniqueSeuils, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
-    listerSauvegardes, lienSauvegarde, lancerSauvegardeDevis,
+    listerSauvegardes, lienSauvegarde, lancerSauvegarde,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,
     getRecapLogistique, repondreVacationSalle, enregistrerPositionsSemis, enregistrerHorairesJournee,
     ajouterRemarqueParJeton, getRemarquesParJeton, enregistrerPlanSalleParJeton, toucherAcces,

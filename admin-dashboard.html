@@ -358,12 +358,16 @@
     </div>
   </section>
 
-  <section>
-    <h2>Sauvegardes des devis</h2>
+  <!-- L'ancre que vise le raccourci « Sauvegardes » de l'espace Budget : elle
+       manquait, et le lien déposait simplement en haut de la page. -->
+  <section id="sauvegardes">
+    <h2>Sauvegardes de la base</h2>
     <p class="section-lead" style="font-size:12.5px; color:var(--muted); margin:0 0 12px;">
-      Un export complet des devis (devis, clients, postes, réglages) est archivé chaque nuit à 3 h.
-      Les archives restent privées : seuls les comptes administrateurs peuvent les télécharger,
-      et le lien obtenu expire au bout de deux minutes.
+      Toute la base — musicien·nes, technicien·nes, disponibilités, tournées, feuilles de route,
+      fiches techniques, partitions, devis — est archivée chaque nuit à 3 h, comprimée, et les
+      trente dernières archives sont conservées. Le journal d'audit est archivé à part, un fichier
+      par mois, puis allégé au-delà d'un an. Les archives restent privées : seuls les comptes
+      administrateurs peuvent les télécharger, et le lien obtenu expire au bout de deux minutes.
     </p>
     <div class="card">
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px;">
@@ -372,6 +376,11 @@
       </div>
       <div id="sauvegardesListe"></div>
       <div class="empty-hint co-vide" id="sauvegardesVide" style="display:none;">Aucune archive pour l'instant — la première partira cette nuit, ou tout de suite avec le bouton ci-dessus.</div>
+      <p style="font-size:11.5px; color:var(--muted); margin:12px 0 0;">
+        Une archive se lit après décompression (<code>.gz</code>) : elle contient une ligne par table,
+        telle qu'elle était cette nuit-là. Les fichiers Storage — partitions, plans de salle — ne sont
+        pas dedans : seules leurs fiches le sont.
+      </p>
     </div>
   </section>
 
@@ -1091,12 +1100,23 @@ async function exportAllData(){
 document.getElementById('exportAllBtn').addEventListener('click', exportAllData);
 
 // ============================================================================
-// --- Sauvegardes des devis --------------------------------------------------
+// --- Sauvegardes de la base -------------------------------------------------
 // Les archives vivent dans un bucket privé : on ne peut pas en donner une URL
 // fixe, chaque téléchargement passe par un lien signé demandé au moment du clic.
 function formaterOctets(n){
   if(!n) return '';
   return n > 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + ' Mo' : Math.round(n / 1024) + ' Ko';
+}
+// Les archives portent une date ISO dans leur nom (2026-09-20, ou 2026-09 pour
+// un mois de journal) : lisible par une machine, pas par quelqu'un qui cherche
+// « la sauvegarde d'avant la bascule de mardi ». Midi évite le décalage horaire.
+function jourEnClair(iso){
+  const d = new Date(iso + 'T12:00:00');
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+}
+function moisEnClair(iso){
+  const d = new Date(iso + '-01T12:00:00');
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { month:'long', year:'numeric' });
 }
 
 async function chargerSauvegardes(){
@@ -1112,11 +1132,19 @@ async function chargerSauvegardes(){
   vide.style.display = 'none';
   holder.innerHTML = archives.map(a=>{
     const taille = formaterOctets(a.metadata && a.metadata.size);
-    const jour = a.name.replace(/\.json$/, '');
+    const cle = a.name.replace(/\.json(\.gz)?$/, '');
+    const libelle = a.nature !== 'journal' ? jourEnClair(cle)
+      : cle === 'en-cours' ? 'Mois en cours' : moisEnClair(cle);
+    // La mention dit ce que l'archive contient VRAIMENT : les anciennes ne
+    // portaient que les devis, et rien ne le disait — c'est exactement le genre
+    // de malentendu qu'on ne découvre qu'au moment de restaurer.
+    const mention = a.nature === 'journal' ? "journal d'audit"
+      : a.nature === 'devis' ? 'devis seuls (ancienne sauvegarde)' : 'base complète';
     return `<div style="display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--border); flex-wrap:wrap;">
-      <b style="flex:1 1 140px; font-size:13.5px;">${escapeHtml(jour)}</b>
+      <b style="flex:1 1 140px; font-size:13.5px;">${escapeHtml(libelle)}</b>
+      <span style="font-size:12px; color:var(--muted); flex:0 1 auto;">${escapeHtml(mention)}</span>
       <span style="font-size:12px; color:var(--muted);">${escapeHtml(taille)}</span>
-      <button type="button" class="co-btn secondary sm" data-archive="${escapeAttr(a.name)}">Télécharger</button>
+      <button type="button" class="co-btn secondary sm" data-archive="${escapeAttr(a.chemin)}">Télécharger</button>
     </div>`;
   }).join('');
 
@@ -1134,12 +1162,18 @@ const sauvegardeBtn = document.getElementById('sauvegardeMaintenantBtn');
 if(sauvegardeBtn) sauvegardeBtn.addEventListener('click', async ()=>{
   const etat = document.getElementById('sauvegardeEtat');
   sauvegardeBtn.disabled = true; etat.textContent = 'Sauvegarde en cours…';
-  const res = await CurieuxDB.lancerSauvegardeDevis();
+  const res = await CurieuxDB.lancerSauvegarde();
   sauvegardeBtn.disabled = false;
-  if(res.erreur){ etat.textContent = '⚠ ' + res.erreur; return; }
-  const total = Object.values(res.lignes || {}).reduce((s, n)=> s + n, 0);
-  etat.textContent = `✓ ${res.chemin} — ${total} enregistrement${total > 1 ? 's' : ''}`;
+  // Même en cas d'échec partiel : une archive a pu être déposée malgré tout, et
+  // la voir apparaître dans la liste vaut mieux que de la croire perdue.
   chargerSauvegardes();
+  if(res.avertissements && res.avertissements.length) console.warn('[sauvegarde]', res.avertissements);
+  if(res.erreur){ etat.textContent = '⚠ ' + res.erreur; return; }
+  const total = res.total != null ? res.total : Object.values(res.lignes || {}).reduce((s, n)=> s + n, 0);
+  const dit = [`${res.tables || 0} tables`, `${total} enregistrement${total > 1 ? 's' : ''}`];
+  if(res.purge && res.purge.supprimees) dit.push(`journal allégé de ${res.purge.supprimees} ligne${res.purge.supprimees > 1 ? 's' : ''}`);
+  if(res.avertissements && res.avertissements.length) dit.push(`${res.avertissements.length} avertissement${res.avertissements.length > 1 ? 's' : ''} (console)`);
+  etat.textContent = '✓ ' + dit.join(' — ');
 });
 
 chargerSauvegardes();

@@ -26,7 +26,52 @@
   .entete{margin-bottom:16px;}
   .sous{color:var(--muted); font-size:13.5px; margin:4px 0 0; line-height:1.55;}
 
-  .langues{display:flex; gap:6px; justify-content:flex-end; margin-bottom:10px;}
+  /* LE JAPONAIS A BESOIN D'UNE POLICE, PAS D'UN REPLI GÉNÉRIQUE.
+     Les deux fontes de la maison — Ufficio, Host Grotesk — n'ont pas un seul
+     idéogramme : sur une page japonaise, le navigateur tombait sur le
+     « sans-serif » du système, c'est-à-dire n'importe quoi selon la machine,
+     avec des graisses synthétisées qui vont du gras baveux à l'illisible.
+     On garde les fontes de la maison EN TÊTE — elles portent les chiffres, les
+     unités et le nom des fichiers, qui restent en caractères latins — et on
+     nomme derrière elles les gothiques japonaises réellement installées sur
+     macOS, iOS, Windows et Android. L'interligne s'ouvre aussi : un texte
+     japonais à 1,55 se lit comme un bloc. */
+  :root[lang="ja"]{
+    --font-display:'Ufficio Display', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+                   'Yu Gothic Medium', 'Yu Gothic', Meiryo, 'Noto Sans JP', 'Noto Sans CJK JP',
+                   'IPAexGothic', 'IPAGothic', sans-serif;
+    --font-body:'Host Grotesk', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+                'Yu Gothic Medium', 'Yu Gothic', Meiryo, 'Noto Sans JP', 'Noto Sans CJK JP',
+                'IPAexGothic', 'IPAGothic', sans-serif;
+  }
+  :root[lang="ja"] .sous,
+  :root[lang="ja"] .pied,
+  :root[lang="ja"] .aide{line-height:1.85;}
+
+  /* LE LOGO PORTE LA PAGE.
+     Ailleurs dans l'application, il n'est qu'un repère de navigation : on sait
+     où on est, on y est tous les jours, 30 px suffisent. ICI, c'est la seule
+     marque de provenance qu'un bibliothécaire étranger reconnaîtra avant
+     d'avoir lu une ligne — et il arrive par un lien reçu dans un courriel, sur
+     une page qu'il ne reverra pas. Le fichier fait 900 × 273 px : à 80 px de
+     haut on reste en deçà de sa définition native, donc net sur tous les
+     écrans. La surcharge est LOCALE à cette page : base.css ne bouge pas, et
+     les écrans de production gardent leur bandeau discret.
+
+     Les pastilles de langue remontent sur la même ligne. Empilées sous un logo
+     de 80 px, elles repoussaient la liste des parties sous la ligne de
+     flottaison — or c'est la liste qu'on vient chercher. */
+  .masthead{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; margin-bottom:20px;
+  }
+  .masthead .brand-logo-img{height:80px;}
+  .masthead .langues{flex:1 1 auto; margin-bottom:0;}
+
+  /* Sept pastilles tiennent sur une ligne à 390 px, mais pas sur un vieil
+     iPhone SE à 320. Elles passent à la ligne plutôt que de pousser la page
+     en travers. */
+  .langues{display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap; margin-bottom:10px;}
   .langues button{
     border:1px solid var(--border); background:var(--card); color:var(--muted);
     border-radius:999px; padding:3px 12px; font-size:11.5px; font-weight:800;
@@ -66,6 +111,10 @@
   .fic:last-child{border-bottom:none;}
   .fic-nom{flex:1; min-width:0; font-weight:700; font-size:13.5px;}
   .fic-det{font-size:12px; color:var(--muted); font-weight:400; display:block; margin-top:1px;}
+  /* Le nom de l'instrument dans la langue du lecteur. Il se lit comme un NOM,
+     pas comme une métrique : sans ce contraste, « Bratsche » se perdait entre
+     le poids et le nombre de pages. */
+  .fic-trad{color:var(--text); font-weight:600;}
   .fic-fleche{color:var(--accent); font-weight:800; font-size:16px;}
   .fic.inerte{opacity:.5; pointer-events:none;}
 
@@ -90,13 +139,19 @@
   @media (max-width:760px){
     .bloc{padding:13px 14px;}
     input, select{font-size:16px !important;}
+    /* 56 px sur téléphone : le logo reste deux fois plus grand qu'avant sans
+       manger le tiers haut d'un écran de 667 px. */
+    .masthead .brand-logo-img{height:56px;}
+    .masthead{gap:10px; margin-bottom:16px;}
   }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <img class="brand-logo-img" alt="Curieux orchestre">
-  <div class="langues" id="langues"></div>
+  <div class="masthead">
+    <img class="brand-logo-img" alt="Curieux orchestre">
+    <div class="langues" id="langues"></div>
+  </div>
   <div class="entete">
     <h1 class="co-h1" id="titre">…</h1>
     <p class="sous" id="sousTitre"></p>
@@ -142,9 +197,41 @@
 const params = new URLSearchParams(location.search);
 const JETON = params.get('e') || params.get('envoi') || '';
 
-/* Les deux langues, côte à côte. Pas de fichier de traduction ni de mécanique :
-   une trentaine de chaînes, lues et corrigées d'un coup d'œil. Une chaîne
-   manquante retombe sur le français plutôt que d'afficher sa clé. */
+/* Les langues servies, côte à côte. Pas de fichier de traduction ni de
+   mécanique : une quarantaine de chaînes par langue, lues et corrigées d'un
+   coup d'œil. Une chaîne manquante retombe sur le français plutôt que
+   d'afficher sa clé.
+
+   EN AJOUTER UNE : une entrée dans LANGUES (code, étiquette, nom, locale) et
+   un bloc dans TEXTES, recopié sur l'anglais. Rien d'autre — la barre de
+   langues, la date, le poids et les pupitres suivent tout seuls. */
+const LANGUES = [
+  { code: 'fr', etiquette: 'FR', nom: 'Français', locale: 'fr-FR' },
+  { code: 'en', etiquette: 'EN', nom: 'English',  locale: 'en-GB' },
+  { code: 'de', etiquette: 'DE', nom: 'Deutsch',  locale: 'de-DE' },
+  { code: 'es', etiquette: 'ES', nom: 'Español',  locale: 'es-ES' },
+  { code: 'it', etiquette: 'IT', nom: 'Italiano', locale: 'it-IT' },
+  { code: 'nl', etiquette: 'NL', nom: 'Nederlands', locale: 'nl-NL' },
+  { code: 'ja', etiquette: 'JA', nom: '日本語', locale: 'ja-JP' },
+];
+
+/* Le poids se lit dans les conventions du lecteur : « 18,4 Mo » devant un
+   bibliothécaire de Leipzig se lit comme une coquille — l'unité ET la virgule
+   décimale sont françaises. Une seule mécanique, deux réglages. Les seuils
+   sont ceux de partitionsPoids : jamais plus de trois chiffres significatifs,
+   jamais d'octets bruts au-delà du kilo. */
+function poidsFormate(octets, unites, virgule){
+  const n = Number(octets) || 0;
+  const dec = (x, d)=> x.toFixed(d).replace('.', virgule);
+  if(n < 1024) return n + ' ' + unites[0];
+  if(n < 1048576) return dec(n / 1024, 0) + ' ' + unites[1];
+  const mo = n / 1048576;
+  if(mo < 10) return dec(mo, 1) + ' ' + unites[2];
+  if(mo < 1024) return dec(mo, 0) + ' ' + unites[2];
+  return dec(mo / 1024, 2) + ' ' + unites[3];
+}
+const OCTETS_INTL = ['B', 'KB', 'MB', 'GB'];
+
 const TEXTES = {
   fr: {
     titre: 'Matériel confié',
@@ -166,6 +253,7 @@ const TEXTES = {
     codeAide: "Le code vous a été communiqué séparément de ce lien. Vous ne le saisissez qu’une fois : il est retenu quatorze jours sur cet appareil.",
     codeChamp: 'code',
     ouvrir: 'Ouvrir',
+    valider: 'Valider',
     oublier: 'oublier le code',
     nomTitre: 'Nom du musicien qui reçoit cet exemplaire',
     nomAide: "Ce lot est distribué nominativement : chaque exemplaire porte le nom du musicien auquel il est remis. Saisissez-le avant de télécharger — il s’inscrit sur la partition et dans notre registre.",
@@ -187,10 +275,7 @@ const TEXTES = {
     rien: "Aucune partie n’est encore déposée dans ce lot. Nous vous prévenons dès que c’est fait.",
     expireLe: (d)=> `à télécharger avant le ${d}`,
     pages: (n)=> `${n} page${n > 1 ? 's' : ''}`,
-    /* Les poids aussi se traduisent : « 18,4 Mo » se lit comme une coquille
-       devant un bibliothécaire de Leipzig — l’unité et la virgule décimale
-       sont françaises, et tout le reste de la page est dans sa langue. */
-    poids: (o)=> partitionsPoids(o),
+    poids: (o)=> poidsFormate(o, ['o', 'Ko', 'Mo', 'Go'], ','),
     piedFiligrane: "Chaque exemplaire téléchargé porte le nom de votre ensemble, en tête et en pied de page, ainsi qu’une marque invisible qui permet d’identifier l’origine d’un exemplaire qui circulerait. La musique n’est jamais recouverte.",
     piedUsage: (avecDate)=> "Ce matériel vous est confié pour le seul travail convenu entre nos deux maisons. Il n’a pas à être rediffusé au-delà de votre ensemble, ni conservé "
       + (avecDate ? 'au-delà de la date indiquée ci-dessus.' : 'au-delà du travail convenu.'),
@@ -211,6 +296,7 @@ const TEXTES = {
     codeAide: 'The code was sent to you separately from this link. You only enter it once: it is remembered on this device for fourteen days.',
     codeChamp: 'code',
     ouvrir: 'Open',
+    valider: 'Confirm',
     oublier: 'forget the code',
     nomTitre: 'Name of the player receiving this copy',
     nomAide: 'This set is distributed by name: each copy carries the name of the player it is handed to. Enter it before downloading — it is printed on the part and recorded in our register.',
@@ -232,19 +318,228 @@ const TEXTES = {
     rien: 'No part has been uploaded to this set yet. We will let you know as soon as it is done.',
     expireLe: (d)=> `available until ${d}`,
     pages: (n)=> `${n} page${n > 1 ? 's' : ''}`,
-    poids: (o)=> {
-      const n = Number(o) || 0;
-      if(n < 1024) return n + ' B';
-      if(n < 1048576) return Math.round(n / 1024) + ' KB';
-      const mo = n / 1048576;
-      if(mo < 10) return mo.toFixed(1) + ' MB';
-      if(mo < 1024) return mo.toFixed(0) + ' MB';
-      return (mo / 1024).toFixed(2) + ' GB';
-    },
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, '.'),
     piedFiligrane: 'Every copy downloaded carries your ensemble’s name at the top and bottom of each page, together with an invisible mark that identifies the origin of any copy found in circulation. The music itself is never covered.',
     piedUsage: (avecDate)=> 'This material is entrusted to you for the agreed work only. It must not be passed on beyond your ensemble, nor kept '
       + (avecDate ? 'beyond the date shown above.' : 'beyond the agreed work.'),
     piedContact: 'A missing part, or a version that does not match what you expect? Write to the person who sent you this link — please do not look for the material elsewhere.',
+  },
+  de: {
+    titre: 'Überlassenes Material',
+    pourEnsemble: (e)=> `Material überlassen an ${e}`,
+    sousTitre: 'Das Stimmenmaterial, das wir Ihnen zur Arbeit übersenden.',
+    lienInvalide: 'Dieser Link ist ungültig. Bitte verwenden Sie den Link, den wir Ihnen geschickt haben, oder bitten Sie uns, ihn erneut zu senden.',
+    mauvaisePage: 'Dieser Link öffnet die Stimmen eines Chores, nicht das Orchestermaterial.',
+    mauvaisePageLien: 'Zur Chorstimmen-Seite',
+    pasActive: 'Diese Seite ist auf diesem Server noch nicht aktiv. Bitte informieren Sie das Produktionsbüro — eine Aktualisierung steht noch aus.',
+    revoque: 'Dieser Link wurde von der Produktion zurückgezogen. Bitte wenden Sie sich an uns, bevor Sie das Material anderswo suchen.',
+    expire: (d)=> `Dieser Link ist am ${d} abgelaufen. Melden Sie sich, wenn Sie das Material noch benötigen — wir öffnen ihn wieder.`,
+    pasOuvert: (d)=> `Das Material steht ab dem ${d} zur Verfügung.`,
+    codeTitre: 'Zugangscode',
+    codeAide: 'Den Code haben Sie getrennt von diesem Link erhalten. Sie geben ihn nur einmal ein: er bleibt vierzehn Tage auf diesem Gerät gespeichert.',
+    codeChamp: 'Code',
+    ouvrir: 'Öffnen',
+    valider: 'Bestätigen',
+    oublier: 'Code löschen',
+    nomTitre: 'Name des Musikers, der dieses Exemplar erhält',
+    nomAide: 'Dieses Material wird namentlich verteilt: jedes Exemplar trägt den Namen des Musikers, dem es ausgehändigt wird. Bitte geben Sie ihn vor dem Herunterladen ein — er wird auf die Stimme gedruckt und in unser Register eingetragen.',
+    nomChamp: 'Vor- und Nachname des Musikers',
+    nomManque: 'Bitte geben Sie zuerst den Namen des Musikers ein, der dieses Exemplar erhält.',
+    codeInvalide: 'Das sieht nicht nach einem unserer Codes aus: nur Buchstaben und Ziffern, ohne Leerzeichen. Bitte verwenden Sie den Code, den wir Ihnen mitgeteilt haben.',
+    nomInvalide: 'Dieser Name enthält Zeichen, die wir nicht auf die Stimme drucken können. Buchstaben, Leerzeichen, Bindestriche, Apostrophe, Punkte und Kommas — zwischen zwei und sechzig Zeichen.',
+    lot: 'Das Material',
+    partiesN: (n)=> `${n} Stimme${n > 1 ? 'n' : ''}`,
+    fichiersN: (n)=> `${n} Datei${n > 1 ? 'en' : ''}`,
+    toutPrendre: 'Alles herunterladen (.zip)',
+    pasDArchive: 'Dieses Material wird namentlich verteilt und daher Stimme für Stimme heruntergeladen, jede auf den Namen des Musikers, der sie erhält. Ein Gesamtarchiv trüge einen einzigen Namen über das ganze Material, und unser Register wiese auf jemanden, der diese Stimmen nie erhalten hat.',
+    enCours: (a, b)=> `Vorbereitung ${a} / ${b}…`,
+    echecPartiel: (n)=> n > 1
+      ? `${n} Dateien konnten nicht vorbereitet werden und fehlen im Archiv. Bitte laden Sie sie einzeln herunter.`
+      : 'Eine Datei konnte nicht vorbereitet werden und fehlt im Archiv. Bitte laden Sie sie einzeln herunter.',
+    echecTotal: 'Der Download ist fehlgeschlagen. Prüfen Sie den Code und versuchen Sie es erneut — oder laden Sie die Stimmen einzeln herunter.',
+    archiveImpossible: 'Dieses Material ist zu umfangreich, um auf diesem Gerät in ein einziges Archiv gepackt zu werden. Bitte laden Sie die Stimmen einzeln herunter — sie stehen alle in der Liste unten.',
+    rien: 'In diesem Material ist noch keine Stimme hinterlegt. Wir melden uns, sobald es so weit ist.',
+    expireLe: (d)=> `abrufbar bis zum ${d}`,
+    pages: (n)=> `${n} Seite${n > 1 ? 'n' : ''}`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, ','),
+    piedFiligrane: 'Jedes heruntergeladene Exemplar trägt den Namen Ihres Ensembles am Kopf und am Fuß jeder Seite sowie eine unsichtbare Markierung, die die Herkunft eines in Umlauf geratenen Exemplars erkennen lässt. Die Noten selbst werden nie überdeckt.',
+    piedUsage: (avecDate)=> 'Dieses Material wird Ihnen ausschließlich für die vereinbarte Arbeit überlassen. Es darf nicht über Ihr Ensemble hinaus weitergegeben und nicht '
+      + (avecDate ? 'über das oben genannte Datum hinaus aufbewahrt werden.' : 'über die vereinbarte Arbeit hinaus aufbewahrt werden.'),
+    piedContact: 'Eine fehlende Stimme, oder eine Fassung, die nicht dem entspricht, was Sie erwarten? Schreiben Sie an die Person, die Ihnen diesen Link geschickt hat — bitte suchen Sie das Material nicht anderswo.',
+  },
+  es: {
+    titre: 'Material cedido',
+    pourEnsemble: (e)=> `Material cedido a ${e}`,
+    sousTitre: 'El juego de particellas que le enviamos para trabajar.',
+    lienInvalide: 'Este enlace no es válido. Utilice el que le enviamos, o pídanos que se lo reenviemos.',
+    mauvaisePage: 'Este enlace abre las voces de un coro, no un lote de material de orquesta.',
+    mauvaisePageLien: 'Abrir la página de las partituras del coro',
+    pasActive: 'Esta página todavía no está activa en este servidor. Avise a la producción: queda una actualización por aplicar.',
+    revoque: 'La producción ha revocado este enlace. Póngase en contacto con nosotros antes de buscar el material en otro sitio.',
+    expire: (d)=> `Este enlace caducó el ${d}. Escríbanos si todavía lo necesita y volveremos a abrirlo.`,
+    pasOuvert: (d)=> `El material estará disponible a partir del ${d}.`,
+    codeTitre: 'Código de acceso',
+    codeAide: 'El código se le comunicó por separado de este enlace. Solo lo introduce una vez: se conserva catorce días en este dispositivo.',
+    codeChamp: 'código',
+    ouvrir: 'Abrir',
+    valider: 'Confirmar',
+    oublier: 'olvidar el código',
+    nomTitre: 'Nombre del músico que recibe este ejemplar',
+    nomAide: 'Este juego se distribuye nominalmente: cada ejemplar lleva el nombre del músico al que se entrega. Introdúzcalo antes de descargar — se imprime en la particella y queda inscrito en nuestro registro.',
+    nomChamp: 'Nombre y apellidos del músico',
+    nomManque: 'Introduzca primero el nombre del músico que recibe este ejemplar.',
+    codeInvalide: 'Este código no se parece a los nuestros: solo letras y cifras, sin espacios. Utilice el que le comunicamos.',
+    nomInvalide: 'Este nombre contiene caracteres que no podemos imprimir en la particella. Letras, espacios, guiones, apóstrofos, puntos y comas — entre dos y sesenta caracteres.',
+    lot: 'El material',
+    partiesN: (n)=> `${n} particella${n > 1 ? 's' : ''}`,
+    fichiersN: (n)=> `${n} archivo${n > 1 ? 's' : ''}`,
+    toutPrendre: 'Descargar todo (.zip)',
+    pasDArchive: 'Este juego se distribuye nominalmente, así que se descarga particella por particella, cada una a nombre del músico que la recibe. Un archivo único llevaría un solo nombre en todo el juego, y nuestro registro señalaría a alguien que nunca recibió esas particellas.',
+    enCours: (a, b)=> `Preparando ${a} / ${b}…`,
+    echecPartiel: (n)=> n > 1
+      ? `${n} archivos no han podido prepararse y no figuran en el archivo comprimido. Descárguelos de uno en uno.`
+      : 'Un archivo no ha podido prepararse y no figura en el archivo comprimido. Descárguelo por separado.',
+    echecTotal: 'La descarga ha fallado. Compruebe el código e inténtelo de nuevo, o descargue las particellas de una en una.',
+    archiveImpossible: 'Este juego es demasiado pesado para reunirse en un solo archivo comprimido en este dispositivo. Descargue las particellas de una en una: están todas en la lista siguiente.',
+    rien: 'Todavía no hay ninguna particella en este juego. Le avisaremos en cuanto esté.',
+    expireLe: (d)=> `descargar antes del ${d}`,
+    pages: (n)=> `${n} página${n > 1 ? 's' : ''}`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, ','),
+    piedFiligrane: 'Cada ejemplar descargado lleva el nombre de su agrupación en la cabecera y el pie de cada página, así como una marca invisible que permite identificar el origen de un ejemplar que llegara a circular. La música nunca queda tapada.',
+    piedUsage: (avecDate)=> 'Este material se le cede únicamente para el trabajo acordado. No debe difundirse fuera de su agrupación ni conservarse '
+      + (avecDate ? 'más allá de la fecha indicada arriba.' : 'más allá del trabajo acordado.'),
+    piedContact: '¿Falta una particella, o hay una versión que no corresponde a lo que esperaba? Escriba a la persona que le envió este enlace — no busque el material en otro sitio.',
+  },
+  it: {
+    titre: 'Materiale affidato',
+    pourEnsemble: (e)=> `Materiale affidato a ${e}`,
+    sousTitre: 'Il set di parti che vi inviamo per il lavoro.',
+    lienInvalide: 'Questo link non è valido. Utilizzate quello che vi abbiamo inviato, oppure chiedeteci di rinviarvelo.',
+    mauvaisePage: 'Questo link apre le voci di un coro, non un lotto di materiale d’orchestra.',
+    mauvaisePageLien: 'Apri la pagina delle parti del coro',
+    pasActive: 'Questa pagina non è ancora attiva su questo server. Avvisate la produzione: manca un aggiornamento da applicare.',
+    revoque: 'La produzione ha revocato questo link. Contattateci prima di cercare il materiale altrove.',
+    expire: (d)=> `Questo link è scaduto il ${d}. Scriveteci se vi serve ancora e lo riapriremo.`,
+    pasOuvert: (d)=> `Il materiale sarà disponibile dal ${d}.`,
+    codeTitre: 'Codice di accesso',
+    codeAide: 'Il codice vi è stato comunicato separatamente dal link. Lo inserite una sola volta: resta memorizzato quattordici giorni su questo dispositivo.',
+    codeChamp: 'codice',
+    ouvrir: 'Apri',
+    valider: 'Conferma',
+    oublier: 'dimentica il codice',
+    nomTitre: 'Nome del musicista che riceve questa copia',
+    nomAide: 'Questo set è distribuito nominalmente: ogni copia porta il nome del musicista a cui viene consegnata. Inseritelo prima di scaricare — viene stampato sulla parte e registrato nel nostro registro.',
+    nomChamp: 'Nome e cognome del musicista',
+    nomManque: 'Inserite prima il nome del musicista che riceve questa copia.',
+    codeInvalide: 'Questo codice non somiglia ai nostri: solo lettere e cifre, senza spazi. Utilizzate quello che vi abbiamo comunicato.',
+    nomInvalide: 'Questo nome contiene caratteri che non possiamo stampare sulla parte. Lettere, spazi, trattini, apostrofi, punti e virgole — da due a sessanta caratteri.',
+    lot: 'Il materiale',
+    partiesN: (n)=> `${n} part${n > 1 ? 'i' : 'e'}`,
+    fichiersN: (n)=> `${n} file`,
+    toutPrendre: 'Scarica tutto (.zip)',
+    pasDArchive: 'Questo set è distribuito nominalmente, quindi si scarica parte per parte, ciascuna a nome del musicista che la riceve. Un archivio unico porterebbe un solo nome su tutto il set, e il nostro registro indicherebbe qualcuno che quelle parti non le ha mai ricevute.',
+    enCours: (a, b)=> `Preparazione ${a} / ${b}…`,
+    echecPartiel: (n)=> n > 1
+      ? `${n} file non sono stati preparati e non figurano nell’archivio. Scaricateli singolarmente.`
+      : 'Un file non è stato preparato e non figura nell’archivio. Scaricatelo singolarmente.',
+    echecTotal: 'Lo scaricamento non è riuscito. Verificate il codice e riprovate — oppure scaricate le parti una a una.',
+    archiveImpossible: 'Questo set è troppo pesante per essere raccolto in un unico archivio su questo dispositivo. Scaricate le parti una a una: sono tutte nell’elenco qui sotto.',
+    rien: 'Nessuna parte è ancora stata caricata in questo set. Vi avvisiamo appena sarà fatto.',
+    expireLe: (d)=> `da scaricare entro il ${d}`,
+    pages: (n)=> `${n} pagin${n > 1 ? 'e' : 'a'}`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, ','),
+    piedFiligrane: 'Ogni copia scaricata porta il nome del vostro ensemble in testa e in calce a ogni pagina, insieme a un contrassegno invisibile che permette di risalire all’origine di una copia in circolazione. La musica non viene mai coperta.',
+    piedUsage: (avecDate)=> 'Questo materiale vi è affidato unicamente per il lavoro concordato. Non deve essere diffuso al di fuori del vostro ensemble né conservato '
+      + (avecDate ? 'oltre la data indicata sopra.' : 'oltre il lavoro concordato.'),
+    piedContact: 'Manca una parte, o una versione non corrisponde a quanto vi aspettate? Scrivete alla persona che vi ha inviato questo link — non cercate il materiale altrove.',
+  },
+  nl: {
+    titre: 'Toevertrouwd materiaal',
+    pourEnsemble: (e)=> `Materiaal toevertrouwd aan ${e}`,
+    sousTitre: 'De set partijen die wij u ter voorbereiding toesturen.',
+    lienInvalide: 'Deze link is niet geldig. Gebruik de link die wij u hebben gestuurd, of vraag ons hem opnieuw te sturen.',
+    mauvaisePage: 'Deze link opent de stempartijen van een koor, niet het orkestmateriaal.',
+    mauvaisePageLien: 'Naar de pagina met koorpartijen',
+    pasActive: 'Deze pagina is op deze server nog niet actief. Laat het de productie weten — er staat nog een update open.',
+    revoque: 'Deze link is door de productie ingetrokken. Neem contact met ons op voordat u het materiaal elders zoekt.',
+    expire: (d)=> `Deze link is op ${d} verlopen. Laat het ons weten als u het materiaal nog nodig hebt, dan openen wij hem opnieuw.`,
+    pasOuvert: (d)=> `Het materiaal is beschikbaar vanaf ${d}.`,
+    codeTitre: 'Toegangscode',
+    codeAide: 'De code hebt u los van deze link ontvangen. U voert hem maar één keer in: hij blijft veertien dagen op dit apparaat bewaard.',
+    codeChamp: 'code',
+    ouvrir: 'Openen',
+    valider: 'Bevestigen',
+    oublier: 'code wissen',
+    nomTitre: 'Naam van de musicus die dit exemplaar ontvangt',
+    nomAide: 'Deze set wordt op naam verdeeld: elk exemplaar draagt de naam van de musicus aan wie het wordt uitgereikt. Voer die in vóór het downloaden — de naam wordt op de partij gedrukt en in ons register vastgelegd.',
+    nomChamp: 'Voor- en achternaam van de musicus',
+    nomManque: 'Voer eerst de naam in van de musicus die dit exemplaar ontvangt.',
+    codeInvalide: 'Dit lijkt niet op een van onze codes: alleen letters en cijfers, zonder spaties. Gebruik de code die wij u hebben doorgegeven.',
+    nomInvalide: 'Deze naam bevat tekens die wij niet op de partij kunnen drukken. Letters, spaties, koppeltekens, apostroffen, punten en komma’s — tussen twee en zestig tekens.',
+    lot: 'Het materiaal',
+    partiesN: (n)=> `${n} partij${n > 1 ? 'en' : ''}`,
+    fichiersN: (n)=> `${n} bestand${n > 1 ? 'en' : ''}`,
+    toutPrendre: 'Alles downloaden (.zip)',
+    pasDArchive: 'Deze set wordt op naam verdeeld en wordt dus partij voor partij gedownload, elk op naam van de musicus die hem ontvangt. Eén archief zou over de hele set dezelfde naam dragen, en ons register zou verwijzen naar iemand die die partijen nooit heeft ontvangen.',
+    enCours: (a, b)=> `Voorbereiden ${a} / ${b}…`,
+    echecPartiel: (n)=> n > 1
+      ? `${n} bestanden konden niet worden voorbereid en ontbreken in het archief. Download ze afzonderlijk.`
+      : 'Eén bestand kon niet worden voorbereid en ontbreekt in het archief. Download het afzonderlijk.',
+    echecTotal: 'Het downloaden is mislukt. Controleer de code en probeer het opnieuw — of download de partijen afzonderlijk.',
+    archiveImpossible: 'Deze set is te groot om op dit apparaat tot één archief te worden samengevoegd. Download de partijen afzonderlijk — ze staan allemaal in de lijst hieronder.',
+    rien: 'Er is nog geen partij in deze set geplaatst. Wij laten het u weten zodra dat gebeurd is.',
+    expireLe: (d)=> `te downloaden vóór ${d}`,
+    pages: (n)=> `${n} pagina${n > 1 ? '’s' : ''}`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, ','),
+    piedFiligrane: 'Elk gedownload exemplaar draagt de naam van uw ensemble boven- en onderaan elke pagina, samen met een onzichtbaar merkteken waarmee de herkomst van een in omloop geraakt exemplaar kan worden vastgesteld. De muziek zelf wordt nooit afgedekt.',
+    piedUsage: (avecDate)=> 'Dit materiaal wordt u uitsluitend voor het overeengekomen werk toevertrouwd. Het mag niet buiten uw ensemble worden verspreid, noch worden bewaard '
+      + (avecDate ? 'na de hierboven vermelde datum.' : 'na het overeengekomen werk.'),
+    piedContact: 'Ontbreekt er een partij, of komt een versie niet overeen met wat u verwacht? Schrijf naar de persoon die u deze link heeft gestuurd — zoek het materiaal niet elders.',
+  },
+  /* Le japonais ne compte pas comme le français : pas de pluriel, un
+     classificateur collé au nombre (16パート), et la ponctuation propre à la
+     langue (、 。). Les tournures restent en です・ます調 — la politesse
+     ordinaire d'une correspondance entre maisons, ni familière ni obséquieuse. */
+  ja: {
+    titre: '貸与楽譜',
+    pourEnsemble: (e)=> `${e} 様への貸与楽譜`,
+    sousTitre: 'ご準備にお使いいただくパート譜一式です。',
+    lienInvalide: 'このリンクは無効です。お送りしたリンクをご利用いただくか、再送をご依頼ください。',
+    mauvaisePage: 'このリンクは合唱の声部を開くもので、オーケストラ譜の一式ではありません。',
+    mauvaisePageLien: '合唱譜のページを開く',
+    pasActive: 'このページは、本サーバーではまだ有効になっておりません。未適用の更新が残っているためです。当方の制作部までご一報ください。',
+    revoque: 'このリンクは当方の制作部にて無効といたしました。他の経路で楽譜をお探しになる前に、まずはご連絡ください。',
+    expire: (d)=> `このリンクは${d}に有効期限が切れました。その後もご入用でしたら、ご連絡いただければ改めて有効にいたします。`,
+    pasOuvert: (d)=> `楽譜は${d}よりご利用いただけます。`,
+    codeTitre: 'アクセスコード',
+    codeAide: 'コードはこのリンクとは別にお伝えしております。ご入力は一度だけで、この端末に14日間保存されます。',
+    codeChamp: 'コード',
+    ouvrir: '開く',
+    valider: '決定',
+    oublier: 'コードを消去',
+    nomTitre: 'この譜面を受け取る奏者のお名前',
+    nomAide: 'この一式は記名式でお渡ししております。各譜面には、受け取る奏者のお名前が入ります。ダウンロードの前にご入力ください。お名前は譜面に印字され、当方の記録にも残ります。',
+    nomChamp: '奏者の氏名',
+    nomManque: 'まず、この譜面を受け取る奏者のお名前をご入力ください。',
+    codeInvalide: 'このコードは当方のものとは異なるようです。英数字のみで、空白は含まれません。お伝えしたコードをご確認ください。',
+    nomInvalide: 'このお名前には譜面に印字できない文字が含まれています。ご使用いただけるのは、文字（漢字・かな・ラテン文字）、空白、ハイフン、アポストロフィ、ピリオド、カンマのみで、2文字以上60文字以内です。',
+    lot: 'パート譜一覧',
+    partiesN: (n)=> `${n}パート`,
+    fichiersN: (n)=> `${n}ファイル`,
+    toutPrendre: 'すべてダウンロード（ZIP）',
+    pasDArchive: 'このパート譜は記名式のため、パートごとに、受け取る奏者のお名前でダウンロードしていただく形になります。一括のZIPファイルでは全体に同じお名前が入り、当方の記録が、そのパートを受け取っていない方を指すことになってしまいます。',
+    enCours: (a, b)=> `準備中 ${a}/${b}…`,
+    echecPartiel: (n)=> `${n}件のファイルを準備できなかったため、ZIPファイルに含まれていません。お手数ですが、個別にダウンロードしてください。`,
+    echecTotal: 'ダウンロードに失敗しました。コードをご確認のうえ改めてお試しいただくか、パートごとにダウンロードしてください。',
+    archiveImpossible: 'このパート譜一式は、お使いの端末で一つのZIPファイルにまとめるには大きすぎます。お手数ですが、パートごとにダウンロードしてください。すべて下の一覧にございます。',
+    rien: 'このパート譜一式には、まだパートが登録されていません。準備ができ次第ご連絡いたします。',
+    expireLe: (d)=> `ダウンロード期限：${d}`,
+    pages: (n)=> `${n}ページ`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, '.'),
+    piedFiligrane: 'ダウンロードされた譜面には、各ページの上部と下部に貴団体の名称が入ります。あわせて、万一外部に出た場合に出所を確認できる、目に見えない印が入ります。音符が隠れることはありません。',
+    piedUsage: (avecDate)=> '本楽譜は、両団体の間で取り決めた用途に限りお貸出しするものです。貴団体の外部への再配布、および'
+      + (avecDate ? '上記の期限を過ぎての保管はお控えくださいますようお願いいたします。' : 'その範囲を超えての保管はお控えくださいますようお願いいたします。'),
+    piedContact: 'パート譜が不足している、想定と異なる版である、といった場合は、このリンクをお送りした担当者までご連絡ください。他の経路で楽譜をお探しにならないようお願いいたします。',
   },
 };
 
@@ -257,17 +552,27 @@ const CLE_CODE = 'curieuxEnvoiCode:' + JETON;
    désigne alors quelqu'un qui n'a jamais reçu cette partie, ce qui est pire
    que pas de registre du tout. Il vit le temps de la page, et se retape. */
 
-/* Le français par défaut pour un navigateur francophone, l'anglais pour tous
-   les autres : c'est le partage juste quand on envoie à l'étranger. Le choix
-   explicite l'emporte et se retient. */
+/* La langue du destinataire, dans cet ordre : son choix retenu, le `lang` du
+   lien — c'est lui qu'on met dans le courriel d'envoi quand on SAIT à qui on
+   écrit —, puis ses préférences de navigateur, dans l'ordre où il les a
+   déclarées. L'anglais en dernier recours : devant un lecteur dont on ne sert
+   pas la langue, c'est lui qui a le plus de chances d'être lu. */
 function langueInitiale(){
+  const connue = (v)=> LANGUES.some(l => l.code === String(v || '').slice(0, 2).toLowerCase())
+    ? String(v).slice(0, 2).toLowerCase() : '';
   try{
-    const retenu = localStorage.getItem(CLE_LANGUE);
-    if(retenu === 'fr' || retenu === 'en') return retenu;
+    const retenu = connue(localStorage.getItem(CLE_LANGUE));
+    if(retenu) return retenu;
   }catch(e){}
-  if(params.get('lang') === 'en') return 'en';
-  if(params.get('lang') === 'fr') return 'fr';
-  return /^fr\b/i.test(navigator.language || '') ? 'fr' : 'en';
+  const demande = connue(params.get('lang'));
+  if(demande) return demande;
+  const preferees = (navigator.languages && navigator.languages.length)
+    ? navigator.languages : [navigator.language || ''];
+  for(let i = 0; i < preferees.length; i++){
+    const c = connue(preferees[i]);
+    if(c) return c;
+  }
+  return 'en';
 }
 let LANGUE = langueInitiale();
 function T(cle){ return TEXTES[LANGUE][cle] !== undefined ? TEXTES[LANGUE][cle] : TEXTES.fr[cle]; }
@@ -291,7 +596,8 @@ function jourLisible(iso){
   if(!iso) return '';
   const d = new Date(iso + 'T12:00:00');
   if(isNaN(d)) return iso;
-  return d.toLocaleDateString(LANGUE === 'fr' ? 'fr-FR' : 'en-GB',
+  const l = LANGUES.find(x => x.code === LANGUE);
+  return d.toLocaleDateString(l ? l.locale : 'en-GB',
     { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
@@ -315,8 +621,10 @@ function etat(html){
 }
 
 function rendreLangues(){
-  document.getElementById('langues').innerHTML = ['fr', 'en'].map(l =>
-    `<button type="button" data-langue="${l}" class="${l === LANGUE ? 'actif' : ''}">${l.toUpperCase()}</button>`).join('');
+  document.getElementById('langues').innerHTML = LANGUES.map(l =>
+    `<button type="button" data-langue="${l.code}" lang="${l.code}"
+       class="${l.code === LANGUE ? 'actif' : ''}"${l.code === LANGUE ? ' aria-current="true"' : ''}
+       title="${escapeAttr(l.nom)}" aria-label="${escapeAttr(l.nom)}">${escapeHtml(l.etiquette)}</button>`).join('');
   document.querySelectorAll('[data-langue]').forEach(b => b.onclick = ()=>{
     LANGUE = b.dataset.langue;
     try{ localStorage.setItem(CLE_LANGUE, LANGUE); }catch(e){}
@@ -350,6 +658,10 @@ function nomArchive(partie, fichier){
 
 function rendre(){
   rendreLangues();
+  /* L'onglet aussi : un bibliothécaire garde la page ouverte pendant qu'il
+     range les parties, et « Matériel confié » dans une barre d'onglets est le
+     seul endroit où la page reste en français. */
+  document.title = 'Curieux orchestre — ' + T('titre');
   if(REFUS){ document.getElementById('titre').textContent = T('titre'); etat(escapeHtml(T(REFUS))); return; }
   const c = CHARGE;
   document.getElementById('titre').textContent = c && c.destinataire
@@ -433,7 +745,7 @@ function rendre(){
         <input class="co-input" id="inpNom" style="width:min(300px,100%)" maxlength="60"
                placeholder="${escapeAttr(T('nomChamp'))}" aria-label="${escapeAttr(T('nomTitre'))}"
                value="${escapeAttr(NOM)}">
-        <button type="submit" class="co-btn sm">${escapeHtml(T('ouvrir'))}</button>
+        <button type="submit" class="co-btn sm">${escapeHtml(T('valider'))}</button>
       </form>
       <p class="erreur" id="errNom"></p>
       <p class="aide">${escapeHtml(T('nomAide'))}</p>
@@ -461,13 +773,22 @@ function rendre(){
        évite aussi le « Cordes » affiché deux fois quand une partie revient
        plus bas dans l'ordre du conducteur. */
     partitionsGrouperParPupitre(parties).forEach(groupe => {
-      html += `<div class="pupitre">${partitionsPupitreHtml(groupe.pupitre)}</div>`;
+      html += `<div class="pupitre">${partitionsPupitreHtml(groupe.pupitre, { langue: LANGUE })}</div>`;
       groupe.parties.forEach(p => {
       (p.fichiers || []).forEach(f => {
-        const detail = [T('poids')(f.octets), f.pages ? T('pages')(f.pages) : ''].filter(Boolean).join(' · ');
         const nom = nomArchive(p, f).replace(/\.pdf$/, '');
+        /* LE NOM AFFICHÉ RESTE CELUI DU FICHIER. C'est lui que le
+           bibliothécaire retrouvera dans son dossier puis dans son logiciel de
+           pupitre : une page qui annoncerait « Horn 1-2 » pour un fichier
+           « Cor 1-2.pdf » ferait chercher une partie qui ne manque pas.
+           La traduction vient donc À CÔTÉ, et seulement quand elle apprend
+           quelque chose — « Piano » traduit par « Piano » est du bruit. */
+        const glose = partitionsNomTraduit(nom, LANGUE);
+        const utile = partitionsNormaliser(glose) !== partitionsNormaliser(nom);
+        const detail = [T('poids')(f.octets), f.pages ? T('pages')(f.pages) : ''].filter(Boolean).join(' · ');
+        const traduit = utile ? `<span class="fic-trad" lang="${LANGUE}">${escapeHtml(glose)}</span> · ` : '';
         html += `<a class="fic${pret ? '' : ' inerte'}" ${pret ? `href="${escapeAttr(urlFichier(f.id))}" download` : 'href="#" aria-disabled="true"'}>
-          <span class="fic-nom">${escapeHtml(nom)}<span class="fic-det">${escapeHtml(detail)}</span></span>
+          <span class="fic-nom">${escapeHtml(nom)}<span class="fic-det">${traduit}${escapeHtml(detail)}</span></span>
           <span class="fic-fleche">↓</span>
         </a>`;
       });
