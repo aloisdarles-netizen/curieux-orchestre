@@ -303,7 +303,15 @@
 // en saute ses propres cadres, et met dans le message la fonction appelante et
 // l'intitulé de la ligne — « geste : versChoeur, sur « Basse » ». Dix mots qui
 // répondent aux trois questions, sans ouvrir la console.
-const VERSION = 'curieux-v144';
+// v145 : créer une partie ne dépend plus de rien. L'identifiant se fabrique
+// sur place quand celui de ui-helpers.js revient vide — pour une ligne NEUVE,
+// un identifiant tiré au hasard est juste par construction, il n'y a rien à
+// préserver donc rien à refuser —, et le spectacle se retrouve à trois
+// endroits : l'état, l'écran affiché, l'adresse. Le même filet couvre les
+// fichiers déposés, les lots et les spectacles. partitions.html seule change,
+// mais elle s'appuie sur le db.js de la version précédente : sans l'incrément,
+// un navigateur déjà venu garderait l'ancien et perdrait le filet du dessous.
+const VERSION = 'curieux-v145';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
