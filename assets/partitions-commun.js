@@ -248,13 +248,13 @@ function partitionsGrouperParPupitre(parties) {
    AFFICHÉ change.
    -------------------------------------------------------------------------- */
 const PARTITIONS_PUPITRE_LANGUES = {
-  "Chef d'orchestre": { en: 'Conductor',   de: 'Dirigent',    es: 'Dirección',    it: 'Direttore' },
-  'Bois':             { en: 'Woodwind',    de: 'Holzbläser',  es: 'Viento madera', it: 'Legni' },
-  'Cuivres':          { en: 'Brass',       de: 'Blechbläser', es: 'Metales',      it: 'Ottoni' },
-  'Percussions':      { en: 'Percussion',  de: 'Schlagwerk',  es: 'Percusión',    it: 'Percussioni' },
-  'Chant':            { en: 'Voices',      de: 'Gesang',      es: 'Canto',        it: 'Canto' },
-  'Cordes':           { en: 'Strings',     de: 'Streicher',   es: 'Cuerdas',      it: 'Archi' },
-  'Autre':            { en: 'Other',       de: 'Sonstige',    es: 'Otros',        it: 'Altri' },
+  "Chef d'orchestre": { en: 'Conductor',  de: 'Dirigent',    es: 'Dirección',     it: 'Direttore',    nl: 'Dirigent',     ja: '指揮者' },
+  'Bois':             { en: 'Woodwind',   de: 'Holzbläser',  es: 'Viento madera', it: 'Legni',        nl: 'Houtblazers',  ja: '木管' },
+  'Cuivres':          { en: 'Brass',      de: 'Blechbläser', es: 'Metales',       it: 'Ottoni',       nl: 'Koperblazers', ja: '金管' },
+  'Percussions':      { en: 'Percussion', de: 'Schlagwerk',  es: 'Percusión',     it: 'Percussioni',  nl: 'Slagwerk',     ja: '打楽器' },
+  'Chant':            { en: 'Voices',     de: 'Gesang',      es: 'Canto',         it: 'Canto',        nl: 'Zang',         ja: '声楽' },
+  'Cordes':           { en: 'Strings',    de: 'Streicher',   es: 'Cuerdas',       it: 'Archi',        nl: 'Strijkers',    ja: '弦楽器' },
+  'Autre':            { en: 'Other',      de: 'Sonstige',    es: 'Otros',         it: 'Altri',        nl: 'Overig',       ja: 'その他' },
 };
 
 /* Le nom affichable d'un pupitre. Sans langue, ou dans une langue qu'on ne
@@ -307,76 +307,76 @@ function partitionsPupitreVar(pupitre, encre) {
    -------------------------------------------------------------------------- */
 const PARTITIONS_INSTRUMENTS = [
   // Bois
-  { fr: 'Piccolo',           en: 'Piccolo',          de: 'Piccoloflöte',    es: 'Flautín',         it: 'Ottavino' },
-  { fr: 'Flûte',             en: 'Flute',            de: 'Flöte',           es: 'Flauta',          it: 'Flauto' },
-  { fr: 'Flûte alto',        en: 'Alto flute',       de: 'Altflöte',        es: 'Flauta alto',     it: 'Flauto contralto' },
-  { fr: 'Hautbois',          en: 'Oboe',             de: 'Oboe',            es: 'Oboe',            it: 'Oboe' },
-  { fr: 'Cor anglais',       en: 'English horn',     de: 'Englischhorn',    es: 'Corno inglés',    it: 'Corno inglese' },
-  { fr: 'Clarinette',        en: 'Clarinet',         de: 'Klarinette',      es: 'Clarinete',       it: 'Clarinetto' },
-  { fr: 'Clarinette basse',  en: 'Bass clarinet',    de: 'Bassklarinette',  es: 'Clarinete bajo',  it: 'Clarinetto basso' },
-  { fr: 'Basson',            en: 'Bassoon',          de: 'Fagott',          es: 'Fagot',           it: 'Fagotto' },
-  { fr: 'Contrebasson',      en: 'Contrabassoon',    de: 'Kontrafagott',    es: 'Contrafagot',     it: 'Controfagotto' },
-  { fr: 'Saxophone',         en: 'Saxophone',        de: 'Saxophon',        es: 'Saxofón',         it: 'Sassofono' },
-  { fr: 'Saxophone alto',    en: 'Alto saxophone',   de: 'Altsaxophon',     es: 'Saxofón alto',    it: 'Sassofono contralto' },
-  { fr: 'Saxophone ténor',   en: 'Tenor saxophone',  de: 'Tenorsaxophon',   es: 'Saxofón tenor',   it: 'Sassofono tenore' },
-  { fr: 'Saxophone baryton', en: 'Baritone saxophone', de: 'Baritonsaxophon', es: 'Saxofón barítono', it: 'Sassofono baritono' },
+  { fr: 'Piccolo',           en: 'Piccolo',            de: 'Piccoloflöte',    es: 'Flautín',          it: 'Ottavino',            nl: 'Piccolo',         ja: 'ピッコロ' },
+  { fr: 'Flûte',             en: 'Flute',              de: 'Flöte',           es: 'Flauta',           it: 'Flauto',              nl: 'Fluit',           ja: 'フルート' },
+  { fr: 'Flûte alto',        en: 'Alto flute',         de: 'Altflöte',        es: 'Flauta alto',      it: 'Flauto contralto',    nl: 'Altfluit',        ja: 'アルトフルート' },
+  { fr: 'Hautbois',          en: 'Oboe',               de: 'Oboe',            es: 'Oboe',             it: 'Oboe',                nl: 'Hobo',            ja: 'オーボエ' },
+  { fr: 'Cor anglais',       en: 'English horn',       de: 'Englischhorn',    es: 'Corno inglés',     it: 'Corno inglese',       nl: 'Althobo',         ja: 'イングリッシュホルン' },
+  { fr: 'Clarinette',        en: 'Clarinet',           de: 'Klarinette',      es: 'Clarinete',        it: 'Clarinetto',          nl: 'Klarinet',        ja: 'クラリネット' },
+  { fr: 'Clarinette basse',  en: 'Bass clarinet',      de: 'Bassklarinette',  es: 'Clarinete bajo',   it: 'Clarinetto basso',    nl: 'Basklarinet',     ja: 'バスクラリネット' },
+  { fr: 'Basson',            en: 'Bassoon',            de: 'Fagott',          es: 'Fagot',            it: 'Fagotto',             nl: 'Fagot',           ja: 'ファゴット' },
+  { fr: 'Contrebasson',      en: 'Contrabassoon',      de: 'Kontrafagott',    es: 'Contrafagot',      it: 'Controfagotto',       nl: 'Contrafagot',     ja: 'コントラファゴット' },
+  { fr: 'Saxophone',         en: 'Saxophone',          de: 'Saxophon',        es: 'Saxofón',          it: 'Sassofono',           nl: 'Saxofoon',        ja: 'サクソフォン' },
+  { fr: 'Saxophone alto',    en: 'Alto saxophone',     de: 'Altsaxophon',     es: 'Saxofón alto',     it: 'Sassofono contralto', nl: 'Altsaxofoon',     ja: 'アルトサクソフォン' },
+  { fr: 'Saxophone ténor',   en: 'Tenor saxophone',    de: 'Tenorsaxophon',   es: 'Saxofón tenor',    it: 'Sassofono tenore',    nl: 'Tenorsaxofoon',   ja: 'テナーサクソフォン' },
+  { fr: 'Saxophone baryton', en: 'Baritone saxophone', de: 'Baritonsaxophon', es: 'Saxofón barítono', it: 'Sassofono baritono',  nl: 'Baritonsaxofoon', ja: 'バリトンサクソフォン' },
 
   // Cuivres
-  { fr: 'Cor',               en: 'Horn',             de: 'Horn',            es: 'Trompa',          it: 'Corno' },
-  { fr: 'Trompette',         en: 'Trumpet',          de: 'Trompete',        es: 'Trompeta',        it: 'Tromba' },
-  { fr: 'Cornet',            en: 'Cornet',           de: 'Kornett',         es: 'Corneta',         it: 'Cornetta' },
-  { fr: 'Bugle',             en: 'Flugelhorn',       de: 'Flügelhorn',      es: 'Fiscorno',        it: 'Flicorno' },
-  { fr: 'Saxhorn',           en: 'Saxhorn',          de: 'Saxhorn',         es: 'Saxhorn',         it: 'Flicorno basso' },
-  { fr: 'Trombone',          en: 'Trombone',         de: 'Posaune',         es: 'Trombón',         it: 'Trombone' },
-  { fr: 'Trombone basse',    en: 'Bass trombone',    de: 'Bassposaune',     es: 'Trombón bajo',    it: 'Trombone basso' },
-  { fr: 'Tuba',              en: 'Tuba',             de: 'Tuba',            es: 'Tuba',            it: 'Tuba' },
-  { fr: 'Euphonium',         en: 'Euphonium',        de: 'Euphonium',       es: 'Bombardino',      it: 'Eufonio' },
+  { fr: 'Cor',               en: 'Horn',               de: 'Horn',            es: 'Trompa',           it: 'Corno',               nl: 'Hoorn',           ja: 'ホルン' },
+  { fr: 'Trompette',         en: 'Trumpet',            de: 'Trompete',        es: 'Trompeta',         it: 'Tromba',              nl: 'Trompet',         ja: 'トランペット' },
+  { fr: 'Cornet',            en: 'Cornet',             de: 'Kornett',         es: 'Corneta',          it: 'Cornetta',            nl: 'Kornet',          ja: 'コルネット' },
+  { fr: 'Bugle',             en: 'Flugelhorn',         de: 'Flügelhorn',      es: 'Fiscorno',         it: 'Flicorno',            nl: 'Bugel',           ja: 'フリューゲルホルン' },
+  { fr: 'Saxhorn',           en: 'Saxhorn',            de: 'Saxhorn',         es: 'Saxhorn',          it: 'Flicorno basso',      nl: 'Saxhoorn',        ja: 'サクソルン' },
+  { fr: 'Trombone',          en: 'Trombone',           de: 'Posaune',         es: 'Trombón',          it: 'Trombone',            nl: 'Trombone',        ja: 'トロンボーン' },
+  { fr: 'Trombone basse',    en: 'Bass trombone',      de: 'Bassposaune',     es: 'Trombón bajo',     it: 'Trombone basso',      nl: 'Bastrombone',     ja: 'バストロンボーン' },
+  { fr: 'Tuba',              en: 'Tuba',               de: 'Tuba',            es: 'Tuba',             it: 'Tuba',                nl: 'Tuba',            ja: 'チューバ' },
+  { fr: 'Euphonium',         en: 'Euphonium',          de: 'Euphonium',       es: 'Bombardino',       it: 'Eufonio',             nl: 'Eufonium',        ja: 'ユーフォニアム' },
 
   // Percussions
-  { fr: 'Timbales',          en: 'Timpani',          de: 'Pauken',          es: 'Timbales',        it: 'Timpani' },
-  { fr: 'Percussion',        en: 'Percussion',       de: 'Schlagwerk',      es: 'Percusión',       it: 'Percussioni' },
-  { fr: 'Batterie',          en: 'Drum kit',         de: 'Drumset',         es: 'Batería',         it: 'Batteria' },
-  { fr: 'Vibraphone',        en: 'Vibraphone',       de: 'Vibraphon',       es: 'Vibráfono',       it: 'Vibrafono' },
-  { fr: 'Marimba',           en: 'Marimba',          de: 'Marimba',         es: 'Marimba',         it: 'Marimba' },
-  { fr: 'Xylophone',         en: 'Xylophone',        de: 'Xylophon',        es: 'Xilófono',        it: 'Xilofono' },
-  { fr: 'Glockenspiel',      en: 'Glockenspiel',     de: 'Glockenspiel',    es: 'Carillón',        it: 'Campanelli' },
-  { fr: 'Cymbales',          en: 'Cymbals',          de: 'Becken',          es: 'Platillos',       it: 'Piatti' },
-  { fr: 'Caisse claire',     en: 'Snare drum',       de: 'Kleine Trommel',  es: 'Caja',            it: 'Tamburo militare' },
-  { fr: 'Grosse caisse',     en: 'Bass drum',        de: 'Große Trommel',   es: 'Bombo',           it: 'Gran cassa' },
-  { fr: 'Triangle',          en: 'Triangle',         de: 'Triangel',        es: 'Triángulo',       it: 'Triangolo' },
-  { fr: 'Tambourin',         en: 'Tambourine',       de: 'Tamburin',        es: 'Pandereta',       it: 'Tamburello' },
+  { fr: 'Timbales',          en: 'Timpani',            de: 'Pauken',          es: 'Timbales',         it: 'Timpani',             nl: 'Pauken',          ja: 'ティンパニ' },
+  { fr: 'Percussion',        en: 'Percussion',         de: 'Schlagwerk',      es: 'Percusión',        it: 'Percussioni',         nl: 'Slagwerk',        ja: '打楽器' },
+  { fr: 'Batterie',          en: 'Drum kit',           de: 'Drumset',         es: 'Batería',          it: 'Batteria',            nl: 'Drumstel',        ja: 'ドラムセット' },
+  { fr: 'Vibraphone',        en: 'Vibraphone',         de: 'Vibraphon',       es: 'Vibráfono',        it: 'Vibrafono',           nl: 'Vibrafoon',       ja: 'ヴィブラフォン' },
+  { fr: 'Marimba',           en: 'Marimba',            de: 'Marimba',         es: 'Marimba',          it: 'Marimba',             nl: 'Marimba',         ja: 'マリンバ' },
+  { fr: 'Xylophone',         en: 'Xylophone',          de: 'Xylophon',        es: 'Xilófono',         it: 'Xilofono',            nl: 'Xylofoon',        ja: 'シロフォン' },
+  { fr: 'Glockenspiel',      en: 'Glockenspiel',       de: 'Glockenspiel',    es: 'Carillón',         it: 'Campanelli',          nl: 'Klokkenspel',     ja: 'グロッケンシュピール' },
+  { fr: 'Cymbales',          en: 'Cymbals',            de: 'Becken',          es: 'Platillos',        it: 'Piatti',              nl: 'Bekkens',         ja: 'シンバル' },
+  { fr: 'Caisse claire',     en: 'Snare drum',         de: 'Kleine Trommel',  es: 'Caja',             it: 'Tamburo militare',    nl: 'Kleine trom',     ja: 'スネアドラム' },
+  { fr: 'Grosse caisse',     en: 'Bass drum',          de: 'Große Trommel',   es: 'Bombo',            it: 'Gran cassa',          nl: 'Grote trom',      ja: 'バスドラム' },
+  { fr: 'Triangle',          en: 'Triangle',           de: 'Triangel',        es: 'Triángulo',        it: 'Triangolo',           nl: 'Triangel',        ja: 'トライアングル' },
+  { fr: 'Tambourin',         en: 'Tambourine',         de: 'Tamburin',        es: 'Pandereta',        it: 'Tamburello',          nl: 'Tamboerijn',      ja: 'タンブリン' },
 
   // Claviers, harpe, guitares
-  { fr: 'Harpe',             en: 'Harp',             de: 'Harfe',           es: 'Arpa',            it: 'Arpa' },
-  { fr: 'Piano',             en: 'Piano',            de: 'Klavier',         es: 'Piano',           it: 'Pianoforte' },
-  { fr: 'Célesta',           en: 'Celesta',          de: 'Celesta',         es: 'Celesta',         it: 'Celesta' },
-  { fr: 'Clavier',           en: 'Keyboard',         de: 'Keyboard',        es: 'Teclado',         it: 'Tastiera' },
-  { fr: 'Orgue',             en: 'Organ',            de: 'Orgel',           es: 'Órgano',          it: 'Organo' },
-  { fr: 'Accordéon',         en: 'Accordion',        de: 'Akkordeon',       es: 'Acordeón',        it: 'Fisarmonica' },
-  { fr: 'Guitare',           en: 'Guitar',           de: 'Gitarre',         es: 'Guitarra',        it: 'Chitarra' },
-  { fr: 'Guitare basse',     en: 'Bass guitar',      de: 'E-Bass',          es: 'Bajo eléctrico',  it: 'Basso elettrico' },
+  { fr: 'Harpe',             en: 'Harp',               de: 'Harfe',           es: 'Arpa',             it: 'Arpa',                nl: 'Harp',            ja: 'ハープ' },
+  { fr: 'Piano',             en: 'Piano',              de: 'Klavier',         es: 'Piano',            it: 'Pianoforte',          nl: 'Piano',           ja: 'ピアノ' },
+  { fr: 'Célesta',           en: 'Celesta',            de: 'Celesta',         es: 'Celesta',          it: 'Celesta',             nl: 'Celesta',         ja: 'チェレスタ' },
+  { fr: 'Clavier',           en: 'Keyboard',           de: 'Keyboard',        es: 'Teclado',          it: 'Tastiera',            nl: 'Keyboard',        ja: 'キーボード' },
+  { fr: 'Orgue',             en: 'Organ',              de: 'Orgel',           es: 'Órgano',           it: 'Organo',              nl: 'Orgel',           ja: 'オルガン' },
+  { fr: 'Accordéon',         en: 'Accordion',          de: 'Akkordeon',       es: 'Acordeón',         it: 'Fisarmonica',         nl: 'Accordeon',       ja: 'アコーディオン' },
+  { fr: 'Guitare',           en: 'Guitar',             de: 'Gitarre',         es: 'Guitarra',         it: 'Chitarra',            nl: 'Gitaar',          ja: 'ギター' },
+  { fr: 'Guitare basse',     en: 'Bass guitar',        de: 'E-Bass',          es: 'Bajo eléctrico',   it: 'Basso elettrico',     nl: 'Basgitaar',       ja: 'ベースギター' },
 
   // Chant
-  { fr: 'Voix',              en: 'Voice',            de: 'Singstimme',      es: 'Voz',             it: 'Voce' },
-  { fr: 'Chœur',             en: 'Choir',            de: 'Chor',            es: 'Coro',            it: 'Coro' },
-  { fr: 'Soprano',           en: 'Soprano',          de: 'Sopran',          es: 'Soprano',         it: 'Soprano' },
-  { fr: 'Mezzo-soprano',     en: 'Mezzo-soprano',    de: 'Mezzosopran',     es: 'Mezzosoprano',    it: 'Mezzosoprano' },
-  { fr: 'Ténor',             en: 'Tenor',            de: 'Tenor',           es: 'Tenor',           it: 'Tenore' },
-  { fr: 'Baryton',           en: 'Baritone',         de: 'Bariton',         es: 'Barítono',        it: 'Baritono' },
+  { fr: 'Voix',              en: 'Voice',              de: 'Singstimme',      es: 'Voz',              it: 'Voce',                nl: 'Zangstem',        ja: '声' },
+  { fr: 'Chœur',             en: 'Choir',              de: 'Chor',            es: 'Coro',             it: 'Coro',                nl: 'Koor',            ja: '合唱' },
+  { fr: 'Soprano',           en: 'Soprano',            de: 'Sopran',          es: 'Soprano',          it: 'Soprano',             nl: 'Sopraan',         ja: 'ソプラノ' },
+  { fr: 'Mezzo-soprano',     en: 'Mezzo-soprano',      de: 'Mezzosopran',     es: 'Mezzosoprano',     it: 'Mezzosoprano',        nl: 'Mezzosopraan',    ja: 'メゾソプラノ' },
+  { fr: 'Ténor',             en: 'Tenor',              de: 'Tenor',           es: 'Tenor',            it: 'Tenore',              nl: 'Tenor',           ja: 'テノール' },
+  { fr: 'Baryton',           en: 'Baritone',           de: 'Bariton',         es: 'Barítono',         it: 'Baritono',            nl: 'Bariton',         ja: 'バリトン' },
 
   /* « Alto » est LE faux ami du métier : en français c'est le pupitre d'altos,
      partout ailleurs c'est une voix. Le pupitre des parties, lui, range déjà
      « alto » dans les Cordes (PARTITIONS_PUPITRES) — on gloserait donc de la
      même façon, et c'est précisément le mot qu'il fallait traduire. */
-  { fr: 'Alto',              en: 'Viola',            de: 'Bratsche',        es: 'Viola',           it: 'Viola' },
-  { fr: 'Violon',            en: 'Violin',           de: 'Violine',         es: 'Violín',          it: 'Violino' },
-  { fr: 'Violoncelle',       en: 'Cello',            de: 'Violoncello',     es: 'Violonchelo',     it: 'Violoncello', alias: ['cello'] },
-  { fr: 'Contrebasse',       en: 'Double bass',      de: 'Kontrabass',      es: 'Contrabajo',      it: 'Contrabbasso' },
+  { fr: 'Alto',              en: 'Viola',              de: 'Bratsche',        es: 'Viola',            it: 'Viola',               nl: 'Altviool',        ja: 'ヴィオラ' },
+  { fr: 'Violon',            en: 'Violin',             de: 'Violine',         es: 'Violín',           it: 'Violino',             nl: 'Viool',           ja: 'ヴァイオリン' },
+  { fr: 'Violoncelle',       en: 'Cello',              de: 'Violoncello',     es: 'Violonchelo',      it: 'Violoncello',         nl: 'Cello',           ja: 'チェロ', alias: ['cello'] },
+  { fr: 'Contrebasse',       en: 'Double bass',        de: 'Kontrabass',      es: 'Contrabajo',       it: 'Contrabbasso',        nl: 'Contrabas',       ja: 'コントラバス' },
 
   // Le reste : la basse au sens large, et le conducteur.
-  { fr: 'Basse',             en: 'Bass',             de: 'Bass',            es: 'Bajo',            it: 'Basso' },
-  { fr: 'Conducteur',        en: 'Full score',       de: 'Partitur',        es: 'Partitura',       it: 'Partitura' },
-  { fr: 'Partition',         en: 'Score',            de: 'Partitur',        es: 'Partitura',       it: 'Partitura' },
+  { fr: 'Basse',             en: 'Bass',               de: 'Bass',            es: 'Bajo',             it: 'Basso',               nl: 'Bas',             ja: 'ベース' },
+  { fr: 'Conducteur',        en: 'Full score',         de: 'Partitur',        es: 'Partitura',        it: 'Partitura',           nl: 'Partituur',       ja: '総譜' },
+  { fr: 'Partition',         en: 'Score',              de: 'Partitur',        es: 'Partitura',        it: 'Partitura',           nl: 'Partituur',       ja: '楽譜' },
 ];
 
 /* L'index de toutes les formes connues — française, étrangères, variantes —
@@ -386,7 +386,7 @@ const PARTITIONS_INSTRUMENTS = [
 const PARTITIONS_INSTRUMENTS_INDEX = (function () {
   const index = new Map();
   PARTITIONS_INSTRUMENTS.forEach(e => {
-    [e.fr, e.en, e.de, e.es, e.it].concat(e.alias || []).forEach(forme => {
+    [e.fr, e.en, e.de, e.es, e.it, e.nl, e.ja].concat(e.alias || []).forEach(forme => {
       const cle = partitionsNormaliser(forme);
       if (cle && !index.has(cle)) index.set(cle, e);
     });

@@ -26,7 +26,32 @@
   .entete{margin-bottom:16px;}
   .sous{color:var(--muted); font-size:13.5px; margin:4px 0 0; line-height:1.55;}
 
-  .langues{display:flex; gap:6px; justify-content:flex-end; margin-bottom:10px;}
+  /* LE JAPONAIS A BESOIN D'UNE POLICE, PAS D'UN REPLI GÉNÉRIQUE.
+     Les deux fontes de la maison — Ufficio, Host Grotesk — n'ont pas un seul
+     idéogramme : sur une page japonaise, le navigateur tombait sur le
+     « sans-serif » du système, c'est-à-dire n'importe quoi selon la machine,
+     avec des graisses synthétisées qui vont du gras baveux à l'illisible.
+     On garde les fontes de la maison EN TÊTE — elles portent les chiffres, les
+     unités et le nom des fichiers, qui restent en caractères latins — et on
+     nomme derrière elles les gothiques japonaises réellement installées sur
+     macOS, iOS, Windows et Android. L'interligne s'ouvre aussi : un texte
+     japonais à 1,55 se lit comme un bloc. */
+  :root[lang="ja"]{
+    --font-display:'Ufficio Display', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+                   'Yu Gothic Medium', 'Yu Gothic', Meiryo, 'Noto Sans JP', 'Noto Sans CJK JP',
+                   'IPAexGothic', 'IPAGothic', sans-serif;
+    --font-body:'Host Grotesk', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+                'Yu Gothic Medium', 'Yu Gothic', Meiryo, 'Noto Sans JP', 'Noto Sans CJK JP',
+                'IPAexGothic', 'IPAGothic', sans-serif;
+  }
+  :root[lang="ja"] .sous,
+  :root[lang="ja"] .pied,
+  :root[lang="ja"] .aide{line-height:1.85;}
+
+  /* Sept pastilles tiennent sur une ligne à 390 px, mais pas sur un vieil
+     iPhone SE à 320. Elles passent à la ligne plutôt que de pousser la page
+     en travers. */
+  .langues{display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap; margin-bottom:10px;}
   .langues button{
     border:1px solid var(--border); background:var(--card); color:var(--muted);
     border-radius:999px; padding:3px 12px; font-size:11.5px; font-weight:800;
@@ -160,6 +185,8 @@ const LANGUES = [
   { code: 'de', etiquette: 'DE', nom: 'Deutsch',  locale: 'de-DE' },
   { code: 'es', etiquette: 'ES', nom: 'Español',  locale: 'es-ES' },
   { code: 'it', etiquette: 'IT', nom: 'Italiano', locale: 'it-IT' },
+  { code: 'nl', etiquette: 'NL', nom: 'Nederlands', locale: 'nl-NL' },
+  { code: 'ja', etiquette: 'JA', nom: '日本語', locale: 'ja-JP' },
 ];
 
 /* Le poids se lit dans les conventions du lecteur : « 18,4 Mo » devant un
@@ -379,6 +406,88 @@ const TEXTES = {
     piedUsage: (avecDate)=> 'Questo materiale vi è affidato unicamente per il lavoro concordato. Non deve essere diffuso al di fuori del vostro ensemble né conservato '
       + (avecDate ? 'oltre la data indicata sopra.' : 'oltre il lavoro concordato.'),
     piedContact: 'Manca una parte, o una versione non corrisponde a quanto vi aspettate? Scrivete alla persona che vi ha inviato questo link — non cercate il materiale altrove.',
+  },
+  nl: {
+    titre: 'Toevertrouwd materiaal',
+    pourEnsemble: (e)=> `Materiaal toevertrouwd aan ${e}`,
+    sousTitre: 'De set partijen die wij u ter voorbereiding toesturen.',
+    lienInvalide: 'Deze link is niet geldig. Gebruik de link die wij u hebben gestuurd, of vraag ons hem opnieuw te sturen.',
+    pasActive: 'Deze pagina is op deze server nog niet actief. Laat het de productie weten — er staat nog een update open.',
+    revoque: 'Deze link is door de productie ingetrokken. Neem contact met ons op voordat u het materiaal elders zoekt.',
+    expire: (d)=> `Deze link is op ${d} verlopen. Laat het ons weten als u het materiaal nog nodig hebt, dan openen wij hem opnieuw.`,
+    pasOuvert: (d)=> `Het materiaal is beschikbaar vanaf ${d}.`,
+    codeTitre: 'Toegangscode',
+    codeAide: 'De code hebt u los van deze link ontvangen. U voert hem maar één keer in: hij blijft veertien dagen op dit apparaat bewaard.',
+    codeChamp: 'code',
+    ouvrir: 'Openen',
+    oublier: 'code wissen',
+    nomTitre: 'Naam van de musicus die dit exemplaar ontvangt',
+    nomAide: 'Deze set wordt op naam verdeeld: elk exemplaar draagt de naam van de musicus aan wie het wordt uitgereikt. Voer die in vóór het downloaden — de naam wordt op de partij gedrukt en in ons register vastgelegd.',
+    nomChamp: 'Voor- en achternaam van de musicus',
+    nomManque: 'Voer eerst de naam in van de musicus die dit exemplaar ontvangt.',
+    codeInvalide: 'Dit lijkt niet op een van onze codes: alleen letters en cijfers, zonder spaties. Gebruik de code die wij u hebben doorgegeven.',
+    nomInvalide: 'Deze naam bevat tekens die wij niet op de partij kunnen drukken. Letters, spaties, koppeltekens, apostroffen, punten en komma’s — tussen twee en zestig tekens.',
+    lot: 'Het materiaal',
+    partiesN: (n)=> `${n} partij${n > 1 ? 'en' : ''}`,
+    fichiersN: (n)=> `${n} bestand${n > 1 ? 'en' : ''}`,
+    toutPrendre: 'Alles downloaden (.zip)',
+    pasDArchive: 'Deze set wordt op naam verdeeld en wordt dus partij voor partij gedownload, elk op naam van de musicus die hem ontvangt. Eén archief zou over de hele set dezelfde naam dragen, en ons register zou verwijzen naar iemand die die partijen nooit heeft ontvangen.',
+    enCours: (a, b)=> `Voorbereiden ${a} / ${b}…`,
+    echecPartiel: (n)=> n > 1
+      ? `${n} bestanden konden niet worden voorbereid en ontbreken in het archief. Download ze afzonderlijk.`
+      : 'Eén bestand kon niet worden voorbereid en ontbreekt in het archief. Download het afzonderlijk.',
+    echecTotal: 'Het downloaden is mislukt. Controleer de code en probeer het opnieuw — of download de partijen afzonderlijk.',
+    archiveImpossible: 'Deze set is te groot om op dit apparaat tot één archief te worden samengevoegd. Download de partijen afzonderlijk — ze staan allemaal in de lijst hieronder.',
+    rien: 'Er is nog geen partij in deze set geplaatst. Wij laten het u weten zodra dat gebeurd is.',
+    expireLe: (d)=> `te downloaden vóór ${d}`,
+    pages: (n)=> `${n} pagina${n > 1 ? '’s' : ''}`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, ','),
+    piedFiligrane: 'Elk gedownload exemplaar draagt de naam van uw ensemble boven- en onderaan elke pagina, samen met een onzichtbaar merkteken waarmee de herkomst van een in omloop geraakt exemplaar kan worden vastgesteld. De muziek zelf wordt nooit afgedekt.',
+    piedUsage: (avecDate)=> 'Dit materiaal wordt u uitsluitend voor het overeengekomen werk toevertrouwd. Het mag niet buiten uw ensemble worden verspreid, noch worden bewaard '
+      + (avecDate ? 'na de hierboven vermelde datum.' : 'na het overeengekomen werk.'),
+    piedContact: 'Ontbreekt er een partij, of komt een versie niet overeen met wat u verwacht? Schrijf naar de persoon die u deze link heeft gestuurd — zoek het materiaal niet elders.',
+  },
+  /* Le japonais ne compte pas comme le français : pas de pluriel, un
+     classificateur après le nombre (16 パート), et la ponctuation propre à la
+     langue (、 。). Les tournures restent en です・ます調 — la politesse
+     ordinaire d'une correspondance entre maisons, ni familière ni obséquieuse. */
+  ja: {
+    titre: '貸与楽譜',
+    pourEnsemble: (e)=> `${e} への貸与楽譜`,
+    sousTitre: 'ご使用いただくパート譜一式をお送りします。',
+    lienInvalide: 'このリンクは無効です。お送りしたリンクをご利用いただくか、再送をご依頼ください。',
+    pasActive: 'このページはこのサーバーではまだ有効になっていません。適用されていない更新が残っています。制作部までご一報ください。',
+    revoque: 'このリンクは制作部により無効化されました。他の経路で資料をお探しになる前に、当方までご連絡ください。',
+    expire: (d)=> `このリンクは${d}に有効期限が切れました。まだ必要でしたらご連絡ください。改めて開設いたします。`,
+    pasOuvert: (d)=> `資料は${d}よりご利用いただけます。`,
+    codeTitre: 'アクセスコード',
+    codeAide: 'コードはこのリンクとは別にお伝えしています。入力は一度だけです。この端末に十四日間保存されます。',
+    codeChamp: 'コード',
+    ouvrir: '開く',
+    oublier: 'コードを消去',
+    nomTitre: 'この譜面を受け取る奏者のお名前',
+    nomAide: 'この一式は個人名を明記して配布します。各譜面には受け取る奏者の名前が入ります。ダウンロードの前にご入力ください。名前は譜面に印字され、当方の記録にも残ります。',
+    nomChamp: '奏者の姓名',
+    nomManque: 'まず、この譜面を受け取る奏者のお名前をご入力ください。',
+    codeInvalide: 'このコードは当方のものとは異なるようです。英数字のみで、空白は入りません。お伝えしたコードをご確認ください。',
+    nomInvalide: 'このお名前には譜面に印字できない文字が含まれています。文字、空白、ハイフン、アポストロフィ、ピリオド、カンマのみ、2文字から60文字までです。',
+    lot: '楽譜一式',
+    partiesN: (n)=> `${n} パート`,
+    fichiersN: (n)=> `${n} ファイル`,
+    toutPrendre: 'すべてダウンロード（.zip）',
+    pasDArchive: 'この一式は個人名を明記して配布するため、パートごとに、それぞれ受け取る奏者の名前でダウンロードします。一括のアーカイブでは全体に同じ名前が入り、当方の記録が、そのパートを受け取っていない方を指すことになります。',
+    enCours: (a, b)=> `準備中 ${a} / ${b}…`,
+    echecPartiel: (n)=> `${n}件のファイルを準備できず、アーカイブに含まれていません。個別にダウンロードしてください。`,
+    echecTotal: 'ダウンロードに失敗しました。コードをご確認のうえ改めてお試しいただくか、パートごとにダウンロードしてください。',
+    archiveImpossible: 'この一式は、この端末で一つのアーカイブにまとめるには大きすぎます。パートごとにダウンロードしてください。すべて下の一覧にあります。',
+    rien: 'この一式にはまだパートが登録されていません。準備ができ次第ご連絡いたします。',
+    expireLe: (d)=> `${d}までにダウンロード`,
+    pages: (n)=> `${n} ページ`,
+    poids: (o)=> poidsFormate(o, OCTETS_INTL, '.'),
+    piedFiligrane: 'ダウンロードされた譜面には、各ページの上部と下部に貴団体の名称が入ります。あわせて、流出した譜面の出所を特定できる不可視の印が付されます。音符が覆われることはありません。',
+    piedUsage: (avecDate)=> '本資料は、両者で取り決めた作業のためにのみお貸出しするものです。貴団体の外部への再配布、および'
+      + (avecDate ? '上記の日付を超えての保管はご遠慮ください。' : '取り決めた作業を超えての保管はご遠慮ください。'),
+    piedContact: 'パートが不足している、想定と異なる版である——そのような場合は、このリンクをお送りした担当者までご連絡ください。他の経路で資料をお探しにならないようお願いいたします。',
   },
 };
 
