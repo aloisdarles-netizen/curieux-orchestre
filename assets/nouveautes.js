@@ -33,6 +33,17 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-20-3',
+    titre: "« Mon ordre » mêle titulaires et remplaçant·es",
+    points: [
+      "Sur le Tableau de service, le tri « Mon ordre » ne séparait pas ce qu'il disait ranger : un·e remplaçant·e que personne n'avait inscrit·e sur sa liste tombait tout en bas du tableau, et le nom qu'on glissait vers les violons revenait à sa place au rendu suivant. Les deux listes n'en font plus qu'une : on place qui l'on veut, où l'on veut.",
+      "Un·e remplaçant·e en violon jamais déplacé·e apparaît désormais au milieu des violons, et non derrière tout le monde — à portée de main pour le glisser où il faut.",
+      "Dans « Titulaires + leurs remplaçant·es », une ligne indentée sous son ou sa titulaire peut maintenant se prendre elle aussi : la glisser la détache, elle devient une ligne de plein droit. Celles qu'on ne touche pas gardent leur flèche et suivent leur titulaire, comme avant.",
+      "L'ordre personnel n'avait aucun retour en arrière. Un lien « Tout remettre dans l'ordre de l'orchestre » apparaît à côté du tri dès qu'un nom a bougé : tout le monde repart dans l'ordre de l'orchestre et les remplaçant·es retournent sous leur titulaire. « Réinitialiser l'affichage » continue, lui, d'épargner cet ordre.",
+      "Rappel : cet ordre n'appartient qu'à toi — personne d'autre ne le voit — et il suit ton compte d'un appareil à l'autre. L'export PDF le respecte.",
+    ],
+  },
+  {
     version: '2026-09-20-2',
     titre: 'La reconnaissance des parties se départage autrement, et apprend l\'italien',
     points: [
@@ -50,7 +61,9 @@ const CURIEUX_NOUVEAUTES = [
       "Un spectacle qui porte un chœur ne se distribue pas comme un spectacle qui n'en porte pas : ses voix ne sont pas des parties d'orchestre, et le chœur est presque toujours un ensemble extérieur dont les choristes ne sont pas dans notre annuaire. La fiche du spectacle gagne un bloc « Le chœur », et la page un quatrième onglet.",
       "Un pupitre « Chœur » s'ajoute, DISTINCT de « Chant » qui désigne les solistes. La distinction n'est pas cosmétique : un lot de chœur « tout le chœur » ne porte QUE les voix — jamais le matériel d'orchestre, même par mégarde. La règle est en base, pas seulement dans l'écran.",
       "LA TONALITÉ se note enfin quelque part. Sur la voix quand tout le jeu est dans un ton, sur le numéro quand un seul descend d'un demi-ton. C'est la première chose qu'un chef de chœur demande, la seule que le matériel d'orchestre n'a jamais besoin de porter, et jusqu'ici elle se perdait entre la réunion où elle se décide et le mail où on la redemande. « reb M », « Eb major », « fa# mineur » se saisissent comme ils viennent et se relisent tous de la même façon.",
-      "Le chef ou la cheffe de chœur reçoit une page à lui, en français ou en anglais : ses voix rangées dans l'ordre des tessitures — soprano, alto, ténor, basse, et non l'ordre du conducteur, qui met les altos avec les cordes —, leurs tonalités en tête, et tout se prend d'un bloc en une archive ou voix par voix.",
+      "La page du chef de chœur parle les SEPT LANGUES de la maison — français, anglais, allemand, espagnol, italien, néerlandais, japonais —, comme celle du matériel confié. Les dates, les poids et les tonalités suivent les conventions de chacune : « Ré♭ Dur » en allemand, « Ré♭長調 » en japonais, sans espace.",
+      "Les noms de voix sont glosés à côté du nom d'origine, jamais à sa place : le fichier téléchargé garde son nom. Et le glossaire des VOIX est distinct de celui des instruments — sans quoi « Alto » devenait « Bratsche » devant un Chorleiter, c'est-à-dire une partie d'alto d'orchestre remise à vingt chanteuses. C'est « Alt », « Contralto », « アルト ».",
+      "Le chef ou la cheffe de chœur reçoit une page à lui : ses voix rangées dans l'ordre des tessitures — soprano, alto, ténor, basse, et non l'ordre du conducteur, qui met les altos avec les cordes —, leurs tonalités en tête, et tout se prend d'un bloc en une archive ou voix par voix.",
       "Rien n'est assoupli : le fichier propre ne sort jamais du stockage, chaque exemplaire est filigrané à la volée au nom du chœur et journalisé un par un. Lien, code communiqué séparément, date de fin, révocation immédiate — le dispositif est celui des transmissions, parce que c'est le bon.",
       "PLUSIEURS CHŒURS SUR UNE MÊME SÉRIE, parce que c'est la règle et non l'exception : un chœur amateur ne part pas en tournée, et on chante avec la maîtrise à Rennes, le chœur régional à Nantes, une chorale locale pour la dernière. Chaque chœur a son lot, son lien, son code, sa fenêtre — et ses DATES, cochées parmi celles de l'opération.",
       "L'onglet « Chœurs » se lit dès lors par journée : qui chante le 24 janvier, à quel endroit, et combien ils sont. Deux chœurs sur la même date s'y voient d'un coup d'œil, un lot sans date aussi — c'est presque toujours un oubli, et il ne se verrait nulle part ailleurs.",
