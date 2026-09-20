@@ -231,7 +231,20 @@
 //     chœur.
 // Les deux pages sont servies réseau d'abord ; c'est l'incrément, et lui seul,
 // qui leur donne les actifs qu'elles attendent.
-const VERSION = 'curieux-v136';
+// v137 : « Devis et budgets » et « Suivi des dépenses » passent sous
+// Production, et le droit d'accès descend de la section à l'entrée. Trois
+// actifs changent ensemble :
+//   — nav.js porte le nouveau rangement et le tri par droit ;
+//   — global-search.js lit ce tri au même endroit. Un navigateur qui garderait
+//     l'ancien appellerait estSectionAffichee, qui n'existe plus : la
+//     condition tomberait à faux et la recherche proposerait les écrans
+//     réservés à toute l'équipe — des noms d'écrans, pas des données, mais
+//     des portes qui répondraient « Accès réservé » ;
+//   — base.css resserre les pastilles du sous-menu de 17 à 14 px. Sans elle,
+//     Production — neuf écrans pour un compte admin — repasse sur deux lignes
+//     à 1440 px, soit 108 px de bandeau collant au lieu de 61 sur chaque
+//     écran de production. Elle pose aussi la butée de hauteur du déroulant.
+const VERSION = 'curieux-v137';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
