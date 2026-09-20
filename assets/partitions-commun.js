@@ -344,7 +344,7 @@ const PARTITIONS_INSTRUMENTS = [
   { fr: 'Caisse claire',     en: 'Snare drum',         de: 'Kleine Trommel',  es: 'Caja',             it: 'Tamburo militare',    nl: 'Kleine trom',     ja: 'スネアドラム' },
   { fr: 'Grosse caisse',     en: 'Bass drum',          de: 'Große Trommel',   es: 'Bombo',            it: 'Gran cassa',          nl: 'Grote trom',      ja: 'バスドラム' },
   { fr: 'Triangle',          en: 'Triangle',           de: 'Triangel',        es: 'Triángulo',        it: 'Triangolo',           nl: 'Triangel',        ja: 'トライアングル' },
-  { fr: 'Tambourin',         en: 'Tambourine',         de: 'Tamburin',        es: 'Pandereta',        it: 'Tamburello',          nl: 'Tamboerijn',      ja: 'タンブリン' },
+  { fr: 'Tambourin',         en: 'Tambourine',         de: 'Tamburin',        es: 'Pandereta',        it: 'Tamburello',          nl: 'Tamboerijn',      ja: 'タンバリン', alias: ['タンブリン'] },
 
   // Claviers, harpe, guitares
   { fr: 'Harpe',             en: 'Harp',               de: 'Harfe',           es: 'Arpa',             it: 'Arpa',                nl: 'Harp',            ja: 'ハープ' },
@@ -357,7 +357,7 @@ const PARTITIONS_INSTRUMENTS = [
   { fr: 'Guitare basse',     en: 'Bass guitar',        de: 'E-Bass',          es: 'Bajo eléctrico',   it: 'Basso elettrico',     nl: 'Basgitaar',       ja: 'ベースギター' },
 
   // Chant
-  { fr: 'Voix',              en: 'Voice',              de: 'Singstimme',      es: 'Voz',              it: 'Voce',                nl: 'Zangstem',        ja: '声' },
+  { fr: 'Voix',              en: 'Voice',              de: 'Singstimme',      es: 'Voz',              it: 'Voce',                nl: 'Zangstem',        ja: '声楽' },
   { fr: 'Chœur',             en: 'Choir',              de: 'Chor',            es: 'Coro',             it: 'Coro',                nl: 'Koor',            ja: '合唱' },
   { fr: 'Soprano',           en: 'Soprano',            de: 'Sopran',          es: 'Soprano',          it: 'Soprano',             nl: 'Sopraan',         ja: 'ソプラノ' },
   { fr: 'Mezzo-soprano',     en: 'Mezzo-soprano',      de: 'Mezzosopran',     es: 'Mezzosoprano',     it: 'Mezzosoprano',        nl: 'Mezzosopraan',    ja: 'メゾソプラノ' },
@@ -374,7 +374,7 @@ const PARTITIONS_INSTRUMENTS = [
   { fr: 'Contrebasse',       en: 'Double bass',        de: 'Kontrabass',      es: 'Contrabajo',       it: 'Contrabbasso',        nl: 'Contrabas',       ja: 'コントラバス' },
 
   // Le reste : la basse au sens large, et le conducteur.
-  { fr: 'Basse',             en: 'Bass',               de: 'Bass',            es: 'Bajo',             it: 'Basso',               nl: 'Bas',             ja: 'ベース' },
+  { fr: 'Basse',             en: 'Bass',               de: 'Bass',            es: 'Bajo',             it: 'Basso',               nl: 'Bas',             ja: 'バス', alias: ['ベース'] },
   { fr: 'Conducteur',        en: 'Full score',         de: 'Partitur',        es: 'Partitura',        it: 'Partitura',           nl: 'Partituur',       ja: '総譜' },
   { fr: 'Partition',         en: 'Score',              de: 'Partitur',        es: 'Partitura',        it: 'Partitura',           nl: 'Partituur',       ja: '楽譜' },
 ];
