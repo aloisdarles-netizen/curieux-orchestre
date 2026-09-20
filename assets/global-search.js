@@ -60,16 +60,20 @@
     const vus = new Set();
     const out = [];
     curieuxModele().forEach(sec => {
-      /* Une section réservée ne se cherche que si le bandeau l'affiche, donc
-         si le compte y a droit (voir ajouterEntreesReservees) : sans ce filtre,
-         taper « budget » proposerait à toute l'équipe quatre portes fermées.
-         Tant que la réponse d'isSuperAdmin n'est pas arrivée, elles restent
-         absentes — même prudence que le bandeau. */
-      if(typeof curieuxDroitSection === 'function' && curieuxDroitSection(sec)
-         && typeof estSectionAffichee === 'function' && !estSectionAffichee(sec)) return;
-      const entrees = (sec.entrees && sec.entrees.length)
-        ? sec.entrees
-        : [{ libelle: sec.libelle, href: sec.href }];
+      /* Une porte réservée ne se cherche que si le compte y a droit : sans ce
+         filtre, taper « budget » proposerait à toute l'équipe des écrans qui
+         répondraient « Accès réservé ». Le tri se fait au même endroit que
+         pour le bandeau — curieuxEntreesVisibles — donc sans risque que les
+         deux divergent. Tant que la base n'a pas répondu, ces portes restent
+         absentes : on ne propose pas ce dont on ne sait pas si ça s'ouvre. */
+      if(typeof curieuxAccesAccorde === 'function'
+         && !curieuxAccesAccorde(curieuxDroitSection(sec))) return;
+      const visibles = (typeof curieuxEntreesVisibles === 'function')
+        ? curieuxEntreesVisibles(sec, null)
+        : (sec.entrees || []);
+      const entrees = visibles.length
+        ? visibles
+        : (sec.entrees && sec.entrees.length ? [] : [{ libelle: sec.libelle, href: sec.href }]);
       entrees.forEach(e => {
         if(vus.has(e.href)) return;
         const hay = sansAccent([e.libelle, e.groupe, sec.libelle].filter(Boolean).join(' '));
