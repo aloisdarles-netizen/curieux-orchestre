@@ -17,13 +17,38 @@
 <link rel="stylesheet" href="assets/base.css">
 <style>
   /* ==========================================================================
-     LA CHARTE DE LA PAGE BUDGET, et pas une autre.
-     Une carte blanche par section, son titre en petites capitales, ses lignes
-     séparées d'un filet. Les classes reprennent celles de budget.html et
-     suivi.html pour que les trois pages bougent ensemble le jour où la charte
-     bouge.
+     LA CHARTE DE LA PAGE, ET CE QU'ELLE A CHANGÉ.
+
+     L'écran était une suite de lignes de texte : spectacles en lignes, parties
+     en lignes, affectations en lignes. Juste, mais illisible — on ne voyait
+     pas qu'il manquait les cuivres, on le lisait, une ligne après l'autre.
+
+     Trois décisions le rendent lisible d'un coup d'œil, et une seule idée les
+     tient : MONTRER LES TROUS, puisque c'est la seule chose qu'on vienne
+     vraiment y chercher.
+
+       1. UNE TEINTE PAR PUPITRE (base.css, --pup-*). Une liste de quarante
+          parties devient six blocs qu'on embrasse du regard.
+       2. UNE JAUGE SEGMENTÉE plutôt qu'un pourcentage : un segment par partie,
+          rouge si rien n'est déposé. « 75 % » ne dit pas lesquelles manquent.
+       3. UNE MATRICE pour la distribution, pas une liste de sélecteurs. Qui lit
+          quoi est une question à deux entrées ; on la lisait jusqu'ici dans un
+          seul sens, et l'autre — qui n'a rien à jouer — se découvrait à la
+          première répétition.
+
+     LES PIÈCES COMMUNES SONT DANS base.css ET partitions-commun.js : la
+     pastille de pupitre (.co-pup), la jauge segmentée (.co-seg), le gabarit de
+     matrice (.co-matrix). L'espace du musicien les emploie déjà — le musicien
+     qui a appris que sa partie est bleue doit la retrouver bleue quand la
+     production lui en parle. Ne sont posées ici que les mesures propres à cet
+     écran.
+
+     Les classes .bloc / .ligne / .chiffre restent celles de budget.html et
+     suivi.html : le jour où la charte bouge, les trois pages bougent ensemble.
      ========================================================================== */
-  .wrap{max-width:min(1180px, 97vw); margin:0 auto;}
+  /* 1240 et non 1180 : la matrice a besoin de cette largeur pour montrer une
+     colonne de plus avant de demander un défilement latéral. */
+  .wrap{max-width:min(1240px, 97vw); margin:0 auto;}
 
   .chiffres{display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:18px;}
   .chiffre{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px;}
@@ -34,6 +59,7 @@
   .chiffre span{font-size:12.5px; color:var(--muted); font-weight:600;}
   .chiffre small{display:block; font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.4;}
   .chiffre.alerte b{color:var(--ko);}
+  .chiffre .co-seg{margin-top:8px;}
 
   .bloc{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px;}
   .bloc + .bloc{margin-top:14px;}
@@ -41,7 +67,12 @@
     font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
     font-weight:800; margin:0 0 8px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
   }
-  .bloc h2 .h2-total{margin-left:auto; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:0;}
+  /* Le titre est en capitales, son appoint ne l'est pas : « 9,4 Mo » y devenait
+     « 9,4 MO », qui n'est pas l'unité. */
+  .bloc h2 .h2-total{
+    margin-left:auto; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:0;
+    text-transform:none; font-weight:700; display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  }
 
   .ligne{
     display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px; align-items:center;
@@ -52,6 +83,10 @@
   .l-titre{font-weight:700; font-size:13.5px; display:block;}
   .l-sous{display:block; font-size:12px; color:var(--muted); font-weight:400; margin-top:1px; line-height:1.4;}
   .l-num{text-align:right; font-variant-numeric:tabular-nums; font-size:13px; font-weight:800; white-space:nowrap; color:var(--muted);}
+  /* Une pastille de pupitre posée en dernière colonne d'une ligne : sans cela,
+     le repli mobile en fait une bande pleine largeur — un aplat de couleur qui
+     hurle ce qu'une pastille chuchote. */
+  .ligne > .co-pup{justify-self:start; align-self:center;}
 
   .vide{font-size:13px; color:var(--muted); padding:10px 0; line-height:1.6;}
 
@@ -61,6 +96,138 @@
   .jauge{height:6px; background:var(--border); border-radius:999px; overflow:hidden; margin-top:8px;}
   .jauge i{display:block; height:100%; background:var(--accent); border-radius:999px;}
   .jauge.alerte i{background:var(--ko);}
+
+  /* ---------------------------------------------------------------------
+     LA LISTE DES SPECTACLES : des cartes, pas des lignes.
+
+     Un spectacle porte cinq informations qu'on lit ensemble — son nom, ses
+     opérations, la complétude de son matériel, sa répartition par pupitre,
+     son poids. En ligne, elles se lisaient l'une après l'autre ; en carte,
+     d'un seul coup.
+     --------------------------------------------------------------------- */
+  .spec-grille{display:grid; grid-template-columns:repeat(auto-fill, minmax(268px, 1fr)); gap:12px;}
+  /* align-items et justify-content sont posés explicitement, et ce n'est pas
+     de la ceinture : sous 820 px, base.css met TOUS les <button> en
+     align-items:center pour la doctrine des 44 px. La carte étant un bouton,
+     sa jauge segmentée cessait de s'étirer et se recroquevillait à la largeur
+     minimale de ses segments — une barre de 86 px perdue au milieu d'une carte
+     de 316. */
+  .spec-carte{
+    position:relative; text-align:left; width:100%; font-family:inherit; cursor:pointer;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 15px 13px; display:flex; flex-direction:column; gap:9px;
+    align-items:stretch; justify-content:flex-start;
+    transition:border-color .15s, transform .15s, box-shadow .15s;
+  }
+  .spec-carte:hover{border-color:var(--accent); transform:translateY(-2px); box-shadow:var(--shadow-card);}
+  .spec-carte:focus-visible{outline:2px solid var(--text); outline-offset:2px;}
+  .spec-carte.archive{opacity:.62;}
+  .spec-tete{display:flex; gap:11px; align-items:flex-start;}
+  .spec-nom{font-weight:800; font-size:15px; line-height:1.25; color:var(--text); display:block;}
+  .spec-auteur{font-size:12px; color:var(--muted); line-height:1.4; margin-top:2px; display:block;}
+  .spec-pups{display:flex; gap:4px; flex-wrap:wrap;}
+  .spec-pied{
+    display:flex; gap:8px; align-items:center; justify-content:space-between;
+    font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums;
+    border-top:1px solid var(--border); padding-top:8px; margin-top:auto;
+  }
+
+  /* Les opérations d'un spectacle, en pastilles. Une programmation se lit d'un
+     coup d'œil dans la liste des spectacles : c'est elle qui dit à quoi sert ce
+     matériel, et son absence est une alerte, pas un détail. */
+  .opes{display:flex; flex-wrap:wrap; gap:5px;}
+  .ope{
+    display:inline-block; font-size:11px; font-weight:700; white-space:nowrap;
+    background:var(--bg); border:1px solid var(--border); border-radius:999px; padding:2px 9px;
+    max-width:100%; overflow:hidden; text-overflow:ellipsis;
+  }
+  .ope.vide{color:var(--ko); border-color:var(--ko); white-space:normal;}
+
+  /* ---------------------------------------------------------------------
+     LE MATÉRIEL : une tuile par partie, groupées par pupitre.
+     Une partie sans fichier est en rouge tireté — c'est le seul état qui
+     demande une action, c'est donc le seul qui crie.
+     --------------------------------------------------------------------- */
+  .pup-bandeau{
+    display:flex; align-items:center; gap:9px; margin:14px 0 8px; font-size:11px;
+    font-weight:800; text-transform:uppercase; letter-spacing:.06em;
+  }
+  .pup-bandeau:first-of-type{margin-top:4px;}
+  .pup-bandeau .trait{flex:1; height:2px; border-radius:2px;}
+  .pup-bandeau .compte{color:var(--muted); font-weight:700; letter-spacing:0; text-transform:none; font-size:11.5px;}
+
+  .part-grille{display:grid; grid-template-columns:repeat(auto-fill, minmax(228px, 1fr)); gap:9px;}
+  .part-tuile{
+    border:1px solid var(--border); border-left:4px solid var(--border); border-radius:10px;
+    padding:9px 11px; background:var(--bg); display:flex; flex-direction:column; gap:5px; min-width:0;
+  }
+  .part-tuile.sans-fichier{border-style:dashed; border-left-style:solid; border-color:var(--ko); background:var(--ko-tint);}
+  .part-nom{font-weight:800; font-size:13.5px; line-height:1.25; display:flex; gap:8px; align-items:baseline;}
+  /* Le retrait est une croix et non le mot « Retirer » : vingt-quatre boutons
+     libellés faisaient de la destruction l'élément le plus répété de l'écran,
+     alors qu'on vient y lire ce qui manque. La cible garde 24 px. */
+  .part-x{
+    margin-left:auto; border:none; background:none; cursor:pointer; color:var(--muted);
+    font-size:15px; line-height:1; padding:2px 5px; min-height:24px; min-width:24px; border-radius:6px;
+  }
+  .part-x:hover{color:var(--ko); background:var(--ko-tint);}
+  .part-meta{font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .part-fic{
+    display:flex; gap:7px; align-items:baseline; font-size:11.5px; color:var(--muted);
+    padding:3px 0; border-top:1px solid var(--border); min-width:0;
+  }
+  .part-fic .nom{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text);}
+  .part-manque{font-size:11.5px; font-weight:800; color:var(--ko);}
+
+  .sans-lecteur{color:var(--ko); font-weight:700;}
+
+  /* Les onglets d'opération dans l'atelier d'un spectacle : on distribue une
+     opération à la fois, et on voit sans chercher combien il y en a d'autres. */
+  .onglets{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+  /* En colonne, et posé ici plutôt que laissé au défaut : sous 820 px, base.css
+     met tout <button> en inline-flex/align-items:center pour la doctrine des
+     44 px, et la période de l'opération venait alors se coller À CÔTÉ de son
+     nom au lieu de se ranger dessous — deux phrases sur une ligne, dont on ne
+     savait plus laquelle était le titre. */
+  .onglet{
+    border:1px solid var(--border); background:var(--card); border-radius:999px;
+    padding:6px 14px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text);
+    font-family:inherit; line-height:1.3; text-align:left;
+    display:flex; flex-direction:column; align-items:flex-start; justify-content:center;
+  }
+  .onglet small{display:block; font-weight:500; font-size:11px; color:var(--muted);}
+  .onglet.actif{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .onglet.actif small{color:rgba(255,255,255,.82);}
+  .onglet.alerte{border-color:var(--ko);}
+
+  /* Le fil d'Ariane de l'atelier. Sans lui, on ne sait plus dans quel spectacle
+     on dépose — et on dépose dans le mauvais. */
+  .fil{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px;
+    font-size:12.5px; color:var(--muted);
+  }
+  .fil b{font-family:var(--font-display); font-size:22px; font-weight:500; color:var(--text); line-height:1.15;}
+
+  /* ---------------------------------------------------------------------
+     LE DÉPÔT
+     --------------------------------------------------------------------- */
+  .depot-zone{
+    border:2px dashed var(--border); border-radius:var(--radius); padding:22px 18px; text-align:center;
+    color:var(--muted); font-size:13px; line-height:1.6; cursor:pointer; transition:border-color .12s, background .12s;
+  }
+  .depot-zone:hover, .depot-zone.survol{border-color:var(--accent); background:var(--champagne);}
+  .depot-zone b{display:block; color:var(--text); font-size:15px; margin-bottom:4px;}
+  .depot-zone.compacte{padding:13px 16px; font-size:12.5px;}
+  .depot-zone.compacte b{font-size:13.5px; margin-bottom:2px;}
+
+  .dep-ligne{
+    display:grid; grid-template-columns:minmax(0,1fr) 210px auto; gap:10px; align-items:center;
+    padding:9px 0 9px 11px; border-bottom:1px solid var(--border); border-left:3px solid transparent;
+  }
+  .dep-ligne:last-child{border-bottom:none;}
+  .dep-ligne.aRegler{border-left-color:var(--ko); background:var(--ko-tint);}
+  .dep-ligne.exacte{border-left-color:var(--ok);}
+  .dep-ligne.probable{border-left-color:var(--maybe);}
 
   /* Les pastilles de sûreté d'appariement. Trois états, trois lectures : ce qui
      est sûr se survole, ce qui ne l'est pas se lit. */
@@ -72,23 +239,83 @@
   .sur.probable{background:var(--maybe-tint); color:var(--maybe);}
   .sur.incertaine, .sur.aucune{background:var(--ko-tint); color:var(--ko);}
 
-  .depot-zone{
-    border:2px dashed var(--border); border-radius:var(--radius); padding:26px 18px; text-align:center;
-    color:var(--muted); font-size:13.5px; line-height:1.6; cursor:pointer; transition:border-color .12s, background .12s;
-  }
-  .depot-zone:hover, .depot-zone.survol{border-color:var(--accent); background:var(--champagne);}
-  .depot-zone b{display:block; color:var(--text); font-size:15px; margin-bottom:4px;}
+  /* La progression du dépôt. Elle était portée par le LIBELLÉ du bouton, qui
+     changeait de largeur à chaque fichier et faisait sauter la ligne de titre ;
+     et un bouton qui se réécrit n'a plus l'air désactivé. */
+  .depot-barre{height:8px; background:var(--border); border-radius:999px; overflow:hidden; margin-top:10px;}
+  .depot-barre i{display:block; height:100%; background:var(--ok); border-radius:999px; transition:width .2s;}
 
-  .dep-ligne{
-    display:grid; grid-template-columns:minmax(0,1fr) 210px auto; gap:10px; align-items:center;
-    padding:9px 0; border-bottom:1px solid var(--border);
-  }
-  .dep-ligne:last-child{border-bottom:none;}
-  .dep-ligne.aRegler{background:var(--ko-tint); margin:0 -18px; padding:9px 18px;}
+  /* ---------------------------------------------------------------------
+     LA DISTRIBUTION : la matrice.
 
-  /* Les lecteurs d'une partie : des jetons qu'on retire d'un clic. C'est la
-     seule forme qui tienne quand une partie est lue par huit personnes et la
-     suivante par une seule. */
+     Le gabarit vient de base.css (.co-matrix), comme la vue d'ensemble et les
+     dispos — c'est le même geste, il doit se faire au même endroit de l'écran
+     et avec la même colonne collante. Ne sont posées ici que les mesures
+     propres aux partitions : une colonne de partie est plus large qu'une
+     colonne de date, parce qu'elle porte un nom et non un quantième.
+     --------------------------------------------------------------------- */
+  .co-matrix-name{width:238px;}
+  .co-matrix-date, .co-matrix-cell{width:88px; flex:1 0 88px;}
+  .mat-col{
+    padding:0 0 6px; text-align:center; border-right:1px solid var(--border);
+    display:flex; flex-direction:column; align-items:stretch; gap:4px; width:88px; flex:1 0 88px;
+  }
+  .mat-col .teinte{height:4px; border-radius:0 0 3px 3px;}
+  /* L'en-tête de colonne affecte d'un coup toutes les personnes cochées : la
+     cible garde donc 24 px de haut. À 15 px — la hauteur d'une ligne de texte
+     — on visait « Cor 1-2 » et on manquait, sur le geste le plus lourd de
+     l'écran. */
+  .mat-col button{
+    font-family:inherit; background:none; border:none; cursor:pointer; padding:4px; min-height:24px;
+    font-size:10.5px; font-weight:800; color:var(--text); line-height:1.25; text-align:center;
+    display:flex; align-items:center; justify-content:center;
+    width:100%; word-break:break-word; hyphens:auto;
+  }
+  .mat-col button:hover{color:var(--accent); text-decoration:underline;}
+  .mat-col button:focus-visible{outline:2px solid var(--text); outline-offset:1px;}
+  .mat-col .lecteurs-n{font-size:10px; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .mat-col.orpheline .lecteurs-n{color:var(--ko);}
+  .mat-col.orpheline button{color:var(--ko);}
+  /* Une partie sans aucun fichier déposé : on l'affecte, la personne voit une
+     ligne dans son espace et n'a rien à télécharger. Le soulignement tireté le
+     dit au moment précis où l'on est sur le point de se tromper. */
+  .mat-col.sans-fichier button{text-decoration:underline dashed var(--ko); text-underline-offset:3px;}
+
+  /* La bande colorée couvre toute la ligne ; c'est l'ÉTIQUETTE qui est collée à
+     gauche. Coller la bande entière n'aurait rien donné : large comme la ligne,
+     elle ne sort jamais du cadre, et son texte s'en allait quand même. */
+  .mat-pup{
+    display:flex; align-items:center; gap:8px; padding:5px 14px; font-size:10px; font-weight:800;
+    text-transform:uppercase; letter-spacing:.06em; width:100%;
+  }
+  .mat-pup .etiq{position:sticky; left:0;}
+  .mat-personne b{font-weight:800; font-size:13px; display:block; line-height:1.3;}
+  .mat-personne small{font-size:10.5px; color:var(--muted); display:block; line-height:1.4;}
+  /* Étroite, et volontairement : sur toute la largeur du nom, la jauge se
+     lisait comme un soulignement de texte. Courte, elle redevient une jauge. */
+  .mat-personne .co-seg{margin-top:5px; max-width:56px;}
+  .co-matrix-row.orphelin .co-matrix-name{box-shadow:inset 3px 0 0 var(--ko);}
+  .co-matrix-row.hors-effectif .mat-personne b{color:var(--ko);}
+
+  .m-case{
+    width:34px; height:30px; border-radius:7px; cursor:pointer; font-size:14px; font-weight:800;
+    font-family:var(--font-body); display:grid; place-items:center;
+    border:1px solid var(--border); background:var(--card); color:transparent;
+  }
+  .m-case:hover{border-color:var(--accent); color:var(--muted);}
+  .m-case.on{background:var(--ok); border-color:var(--ok); color:var(--sur-statut);}
+  .m-case.attente{background:var(--maybe-tint); border-color:var(--maybe); color:var(--maybe);}
+  .m-case:focus-visible{outline:2px solid var(--text); outline-offset:2px;}
+
+  .mat-legende{display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:10px;}
+  .mat-legende span{display:inline-flex; align-items:center; gap:6px;}
+  .mat-puce{width:15px; height:15px; border-radius:5px; border:1px solid var(--border); flex-shrink:0;}
+  .mat-puce.on{background:var(--ok); border-color:var(--ok);}
+  .mat-puce.attente{background:var(--maybe-tint); border-color:var(--maybe);}
+
+  /* Les lecteurs d'une partie, dans la vue en liste : des jetons qu'on retire
+     d'un clic. C'est la seule forme qui tienne quand une partie est lue par
+     huit personnes et la suivante par une seule. */
   .lecteurs{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
   .lecteur{
     display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
@@ -101,41 +328,38 @@
   .lecteur button:hover{color:var(--ko);}
   .lecteur.absent{border-color:var(--ko); color:var(--ko);}
 
-  .sans-lecteur{color:var(--ko); font-weight:700;}
+  /* Le code d'accès : c'est une chose qu'on lit à voix haute en répétition.
+     Il se lit donc en grand, et se copie d'un bouton. */
+  .code-boite{display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+  /* La police d'affichage n'a rien à faire ici : son « 3 » s'y lit comme un
+     « Ɛ », et ce code est fait pour être dicté en répétition et retapé sur un
+     téléphone. Chiffres à chasse fixe, et de l'air entre les caractères. */
+  .code-valeur{
+    font-family:var(--font-body); font-variant-numeric:tabular-nums;
+    font-size:26px; letter-spacing:.18em; font-weight:800;
+    color:var(--accent); background:var(--bg); border:1px solid var(--border); border-radius:10px;
+    padding:6px 16px; text-transform:uppercase; line-height:1.3;
+  }
+  .code-valeur.absent{font-size:15px; color:var(--muted); letter-spacing:0; font-weight:700;}
+  .code-saisie{display:flex; flex-direction:column; gap:4px;}
+  .code-saisie label{font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
+
+  /* ---------------------------------------------------------------------
+     LES RETRAITS : le journal, enfin visible.
+     La table existait et n'était affichée nulle part — on avait la preuve de
+     qui avait récupéré sa partie sans jamais pouvoir la lire.
+     --------------------------------------------------------------------- */
+  .ret-ligne{
+    display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px; align-items:center;
+    padding:8px 0; border-bottom:1px solid var(--border);
+  }
+  .ret-ligne:last-child{border-bottom:none;}
+  .ret-quand{font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .ret-jeton{font-size:10.5px; color:var(--muted); font-family:ui-monospace, monospace;}
 
   .barre{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px;}
   .barre select, .barre input{max-width:100%;}
-
-  /* Les opérations d'un spectacle, en pastilles. Une programmation se lit d'un
-     coup d'œil dans la liste des spectacles : c'est elle qui dit à quoi sert ce
-     matériel, et son absence est une alerte, pas un détail. */
-  .opes{display:flex; flex-wrap:wrap; gap:6px; margin-top:5px;}
-  .ope{
-    display:inline-block; font-size:11.5px; font-weight:700; white-space:nowrap;
-    background:var(--bg); border:1px solid var(--border); border-radius:999px; padding:2px 9px;
-  }
-  .ope.vide{color:var(--ko); border-color:var(--ko); padding:2px 9px;}
-
-  /* Les onglets d'opération dans l'atelier d'un spectacle : on distribue une
-     opération à la fois, et on voit sans chercher combien il y en a d'autres. */
-  .onglets{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
-  .onglet{
-    border:1px solid var(--border); background:var(--card); border-radius:999px;
-    padding:6px 14px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text);
-    font-family:inherit; line-height:1.3; text-align:left;
-  }
-  .onglet small{display:block; font-weight:500; font-size:11px; color:var(--muted);}
-  .onglet.actif{background:var(--accent); border-color:var(--accent); color:#fff;}
-  .onglet.actif small{color:rgba(255,255,255,.82);}
-  .onglet.alerte{border-color:var(--ko);}
-
-  /* Le fil d'Ariane de l'atelier. Sans lui, on ne sait plus dans quel spectacle
-     on dépose — et on dépose dans le mauvais. */
-  .fil{
-    display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:14px;
-    font-size:12.5px; color:var(--muted);
-  }
-  .fil b{font-family:var(--font-display); font-size:22px; font-weight:500; color:var(--text); line-height:1.15;}
+  .barre .pousse{margin-left:auto;}
 
   /* La fiche modale — création et modification d'un spectacle, d'une partie.
      On abandonne prompt() : il ne prend qu'un champ, il ne valide rien, et il
@@ -163,12 +387,46 @@
   .banniere-alerte p + p{margin-top:7px;}
   .banniere-alerte[hidden]{display:none;}
 
+  /* Entre 761 et 820 px, la matrice est encore une grille mais la doctrine des
+     44 px de base.css s'applique déjà à tout <button> : les cases gonfleraient
+     d'un tiers et le tableau perdrait la moitié de ses lignes visibles. C'est
+     l'exception que base.css se donne déjà pour .co-matrix-btn ; .m-case est
+     la même pièce, elle a droit à la même. Sous 761 px la matrice se replie en
+     liste, où les 44 px sont au contraire ce qu'il faut. */
+  @media (min-width:761px) and (max-width:820px){
+    .m-case{min-height:30px;}
+  }
+  @media (max-width:860px){
+    .co-matrix-name{width:180px;}
+  }
   @media (max-width:760px){
     .bloc{padding:13px 14px;}
-    .ligne{grid-template-columns:minmax(0,1fr) auto;}
+    /* Les lignes s'empilent, et le !important est ici légitime : plusieurs
+       d'entre elles portent leur gabarit en attribut de style, posé pour le
+       grand écran. Sans cela, la colonne de gauche du bloc « Code d'accès »
+       tombait à soixante pixels et sa phrase s'écrivait un mot par ligne. */
+    .ligne{grid-template-columns:minmax(0,1fr) !important; gap:8px;}
+    .l-num{text-align:left;}
+    .code-boite{width:100%;}
+    .code-valeur{font-size:23px; letter-spacing:.14em;}
     .dep-ligne{grid-template-columns:minmax(0,1fr); gap:6px;}
     .dep-ligne.aRegler{margin:0 -14px; padding:9px 14px;}
+    .part-grille{grid-template-columns:1fr;}
+    .spec-grille{grid-template-columns:1fr;}
+    .ret-ligne{grid-template-columns:minmax(0,1fr) auto;}
     input, select{font-size:16px !important;}
+    /* Sous 760 px la matrice ne tient plus : la page bascule d'office en liste
+       — voir blocDistribution(). Le bouton de bascule disparaît donc aussi,
+       pour ne pas proposer un affichage qu'on ne peut pas rendre. */
+    .bascule-matrice{display:none !important;}
+  }
+  /* 390 px — l'iPhone qu'on a dans la poche en régie. Le titre de bloc et son
+     appoint ne tiennent plus côte à côte : l'appoint passe dessous, aligné à
+     gauche, plutôt que de compresser les deux. */
+  @media (max-width:420px){
+    .bloc h2 .h2-total{margin-left:0; width:100%;}
+    .fil b{font-size:19px;}
+    .code-valeur{font-size:20px; letter-spacing:.1em; padding:6px 12px;}
   }
 </style>
 </head>
@@ -182,6 +440,7 @@
     <div class="co-actions">
       <button type="button" class="co-btn" data-vue="spectacles">Spectacles</button>
       <button type="button" class="co-btn" data-vue="operations">Par opération</button>
+      <button type="button" class="co-btn" data-vue="retraits">Retraits</button>
       <button type="button" class="co-btn" data-vue="transmissions">Transmissions</button>
     </div>
   </div>
@@ -264,24 +523,45 @@
 const PLAFOND_STOCKAGE = 1024 * 1024 * 1024;   // le plan Supabase gratuit
 
 let state = {
-  vue: 'spectacles',   // 'spectacles' | 'spectacle' | 'depot' | 'operations' | 'transmissions'
+  vue: 'spectacles',   // 'spectacles' | 'spectacle' | 'depot' | 'operations' | 'retraits' | 'transmissions'
   spectacles: [], programmations: [], parties: [], fichiers: [], affectations: [], acces: [], envois: [],
   tournees: [], musiciens: [], techniciens: [],
   spectacleId: '',
   tourneeId: '',      // l'opération en cours de distribution
   depot: [],          // les fichiers choisis, pas encore déposés
+  depotEnCours: 0,    // la progression du dépôt, en fichiers traités
+  /* La distribution se lit de deux façons : la matrice pour distribuer vite,
+     la liste pour relire une partie à la fois. La matrice est le défaut sur
+     grand écran ; sous 760 px, blocDistribution() force la liste — une grille
+     de vingt colonnes sur un téléphone n'est pas une lecture, c'est un
+     labyrinthe. */
+  affVue: 'matrice',
+  /* Ce que colore la matrice : l'affectation (qui doit lire quoi) ou le
+     retrait (qui a effectivement récupéré). Deux questions, deux moments de la
+     production — on ne les mélange pas dans une seule couleur. */
+  matriceMode: 'affectation',
+  /* Les personnes cochées dans la colonne de gauche de la matrice. Un Set et
+     non un tableau : on y teste l'appartenance à chaque case dessinée. */
+  selection: new Set(),
+  /* Le journal des retraits — partitions_telechargements. null tant qu'il n'a
+     pas été lu : il compte une ligne par exemplaire sorti, soit la table la
+     plus longue de la page, et l'écrasante majorité des ouvertures de cette
+     page ne le regarde jamais. Lu au premier écran qui en a besoin, une seule
+     fois ensuite. Voir chargerRetraits. */
+  retraits: null,
+  retraitsEnCours: false,
   // Les prises d'exemplaires par des ensembles tiers — et elles seules, pas
   // le journal entier : les remises nominatives en représentent l'écrasante
   // majorité et ne s'affichent nulle part ici. Lu au premier écran qui en a
   // besoin ET qui a quelque chose à en dire, une seule fois ensuite.
   // Voir chargerJournalTiers.
+  prisesTiers: null,          // { parEnvoi: { <envoiId>: {nb, derniere} }, total }
+  prisesTiersEnCours: false,
   // Le compte est-il « admin » ? La page entière est derrière requireAdminAuth
   // (toute l'équipe y entre) ; la SUPPRESSION d'un spectacle, elle, est
   // réservée aux comptes admin, comme le budget et les devis. Lu une fois au
   // chargement : le rôle ne change pas en cours de session.
   admin: false,
-  prisesTiers: null,          // { parEnvoi: { <envoiId>: {nb, derniere} }, total }
-  prisesTiersEnCours: false,
   chargement: true,
 };
 
@@ -404,6 +684,118 @@ function affectationsDeSpectacle(spectacleId, tourneeId){
 const accesDe = (tourneeId) =>
   state.acces.find(a => a.id === tourneeId) || { id: tourneeId, code: '', actif: true, ouvertLe: '' };
 
+/* Une partie porte-t-elle quelque chose ? C'est le test que la jauge segmentée
+   applique à chaque segment, et la seule question qui vaille sur un écran de
+   dépôt : une partie annoncée sans fichier est du matériel promis et absent. */
+const aUnFichier = (p) => fichiersDe(p.id).length > 0;
+
+/* L'effectif à AFFICHER pour une distribution : celui de l'opération, PLUS les
+   personnes affectées qui n'y jouent aucune date. Les seconds sont une
+   anomalie — un reste d'opération précédente, une date retirée depuis — et les
+   masquer les rendrait indétectables tout en leur laissant les partitions dans
+   leur espace.
+   Quand un spectacle est donné, on ne remonte que SES affectations : sur une
+   soirée à deux œuvres, les lecteurs de l'autre programme n'ont rien à faire
+   dans cette matrice-ci. Sans spectacle — l'écran des retraits —, c'est
+   l'opération entière qui est en question. */
+function effectifAffichable(tourneeId, spectacleId){
+  const base = effectifDe(tourneeId);
+  const connues = new Set(base.map(e => e.personType + '|' + e.personId));
+  const mus = parId(state.musiciens), tech = parId(state.techniciens);
+  const source = spectacleId ? affectationsDeSpectacle(spectacleId, tourneeId) : affectationsDe(tourneeId);
+  source.forEach(a => {
+    const cle = a.personType + '|' + a.personId;
+    if(connues.has(cle)) return;
+    connues.add(cle);
+    const p = (a.personType === 'musicien' ? mus : tech).get(a.personId);
+    base.push({
+      personType: a.personType, personId: a.personId, nbDates: 0,
+      nom: p ? ([p.prenom, p.nom].filter(Boolean).join(' ') || 'Sans nom') : 'Personne supprimée',
+      pupitre: p ? (p.pupitre || p.pole || '') : '', instrument: p ? (p.instrument || p.poste || '') : '',
+      horsEffectif: true,
+    });
+  });
+  return base.sort((a, b) => partitionsRangPupitre(a.pupitre) - partitionsRangPupitre(b.pupitre)
+                          || a.nom.localeCompare(b.nom, 'fr'));
+}
+
+/* ---------------------------------------------------------------------------
+   LE JOURNAL DES RETRAITS
+   ---------------------------------------------------------------------------
+   partitions_telechargements se remplit à chaque téléchargement depuis
+   /api/partition — une ligne par exemplaire sorti, avec le nom de qui l'a
+   pris. La table existait, le filigrane s'y appuyait, et aucun écran de
+   production ne la montrait : on avait la preuve sans jamais pouvoir la lire.
+   C'est pourtant la seule réponse à la question qu'on se pose la veille de la
+   première : qui n'a pas encore sa partie ?
+
+   LECTURE SEULE — c'est l'API qui écrit, et un journal ne se corrige pas.
+
+   Le journal fige les libellés au moment du téléchargement (voir
+   migrations.sql) : on n'y rejoint donc RIEN par nom, seulement par
+   identifiant. Une personne renommée depuis garde ses retraits ; c'est le
+   propre d'un journal.
+   --------------------------------------------------------------------------- */
+
+/* Lu à la demande, et une seule fois. C'est la table la plus longue de la page
+   — une ligne par exemplaire, par personne, par opération — et ouvrir un
+   spectacle pour y déposer trois PDF n'a aucune raison de la traîner. */
+function chargerRetraits(){
+  if(state.retraits !== null || state.retraitsEnCours) return;
+  state.retraitsEnCours = true;
+  CurieuxDB.fetchAll('partitions_telechargements')
+    .catch(()=> [])
+    .then(lignes => {
+      state.retraits = lignes || [];
+      state.retraitsEnCours = false;
+      rendreQuandLaSaisieEstFinie();
+    });
+}
+
+function retraitsDe(tourneeId){
+  return (state.retraits || []).filter(r => r.tourneeId === tourneeId);
+}
+
+/* Ce que chaque personne a déjà sorti, pour une opération : un ensemble d'ids
+   de fichiers. On raisonne en FICHIERS et pas en parties — une partie qui gagne
+   un « erratum » trois semaines avant le concert n'est pas récupérée tant que
+   le second fichier n'est pas sorti, et c'est précisément ce qu'on veut voir. */
+function retraitsParPersonne(tourneeId){
+  const m = new Map();
+  retraitsDe(tourneeId).forEach(r => {
+    const cle = r.personType + '|' + r.personId;
+    if(!m.has(cle)) m.set(cle, new Set());
+    m.get(cle).add(r.fichierId);
+  });
+  return m;
+}
+
+/* Les fichiers qu'une personne doit avoir, d'après ses affectations sur
+   l'opération — toutes parties confondues, y compris celles d'un autre
+   spectacle : la question « a-t-elle sa musique ? » ne se pose pas par
+   spectacle mais par opération. */
+function fichiersDus(tourneeId, personType, personId){
+  const ids = [];
+  affectationsDe(tourneeId)
+    .filter(a => a.personType === personType && a.personId === personId)
+    .forEach(a => fichiersDe(a.partieId).forEach(f => ids.push(f.id)));
+  return ids;
+}
+
+function quandCourt(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d)) return '';
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+       + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+/* Sous 760 px, la matrice se replie en liste. Le seuil est celui de base.css :
+   une grille de vingt colonnes sur un téléphone n'est pas une lecture. */
+function mediaPetitEcran(){
+  return typeof matchMedia === 'function' && matchMedia('(max-width:760px)').matches;
+}
+
 /* ---------------------------------------------------------------------------
    CHARGEMENT
    --------------------------------------------------------------------------- */
@@ -484,16 +876,29 @@ function poserBandeauMigration(programmationsAbsentes, envoisAbsents){
 
 function rendre(){
   const onglet = state.vue === 'operations' ? 'operations'
+               : state.vue === 'retraits' ? 'retraits'
                : state.vue === 'transmissions' ? 'transmissions' : 'spectacles';
   document.querySelectorAll('[data-vue]').forEach(b => b.classList.toggle('primary', b.dataset.vue === onglet));
   const el = document.getElementById('page');
   if(state.chargement){ el.innerHTML = '<div class="co-card co-pad vide">Chargement…</div>'; return; }
+  /* Le défilement de la matrice survit au redessin. Sans cela, cocher une case
+     au bout de la vingtième colonne ramenait la page au premier violon : on
+     perdait le fil à chaque clic, sur l'écran où l'on en fait le plus. */
+  const cadre = el.querySelector('.co-matrix');
+  const place = cadre ? { x: cadre.scrollLeft, y: cadre.scrollTop } : null;
+
   el.innerHTML = state.vue === 'operations' ? vueOperations()
                : state.vue === 'depot' ? vueDepot()
+               : state.vue === 'retraits' ? vueRetraits()
                : state.vue === 'transmissions' ? vueTransmissions()
                : state.vue === 'spectacle' ? vueSpectacle()
                : vueSpectacles();
   cablerVue();
+
+  if(place){
+    const neuf = el.querySelector('.co-matrix');
+    if(neuf){ neuf.scrollLeft = place.x; neuf.scrollTop = place.y; }
+  }
 }
 
 function optionsOperations(selectionne, exclure){
@@ -507,41 +912,97 @@ function optionsOperations(selectionne, exclure){
 
 /* --- VUE 1 : LA LISTE DES SPECTACLES -------------------------------------- */
 
+/* Les cinq teintes de la charte, qui tournent d'une carte à l'autre : deux
+   voisines ne portent jamais la même, et la grille se relit à l'emplacement.
+   Ce sont les couleurs de .co-stats-charte dans base.css ; elles sont reprises
+   ici en clair parce qu'une pastille les choisit au rang du spectacle, pas au
+   rang de l'élément dans sa grille. */
+const SPEC_TEINTES = [['#791649', '#FCF2F0'], ['#CEE1F4', '#791649'], ['#141617', '#FCF2F0'],
+                      ['#FEC9E0', '#791649'], ['#EC4B15', '#FCF2F0']];
+
+/* La carte d'un spectacle. Ce qu'on y lit sans cliquer : son nom, les
+   opérations sur lesquelles il se joue, la complétude de son matériel (la
+   jauge segmentée), sa composition par pupitre, son poids et son état. Six
+   informations dans un regard ; en ligne de tableau, elles demandaient six
+   lectures successives.
+
+   C'est un <button> : il ne contient donc que du contenu de phrase — des
+   <span>, jamais un <div>. partitionsJaugeHtml rend un <span> pour cette
+   raison. */
+function carteSpectacle(s, index){
+  const parties = partiesDe(s.id);
+  const ids = new Set(parties.map(p => p.id));
+  const nbFichiers = state.fichiers.filter(f => ids.has(f.partieId)).length;
+  const vides = parties.filter(p => !aUnFichier(p)).length;
+  const opes = operationsDe(s.id);
+
+  const groupes = partitionsGrouperParPupitre(parties);
+  const pastilles = groupes.map(g =>
+    partitionsPupitreHtml(g.pupitre, {
+      texte: g.pupitre + ' ' + g.parties.length,
+      titre: g.parties.map(p => p.nom).join(', '),
+    })).join('');
+
+  /* L'état en un mot, et il porte le seul verdict qui déclenche une action.
+     « vide » n'est pas une alerte : un spectacle qu'on vient de créer est vide
+     par construction. */
+  const etat = !parties.length ? '<span class="co-chip">vide</span>'
+             : vides ? `<span class="co-chip ko">${vides} sans fichier</span>`
+             : '<span class="co-chip ok">complet</span>';
+
+  /* Les opérations : c'est la règle de main, et elle se lit ici ou nulle part.
+     Le matériel appartient au spectacle, mais il ne se distribue qu'au titre
+     d'une opération — un spectacle qui n'en porte aucune est rangé et muet. */
+  const pastillesOpes = opes.length
+    ? opes.map(o => `<span class="ope"${o.supprimee ? ' style="border-color:var(--ko);color:var(--ko)"' : ''} title="${escapeAttr(o.nom + (o.periode ? ' · ' + o.periode : ''))}">${escapeHtml(o.nom)}</span>`).join('')
+    : '<span class="ope vide">Aucune opération — ce matériel ne se distribue pas</span>';
+
+  const [fond, encre] = SPEC_TEINTES[index % SPEC_TEINTES.length];
+
+  return `
+    <button type="button" class="spec-carte${s.archive ? ' archive' : ''}" data-ouvrir="${escapeAttr(s.id)}">
+      <span class="spec-tete">
+        <span class="co-badge co-badge-sm" aria-hidden="true"
+              style="--co-tilt:${index % 2 ? '4deg' : '-5deg'}; background:${fond}; color:${encre};">${escapeHtml(partitionsInitiales(s.nom))}</span>
+        <span style="min-width:0">
+          <span class="spec-nom">${escapeHtml(s.nom || 'Sans nom')}</span>
+          <span class="spec-auteur">${escapeHtml([s.compositeur, s.arrangeur && 'arr. ' + s.arrangeur].filter(Boolean).join(' · ')) || 'Aucun auteur renseigné'}${s.archive ? ' — archivé' : ''}</span>
+        </span>
+      </span>
+      ${parties.length ? partitionsJaugeHtml(parties, aUnFichier) : ''}
+      ${pastilles ? `<span class="spec-pups">${pastilles}</span>` : ''}
+      <span class="opes">${pastillesOpes}</span>
+      <span class="spec-pied">
+        <span>${parties.length} partie${parties.length > 1 ? 's' : ''} · ${nbFichiers} fichier${nbFichiers > 1 ? 's' : ''} · ${partitionsPoids(poidsSpectacle(s.id))}</span>
+        ${etat}
+      </span>
+    </button>`;
+}
+
 function vueSpectacles(){
   const total = poidsTotal();
   const part = Math.min(1, total / PLAFOND_STOCKAGE);
   const chaud = part > 0.8;
   const servies = new Set(state.affectations.map(a => a.personType + '|' + a.personId)).size;
   const orphelins = state.spectacles.filter(s => !s.archive && !programmationsDe(s.id).length);
+  // Les parties annoncées sans aucun fichier, tous spectacles confondus. C'est
+  // le chiffre qui manquait en tête : le poids rangé disait ce qu'on avait, et
+  // rien ne disait ce qu'on attendait encore.
+  const vides = state.parties.filter(p => !aUnFichier(p));
 
   const liste = state.spectacles.slice()
     .sort((a, b) => Number(a.archive) - Number(b.archive) || a.nom.localeCompare(b.nom, 'fr'));
-
-  const lignes = liste.map(s => {
-    const parties = partiesDe(s.id);
-    const ids = new Set(parties.map(p => p.id));
-    const nbFichiers = state.fichiers.filter(f => ids.has(f.partieId)).length;
-    const opes = operationsDe(s.id);
-    const pastilles = opes.length
-      ? opes.map(o => `<span class="ope"${o.supprimee ? ' style="border-color:var(--ko);color:var(--ko)"' : ''}>${escapeHtml(o.nom)}${o.periode ? ' · ' + escapeHtml(o.periode) : ''}</span>`).join('')
-      : '<span class="ope vide">Aucune opération — ce matériel ne se distribue pas</span>';
-    return `
-      <div class="ligne">
-        <span class="l-nom">
-          <span class="l-titre">${escapeHtml(s.nom || 'Sans nom')}${s.archive ? ' <em style="font-weight:400;color:var(--muted)">— archivé</em>' : ''}</span>
-          <span class="l-sous">${escapeHtml([s.compositeur, s.arrangeur && 'arr. ' + s.arrangeur].filter(Boolean).join(' · ')) || 'Aucun auteur renseigné'}</span>
-          <span class="opes">${pastilles}</span>
-        </span>
-        <span class="l-num">${parties.length} partie${parties.length > 1 ? 's' : ''}<br><em style="font-weight:400">${nbFichiers} fichier${nbFichiers > 1 ? 's' : ''} · ${partitionsPoids(poidsSpectacle(s.id))}</em></span>
-        <button type="button" class="co-btn sm primary" data-ouvrir="${escapeAttr(s.id)}">Ouvrir</button>
-      </div>`;
-  }).join('');
 
   return `
     <div class="chiffres">
       <div class="chiffre">
         <b>${state.spectacles.length}</b><span>spectacle${state.spectacles.length > 1 ? 's' : ''}</span>
         <small>${state.parties.length} partie${state.parties.length > 1 ? 's' : ''}, ${state.fichiers.length} fichier${state.fichiers.length > 1 ? 's' : ''}</small>
+      </div>
+      <div class="chiffre${vides.length ? ' alerte' : ''}">
+        <b>${vides.length}</b><span>partie${vides.length > 1 ? 's' : ''} sans fichier</span>
+        <small>${vides.length ? escapeHtml(vides.slice(0, 3).map(p => p.nom).join(', ')) + (vides.length > 3 ? '…' : '')
+                              : 'Tout le matériel annoncé est déposé'}</small>
       </div>
       <div class="chiffre${chaud ? ' alerte' : ''}">
         <b>${partitionsPoids(total)}</b><span>de matériel rangé</span>
@@ -556,7 +1017,9 @@ function vueSpectacles(){
     <section class="bloc">
       <h2>Spectacles <span class="h2-total"><button type="button" class="co-btn sm primary" id="btnNouveauSpectacle">Nouveau spectacle</button></span></h2>
       ${orphelins.length ? `<p class="vide sans-lecteur">${orphelins.length} spectacle${orphelins.length > 1 ? 's ne sont rattachés' : ' n\'est rattaché'} à aucune opération : ${escapeHtml(orphelins.slice(0, 4).map(s => s.nom).join(', '))}${orphelins.length > 4 ? '…' : ''}. Tant qu'ils n'en ont pas, personne ne peut recevoir leurs parties.</p>` : ''}
-      ${lignes || '<p class="vide">Aucun spectacle. Commence par en créer un : on lui donne son nom, l\'opération sur laquelle il se joue, et on y range ensuite ses parties et ses musiciens.</p>'}
+      ${liste.length
+        ? `<div class="spec-grille">${liste.map(carteSpectacle).join('')}</div>`
+        : '<p class="vide">Aucun spectacle. Commence par en créer un : on lui donne son nom, l\'opération sur laquelle il se joue, et on y range ensuite ses parties et ses musiciens.</p>'}
     </section>`;
 }
 
@@ -625,28 +1088,63 @@ function blocOperations(s){
     </section>`;
 }
 
-/* Bloc 2 — LE MATÉRIEL. Les parties du spectacle et leurs fichiers. */
+/* Bloc 2 — LE MATÉRIEL. Les parties du spectacle et leurs fichiers, groupés
+   par pupitre. Une partie est une TUILE et non une ligne : la tuile porte son
+   nom en tête, ses fichiers en dessous, et son manque en rouge tireté.
+   Quarante lignes identiques deviennent six blocs colorés dont un seul, en
+   général, demande quelque chose. */
 function blocMateriel(s){
   const parties = partiesDe(s.id);
-  const lignes = parties.map(p => {
-    const fs = fichiersDe(p.id);
-    const poids = fs.reduce((acc, f) => acc + (f.octets || 0), 0);
-    const detail = fs.length
-      ? fs.map(f => `<span class="l-sous">— ${escapeHtml(f.titre || f.nomOrigine)} · ${partitionsPoids(f.octets)}${f.pages ? ' · ' + f.pages + ' p.' : ''}
-           <button type="button" class="co-btn ghost sm" data-retirer-fichier="${escapeAttr(f.id)}" style="padding:1px 8px;min-height:0;font-size:11px">retirer</button></span>`).join('')
-      : '<span class="l-sous sans-lecteur">Aucun fichier — cette partie est annoncée mais rien n\'est déposé</span>';
-    return `
-      <div class="ligne">
-        <span class="l-nom">
-          <span class="l-titre">${escapeHtml(p.nom)}</span>
-          ${detail}
-        </span>
-        <span class="l-num">${escapeHtml(p.pupitre || '—')}${poids ? '<br><em style="font-weight:400">' + partitionsPoids(poids) + '</em>' : ''}</span>
-        <button type="button" class="co-btn ghost sm" data-retirer-partie="${escapeAttr(p.id)}">Retirer</button>
-      </div>`;
-  }).join('');
+  const groupes = partitionsGrouperParPupitre(parties);
+  const manquantes = parties.filter(p => !aUnFichier(p)).length;
 
-  const manquantes = parties.filter(p => !fichiersDe(p.id).length).length;
+  const sections = groupes.map(g => {
+    const teinte = partitionsPupitreVar(g.pupitre);
+    const encre = partitionsPupitreVar(g.pupitre, true);
+    const vides = g.parties.filter(p => !aUnFichier(p)).length;
+    const tuiles = g.parties.map(p => {
+      const fs = fichiersDe(p.id);
+      const poids = fs.reduce((acc, f) => acc + (f.octets || 0), 0);
+      /* Le titre d'un fichier n'est écrit que s'il apporte quelque chose. Une
+         partie qui ne porte qu'un fichier nommé comme elle donnait « Violon 1 /
+         Violon 1 · 391 Ko », où l'on relit deux fois la même chose avant de
+         trouver le poids. Même règle que côté musicien (mes-dates-vue.js). */
+      const nomUtile = (f) => fs.length > 1
+        || partitionsNormaliser(f.titre || '') !== partitionsNormaliser(p.nom);
+      /* UNE SEULE CROIX QUAND IL N'Y A QU'UN FICHIER. Deux croix identiques
+         l'une au-dessus de l'autre — l'une retirant la partie, l'autre son
+         unique fichier — n'ont pas de sens lisible : on vise l'une et on
+         déclenche l'autre. Avec un seul fichier, la croix de la partie suffit,
+         et son ruban d'annulation dit bien qu'elle emporte le fichier. La
+         croix par fichier ne revient que là où elle sert : à partir de deux. */
+      const corps = fs.length
+        ? fs.map(f => `<span class="part-fic">
+             ${nomUtile(f) ? `<span class="nom" title="${escapeAttr(f.nomOrigine || f.titre)}">${escapeHtml(f.titre || f.nomOrigine)}</span>` : '<span class="nom"></span>'}
+             <span>${partitionsPoids(f.octets)}${f.pages ? ' · ' + f.pages + ' p.' : ''}</span>
+             ${fs.length > 1 ? `<button type="button" class="part-x" data-retirer-fichier="${escapeAttr(f.id)}"
+                     title="Retirer ce fichier" aria-label="Retirer le fichier ${escapeAttr(f.titre || f.nomOrigine)}">×</button>` : ''}
+           </span>`).join('')
+        : '<span class="part-manque">Aucun fichier déposé</span>';
+      /* Une tuile vide porte le rouge sur ses quatre côtés : sa teinte de
+         pupitre n'est plus l'information du moment, son manque l'est. */
+      return `
+        <div class="part-tuile${fs.length ? '' : ' sans-fichier'}" style="border-left-color:${fs.length ? encre : 'var(--ko)'}">
+          <span class="part-nom">${escapeHtml(p.nom)}
+            <button type="button" class="part-x" data-retirer-partie="${escapeAttr(p.id)}"
+                    title="Retirer cette partie" aria-label="Retirer la partie ${escapeAttr(p.nom)}">×</button>
+          </span>
+          ${fs.length > 1 ? `<span class="part-meta">${fs.length} fichiers · ${partitionsPoids(poids)}</span>` : ''}
+          ${corps}
+        </div>`;
+    }).join('');
+    return `
+      <div class="pup-bandeau" style="color:${encre}">
+        ${escapeHtml(g.pupitre)}
+        <span class="trait" style="background:${teinte}"></span>
+        <span class="compte">${g.parties.length} partie${g.parties.length > 1 ? 's' : ''}${vides ? ' · ' + vides + ' sans fichier' : ''}</span>
+      </div>
+      <div class="part-grille">${tuiles}</div>`;
+  }).join('');
 
   return `
     <section class="bloc">
@@ -656,8 +1154,14 @@ function blocMateriel(s){
           <button type="button" class="co-btn sm" id="btnNouvellePartie">Ajouter une partie</button>
         </span>
       </h2>
-      ${manquantes ? `<p class="vide sans-lecteur">${manquantes} partie${manquantes > 1 ? 's sont annoncées' : ' est annoncée'} sans aucun fichier déposé.</p>` : ''}
-      ${lignes || '<p class="vide">Rien de rangé. Dépose les PDF : la page lit leur nom et propose la partie de chacun.</p>'}
+      ${parties.length ? partitionsJaugeHtml(parties, aUnFichier) : ''}
+      ${manquantes ? `<p class="vide sans-lecteur">${manquantes} partie${manquantes > 1 ? 's sont annoncées' : ' est annoncée'} sans aucun fichier déposé — ${manquantes > 1 ? 'elles sont' : 'elle est'} en rouge ci-dessous.</p>` : ''}
+      ${sections || '<p class="vide">Rien de rangé. Dépose les PDF : la page lit leur nom et propose la partie de chacun.</p>'}
+      <div class="depot-zone compacte" id="zoneDepotRapide" style="margin-top:14px">
+        <b>Glisse des PDF ici</b>
+        Ils rejoignent l'écran de dépôt, déjà appariés à leur partie.
+        <input type="file" id="inpFichiersRapide" accept="application/pdf,.pdf" multiple hidden>
+      </div>
     </section>`;
 }
 
@@ -688,10 +1192,12 @@ function blocDistribution(s){
       <p class="vide">Choisis l'opération à distribuer.</p></section>`;
   }
 
-  const effectif = effectifDe(state.tourneeId);
+  // Le journal n'est lu que si la matrice le demande — voir chargerRetraits.
+  if(state.matriceMode === 'retrait') chargerRetraits();
+
+  const effectif = effectifAffichable(state.tourneeId, s.id);
   const aff = affectationsDeSpectacle(s.id, state.tourneeId);
   const parties = partiesDe(s.id);
-  const mus = parId(state.musiciens), tech = parId(state.techniciens);
 
   // Les deux compteurs qui sauvent. Le second se lit à l'envers — il part de
   // l'effectif réel de l'opération, pas du matériel — et c'est celui qu'on
@@ -702,28 +1208,7 @@ function blocDistribution(s){
   const partiesLues = new Set(aff.map(a => a.partieId));
   const sansLecteur = parties.filter(p => !partiesLues.has(p.id));
   const servisSurOpe = new Set(affectationsDe(state.tourneeId).map(a => a.personType + '|' + a.personId));
-  const sansPartie = effectif.filter(p => !servisSurOpe.has(p.personType + '|' + p.personId));
-
-  const lignesParties = parties.map(p => {
-    const lecteurs = aff.filter(a => a.partieId === p.id).map(a => {
-      const personne = (a.personType === 'musicien' ? mus : tech).get(a.personId);
-      const nom = personne ? [personne.prenom, personne.nom].filter(Boolean).join(' ') : 'Personne supprimée';
-      const dansEffectif = effectif.some(e => e.personType === a.personType && e.personId === a.personId);
-      return `<span class="lecteur${dansEffectif ? '' : ' absent'}" title="${dansEffectif ? '' : 'Cette personne n\'est affectée à aucune date de l\'opération'}">${escapeHtml(nom)}<button type="button" data-desaffecter="${escapeAttr(a.id)}" aria-label="Retirer">×</button></span>`;
-    }).join('');
-    const libres = effectif.filter(e => !aff.some(a => a.partieId === p.id && a.personId === e.personId && a.personType === e.personType));
-    return `
-      <div class="ligne" style="grid-template-columns:minmax(0,1fr) 200px">
-        <span class="l-nom">
-          <span class="l-titre">${escapeHtml(p.nom)} <em style="font-weight:400;color:var(--muted);font-size:12px">${escapeHtml(p.pupitre || '')} · ${fichiersDe(p.id).length} fichier(s)</em></span>
-          ${lecteurs ? `<span class="lecteurs">${lecteurs}</span>` : '<span class="l-sous sans-lecteur">Personne ne lit cette partie</span>'}
-        </span>
-        <select class="co-select" data-affecter="${escapeAttr(p.id)}">
-          <option value="">+ ajouter…</option>
-          ${libres.map(e => `<option value="${escapeAttr(e.personType + '|' + e.personId)}">${escapeHtml(e.nom)} — ${escapeHtml(e.pupitre)}</option>`).join('')}
-        </select>
-      </div>`;
-  }).join('');
+  const sansPartie = effectif.filter(p => !p.horsEffectif && !servisSurOpe.has(p.personType + '|' + p.personId));
 
   // Reprendre l'affectation d'une AUTRE opération DE CE SPECTACLE : c'est le
   // seul report qui ait un sens, puisque les parties doivent exister des deux
@@ -731,9 +1216,22 @@ function blocDistribution(s){
   const autres = operationsDe(s.id)
     .filter(o => o.tourneeId !== state.tourneeId && affectationsDeSpectacle(s.id, o.tourneeId).length);
 
+  const enListe = state.affVue === 'liste' || mediaPetitEcran();
+  const corps = !parties.length
+    ? '<p class="vide">Ce spectacle n\'a aucune partie. Range d\'abord son matériel, juste au-dessus.</p>'
+    : !effectif.length
+      ? '<p class="vide">Personne n\'est affecté aux dates de cette opération. L\'effectif se lit dans les dates — commence par les renseigner.</p>'
+      : enListe ? listeAffectation(parties, effectif, aff)
+                : matriceAffectation(parties, effectif, aff, retraitsParPersonne(state.tourneeId));
+
   return `
     <section class="bloc">
-      <h2>Qui lit quoi</h2>
+      <h2>Qui lit quoi
+        <span class="h2-total bascule-matrice">
+          <button type="button" class="co-btn sm${state.affVue === 'matrice' ? ' primary' : ' ghost'}" data-aff-vue="matrice">Matrice</button>
+          <button type="button" class="co-btn sm${state.affVue === 'liste' ? ' primary' : ' ghost'}" data-aff-vue="liste">Liste</button>
+        </span>
+      </h2>
       <div class="onglets">${onglets}</div>
       <div class="chiffres" style="margin-bottom:12px">
         <div class="chiffre"><b>${effectif.length}</b><span>personnes sur l'opé</span>
@@ -749,44 +1247,229 @@ function blocDistribution(s){
           ${autres.map(o => `<option value="${escapeAttr(o.tourneeId)}">${escapeHtml(o.nom)} (${affectationsDeSpectacle(s.id, o.tourneeId).length})</option>`).join('')}
         </select>
       </div>` : ''}
-      ${lignesParties || '<p class="vide">Ce spectacle n\'a aucune partie. Range d\'abord son matériel, juste au-dessus.</p>'}
+      ${corps}
     </section>
 
     ${blocCode(state.tourneeId)}
 
     ${sansPartie.length ? `
     <section class="bloc">
-      <h2>Personnes sans aucune partie sur ${escapeHtml(nomOperation(state.tourneeId))}</h2>
+      <h2>Personnes sans aucune partie sur ${escapeHtml(nomOperation(state.tourneeId))} <span class="h2-total">${sansPartie.length}</span></h2>
       <p class="vide">Elles sont affectées à au moins une date de l'opération et n'ont rien à jouer, tous spectacles confondus. Soit il manque une partie, soit elles n'en ont pas besoin — la page ne tranche pas.</p>
       ${sansPartie.map(p => `<div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
         <span class="l-nom"><span class="l-titre">${escapeHtml(p.nom)}</span>
           <span class="l-sous">${escapeHtml([p.pupitre, p.instrument].filter(Boolean).join(' · '))} — ${p.nbDates} date${p.nbDates > 1 ? 's' : ''}</span></span>
-        <span class="l-num">—</span>
+        ${partitionsPupitreHtml(p.pupitre)}
       </div>`).join('')}
     </section>` : ''}`;
 }
 
+/* ---------------------------------------------------------------------------
+   LA MATRICE — personnes en lignes, parties en colonnes.
+
+   C'est le cœur du changement. « Qui lit quoi » est une question à deux
+   entrées : on la lisait par partie, jamais par personne, et l'oubli se
+   découvrait à la première répétition. La matrice les donne ensemble, avec
+   la colonne des noms collée à gauche et la ligne des parties collée en haut.
+
+   AUCUN APPARIEMENT AUTOMATIQUE, ici non plus. On ne devine pas qui joue
+   « Violon 1 » : musiciens.instrument est du texte libre et se trompe. Ce
+   qu'on accélère, c'est le GESTE — on coche les huit violons dans la colonne
+   des noms, on clique l'en-tête « Violon 1 », et les huit sont affectés d'un
+   coup. La décision reste humaine, la saisie ne l'est plus.
+   --------------------------------------------------------------------------- */
+function matriceAffectation(parties, effectif, aff, retraits){
+  const mode = state.matriceMode;
+  const cle = (a) => a.partieId + '|' + a.personType + '|' + a.personId;
+  const affParCle = new Map(aff.map(a => [cle(a), a]));
+  const selection = state.selection || new Set();
+
+  // L'en-tête : une colonne par partie, teintée de son pupitre, avec le nombre
+  // de lecteurs dessous. Une colonne à zéro passe en rouge — c'est une partie
+  // que personne n'a.
+  const colonnes = parties.map(p => {
+    const n = aff.filter(a => a.partieId === p.id).length;
+    const nbF = fichiersDe(p.id).length;
+    return `<div class="mat-col${n ? '' : ' orpheline'}${nbF ? '' : ' sans-fichier'}">
+      <span class="teinte" style="background:${partitionsPupitreVar(p.pupitre)}"></span>
+      <button type="button" data-col="${escapeAttr(p.id)}"
+              title="${escapeAttr(p.nom + ' — ' + (p.pupitre || 'pupitre inconnu') + ' · '
+                + (nbF ? nbF + ' fichier' + (nbF > 1 ? 's' : '') : 'aucun fichier déposé')
+                + '. Cliquer pour affecter les personnes cochées.')}">${escapeHtml(p.nom)}</button>
+      <span class="lecteurs-n">${n}</span>
+    </div>`;
+  }).join('');
+
+  // Les lignes, groupées par pupitre de personne. Le groupe est un bandeau
+  // dont l'étiquette est collée à gauche : en défilant vers la droite, on sait
+  // toujours dans quel pupitre on est.
+  const groupes = [];
+  effectif.forEach(e => {
+    const pup = partitionsPupitreNormalise(e.pupitre);
+    const dernier = groupes[groupes.length - 1];
+    if(dernier && dernier.pupitre === pup) dernier.gens.push(e);
+    else groupes.push({ pupitre: pup, gens: [e] });
+  });
+
+  const lignes = groupes.map(g => {
+    const teinte = partitionsPupitreVar(g.pupitre);
+    const encre = partitionsPupitreVar(g.pupitre, true);
+    const entete = `<div class="co-matrix-row">
+      <div class="mat-pup" style="background:${teinte}; color:${encre}"><span class="etiq">${escapeHtml(g.pupitre)} — ${g.gens.length}</span></div>
+    </div>`;
+    const corps = g.gens.map(e => {
+      const cleP = e.personType + '|' + e.personId;
+      const pris = retraits.get(cleP) || new Set();
+      const dus = mode === 'retrait' ? fichiersDus(state.tourneeId, e.personType, e.personId) : [];
+      const nPris = dus.filter(id => pris.has(id)).length;
+      const mesAff = aff.filter(a => a.personType === e.personType && a.personId === e.personId);
+      const cases = parties.map(p => {
+        const estAff = affParCle.has(p.id + '|' + cleP);
+        let classe = '', glyphe = '';
+        if(estAff){
+          if(mode === 'retrait'){
+            const fs = fichiersDe(p.id);
+            const tout = fs.length && fs.every(f => pris.has(f.id));
+            classe = tout ? ' on' : ' attente';
+            glyphe = tout ? '✓' : '↓';
+          } else { classe = ' on'; glyphe = '✓'; }
+        }
+        return `<div class="co-matrix-cell">
+          <button type="button" class="m-case${classe}" data-case="${escapeAttr(p.id + '§' + e.personType + '§' + e.personId)}"
+            aria-pressed="${estAff}"
+            title="${escapeAttr(e.nom + ' — ' + p.nom + (estAff ? ' : affecté' + (mode === 'retrait' && glyphe === '↓' ? ', pas encore récupéré' : '') : ' : non affecté'))}">${glyphe || '+'}</button>
+        </div>`;
+      }).join('');
+      return `<div class="co-matrix-row${mesAff.length ? '' : ' orphelin'}${e.horsEffectif ? ' hors-effectif' : ''}">
+        <div class="co-matrix-name mat-personne">
+          <label class="co-check" style="gap:7px;align-items:flex-start">
+            <input type="checkbox" data-sel="${escapeAttr(cleP)}"${selection.has(cleP) ? ' checked' : ''}
+                   aria-label="Sélectionner ${escapeAttr(e.nom)}">
+            <span style="min-width:0">
+              <b>${escapeHtml(e.nom)}</b>
+              <small>${e.horsEffectif ? 'aucune date sur cette opé' : e.nbDates + ' date' + (e.nbDates > 1 ? 's' : '')}${e.instrument ? ' · ' + escapeHtml(e.instrument) : ''}</small>
+              ${dus.length ? `<span class="co-seg fin" role="img" aria-label="${escapeAttr(nPris + ' fichier(s) récupéré(s) sur ' + dus.length)}" title="${escapeAttr(nPris + ' / ' + dus.length + ' fichier(s) récupéré(s)')}">
+                ${dus.map(id => `<i class="${pris.has(id) ? '' : 'vide'}"></i>`).join('')}</span>` : ''}
+            </span>
+          </label>
+        </div>
+        ${cases}
+      </div>`;
+    }).join('');
+    return entete + corps;
+  }).join('');
+
+  const nSel = selection.size;
+  const journalEnRoute = mode === 'retrait' && state.retraits === null;
+  return `
+    <div class="barre" style="margin-bottom:10px">
+      <button type="button" class="co-btn sm${mode === 'affectation' ? ' primary' : ' ghost'}" data-mat-mode="affectation">Affectation</button>
+      <button type="button" class="co-btn sm${mode === 'retrait' ? ' primary' : ' ghost'}" data-mat-mode="retrait">Retraits</button>
+      <span class="pousse" id="selInfo" style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)">
+        ${nSel ? `<b style="color:var(--text)">${nSel} sélectionné${nSel > 1 ? 'es' : 'e'}</b> — clique un en-tête de partie pour les y affecter
+          <button type="button" class="co-btn sm ghost" id="btnSelVider">Vider</button>`
+        : 'Coche des personnes, puis clique un en-tête de partie pour les affecter d\'un coup.'}
+      </span>
+    </div>
+    ${journalEnRoute ? '<p class="vide">Lecture du journal des retraits…</p>' : ''}
+    <div class="co-matrix">
+      <div class="co-matrix-in">
+        <div class="co-matrix-row co-matrix-head">
+          <div class="co-matrix-name">
+            <button type="button" class="co-btn sm ghost" id="btnSelTout" style="padding:3px 9px">
+              ${nSel && nSel === effectif.length ? 'Tout décocher' : 'Tout cocher'}</button>
+          </div>
+          ${colonnes}
+        </div>
+        ${lignes}
+      </div>
+    </div>
+    <div class="mat-legende">
+      <span><i class="mat-puce on"></i> ${mode === 'retrait' ? 'récupéré' : 'affecté'}</span>
+      ${mode === 'retrait' ? '<span><i class="mat-puce attente"></i> affecté, pas encore récupéré</span>' : ''}
+      <span><i class="mat-puce"></i> non affecté</span>
+      <span style="color:var(--ko)">Une ligne soulignée de rouge : personne sans aucune partie de ce spectacle. Une colonne en rouge : partie que personne ne lit.</span>
+    </div>`;
+}
+
+/* La lecture par partie : celle qu'on garde pour relire une partie à la fois,
+   et la seule qui tienne sur un téléphone. */
+function listeAffectation(parties, effectif, aff){
+  const mus = parId(state.musiciens), tech = parId(state.techniciens);
+  return partitionsGrouperParPupitre(parties).map(g => {
+    const encre = partitionsPupitreVar(g.pupitre, true);
+    const teinte = partitionsPupitreVar(g.pupitre);
+    const lignes = g.parties.map(p => {
+      const lecteurs = aff.filter(a => a.partieId === p.id).map(a => {
+        const personne = (a.personType === 'musicien' ? mus : tech).get(a.personId);
+        const nom = personne ? [personne.prenom, personne.nom].filter(Boolean).join(' ') : 'Personne supprimée';
+        const dansEffectif = effectif.some(e => e.personType === a.personType && e.personId === a.personId && !e.horsEffectif);
+        return `<span class="lecteur${dansEffectif ? '' : ' absent'}" title="${dansEffectif ? '' : 'Cette personne n\'est affectée à aucune date de l\'opération'}">${escapeHtml(nom)}<button type="button" data-desaffecter="${escapeAttr(a.id)}" aria-label="Retirer">×</button></span>`;
+      }).join('');
+      const libres = effectif.filter(e => !aff.some(a => a.partieId === p.id && a.personId === e.personId && a.personType === e.personType));
+      /* Une partie sans fichier à laquelle on affecte quelqu'un est un piège :
+         la personne verra une ligne dans son espace et n'aura rien à
+         télécharger. Elle se signale donc ici aussi, et pas seulement dans le
+         matériel — c'est ici qu'on est au moment de se tromper. */
+      const nbF = fichiersDe(p.id).length;
+      const mentionF = nbF
+        ? `<em style="font-weight:400;color:var(--muted);font-size:12px">${nbF} fichier${nbF > 1 ? 's' : ''}</em>`
+        : '<em style="font-weight:700;color:var(--ko);font-size:12px;font-style:normal">aucun fichier</em>';
+      return `
+        <div class="ligne" style="grid-template-columns:minmax(0,1fr) 200px">
+          <span class="l-nom">
+            <span class="l-titre">${escapeHtml(p.nom)} ${mentionF}</span>
+            ${lecteurs ? `<span class="lecteurs">${lecteurs}</span>` : '<span class="l-sous sans-lecteur">Personne ne lit cette partie</span>'}
+          </span>
+          <select class="co-select" data-affecter="${escapeAttr(p.id)}">
+            <option value="">+ ajouter…</option>
+            ${libres.map(e => `<option value="${escapeAttr(e.personType + '|' + e.personId)}">${escapeHtml(e.nom)} — ${escapeHtml(e.pupitre)}</option>`).join('')}
+          </select>
+        </div>`;
+    }).join('');
+    return `<div class="pup-bandeau" style="color:${encre}">${escapeHtml(g.pupitre)}
+      <span class="trait" style="background:${teinte}"></span></div>${lignes}`;
+  }).join('');
+}
+
 /* Le code d'accès d'une opération. Une opération, un code — quel que soit le
-   nombre de spectacles qu'elle porte : le musicien en saisit un, pas trois. */
+   nombre de spectacles qu'elle porte : le musicien en saisit un, pas trois.
+
+   IL SE LIT EN GRAND, ET EN POLICE DE TEXTE. Ce code est dicté à voix haute en
+   répétition puis retapé sur un téléphone : le « 3 » de la police d'affichage
+   s'y lit « Ɛ », et un caractère mal recopié donne un refus que personne ne
+   sait expliquer. Chasse fixe, de l'air entre les caractères, et un bouton qui
+   le copie — parce que la moitié du temps il part par message.
+   La saisie manuelle reste : un code déjà communiqué ne se retire pas d'une
+   équipe parce que l'écran a changé. */
 function blocCode(tourneeId){
   const acces = accesDe(tourneeId);
   return `
     <section class="bloc">
       <h2>Code d'accès — ${escapeHtml(nomOperation(tourneeId))}</h2>
-      <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto auto">
+      <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
         <span class="l-nom">
           <span class="l-titre">Le code que les musiciens saisissent une fois</span>
           <span class="l-sous">Leur lien personnel dit qui ils sont ; ce code dit qu'ils sont bien censés jouer ça maintenant. Un lien transféré ne donne rien sans lui. Communique-le en répétition ou par message groupé — pas dans le même message que le lien. Il vaut pour toute l'opération, tous spectacles confondus.</span>
         </span>
-        <input class="co-input" id="inpCode" style="width:130px;font-weight:800;letter-spacing:.08em;text-transform:uppercase" maxlength="32" value="${escapeAttr(acces.code)}" placeholder="aucun">
-        <button type="button" class="co-btn sm" id="btnNouveauCode">Tirer un code</button>
+        <span class="code-boite">
+          <span class="code-valeur${acces.code ? '' : ' absent'}">${acces.code ? escapeHtml(acces.code) : 'aucun code'}</span>
+          <span style="display:flex;flex-direction:column;gap:5px">
+            <button type="button" class="co-btn sm ghost" id="btnCopierCode"${acces.code ? '' : ' disabled'}>Copier</button>
+            <button type="button" class="co-btn sm ghost" id="btnNouveauCode">Tirer un code</button>
+          </span>
+          <span class="code-saisie">
+            <label for="inpCode">ou à la main</label>
+            <input class="co-input" id="inpCode" style="width:130px;font-weight:800;letter-spacing:.06em;text-transform:uppercase" maxlength="32" value="${escapeAttr(acces.code)}" placeholder="aucun">
+          </span>
+        </span>
       </div>
       <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
         <span class="l-nom">
           <span class="l-titre">Ouvrir le matériel à partir du</span>
           <span class="l-sous">Laisse vide pour qu'il soit disponible tout de suite. Le matériel d'une création se range des mois avant d'avoir à être lu.</span>
         </span>
-        <input class="co-input" type="date" id="inpOuvertLe" value="${escapeAttr(acces.ouvertLe || '')}">
+        <input class="co-input" type="date" id="inpOuvertLe" style="width:170px" value="${escapeAttr(acces.ouvertLe || '')}">
       </div>
     </section>`;
 }
@@ -863,43 +1546,46 @@ function blocSuppression(s){
 
 /* --- VUE 3 : LE DÉPÔT ------------------------------------------------------ */
 
+/* Ce qui n'a pas été reconnu est SÉPARÉ, et non plus seulement remonté en tête.
+   Deux blocs : ce qui demande une décision, et ce qui n'en demande pas. On ne
+   relit pas trente lignes, on règle les quatre qui posent question — et le
+   bloc vert se replie d'un clic quand il est long. */
 function vueDepot(){
   const spectacle = spectacleCourant();
   if(!spectacle) return '<div class="co-card co-pad vide">Choisis d\'abord un spectacle.</div>';
   const parties = partiesDe(spectacle.id);
 
-  /* Ce qui n'a pas été reconnu remonte en tête. C'est tout l'intérêt de l'écran :
-     on ne relit pas trente lignes, on règle les quatre qui posent question. */
-  const rang = { aucune: 0, incertaine: 1, probable: 2, exacte: 3 };
-  const liste = state.depot.slice().sort((a, b) => (rang[a.sûrete] - rang[b.sûrete]) || a.nomOrigine.localeCompare(b.nomOrigine, 'fr'));
-
-  const lignes = liste.map((d) => {
+  const ligneDepot = (d) => {
     const idx = state.depot.indexOf(d);
     const options = [
       `<option value="">— nouvelle partie « ${escapeHtml(d.propose)} » —</option>`,
       ...parties.map(p => `<option value="${escapeAttr(p.id)}"${d.partieId === p.id ? ' selected' : ''}>${escapeHtml(p.nom)}</option>`),
     ].join('');
-    const aRegler = d.sûrete === 'aucune' || d.sûrete === 'incertaine';
     const indice = d.candidats && d.candidats.length
       ? `Plusieurs parties possibles : ${escapeHtml(d.candidats.map(c => c.nom).join(', '))} — à trancher.`
       : d.sûrete === 'aucune' ? `Aucune partie ne correspond : une nouvelle sera créée, pupitre ${escapeHtml(partitionsPupitreDe(d.propose))}.`
       : '';
+    const aRegler = d.sûrete === 'aucune' || d.sûrete === 'incertaine';
+    // La bordure gauche dit la sûreté avant qu'on ait lu la pastille : vert ce
+    // qui est sûr, ambre ce qui est probable, rouge ce qui demande une décision.
     return `
-      <div class="dep-ligne${aRegler ? ' aRegler' : ''}">
+      <div class="dep-ligne ${aRegler ? 'aRegler' : escapeAttr(d.sûrete)}">
         <span class="l-nom">
           <span class="l-titre">${escapeHtml(d.nomOrigine)}</span>
           <span class="l-sous">${partitionsPoids(d.octets)} ${indice ? '· ' + indice : ''}</span>
         </span>
         <select class="co-select" data-depot-partie="${idx}">${options}</select>
         <span style="display:flex;gap:8px;align-items:center">
-          <span class="sur ${d.sûrete}">${d.sûrete}</span>
-          <button type="button" class="co-btn ghost sm" data-depot-retirer="${idx}" style="padding:2px 9px;min-height:0">×</button>
+          <span class="sur ${escapeAttr(d.sûrete)}">${escapeHtml(d.sûrete)}</span>
+          <button type="button" class="co-btn ghost sm" data-depot-retirer="${idx}" style="padding:2px 9px;min-height:0" aria-label="Retirer ${escapeAttr(d.nomOrigine)} du dépôt">×</button>
         </span>
       </div>`;
-  }).join('');
+  };
 
-  const poids = state.depot.reduce((s, d) => s + d.octets, 0);
-  const aRegler = state.depot.filter(d => d.sûrete === 'aucune' || d.sûrete === 'incertaine').length;
+  const aRegler = state.depot.filter(d => d.sûrete === 'aucune' || d.sûrete === 'incertaine');
+  const prets = state.depot.filter(d => !(d.sûrete === 'aucune' || d.sûrete === 'incertaine'));
+  const poids = state.depot.reduce((acc, d) => acc + d.octets, 0);
+  const enCours = state.depotEnCours > 0;
 
   return `
     <section class="bloc">
@@ -916,11 +1602,21 @@ function vueDepot(){
     <section class="bloc">
       <h2>${state.depot.length} fichier${state.depot.length > 1 ? 's' : ''} à déposer
         <span class="h2-total">${partitionsPoids(poids)}
-          <button type="button" class="co-btn sm primary" id="btnConfirmerDepot" style="margin-left:10px">Déposer</button>
+          <button type="button" class="co-btn sm primary" id="btnConfirmerDepot"${enCours ? ' disabled' : ''}>Déposer</button>
         </span>
       </h2>
-      ${aRegler ? `<p class="vide sans-lecteur">${aRegler} fichier${aRegler > 1 ? 's demandent' : ' demande'} une décision — ${aRegler > 1 ? 'ils sont' : 'il est'} en tête de liste.</p>` : '<p class="vide">Tout est reconnu. Vérifie d\'un coup d\'œil et dépose.</p>'}
-      ${lignes}
+      ${enCours ? `<div class="depot-barre"><i style="width:${(state.depotEnCours / state.depot.length * 100).toFixed(0)}%"></i></div>
+        <p class="vide">Dépôt ${state.depotEnCours} / ${state.depot.length}…</p>` : ''}
+      ${aRegler.length ? `
+        <p class="vide sans-lecteur">${aRegler.length} fichier${aRegler.length > 1 ? 's demandent' : ' demande'} une décision.</p>
+        ${aRegler.map(ligneDepot).join('')}` : ''}
+      ${prets.length ? `
+        <details${aRegler.length ? '' : ' open'} style="margin-top:${aRegler.length ? '12px' : '0'}">
+          <summary style="cursor:pointer;font-size:12px;font-weight:800;color:var(--ok);padding:6px 0">
+            ${prets.length} fichier${prets.length > 1 ? 's' : ''} reconnu${prets.length > 1 ? 's' : ''} — vérifier d'un coup d'œil
+          </summary>
+          ${prets.map(ligneDepot).join('')}
+        </details>` : ''}
     </section>` : ''}`;
 }
 
@@ -958,14 +1654,22 @@ function vueOperations(){
       sansFichier ? `${sansFichier} partie(s) sans fichier` : '',
       sansLecteur ? `${sansLecteur} partie(s) sans lecteur` : '',
     ].filter(Boolean);
+    // La jauge et les pastilles de pupitre plutôt qu'une ligne de plus : cet
+    // écran se lit la veille d'une première, et un trou doit s'y voir sans
+    // qu'on ouvre le spectacle.
+    const pastilles = partitionsGrouperParPupitre(parties).map(g =>
+      partitionsPupitreHtml(g.pupitre, { texte: g.pupitre + ' ' + g.parties.length,
+                                         titre: g.parties.map(x => x.nom).join(', ') })).join('');
     return `
       <div class="ligne">
         <span class="l-nom">
           <span class="l-titre">${escapeHtml(s.nom || 'Sans nom')}</span>
           <span class="l-sous${alertes.length ? ' sans-lecteur' : ''}">${escapeHtml(alertes.length ? alertes.join(' · ') : 'Tout est rangé et distribué')}</span>
+          ${parties.length ? `<span style="display:block;margin-top:6px;max-width:320px">${partitionsJaugeHtml(parties, aUnFichier, { fin: true })}</span>` : ''}
+          ${pastilles ? `<span class="spec-pups" style="margin-top:6px">${pastilles}</span>` : ''}
         </span>
         <span class="l-num">${affS.length} affectation${affS.length > 1 ? 's' : ''}<br><em style="font-weight:400">${parties.length} partie${parties.length > 1 ? 's' : ''}</em></span>
-        <button type="button" class="co-btn sm" data-ouvrir="${escapeAttr(s.id)}">Ouvrir</button>
+        <button type="button" class="co-btn ghost sm" data-ouvrir="${escapeAttr(s.id)}">Ouvrir</button>
       </div>`;
   }).join('');
 
@@ -1007,12 +1711,116 @@ function vueOperations(){
       ${sansPartie.map(p => `<div class="ligne" style="grid-template-columns:minmax(0,1fr) auto">
         <span class="l-nom"><span class="l-titre">${escapeHtml(p.nom)}</span>
           <span class="l-sous">${escapeHtml([p.pupitre, p.instrument].filter(Boolean).join(' · '))} — ${p.nbDates} date${p.nbDates > 1 ? 's' : ''}</span></span>
-        <span class="l-num">—</span>
+        ${partitionsPupitreHtml(p.pupitre)}
       </div>`).join('')}
     </section>` : ''}`;
 }
 
-/* --- VUE 4 : LES TRANSMISSIONS À UN TIERS ----------------------------------
+/* --- VUE 5 : LES RETRAITS --------------------------------------------------
+   Le journal existait en base et n'apparaissait sur aucun écran de production.
+   Il répond à la seule question qu'on se pose la veille d'une première : qui
+   n'a pas encore sa musique ? On commence donc par ceux-là, et le journal
+   détaillé vient après — c'est une preuve, pas un tableau de bord.
+
+   LECTURE SEULE. C'est /api/partition qui écrit, au moment où il pose le jeton
+   invisible sur le PDF ; rien ne se corrige ici, et c'est ce qui en fait une
+   preuve.
+   --------------------------------------------------------------------------- */
+
+function vueRetraits(){
+  chargerRetraits();
+
+  const selecteur = `
+    <div class="barre">
+      <select class="co-select" id="selOperationRet" style="min-width:280px">
+        <option value="">— choisir une opération —</option>
+        ${optionsOperations(state.tourneeId)}
+      </select>
+    </div>`;
+  if(!state.tourneeId || !operationDe(state.tourneeId)){
+    return selecteur + `<div class="co-card co-pad vide">
+      Choisis une opération pour voir qui a récupéré sa musique — et qui reste à relancer.</div>`;
+  }
+  if(state.retraits === null){
+    return selecteur + '<div class="co-card co-pad vide">Lecture du journal des retraits…</div>';
+  }
+
+  const effectif = effectifAffichable(state.tourneeId);
+  const retraits = retraitsParPersonne(state.tourneeId);
+  const journal = retraitsDe(state.tourneeId).slice()
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+  const etats = effectif.map(e => {
+    const dus = fichiersDus(state.tourneeId, e.personType, e.personId);
+    const pris = retraits.get(e.personType + '|' + e.personId) || new Set();
+    return Object.assign({}, e, { dus: dus.length, pris: dus.filter(id => pris.has(id)).length });
+  }).filter(e => e.dus > 0);
+
+  const rien = etats.filter(e => e.pris === 0);
+  const partiel = etats.filter(e => e.pris > 0 && e.pris < e.dus);
+  const complet = etats.filter(e => e.pris === e.dus);
+
+  const ligneEtat = (e) => `
+    <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto auto">
+      <span class="l-nom">
+        <span class="l-titre">${escapeHtml(e.nom)}</span>
+        <span class="l-sous">${escapeHtml([e.pupitre, e.instrument].filter(Boolean).join(' · ')) || 'Pupitre non renseigné'}</span>
+      </span>
+      <span class="l-num">${e.pris} / ${e.dus}</span>
+      ${partitionsPupitreHtml(e.pupitre)}
+    </div>`;
+
+  return `
+    ${selecteur}
+    <div class="chiffres">
+      <div class="chiffre"><b>${complet.length}</b><span>ont tout récupéré</span>
+        <small>sur ${etats.length} personne${etats.length > 1 ? 's' : ''} à qui du matériel est affecté</small></div>
+      <div class="chiffre${partiel.length ? ' alerte' : ''}"><b>${partiel.length}</b><span>retrait partiel</span>
+        <small>il leur manque au moins un fichier — souvent un ajout tardif</small></div>
+      <div class="chiffre${rien.length ? ' alerte' : ''}"><b>${rien.length}</b><span>n'ont rien récupéré</span>
+        <small>${rien.length ? 'À relancer avant la première répétition' : 'Personne ne manque à l\'appel'}</small></div>
+      <div class="chiffre"><b>${journal.length}</b><span>exemplaires sortis</span>
+        <small>${journal.length ? 'Dernier : ' + escapeHtml(quandCourt(journal[0].createdAt)) : 'Aucun téléchargement à ce jour'}</small></div>
+    </div>
+
+    ${rien.length || partiel.length ? `
+    <section class="bloc">
+      <h2>À relancer <span class="h2-total">${rien.length + partiel.length}
+        <button type="button" class="co-btn sm ghost" id="btnCopierRelance">Copier les noms</button></span></h2>
+      <p class="vide">Le lien personnel de chacun est déjà valide : il n'y a rien à renvoyer, seulement à rappeler le code de l'opération et l'existence du bloc « Mes partitions » dans leur espace.</p>
+      ${rien.map(ligneEtat).join('')}
+      ${partiel.map(ligneEtat).join('')}
+    </section>` : `
+    <section class="bloc">
+      <h2>À relancer</h2>
+      <p class="vide">${etats.length ? 'Tout le monde a récupéré l\'intégralité de sa musique.' : 'Aucun matériel n\'est encore affecté sur cette opération.'}</p>
+    </section>`}
+
+    ${complet.length ? `
+    <section class="bloc">
+      <h2>Ont tout récupéré <span class="h2-total">${complet.length}</span></h2>
+      ${complet.map(ligneEtat).join('')}
+    </section>` : ''}
+
+    <section class="bloc">
+      <h2>Journal des retraits <span class="h2-total">${journal.length} ligne${journal.length > 1 ? 's' : ''}</span></h2>
+      <p class="vide">Chaque exemplaire téléchargé porte un jeton invisible, rappelé ici. Une partition qui ressort ailleurs se rattache donc à la ligne qui l'a produite. Les libellés sont figés au moment du retrait : un renommage ultérieur ne les réécrit pas, c'est ce qui fait d'un journal une preuve.</p>
+      ${journal.length
+        ? journal.slice(0, 200).map(r => `
+          <div class="ret-ligne">
+            <span class="l-nom">
+              <span class="l-titre">${escapeHtml(r.personne || 'Personne inconnue')}</span>
+              <span class="l-sous">${escapeHtml(r.partie)}${r.spectacle ? ' · ' + escapeHtml(r.spectacle) : ''} — ${partitionsPoids(r.octets)}</span>
+            </span>
+            <span class="ret-jeton" title="Jeton de filigrane">${escapeHtml(r.jetonFiligrane || '')}</span>
+            <span class="ret-quand">${escapeHtml(quandCourt(r.createdAt))}</span>
+          </div>`).join('')
+          + (journal.length > 200 ? `<p class="vide">Les 200 derniers retraits sont affichés ; ${journal.length - 200} plus anciens ne le sont pas.</p>` : '')
+        : '<p class="vide">Aucun téléchargement pour cette opération.</p>'}
+    </section>`;
+}
+
+/* --- VUE 6 : LES TRANSMISSIONS À UN TIERS ----------------------------------
    Un orchestre étranger reprend le programme et doit travailler dessus. Ses
    cinquante musiciens ne sont pas les nôtres : ils n'ont ni fiche dans
    l'annuaire, ni lien personnel, et leur en créer cinquante pour une
@@ -1210,7 +2018,10 @@ function formulaireEnvoiEntame(){
 }
 
 function rendreQuandLaSaisieEstFinie(){
-  if(state.vue !== 'transmissions' && state.vue !== 'spectacle') return;
+  /* Tous les écrans sauf le dépôt. Celui-là se refuse en toutes circonstances :
+     un rendu tombé au milieu d'un envoi de trente PDF rendrait le bouton
+     « Déposer » cliquable, et un second clic relancerait tout. */
+  if(state.vue === 'depot') return;
   const enSaisie = ()=>{
     const a = document.activeElement;
     return !!a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName);
@@ -1225,7 +2036,7 @@ function rendreQuandLaSaisieEstFinie(){
   document.addEventListener('focusout', function suite(){
     setTimeout(()=>{
       if(enSaisie()){ document.addEventListener('focusout', suite, { once: true }); return; }
-      if(state.vue === 'transmissions' || state.vue === 'spectacle') rendre();
+      if(state.vue !== 'depot') rendre();
     }, 0);
   }, { once: true });
 }
@@ -1361,10 +2172,16 @@ function blocTransmissions(s){
     </div>
     <div class="ligne" id="envListeParties" style="display:none;grid-template-columns:minmax(0,1fr)">
       <span class="l-nom">
-        <span class="lecteurs">
-          ${parties.map(p => `<label class="lecteur" style="padding:3px 10px"><input type="checkbox" data-env-partie="${escapeAttr(p.id)}" style="margin-right:6px"> ${escapeHtml(p.nom)}</label>`).join('')
-            || '<span class="l-sous">Ce spectacle n\'a aucune partie.</span>'}
-        </span>
+        ${parties.length
+          ? partitionsGrouperParPupitre(parties).map(g => `
+            <span style="display:block;margin-top:8px">
+              ${partitionsPupitreHtml(g.pupitre, { texte: g.pupitre + ' ' + g.parties.length })}
+              <span class="lecteurs">
+                ${g.parties.map(p => `<label class="lecteur" style="padding:3px 10px${fichiersDe(p.id).length ? '' : ';border-color:var(--ko);color:var(--ko)'}"
+                    ${fichiersDe(p.id).length ? '' : 'title="Aucun fichier déposé : le lot la porterait vide."'}><input type="checkbox" data-env-partie="${escapeAttr(p.id)}" style="margin-right:6px"> ${escapeHtml(p.nom)}</label>`).join('')}
+              </span>
+            </span>`).join('')
+          : '<span class="l-sous">Ce spectacle n\'a aucune partie.</span>'}
       </span>
     </div>
     <div class="ligne" style="grid-template-columns:minmax(0,1fr) auto auto">
@@ -1477,7 +2294,7 @@ function cablerVue(){
   el.querySelectorAll('[data-ouvrir]').forEach(b => b.onclick = ()=> ouvrirSpectacle(b.dataset.ouvrir, state.tourneeId));
   if(q('btnRetourListe')) q('btnRetourListe').onclick = ()=>{ state.vue = 'spectacles'; state.depot = []; rendre(); };
   if(q('btnRetourSpectacle')) q('btnRetourSpectacle').onclick = ()=>{ state.vue = 'spectacle'; state.depot = []; rendre(); };
-  if(q('selOperation')) q('selOperation').onchange = (e)=>{ state.tourneeId = e.target.value; rendre(); };
+  if(q('selOperation')) q('selOperation').onchange = (e)=>{ state.tourneeId = e.target.value; state.selection = new Set(); rendre(); };
 
   // --- spectacle ---
   if(q('btnNouveauSpectacle')) q('btnNouveauSpectacle').onclick = ()=> ficheSpectacle(null);
@@ -1503,17 +2320,14 @@ function cablerVue(){
     const cible = document.querySelector('.onglets');
     if(cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
-  el.querySelectorAll('[data-onglet]').forEach(b => b.onclick = ()=>{ state.tourneeId = b.dataset.onglet; rendre(); });
+  el.querySelectorAll('[data-onglet]').forEach(b => b.onclick = ()=>{ state.tourneeId = b.dataset.onglet; state.selection = new Set(); rendre(); });
 
   // --- dépôt ---
-  const zone = q('zoneDepot'), inp = q('inpFichiers');
-  if(zone && inp){
-    zone.onclick = ()=> inp.click();
-    inp.onchange = ()=>{ ajouterAuDepot(Array.from(inp.files || [])); inp.value = ''; };
-    ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, (e)=>{ e.preventDefault(); zone.classList.add('survol'); }));
-    ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, (e)=>{ e.preventDefault(); zone.classList.remove('survol'); }));
-    zone.addEventListener('drop', (e)=> ajouterAuDepot(Array.from((e.dataTransfer || {}).files || [])));
-  }
+  // Deux zones, le même geste : celle de l'écran de dépôt, et celle posée au
+  // bas du matériel. La seconde bascule vers l'écran de dépôt en emportant les
+  // fichiers — on n'a pas à ouvrir un écran avant de glisser.
+  cablerZoneDepot(q('zoneDepot'), q('inpFichiers'), false);
+  cablerZoneDepot(q('zoneDepotRapide'), q('inpFichiersRapide'), true);
   el.querySelectorAll('[data-depot-partie]').forEach(s => s.onchange = ()=>{
     const d = state.depot[Number(s.dataset.depotPartie)];
     if(!d) return;
@@ -1535,10 +2349,59 @@ function cablerVue(){
     affecter(s.dataset.affecter, personType, personId);
   });
   el.querySelectorAll('[data-desaffecter]').forEach(b => b.onclick = ()=> desaffecter(b.dataset.desaffecter));
-  if(q('inpCode')) q('inpCode').onchange = (e)=> majAcces(state.tourneeId, { code: e.target.value.trim().toUpperCase() });
+
+  el.querySelectorAll('[data-aff-vue]').forEach(b => b.onclick = ()=>{ state.affVue = b.dataset.affVue; rendre(); });
+  el.querySelectorAll('[data-mat-mode]').forEach(b => b.onclick = ()=>{ state.matriceMode = b.dataset.matMode; rendre(); });
+
+  // Une case de la matrice : bascule d'une affectation. Le séparateur est « § »
+  // et non « | » : les identifiants de partie sont libres, et un « | » dans un
+  // id casserait la découpe en silence.
+  el.querySelectorAll('[data-case]').forEach(b => b.onclick = ()=>{
+    const [partieId, personType, personId] = b.dataset.case.split('§');
+    const existante = state.affectations.find(a => a.tourneeId === state.tourneeId
+      && a.partieId === partieId && a.personType === personType && a.personId === personId);
+    if(existante) desaffecter(existante.id);
+    else affecter(partieId, personType, personId);
+  });
+
+  // L'en-tête d'une colonne : affecter d'un coup les personnes cochées.
+  el.querySelectorAll('[data-col]').forEach(b => b.onclick = ()=> affecterSelection(b.dataset.col));
+
+  // La sélection ne redessine PAS la matrice : cocher huit noms ne doit pas
+  // faire sauter le défilement sept fois. Seul le compteur est réécrit.
+  el.querySelectorAll('[data-sel]').forEach(c => c.onchange = ()=>{
+    if(!state.selection) state.selection = new Set();
+    if(c.checked) state.selection.add(c.dataset.sel); else state.selection.delete(c.dataset.sel);
+    majCompteurSelection();
+  });
+  if(q('btnSelTout')) q('btnSelTout').onclick = ()=>{
+    const cases = Array.from(el.querySelectorAll('[data-sel]'));
+    const toutCoche = cases.length && cases.every(c => c.checked);
+    cases.forEach(c => { c.checked = !toutCoche; });
+    state.selection = toutCoche ? new Set() : new Set(cases.map(c => c.dataset.sel));
+    majCompteurSelection();
+  };
+  if(q('btnSelVider')) q('btnSelVider').onclick = viderSelection;
+
+  if(q('btnCopierCode')) q('btnCopierCode').onclick = ()=> copierTexte(accesDe(state.tourneeId).code, 'Code copié. À envoyer séparément du lien.');
+  if(q('inpCode')) q('inpCode').onchange = (e)=>{
+    const code = e.target.value.trim().toUpperCase();
+    /* La même règle que côté musicien (mes-dates-vue.js) : ce qui ne passerait
+       pas son champ ne doit pas pouvoir être posé ici, sinon on distribue un
+       code que personne ne peut saisir. */
+    if(code && !/^[A-Z0-9-]{1,32}$/.test(code)){
+      alert('Un code ne contient que des lettres, des chiffres et des tirets, et ne dépasse pas 32 caractères.');
+      rendre(); return;
+    }
+    majAcces(state.tourneeId, { code });
+  };
   if(q('btnNouveauCode')) q('btnNouveauCode').onclick = ()=> majAcces(state.tourneeId, { code: partitionsNouveauCode() });
   if(q('inpOuvertLe')) q('inpOuvertLe').onchange = (e)=> majAcces(state.tourneeId, { ouvertLe: e.target.value });
   if(q('selReprendre')) q('selReprendre').onchange = (e)=>{ if(e.target.value) reprendreAffectation(e.target.value); };
+
+  // --- retraits ---
+  if(q('selOperationRet')) q('selOperationRet').onchange = (e)=>{ state.tourneeId = e.target.value; rendre(); };
+  if(q('btnCopierRelance')) q('btnCopierRelance').onclick = copierRelance;
 
   // --- transmissions ---
   // La liste des parties se montre et se cache SANS rendre() : un rendu
@@ -1580,11 +2443,115 @@ function cablerVue(){
   el.querySelectorAll('[data-retirer-envoi]').forEach(b => b.onclick = ()=> retirerEnvoi(b.dataset.retirerEnvoi));
 }
 
+/* Le compteur de sélection, réécrit sans reconstruire la matrice. Il porte la
+   seule phrase qui explique le geste — la laisser périmée reviendrait à
+   proposer une action qui ne correspond plus à l'état de l'écran. */
+function majCompteurSelection(){
+  const zone = document.getElementById('selInfo');
+  const btn = document.getElementById('btnSelTout');
+  const n = (state.selection || new Set()).size;
+  if(btn){
+    const total = document.querySelectorAll('[data-sel]').length;
+    btn.textContent = (n && n === total) ? 'Tout décocher' : 'Tout cocher';
+  }
+  if(!zone) return;
+  zone.innerHTML = n
+    ? `<b style="color:var(--text)">${n} sélectionné${n > 1 ? 'es' : 'e'}</b> — clique un en-tête de partie pour les y affecter
+       <button type="button" class="co-btn sm ghost" id="btnSelVider">Vider</button>`
+    : 'Coche des personnes, puis clique un en-tête de partie pour les affecter d\'un coup.';
+  const vider = document.getElementById('btnSelVider');
+  if(vider) vider.onclick = viderSelection;
+}
+
+function viderSelection(){
+  state.selection = new Set();
+  document.querySelectorAll('[data-sel]').forEach(c => { c.checked = false; });
+  majCompteurSelection();
+}
+
+/* Une zone de dépôt, la même des deux côtés. Celle posée au bas du matériel
+   bascule vers l'écran de dépôt en emportant les fichiers glissés. */
+function cablerZoneDepot(zone, inp, versEcranDepot){
+  if(!zone || !inp) return;
+  const prendre = (fichiers)=>{
+    if(!fichiers.length) return;
+    if(versEcranDepot){ state.vue = 'depot'; state.depot = []; }
+    ajouterAuDepot(fichiers);
+  };
+  zone.onclick = ()=> inp.click();
+  inp.onchange = ()=>{ prendre(Array.from(inp.files || [])); inp.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, (e)=>{ e.preventDefault(); zone.classList.add('survol'); }));
+  ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, (e)=>{ e.preventDefault(); zone.classList.remove('survol'); }));
+  zone.addEventListener('drop', (e)=> prendre(Array.from((e.dataTransfer || {}).files || [])));
+}
+
+/* Affecter d'un coup les personnes cochées à une partie. C'est le geste qui
+   remplace vingt sélecteurs — et il ne devine rien : la sélection est faite à
+   la main, par quelqu'un qui sait qui joue quoi.
+   Une personne déjà affectée à cette partie est simplement ignorée, pas
+   signalée : la sélection sert souvent plusieurs colonnes de suite, et un
+   avertissement à chaque recoupement rendrait le geste pénible. */
+async function affecterSelection(partieId){
+  if(!state.tourneeId) return;
+  const selection = Array.from(state.selection || []);
+  if(!selection.length){
+    try{ curieuxFlash('Coche d\'abord des personnes dans la colonne de gauche'); }catch(e){}
+    return;
+  }
+  const partie = state.parties.find(p => p.id === partieId);
+  const nouvelles = [];
+  selection.forEach(cle => {
+    const [personType, personId] = cle.split('|');
+    const id = `${state.tourneeId}::${partieId}::${personId}`;
+    if(state.affectations.some(a => a.id === id)) return;
+    nouvelles.push({ id, tourneeId: state.tourneeId, partieId, personType, personId });
+  });
+  if(!nouvelles.length){
+    try{ curieuxFlash('Ces personnes lisent déjà « ' + (partie ? partie.nom : '') + ' »'); }catch(e){}
+    return;
+  }
+  await assurerAcces(state.tourneeId);
+  state.affectations.push(...nouvelles);
+  rendre();
+  for(const a of nouvelles) await CurieuxDB.upsertOne('partitions_affectations', a);
+  /* Un ruban d'annulation GROUPÉ : vingt affectations posées d'un clic doivent
+     se retirer d'un clic. Vingt rubans successifs ne s'annulent pas, ils se
+     recouvrent. */
+  CurieuxAnnuler.proposer({
+    texte: `${nouvelles.length} affectation${nouvelles.length > 1 ? 's' : ''} sur « ${partie ? partie.nom : ''} »`,
+    retablir: async ()=>{
+      const ids = new Set(nouvelles.map(a => a.id));
+      state.affectations = state.affectations.filter(a => !ids.has(a.id));
+      rendre();
+      for(const a of nouvelles) await CurieuxDB.removeOne('partitions_affectations', a.id);
+    },
+    purger: async ()=>{},
+  });
+}
+
+/* Les noms à relancer, prêts à coller dans un message groupé. On copie les
+   NOMS et rien d'autre : ni lien, ni code — le lien personnel de chacun est
+   déjà en circulation, et le code ne se met pas dans le même message que lui. */
+function copierRelance(){
+  const retraits = retraitsParPersonne(state.tourneeId);
+  const noms = effectifAffichable(state.tourneeId).filter(e => {
+    const dus = fichiersDus(state.tourneeId, e.personType, e.personId);
+    if(!dus.length) return false;
+    const pris = retraits.get(e.personType + '|' + e.personId) || new Set();
+    return !dus.every(id => pris.has(id));
+  }).map(e => e.nom);
+  if(!noms.length){ try{ curieuxFlash('Personne à relancer'); }catch(e){} return; }
+  copierTexte(noms.join(', '), noms.length + ' nom(s) copié(s)');
+}
+
 /* Ouvrir un spectacle, c'est aussi choisir l'opération qu'on va distribuer.
    On garde celle d'où l'on vient si le spectacle y est programmé — c'est le
    cas quand on arrive depuis l'écran « Par opération » —, sinon la première. */
 function ouvrirSpectacle(id, tourneeId){
   state.spectacleId = id;
+  // Une sélection de noms n'a de sens que dans la matrice où elle a été faite :
+  // la traîner d'un spectacle à l'autre ferait affecter les violons d'hier.
+  state.selection = new Set();
   const opes = programmationsDe(id).map(p => p.tourneeId);
   if(tourneeId && opes.includes(tourneeId)) state.tourneeId = tourneeId;
   else if(!opes.includes(state.tourneeId)) state.tourneeId = opes[0] || '';
@@ -1996,44 +2963,66 @@ function ajouterAuDepot(fichiers){
 async function confirmerDepot(){
   const btn = document.getElementById('btnConfirmerDepot');
   const aFaire = state.depot.slice();
-  if(!aFaire.length) return;
-  btn.disabled = true;
-
-  // Les parties manquantes d'abord, toutes ensemble : plusieurs fichiers
-  // peuvent viser la même partie neuve, et en créer deux la scinderait en
-  // silence.
-  const neuves = new Map();
-  for(const d of aFaire){
-    if(d.partieId) continue;
-    const cle = partitionsNormaliser(d.propose);
-    if(!neuves.has(cle)){
-      const p = creerPartieLocale(d.propose, '');
-      neuves.set(cle, p);
-      await CurieuxDB.upsertOne('partitions_parties', p);
-    }
-    d.partieId = neuves.get(cle).id;
-  }
+  if(!aFaire.length || state.depotEnCours) return;
+  if(btn) btn.disabled = true;
 
   let faits = 0;
   const echecs = [];
-  for(const d of aFaire){
-    btn.textContent = `Dépôt ${faits + 1} / ${aFaire.length}…`;
-    const depot = await CurieuxDB.deposerPartition(state.spectacleId, d.partieId, d.fichier);
-    if(depot.error){ echecs.push(`${d.nomOrigine} — ${depot.error.message || 'échec'}`); continue; }
-    const f = {
-      id: genId('pfic'), partieId: d.partieId,
-      titre: partitionsNomDepuisFichier(d.nomOrigine), chemin: depot.chemin,
-      nomOrigine: d.nomOrigine, octets: d.octets, pages: null, empreinte: '',
-      ordre: fichiersDe(d.partieId).length,
-    };
-    state.fichiers.push(f);
-    await CurieuxDB.upsertOne('partitions_fichiers', f);
-    faits++;
+
+  /* Un try/finally, et il n'est pas décoratif : la progression est désormais
+     lue dans state, et c'est elle qui tient le bouton « Déposer » désactivé.
+     Une erreur inattendue au milieu de l'envoi laisserait donc un écran de
+     dépôt définitivement bloqué — plus rien à faire que recharger la page,
+     avec trente fichiers en attente à re-glisser. */
+  try{
+    // Les parties manquantes d'abord, toutes ensemble : plusieurs fichiers
+    // peuvent viser la même partie neuve, et en créer deux la scinderait en
+    // silence.
+    const neuves = new Map();
+    for(const d of aFaire){
+      if(d.partieId) continue;
+      const cle = partitionsNormaliser(d.propose);
+      if(!neuves.has(cle)){
+        const p = creerPartieLocale(d.propose, '');
+        neuves.set(cle, p);
+        await CurieuxDB.upsertOne('partitions_parties', p);
+      }
+      d.partieId = neuves.get(cle).id;
+    }
+
+    for(const d of aFaire){
+      /* La progression passe par une BARRE et non par le libellé du bouton :
+         celui-ci changeait de largeur à chaque fichier, faisait sauter la ligne
+         de titre, et un bouton qui se réécrit n'a plus l'air désactivé. On pose
+         l'état dans state, puis on ne touche qu'à la barre — redessiner l'écran
+         à chaque fichier le ferait clignoter trente fois. */
+      state.depotEnCours = faits + 1;
+      const barre = document.querySelector('.depot-barre i');
+      if(barre) barre.style.width = (faits / aFaire.length * 100).toFixed(0) + '%';
+      else rendre();
+      const depot = await CurieuxDB.deposerPartition(state.spectacleId, d.partieId, d.fichier);
+      if(depot.error){ echecs.push(`${d.nomOrigine} — ${depot.error.message || 'échec'}`); continue; }
+      const f = {
+        id: genId('pfic'), partieId: d.partieId,
+        titre: partitionsNomDepuisFichier(d.nomOrigine), chemin: depot.chemin,
+        nomOrigine: d.nomOrigine, octets: d.octets, pages: null, empreinte: '',
+        ordre: fichiersDe(d.partieId).length,
+      };
+      state.fichiers.push(f);
+      await CurieuxDB.upsertOne('partitions_fichiers', f);
+      faits++;
+    }
+
+    state.depot = [];
+    state.vue = 'spectacle';
+  } finally {
+    state.depotEnCours = 0;
+    rendre();
   }
 
-  state.depot = [];
-  state.vue = 'spectacle';
-  rendre();
+  // Après le rendu, jamais avant : une boîte de dialogue posée sur l'écran de
+  // dépôt donne à lire un décompte d'échecs devant la liste qui les a produits,
+  // encore intacte — on croit que rien n'est parti.
   if(echecs.length) alert(`${faits} fichier(s) déposé(s).\n\nÉchecs :\n` + echecs.join('\n'));
   else curieuxFlash(`${faits} fichier${faits > 1 ? 's déposés' : ' déposé'} dans « ${nomSpectacle(state.spectacleId)} ».`);
 }

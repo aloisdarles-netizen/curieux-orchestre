@@ -184,7 +184,17 @@
 // table vide. « Suivi des dispos » s'en sert pour ne plus recréer des demandes
 // qu'il n'a pas pu lire. Sans cet incrément, un navigateur déjà venu garderait
 // l'ancien db.js : la page appellerait une fonction absente.
-const VERSION = 'curieux-v132';
+// v133 : la refonte visuelle des partitions, côté PRODUCTION cette fois.
+// partitions.html est une page — servie réseau d'abord, donc rafraîchie sans
+// cet incrément — mais elle ne tient debout qu'avec les pièces communes déjà
+// posées en v128 : les teintes --pup-* et la jauge .co-seg de base.css, le
+// gabarit .co-matrix, et les fonctions de partitions-commun.js. Elle lit en
+// outre partitions_telechargements, que db.js sait déjà traduire depuis la
+// v125. Un navigateur déjà venu garderait un base.css antérieur à la v128 :
+// les cartes de spectacle s'afficheraient sans teinte, les tuiles de matériel
+// sans bordure de pupitre et la matrice sans colonne collante — un écran de
+// production illisible là où il doit justement montrer les trous.
+const VERSION = 'curieux-v133';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
