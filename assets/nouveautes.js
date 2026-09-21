@@ -33,6 +33,13 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-21-1',
+    titre: 'Le tableau de service retrouve Marquer, Affecter et Oups',
+    points: [
+      "La barre « Un clic sur une case : Marquer / Affecter », avec son Oups, disparaissait du tableau de service pour les comptes admin et direction technique — le menu se redessinait après la réponse sur les droits et l'emportait. Elle reste désormais à sa place, sous le sous-menu, quel que soit le compte.",
+    ],
+  },
+  {
     version: '2026-09-20-6',
     titre: 'Les partitions se proposent d\'après les instruments',
     points: [

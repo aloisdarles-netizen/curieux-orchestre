@@ -318,7 +318,12 @@
 // chargerait la nouvelle partitions.html (servie réseau d'abord) avec
 // l'ancien partitions-commun.js : le bouton appellerait une fonction qui
 // n'existe pas.
-const VERSION = 'curieux-v146';
+// v147 : nav.js ne perd plus ce qu'une page a monté dans le sous-menu quand il
+// le redessine après la réponse sur les droits — la barre Marquer / Affecter /
+// Oups du tableau de service disparaissait pour tous les comptes admin et
+// direction technique. Un actif servi depuis le cache avant d'être rafraîchi
+// laisserait le bandeau fautif une visite de plus : l'incrément l'écarte.
+const VERSION = 'curieux-v147';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
