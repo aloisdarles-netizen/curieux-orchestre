@@ -595,8 +595,16 @@ const CurieuxDB = new Proxy({
   // « ?refus=admin » ou « ?refus=technique » dans l'URL fait répondre non au
   // contrôle correspondant : c'est le seul moyen de capturer l'écran d'accès
   // réservé, qu'on ne verrait jamais avec un compte autorisé.
-  isSuperAdmin: async () => !location.search.includes('refus=admin'),
-  hasDirectionTechniqueAccess: async () => !location.search.includes('refus=technique'),
+  //
+  // Les deux répondent après un vrai délai, comme la base : une promesse déjà
+  // résolue se règle avant l'écouteur DOMContentLoaded suivant, alors qu'un
+  // aller-retour réseau arrive toujours après. Or c'est cet ordre-là qui fait
+  // redessiner la navigation APRÈS que la page a fini de se poser (voir
+  // appliquerDroits dans nav.js) — le cas réel, celui qui avait fait disparaître
+  // la barre de modes du tableau de service. Sans le délai, la capture montrait
+  // un écran que personne n'a jamais eu.
+  isSuperAdmin: () => new Promise(r => setTimeout(() => r(!location.search.includes('refus=admin')), 120)),
+  hasDirectionTechniqueAccess: () => new Promise(r => setTimeout(() => r(!location.search.includes('refus=technique')), 120)),
   currentRole: async () => 'admin',
   // Deux demandes en attente, une par nature de projet : c'est le seul moyen de
   // vérifier que l'espace perso ne leur donne pas la même icône.

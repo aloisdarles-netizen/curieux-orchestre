@@ -144,6 +144,7 @@ tombe : de quoi les enchaîner avant un déploiement.
 npm i playwright-core --no-save
 python3 -m http.server 8099 &           # les trois servent le site en local
 node outils/test-recap-mon-ordre.cjs
+node outils/test-recap-barre-de-modes.cjs
 node outils/test-remplacants.cjs
 node outils/test-suivi-dispo-doublons.cjs
 node outils/test-partitions-proposition.cjs   # sans serveur ni navigateur
@@ -152,6 +153,7 @@ node outils/test-partitions-proposition.cjs   # sans serveur ni navigateur
 | Script | Ce qu'il garde |
 | --- | --- |
 | `test-recap-mon-ordre.cjs` | Sous « Mon ordre », titulaires et remplaçant·es se rangent dans la même liste : un nom glissé y reste, une ligne indentée peut en sortir, et changer de filtre ne déplace personne d'autre. |
+| `test-recap-barre-de-modes.cjs` | La barre Marquer / Affecter / Oups du tableau de service survit au redessin du menu qui suit la réponse de la base sur les droits — c'est ce redessin qui l'avait fait disparaître pour tous les comptes admin et direction technique. Bureau et téléphone. |
 | `test-remplacants.cjs` | Les quatre issues de « Enregistrer ma liste » — dont celle qui laissait le bouton figé sur « Enregistrement… ». |
 | `test-partitions-proposition.cjs` | La proposition d'affectation d'après les instruments : les 25 valeurs réelles de `musiciens.instrument` et les noms de parties tels que Dorico les sort se lisent juste ; chacun reçoit les parties de son instrument, le numéro de la fiche restreint, et ce qui est déjà posé ne bouge jamais. À relancer après toute modification de `PARTITIONS_INSTRUMENTS`. |
 | `test-suivi-dispo-doublons.cjs` | Une lecture en échec n'est plus prise pour un inventaire vide : le suivi des dispos ne recrée pas 85 demandes existantes. |

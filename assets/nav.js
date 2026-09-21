@@ -829,7 +829,24 @@ function dessinerSousMenu(topbar, page, section){
       <span class="co-subnav-title">${section.libelle}</span>${items}
     </div>`;
 
-  if(ancien) ancien.replaceWith(sub);
+  /* Ce qu'une page a monté dans le sous-menu n'est pas à nous.
+   *
+   * Le tableau de service y pose sa barre de modes — Marquer, Affecter, Oups —
+   * une fois le premier rendu passé (voir monterLaBarreDeModes dans
+   * recap.html). Le second rendu, celui qui suit la réponse de la base sur les
+   * droits, remplaçait l'ancien sous-menu par un neuf, et la barre partait
+   * avec lui : plus rien pour affecter, pour tous les comptes dont les droits
+   * ajoutent une section au bandeau — admin, direction technique. On ne
+   * redessine donc que ce qu'on a dessiné, le titre et les liens, et tout ce
+   * qui s'y trouvait d'autre reprend sa place dans le neuf. */
+  if(ancien){
+    const ancienDedans = ancien.querySelector('.co-subnav-in');
+    const dedans = sub.querySelector('.co-subnav-in');
+    [...(ancienDedans ? ancienDedans.children : [])]
+      .filter(el => !(el.matches('a') || el.classList.contains('co-subnav-title')))
+      .forEach(el => dedans.appendChild(el));
+    ancien.replaceWith(sub);
+  }
   else (document.getElementById('coNavMobile') || topbar).insertAdjacentElement('afterend', sub);
 }
 
