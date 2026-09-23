@@ -33,6 +33,16 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-23-2',
+    titre: 'Devis : insérer et déplacer une ligne où l’on veut',
+    points: [
+      "Au survol d’une ligne, un bouton « + » à côté de ▲ ▼ insère une ligne vide juste en dessous, le curseur déjà dans l’intitulé. Plus besoin de l’ajouter en bas puis de la remonter clic après clic.",
+      "Une poignée (six petits points) apparaît à gauche de l’intitulé : on attrape la ligne et on la dépose où l’on veut — entre deux lignes, dans un autre groupe, ou sur « + Ligne » pour la mettre en fin de groupe. Un trait indique où elle atterrira.",
+      "Déposée dans une autre section, la ligne prend la logique de sa nouvelle section : régime « Production » si la section est une rémunération, aucun régime sinon. Vérifiez le régime après un tel déplacement.",
+      "Le menu « Incluse / Option / Hors devis », au bout de chaque ligne, était écrasé par les boutons voisins et n’apparaissait plus : il est de retour.",
+    ],
+  },
+  {
     version: '2026-09-23-1',
     titre: 'Les tâches de l’équipe',
     points: [
