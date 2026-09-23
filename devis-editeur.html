@@ -224,12 +224,32 @@
   td.c-outils{white-space:nowrap; text-align:right; padding-right:6px !important;}
   td.c-outils .outils{display:inline-flex; gap:1px; opacity:0; transition:opacity .12s;}
   tr.lg:hover .outils, tr.lg:focus-within .outils{opacity:1;}
+  /* Le menu d'état garde sa largeur : en width:100% dans un inline-flex, il
+     s'écrasait à zéro et disparaissait derrière les boutons. */
+  td.c-outils select.chip{width:auto; flex:0 0 auto;}
   .l-btn{
     background:transparent; border:none; padding:5px 5px; font-size:11.5px; color:var(--muted);
     border-radius:5px; cursor:pointer; line-height:1;
   }
   .l-btn:hover{background:var(--border); color:var(--text);}
   .l-btn.actif{opacity:1; color:var(--orange);}
+
+  /* Glisser-déposer : une poignée à gauche de l'intitulé, visible au survol.
+     Le trait prune indique où la ligne atterrira. */
+  td.c-intitule{position:relative;}
+  td.c-intitule input{padding-left:18px;}
+  .poignee{
+    position:absolute; left:1px; top:50%; transform:translateY(-50%);
+    width:15px; height:22px; display:flex; align-items:center; justify-content:center; color:var(--muted);
+    cursor:grab; opacity:0; transition:opacity .12s; user-select:none; z-index:1;
+  }
+  tr.lg:hover .poignee{opacity:1;}
+  .poignee:hover{color:var(--text);}
+  .poignee:active{cursor:grabbing;}
+  tr.lg.glisse > td{opacity:.4;}
+  tr.lg.cible-avant > td{box-shadow:inset 0 2px 0 var(--accent);}
+  tr.lg.cible-apres > td{box-shadow:inset 0 -2px 0 var(--accent);}
+  tr.ajout.cible-avant > td{box-shadow:inset 0 2px 0 var(--accent);}
 
   /* États particuliers d'une ligne. */
   tr.lg.discuter > td{background:#fff6d6;}
@@ -820,7 +840,7 @@ function renderSection(sec, si){
         </div>
       </td></tr>` : ''}
       ${(grp.lignes || []).map((l, li)=> renderLigne(sec, si, gi, l, li)).join('')}
-      <tr class="ajout"><td colspan="${nbCols}">
+      <tr class="ajout" data-ajout-cible="${si}:${gi}"><td colspan="${nbCols}">
         <button type="button" class="co-btn ghost sm peut-figer" data-ajout-ligne="${si}:${gi}" ${fige}>+ Ligne</button>
         <button type="button" class="co-btn ghost sm peut-figer" data-ajout-poste="${si}:${gi}" ${fige}>+ Depuis la bibliothèque</button>
       </td></tr>
@@ -858,7 +878,7 @@ function renderSection(sec, si){
         <col style="width:25%"><col style="width:20%">
         <col style="width:64px"><col style="width:60px"><col style="width:124px"><col style="width:110px">
         <col style="width:118px">
-        <col style="width:128px"><col style="width:120px">
+        <col style="width:128px"><col style="width:200px">
       </colgroup>
       <thead><tr>
         <th>Intitulé</th><th>Nom / infos</th>
@@ -886,7 +906,7 @@ function renderLigne(sec, si, gi, l, li){
   ].filter(Boolean).join(' ');
   const etat = l.etat || 'incluse';
   return `<tr class="${classes}" data-ligne="${cle}">
-    <td class="c-intitule"><input type="text" value="${escapeAttr(l.intitule || '')}" data-l="${cle}:intitule" placeholder="Intitulé" ${fige}></td>
+    <td class="c-intitule">${devis.fige ? '' : `<span class="poignee" draggable="true" data-l-glisser="${cle}" title="Glisser pour déplacer la ligne"><svg viewBox="0 0 8 14" width="8" height="14" aria-hidden="true"><g fill="currentColor"><circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="6" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="6" cy="12" r="1.2"/></g></svg></span>`}<input type="text" value="${escapeAttr(l.intitule || '')}" data-l="${cle}:intitule" placeholder="Intitulé" ${fige}></td>
     ${/* Deux champs, comme la colonne « NOM / INFOS » du PDF qui les imprime
            l'un après l'autre. « infos » existait dans les données depuis la
            reprise du tableur et s'imprimait bel et bien — mais aucun champ ne
@@ -908,7 +928,7 @@ function renderLigne(sec, si, gi, l, li){
         <option value="incluse" ${etat === 'incluse' ? 'selected' : ''}>Incluse</option>
         <option value="optionnelle" ${etat === 'optionnelle' ? 'selected' : ''}>Option</option>
         <option value="hors_devis" ${etat === 'hors_devis' ? 'selected' : ''}>Hors devis</option>
-      </select><button type="button" class="l-btn${l.discuter ? ' actif' : ''}" data-l-discuter="${cle}" title="À discuter" ${fige}>${l.discuter ? '●' : '○'}</button><button type="button" class="l-btn" data-l-poste="${cle}" title="Enregistrer dans la bibliothèque" ${fige}>☆</button><button type="button" class="l-btn" data-l-monter="${cle}" title="Monter" ${fige}>▲</button><button type="button" class="l-btn" data-l-descendre="${cle}" title="Descendre" ${fige}>▼</button><button type="button" class="l-btn" data-l-suppr="${cle}" title="Supprimer" ${fige}>✕</button></span></td>
+      </select><button type="button" class="l-btn${l.discuter ? ' actif' : ''}" data-l-discuter="${cle}" title="À discuter" ${fige}>${l.discuter ? '●' : '○'}</button><button type="button" class="l-btn" data-l-poste="${cle}" title="Enregistrer dans la bibliothèque" ${fige}>☆</button><button type="button" class="l-btn" data-l-inserer="${cle}" title="Insérer une ligne en dessous" ${fige}>+</button><button type="button" class="l-btn" data-l-monter="${cle}" title="Monter" ${fige}>▲</button><button type="button" class="l-btn" data-l-descendre="${cle}" title="Descendre" ${fige}>▼</button><button type="button" class="l-btn" data-l-suppr="${cle}" title="Supprimer" ${fige}>✕</button></span></td>
   </tr>`;
 }
 
@@ -1440,6 +1460,13 @@ function brancherSections(){
     if(tr) tr.classList.toggle('discuter', !!l.discuter);
     marquerModifie();
   }));
+  ed.querySelectorAll('[data-l-inserer]').forEach(el=> el.addEventListener('click', ()=>{
+    const [si, gi, li] = el.dataset.lInserer.split(':').map(Number);
+    devis.sections[si].groupes[gi].lignes.splice(li + 1, 0, nouvelleLigneDevis(devis.sections[si].remuneration));
+    marquerModifie(); renderEditeur(); majTotaux();
+    focusChampLigne(`${si}:${gi}:${li + 1}:intitule`);
+  }));
+  brancherGlisser(ed);
   ed.querySelectorAll('[data-l-monter]').forEach(el=> el.addEventListener('click', ()=> bougerLigne(el.dataset.lMonter, -1)));
   ed.querySelectorAll('[data-l-descendre]').forEach(el=> el.addEventListener('click', ()=> bougerLigne(el.dataset.lDescendre, +1)));
   ed.querySelectorAll('[data-l-poste]').forEach(el=> el.addEventListener('click', async ()=>{
@@ -1453,6 +1480,80 @@ function brancherSections(){
     postesCache.push(poste);
     el.textContent = '★';
   }));
+}
+
+/* Glisser-déposer d'une ligne, par sa poignée (six points). On peut la déposer avant ou
+ * après n'importe quelle ligne, ou sur la rangée « + Ligne » d'un groupe (fin
+ * de groupe, utile pour un groupe vide) — y compris dans une autre section.
+ * Dans ce cas le régime suit la section d'arrivée : une section sans
+ * rémunération n'a pas de régime, une section rémunérée en exige un. */
+let glisseCle = null;
+function brancherGlisser(ed){
+  const nettoyer = ()=> ed.querySelectorAll('.cible-avant, .cible-apres, .glisse')
+    .forEach(x=> x.classList.remove('cible-avant', 'cible-apres', 'glisse'));
+
+  ed.querySelectorAll('[data-l-glisser]').forEach(h=>{
+    h.addEventListener('dragstart', e=>{
+      glisseCle = h.dataset.lGlisser;
+      const tr = h.closest('tr');
+      e.dataTransfer.effectAllowed = 'move';
+      try{ e.dataTransfer.setData('text/plain', glisseCle); }catch(err){}
+      if(tr){
+        try{ e.dataTransfer.setDragImage(tr, 10, tr.offsetHeight / 2); }catch(err){}
+        requestAnimationFrame(()=> tr.classList.add('glisse'));
+      }
+    });
+    h.addEventListener('dragend', ()=>{ glisseCle = null; nettoyer(); });
+  });
+
+  const cibles = ed.querySelectorAll('tr.lg[data-ligne], tr.ajout[data-ajout-cible]');
+  cibles.forEach(tr=>{
+    tr.addEventListener('dragover', e=>{
+      if(!glisseCle) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      nettoyer();
+      ed.querySelector(`tr[data-ligne="${glisseCle}"]`)?.classList.add('glisse');
+      if(tr.dataset.ajoutCible){ tr.classList.add('cible-avant'); return; }
+      const r = tr.getBoundingClientRect();
+      tr.classList.add(e.clientY < r.top + r.height / 2 ? 'cible-avant' : 'cible-apres');
+    });
+    tr.addEventListener('dragleave', e=>{
+      if(!tr.contains(e.relatedTarget)) tr.classList.remove('cible-avant', 'cible-apres');
+    });
+    tr.addEventListener('drop', e=>{
+      if(!glisseCle) return;
+      e.preventDefault();
+      const apres = tr.classList.contains('cible-apres');
+      const source = glisseCle;
+      glisseCle = null; nettoyer();
+      let si, gi, li;
+      if(tr.dataset.ajoutCible){
+        [si, gi] = tr.dataset.ajoutCible.split(':').map(Number);
+        li = devis.sections[si].groupes[gi].lignes.length;
+      } else {
+        [si, gi, li] = tr.dataset.ligne.split(':').map(Number);
+        if(apres) li++;
+      }
+      deplacerLigne(source, si, gi, li);
+    });
+  });
+}
+
+function deplacerLigne(cle, siV, giV, liV){
+  if(devis.fige) return;
+  const [si, gi, li] = cle.split(':').map(Number);
+  const depart = devis.sections[si].groupes[gi].lignes;
+  // Même groupe, ligne retirée au-dessus de la cible : l'index d'arrivée recule d'un cran.
+  if(si === siV && gi === giV && li < liV) liV--;
+  if(si === siV && gi === giV && li === liV) return;
+  const [l] = depart.splice(li, 1);
+  const secV = devis.sections[siV];
+  if(!!secV.remuneration !== !!devis.sections[si].remuneration){
+    l.regime = secV.remuneration ? 'production' : 'aucun';
+  }
+  secV.groupes[giV].lignes.splice(liV, 0, l);
+  marquerModifie(); renderEditeur(); majTotaux();
 }
 
 function bougerLigne(cle, delta){

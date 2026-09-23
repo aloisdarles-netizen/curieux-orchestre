@@ -327,7 +327,7 @@
 // mais elle s'appuie sur un actif neuf (taches-commun.js) et sur db.js, nav.js
 // et nouveautes.js modifiés : un db.js servi depuis le cache ne connaîtrait ni
 // insererSiAbsent ni majPartielle, et la page s'arrêterait au chargement.
-const VERSION = 'curieux-v148';
+const VERSION = 'curieux-v149';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
