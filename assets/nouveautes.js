@@ -33,6 +33,15 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-23-1',
+    titre: 'Sur téléphone, « Déconnexion » passe dans le menu ☰',
+    points: [
+      "Sur un téléphone, toutes les pages glissaient de côté : le bandeau du haut était plus large que l'écran, et la pastille de compte en sortait. « Déconnexion » descend donc dans le menu ☰, tout en bas, sous « Compte » — avec, en toutes lettres, l'adresse du compte connecté. Le bandeau garde le menu, le logo, « Tableau de service » et la pastille.",
+      "Sur un écran de 360 px, le tableau de service, le plateau par date, les devis, le matériel et la page salle ne débordent plus non plus : les listes de projets se coupent à la largeur de l'écran — le menu déroulant ouvert montre toujours les noms entiers —, et Marquer, Affecter et Oups tiennent sur une ligne.",
+      "Sur ordinateur, « Admin » ne passe plus sous « Tableau de service ». En contrepartie, le champ de recherche n'apparaît qu'à partir de 1 346 px de large (au lieu de 1 260), et le menu ☰ prend le relais sous 1 175 px (au lieu de 1 100).",
+    ],
+  },
+  {
     version: '2026-09-21-1',
     titre: 'Le tableau de service retrouve Marquer, Affecter et Oups',
     points: [

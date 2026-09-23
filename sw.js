@@ -323,7 +323,14 @@
 // Oups du tableau de service disparaissait pour tous les comptes admin et
 // direction technique. Un actif servi depuis le cache avant d'être rafraîchi
 // laisserait le bandeau fautif une visite de plus : l'incrément l'écarte.
-const VERSION = 'curieux-v147';
+// v148 : le bandeau tient dans un téléphone. Sous 640 px, « Déconnexion »
+// passe dans le panneau ☰ (nav.js) — il portait la pastille de compte à
+// 417 px sur un écran de 390, et toutes les pages d'équipe défilaient
+// latéralement. base.css remonte au passage les seuils du bandeau de bureau,
+// mesurés sans ce bouton, et borne les listes déroulantes des en-têtes de
+// page. nav.js et base.css changent ensemble : servis l'un neuf, l'autre du
+// cache, le bouton serait masqué sans relais dans le panneau.
+const VERSION = 'curieux-v148';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';
