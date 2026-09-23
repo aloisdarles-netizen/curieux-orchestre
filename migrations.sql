@@ -7582,7 +7582,9 @@ create trigger trg_reglages_taches_modeles before update on reglages
 --      « pas encore au répertoire », et la production tranche à la main avec
 --      le bouton « Créer sa fiche » ;
 --   3. aucune correspondance → fiche créée dans le répertoire du/de la
---      titulaire, au statut « remplaçant », instrument ou poste à préciser.
+--      titulaire, au statut « remplaçant », avec son instrument et son
+--      pupitre (ou son poste et son pôle) : on remplace à l'identique.
+--      La note de la fiche le signale, à vérifier.
 --
 -- Une fiche existante n'est jamais modifiée : un lien personnel ne doit pas
 -- pouvoir réécrire les coordonnées de quelqu'un d'autre.
@@ -7629,11 +7631,13 @@ declare
   v_titulaire text;
   v_remarque text;
   v_n bigint;
+  v_metier text; v_groupe text;
 begin
   if p_items is null or jsonb_typeof(p_items) <> 'array' then return coalesce(p_items, '[]'::jsonb); end if;
-  select trim(coalesce(prenom, '') || ' ' || coalesce(nom, '')) into v_titulaire
-    from (select prenom, nom from musiciens where id = p_titulaire_id
-          union all select prenom, nom from techniciens where id = p_titulaire_id) x limit 1;
+  select trim(coalesce(prenom, '') || ' ' || coalesce(nom, '')), metier, groupe
+    into v_titulaire, v_metier, v_groupe
+    from (select prenom, nom, instrument as metier, pupitre as groupe from musiciens where id = p_titulaire_id
+          union all select prenom, nom, poste, pole from techniciens where id = p_titulaire_id) x limit 1;
 
   -- Dix fiches créées au plus par enregistrement : c'est la longueur maximale
   -- d'une liste, et la borne qui empêche un lien personnel de remplir le
@@ -7722,14 +7726,16 @@ begin
       if v_ptype = 'technicien' then
         insert into techniciens (id, prenom, nom, telephone, email, poste, pole, statut_poste, notes)
         values (v_id, v_prenom, v_nom, coalesce(v_it ->> 'telephone', ''), coalesce(v_it ->> 'email', ''),
-                '', 'Autre', 'remplacant',
-                'Fiche créée depuis la liste de remplaçant·es ' || coalesce('de ' || nullif(v_titulaire, ''), 'd''un·e titulaire') || ' — poste à préciser.'
+                coalesce(v_metier, ''), coalesce(nullif(v_groupe, ''), 'Autre'), 'remplacant',
+                'Fiche créée depuis la liste de remplaçant·es ' || coalesce('de ' || nullif(v_titulaire, ''), 'd''un·e titulaire')
+                || case when coalesce(v_metier, '') = '' then ' — poste à préciser.' else ' — poste repris du/de la titulaire, à vérifier.' end
                 || coalesce(' Remarque : ' || v_remarque, ''));
       else
         insert into musiciens (id, prenom, nom, telephone, email, instrument, pupitre, statut_poste, notes)
         values (v_id, v_prenom, v_nom, coalesce(v_it ->> 'telephone', ''), coalesce(v_it ->> 'email', ''),
-                '', 'Autre', 'remplacant',
-                'Fiche créée depuis la liste de remplaçant·es ' || coalesce('de ' || nullif(v_titulaire, ''), 'd''un·e titulaire') || ' — instrument à préciser.'
+                coalesce(v_metier, ''), coalesce(nullif(v_groupe, ''), 'Autre'), 'remplacant',
+                'Fiche créée depuis la liste de remplaçant·es ' || coalesce('de ' || nullif(v_titulaire, ''), 'd''un·e titulaire')
+                || case when coalesce(v_metier, '') = '' then ' — instrument à préciser.' else ' — instrument repris du/de la titulaire, à vérifier.' end
                 || coalesce(' Remarque : ' || v_remarque, ''));
       end if;
     end if;
@@ -7764,3 +7770,35 @@ grant execute on function upsert_own_remplacant_prefs(text, jsonb) to anon, auth
 update remplacant_prefs p
    set items = rattacher_remplacants(p.items, coalesce(p.person_type, 'musicien'), p.id)
  where coalesce(p.items, '[]'::jsonb) @> '[{"source":"new"}]'::jsonb;
+
+
+-- Les fiches créées avant cette règle reçoivent après coup l'instrument (ou le
+-- poste) du/de la titulaire qui les a proposées — seulement si elles n'en ont
+-- toujours pas, et seulement quand une seule liste les cite.
+with source as (
+  select x ->> 'personId' as pid, min(p.id) as titulaire_id, count(distinct p.id) as nb
+    from remplacant_prefs p, jsonb_array_elements(p.items) x
+   where x ->> 'source' = 'roster'
+   group by 1
+)
+update musiciens m
+   set instrument = t.instrument, pupitre = coalesce(nullif(t.pupitre, ''), 'Autre'),
+       notes = replace(m.notes, '— instrument à préciser.', '— instrument repris du/de la titulaire, à vérifier.')
+  from source s join musiciens t on t.id = s.titulaire_id
+ where m.id = s.pid and s.nb = 1
+   and coalesce(m.instrument, '') = '' and coalesce(t.instrument, '') <> ''
+   and m.notes like 'Fiche créée depuis la liste de remplaçant%';
+
+with source as (
+  select x ->> 'personId' as pid, min(p.id) as titulaire_id, count(distinct p.id) as nb
+    from remplacant_prefs p, jsonb_array_elements(p.items) x
+   where x ->> 'source' = 'roster'
+   group by 1
+)
+update techniciens m
+   set poste = t.poste, pole = coalesce(nullif(t.pole, ''), 'Autre'),
+       notes = replace(m.notes, '— poste à préciser.', '— poste repris du/de la titulaire, à vérifier.')
+  from source s join techniciens t on t.id = s.titulaire_id
+ where m.id = s.pid and s.nb = 1
+   and coalesce(m.poste, '') = '' and coalesce(t.poste, '') <> ''
+   and m.notes like 'Fiche créée depuis la liste de remplaçant%';
