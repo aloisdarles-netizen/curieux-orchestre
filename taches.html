@@ -1,0 +1,1893 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<!-- viewport-fit=cover : sans lui, env(safe-area-inset-*) vaut zéro sur iPhone
+     et la barre d'onglets du bas se pose sur l'indicateur d'accueil. Même
+     réglage que la coque de l'espace musicien (assets/app-musicien.js). -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Curieux orchestre — Tâches</title>
+<script src="assets/vendor/supabase-js.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/brand-assets.js"></script>
+<script src="assets/nouveautes.js"></script>
+<script src="assets/ui-helpers.js"></script>
+<script src="assets/statuts-date.js"></script>
+<script src="assets/annuler.js"></script>
+<script src="assets/taches-commun.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/global-search.js"></script>
+<script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireSuperAdminAuth); }catch(e){}</script>
+<link rel="stylesheet" href="assets/base.css">
+<style>
+  /* ==========================================================================
+     Tâches — l'outil de l'équipe, au téléphone comme au bureau.
+
+     Au téléphone, la page se tient comme l'espace musicien (voir
+     assets/app-musicien.js et mon-espace.html) : une barre d'onglets en bas
+     qui nomme les trois façons de regarder — la liste, les projets, le
+     calendrier —, des tuiles qu'on touche du pouce, une feuille qui monte du
+     bas pour le détail. Sur grand écran, comme la coque musicien encore, les
+     onglets remontent sous le titre en rangée de pilules, la liste se serre en
+     tableau et le détail s'ouvre en tiroir à droite.
+
+     Le style de la coque est RECOPIÉ, pas partagé : app-musicien.js se monte
+     d'office sur les pages à jeton, et le toucher pour une page d'équipe ferait
+     courir un risque à l'espace musicien en production pour un gain nul.
+     ========================================================================== */
+  .wrap{max-width:1100px; margin:0 auto; font-variant-numeric:tabular-nums;}
+  [hidden]{display:none !important;}
+
+  /* --- L'en-tête : le titre, et une phrase qui dit où l'on en est ---------- */
+  .tt-tete{display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:14px;}
+  .tt-tete h1{font-family:var(--font-display); font-size:28px; line-height:1.15; margin:0 0 4px; color:var(--accent); font-weight:500;}
+  .tt-resume{margin:0; font-size:14px; color:var(--muted); line-height:1.5;}
+  .tt-resume b{color:var(--text);}
+  .tt-resume b.ko{color:var(--ko);}
+  .tt-actions{display:flex; gap:8px; flex-wrap:wrap; margin-left:auto;}
+
+  /* --- Les onglets ----------------------------------------------------------
+     Sur grand écran : la rangée de pilules de la coque musicien (app-musicien.js,
+     min-width:761px). Au téléphone : la barre du bas, plus bas. */
+  .tt-onglets{display:flex; gap:6px; margin:0 0 16px; flex-wrap:wrap;}
+  .tt-onglet{
+    display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:999px;
+    font-family:inherit; font-size:13px; font-weight:800; letter-spacing:.01em; cursor:pointer;
+    background:var(--card); color:var(--text); border:1px solid var(--border);
+    -webkit-tap-highlight-color:transparent; position:relative;
+  }
+  .tt-onglet:hover{border-color:var(--accent);}
+  .tt-onglet[aria-pressed="true"]{background:var(--accent); color:#fff; border-color:var(--accent);}
+  html[data-theme="dark"] .tt-onglet[aria-pressed="true"]{color:var(--bg);}
+  .tt-onglet-icone{flex:0 0 auto;}
+  .tt-onglet-pastille{
+    min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:var(--secondary); color:#fff;
+    font-size:10.5px; font-weight:800; display:inline-grid; place-items:center; line-height:1;
+  }
+  .tt-onglet[aria-pressed="true"] .tt-onglet-pastille{background:#fff; color:var(--accent-dark);}
+
+  /* --- Bandeaux ------------------------------------------------------------ */
+  .tt-bandeau{
+    background:var(--maybe-tint); color:var(--text); border:1px solid var(--maybe); border-radius:12px;
+    padding:12px 16px; font-size:13.5px; line-height:1.5; margin-bottom:14px;
+  }
+  .tt-bandeau.ko{background:var(--ko-tint); border-color:var(--ko);}
+  .tt-bandeau code{font-size:12.5px;}
+
+  /* --- Les filtres et l'ajout rapide -------------------------------------- */
+  .tt-barre{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px;}
+  .tt-puces{display:flex; gap:6px; align-items:center; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;}
+  .tt-puces::-webkit-scrollbar{display:none;}
+  .tt-puce{
+    flex:0 0 auto; cursor:pointer; font-family:inherit; font-size:12.5px; font-weight:700;
+    padding:7px 13px; border-radius:999px; border:1px solid var(--border); background:var(--card); color:var(--muted);
+    white-space:nowrap; -webkit-tap-highlight-color:transparent;
+  }
+  .tt-puce[aria-pressed="true"]{background:var(--accent-tint); color:var(--accent-dark); border-color:transparent;}
+  .tt-sep{flex:0 0 1px; align-self:stretch; background:var(--border); margin:4px 2px;}
+  .tt-select{
+    padding:8px 11px; border:1px solid var(--border); border-radius:10px; font-size:13px;
+    background:var(--card); color:var(--text); font-family:inherit; max-width:100%;
+  }
+  .tt-ajout{flex:1 1 280px; display:flex; gap:8px; min-width:0;}
+  .tt-ajout input{
+    flex:1; min-width:0; padding:10px 14px; border:1px solid var(--border); border-radius:12px;
+    font-size:14px; font-family:inherit; background:var(--card); color:var(--text);
+  }
+  .tt-ajout input:focus{outline:2px solid var(--accent); outline-offset:1px;}
+
+  /* --- Les groupes ---------------------------------------------------------
+     Le titre en capitales de l'espace musicien (.section-titre, mon-espace). */
+  .section-titre{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+    font-weight:800; margin:22px 0 9px; display:flex; align-items:baseline; gap:8px;
+  }
+  .section-titre:first-child{margin-top:4px;}
+  .section-titre .nb{letter-spacing:0; text-transform:none; font-weight:700;}
+  .section-titre.ko{color:var(--ko);}
+  details.tt-replie > summary{list-style:none; cursor:pointer;}
+  details.tt-replie > summary::-webkit-details-marker{display:none;}
+  details.tt-replie > summary::after{content:'▾'; font-size:11px; margin-left:2px;}
+  details.tt-replie[open] > summary::after{content:'▴';}
+
+  /* --- La tuile d'une tâche ------------------------------------------------
+     La tuile de l'espace musicien (a.tuile, mon-espace.html) : un carré de
+     42 px à gauche, le titre et sa ligne grise, les pastilles à droite. Ici le
+     carré PORTE L'ÉTAT et le change d'un appui — à faire, en cours, fait — et
+     le reste de la tuile ouvre le détail. Deux gestes, deux cibles de 42 px
+     au moins : on ne coche pas une tâche en voulant la lire. */
+  .tt-liste{display:flex; flex-direction:column; gap:8px;}
+  .tt-tache{
+    display:flex; align-items:center; gap:12px; padding:10px 12px 10px 10px;
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    transition:border-color .15s;
+  }
+  .tt-tache:hover{border-color:var(--accent);}
+  .tt-tache.retard{border-left:3px solid var(--ko);}
+  .tt-tache.faite .tt-titre{text-decoration:line-through; color:var(--muted);}
+  .tt-tache.ecartee{opacity:.7;}
+  .tt-etat{
+    flex:0 0 auto; width:42px; height:42px; border-radius:11px; display:grid; place-items:center;
+    border:none; cursor:pointer; font:inherit; -webkit-tap-highlight-color:transparent;
+    background:var(--accent-tint); color:var(--accent-dark); transition:transform .1s;
+  }
+  .tt-etat:active{transform:scale(.92);}
+  .tt-etat.en_cours{background:var(--maybe-tint); color:var(--maybe);}
+  .tt-etat.fait{background:var(--ok-tint); color:var(--ok);}
+  .tt-etat.ecartee{background:var(--border); color:var(--muted);}
+  .tt-etat[disabled]{cursor:default;}
+  /* display:flex en colonne, explicitement : sous 820 px, base.css passe tous
+     les <button> en inline-flex CENTRÉ (la règle des cibles tactiles), ce qui
+     rangeait le titre et sa ligne grise côte à côte, au milieu de la tuile. */
+  .tt-quoi{
+    flex:1; min-width:0; text-align:left; background:none; border:none; padding:2px 0; cursor:pointer;
+    font:inherit; color:inherit; -webkit-tap-highlight-color:transparent;
+    display:flex; flex-direction:column; align-items:stretch; justify-content:center;
+  }
+  .tt-titre{display:block; font-weight:700; font-size:15px; line-height:1.3; overflow-wrap:anywhere;}
+  .tt-meta{display:block; font-size:12.5px; color:var(--muted); margin-top:2px; line-height:1.4;}
+  .tt-meta > span:not(:empty) + span:not(:empty)::before{content:' · ';}
+  .tt-meta .ko{color:var(--ko); font-weight:700;}
+  .tt-meta .att{color:var(--maybe); font-weight:700;}
+  .tt-marques{flex:0 0 auto; display:flex; align-items:center; gap:6px;}
+  .pastille{
+    display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:800; text-transform:uppercase;
+    letter-spacing:.04em; padding:3px 8px; border-radius:999px; white-space:nowrap;
+    background:var(--border); color:var(--muted);
+  }
+  .pastille.auto{background:var(--accent-tint); color:var(--accent-dark);}
+  .pastille.prog{background:var(--bg); border:1px solid var(--border); color:var(--text); text-transform:none; letter-spacing:0; font-size:11.5px;}
+  .pastille.prog.complet{background:var(--ok-tint); border-color:transparent; color:var(--ok);}
+  .tt-deplier{
+    flex:0 0 auto; width:34px; height:34px; border-radius:10px; border:1px solid var(--border);
+    background:var(--card); color:var(--muted); cursor:pointer; display:grid; place-items:center; font:inherit;
+  }
+  .tt-deplier[aria-expanded="true"] svg{transform:rotate(90deg);}
+  .tt-deplier svg{transition:transform .15s;}
+  .tt-fleche{flex:0 0 auto; color:var(--muted);}
+
+  /* Les sous-tâches dépliées, sous leur mère. */
+  .tt-enfants{margin:-2px 0 2px 26px; padding-left:14px; border-left:2px solid var(--border); display:flex; flex-direction:column; gap:6px;}
+  .tt-enfants .tt-tache{padding:6px 10px 6px 6px; border-radius:12px;}
+  .tt-enfants .tt-etat{width:34px; height:34px; border-radius:9px;}
+  .tt-enfants .tt-titre{font-size:14px; font-weight:600;}
+
+  .tt-retablir{flex:0 0 auto;}
+  .tt-vide{color:var(--muted); font-size:14px; line-height:1.6; padding:26px 18px; text-align:center;
+    background:var(--card); border:1px dashed var(--border); border-radius:14px;}
+
+  /* --- Vue par projet ------------------------------------------------------ */
+  .tt-projets{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap:14px; align-items:start;}
+  .tt-projet{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 14px 12px;}
+  .tt-projet-tete{display:flex; align-items:flex-start; gap:10px; margin-bottom:10px;}
+  .tt-projet-tete h3{margin:0; font-size:16px; line-height:1.3; font-weight:800;}
+  .tt-projet-tete a{color:inherit; text-decoration:none;}
+  .tt-projet-tete a:hover{text-decoration:underline;}
+  .tt-projet-sous{font-size:12.5px; color:var(--muted); margin-top:3px; line-height:1.45;}
+  .tt-projet-compte{margin-left:auto; font-size:12px; font-weight:800; color:var(--muted); white-space:nowrap; padding-top:2px;}
+  .tt-projet .co-progress{margin:0 0 12px;}
+  .tt-projet .tt-tache{background:var(--bg);}
+  .tt-projet-pied{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  .tt-projet.annule{opacity:.75;}
+
+  /* --- Calendrier ----------------------------------------------------------
+     La grille de « Mes dates » (assets/mes-dates-vue.js) : un mois à la fois,
+     deux flèches de 40 px, un appui sur un jour déplie sa liste sous la grille
+     plutôt qu'en bulle — une bulle cache justement les jours qu'on compare. */
+  .cal-nav{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 10px;}
+  .cal-mois-titre{flex:1; text-align:center; font-family:var(--font-display); font-size:18px; font-weight:500; color:var(--accent-dark); text-transform:capitalize;}
+  .cal-fleche{
+    flex:0 0 auto; width:40px; height:40px; border-radius:12px; cursor:pointer;
+    border:1px solid var(--border); background:var(--card); color:var(--accent-dark);
+    display:grid; place-items:center; font:inherit; -webkit-tap-highlight-color:transparent;
+  }
+  .cal-fleche:hover{border-color:var(--accent);}
+  .cal-fleche:active{transform:scale(.94);}
+  .cal-auj{font-size:12.5px;}
+  .cal-grille{
+    display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:3px;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:8px;
+  }
+  .cal-nom{font-size:10px; font-weight:800; color:var(--muted); text-align:center; padding-bottom:2px;}
+  .cal-case{
+    min-height:48px; display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px 5px;
+    border-radius:8px; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums;
+    border:none; background:transparent; font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent;
+    position:relative; min-width:0;
+  }
+  .cal-case.vide{visibility:hidden; cursor:default;}
+  .cal-case:hover:not(.vide){background:var(--bg);}
+  .cal-case .num{font-weight:700; line-height:1;}
+  .cal-case.auj .num{background:var(--accent); color:#fff; border-radius:999px; padding:3px 6px; margin-top:-3px;}
+  html[data-theme="dark"] .cal-case.auj .num{color:var(--bg);}
+  .cal-case.choisie{box-shadow:0 0 0 2.5px var(--accent); z-index:1;}
+  .cal-case.projet{background:var(--accent-tint); color:var(--accent-dark);}
+  .cal-case.projet:hover{background:var(--accent-tint);}
+  .cal-points{display:flex; gap:3px; justify-content:center; flex-wrap:wrap;}
+  .cal-point{width:6px; height:6px; border-radius:50%; background:var(--accent); display:block;}
+  .cal-point.en_cours{background:var(--maybe);}
+  .cal-point.fait{background:var(--ok);}
+  .cal-point.retard{background:var(--ko);}
+  .cal-puces{display:none;}
+  .cal-legende{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:11.5px; color:var(--muted); margin-top:10px;}
+  .cal-legende span{display:inline-flex; align-items:center; gap:6px;}
+  .cal-legende i{width:10px; height:10px; border-radius:50%; display:inline-block;}
+  .cal-legende i.projet{border-radius:3px; background:var(--accent-tint); box-shadow:inset 0 0 0 1px var(--accent);}
+  .cal-detail{margin-top:12px;}
+  .cal-detail-jour{font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px;}
+  .cal-date-projet{
+    display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:12px; margin-bottom:8px;
+    background:var(--accent-tint); color:var(--accent-dark); font-size:13.5px; text-decoration:none;
+  }
+  .cal-date-projet b{font-weight:800;}
+  .cal-date-projet .ico{font-size:15px; width:18px; text-align:center;}
+  .cal-date-projet .ou{margin-left:auto; font-size:12px; opacity:.8; text-align:right;}
+  .cal-avant{font-size:13px; margin:0 0 10px; color:var(--ko); font-weight:700;}
+  .cal-avant button{font:inherit; color:inherit; background:none; border:none; padding:0; text-decoration:underline; cursor:pointer;}
+
+  /* --- Le détail : feuille au téléphone, tiroir au bureau ------------------
+     `.modal-overlay.open` : c'est ce que ui-helpers.js reconnaît pour piéger
+     le focus, fermer à Échap et retenir les rafraîchissements temps réel
+     tant que la feuille est ouverte. */
+  .tt-voile{position:fixed; inset:0; z-index:70; background:rgba(20,15,10,.45); display:none;}
+  .tt-voile.open{display:block;}
+  .tt-panneau{
+    position:absolute; left:0; right:0; bottom:0; max-height:92vh; max-height:92dvh;
+    display:flex; flex-direction:column; background:var(--card); color:var(--text);
+    border-radius:22px 22px 0 0; box-shadow:0 -10px 40px rgba(20,15,10,.22);
+    animation:ttMonte .22s ease-out;
+  }
+  @keyframes ttMonte{from{transform:translateY(24px); opacity:.6;} to{transform:none; opacity:1;}}
+  .tt-poignee{width:40px; height:5px; border-radius:99px; background:var(--border); margin:8px auto 0; flex:0 0 auto;}
+  .tt-p-tete{
+    display:flex; align-items:center; gap:10px; padding:10px 18px 10px;
+    border-bottom:1px solid var(--border); flex:0 0 auto;
+  }
+  .tt-p-tete h2{margin:0; font-family:var(--font-display); font-weight:500; font-size:19px; color:var(--accent); flex:1; min-width:0;}
+  .tt-p-enreg{font-size:12px; color:var(--muted); font-weight:700; white-space:nowrap;}
+  .tt-p-enreg.ok{color:var(--ok);}
+  .tt-p-fermer{
+    width:40px; height:40px; border-radius:12px; border:1px solid var(--border); background:var(--card);
+    color:var(--muted); font-size:20px; line-height:1; cursor:pointer; flex:0 0 auto; font-family:inherit;
+  }
+  .tt-p-corps{flex:1 1 auto; overflow-y:auto; padding:14px 18px 18px; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;}
+  .tt-p-pied{
+    flex:0 0 auto; display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    padding:12px 18px calc(12px + env(safe-area-inset-bottom, 0px)); border-top:1px solid var(--border);
+  }
+  .tt-p-pied .droite{margin-left:auto; display:flex; gap:10px;}
+  .tt-champ{display:flex; flex-direction:column; gap:6px; margin-bottom:14px;}
+  .tt-champ > label, .tt-champ > .lib{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
+  .tt-champ input[type=text], .tt-champ input[type=date], .tt-champ input[type=number], .tt-champ select, .tt-champ textarea{
+    padding:10px 12px; border:1px solid var(--border); border-radius:10px; font-size:14.5px;
+    background:var(--card); color:var(--text); font-family:inherit; width:100%; box-sizing:border-box;
+  }
+  .tt-champ textarea{min-height:76px; resize:vertical; line-height:1.45;}
+  .tt-champ input:focus, .tt-champ select:focus, .tt-champ textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .tt-ligne{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .tt-ligne > *{flex:1 1 0; min-width:0;}
+  .tt-ligne > .fixe{flex:0 0 auto;}
+  .tt-aide{font-size:12.5px; color:var(--muted); line-height:1.45; margin:0;}
+  .tt-aide b{color:var(--text);}
+  .tt-aide.att{color:var(--maybe);}
+
+  /* Un choix à trois : l'état, la nature de l'échéance. Des boutons plutôt
+     qu'une liste déroulante : on voit les trois possibilités d'un coup, et on
+     choisit d'un seul appui. */
+  .tt-segments{display:flex; gap:4px; padding:4px; background:var(--bg); border:1px solid var(--border); border-radius:12px;}
+  .tt-segments button{
+    flex:1 1 0; min-height:40px; border:none; border-radius:9px; background:transparent; cursor:pointer;
+    font-family:inherit; font-size:13.5px; font-weight:700; color:var(--muted); padding:6px 8px;
+  }
+  .tt-segments button[aria-pressed="true"]{background:var(--card); color:var(--text); box-shadow:0 1px 4px rgba(20,15,10,.12);}
+  .tt-segments button.a_faire[aria-pressed="true"]{color:var(--accent-dark);}
+  .tt-segments button.en_cours[aria-pressed="true"]{color:var(--maybe);}
+  .tt-segments button.fait[aria-pressed="true"]{color:var(--ok);}
+  .tt-segments button[disabled]{opacity:.45; cursor:default;}
+
+  .tt-auto{display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:12px; background:var(--accent-tint); color:var(--accent-dark); font-size:13px; line-height:1.45; margin-bottom:14px;}
+
+  /* Les sous-tâches, dans le détail. */
+  .tt-st-liste{display:flex; flex-direction:column; gap:6px; margin-bottom:8px;}
+  .tt-st{display:flex; align-items:center; gap:8px;}
+  .tt-st .tt-etat{width:36px; height:36px; border-radius:10px;}
+  .tt-st input[type=text]{flex:1 1 auto; min-width:0;}
+  .tt-st input[type=date]{flex:0 0 150px; width:150px;}
+  .tt-st.faite input[type=text]{text-decoration:line-through; color:var(--muted);}
+  .tt-st-suppr{
+    flex:0 0 auto; width:36px; height:36px; border-radius:10px; border:1px solid var(--border);
+    background:var(--card); color:var(--muted); cursor:pointer; font-size:15px; font-family:inherit;
+  }
+  .tt-st-suppr:hover{border-color:var(--ko); color:var(--ko);}
+
+  /* Les règles des tâches automatiques. */
+  .tt-regle{border:1px solid var(--border); border-radius:14px; padding:12px; margin-bottom:10px; background:var(--bg);}
+  .tt-regle.inactive{opacity:.6;}
+  .tt-regle-tete{display:flex; gap:8px; align-items:center; margin-bottom:8px;}
+  .tt-regle-tete input[type=text]{flex:1; min-width:0;}
+  .tt-regle .tt-ligne{margin-top:8px;}
+  .tt-regle label.coche{display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;}
+  .tt-regle label.coche input{width:20px; height:20px; accent-color:var(--ok);}
+  .tt-regle input, .tt-regle select{
+    padding:9px 10px; border:1px solid var(--border); border-radius:10px; font-size:14px;
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  .tt-regle input[type=number]{width:76px;}
+  .tt-apercu{font-size:13px; font-weight:700; color:var(--accent-dark); background:var(--accent-tint); border-radius:10px; padding:9px 12px; margin:6px 0 0;}
+
+  /* Le bouton « + », à portée de pouce. Il n'existe qu'au téléphone : sur
+     grand écran, « Nouvelle tâche » est dans l'en-tête. */
+  .tt-fab{display:none;}
+
+  /* --- Grand écran --------------------------------------------------------- */
+  @media (min-width:761px){
+    /* La liste se serre en tableau : une carte, des lignes, et les
+       renseignements rangés en colonnes qu'on lit de haut en bas. */
+    .tt-liste{gap:0; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
+    .tt-liste > .tt-tache{border:none; border-bottom:1px solid var(--border); border-radius:0; padding:8px 14px 8px 12px;}
+    .tt-liste > :last-child{border-bottom:none;}
+    .tt-liste > .tt-tache:hover{background:var(--row-alt);}
+    .tt-liste .tt-tache.retard{box-shadow:inset 3px 0 0 var(--ko); border-left:none;}
+    .tt-liste .tt-enfants{margin:0; padding:4px 14px 8px 64px; border-left:none; border-bottom:1px solid var(--border); background:var(--row-alt);}
+    .tt-liste .tt-enfants .tt-tache{background:var(--card);}
+    .tt-liste .tt-etat{width:36px; height:36px; border-radius:10px;}
+    .tt-liste > .tt-tache .tt-quoi{
+      display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 210px) 235px 80px; gap:14px; align-items:center;
+    }
+    .tt-liste > .tt-tache .tt-meta{display:contents;}
+    .tt-liste > .tt-tache .tt-meta > span{
+      font-size:12.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .tt-liste > .tt-tache .tt-meta > span::before{content:none !important;}
+    .tt-liste .tt-titre{font-size:14px;}
+    .tt-projet .tt-liste{background:transparent; border:none; border-radius:0; gap:6px;}
+    .tt-projet .tt-liste > .tt-tache{border:1px solid var(--border); border-radius:12px;}
+    .tt-projet .tt-liste > .tt-tache .tt-quoi{display:block;}
+    .tt-projet .tt-liste > .tt-tache .tt-meta{display:block;}
+    .tt-projet .tt-liste > .tt-tache .tt-meta > span{white-space:normal;}
+    .tt-projet .tt-liste > .tt-tache .tt-meta > span:not(:empty) + span:not(:empty)::before{content:' · ' !important;}
+    .tt-projet .tt-liste .tt-enfants{padding-left:48px; border:none; background:transparent;}
+
+    /* Le calendrier prend la largeur : trois puces par case, puis « +N ». */
+    .cal-case{min-height:104px; align-items:stretch; padding:6px 5px; text-align:left;}
+    .cal-case .num{align-self:flex-start; margin-left:2px;}
+    .cal-case.auj .num{margin-top:-2px;}
+    .cal-points{display:none;}
+    .cal-puces{display:flex; flex-direction:column; gap:3px; width:100%;}
+    .cal-puce{
+      display:block; font-size:11px; line-height:1.25; padding:2px 6px; border-radius:6px; font-weight:700;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:var(--bg); color:var(--text);
+      border-left:3px solid var(--accent);
+    }
+    .cal-puce.en_cours{border-left-color:var(--maybe);}
+    .cal-puce.fait{border-left-color:var(--ok); color:var(--muted); text-decoration:line-through;}
+    .cal-puce.retard{border-left-color:var(--ko); color:var(--ko);}
+    .cal-puce.dp{background:var(--accent); color:#fff; border-left:none;}
+    html[data-theme="dark"] .cal-puce.dp{color:var(--bg);}
+    .cal-puce.plus{background:none; border:none; color:var(--muted); padding-left:6px;}
+    .cal-case.projet{background:transparent; color:var(--muted);}
+    .cal-case.projet:hover{background:var(--bg);}
+
+    /* Le tiroir à droite : on garde la liste sous les yeux pendant qu'on
+       modifie une tâche. */
+    .tt-panneau{
+      left:auto; top:0; right:0; bottom:0; width:min(480px, 92vw); max-height:none; height:100%;
+      border-radius:0; box-shadow:-10px 0 40px rgba(20,15,10,.2); animation:ttGlisse .2s ease-out;
+    }
+    @keyframes ttGlisse{from{transform:translateX(30px); opacity:.6;} to{transform:none; opacity:1;}}
+    .tt-poignee{display:none;}
+    .tt-p-tete{padding-top:16px;}
+  }
+
+  /* --- Téléphone : l'application ------------------------------------------
+     Les chiffres de la coque musicien (app-musicien.js) : 72 px de barre, le
+     retrait bas de l'écran, et un talon de 10 px quand ce retrait vaut zéro. */
+  @media (max-width:760px){
+    body.taches-app{
+      padding-bottom:calc(150px + max(10px, env(safe-area-inset-bottom, 0px)));
+      overscroll-behavior-y:none;
+    }
+    /* Les onglets du bas remplacent le sous-menu Production sur cet écran :
+       deux barres collantes pour trois vues mangeaient un quart d'écran. Le
+       menu ☰ du bandeau mène toujours partout ailleurs. */
+    body.taches-app .co-subnav{display:none;}
+    body.taches-app > .wrap{padding-top:18px;}
+    .wrap{max-width:600px;}
+    .tt-tete{margin-bottom:10px;}
+    .tt-tete h1{font-size:25px;}
+    .tt-actions{display:none;}
+    .tt-barre{flex-direction:column; flex-wrap:nowrap; align-items:stretch; gap:8px;}
+    /* En colonne, la base de 280 px devenait une HAUTEUR. */
+    .tt-ajout{flex:0 0 auto;}
+    .tt-puces{margin:0 -16px; padding:0 16px;}
+    .tt-sep{display:none;}
+    .tt-select{width:100%;}
+    .tt-ajout input{padding:12px 14px; font-size:16px;}
+    .tt-champ input[type=text], .tt-champ input[type=date], .tt-champ input[type=number], .tt-champ select, .tt-champ textarea,
+    .tt-regle input, .tt-regle select, .tt-select{font-size:16px;}
+    /* L'échéance calée : le nombre et le sens sur une ligne, le repère dessous
+       — trois menus côte à côte ne laissaient lire aucun des trois. */
+    .tt-ligne > select[data-champ="ancre"]{flex-basis:100%;}
+    /* Une sous-tâche : son titre prend la largeur, sa date passe dessous. */
+    .tt-st{display:grid; grid-template-columns:36px minmax(0, 1fr) 36px; gap:6px 8px; align-items:center;}
+    .tt-st .tt-etat{grid-row:1; grid-column:1;}
+    .tt-st input[type=text]{grid-row:1; grid-column:2;}
+    .tt-st .tt-st-suppr{grid-row:1; grid-column:3;}
+    .tt-st input[type=date]{grid-row:2; grid-column:2; width:auto; padding-top:6px !important; padding-bottom:6px !important; color:var(--muted) !important;}
+    .tt-st + .tt-st{border-top:1px solid var(--border); padding-top:6px;}
+
+    .tt-onglets{
+      position:fixed; left:0; right:0; bottom:0; z-index:45; margin:0; gap:0; flex-wrap:nowrap;
+      display:flex; align-items:stretch;
+      padding-bottom:max(10px, env(safe-area-inset-bottom, 0px));
+      padding-left:env(safe-area-inset-left, 0px);
+      padding-right:env(safe-area-inset-right, 0px);
+      background:var(--card); border-top:1px solid var(--border);
+      box-shadow:0 -8px 24px rgba(20,15,10,.07);
+    }
+    .tt-onglet{
+      flex:1 1 0; min-width:0; flex-direction:column; justify-content:center; gap:4px;
+      padding:11px 3px 10px; border:none; border-radius:0; background:transparent;
+      color:var(--text); opacity:.72; font-size:11px; letter-spacing:.01em;
+    }
+    .tt-onglet:hover{border:none;}
+    .tt-onglet[aria-pressed="true"]{background:transparent; color:var(--accent-dark); opacity:1;}
+    html[data-theme="dark"] .tt-onglet[aria-pressed="true"]{color:var(--accent-dark);}
+    .tt-onglet[aria-pressed="true"] .tt-onglet-icone{stroke-width:2.05;}
+    .tt-onglet[aria-pressed="true"]::before{
+      content:''; position:absolute; top:0; left:50%; transform:translateX(-50%);
+      width:26px; height:3px; border-radius:0 0 3px 3px; background:var(--accent);
+    }
+    .tt-onglet:active .tt-onglet-icone{transform:scale(.9);}
+    .tt-onglet-icone{transition:transform .12s;}
+    .tt-onglet-pastille{
+      position:absolute; top:5px; left:calc(50% + 7px); min-width:16px; height:16px; padding:0 4px;
+      font-size:10px; box-shadow:0 0 0 2px var(--card);
+    }
+    .tt-onglet[aria-pressed="true"] .tt-onglet-pastille{background:var(--secondary); color:#fff;}
+
+    .tt-fab{
+      display:grid; place-items:center; position:fixed; z-index:44;
+      right:calc(16px + env(safe-area-inset-right, 0px));
+      bottom:calc(84px + max(10px, env(safe-area-inset-bottom, 0px)));
+      width:56px; height:56px; border-radius:18px; border:none; cursor:pointer;
+      background:var(--accent); color:#fff; box-shadow:0 8px 22px rgba(121,22,73,.35);
+      -webkit-tap-highlight-color:transparent;
+    }
+    html[data-theme="dark"] .tt-fab{color:var(--bg);}
+    .tt-fab:active{transform:scale(.94);}
+
+    /* Ce qui se posait au bas de la fenêtre monte au-dessus de la barre,
+       comme la barre d'enregistrement dans la coque musicien : deux choses au
+       même endroit, c'est un geste perdu sur deux. */
+    body.taches-app .co-annuler, body.taches-app .co-annuler.en-colonne{bottom:calc(84px + max(10px, env(safe-area-inset-bottom, 0px)));}
+    body.taches-app #curieuxFlash{bottom:calc(150px + max(10px, env(safe-area-inset-bottom, 0px))) !important;}
+    body.taches-app #curieuxEcritureBandeau{bottom:calc(72px + max(10px, env(safe-area-inset-bottom, 0px))) !important;}
+    /* base.css range « Un retour ? » sur le bord GAUCHE au téléphone, pour ne
+       pas couvrir les suppressions alignées à droite. Ici, le bord gauche est
+       celui des boutons d'état, qu'on touche sans arrêt ; la droite ne porte
+       que des flèches. Il passe donc à droite, au-dessus du bouton « + ». */
+    body.taches-app #curieuxBugWidget{
+      left:auto !important; right:0 !important;
+      border-radius:10px 0 0 10px !important; border-right:none !important; border-left:1px solid var(--border) !important;
+      bottom:calc(158px + max(10px, env(safe-area-inset-bottom, 0px))) !important;
+    }
+    body.taches-app:has(.co-annuler.vu) .tt-fab{opacity:0; pointer-events:none;}
+
+    .tt-p-pied .droite{flex:1 1 auto;}
+    .tt-p-pied .droite .co-btn{flex:1 1 auto;}
+  }
+  /* !important : le widget porte son display en style en ligne. */
+  body:has(.tt-voile.open) #curieuxBugWidget{display:none !important;}
+  body:has(.tt-voile.open){overflow:hidden;}
+  @media (max-width:419px){
+    .tt-marques .pastille.auto{display:none;}
+  }
+</style>
+</head>
+<body class="taches-app">
+<div class="wrap">
+  <div class="tt-tete co-fade">
+    <div>
+      <h1>Tâches</h1>
+      <p class="tt-resume" id="resume">Chargement…</p>
+    </div>
+    <div class="tt-actions">
+      <button type="button" class="co-btn ghost sm" id="btnRegles">Tâches automatiques</button>
+      <button type="button" class="co-btn primary md" id="btnNouvelle">+ Nouvelle tâche</button>
+    </div>
+  </div>
+
+  <nav class="tt-onglets" id="onglets" aria-label="Façons de voir les tâches"></nav>
+  <div id="bandeaux"></div>
+  <div class="tt-barre" id="barre"></div>
+  <div id="contenu"><div class="tt-vide">Chargement…</div></div>
+</div>
+
+<button type="button" class="tt-fab" id="fab" aria-label="Nouvelle tâche">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+</button>
+
+<div class="modal-overlay tt-voile" id="panneau">
+  <div class="tt-panneau" role="dialog" aria-modal="true" aria-labelledby="pTitre">
+    <div class="tt-poignee" aria-hidden="true"></div>
+    <div class="tt-p-tete">
+      <h2 id="pTitre">Tâche</h2>
+      <span class="tt-p-enreg" id="pEnreg" aria-live="polite"></span>
+      <button type="button" class="tt-p-fermer" data-fermer-modale aria-label="Fermer">×</button>
+    </div>
+    <div class="tt-p-corps" id="pCorps"></div>
+    <div class="tt-p-pied" id="pPied"></div>
+  </div>
+</div>
+
+<script>
+applyBrandLogo();
+setInterval(applyAutoTheme, 5 * 60 * 1000);
+
+/* ---------------------------------------------------------------------------
+   Tâches de l'équipe
+   ---------------------------------------------------------------------------
+   Les tâches vivent dans comm_taches, genre 'equipe' (voir « LES TÂCHES DE
+   L'ÉQUIPE » dans migrations.sql) : la même table que le tableau de bord
+   technique, un autre espace. Tout ce qui se CALCULE — échéances calées sur
+   un projet, état d'une tâche mère, tâches automatiques — vient de
+   assets/taches-commun.js ; cette page ne fait que dessiner et écrire.
+
+   Trois façons de regarder les mêmes tâches :
+     — la liste, rangée par échéance : ce qui est en retard, ce qui tombe
+       aujourd'hui, cette semaine, plus tard ;
+     — les projets, une carte chacun avec son avancement ;
+     — le calendrier, où les dates des projets et les échéances se croisent.
+
+   Ce qu'on écrit part en modification PARTIELLE (majPartielle) : un téléphone
+   rallumé après une heure ne reçoit pas les événements temps réel manqués, et
+   renvoyer la ligne entière effacerait ce qu'un autre a écrit entre-temps.
+--------------------------------------------------------------------------- */
+
+const T = CurieuxTaches;
+const TABLE = 'comm_taches';
+const COLONNES_NEUVES = 'statut,parent_id,ordre,pour,ancre,modele';
+const CLE_LOCALE = 'curieuxTaches';
+
+const etat = {
+  taches: [],               // les tâches de l'équipe (format adaptateur)
+  tournees: [],             // les projets
+  parId: new Map(),         // projet par id
+  comptes: [],              // les comptes admin (qui peut se charger d'une tâche)
+  moi: '',
+  reglage: null,            // règles des tâches automatiques, normalisées
+  reglagesLus: false,
+  migrationManquante: false,
+  chargee: false,
+  vue: 'liste', qui: 'toutes', filtreEtat: 'tous', filtreProjet: '',
+  mois: '', jour: '',
+  deplies: new Set(),       // tâches mères dont on voit les sous-tâches
+  enVol: new Map(),         // id → version locale, tant qu'une écriture est en route
+  masquees: new Set(),      // supprimées à l'écran, en attente du « Oups »
+  panneau: null,            // { mode:'edition'|'creation'|'regles', id?, brouillon? }
+};
+
+/* --- Petits outils ------------------------------------------------------- */
+
+const MOIS_COURTS = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+const MOIS_LONGS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const JOURS_COURTS = ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+const JOURS_LONGS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+
+function aujourdhui(){ return T.aujourdhuiLocal(); }
+function dateObj(iso){ const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
+function joli(iso, avecJour){
+  if(!iso) return '';
+  const d = dateObj(iso);
+  if(isNaN(d)) return iso;
+  const an = d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '';
+  return (avecJour ? JOURS_COURTS[d.getDay()] + ' ' : '') + d.getDate() + ' ' + MOIS_COURTS[d.getMonth()] + an;
+}
+function jourLong(iso){
+  const d = dateObj(iso);
+  return JOURS_LONGS[d.getDay()] + ' ' + d.getDate() + ' ' + MOIS_LONGS[d.getMonth()] + ' ' + d.getFullYear();
+}
+function relatif(ech){
+  if(!ech) return { texte: '', classe: '' };
+  const r = T.joursEntre(aujourdhui(), ech);
+  if(r < 0) return { texte: `en retard de ${-r} j`, classe: 'ko' };
+  if(r === 0) return { texte: "aujourd'hui", classe: 'att' };
+  if(r === 1) return { texte: 'demain', classe: '' };
+  if(r <= 14) return { texte: `dans ${r} j`, classe: '' };
+  return { texte: '', classe: '' };
+}
+function pl(n, un, plusieurs){ return n + ' ' + (n > 1 ? plusieurs : un); }
+function nomCourt(email){
+  if(!email) return '';
+  const partie = email.split('@')[0].split(/[._-]/)[0] || email;
+  return partie.charAt(0).toUpperCase() + partie.slice(1);
+}
+function nomProjet(p){ return p ? (p.nom || (T.estRecording(p) ? 'Recording' : 'Projet')) : ''; }
+
+const ICONES_ETAT = {
+  a_faire:  '<circle cx="12" cy="12" r="7.5"/>',
+  en_cours: '<circle cx="12" cy="12" r="7.5"/><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" fill="currentColor" stroke="none"/>',
+  fait:     '<circle cx="12" cy="12" r="7.5"/><path d="M8.4 12.3l2.5 2.5 4.8-5.1"/>',
+  ecartee:  '<circle cx="12" cy="12" r="7.5"/><path d="M8.3 15.7 15.7 8.3"/>',
+};
+function iconeEtat(s, taille){
+  return `<svg width="${taille || 22}" height="${taille || 22}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONES_ETAT[s] || ICONES_ETAT.a_faire}</svg>`;
+}
+const CHEVRON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 5 16 12l-6.5 7"/></svg>';
+
+// Les trois onglets, au trait de la coque musicien (même graisse, même boîte).
+const ONGLETS = [
+  { cle:'liste',      libelle:'À faire',    icone:'<path d="M9.5 6.5h10.5M9.5 12h10.5M9.5 17.5h10.5"/><path d="M3.8 6.4l1.4 1.4 2.3-2.5"/><path d="M3.8 11.9l1.4 1.4 2.3-2.5"/><circle cx="5.5" cy="17.5" r="1.4"/>' },
+  { cle:'projets',    libelle:'Projets',    icone:'<rect x="3.5" y="4" width="17" height="7" rx="2"/><rect x="3.5" y="13" width="17" height="7" rx="2"/><path d="M7.5 7.5h6M7.5 16.5h6"/>' },
+  { cle:'calendrier', libelle:'Calendrier', icone:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.2"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3"/><path d="M7.8 13.5h2M14.2 13.5h2M7.8 17h2"/>' },
+];
+
+/* --- Lecture de l'état --------------------------------------------------- */
+
+function tachesVisibles(){ return etat.taches.filter(t=> !etat.masquees.has(t.id) && !(t.parentId && etat.masquees.has(t.parentId))); }
+function enfantsMap(){ return T.enfantsParParent(tachesVisibles()); }
+function tacheParId(id){ return etat.taches.find(t=> t.id === id) || null; }
+function projetDe(t){ return t && t.tourneeId ? etat.parId.get(t.tourneeId) || null : null; }
+function echeance(t){ return T.echeanceDe(t, etat.parId); }
+
+// Les projets proposés dans les listes : ceux qui ont encore une date devant
+// eux, du plus proche au plus lointain — puis, si la tâche ouverte vise un
+// projet passé, celui-là aussi, pour ne pas le perdre en l'éditant.
+function projetsAVenir(){
+  const auj = aujourdhui();
+  return etat.tournees
+    .map(p=> ({ p, b: T.bornes(p) }))
+    .filter(x=> x.b && x.b.fin >= auj)
+    .sort((a, b)=> a.b.debut.localeCompare(b.b.debut))
+    .map(x=> x.p);
+}
+
+function estAMoi(t){ return t.pour ? t.pour === etat.moi : t.auteur === etat.moi; }
+
+// Les tâches de premier niveau qui passent les filtres. `sansProjet` : la vue
+// par projet range elle-même, le filtre de projet ne s'y applique pas.
+function tachesFiltrees(sansProjet){
+  const enfants = enfantsMap();
+  return tachesVisibles().filter(t=>{
+    if(t.parentId) return false;
+    if(etat.qui === 'miennes' && !estAMoi(t) && !(enfants.get(t.id) || []).some(estAMoi)) return false;
+    const s = T.statutEffectif(t, enfants.get(t.id));
+    if(etat.filtreEtat !== 'tous' && s !== etat.filtreEtat) return false;
+    if(!sansProjet && etat.filtreProjet){
+      if(etat.filtreProjet === '_aucun' ? !!t.tourneeId : t.tourneeId !== etat.filtreProjet) return false;
+    }
+    return true;
+  });
+}
+
+/* --- Rendu : en-tête, onglets, filtres ------------------------------------ */
+
+function rendre(){
+  rendreResume();
+  rendreOnglets();
+  rendreBandeaux();
+  rendreBarre();
+  const box = document.getElementById('contenu');
+  if(!etat.chargee){ box.innerHTML = '<div class="tt-vide">Chargement…</div>'; return; }
+  if(etat.vue === 'projets') box.innerHTML = vueProjets();
+  else if(etat.vue === 'calendrier') box.innerHTML = vueCalendrier();
+  else box.innerHTML = vueListe();
+}
+
+function compteRetard(){ return T.enRetard(tachesVisibles(), etat.parId, aujourdhui()).length; }
+
+function rendreResume(){
+  const el = document.getElementById('resume');
+  if(!etat.chargee){ el.textContent = 'Chargement…'; return; }
+  const enfants = enfantsMap();
+  const auj = aujourdhui();
+  const ouvertes = tachesVisibles().filter(t=> !t.parentId && !['fait', 'ecartee'].includes(T.statutEffectif(t, enfants.get(t.id))));
+  const retard = compteRetard();
+  const semaine = ouvertes.filter(t=>{
+    const e = T.echeancePressante(t, enfants.get(t.id), etat.parId);
+    return e && e >= auj && T.joursEntre(auj, e) <= 7;
+  }).length;
+  const enCours = ouvertes.filter(t=> T.statutEffectif(t, enfants.get(t.id)) === 'en_cours').length;
+  if(!ouvertes.length){ el.innerHTML = 'Rien en attente. Tout est fait, ou tout reste à écrire.'; return; }
+  el.innerHTML = [
+    retard ? `<b class="ko">${retard} en retard</b>` : '',
+    semaine ? `<b>${semaine}</b> dans les 7 jours` : '',
+    enCours ? `<b>${enCours}</b> en cours` : '',
+    `<b>${ouvertes.length}</b> ouverte${ouvertes.length > 1 ? 's' : ''}`,
+  ].filter(Boolean).join(' · ');
+}
+
+function rendreOnglets(){
+  const retard = etat.chargee ? compteRetard() : 0;
+  document.getElementById('onglets').innerHTML = ONGLETS.map(o=>{
+    const p = o.cle === 'liste' && retard ? retard : 0;
+    return `<button type="button" class="tt-onglet" data-vue="${o.cle}" aria-pressed="${etat.vue === o.cle}">
+      <svg class="tt-onglet-icone" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${o.icone}</svg>
+      <span>${escapeHtml(o.libelle)}</span>
+      ${p ? `<span class="tt-onglet-pastille" aria-label="${p} en retard">${p}</span>` : ''}
+    </button>`;
+  }).join('');
+}
+
+function rendreBandeaux(){
+  const b = [];
+  if(etat.migrationManquante){
+    b.push(`<div class="tt-bandeau ko"><b>La base n'a pas encore les tâches d'équipe.</b> Colle le bloc
+      « LES TÂCHES DE L'ÉQUIPE » de <code>migrations.sql</code> dans le SQL Editor de Supabase, puis recharge la page.
+      D'ici là, la page se lit mais ne crée rien : une tâche enregistrée sans ses nouvelles colonnes perdrait son état ou ses sous-tâches.</div>`);
+  }
+  document.getElementById('bandeaux').innerHTML = b.join('');
+  document.getElementById('btnNouvelle').disabled = etat.migrationManquante;
+  document.getElementById('fab').hidden = etat.migrationManquante;
+}
+
+function rendreBarre(){
+  const barre = document.getElementById('barre');
+  // Ce qu'on tapait dans l'ajout rapide survit au redessin.
+  const saisie = document.getElementById('ajoutRapide');
+  const enCours = saisie ? saisie.value : '';
+  const puce = (attr, val, courant, libelle)=>
+    `<button type="button" class="tt-puce" data-${attr}="${val}" aria-pressed="${courant === val}">${escapeHtml(libelle)}</button>`;
+  const projets = projetsAVenir();
+  const ajout = etat.vue === 'liste' && !etat.migrationManquante;
+  barre.innerHTML = `
+    ${ajout ? `<div class="tt-ajout">
+      <input type="text" id="ajoutRapide" placeholder="Ajouter une tâche — Entrée pour l'enregistrer" aria-label="Ajouter une tâche" enterkeyhint="done" autocomplete="off">
+    </div>` : ''}
+    <div class="tt-puces" role="group" aria-label="Filtres">
+      ${puce('qui', 'toutes', etat.qui, 'Toutes')}
+      ${puce('qui', 'miennes', etat.qui, 'Les miennes')}
+      <span class="tt-sep" aria-hidden="true"></span>
+      ${puce('filtre-etat', 'tous', etat.filtreEtat, 'Tous états')}
+      ${puce('filtre-etat', 'a_faire', etat.filtreEtat, 'À faire')}
+      ${puce('filtre-etat', 'en_cours', etat.filtreEtat, 'En cours')}
+    </div>
+    ${etat.vue !== 'projets' ? `<select class="tt-select" id="filtreProjet" aria-label="Projet">
+      <option value="">Tous les projets</option>
+      <option value="_aucun" ${etat.filtreProjet === '_aucun' ? 'selected' : ''}>Sans projet</option>
+      ${projets.map(p=> `<option value="${escapeAttr(p.id)}" ${etat.filtreProjet === p.id ? 'selected' : ''}>${escapeHtml(nomProjet(p))}</option>`).join('')}
+      ${etat.filtreProjet && etat.filtreProjet !== '_aucun' && !projets.some(p=> p.id === etat.filtreProjet)
+        ? `<option value="${escapeAttr(etat.filtreProjet)}" selected>${escapeHtml(nomProjet(etat.parId.get(etat.filtreProjet)) || 'Projet passé')}</option>` : ''}
+    </select>` : ''}
+  `;
+  const nouvelle = document.getElementById('ajoutRapide');
+  if(nouvelle && enCours) nouvelle.value = enCours;
+}
+
+/* --- La tuile ------------------------------------------------------------- */
+
+function tuile(t, enfants, opts){
+  opts = opts || {};
+  const s = T.statutEffectif(t, enfants);
+  const e = echeance(t);
+  const pressante = enfants && enfants.length ? T.echeancePressante(t, enfants, etat.parId) : e.date;
+  const faite = s === 'fait';
+  const rel = faite || s === 'ecartee' ? { texte:'', classe:'' } : relatif(pressante);
+  const projet = projetDe(t);
+  const prog = T.progression(enfants);
+  const aEnfants = prog.total > 0;
+  const retard = rel.classe === 'ko';
+
+  const quand = pressante
+    ? `<span class="${rel.classe}">${escapeHtml(joli(pressante, true))}${rel.texte ? ' — ' + escapeHtml(rel.texte) : ''}</span>`
+    : (e.perdue ? '<span class="ko">projet sans date</span>' : '<span></span>');
+  const projetTxt = opts.sansProjet ? '' : (projet ? nomProjet(projet) : (t.tourneeId ? 'projet supprimé' : ''));
+  const qui = t.pour ? nomCourt(t.pour) : '';
+
+  const etatBouton = aEnfants
+    ? `<button type="button" class="tt-etat ${s}" data-ouvrir="${escapeAttr(t.id)}" aria-label="${escapeAttr(T.STATUT[s].libelle + ' — l’état suit les sous-tâches ; ouvrir')}">${iconeEtat(s)}</button>`
+    : s === 'ecartee'
+      ? `<button type="button" class="tt-etat ecartee" disabled aria-label="Écartée">${iconeEtat('ecartee')}</button>`
+      : `<button type="button" class="tt-etat ${s}" data-cycle="${escapeAttr(t.id)}" ${etat.migrationManquante ? 'disabled' : ''}
+          aria-label="${escapeAttr('État : ' + T.STATUT[s].libelle.toLowerCase() + ' — passer à ' + T.STATUT[T.statutSuivant(s)].libelle.toLowerCase())}">${iconeEtat(s)}</button>`;
+
+  const deplie = etat.deplies.has(t.id);
+  return `<div class="tt-tache ${faite ? 'faite' : ''} ${retard ? 'retard' : ''} ${s === 'ecartee' ? 'ecartee' : ''}" id="tache-${escapeAttr(t.id)}">
+    ${etatBouton}
+    <button type="button" class="tt-quoi" data-ouvrir="${escapeAttr(t.id)}">
+      <span class="tt-titre">${escapeHtml(t.libelle || 'Sans titre')}</span>
+      <span class="tt-meta"><span>${escapeHtml(projetTxt)}</span>${quand}<span>${escapeHtml(qui)}</span></span>
+    </button>
+    <span class="tt-marques">
+      ${t.modele ? '<span class="pastille auto" title="Créée d’après les dates du projet">auto</span>' : ''}
+      ${aEnfants ? `<span class="pastille prog ${prog.faits === prog.total ? 'complet' : ''}">${prog.faits}/${prog.total}</span>` : ''}
+      ${s === 'ecartee' ? `<button type="button" class="co-btn ghost sm tt-retablir" data-retablir="${escapeAttr(t.id)}">Rétablir</button>` : ''}
+      ${aEnfants && !opts.sansDeplier
+        ? `<button type="button" class="tt-deplier" data-deplier="${escapeAttr(t.id)}" aria-expanded="${deplie}" aria-label="${deplie ? 'Replier' : 'Déplier'} les sous-tâches">${CHEVRON}</button>`
+        : '<span class="tt-fleche" aria-hidden="true">' + CHEVRON + '</span>'}
+    </span>
+  </div>
+  ${aEnfants && deplie ? `<div class="tt-enfants">${enfants.map(c=> tuileEnfant(c, t)).join('')}</div>` : ''}`;
+}
+
+// Une sous-tâche sous sa mère : son état se change d'un appui, le reste
+// ouvre la mère — c'est là qu'on les édite, toutes ensemble.
+function tuileEnfant(c, mere){
+  const s = c.statut === 'ecartee' ? 'ecartee' : (T.STATUT[c.statut] ? c.statut : 'a_faire');
+  const e = echeance(c);
+  const rel = s === 'fait' ? { texte:'', classe:'' } : relatif(e.date);
+  return `<div class="tt-tache ${s === 'fait' ? 'faite' : ''}">
+    <button type="button" class="tt-etat ${s}" data-cycle="${escapeAttr(c.id)}" ${etat.migrationManquante || s === 'ecartee' ? 'disabled' : ''}
+      aria-label="${escapeAttr('État : ' + T.STATUT[s].libelle.toLowerCase())}">${iconeEtat(s, 18)}</button>
+    <button type="button" class="tt-quoi" data-ouvrir="${escapeAttr(mere.id)}">
+      <span class="tt-titre">${escapeHtml(c.libelle || 'Sans titre')}</span>
+      ${e.date ? `<span class="tt-meta"><span class="${rel.classe}">${escapeHtml(joli(e.date, true))}${rel.texte ? ' — ' + escapeHtml(rel.texte) : ''}</span></span>` : ''}
+    </button>
+  </div>`;
+}
+
+/* --- Vue : la liste ------------------------------------------------------- */
+
+function vueListe(){
+  const enfants = enfantsMap();
+  const auj = aujourdhui();
+  const groupes = { retard:[], aujourdhui:[], semaine:[], plus_tard:[], sans:[], faites:[], ecartees:[], annule:[], supprime:[] };
+
+  tachesFiltrees(false).forEach(t=>{
+    const s = T.statutEffectif(t, enfants.get(t.id));
+    const projet = projetDe(t);
+    if(s === 'ecartee') return groupes.ecartees.push(t);
+    if(s === 'fait') return groupes.faites.push(t);
+    if(t.tourneeId && !projet) return groupes.supprime.push(t);
+    if(projet && T.projetAnnule(projet)) return groupes.annule.push(t);
+    const ech = T.echeancePressante(t, enfants.get(t.id), etat.parId);
+    if(!ech) return groupes.sans.push(t);
+    const r = T.joursEntre(auj, ech);
+    if(r < 0) groupes.retard.push(t);
+    else if(r === 0) groupes.aujourdhui.push(t);
+    else if(r <= 7) groupes.semaine.push(t);
+    else groupes.plus_tard.push(t);
+  });
+  const parEcheance = (a, b)=> (T.echeancePressante(a, enfants.get(a.id), etat.parId) || '9999')
+    .localeCompare(T.echeancePressante(b, enfants.get(b.id), etat.parId) || '9999') || (a.libelle || '').localeCompare(b.libelle || '');
+  ['retard', 'aujourdhui', 'semaine', 'plus_tard'].forEach(k=> groupes[k].sort(parEcheance));
+  groupes.sans.sort((a, b)=> String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  groupes.faites.sort((a, b)=> String(b.faitLe || '').localeCompare(String(a.faitLe || '')));
+
+  const bloc = (titre, liste, classe)=> liste.length ? `
+    <h2 class="section-titre ${classe || ''}">${escapeHtml(titre)} <span class="nb">${liste.length}</span></h2>
+    <div class="tt-liste">${liste.map(t=> tuile(t, enfants.get(t.id))).join('')}</div>` : '';
+  const replie = (titre, liste)=> liste.length ? `
+    <details class="tt-replie">
+      <summary class="section-titre">${escapeHtml(titre)} <span class="nb">${liste.length}</span></summary>
+      <div class="tt-liste">${liste.slice(0, 60).map(t=> tuile(t, enfants.get(t.id))).join('')}</div>
+    </details>` : '';
+
+  const ouvertes = groupes.retard.length + groupes.aujourdhui.length + groupes.semaine.length + groupes.plus_tard.length + groupes.sans.length;
+  const vide = !ouvertes ? `<div class="tt-vide">${
+    etat.taches.length
+      ? (etat.filtreEtat !== 'tous' || etat.qui !== 'toutes' || etat.filtreProjet ? 'Aucune tâche ne correspond à ces filtres.' : 'Tout est fait. Rien n’attend.')
+      : 'Aucune tâche pour l’instant. Écris la première ci-dessus — ou règle les <b>tâches automatiques</b>, qui se créent d’après les dates des projets.'
+  }</div>` : '';
+
+  return vide
+    + bloc('En retard', groupes.retard, 'ko')
+    + bloc("Aujourd'hui", groupes.aujourdhui)
+    + bloc('Dans les 7 jours', groupes.semaine)
+    + bloc('Plus tard', groupes.plus_tard)
+    + bloc('Sans échéance', groupes.sans)
+    + replie('Faites', groupes.faites)
+    + replie('Projet annulé', groupes.annule)
+    + replie('Projet supprimé', groupes.supprime)
+    + replie('Écartées', groupes.ecartees);
+}
+
+/* --- Vue : par projet ----------------------------------------------------- */
+
+function vueProjets(){
+  const enfants = enfantsMap();
+  const toutes = tachesFiltrees(true);
+  const parProjet = new Map();
+  toutes.forEach(t=>{
+    const cle = t.tourneeId && etat.parId.has(t.tourneeId) ? t.tourneeId : '';
+    if(!parProjet.has(cle)) parProjet.set(cle, []);
+    parProjet.get(cle).push(t);
+  });
+  const auj = aujourdhui();
+  const aVenir = projetsAVenir();
+  const passes = etat.tournees.filter(p=> !aVenir.includes(p) && parProjet.has(p.id))
+    .sort((a, b)=> ((T.bornes(b) || {}).fin || '').localeCompare((T.bornes(a) || {}).fin || ''));
+
+  const carte = (p, liste)=>{
+    const ouvertes = liste.filter(t=> !['fait', 'ecartee'].includes(T.statutEffectif(t, enfants.get(t.id))));
+    const faites = liste.filter(t=> T.statutEffectif(t, enfants.get(t.id)) === 'fait');
+    const total = ouvertes.length + faites.length;
+    const b = p ? T.bornes(p) : null;
+    const rep = p ? T.dateAncre(p, 'premiere_repetition') : null;
+    const con = p ? T.dateAncre(p, 'premier_concert') : null;
+    const reperes = p ? [
+      rep && !rep.repli ? '1re répétition ' + joli(rep.date, true) : '',
+      con && !con.repli ? (T.estRecording(p) ? '1re prise ' : '1er concert ') + joli(con.date, true) : '',
+      !rep && !con && b ? joli(b.debut, true) : '',
+      rep && rep.repli && con && con.repli && b ? joli(b.debut, true) : '',
+    ].filter(Boolean).join(' · ') : 'Les tâches qui ne visent aucun projet.';
+    const r = b ? T.joursEntre(auj, b.debut) : null;
+    const tri = (a, c)=> (T.echeancePressante(a, enfants.get(a.id), etat.parId) || '9999').localeCompare(T.echeancePressante(c, enfants.get(c.id), etat.parId) || '9999');
+    return `<section class="tt-projet ${p && T.projetAnnule(p) ? 'annule' : ''}" id="${p ? 'projet-' + escapeAttr(p.id) : 'projet-aucun'}">
+      <div class="tt-projet-tete">
+        <div style="min-width:0;">
+          <h3>${p ? `<a href="${escapeAttr(T.lienProjet(p))}">${escapeHtml(nomProjet(p))}</a> ${pastilleProjetHtml(p)}` : 'Sans projet'}</h3>
+          <div class="tt-projet-sous">${escapeHtml(reperes)}${p && T.projetAnnule(p) ? ' · <b>annulé</b>' : ''}</div>
+        </div>
+        <span class="tt-projet-compte">${r != null && r >= 0 ? (r === 0 ? "aujourd'hui" : 'J-' + r) : ''}</span>
+      </div>
+      ${total ? `<div class="co-progress" title="${faites.length} faite${faites.length > 1 ? 's' : ''} sur ${total}"><i style="width:${Math.round(100 * faites.length / total)}%"></i></div>` : ''}
+      <div class="tt-liste">
+        ${ouvertes.sort(tri).map(t=> tuile(t, enfants.get(t.id), { sansProjet: true })).join('')
+          || `<div class="tt-aide" style="padding:4px 2px 2px;">${total ? 'Tout est fait.' : 'Aucune tâche pour l’instant.'}</div>`}
+      </div>
+      ${faites.length ? `<details class="tt-replie" style="margin-top:8px;"><summary class="section-titre" style="margin:6px 0;">Faites <span class="nb">${faites.length}</span></summary>
+        <div class="tt-liste">${faites.map(t=> tuile(t, enfants.get(t.id), { sansProjet: true })).join('')}</div></details>` : ''}
+      ${etat.migrationManquante ? '' : `<div class="tt-projet-pied">
+        <button type="button" class="co-btn secondary sm" data-nouvelle-projet="${p ? escapeAttr(p.id) : ''}">+ Ajouter une tâche</button>
+        ${p ? `<a class="co-btn ghost sm" href="${escapeAttr(T.lienPartitions(p))}">Partitions</a>` : ''}
+      </div>`}
+    </section>`;
+  };
+
+  const cartes = aVenir.map(p=> carte(p, parProjet.get(p.id) || []));
+  const sans = parProjet.get('') || [];
+  return `
+    ${aVenir.length ? `<div class="tt-projets">${cartes.join('')}${carte(null, sans)}</div>`
+      : `<div class="tt-vide">Aucun projet à venir.</div><div class="tt-projets" style="margin-top:14px;">${carte(null, sans)}</div>`}
+    ${passes.length ? `<details class="tt-replie" style="margin-top:18px;">
+      <summary class="section-titre">Projets passés <span class="nb">${passes.length}</span></summary>
+      <div class="tt-projets">${passes.map(p=> carte(p, parProjet.get(p.id) || [])).join('')}</div>
+    </details>` : ''}`;
+}
+
+/* --- Vue : calendrier ----------------------------------------------------- */
+
+function moisCourant(){
+  if(!etat.mois) etat.mois = aujourdhui().slice(0, 7);
+  return etat.mois;
+}
+function decalerMois(cle, n){
+  const [a, m] = cle.split('-').map(Number);
+  const d = new Date(a, m - 1 + n, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+// Ce qui tombe chaque jour : les dates des projets et les échéances.
+function contenuDesJours(cle){
+  const enfants = enfantsMap();
+  const parJour = new Map();
+  const ajouter = (iso, x)=>{
+    if(!iso || iso.slice(0, 7) !== cle) return;
+    if(!parJour.has(iso)) parJour.set(iso, { dates: [], taches: [] });
+    parJour.get(iso)[x.type === 'date' ? 'dates' : 'taches'].push(x);
+  };
+  etat.tournees.forEach(p=>{
+    if(etat.filtreProjet && etat.filtreProjet !== p.id) return;
+    T.datesActives(p).forEach(d=> ajouter(d.date, { type:'date', projet: p, d }));
+  });
+  const auj = aujourdhui();
+  const premiers = tachesFiltrees(false);
+  const garder = new Set(premiers.map(t=> t.id));
+  tachesVisibles().forEach(t=>{
+    if(!(garder.has(t.id) || (t.parentId && garder.has(t.parentId)))) return;
+    if(t.statut === 'ecartee') return;
+    const s = t.parentId ? t.statut : T.statutEffectif(t, enfants.get(t.id));
+    const e = echeance(t).date;
+    if(!e) return;
+    ajouter(e, { type:'tache', t, s, retard: s !== 'fait' && e < auj });
+  });
+  return parJour;
+}
+
+function vueCalendrier(){
+  const cle = moisCourant();
+  const [a, m] = cle.split('-').map(Number);
+  const decalage = (new Date(a, m - 1, 1).getDay() + 6) % 7;
+  const nbJours = new Date(a, m, 0).getDate();
+  const parJour = contenuDesJours(cle);
+  const auj = aujourdhui();
+  if(!etat.jour || etat.jour.slice(0, 7) !== cle) etat.jour = auj.slice(0, 7) === cle ? auj : '';
+
+  const cases = ['L','M','M','J','V','S','D'].map(n=> `<span class="cal-nom">${n}</span>`);
+  for(let i = 0; i < decalage; i++) cases.push('<span class="cal-case vide" aria-hidden="true"></span>');
+  for(let j = 1; j <= nbJours; j++){
+    const iso = `${cle}-${String(j).padStart(2, '0')}`;
+    const x = parJour.get(iso) || { dates: [], taches: [] };
+    const puces = [
+      ...x.dates.map(y=> `<span class="cal-puce dp">${escapeHtml(iconeTypeDate(y.projet, y.d.type) + ' ' + nomProjet(y.projet))}</span>`),
+      ...x.taches.map(y=> `<span class="cal-puce ${y.retard ? 'retard' : y.s}">${escapeHtml(y.t.libelle || 'Sans titre')}</span>`),
+    ];
+    const visibles = puces.slice(0, 3).join('') + (puces.length > 3 ? `<span class="cal-puce plus">+${puces.length - 3}</span>` : '');
+    const points = x.taches.slice(0, 4).map(y=> `<i class="cal-point ${y.retard ? 'retard' : y.s}"></i>`).join('');
+    const titre = [...x.dates.map(y=> nomProjet(y.projet) + ' — ' + libelleTypeDate(y.projet, y.d.type)), ...x.taches.map(y=> y.t.libelle)].join(' / ');
+    cases.push(`<button type="button" class="cal-case ${x.dates.length ? 'projet' : ''} ${iso === auj ? 'auj' : ''} ${iso === etat.jour ? 'choisie' : ''}"
+      data-jour="${iso}" aria-label="${escapeAttr(jourLong(iso) + (titre ? ' — ' + titre : ''))}">
+      <span class="num">${j}</span>
+      <span class="cal-points">${points}</span>
+      <span class="cal-puces">${visibles}</span>
+    </button>`);
+  }
+
+  const enfants = enfantsMap();
+  const retardAvant = tachesFiltrees(false).filter(t=>{
+    const e = T.echeancePressante(t, enfants.get(t.id), etat.parId);
+    const s = T.statutEffectif(t, enfants.get(t.id));
+    return e && e < `${cle}-01` && e < auj && !['fait', 'ecartee'].includes(s);
+  }).length;
+
+  return `
+    <div class="cal-nav">
+      <button type="button" class="cal-fleche" data-mois="-1" aria-label="Mois précédent">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5 8 12l6.5 7"/></svg>
+      </button>
+      <div class="cal-mois-titre" aria-live="polite">${escapeHtml(MOIS_LONGS[m - 1] + ' ' + a)}</div>
+      ${cle !== auj.slice(0, 7) ? '<button type="button" class="co-btn ghost sm cal-auj" data-mois="0">Aujourd’hui</button>' : ''}
+      <button type="button" class="cal-fleche" data-mois="1" aria-label="Mois suivant">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 5 16 12l-6.5 7"/></svg>
+      </button>
+    </div>
+    ${retardAvant ? `<p class="cal-avant">${pl(retardAvant, 'tâche en retard', 'tâches en retard')} avant ce mois — <button type="button" data-vue="liste">les voir</button></p>` : ''}
+    <div class="cal-grille">${cases.join('')}</div>
+    <div class="cal-legende">
+      <span><i class="projet"></i> date d'un projet</span>
+      <span><i style="background:var(--accent)"></i> à faire</span>
+      <span><i style="background:var(--maybe)"></i> en cours</span>
+      <span><i style="background:var(--ok)"></i> faite</span>
+      <span><i style="background:var(--ko)"></i> en retard</span>
+    </div>
+    <div class="cal-detail" id="calDetail">${detailJour(etat.jour, parJour)}</div>`;
+}
+
+function detailJour(iso, parJour){
+  if(!iso) return '<p class="tt-aide">Touche un jour pour voir ce qui y tombe.</p>';
+  const x = parJour.get(iso) || { dates: [], taches: [] };
+  const enfants = enfantsMap();
+  const lignesDates = x.dates.map(y=> `<a class="cal-date-projet" href="${escapeAttr(T.lienProjet(y.projet))}">
+      <span class="ico" aria-hidden="true">${escapeHtml(iconeTypeDate(y.projet, y.d.type))}</span>
+      <span><b>${escapeHtml(nomProjet(y.projet))}</b> — ${escapeHtml(libelleTypeDate(y.projet, y.d.type).toLowerCase())}${estHypothese(y.d) ? ' (' + escapeHtml(courtStatut(y.d).toLowerCase()) + ')' : ''}</span>
+      <span class="ou">${escapeHtml([y.d.ville, y.d.lieu].filter(Boolean).join(' · '))}</span>
+    </a>`).join('');
+  const taches = x.taches.map(y=> y.t.parentId
+    ? tuileEnfant(y.t, tacheParId(y.t.parentId) || y.t)
+    : tuile(y.t, enfants.get(y.t.id), { sansDeplier: true })).join('');
+  return `<h2 class="cal-detail-jour">${escapeHtml(jourLong(iso))}</h2>
+    ${lignesDates}
+    ${taches ? `<div class="tt-liste">${taches}</div>` : (x.dates.length ? '' : '<p class="tt-aide">Rien ce jour-là.</p>')}
+    ${etat.migrationManquante ? '' : `<button type="button" class="co-btn ghost sm" style="margin-top:10px;" data-nouvelle-jour="${iso}">+ Tâche pour ce jour</button>`}`;
+}
+
+/* --- Écrire --------------------------------------------------------------- */
+
+// Une écriture en vol protège la version locale : une relecture qui
+// arriverait avant la fin de l'écriture ramènerait sinon l'ancienne.
+async function ecrire(id, local, colonnes){
+  const i = etat.taches.findIndex(t=> t.id === id);
+  if(i < 0) return;
+  etat.taches[i] = local;
+  etat.enVol.set(id, local);
+  const res = await CurieuxDB.majPartielle(TABLE, id, colonnes);
+  if(etat.enVol.get(id) === local) etat.enVol.delete(id);
+  if(res.absente && !res.error){
+    etat.taches = etat.taches.filter(t=> t.id !== id);
+    curieuxFlash('Cette tâche venait d’être supprimée par quelqu’un d’autre.');
+    if(etat.panneau && etat.panneau.id === id) fermerPanneau(true);
+    rendre();
+  }
+  return res;
+}
+
+async function changerStatut(id, statut){
+  const t = tacheParId(id);
+  if(!t || etat.migrationManquante) return;
+  const faitLe = statut === 'fait' ? (t.faitLe || aujourdhui()) : '';
+  const local = Object.assign({}, t, { statut, fait: statut === 'fait', faitLe });
+  const p = ecrire(id, local, { statut, fait: statut === 'fait', fait_le: faitLe || null });
+  rendre();
+  majPanneauApresEcriture();
+  await p;
+}
+
+async function creerTaches(lignes){
+  lignes.forEach(l=> etat.taches.push(l));
+  lignes.forEach(l=> etat.enVol.set(l.id, l));
+  rendre();
+  const res = await CurieuxDB.syncCollection(TABLE, lignes);
+  lignes.forEach(l=>{ if(etat.enVol.get(l.id) === l) etat.enVol.delete(l.id); });
+  return res;
+}
+
+function nouvelleTache(champs){
+  return Object.assign({
+    id: genId('tache'), genre: T.GENRE, libelle: '', notes: '', auteur: etat.moi, pour: '',
+    statut: 'a_faire', fait: false, faitLe: '', echeance: '', tourneeId: '', dateId: '',
+    ancre: '', j: null, modele: '', parentId: '', ordre: 0, createdAt: new Date().toISOString(),
+  }, champs || {});
+}
+
+async function ajoutRapide(texte){
+  const libelle = texte.trim();
+  if(!libelle || etat.migrationManquante) return;
+  const champs = { libelle };
+  if(etat.filtreProjet && etat.filtreProjet !== '_aucun') champs.tourneeId = etat.filtreProjet;
+  if(etat.qui === 'miennes') champs.pour = etat.moi;
+  await creerTaches([nouvelleTache(champs)]);
+}
+
+// Supprimer. Une tâche automatique n'est jamais supprimée : elle renaîtrait au
+// prochain chargement. Elle est ÉCARTÉE, et se rétablit.
+function supprimer(id){
+  const t = tacheParId(id);
+  if(!t) return;
+  if(t.modele){
+    const avant = t.statut;
+    changerStatut(id, 'ecartee');
+    CurieuxAnnuler.proposer({
+      texte: `« ${t.libelle} » écartée — elle ne reviendra pas pour ce projet`,
+      retablir: ()=> changerStatut(id, avant),
+    });
+    return;
+  }
+  const enfants = etat.taches.filter(x=> x.parentId === id);
+  etat.masquees.add(id);
+  enfants.forEach(x=> etat.masquees.add(x.id));
+  rendre();
+  CurieuxAnnuler.proposer({
+    texte: `« ${t.libelle || 'Tâche'} » supprimée${enfants.length ? ` avec ${pl(enfants.length, 'sous-tâche', 'sous-tâches')}` : ''}`,
+    retablir: ()=>{ etat.masquees.delete(id); enfants.forEach(x=> etat.masquees.delete(x.id)); rendre(); },
+    purger: async ()=>{
+      await CurieuxDB.removeMany(TABLE, [...enfants.map(x=> x.id), id]);
+      etat.taches = etat.taches.filter(x=> x.id !== id && x.parentId !== id);
+      etat.masquees.delete(id); enfants.forEach(x=> etat.masquees.delete(x.id));
+    },
+  });
+}
+
+/* --- Le panneau de détail ------------------------------------------------- */
+
+const panneauEl = document.getElementById('panneau');
+const pCorps = document.getElementById('pCorps');
+const pPied = document.getElementById('pPied');
+let dernierFocusAvantPanneau = null;
+
+function ouvrirPanneau(etatPanneau){
+  if(etat.migrationManquante && etatPanneau.mode !== 'edition') return;
+  dernierFocusAvantPanneau = document.activeElement;
+  etat.panneau = etatPanneau;
+  // La feuille précédente ne doit rien prêter à la nouvelle (capturerBrouillon).
+  pCorps.innerHTML = '';
+  rendrePanneau();
+  panneauEl.classList.add('open');
+  const premier = pCorps.querySelector('[data-champ="libelle"], input, select, textarea');
+  if(premier && etatPanneau.mode === 'creation') setTimeout(()=> premier.focus(), 60);
+  else document.querySelector('.tt-p-fermer').focus({ preventScroll: true });
+}
+
+function fermerPanneau(sansEnregistrer){
+  if(!etat.panneau) return;
+  if(!sansEnregistrer && etat.panneau.mode === 'edition') enregistrerTextes();
+  etat.panneau = null;
+  panneauEl.classList.remove('open');
+  document.getElementById('pEnreg').textContent = '';
+  rendre();
+  if(dernierFocusAvantPanneau && document.contains(dernierFocusAvantPanneau)) dernierFocusAvantPanneau.focus({ preventScroll: true });
+}
+
+/* En création, rien n'est encore écrit : le brouillon vit dans la feuille. Le
+   titre ne rejoignait le brouillon qu'à la SORTIE du champ — or coller une
+   liste de sous-tâches redessine la feuille sans que le titre ait perdu le
+   focus, et le titre qu'on venait de taper disparaissait. On recopie donc tout
+   ce qui est saisi avant chaque redessin. */
+function capturerBrouillon(){
+  const p = etat.panneau;
+  if(!p || p.mode !== 'creation' || !pCorps.firstElementChild) return;
+  const lib = pCorps.querySelector('[data-champ="libelle"]');
+  const notes = pCorps.querySelector('[data-champ="notes"]');
+  if(lib) p.brouillon.libelle = lib.value;
+  if(notes) p.brouillon.notes = notes.value;
+  pCorps.querySelectorAll('[data-st-libelle]').forEach(inp=>{
+    const c = p.enfants.find(x=> x.id === inp.dataset.stLibelle);
+    if(c && inp.value.trim()) c.libelle = inp.value.trim();
+  });
+  pCorps.querySelectorAll('[data-st-echeance]').forEach(inp=>{
+    const c = p.enfants.find(x=> x.id === inp.dataset.stEcheance);
+    if(c) c.echeance = inp.value;
+  });
+}
+
+function rendrePanneau(){
+  const p = etat.panneau;
+  if(!p) return;
+  if(p.mode === 'regles') return rendreRegles();
+  capturerBrouillon();
+  const t = p.mode === 'creation' ? p.brouillon : tacheParId(p.id);
+  if(!t){ fermerPanneau(true); return; }
+  document.getElementById('pTitre').textContent = p.mode === 'creation' ? 'Nouvelle tâche' : 'Tâche';
+
+  const enfants = p.mode === 'creation' ? p.enfants : (enfantsMap().get(t.id) || []);
+  const s = T.statutEffectif(t, enfants);
+  const vivants = enfants.filter(e=> e.statut !== 'ecartee');
+  const projet = projetDe(t);
+  const e = echeance(t);
+  const mode = t.ancre ? 'ancre' : (t.echeance ? 'date' : 'aucune');
+  const regle = t.modele && etat.reglage ? etat.reglage.modeles.find(m=> m.id === t.modele) : null;
+  const lien = T.lienDe(t, projet, etat.reglage);
+  const projets = projetsAVenir();
+  const lecture = etat.migrationManquante;
+  const jAbs = Math.abs(Number(t.j) || 0);
+  const apres = Number(t.j) < 0;
+
+  pCorps.innerHTML = `
+    ${t.modele ? `<div class="tt-auto">
+      <span aria-hidden="true">⟳</span>
+      <span>Créée d'après les dates du projet${regle ? ` — règle « ${escapeHtml(regle.libelle)} »` : ''}.
+      Si les dates bougent, l'échéance suit.${lien ? ` <a href="${escapeAttr(lien.href)}" style="color:inherit; font-weight:800;">${escapeHtml(lien.libelle)} →</a>` : ''}</span>
+    </div>` : ''}
+    <div class="tt-champ">
+      <label for="pLibelle">Quoi</label>
+      <input type="text" id="pLibelle" data-champ="libelle" value="${escapeAttr(t.libelle)}" placeholder="Arrangements, relancer la salle, imprimer…" ${lecture ? 'disabled' : ''} autocomplete="off">
+    </div>
+
+    <div class="tt-champ">
+      <span class="lib" id="libEtat">État</span>
+      ${vivants.length ? `<p class="tt-aide">L'état suit les sous-tâches : <b>${escapeHtml(T.STATUT[s].libelle.toLowerCase())}</b>, ${T.progression(enfants).faits} sur ${vivants.length} faites.</p>`
+        : `<div class="tt-segments" role="group" aria-labelledby="libEtat">
+          ${T.STATUTS.map(x=> `<button type="button" class="${x.cle}" data-statut="${x.cle}" aria-pressed="${t.statut === x.cle}" ${lecture ? 'disabled' : ''}>${escapeHtml(x.libelle)}</button>`).join('')}
+        </div>`}
+      ${t.statut === 'ecartee' ? `<p class="tt-aide att">Cette tâche est écartée. <button type="button" class="co-btn ghost sm" data-retablir="${escapeAttr(t.id)}">Rétablir</button></p>` : ''}
+    </div>
+
+    <div class="tt-champ">
+      <label for="pProjet">Projet</label>
+      <select id="pProjet" data-champ="projet" ${lecture || t.modele ? 'disabled' : ''}>
+        <option value="">Aucun projet</option>
+        ${projets.map(x=> `<option value="${escapeAttr(x.id)}" ${t.tourneeId === x.id ? 'selected' : ''}>${escapeHtml(nomProjet(x) + (T.bornes(x) ? ' — ' + joli(T.bornes(x).debut) : ''))}</option>`).join('')}
+        ${t.tourneeId && !projets.some(x=> x.id === t.tourneeId) ? `<option value="${escapeAttr(t.tourneeId)}" selected>${escapeHtml(projet ? nomProjet(projet) + ' (passé)' : 'Projet supprimé')}</option>` : ''}
+      </select>
+    </div>
+
+    <div class="tt-champ">
+      <span class="lib" id="libEch">Échéance</span>
+      <div class="tt-segments" role="group" aria-labelledby="libEch">
+        <button type="button" data-mode-ech="aucune" aria-pressed="${mode === 'aucune'}" ${lecture || t.modele ? 'disabled' : ''}>Aucune</button>
+        <button type="button" data-mode-ech="date" aria-pressed="${mode === 'date'}" ${lecture || t.modele ? 'disabled' : ''}>Une date</button>
+        <button type="button" data-mode-ech="ancre" aria-pressed="${mode === 'ancre'}" ${lecture || !t.tourneeId || !projet ? 'disabled' : ''}
+          title="${t.tourneeId ? '' : 'Choisis d’abord un projet'}">Calée sur le projet</button>
+      </div>
+      ${mode === 'date' ? `<input type="date" data-champ="echeance" value="${escapeAttr(t.echeance || '')}" aria-label="Date d'échéance" ${lecture ? 'disabled' : ''}>` : ''}
+      ${mode === 'ancre' ? `<div class="tt-ligne">
+          <input type="number" class="fixe" style="width:84px;" min="0" max="365" inputmode="numeric" data-champ="jAbs" value="${jAbs}" aria-label="Nombre de jours" ${lecture ? 'disabled' : ''}>
+          <select data-champ="sens" aria-label="Avant ou après" ${lecture ? 'disabled' : ''}>
+            <option value="avant" ${!apres ? 'selected' : ''}>jours avant</option>
+            <option value="apres" ${apres ? 'selected' : ''}>jours après</option>
+          </select>
+          <select data-champ="ancre" aria-label="Repère" ${lecture ? 'disabled' : ''}>
+            ${T.ANCRES.map(a=> `<option value="${a.cle}" ${t.ancre === a.cle ? 'selected' : ''}>${escapeHtml(a.libelle)}</option>`).join('')}
+          </select>
+        </div>` : ''}
+      ${e.date ? `<p class="tt-aide">→ <b>${escapeHtml(jourLong(e.date))}</b>${e.repli ? ' — pas encore de ' + (t.ancre === 'premier_concert' ? 'concert' : 'répétition') + ' saisie : calée sur la 1re date du projet' : ''}${(()=>{ const r = relatif(e.date); return r.texte ? ' · ' + escapeHtml(r.texte) : ''; })()}</p>`
+        : (e.perdue ? '<p class="tt-aide att">Le projet n’a plus de date : l’échéance ne se calcule plus.</p>' : '')}
+    </div>
+
+    <div class="tt-champ">
+      <label for="pPour">Qui s'en charge</label>
+      <select id="pPour" data-champ="pour" ${lecture ? 'disabled' : ''}>
+        <option value="">Personne en particulier</option>
+        ${etat.comptes.map(c=> `<option value="${escapeAttr(c)}" ${t.pour === c ? 'selected' : ''}>${escapeHtml(nomCourt(c) + (c === etat.moi ? ' (moi)' : '') + ' — ' + c)}</option>`).join('')}
+        ${t.pour && !etat.comptes.includes(t.pour) ? `<option value="${escapeAttr(t.pour)}" selected>${escapeHtml(t.pour)}</option>` : ''}
+      </select>
+    </div>
+
+    <div class="tt-champ">
+      <label for="pNotes">Notes</label>
+      <textarea id="pNotes" data-champ="notes" placeholder="Le détail, un lien, un contact…" ${lecture ? 'disabled' : ''}>${escapeHtml(t.notes || '')}</textarea>
+    </div>
+
+    ${t.parentId ? '' : `<div class="tt-champ">
+      <span class="lib">Sous-tâches${vivants.length ? ' — ' + T.progression(enfants).faits + '/' + vivants.length : ''}</span>
+      <div class="tt-st-liste" id="pSousTaches">${enfants.filter(x=> x.statut !== 'ecartee').map(sousTacheHtml).join('')}</div>
+      ${lecture ? '' : `<input type="text" id="pNouvelleST" placeholder="Ajouter une sous-tâche — Entrée ; coller une liste = une ligne par titre" aria-label="Ajouter une sous-tâche" enterkeyhint="enter" autocomplete="off"
+        style="padding:10px 12px; border:1px dashed var(--border); border-radius:10px; font-family:inherit; background:var(--card); color:var(--text);">`}
+    </div>`}
+  `;
+
+  if(p.mode === 'creation'){
+    pPied.innerHTML = `<div class="droite">
+      <button type="button" class="co-btn ghost md" data-fermer-modale>Annuler</button>
+      <button type="button" class="co-btn primary md" id="pCreer">Créer la tâche</button>
+    </div>`;
+  } else {
+    pPied.innerHTML = `
+      ${lecture ? '' : `<button type="button" class="co-btn danger sm" id="pSupprimer">${t.modele ? 'Écarter' : 'Supprimer'}</button>`}
+      ${vivants.length && s !== 'fait' && !lecture ? '<button type="button" class="co-btn ghost sm" id="pToutFait">Tout marquer fait</button>' : ''}
+      <div class="droite"><button type="button" class="co-btn primary md" data-fermer-modale>Fermer</button></div>`;
+  }
+}
+
+function sousTacheHtml(c){
+  const s = T.STATUT[c.statut] ? c.statut : 'a_faire';
+  return `<div class="tt-st ${s === 'fait' ? 'faite' : ''}" data-st="${escapeAttr(c.id)}">
+    <button type="button" class="tt-etat ${s}" data-st-cycle="${escapeAttr(c.id)}" aria-label="${escapeAttr('État : ' + T.STATUT[s].libelle.toLowerCase())}" ${etat.migrationManquante ? 'disabled' : ''}>${iconeEtat(s, 18)}</button>
+    <input type="text" data-st-libelle="${escapeAttr(c.id)}" value="${escapeAttr(c.libelle)}" aria-label="Sous-tâche" ${etat.migrationManquante ? 'disabled' : ''}
+      style="padding:9px 11px; border:1px solid var(--border); border-radius:10px; font-family:inherit; background:var(--card); color:var(--text);">
+    <input type="date" data-st-echeance="${escapeAttr(c.id)}" value="${escapeAttr(c.echeance || '')}" aria-label="Échéance de la sous-tâche" ${etat.migrationManquante ? 'disabled' : ''}
+      style="padding:9px 8px; border:1px solid var(--border); border-radius:10px; font-family:inherit; background:var(--card); color:var(--text);">
+    ${etat.migrationManquante ? '' : `<button type="button" class="tt-st-suppr" data-st-suppr="${escapeAttr(c.id)}" aria-label="Retirer la sous-tâche">✕</button>`}
+  </div>`;
+}
+
+function marquerEnregistre(){
+  const el = document.getElementById('pEnreg');
+  el.textContent = 'Enregistré ✓';
+  el.className = 'tt-p-enreg ok';
+  clearTimeout(marquerEnregistre.minuteur);
+  marquerEnregistre.minuteur = setTimeout(()=>{ el.textContent = ''; el.className = 'tt-p-enreg'; }, 1800);
+}
+
+// Après une écriture venue d'ailleurs que du panneau (une sous-tâche cochée
+// dans la liste, un état changé) : le panneau se redessine, sauf si l'on est
+// en train d'y écrire — on ne coupe jamais une frappe.
+function majPanneauApresEcriture(){
+  if(!etat.panneau || etat.panneau.mode !== 'edition') return;
+  const actif = document.activeElement;
+  if(actif && pCorps.contains(actif) && /^(INPUT|TEXTAREA|SELECT)$/.test(actif.tagName)) return;
+  rendrePanneau();
+}
+
+// Le brouillon (création) ou la tâche (édition) que le panneau montre.
+function tacheDuPanneau(){
+  const p = etat.panneau;
+  if(!p) return null;
+  return p.mode === 'creation' ? p.brouillon : tacheParId(p.id);
+}
+
+// Les champs texte partent à la sortie du champ (change), et une dernière
+// fois à la fermeture : Échap ferme sans que le champ ait perdu le focus.
+function enregistrerTextes(){
+  const p = etat.panneau;
+  if(!p || p.mode !== 'edition') return;
+  const t = tacheParId(p.id);
+  if(!t) return;
+  const lib = pCorps.querySelector('[data-champ="libelle"]');
+  const notes = pCorps.querySelector('[data-champ="notes"]');
+  const patch = {}, local = {};
+  if(lib && lib.value.trim() !== t.libelle && lib.value.trim()){ patch.libelle = local.libelle = lib.value.trim(); }
+  if(notes && notes.value !== (t.notes || '')){ patch.notes = local.notes = notes.value; }
+  pCorps.querySelectorAll('[data-st-libelle]').forEach(inp=>{
+    const c = tacheParId(inp.dataset.stLibelle);
+    const v = inp.value.trim();
+    if(c && v && v !== c.libelle) ecrire(c.id, Object.assign({}, c, { libelle: v }), { libelle: v });
+  });
+  if(Object.keys(patch).length){
+    ecrire(t.id, Object.assign({}, t, local), patch).then(marquerEnregistre);
+  }
+}
+
+// Un champ du panneau a changé. En création, on modifie le brouillon ; en
+// édition, on écrit tout de suite — seulement les colonnes touchées.
+function champChange(el){
+  const p = etat.panneau;
+  const t = tacheDuPanneau();
+  if(!p || !t) return;
+  const champ = el.dataset.champ;
+  const local = {}, patch = {};
+
+  if(champ === 'libelle'){ if(!el.value.trim()) return; local.libelle = patch.libelle = el.value.trim(); }
+  else if(champ === 'notes'){ local.notes = patch.notes = el.value; }
+  else if(champ === 'pour'){ local.pour = patch.pour = el.value; }
+  else if(champ === 'echeance'){ local.echeance = el.value; patch.echeance = el.value || null; }
+  else if(champ === 'projet'){
+    local.tourneeId = el.value; patch.tournee_id = el.value || null;
+    // Une échéance calée sur un projet qu'on retire n'aurait plus de jour : elle
+    // devient la date qu'elle donnait, plutôt que de disparaître.
+    if(!el.value && t.ancre){
+      const d = echeance(t).date;
+      Object.assign(local, { ancre: '', j: null, echeance: d || '' });
+      Object.assign(patch, { ancre: null, j: null, echeance: d || null });
+    }
+  }
+  else if(champ === 'jAbs' || champ === 'sens' || champ === 'ancre'){
+    const n = Math.min(365, Math.max(0, parseInt(pCorps.querySelector('[data-champ="jAbs"]').value, 10) || 0));
+    const sens = pCorps.querySelector('[data-champ="sens"]').value;
+    const ancre = pCorps.querySelector('[data-champ="ancre"]').value;
+    local.j = patch.j = sens === 'apres' ? -n : n;
+    local.ancre = patch.ancre = ancre;
+  }
+  else return;
+
+  if(p.mode === 'creation'){
+    Object.assign(p.brouillon, local);
+    if(champ !== 'libelle' && champ !== 'notes') rendrePanneau();
+    return;
+  }
+  ecrire(t.id, Object.assign({}, t, local), patch).then(marquerEnregistre);
+  rendre();
+  if(champ !== 'libelle' && champ !== 'notes') rendrePanneau();
+}
+
+function changerModeEcheance(mode){
+  const p = etat.panneau;
+  const t = tacheDuPanneau();
+  if(!p || !t) return;
+  const actuel = echeance(t).date;
+  let local, patch;
+  if(mode === 'aucune'){ local = { echeance:'', ancre:'', j:null }; patch = { echeance:null, ancre:null, j:null }; }
+  else if(mode === 'date'){ local = { echeance: actuel || '', ancre:'', j:null }; patch = { echeance: actuel || null, ancre:null, j:null }; }
+  else {
+    if(!t.tourneeId) return;
+    local = { echeance:'', ancre:'premiere_repetition', j:7 }; patch = { echeance:null, ancre:'premiere_repetition', j:7 };
+  }
+  if(p.mode === 'creation'){ Object.assign(p.brouillon, local); rendrePanneau(); return; }
+  ecrire(t.id, Object.assign({}, t, local), patch).then(marquerEnregistre);
+  rendre();
+  rendrePanneau();
+}
+
+function lignesCollees(texte){
+  return texte.split(/\r?\n/)
+    .map(l=> l.replace(/^\s*(?:[-–—•*·]|\d+[.)])\s*/, '').trim())
+    .filter(Boolean);
+}
+
+async function ajouterSousTaches(libelles){
+  const p = etat.panneau;
+  const mere = tacheDuPanneau();
+  if(!p || !mere || !libelles.length) return;
+  const existants = p.mode === 'creation' ? p.enfants : (enfantsMap().get(mere.id) || []);
+  let ordre = existants.reduce((m, x)=> Math.max(m, x.ordre || 0), 0);
+  const lignes = libelles.map(l=> nouvelleTache({ libelle: l, parentId: mere.id, ordre: ++ordre }));
+  if(p.mode === 'creation'){ p.enfants.push(...lignes); rendrePanneau(); refocaliserSaisieST(); return; }
+  await creerTaches(lignes);
+  rendrePanneau();
+  refocaliserSaisieST();
+  marquerEnregistre();
+}
+function refocaliserSaisieST(){
+  const inp = document.getElementById('pNouvelleST');
+  if(inp) inp.focus();
+}
+
+async function creerDepuisPanneau(){
+  const p = etat.panneau;
+  if(!p || p.mode !== 'creation') return;
+  const lib = pCorps.querySelector('[data-champ="libelle"]');
+  const notes = pCorps.querySelector('[data-champ="notes"]');
+  p.brouillon.libelle = (lib && lib.value.trim()) || '';
+  p.brouillon.notes = notes ? notes.value : '';
+  const saisie = document.getElementById('pNouvelleST');
+  if(saisie && saisie.value.trim()) p.enfants.push(...lignesCollees(saisie.value).map((l, i)=> nouvelleTache({ libelle: l, parentId: p.brouillon.id, ordre: p.enfants.length + i + 1 })));
+  if(!p.brouillon.libelle){ lib.focus(); curieuxFlash('Donne un titre à la tâche.'); return; }
+  const lignes = [p.brouillon, ...p.enfants.map(e=> Object.assign(e, { parentId: p.brouillon.id }))];
+  fermerPanneau(true);
+  const res = await creerTaches(lignes);
+  if(!res || !res.error) curieuxFlash(lignes.length > 1 ? `Tâche créée avec ${pl(lignes.length - 1, 'sous-tâche', 'sous-tâches')}.` : 'Tâche créée.');
+}
+
+function ouvrirCreation(champs){
+  const brouillon = nouvelleTache(champs);
+  if(!('pour' in (champs || {})) && etat.qui === 'miennes') brouillon.pour = etat.moi;
+  ouvrirPanneau({ mode: 'creation', brouillon, enfants: [] });
+}
+
+/* --- Les règles des tâches automatiques ----------------------------------- */
+
+function ouvrirRegles(){
+  const brouillon = etat.reglage ? JSON.parse(JSON.stringify(etat.reglage)) : null;
+  ouvrirPanneau({ mode: 'regles', brouillon });
+}
+
+function rendreRegles(){
+  const p = etat.panneau;
+  document.getElementById('pTitre').textContent = 'Tâches automatiques';
+  if(!p.brouillon){
+    pCorps.innerHTML = `<div class="tt-bandeau ko">Les règles ne se lisent pas : la base n'a pas encore la colonne
+      <code>reglages.taches_modeles</code>. Colle le bloc « LES TÂCHES DE L'ÉQUIPE » de <code>migrations.sql</code> dans le SQL Editor de Supabase.</div>`;
+    pPied.innerHTML = '<div class="droite"><button type="button" class="co-btn primary md" data-fermer-modale>Fermer</button></div>';
+    return;
+  }
+  const b = p.brouillon;
+  const apercu = T.apercuReglage(etat.tournees, etat.taches, b, aujourdhui());
+  pCorps.innerHTML = `
+    <p class="tt-aide" style="margin-bottom:14px;">Chaque règle crée une tâche sur chaque projet acquis, calée sur ses dates :
+      si la répétition bouge, l'échéance suit. Une tâche automatique qu'on écarte ne revient pas.
+      Modifier une règle ne touche pas les tâches déjà créées — seulement celles à venir.</p>
+    <div class="tt-champ">
+      <label for="rDecl">Créer les tâches d'un projet</label>
+      <select id="rDecl" data-regle-champ="declencheur">
+        <option value="validee" ${b.declencheur === 'validee' ? 'selected' : ''}>dès qu'une de ses dates est validée</option>
+        <option value="option" ${b.declencheur === 'option' ? 'selected' : ''}>dès qu'une de ses dates est en option</option>
+      </select>
+    </div>
+    ${b.modeles.map((m, i)=> `<div class="tt-regle ${m.actif ? '' : 'inactive'}" data-regle="${i}">
+      <div class="tt-regle-tete">
+        <input type="text" data-regle-libelle="${i}" value="${escapeAttr(m.libelle)}" aria-label="Intitulé de la tâche" placeholder="Intitulé de la tâche">
+        <button type="button" class="tt-st-suppr" data-regle-suppr="${i}" aria-label="Retirer cette règle">✕</button>
+      </div>
+      <div class="tt-ligne">
+        <input type="number" class="fixe" min="0" max="365" inputmode="numeric" data-regle-j="${i}" value="${Math.abs(m.j)}" aria-label="Nombre de jours">
+        <select data-regle-sens="${i}" aria-label="Avant ou après">
+          <option value="avant" ${m.j >= 0 ? 'selected' : ''}>jours avant</option>
+          <option value="apres" ${m.j < 0 ? 'selected' : ''}>jours après</option>
+        </select>
+        <select data-regle-ancre="${i}" aria-label="Repère">
+          ${T.ANCRES.map(a=> `<option value="${a.cle}" ${m.ancre === a.cle ? 'selected' : ''}>${escapeHtml(a.libelle)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="tt-ligne">
+        <select data-regle-lien="${i}" aria-label="Lien posé sur la tâche">
+          ${Object.entries(T.LIENS).map(([k, v])=> `<option value="${k}" ${m.lien === k ? 'selected' : ''}>Lien : ${escapeHtml(v.libelle.toLowerCase())}</option>`).join('')}
+        </select>
+        <label class="coche fixe"><input type="checkbox" data-regle-actif="${i}" ${m.actif ? 'checked' : ''}> active</label>
+      </div>
+    </div>`).join('')}
+    <button type="button" class="co-btn secondary sm" id="rAjouter">+ Ajouter une règle</button>
+    <p class="tt-apercu" id="rApercu">${apercu.taches
+      ? `En enregistrant : ${pl(apercu.taches, 'tâche créée', 'tâches créées')} sur ${pl(apercu.projets, 'projet', 'projets')}.`
+      : 'En enregistrant : aucune nouvelle tâche — tout ce que ces règles demandent existe déjà.'}</p>`;
+  pPied.innerHTML = `<div class="droite">
+    <button type="button" class="co-btn ghost md" data-fermer-modale>Annuler</button>
+    <button type="button" class="co-btn primary md" id="rEnregistrer">Enregistrer les règles</button>
+  </div>`;
+}
+
+function lireRegleDepuisChamps(){
+  const b = etat.panneau && etat.panneau.brouillon;
+  if(!b) return;
+  const decl = pCorps.querySelector('[data-regle-champ="declencheur"]');
+  if(decl) b.declencheur = decl.value;
+  b.modeles.forEach((m, i)=>{
+    const q = (a)=> pCorps.querySelector(`[${a}="${i}"]`);
+    if(!q('data-regle-libelle')) return;
+    m.libelle = q('data-regle-libelle').value;
+    const n = Math.min(365, Math.max(0, parseInt(q('data-regle-j').value, 10) || 0));
+    m.j = q('data-regle-sens').value === 'apres' ? -n : n;
+    m.ancre = q('data-regle-ancre').value;
+    m.lien = q('data-regle-lien').value;
+    m.actif = q('data-regle-actif').checked;
+  });
+}
+
+function majApercu(){
+  lireRegleDepuisChamps();
+  const b = etat.panneau.brouillon;
+  const a = T.apercuReglage(etat.tournees, etat.taches, b, aujourdhui());
+  const el = document.getElementById('rApercu');
+  if(el) el.textContent = a.taches
+    ? `En enregistrant : ${pl(a.taches, 'tâche créée', 'tâches créées')} sur ${pl(a.projets, 'projet', 'projets')}.`
+    : 'En enregistrant : aucune nouvelle tâche — tout ce que ces règles demandent existe déjà.';
+}
+
+async function enregistrerRegles(){
+  lireRegleDepuisChamps();
+  const b = etat.panneau.brouillon;
+  if(b.modeles.some(m=> !m.libelle.trim())){ curieuxFlash('Chaque règle a besoin d’un intitulé.'); return; }
+  const bouton = document.getElementById('rEnregistrer');
+  bouton.disabled = true; bouton.textContent = 'Enregistrement…';
+  const aEcrire = { declencheur: b.declencheur, modeles: b.modeles.map(m=> ({ id: m.id, libelle: m.libelle.trim(), ancre: m.ancre, j: m.j, actif: m.actif, lien: m.lien })) };
+  const res = await CurieuxDB.setTachesModeles(aEcrire);
+  if(res.error){
+    bouton.disabled = false; bouton.textContent = 'Enregistrer les règles';
+    curieuxFlash('Les règles n’ont pas été enregistrées : ' + (res.error.message || 'erreur inconnue'));
+    return;
+  }
+  etat.reglage = T.normaliserReglage(aEcrire);
+  fermerPanneau(true);
+  curieuxFlash('Règles enregistrées.');
+  genererAuto();
+}
+
+/* --- Les tâches automatiques ---------------------------------------------- */
+
+let generationEnCours = false;
+async function genererAuto(){
+  if(generationEnCours || etat.migrationManquante || !etat.reglage) return;
+  generationEnCours = true;
+  try{
+    // Une lecture FRAÎCHE et RÉUSSIE, sans quoi rien : une liste vide faute
+    // d'avoir pu lire ferait tout recréer (voir fetchAllOuEchec, db.js).
+    const [rt, rp] = await Promise.all([CurieuxDB.fetchAllOuEchec(TABLE), CurieuxDB.fetchAllOuEchec('tournees')]);
+    if(rt.error || rp.error) return;
+    const nouvelles = T.tachesAutoManquantes(rp.data, rt.data.filter(t=> t.genre === T.GENRE), etat.reglage, aujourdhui());
+    if(!nouvelles.length) return;
+    const res = await CurieuxDB.insererSiAbsent(TABLE, nouvelles);
+    if(res.error) return;
+    await recharger();
+    const projets = [...new Set(nouvelles.map(t=> t.tourneeId))];
+    curieuxFlash(projets.length === 1
+      ? `${pl(nouvelles.length, 'tâche automatique créée', 'tâches automatiques créées')} pour « ${nomProjet(etat.parId.get(projets[0]))} ».`
+      : `${pl(nouvelles.length, 'tâche automatique créée', 'tâches automatiques créées')} sur ${projets.length} projets.`);
+  }finally{
+    generationEnCours = false;
+  }
+}
+
+/* --- Charger -------------------------------------------------------------- */
+
+async function recharger(){
+  const [rt, rp] = await Promise.all([CurieuxDB.fetchAllOuEchec(TABLE), CurieuxDB.fetchAllOuEchec('tournees')]);
+  if(!rp.error){
+    etat.tournees = rp.data;
+    etat.parId = new Map(rp.data.map(p=> [p.id, p]));
+  }
+  if(!rt.error){
+    const serveur = rt.data.filter(t=> t.genre === T.GENRE);
+    const vus = new Set(serveur.map(t=> t.id));
+    // Ce qui est en cours d'écriture garde sa version locale ; ce qu'on vient
+    // de créer et que la lecture ne connaît pas encore reste affiché.
+    etat.taches = serveur.map(t=> etat.enVol.get(t.id) || t)
+      .concat([...etat.enVol.values()].filter(t=> !vus.has(t.id)));
+    etat.chargee = true;
+  } else if(!etat.chargee){
+    document.getElementById('contenu').innerHTML = `<div class="tt-bandeau ko">Les tâches ne se lisent pas : ${escapeHtml(rt.error.message || 'erreur inconnue')}. Recharge la page ; si ça persiste, vérifie la connexion.</div>`;
+    return;
+  }
+  curieuxRafraichir(rendre);
+  majPanneauApresEcriture();
+}
+
+let minuteurRelecture = null;
+function relireBientot(delai){
+  clearTimeout(minuteurRelecture);
+  minuteurRelecture = setTimeout(recharger, delai || 400);
+}
+let minuteurGeneration = null;
+function genererBientot(){
+  clearTimeout(minuteurGeneration);
+  minuteurGeneration = setTimeout(genererAuto, 3000);
+}
+
+/* --- Préférences : la même vue au téléphone et au bureau ------------------ */
+
+function prefs(){ return { vue: etat.vue, qui: etat.qui, filtreEtat: etat.filtreEtat, filtreProjet: etat.filtreProjet }; }
+function appliquerPrefs(p){
+  if(!p || typeof p !== 'object') return;
+  if(['liste', 'projets', 'calendrier'].includes(p.vue)) etat.vue = p.vue;
+  if(['toutes', 'miennes'].includes(p.qui)) etat.qui = p.qui;
+  if(['tous', 'a_faire', 'en_cours'].includes(p.filtreEtat)) etat.filtreEtat = p.filtreEtat;
+  if(typeof p.filtreProjet === 'string') etat.filtreProjet = p.filtreProjet;
+}
+let minuteurPrefs = null;
+function memoriserPrefs(){
+  try{ localStorage.setItem(CLE_LOCALE, JSON.stringify(prefs())); }catch(e){}
+  clearTimeout(minuteurPrefs);
+  minuteurPrefs = setTimeout(()=> CurieuxDB.savePreferences('taches', prefs()), 800);
+}
+
+/* --- Les gestes ----------------------------------------------------------- */
+
+document.addEventListener('click', (e)=>{
+  const el = e.target.closest('[data-vue], [data-qui], [data-filtre-etat], [data-cycle], [data-ouvrir], [data-deplier], [data-retablir], [data-mois], [data-jour], [data-nouvelle-projet], [data-nouvelle-jour]');
+  if(!el || el.closest('#panneau')) return;
+  if(el.dataset.vue){ etat.vue = el.dataset.vue; memoriserPrefs(); rendre(); window.scrollTo({ top: 0 }); return; }
+  if(el.dataset.qui){ etat.qui = el.dataset.qui; memoriserPrefs(); rendre(); return; }
+  if(el.dataset.filtreEtat){ etat.filtreEtat = el.dataset.filtreEtat; memoriserPrefs(); rendre(); return; }
+  if(el.dataset.cycle){
+    const t = tacheParId(el.dataset.cycle);
+    if(t) changerStatut(t.id, T.statutSuivant(t.statut));
+    return;
+  }
+  if(el.dataset.ouvrir){ ouvrirPanneau({ mode: 'edition', id: el.dataset.ouvrir }); return; }
+  if(el.dataset.deplier){
+    const id = el.dataset.deplier;
+    etat.deplies.has(id) ? etat.deplies.delete(id) : etat.deplies.add(id);
+    rendre();
+    return;
+  }
+  if(el.dataset.retablir){ changerStatut(el.dataset.retablir, 'a_faire'); return; }
+  if(el.dataset.mois !== undefined){
+    const n = Number(el.dataset.mois);
+    etat.mois = n === 0 ? aujourdhui().slice(0, 7) : decalerMois(moisCourant(), n);
+    etat.jour = '';
+    rendre();
+    return;
+  }
+  if(el.dataset.jour){
+    etat.jour = el.dataset.jour;
+    document.querySelectorAll('.cal-case.choisie').forEach(x=> x.classList.remove('choisie'));
+    el.classList.add('choisie');
+    const detail = document.getElementById('calDetail');
+    detail.innerHTML = detailJour(etat.jour, contenuDesJours(moisCourant()));
+    if(window.matchMedia('(max-width: 760px)').matches) detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
+  }
+  if(el.dataset.nouvelleProjet !== undefined){ ouvrirCreation({ tourneeId: el.dataset.nouvelleProjet }); return; }
+  if(el.dataset.nouvelleJour){ ouvrirCreation({ echeance: el.dataset.nouvelleJour, tourneeId: etat.filtreProjet && etat.filtreProjet !== '_aucun' ? etat.filtreProjet : '' }); return; }
+});
+
+document.addEventListener('change', (e)=>{
+  if(e.target.id === 'filtreProjet'){ etat.filtreProjet = e.target.value; memoriserPrefs(); rendre(); }
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.target.id === 'ajoutRapide' && e.key === 'Enter' && !e.isComposing){
+    e.preventDefault();
+    const v = e.target.value;
+    e.target.value = '';
+    ajoutRapide(v).then(()=>{ const i = document.getElementById('ajoutRapide'); if(i) i.focus(); });
+  }
+});
+
+document.getElementById('btnNouvelle').addEventListener('click', ()=> ouvrirCreation({ tourneeId: etat.filtreProjet && etat.filtreProjet !== '_aucun' ? etat.filtreProjet : '' }));
+document.getElementById('fab').addEventListener('click', ()=> ouvrirCreation({ tourneeId: etat.filtreProjet && etat.filtreProjet !== '_aucun' ? etat.filtreProjet : '' }));
+document.getElementById('btnRegles').addEventListener('click', ouvrirRegles);
+
+// Le panneau : ses propres gestes, délégués.
+panneauEl.addEventListener('click', (e)=>{
+  if(e.target === panneauEl){ fermerPanneau(); return; }
+  const el = e.target.closest('button');
+  if(!el) return;
+  if(el.hasAttribute('data-fermer-modale')){ fermerPanneau(); return; }
+  const p = etat.panneau;
+  if(!p) return;
+  if(el.dataset.statut){
+    if(p.mode === 'creation'){ p.brouillon.statut = el.dataset.statut; rendrePanneau(); }
+    else { changerStatut(p.id, el.dataset.statut).then(marquerEnregistre); }
+    return;
+  }
+  if(el.dataset.modeEch){ changerModeEcheance(el.dataset.modeEch); return; }
+  if(el.dataset.stCycle){
+    if(p.mode === 'creation'){
+      const c = p.enfants.find(x=> x.id === el.dataset.stCycle);
+      if(c){ c.statut = T.statutSuivant(c.statut); rendrePanneau(); }
+      return;
+    }
+    const c = tacheParId(el.dataset.stCycle);
+    if(c) changerStatut(c.id, T.statutSuivant(c.statut)).then(()=>{ rendrePanneau(); marquerEnregistre(); });
+    return;
+  }
+  if(el.dataset.stSuppr){
+    const id = el.dataset.stSuppr;
+    if(p.mode === 'creation'){ p.enfants = p.enfants.filter(x=> x.id !== id); rendrePanneau(); return; }
+    const c = tacheParId(id);
+    etat.masquees.add(id);
+    rendre(); rendrePanneau();
+    CurieuxAnnuler.proposer({
+      texte: `Sous-tâche « ${c ? c.libelle : ''} » retirée`,
+      retablir: ()=>{ etat.masquees.delete(id); rendre(); rendrePanneau(); },
+      purger: async ()=>{ await CurieuxDB.removeOne(TABLE, id); etat.taches = etat.taches.filter(x=> x.id !== id); etat.masquees.delete(id); },
+    });
+    return;
+  }
+  if(el.dataset.retablir){ changerStatut(el.dataset.retablir, 'a_faire').then(()=> rendrePanneau()); return; }
+  if(el.id === 'pCreer'){ creerDepuisPanneau(); return; }
+  if(el.id === 'pSupprimer'){ const id = p.id; fermerPanneau(); supprimer(id); return; }
+  if(el.id === 'pToutFait'){
+    const enfants = (enfantsMap().get(p.id) || []).filter(x=> x.statut !== 'fait' && x.statut !== 'ecartee');
+    Promise.all(enfants.map(x=> changerStatut(x.id, 'fait'))).then(()=>{ rendrePanneau(); marquerEnregistre(); });
+    return;
+  }
+  // Les règles.
+  if(el.id === 'rAjouter'){
+    lireRegleDepuisChamps();
+    p.brouillon.modeles.push({ id: 'regle-' + Date.now().toString(36), libelle: '', ancre: 'premiere_repetition', j: 7, actif: true, lien: '' });
+    rendreRegles();
+    const champs = pCorps.querySelectorAll('[data-regle-libelle]');
+    if(champs.length) champs[champs.length - 1].focus();
+    return;
+  }
+  if(el.dataset.regleSuppr !== undefined){
+    lireRegleDepuisChamps();
+    p.brouillon.modeles.splice(Number(el.dataset.regleSuppr), 1);
+    rendreRegles();
+    return;
+  }
+  if(el.id === 'rEnregistrer'){ enregistrerRegles(); return; }
+});
+
+panneauEl.addEventListener('change', (e)=>{
+  const el = e.target;
+  const p = etat.panneau;
+  if(!p) return;
+  if(p.mode === 'regles'){ majApercu(); const r = el.closest('.tt-regle'); if(r && el.dataset.regleActif !== undefined) r.classList.toggle('inactive', !el.checked); return; }
+  if(el.dataset.champ){ champChange(el); return; }
+  if(el.dataset.stLibelle){
+    const v = el.value.trim();
+    if(!v) return;
+    if(p.mode === 'creation'){ const c = p.enfants.find(x=> x.id === el.dataset.stLibelle); if(c) c.libelle = v; return; }
+    const c = tacheParId(el.dataset.stLibelle);
+    if(c && v !== c.libelle) ecrire(c.id, Object.assign({}, c, { libelle: v }), { libelle: v }).then(marquerEnregistre);
+    return;
+  }
+  if(el.dataset.stEcheance){
+    if(p.mode === 'creation'){ const c = p.enfants.find(x=> x.id === el.dataset.stEcheance); if(c) c.echeance = el.value; return; }
+    const c = tacheParId(el.dataset.stEcheance);
+    if(c) ecrire(c.id, Object.assign({}, c, { echeance: el.value }), { echeance: el.value || null }).then(()=>{ marquerEnregistre(); rendre(); });
+  }
+});
+panneauEl.addEventListener('input', (e)=>{
+  if(etat.panneau && etat.panneau.mode === 'regles' && (e.target.dataset.regleJ !== undefined)) majApercu();
+});
+panneauEl.addEventListener('keydown', (e)=>{
+  if(e.target.id === 'pNouvelleST' && e.key === 'Enter' && !e.isComposing){
+    e.preventDefault();
+    const v = e.target.value.trim();
+    e.target.value = '';
+    if(v) ajouterSousTaches(lignesCollees(v));
+    return;
+  }
+  if(e.target.dataset && e.target.dataset.champ === 'libelle' && e.key === 'Enter' && etat.panneau && etat.panneau.mode === 'creation'){
+    e.preventDefault();
+    creerDepuisPanneau();
+  }
+});
+// Coller une liste de titres : une sous-tâche par ligne, d'un coup.
+panneauEl.addEventListener('paste', (e)=>{
+  if(e.target.id !== 'pNouvelleST') return;
+  const texte = (e.clipboardData || window.clipboardData).getData('text');
+  const lignes = lignesCollees(texte || '');
+  if(lignes.length < 2) return;
+  e.preventDefault();
+  ajouterSousTaches(lignes);
+});
+
+/* --- Démarrer ------------------------------------------------------------- */
+
+(async function demarrer(){
+  try{ appliquerPrefs(JSON.parse(localStorage.getItem(CLE_LOCALE) || 'null')); }catch(e){}
+  const params = new URLSearchParams(location.search);
+  if(params.get('projet')){ etat.vue = 'projets'; }
+  if(params.get('filtre') === 'retard'){ etat.vue = 'liste'; etat.filtreEtat = 'tous'; }
+  rendre();
+
+  const session = await CurieuxDB.getSession();
+  etat.moi = (session && session.user && session.user.email) || '';
+
+  const [manque, reglages, prefsServeur] = await Promise.all([
+    CurieuxDB.colonneManquante(TABLE, COLONNES_NEUVES),
+    CurieuxDB.fetchReglages(),
+    CurieuxDB.fetchPreferences('taches'),
+  ]);
+  // === true : un double de test qui répondrait n'importe quoi de « vrai » ne
+  // doit pas faire croire à une migration manquante.
+  etat.migrationManquante = manque === true;
+  etat.reglage = reglages && !reglages.absent ? T.normaliserReglage(reglages.tachesModeles) : null;
+  if(prefsServeur && Object.keys(prefsServeur).length && !params.get('projet') && !params.get('filtre')) appliquerPrefs(prefsServeur);
+
+  await recharger();
+
+  // Qui peut se charger d'une tâche : les comptes admin, les seuls à voir la page.
+  CurieuxDB.listAccounts().then(liste=>{
+    etat.comptes = (liste || []).filter(c=> (c.role || 'admin') === 'admin').map(c=> c.email).filter(Boolean).sort();
+    if(etat.moi && !etat.comptes.includes(etat.moi)) etat.comptes.unshift(etat.moi);
+    if(etat.panneau) majPanneauApresEcriture();
+  });
+
+  CurieuxDB.subscribe(TABLE, ()=> relireBientot(400));
+  CurieuxDB.subscribe('tournees', ()=>{ relireBientot(600); genererBientot(); });
+  // Un téléphone qu'on rallume ne reçoit pas ce qui s'est passé pendant qu'il
+  // dormait : on relit en revenant sur l'onglet, et les tâches automatiques
+  // d'un projet signé entre-temps se posent à ce moment-là.
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState === 'visible'){ relireBientot(100); genererBientot(); }
+  });
+
+  genererAuto();
+
+  const projetVise = params.get('projet');
+  if(projetVise){
+    const cible = document.getElementById('projet-' + projetVise);
+    if(cible) cible.scrollIntoView({ block: 'start' });
+  }
+  const m = location.hash.match(/^#tache-(.+)$/);
+  if(m && tacheParId(decodeURIComponent(m[1]))) ouvrirPanneau({ mode: 'edition', id: decodeURIComponent(m[1]) });
+})();
+</script>
+</body>
+</html>

@@ -7,7 +7,7 @@ const { chromium } = require('playwright-core');
 
 const BASE = 'http://127.0.0.1:8099';
 const OUT = process.env.CAPTURES || '/tmp/captures';
-const FORMATS = { mobile: { width: 390, height: 844 }, bureau: { width: 1280, height: 900 } };
+const FORMATS = { mobile: { width: 390, height: 844 }, bureau: { width: 1280, height: 900 }, large: { width: 1440, height: 900 } };
 
 const pages = process.argv[2] ? process.argv[2].split(',') : ['accueil', 'tournees', 'recap'];
 const format = process.argv[3] || 'mobile';
@@ -66,7 +66,46 @@ const DATES = [
 // modèles est LA vérité (les mêmes données que le bouton d'import de la page).
 const EXEMPLES_DEVIS = require('../modeles/devis-exemples.json');
 
+// Les tâches de l'équipe (taches.html) se jugent par rapport à AUJOURD'HUI :
+// en retard, cette semaine, plus tard. Des dates figées en 2027 donneraient
+// une capture où tout est « plus tard ». On les calcule donc depuis le jour
+// de la capture.
+function jourPlus(n){
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// Le cas de la demande : un projet signé, deux répétitions, puis le concert.
+// La première répétition tombe dans un mois : les trois tâches automatiques
+// (J-21, J-7, J-2) sont toutes devant.
+const PROJET_OCTOBRE = {
+  id:'demo-tour-oct', nom:'Ciné-concert — Le Voyage de Chihiro', type:'tournee',
+  cachetStatut:'non_defini', cachetMontant:null, nomenclature:[], techniqueTournee:{},
+  dates:[
+    { id:'o1', date:jourPlus(27), ville:'Paris', lieu:'Studio Ferber', statut:'validee', type:'repetition', commentaire:'', musiciensAssignes:[], techniciensAssignes:[] },
+    { id:'o2', date:jourPlus(28), ville:'Paris', lieu:'Studio Ferber', statut:'validee', type:'repetition', commentaire:'', musiciensAssignes:[], techniciensAssignes:[] },
+    { id:'o3', date:jourPlus(29), ville:'Paris', lieu:'Salle Pleyel', statut:'validee', type:'concert', commentaire:'', musiciensAssignes:[], techniciensAssignes:[] },
+  ],
+};
+const TACHE = (id, champs) => Object.assign({
+  id, genre:'equipe', libelle:'', notes:'', auteur:'alois@lessoudaines.fr', pour:'', statut:'a_faire',
+  fait:false, faitLe:'', echeance:'', tourneeId:'', dateId:'', j:null, ancre:'', modele:'',
+  parentId:'', ordre:0, createdAt:'2026-09-01T10:00:00Z',
+}, champs);
+const TACHES_EQUIPE = [
+  TACHE('demo-t-arr', { libelle:'Arrangements', tourneeId:'demo-tour-oct', ancre:'premiere_repetition', j:10, statut:'en_cours', pour:'alois@lessoudaines.fr', notes:'Conducteur complet dans le Drive.' }),
+  TACHE('demo-t-arr1', { libelle:'Le Chemin du dragon', parentId:'demo-t-arr', ordre:1, statut:'fait' }),
+  TACHE('demo-t-arr2', { libelle:'Un jour d’été', parentId:'demo-t-arr', ordre:2, statut:'en_cours' }),
+  TACHE('demo-t-arr3', { libelle:'Le Train sur la mer', parentId:'demo-t-arr', ordre:3, echeance:jourPlus(-1) }),
+  TACHE('demo-t-arr4', { libelle:'Toujours avec moi', parentId:'demo-t-arr', ordre:4 }),
+  TACHE('demo-t-relance', { libelle:'Relancer la Salle Pleyel pour la fiche technique', echeance:jourPlus(-2), tourneeId:'demo-tour-oct', pour:'daniel@lessoudaines.fr' }),
+  TACHE('demo-t-devis', { libelle:'Envoyer le devis au festival', echeance:jourPlus(0) }),
+  TACHE('demo-t-sacem', { libelle:'Déclarer le programme à la Sacem', echeance:jourPlus(5), tourneeId:'demo-tour1' }),
+  TACHE('demo-t-affiche', { libelle:'Valider l’affiche avec la comm', statut:'en_cours' }),
+  TACHE('demo-t-fait', { libelle:'Réserver le studio de répétition', statut:'fait', fait:true, faitLe:jourPlus(-3), tourneeId:'demo-tour-oct' }),
+];
+
 const SEED = {
+  comm_taches: TACHES_EQUIPE,
   // Le premier chiffrage est rattaché à la tournée de démo : sans cela, ni le
   // rappel de budget sur la carte de tournée ni le rappel de projet dans
   // l'éditeur n'ont quoi que ce soit à montrer.
@@ -298,7 +337,7 @@ const SEED = {
        musiciensAssignes:[], techniciensAssignes:['demo-tech-01']},
     ],
     techniqueTournee:{},
-  }],
+  }, PROJET_OCTOBRE],
   // Deux feuilles : une de route (date de tournée) et une de studio (séance de
   // recording). Sans elles, feuilles-de-route.html se capture vide dans les
   // deux sens et on ne voit rien de ce que le filtre par nature change.
@@ -554,7 +593,11 @@ const CurieuxDB = new Proxy({
   // liste. Le repli du Proxy rend [], que les appelants déstructurent en
   // data:undefined — « Suivi des dispos » levait donc au chargement, et toute
   // capture de cette page montrait un écran arrêté en plein rendu.
-  fetchAllOuEchec: async t => ({ data: JSON.parse(JSON.stringify(__seed[t] || [])), error: null }),
+  // window.__lectureEchouee = ['comm_taches'] simule une lecture en échec : le
+  // cas où une page ne doit RIEN créer (voir l'incident des 85 doublons, db.js).
+  fetchAllOuEchec: async t => (window.__lectureEchouee || []).includes(t)
+    ? { data: [], error: { message: 'réseau coupé (simulé)' } }
+    : { data: JSON.parse(JSON.stringify(__seed[t] || [])), error: null },
   // Lit le jeu de démo, comme fetchAll : une page de détail (fiche de salle,
   // devis…) rendait sinon « introuvable » alors que la ligne est dans le seed.
   fetchOne: async (t, id) => {
@@ -569,7 +612,49 @@ const CurieuxDB = new Proxy({
   // scénario force le cas avec window.__tablesAbsentes = ['salles'].
   tableManquante: async (t) => (window.__tablesAbsentes || []).includes(t),
   subscribe: () => {},
-  syncCollection: async (t, rows) => { window.__ecrits.push({ table: t, rows }); return { error: null }; },
+  // Une colonne manquante se force par window.__colonnesAbsentes = ['statut'] :
+  // explicite, pour la même raison que tableManquante — le [] du Proxy est vrai.
+  colonneManquante: async (t, cols) => String(cols).split(',').some(c => (window.__colonnesAbsentes || []).includes(c.trim())),
+  // Les règles des tâches automatiques telles que la migration les pose.
+  fetchReglages: async () => ({ absent: false, phaseTest: false, villesBase: [], techniqueSeuils: {},
+    tachesModeles: window.__sansReglesTaches ? null : { declencheur: 'validee', modeles: [
+      { id:'envoi-partitions', libelle:'Envoi des partitions numériques aux musicien·nes', ancre:'premiere_repetition', j:21, actif:true, lien:'partitions' },
+      { id:'edition-partitions', libelle:'Édition des partitions', ancre:'premiere_repetition', j:7, actif:true, lien:'partitions' },
+      { id:'impression-partitions', libelle:'Impression des partitions', ancre:'premiere_repetition', j:2, actif:true, lien:'partitions' },
+    ] } }),
+  setTachesModeles: async (r) => { window.__ecrits.push({ table: 'reglages', rows: [{ taches_modeles: r }] }); return { error: null }; },
+  fetchPreferences: async () => ({}),
+  savePreferences: async () => ({ error: null }),
+  // Comme la base : on n'insère que ce qui n'existe pas (on conflict do nothing).
+  insererSiAbsent: async (t, rows) => {
+    window.__ecrits.push({ table: t, rows, siAbsent: true });
+    const liste = __seed[t] || (__seed[t] = []);
+    rows.forEach(r => { if (!liste.some(x => x && x.id === r.id)) liste.push(JSON.parse(JSON.stringify(r))); });
+    return { error: null };
+  },
+  // Les colonnes arrivent au format SQL : on les ramène au format des pages.
+  majPartielle: async (t, id, cols) => {
+    window.__ecrits.push({ table: t, id, colonnes: cols });
+    const r = (__seed[t] || []).find(x => x && x.id === id);
+    if (!r) return { error: null, absente: true };
+    const noms = { tournee_id:'tourneeId', parent_id:'parentId', fait_le:'faitLe', date_id:'dateId' };
+    Object.entries(cols).forEach(([k, v]) => { r[noms[k] || k] = v == null ? '' : v; });
+    return { error: null, absente: false };
+  },
+  removeMany: async (t, ids) => {
+    window.__ecrits.push({ table: t, supprime: ids });
+    if (__seed[t]) __seed[t] = __seed[t].filter(x => !x || !ids.includes(x.id));
+    return { error: null };
+  },
+  syncCollection: async (t, rows) => {
+    window.__ecrits.push({ table: t, rows });
+    const liste = __seed[t] || (__seed[t] = []);
+    rows.forEach(row => {
+      const i = liste.findIndex(x => x && x.id === row.id);
+      if (i >= 0) liste[i] = JSON.parse(JSON.stringify(row)); else liste.push(JSON.parse(JSON.stringify(row)));
+    });
+    return { error: null };
+  },
   upsertOne: async (t, row) => {
     window.__ecrits.push({ table: t, rows: [row] });
     // L'écriture rejoint le seed : une page qui relit juste après (ou une autre
@@ -590,7 +675,7 @@ const CurieuxDB = new Proxy({
   },
   // Une Map, comme le vrai : le Proxy rendrait un tableau, et .get() exploserait.
   jetonsPermanentsPour: async () => new Map(),
-  getSession: async () => ({ user:{ id:'demo', email:'demo@curieux.fr' } }),
+  getSession: async () => ({ user:{ id:'demo', email:'alois@lessoudaines.fr' } }),
   hasAppAccess: async () => true,
   // « ?refus=admin » ou « ?refus=technique » dans l'URL fait répondre non au
   // contrôle correspondant : c'est le seul moyen de capturer l'écran d'accès
@@ -690,6 +775,7 @@ const CurieuxDB = new Proxy({
   listAccounts: async () => [
     { email:'alois@lessoudaines.fr', role:'admin', direction_technique:true },
     { email:'marie@lessoudaines.fr', role:'user', direction_technique:true },
+    { email:'daniel@lessoudaines.fr', role:'admin', direction_technique:false },
     { email:'leo@lessoudaines.fr', role:'user', direction_technique:false },
   ],
   getFicheTechniqueByToken: async () => null,

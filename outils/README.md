@@ -148,6 +148,8 @@ node outils/test-recap-barre-de-modes.cjs
 node outils/test-remplacants.cjs
 node outils/test-suivi-dispo-doublons.cjs
 node outils/test-partitions-proposition.cjs   # sans serveur ni navigateur
+node outils/test-taches.cjs
+node outils/test-taches-commun.cjs            # sans serveur ni navigateur
 ```
 
 | Script | Ce qu'il garde |
@@ -157,6 +159,8 @@ node outils/test-partitions-proposition.cjs   # sans serveur ni navigateur
 | `test-remplacants.cjs` | Les quatre issues de « Enregistrer ma liste » — dont celle qui laissait le bouton figé sur « Enregistrement… ». |
 | `test-partitions-proposition.cjs` | La proposition d'affectation d'après les instruments : les 25 valeurs réelles de `musiciens.instrument` et les noms de parties tels que Dorico les sort se lisent juste ; chacun reçoit les parties de son instrument, le numéro de la fiche restreint, et ce qui est déjà posé ne bouge jamais. À relancer après toute modification de `PARTITIONS_INSTRUMENTS`. |
 | `test-suivi-dispo-doublons.cjs` | Une lecture en échec n'est plus prise pour un inventaire vide : le suivi des dispos ne recrée pas 85 demandes existantes. |
+| `test-taches-commun.cjs` | La logique des tâches de l'équipe : l'ancre « 1re répétition » trouve la répétition (ou la résidence, ou celle d'un recording) et se rabat sur la 1re date ; une échéance calée suit le projet quand ses dates bougent ; la génération ne crée rien deux fois, ne ressuscite pas une tâche écartée, n'engendre rien pour une option, un projet annulé ou déjà commencé ; « aujourd'hui » est la date de Paris, pas celle de Greenwich. |
+| `test-taches.cjs` | La page des tâches, au téléphone et au bureau : génération en « si absent » une seule fois, changement d'état écrit en partiel, liste collée en sous-tâches sans perdre le titre tapé, « Oups » avant toute suppression, tâche automatique écartée et non supprimée — et rien de créé quand la lecture échoue, que la migration manque ou que les règles sont absentes. `CAPTURES=/un/dossier` y ajoute les captures des trois vues, en clair et en sombre. |
 
 Chacun porte en tête le récit du bug qu'il surveille — c'est ce qui permet, des
 mois plus tard, de savoir si une vérification qui gêne protège encore quelque

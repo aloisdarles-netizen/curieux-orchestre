@@ -33,6 +33,18 @@
 
 const CURIEUX_NOUVEAUTES = [
   {
+    version: '2026-09-23-1',
+    titre: 'Les tâches de l’équipe',
+    points: [
+      "Une nouvelle page « Tâches », sous Production — réservée aux comptes admin. Chaque tâche a un état : à faire, en cours, fait. Un appui sur le rond à gauche la fait passer à l’état suivant ; un appui sur le reste de la ligne ouvre son détail.",
+      "Trois façons de regarder les mêmes tâches : la liste, rangée par échéance (en retard, aujourd’hui, cette semaine, plus tard) ; les projets, une carte chacun avec son avancement ; le calendrier, où les dates des projets et les échéances se croisent.",
+      "Des sous-tâches : « Arrangements », puis un titre par ligne. Coller une liste de titres crée une sous-tâche par ligne, d’un coup. L’état de la tâche suit celui de ses sous-tâches.",
+      "Une échéance peut être une date, ou se caler sur le projet : « 10 jours avant la 1re répétition ». Si la répétition bouge, l’échéance suit.",
+      "Les tâches automatiques : dès qu’un projet a une date validée, les tâches qui en découlent se créent d’elles-mêmes — envoi des partitions numériques 21 jours avant la 1re répétition, édition 7 jours avant, impression 2 jours avant. Les règles se modifient depuis « Tâches automatiques ». Une tâche automatique qu’on écarte ne revient pas.",
+      "Au téléphone, la page se tient comme l’espace musicien : les trois vues en onglets en bas de l’écran, un bouton « + » à portée de pouce, le détail qui monte du bas. Les filtres et la vue choisis vous suivent d’un appareil à l’autre.",
+    ],
+  },
+  {
     version: '2026-09-21-1',
     titre: 'Le tableau de service retrouve Marquer, Affecter et Oups',
     points: [

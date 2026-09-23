@@ -323,7 +323,11 @@
 // Oups du tableau de service disparaissait pour tous les comptes admin et
 // direction technique. Un actif servi depuis le cache avant d'être rafraîchi
 // laisserait le bandeau fautif une visite de plus : l'incrément l'écarte.
-const VERSION = 'curieux-v147';
+// v148 : les tâches de l'équipe. taches.html est une page (réseau d'abord),
+// mais elle s'appuie sur un actif neuf (taches-commun.js) et sur db.js, nav.js
+// et nouveautes.js modifiés : un db.js servi depuis le cache ne connaîtrait ni
+// insererSiAbsent ni majPartielle, et la page s'arrêterait au chargement.
+const VERSION = 'curieux-v148';
 const CACHE_PAGES = `${VERSION}-pages`;
 const CACHE_ACTIFS = `${VERSION}-actifs`;
 const PAGE_HORS_LIGNE = '/hors-ligne.html';

@@ -224,6 +224,13 @@ const CURIEUX_SECTIONS_V2 = [
       { groupe:'Autour de la date', libelle:'Invitations', href:'invitations.html', pages:['invitations.html'] },
       { groupe:'Autour de la date', libelle:'Journal des changements', href:'newsletter.html', pages:['newsletter.html'] },
       { groupe:'Bibliothèque', libelle:'Partitions', href:'partitions.html', pages:['partitions.html','partitions.html?type=recording'] },
+      /* Les tâches de l'équipe : ce qu'on a à faire, projet par projet, et ce
+         que les dates d'un projet engendrent d'elles-mêmes (envoi, édition,
+         impression des partitions). Rangées sous Production parce que c'est
+         l'opération qui les porte ; réservées aux comptes admin, comme la
+         page (requireSuperAdminAuth) et la base (genre 'equipe', is_admin()).
+         Huitième entrée : le plafond du menu est atteint. */
+      { groupe:'Suivre', libelle:'Tâches', href:'taches.html', pages:['taches.html'], droit:'admin' },
       /* « Devis et budgets » et « Suivi des dépenses » ont fait un aller-retour
          par ici, au motif que chiffrer un projet est un travail de production.
          L'argument tient, mais il coûtait plus qu'il ne rapportait : le budget

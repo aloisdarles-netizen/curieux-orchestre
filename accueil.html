@@ -11,6 +11,7 @@
 <script src="assets/ui-helpers.js"></script>
 <script src="assets/statuts-date.js"></script>
 <script src="assets/selection-projets.js"></script>
+<script src="assets/taches-commun.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/global-search.js"></script>
 <script>try{ hideCurieuxPageUntilAuth(); injectCurieuxFonts(); applyAutoTheme(); applyCurieuxFavicon(); initCurieuxPWA(); injectBugReportWidget(); document.addEventListener('DOMContentLoaded', requireAdminAuth); }catch(e){}</script>
@@ -637,11 +638,26 @@ async function charger(){
   poserChiffresSections();
 
   // Ce qui relève de la direction technique ne se lit que si l'on y a droit :
-  // la base refuserait de toute façon, autant ne pas le demander.
-  let technique = false;
-  try{ if(typeof curieuxDroitAccorde === 'function') technique = await curieuxDroitAccorde('technique'); }catch(e){}
+  // la base refuserait de toute façon, autant ne pas le demander. Même règle
+  // pour les tâches de l'équipe, réservées aux comptes admin — et une seule
+  // lecture de la table quand on a les deux droits.
+  let technique = false, admin = false;
+  try{
+    if(typeof curieuxDroitAccorde === 'function'){
+      [technique, admin] = await Promise.all([curieuxDroitAccorde('technique'), curieuxDroitAccorde('admin')]);
+    }
+  }catch(e){}
+  const tachesLues = (technique || admin) ? lire('comm_taches') : Promise.resolve([]);
+  if(admin && typeof CurieuxTaches !== 'undefined'){
+    // Compté comme la page les montre (assets/taches-commun.js) : échéances
+    // calées sur le projet, état déduit des sous-tâches, projets annulés
+    // exclus — et « aujourd'hui » à l'heure locale.
+    const parId = new Map(tournees.map(t => [t.id, t]));
+    const retardEquipe = CurieuxTaches.enRetard(await tachesLues, parId, CurieuxTaches.aujourdhuiLocal()).length;
+    points.unshift({ n:retardEquipe, label:pl(retardEquipe, 'tâche en retard', 'tâches en retard'), sous:'dans les tâches de l’équipe', href:'taches.html?filtre=retard', sev:'ko' });
+  }
   if(technique){
-    const [taches, remarques] = await Promise.all([lire('comm_taches'), lire('remarques')]);
+    const [taches, remarques] = await Promise.all([tachesLues, lire('remarques')]);
     const retard = tachesEnRetard(taches, tournees);
     const aTraiter = remarques.filter(r => !r.traitee).length;
     points.push(
