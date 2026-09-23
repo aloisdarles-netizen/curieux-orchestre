@@ -573,20 +573,41 @@ const CurieuxDB = (()=>{
       toDb: (r)=> ({ id: r.id, person_type: r.personType, items: r.items || [] }),
       fromDb: (r)=> ({ id: r.id, personType: r.person_type, items: r.items || [] })
     },
-    // Tâches de l'espace comm (comm.html). Deux natures d'échéance : une tâche
+    // Les tâches, tous espaces confondus. Deux natures d'échéance : une tâche
     // libre porte une date en clair (echeance) ; une tâche rattachée à une date
     // de tournée compte en jours avant le concert (j) et suit la date si elle
-    // bouge. genre = 'newsletter' pour la tâche mensuelle recréée d'office.
+    // bouge. `genre` sépare les espaces : 'technique' (technique-taches.html),
+    // 'equipe' (taches.html), '' ou 'newsletter' pour l'ancien espace comm.
+    //
+    // Les tâches de l'équipe ont six colonnes de plus — état à trois valeurs,
+    // sous-tâches, ordre, qui s'en charge, échéance calée sur le projet, règle
+    // d'origine (voir « LES TÂCHES DE L'ÉQUIPE » dans migrations.sql). Elles ne
+    // partent QUE pour ce genre-là : tant que la migration n'est pas jouée,
+    // _upsertTolerant ne retire que trois colonnes inconnues avant d'abandonner,
+    // et les six feraient échouer chaque coche du tableau de bord technique.
     comm_taches: {
-      toDb: (t)=> ({
-        id: t.id, libelle: t.libelle || '', notes: t.notes || '',
-        auteur: t.auteur || '',
-        echeance: t.echeance || null,
-        tournee_id: t.tourneeId || null, date_id: t.dateId || null,
-        j: (t.j === 0 || t.j) ? t.j : null,
-        genre: t.genre || '',
-        fait: !!t.fait, fait_le: t.faitLe || null,
-      }),
+      toDb: (t)=>{
+        const equipe = t.genre === 'equipe';
+        const statut = equipe ? (t.statut || (t.fait ? 'fait' : 'a_faire')) : null;
+        return {
+          id: t.id, libelle: t.libelle || '', notes: t.notes || '',
+          auteur: t.auteur || '',
+          echeance: t.echeance || null,
+          tournee_id: t.tourneeId || null, date_id: t.dateId || null,
+          j: (t.j === 0 || t.j) ? t.j : null,
+          genre: t.genre || '',
+          fait: equipe ? statut === 'fait' : !!t.fait,
+          fait_le: t.faitLe || null,
+          ...(equipe ? {
+            statut,
+            parent_id: t.parentId || null,
+            ordre: Number.isFinite(t.ordre) ? t.ordre : 0,
+            pour: t.pour || '',
+            ancre: t.ancre || null,
+            modele: t.modele || null,
+          } : {}),
+        };
+      },
       fromDb: (r)=> ({
         id: r.id, libelle: r.libelle || '', notes: r.notes || '',
         auteur: r.auteur || '',
@@ -595,6 +616,15 @@ const CurieuxDB = (()=>{
         j: (r.j === 0 || r.j) ? r.j : null,
         genre: r.genre || '',
         fait: !!r.fait, faitLe: r.fait_le || '',
+        // Une base sans la migration n'a pas `statut` : on le déduit de la
+        // coche, comme le déclencheur le fera une fois la colonne posée.
+        statut: r.statut || (r.fait ? 'fait' : 'a_faire'),
+        parentId: r.parent_id || '',
+        ordre: Number.isFinite(r.ordre) ? r.ordre : 0,
+        pour: r.pour || '',
+        ancre: r.ancre || '',
+        modele: r.modele || '',
+        createdAt: r.created_at || '',
       })
     },
     // Signalements du widget "Signaler un bug" (voir injectBugReportWidget dans
@@ -1406,6 +1436,56 @@ const CurieuxDB = (()=>{
     return _ecrire(`removeMany(${table})`,
       () => supabaseClient.from(table).delete().in('id', ids));
   }
+
+  /* Insérer ce qui n'existe pas encore, et ne RIEN toucher à ce qui existe.
+   *
+   * Pour les lignes engendrées d'office — les tâches automatiques d'un projet —
+   * dont l'identifiant est déterministe (« auto::<projet>::<règle> »). Deux
+   * comptes qui ouvrent la page au même instant calculent les mêmes lignes :
+   * un upsert ordinaire ferait gagner le dernier, et remettrait « à faire » une
+   * tâche que l'autre venait de passer « en cours ». Ici la base répond
+   * « on conflict do nothing » : la première écriture gagne, les suivantes
+   * sont sans effet, et une tâche écartée ne renaît jamais.
+   *
+   * Hors de la file de rejeu (_ecrire) : l'opération se refait d'elle-même au
+   * chargement suivant, et un bandeau rouge « Réessayer » pour une écriture
+   * que personne n'a demandée serait du bruit. Hors du mode tolérant aussi :
+   * retirer une colonne inconnue changerait le sens de la ligne (une
+   * sous-tâche sans parent_id devient une tâche) — la page vérifie la
+   * migration AVANT d'appeler. */
+  async function insererSiAbsent(table, items){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    if(!items || items.length === 0) return { error: null };
+    const adapter = adapterFor(table);
+    const nettoye = _nettoyerIndefinis(table, items.map(adapter.toDb), new Set(['id']));
+    if(nettoye.error) return { error: nettoye.error };
+    const { error } = await supabaseClient.from(table)
+      .upsert(nettoye.rows, { onConflict: 'id', ignoreDuplicates: true });
+    if(error) console.warn(`[CurieuxDB] insererSiAbsent(${table})`, error.message);
+    return { error: error || null };
+  }
+
+  /* Modifier QUELQUES colonnes d'une ligne, sans réécrire les autres.
+   *
+   * upsertOne renvoie la ligne entière telle que la page la connaît. Sur une
+   * table qu'on modifie à plusieurs, depuis des appareils qui dorment — un
+   * téléphone rallumé après une heure ne reçoit pas les événements temps réel
+   * manqués —, cocher un état renverrait aussi les notes d'il y a une heure, et
+   * effacerait celles qu'un autre a écrites entre-temps. Ici seules les
+   * colonnes nommées partent.
+   *
+   * `colonnes` est au format SQL (snake_case). Rend { absente:true } quand la
+   * ligne n'existe plus : supprimée ailleurs, l'écran doit le dire plutôt que
+   * de croire la modification enregistrée. */
+  async function majPartielle(table, id, colonnes){
+    let absente = false;
+    const res = await _ecrire(`majPartielle(${table})`, async () => {
+      const r = await supabaseClient.from(table).update(colonnes).eq('id', id).select('id');
+      if(!r.error) absente = !(r.data && r.data.length);
+      return r;
+    });
+    return { error: (res && res.error) || null, absente };
+  }
   /* Supprimer une date, et ce qui vivait avec elle.
    *
    * Les dates n'existent pas comme lignes : elles vivent dans tournees.dates,
@@ -1721,6 +1801,9 @@ const CurieuxDB = (()=>{
     'partitions_spectacles', 'partitions_programmations', 'partitions_parties',
     'partitions_fichiers', 'partitions_affectations', 'partitions_acces',
     'partitions_envois',
+    // Les tâches, tous espaces confondus : une tâche supprimée avec ses
+    // sous-tâches se retrouve ici, ligne par ligne.
+    'comm_taches',
   ];
 
   // Suppressions restaurables : celles dont la ligne n'a pas été recréée depuis.
@@ -2050,6 +2133,10 @@ const CurieuxDB = (()=>{
       // Seuils d'alerte du tableau de bord technique : { cle: [orange, rouge] }
       // en jours avant la date. Objet vide = la page garde ses défauts.
       techniqueSeuils: (data && data.technique_seuils) || {},
+      // Les règles des tâches automatiques (taches.html). null quand la
+      // colonne manque : la page ne retombe PAS sur des défauts écrits en JS,
+      // qui ressusciteraient une règle qu'un admin a désactivée.
+      tachesModeles: (data && data.taches_modeles) || null,
       absent: !data,
     };
   }
@@ -2158,6 +2245,19 @@ const CurieuxDB = (()=>{
       .update({ technique_seuils: seuils || {} }).eq('id', 1);
     if(error) console.warn('[CurieuxDB] setTechniqueSeuils', error.message);
     return { error };
+  }
+
+  // Les règles des tâches automatiques : { declencheur, modeles:[…] } (voir
+  // « LES TÂCHES DE L'ÉQUIPE » dans migrations.sql). On relit l'identifiant
+  // écrit : une mise à jour refusée par la RLS ne renvoie pas d'erreur, elle
+  // ne touche simplement aucune ligne — et l'écran annoncerait « enregistré ».
+  async function setTachesModeles(reglage){
+    if(!supabaseClient) return { error: { message: 'Supabase non chargé' } };
+    const { data, error } = await supabaseClient.from('reglages')
+      .update({ taches_modeles: reglage }).eq('id', 1).select('id');
+    if(error){ console.warn('[CurieuxDB] setTachesModeles', error.message); return { error }; }
+    if(!data || !data.length) return { error: { message: "Les réglages n'ont pas été enregistrés : ce compte n'a pas le droit de les modifier." } };
+    return { error: null };
   }
 
   // Le référent de production : qui appeler quand quelque chose cloche. Réglé
@@ -2521,8 +2621,8 @@ const CurieuxDB = (()=>{
   }
 
   return {
-    fetchAll, fetchAllOuEchec, fetchOne, tableManquante, colonneManquante, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
-    fetchReglages, fetchPreferences, savePreferences, setPhaseTest, setVillesBase, setTechniqueSeuils, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
+    fetchAll, fetchAllOuEchec, fetchOne, tableManquante, colonneManquante, syncCollection, upsertOne, upsertOneVersionne, removeOne, removeMany, insererSiAbsent, majPartielle, removePerson, supprimerRattachesDate, fetchSnapshot, saveSnapshot, subscribe,
+    fetchReglages, fetchPreferences, savePreferences, setPhaseTest, setVillesBase, setTechniqueSeuils, setTachesModeles, setContactProduction, getContactProduction, compterLignesPurgeables, purgerDonneesEssai,
     fetchDevisReglages, saveDevisReglages,
     listerSauvegardes, lienSauvegarde, lancerSauvegarde,
     publierVersionFiche, fetchVersionsFiche, getFicheTechniqueByToken,

@@ -7380,3 +7380,157 @@ begin
 end;
 $$;
 grant execute on function journaliser_telechargement_envoi(text, text, text, bigint) to anon, authenticated;
+
+
+-- ============================================================================
+-- LES TÂCHES DE L'ÉQUIPE — 23 septembre 2026 (taches.html)
+-- ============================================================================
+-- « Un outil de to-do serait très utile » : une vue de toutes les tâches, un
+-- état plutôt qu'une coche (à faire, en cours, fait), une vue par projet, des
+-- sous-tâches (« Arrangements », puis un titre par ligne), une échéance, un
+-- calendrier — et, le luxe absolu, que les dates d'un projet engendrent
+-- d'elles-mêmes les tâches qui en découlent : l'envoi des partitions
+-- numériques trois semaines avant la première répétition, l'édition une
+-- semaine avant, l'impression deux jours avant.
+--
+-- POURQUOI PAS UNE NOUVELLE TABLE. comm_taches porte déjà tout le squelette —
+-- libellé, notes, auteur, échéance libre OU comptée en jours avant une date,
+-- coche et date de fait — et le principe écrit plus haut (PILOTAGE-02) tient
+-- toujours : un seul composant de tâche, une seule table, le champ `genre`
+-- pour séparer les espaces. Les tâches de l'équipe portent genre = 'equipe'.
+--
+-- CE QUI MANQUAIT, et qui s'ajoute ici sans rien changer aux autres genres :
+--   statut    — à faire / en cours / fait, plus « écartée » (voir plus bas).
+--               `fait` reste la vérité des lectures existantes (accueil,
+--               tableau de bord technique) : un déclencheur tient les deux
+--               colonnes d'accord, quel que soit le client qui écrit.
+--   parent_id — un niveau de sous-tâches. Pas d'arbre : « Arrangements » et
+--               ses titres suffisent, et un arbre profond ne se lit plus sur
+--               un téléphone.
+--   ordre     — l'ordre des sous-tâches. Coller dix titres d'un coup les
+--               insère dans la même instruction, donc au même created_at :
+--               sans colonne d'ordre, ils ressortiraient mélangés.
+--   pour      — l'email du compte qui s'en charge.
+--   ancre     — une échéance CALÉE SUR LE PROJET plutôt que sur une date
+--               précise : « 21 jours avant la première répétition ». Elle est
+--               recalculée à chaque lecture depuis les dates du projet — si la
+--               première répétition avance d'une semaine, la tâche suit. On
+--               n'utilise volontairement PAS date_id : supprimer une date
+--               emporte les tâches qui la visent (supprimerRattachesDate),
+--               alors qu'ici la tâche vaut pour le projet entier.
+--   modele    — la règle qui a engendré la tâche, pour les tâches
+--               automatiques. Leur identifiant est déterministe
+--               (« auto::<projet>::<règle> ») et elles s'insèrent en
+--               « on conflict do nothing » : deux comptes qui ouvrent la page
+--               au même moment ne créent pas deux fois la même tâche.
+--
+-- « ÉCARTÉE » plutôt que supprimée : une tâche automatique qu'on supprimerait
+-- renaîtrait au chargement suivant, puisque rien ne dirait qu'on n'en veut
+-- pas. Écartée, elle reste en base, hors des listes, et se rétablit.
+--
+-- L'ACCÈS : les comptes admin seulement (décision du 23 septembre). La
+-- politique reste tranchée par le genre de la ligne, dans les deux sens.
+-- ============================================================================
+
+alter table comm_taches add column if not exists statut text not null default 'a_faire';
+alter table comm_taches add column if not exists parent_id text;
+alter table comm_taches add column if not exists ordre integer not null default 0;
+alter table comm_taches add column if not exists pour text not null default '';
+alter table comm_taches add column if not exists ancre text;
+alter table comm_taches add column if not exists modele text;
+
+comment on column comm_taches.statut is
+  'a_faire | en_cours | fait | ecartee. Tenu d''accord avec `fait` par trg_comm_taches_statut.';
+comment on column comm_taches.parent_id is
+  'Tâche mère (un seul niveau). Son état se déduit de ses sous-tâches à la lecture.';
+comment on column comm_taches.ancre is
+  'Échéance calée sur le projet : premiere_repetition | premiere_date | premier_concert | derniere_date, avec j jours avant (négatif : après).';
+comment on column comm_taches.modele is
+  'Règle de reglages.taches_modeles qui a engendré la tâche (tâches automatiques).';
+
+-- Les lignes cochées avant l'arrivée de la colonne : le défaut les aurait
+-- toutes dites « à faire ».
+update comm_taches set statut = 'fait' where fait and statut <> 'fait';
+
+alter table comm_taches drop constraint if exists comm_taches_statut_check;
+alter table comm_taches add constraint comm_taches_statut_check
+  check (statut in ('a_faire', 'en_cours', 'fait', 'ecartee'));
+-- Une ancre sans projet ni nombre de jours ne donnerait aucune échéance : la
+-- tâche disparaîtrait des listes datées sans que rien ne le dise.
+alter table comm_taches drop constraint if exists comm_taches_ancre_check;
+alter table comm_taches add constraint comm_taches_ancre_check
+  check (ancre is null or (ancre in ('premiere_repetition', 'premiere_date', 'premier_concert', 'derniere_date')
+                           and tournee_id is not null and j is not null));
+alter table comm_taches drop constraint if exists comm_taches_parent_check;
+alter table comm_taches add constraint comm_taches_parent_check
+  check (parent_id is null or parent_id <> id);
+
+create index if not exists idx_comm_taches_parent on comm_taches(parent_id) where parent_id is not null;
+
+-- statut et fait d'accord, quel que soit le client qui écrit. Le tableau de
+-- bord technique ne connaît que `fait` ; la page des tâches écrit `statut`.
+-- Celle des deux qui a CHANGÉ entraîne l'autre ; fait_le suit.
+create or replace function comm_taches_statut_fait()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.fait or new.statut = 'fait' then
+      new.statut := 'fait';
+      new.fait := true;
+    end if;
+  elsif new.statut is distinct from old.statut then
+    new.fait := (new.statut = 'fait');
+  elsif new.fait is distinct from old.fait then
+    new.statut := case when new.fait then 'fait' else 'a_faire' end;
+  end if;
+  if new.fait and new.fait_le is null then new.fait_le := current_date; end if;
+  if not new.fait then new.fait_le := null; end if;
+  return new;
+end;
+$$;
+drop trigger if exists trg_comm_taches_statut on comm_taches;
+create trigger trg_comm_taches_statut before insert or update on comm_taches
+  for each row execute function comm_taches_statut_fait();
+
+-- La politique, à trois branches. Écrite à l'identique en using (l'ancienne
+-- ligne) et en with check (la nouvelle) : personne ne fait passer une tâche
+-- d'un espace à l'autre sans avoir les deux droits.
+drop policy if exists "comm taches acces" on comm_taches;
+create policy "comm taches acces" on comm_taches for all to authenticated
+  using (case when genre = 'technique' then has_direction_technique_access()
+              when genre = 'equipe' then is_admin()
+              else has_comm_access() end)
+  with check (case when genre = 'technique' then has_direction_technique_access()
+                   when genre = 'equipe' then is_admin()
+                   else has_comm_access() end);
+
+-- Le temps réel. Le tableau de bord technique s'y abonnait déjà sans que la
+-- table soit publiée : l'abonnement ne recevait rien, sans que rien ne le
+-- signale. Les tâches se tiennent souvent à deux — l'un coche au téléphone,
+-- l'autre regarde la liste sur son poste.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'comm_taches'
+  ) then
+    alter publication supabase_realtime add table comm_taches;
+  end if;
+end $$;
+alter table comm_taches replica identity full;
+
+-- Les règles des tâches automatiques, réglables depuis la page. Les trois
+-- premières sont celles de la demande, telles qu'elles ont été écrites :
+-- toutes calées sur la première répétition. `declencheur` dit à partir de
+-- quand un projet engendre ses tâches — 'validee' (au moins une date signée)
+-- ou 'option'. `lien` est une liste fermée ('partitions', 'projet' ou ''), et
+-- jamais une adresse : une URL lue en base puis posée dans un href serait une
+-- porte ouverte.
+alter table reglages add column if not exists taches_modeles jsonb not null default
+  '{"declencheur":"validee","modeles":[
+     {"id":"envoi-partitions","libelle":"Envoi des partitions numériques aux musicien·nes","ancre":"premiere_repetition","j":21,"actif":true,"lien":"partitions"},
+     {"id":"edition-partitions","libelle":"Édition des partitions","ancre":"premiere_repetition","j":7,"actif":true,"lien":"partitions"},
+     {"id":"impression-partitions","libelle":"Impression des partitions","ancre":"premiere_repetition","j":2,"actif":true,"lien":"partitions"}
+   ]}'::jsonb;
