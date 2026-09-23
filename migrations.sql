@@ -7537,3 +7537,28 @@ alter table reglages add column if not exists taches_modeles jsonb not null defa
      {"id":"edition-partitions","libelle":"Édition des partitions","ancre":"premiere_repetition","j":7,"actif":true,"lien":"partitions"},
      {"id":"impression-partitions","libelle":"Impression des partitions","ancre":"premiere_repetition","j":2,"actif":true,"lien":"partitions"}
    ]}'::jsonb;
+
+-- Les règles ne se modifient que par un compte admin. La politique d'écriture
+-- de reglages s'ouvre aussi à la comm et à la direction technique (pour leurs
+-- propres réglages) : sans ce garde, un compte non admin pourrait réécrire des
+-- règles dont les tâches sont ensuite créées par les comptes admin. Une
+-- politique ne sait pas viser une colonne ; un déclencheur, si. Les écritures
+-- sans session (la clé de service de la sauvegarde, une migration) passent :
+-- auth.uid() y est nul, et ce ne sont pas des personnes.
+create or replace function reglages_taches_modeles_admin()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.taches_modeles is distinct from old.taches_modeles
+     and auth.uid() is not null and not is_admin() then
+    raise exception 'Seuls les comptes admin modifient les règles des tâches automatiques.'
+      using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists trg_reglages_taches_modeles on reglages;
+create trigger trg_reglages_taches_modeles before update on reglages
+  for each row execute function reglages_taches_modeles_admin();

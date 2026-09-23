@@ -401,8 +401,11 @@ function cleAlerte(a){
        : a.remarque ? 'r|' + a.remarque.id
        : 'e|' + a.echange.id;
 }
+// Le genre d'abord : un compte admin reçoit aussi les tâches de l'équipe
+// (taches.html) dans la même table, et une note commençant par « #alerte: »
+// y masquerait une alerte technique.
 function clesEnTache(){
-  return new Set(tachesCache.filter(t=> !t.fait && t.notes && t.notes.startsWith('#alerte:'))
+  return new Set(tachesCache.filter(t=> t.genre === GENRE && !t.fait && t.notes && t.notes.startsWith('#alerte:'))
     .map(t=> t.notes.slice(8).split('\n')[0]));
 }
 
