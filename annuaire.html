@@ -593,9 +593,16 @@ function openRemplacantsModal(personId){
     body.innerHTML = items.map(it=>{
       const roster = it.source === 'roster' ? rosterPersonById(it.personId) : null;
       const name = roster ? fullName(roster) : `${it.prenom || ''} ${it.nom || ''}`.trim();
-      const sub = roster
-        ? escapeHtml(roster.instrument || roster.poste || '')
-        : [it.telephone, it.email].filter(Boolean).map(escapeHtml).join(' · ');
+      // Coordonnées cliquables : c'est dans cette liste qu'on cherche qui
+      // appeler quand un·e titulaire décline — le numéro doit s'appeler d'un
+      // geste, qu'il vienne du répertoire ou d'une saisie à la main.
+      const tel = ((roster ? roster.telephone : it.telephone) || '').trim();
+      const email = ((roster ? roster.email : it.email) || '').trim();
+      const sub = [
+        roster ? escapeHtml(roster.instrument || roster.poste || '') : '',
+        tel ? `<a href="tel:${escapeAttr(tel.replace(/[^\d+]/g, ''))}" style="color:inherit; text-decoration:underline; text-underline-offset:2px;">${escapeHtml(tel)}</a>` : '',
+        email ? `<a href="mailto:${escapeAttr(email)}" style="color:inherit; text-decoration:underline; text-underline-offset:2px;">${escapeHtml(email)}</a>` : '',
+      ].filter(Boolean).join(' · ');
       const tag = it.source === 'new' ? `<span class="remplacant-tag" style="margin-left:6px;">Pas encore au répertoire</span>` : '';
       // Une fiche en un clic, créée dans LE BON répertoire — celui du/de la
       // titulaire : le remplaçant d'un·e technicien·ne naît technicien·ne,
