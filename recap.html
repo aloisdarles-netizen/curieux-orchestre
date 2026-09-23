@@ -124,8 +124,11 @@
       justify-content:center; gap:8px; bottom:10px; padding:8px 10px;
     }
     .mode-libelle, .mode-mot{display:none;}
-    .mode-pilules button{padding:9px 13px; font-size:12.5px; white-space:nowrap;}
-    #oupsBtn{padding:9px 14px; font-size:12.5px;}
+    /* Montée dans le sous-menu, la barre n'a pas de cadre : le rembourrage
+       ci-dessus ne sert qu'à la version flottante. Il lui coûtait 20 px. Et
+       si la place manque malgré tout, Oups passe à la ligne plutôt que de
+       sortir de l'écran. */
+    body.mode-bar-en-haut .mode-bar{padding:0; flex-wrap:wrap;}
   }
   .mode-libelle{font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);}
   .mode-pilules{display:flex; gap:0; border:2px solid var(--border); border-radius:999px; overflow:hidden;}
@@ -149,6 +152,16 @@
   #oupsBtn:disabled{cursor:default; opacity:.6;}
   @keyframes oupsPop{ 0%{transform:scale(1);} 45%{transform:scale(1.12);} 100%{transform:scale(1);} }
   #oupsBtn.frais{animation:oupsPop .35s ease;}
+  /* Les tailles téléphone des pastilles et d'Oups vivaient dans le bloc
+     900 px plus haut, déclaré AVANT les règles ci-dessus : à spécificité
+     égale, la dernière l'emporte, et elles ne s'étaient jamais appliquées. La
+     barre gardait sa taille de bureau (332 px), plus large que les 309 px du
+     sous-menu à 360 px — la page défilait latéralement, Oups à moitié hors de
+     l'écran. Déclarées ici, après, elles prennent enfin effet. */
+  @media (max-width:900px){
+    .mode-pilules button{padding:9px 13px; font-size:12.5px; white-space:nowrap;}
+    #oupsBtn{padding:9px 14px; font-size:12.5px;}
+  }
   body.mode-marquer .co-matrix{border-color:var(--accent);}
   body.mode-affecter .co-matrix{border-color:var(--secondary); border-width:2px;}
   [data-cellule]{cursor:pointer;}
