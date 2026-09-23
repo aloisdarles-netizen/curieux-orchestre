@@ -7562,3 +7562,205 @@ $$;
 drop trigger if exists trg_reglages_taches_modeles on reglages;
 create trigger trg_reglages_taches_modeles before update on reglages
   for each row execute function reglages_taches_modeles_admin();
+
+-- ============================================================================
+-- Remplaçant·es saisi·es à la main : une fiche créée d'office (septembre 2026)
+--
+-- Un·e titulaire qui ajoute depuis son lien personnel une personne absente du
+-- répertoire laissait une entrée « pas encore au répertoire » : pas de fiche,
+-- donc personne à affecter, et un bouton « Créer sa fiche » à aller chercher
+-- titulaire par titulaire. La fiche naît désormais à l'enregistrement de la
+-- liste — mais jamais en double :
+--
+--   1. même téléphone (9 derniers chiffres : 06… et +33 6… se rejoignent) ou
+--      même e-mail qu'une fiche existante, avec le même prénom ou le même
+--      nom → l'entrée est rattachée à CETTE fiche, rien n'est créé ; même
+--      numéro mais nom sans rapport → cas douteux, laissé à la production ;
+--   2. même prénom + nom (sans accents, casse ni tirets) → rattachée si une
+--      seule fiche porte ce nom et que ses coordonnées ne contredisent pas
+--      celles saisies ; sinon c'est un homonyme possible : l'entrée reste
+--      « pas encore au répertoire », et la production tranche à la main avec
+--      le bouton « Créer sa fiche » ;
+--   3. aucune correspondance → fiche créée dans le répertoire du/de la
+--      titulaire, au statut « remplaçant », instrument ou poste à préciser.
+--
+-- Une fiche existante n'est jamais modifiée : un lien personnel ne doit pas
+-- pouvoir réécrire les coordonnées de quelqu'un d'autre.
+-- ============================================================================
+
+create or replace function norm_nom_personne(t text)
+returns text
+language sql
+immutable
+set search_path = public
+as $$
+  select regexp_replace(
+    lower(translate(coalesce(t, ''),
+      'ÀÂÄÁÃÇÉÈÊËÍÌÎÏÑÓÒÔÖÕÚÙÛÜÝŸàâäáãçéèêëíìîïñóòôöõúùûüýÿ-''’',
+      'AAAAACEEEEIIIINOOOOOUUUUYYaaaaaceeeeiiiinooooouuuuyy   ')),
+    '\s+', ' ', 'g')
+$$;
+
+-- Les 9 derniers chiffres : ce qui reste identique entre 06 12 34 56 78,
+-- +33 6 12 34 56 78 et 0033612345678. Moins de 9 chiffres : pas un numéro
+-- exploitable pour comparer.
+create or replace function norm_tel_personne(t text)
+returns text
+language sql
+immutable
+set search_path = public
+as $$
+  select case when length(regexp_replace(coalesce(t, ''), '\D', '', 'g')) >= 9
+    then right(regexp_replace(t, '\D', '', 'g'), 9) end
+$$;
+
+create or replace function rattacher_remplacants(p_items jsonb, p_type text, p_titulaire_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_out jsonb := '[]'::jsonb;
+  v_it jsonb;
+  v_prenom text; v_nom text; v_tel text; v_email text; v_cle text;
+  v_ids text[]; v_types text[];
+  v_id text; v_ptype text;
+  v_titulaire text;
+  v_remarque text;
+  v_n bigint;
+begin
+  if p_items is null or jsonb_typeof(p_items) <> 'array' then return coalesce(p_items, '[]'::jsonb); end if;
+  select trim(coalesce(prenom, '') || ' ' || coalesce(nom, '')) into v_titulaire
+    from (select prenom, nom from musiciens where id = p_titulaire_id
+          union all select prenom, nom from techniciens where id = p_titulaire_id) x limit 1;
+
+  -- Dix fiches créées au plus par enregistrement : c'est la longueur maximale
+  -- d'une liste, et la borne qui empêche un lien personnel de remplir le
+  -- répertoire. Au-delà, les entrées sont gardées telles quelles.
+  for v_it, v_n in select value, n from jsonb_array_elements(p_items) with ordinality e(value, n) loop
+    if coalesce(v_it ->> 'source', '') <> 'new' or v_n > 10 then
+      v_out := v_out || jsonb_build_array(v_it); continue;
+    end if;
+    -- Une remarque entre parenthèses (« Vallot (prio Ghibli ?) ») n'est pas
+    -- un nom : elle passe dans les notes de la fiche.
+    v_remarque := nullif(trim(concat_ws(' ',
+      (select string_agg(m[1], ' ; ') from regexp_matches(coalesce(v_it ->> 'prenom', ''), '\(([^)]*)\)', 'g') m),
+      (select string_agg(m[1], ' ; ') from regexp_matches(coalesce(v_it ->> 'nom', ''), '\(([^)]*)\)', 'g') m))), '');
+    v_prenom := trim(regexp_replace(regexp_replace(coalesce(v_it ->> 'prenom', ''), '\([^)]*\)', '', 'g'), '\s+', ' ', 'g'));
+    v_nom    := trim(regexp_replace(regexp_replace(coalesce(v_it ->> 'nom', ''), '\([^)]*\)', '', 'g'), '\s+', ' ', 'g'));
+    v_tel    := norm_tel_personne(v_it ->> 'telephone');
+    v_email  := nullif(lower(trim(coalesce(v_it ->> 'email', ''))), '');
+    v_cle    := norm_nom_personne(v_prenom || ' ' || v_nom);
+    v_id := null;
+
+    if v_prenom = '' and v_nom = '' then
+      v_out := v_out || jsonb_build_array(v_it); continue;
+    end if;
+
+    -- 1. Même téléphone ou même e-mail : c'est la même personne, sauf si deux
+    --    fiches différentes répondent — on ne choisit pas au hasard.
+    select array_agg(id), array_agg(ptype) into v_ids, v_types from (
+      select id, 'musicien' as ptype from musiciens
+       where (v_tel is not null and norm_tel_personne(telephone) = v_tel)
+          or (v_email is not null and lower(trim(email)) = v_email)
+      union all
+      select id, 'technicien' from techniciens
+       where (v_tel is not null and norm_tel_personne(telephone) = v_tel)
+          or (v_email is not null and lower(trim(email)) = v_email)
+    ) c;
+    if coalesce(array_length(v_ids, 1), 0) = 1 then
+      -- Un numéro partagé (famille, standard d'un ensemble) ne suffit pas :
+      -- il faut aussi que le prénom ou le nom concorde.
+      if not exists (
+        select 1 from (
+          select prenom, nom from musiciens where id = v_ids[1]
+          union all select prenom, nom from techniciens where id = v_ids[1]
+        ) f
+        where norm_nom_personne(f.nom) = norm_nom_personne(v_nom)
+           or norm_nom_personne(f.prenom) = norm_nom_personne(v_prenom)
+      ) then
+        v_out := v_out || jsonb_build_array(v_it); continue;
+      end if;
+      v_id := v_ids[1]; v_ptype := v_types[1];
+    elsif coalesce(array_length(v_ids, 1), 0) > 1 then
+      v_out := v_out || jsonb_build_array(v_it); continue;
+    else
+      -- 2. Même nom : rattaché seulement sans ambiguïté ni contradiction.
+      select array_agg(id), array_agg(ptype) into v_ids, v_types from (
+        select id, 'musicien' as ptype, telephone, email from musiciens
+         where norm_nom_personne(prenom || ' ' || nom) = v_cle
+        union all
+        select id, 'technicien', telephone, email from techniciens
+         where norm_nom_personne(prenom || ' ' || nom) = v_cle
+      ) c;
+      if coalesce(array_length(v_ids, 1), 0) = 1 then
+        -- Coordonnées différentes des deux côtés : un homonyme possible.
+        if exists (
+          select 1 from (
+            select telephone, email from musiciens where id = v_ids[1]
+            union all select telephone, email from techniciens where id = v_ids[1]
+          ) f
+          where (v_tel is not null and norm_tel_personne(f.telephone) is not null
+                 and norm_tel_personne(f.telephone) <> v_tel)
+             or (v_email is not null and nullif(lower(trim(f.email)), '') is not null
+                 and lower(trim(f.email)) <> v_email)
+        ) then
+          v_out := v_out || jsonb_build_array(v_it); continue;
+        end if;
+        v_id := v_ids[1]; v_ptype := v_types[1];
+      elsif coalesce(array_length(v_ids, 1), 0) > 1 then
+        v_out := v_out || jsonb_build_array(v_it); continue;
+      end if;
+    end if;
+
+    -- 3. Personne ne correspond : la fiche est créée.
+    if v_id is null then
+      v_ptype := case when p_type = 'technicien' then 'technicien' else 'musicien' end;
+      v_id := case when v_ptype = 'technicien' then 'tech' else 'mus' end
+              || replace(gen_random_uuid()::text, '-', '');
+      if v_ptype = 'technicien' then
+        insert into techniciens (id, prenom, nom, telephone, email, poste, pole, statut_poste, notes)
+        values (v_id, v_prenom, v_nom, coalesce(v_it ->> 'telephone', ''), coalesce(v_it ->> 'email', ''),
+                '', 'Autre', 'remplacant',
+                'Fiche créée depuis la liste de remplaçant·es ' || coalesce('de ' || nullif(v_titulaire, ''), 'd''un·e titulaire') || ' — poste à préciser.'
+                || coalesce(' Remarque : ' || v_remarque, ''));
+      else
+        insert into musiciens (id, prenom, nom, telephone, email, instrument, pupitre, statut_poste, notes)
+        values (v_id, v_prenom, v_nom, coalesce(v_it ->> 'telephone', ''), coalesce(v_it ->> 'email', ''),
+                '', 'Autre', 'remplacant',
+                'Fiche créée depuis la liste de remplaçant·es ' || coalesce('de ' || nullif(v_titulaire, ''), 'd''un·e titulaire') || ' — instrument à préciser.'
+                || coalesce(' Remarque : ' || v_remarque, ''));
+      end if;
+    end if;
+
+    v_out := v_out || jsonb_build_array(jsonb_build_object(
+      'rang', v_it -> 'rang', 'source', 'roster', 'personId', v_id, 'personType', v_ptype));
+  end loop;
+  return v_out;
+end;
+$$;
+revoke all on function rattacher_remplacants(jsonb, text, text) from public, anon, authenticated;
+
+create or replace function upsert_own_remplacant_prefs(p_token text, p_items jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_person_id text; v_person_type text;
+begin
+  select person_id, person_type into v_person_id, v_person_type
+    from resolve_person_token(p_token);
+  if v_person_id is null then raise exception 'Lien invalide'; end if;
+  insert into remplacant_prefs (id, person_type, items)
+  values (v_person_id, v_person_type, rattacher_remplacants(p_items, v_person_type, v_person_id))
+  on conflict (id) do update set person_type = excluded.person_type, items = excluded.items;
+end;
+$$;
+grant execute on function upsert_own_remplacant_prefs(text, jsonb) to anon, authenticated;
+
+-- Les listes déjà enregistrées passent une fois par la même règle.
+update remplacant_prefs p
+   set items = rattacher_remplacants(p.items, coalesce(p.person_type, 'musicien'), p.id)
+ where coalesce(p.items, '[]'::jsonb) @> '[{"source":"new"}]'::jsonb;

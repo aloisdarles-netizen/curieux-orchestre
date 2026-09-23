@@ -364,10 +364,24 @@ async function doSave(){
   try{ relu = await CurieuxDB.getRemplacantPrefsByToken(state.token); }
   catch(e){ relu = null; }
 
-  if(!relu || empreinteListe(relu) !== empreinteListe(envoye)){
+  // La base peut avoir rattaché une saisie libre à une fiche du répertoire —
+  // existante ou créée pour l'occasion (voir rattacher_remplacants dans
+  // migrations.sql). Au même rang, une entrée libre devenue fiche est donc
+  // bien la nôtre : on la compare comme telle.
+  const attendu = relu && envoye.map(it=>{
+    const r = relu.find(x=> x.rang === it.rang);
+    return (it.source === 'new' && r && r.source === 'roster') ? r : it;
+  });
+  if(!relu || empreinteListe(relu) !== empreinteListe(attendu)){
     echec('Enregistrement non confirmé — réessaie.');
     return;
   }
+  if(relu.some(r=> r.source === 'roster' && !rosterLabel(r))){
+    // Une fiche vient de naître : on recharge l'annuaire pour l'afficher.
+    try{ state.roster = await CurieuxDB.getRosterForPicker(state.token); }catch(e){}
+  }
+  state.items = relu;
+  render();
 
   btn.textContent = 'Enregistrer ma liste';
   status.textContent = '✓ Liste enregistrée.';
