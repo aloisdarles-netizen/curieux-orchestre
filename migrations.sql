@@ -7473,6 +7473,9 @@ create index if not exists idx_comm_taches_parent on comm_taches(parent_id) wher
 create or replace function comm_taches_statut_fait()
 returns trigger
 language plpgsql
+-- Chemin de recherche figé, comme set_updated_at et toutes les fonctions du
+-- fichier : la fonction ne touche qu'à NEW et OLD, mais c'est la règle.
+set search_path = public
 as $$
 begin
   if tg_op = 'INSERT' then
