@@ -736,12 +736,27 @@ function construirePanneauMobile(page, section){
       <button type="button" class="co-nav-mobile-theme" id="coNavMobileTheme"></button>
     </div>`;
 
+  /* « Déconnexion » descend à son tour. Mesuré à nouveau à 390 px : même sans
+     la bascule, le bouton que la garde d'authentification ajoute une fois la
+     session confirmée (injectAdminLogoutButton, brand-assets.js) portait la
+     pastille de compte à 417 px, et toutes les pages d'équipe défilaient
+     latéralement. C'est le geste le plus rare du bandeau — on ne se
+     déconnecte guère d'une application installée sur son téléphone. Le bloc
+     reste caché tant que le bandeau n'a pas de bouton à relayer : une page
+     sans garde n'en a jamais. */
+  const compte = `<div class="co-nav-mobile-bloc co-nav-mobile-compte" hidden>
+      <p class="co-nav-mobile-titre">Compte</p>
+      <p class="co-nav-mobile-qui"></p>
+      <button type="button" class="co-nav-mobile-deconnexion" id="coNavMobileDeconnexion">Se déconnecter</button>
+    </div>`;
+
   const panneau = document.createElement('div');
   panneau.className = 'co-nav-mobile';
   panneau.id = 'coNavMobile';
   panneau.hidden = true;
-  panneau.innerHTML = `<div class="co-nav-mobile-in">${blocs}${reglages}</div>`;
+  panneau.innerHTML = `<div class="co-nav-mobile-in">${blocs}${reglages}${compte}</div>`;
   brancherThemeMobile(panneau);
+  brancherDeconnexionMobile(panneau);
   return panneau;
 }
 
@@ -763,6 +778,35 @@ function brancherThemeMobile(panneau){
   });
   maj();
   new MutationObserver(maj).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+}
+
+// Même principe que la bascule : le bouton du panneau actionne celui du
+// bandeau, seule implémentation de la déconnexion. Il n'existe qu'à partir du
+// moment où la garde l'a posé — et la garde répond quand elle veut, avant ou
+// après le redessin qui suit les droits : d'où la synchronisation à chaque
+// construction du panneau, et à chaque ajout dans le bandeau (voir
+// initCurieuxTopbar). Seul le bouton posé DANS le bandeau est relayé : celui
+// qu'une page sans bandeau affiche ailleurs reste visible là où il est.
+function brancherDeconnexionMobile(panneau){
+  const btn = panneau.querySelector('#coNavMobileDeconnexion');
+  if(!btn) return;
+  btn.addEventListener('click', ()=>{
+    const source = document.querySelector('.co-topbar #curieuxAdminLogout');
+    if(source) source.click();
+  });
+  majDeconnexionMobile(panneau);
+}
+
+// Sur téléphone, l'infobulle du bouton — « Connecté·e en tant que … » — ne
+// s'affiche jamais, et la pastille ne montre qu'une initiale : le panneau
+// écrit donc en toutes lettres avec quel compte on est connecté.
+function majDeconnexionMobile(panneau){
+  const bloc = panneau && panneau.querySelector('.co-nav-mobile-compte');
+  if(!bloc) return;
+  const source = document.querySelector('.co-topbar #curieuxAdminLogout');
+  bloc.hidden = !source;
+  const qui = bloc.querySelector('.co-nav-mobile-qui');
+  if(qui) qui.textContent = source ? (source.title || '') : '';
 }
 
 /* Le rendu de la navigation, rejouable.
@@ -924,6 +968,14 @@ function initCurieuxTopbar(){
       });
     }
     brancherFermetureGlobale();
+    // La garde pose « Déconnexion » dans le groupe d'actions quand la session
+    // est confirmée, sans prévenir personne : le panneau le relaie dès qu'il
+    // apparaît (voir brancherDeconnexionMobile).
+    const actions = topbar.querySelector('.co-topbar-actions');
+    if(actions){
+      new MutationObserver(()=> majDeconnexionMobile(document.getElementById('coNavMobile')))
+        .observe(actions, { childList:true });
+    }
   }
 
   // L'ancien en-tête (logo + rangée de menus déroulants) est retiré : son rôle

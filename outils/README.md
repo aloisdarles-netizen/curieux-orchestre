@@ -136,13 +136,14 @@ plus à la base — de quoi le lancer après chaque strate ajoutée à
 
 # Les tests
 
-Quatre scripts rejouent un bug précis — trois dans un vrai navigateur, le
-quatrième avec Node seul. Ils sortent en échec (code 1) dès qu'une vérification
-tombe : de quoi les enchaîner avant un déploiement.
+Six scripts rejouent un bug précis — cinq dans un vrai navigateur, le sixième
+avec Node seul. Ils sortent en échec (code 1) dès qu'une vérification tombe :
+de quoi les enchaîner avant un déploiement.
 
 ```sh
 npm i playwright-core --no-save
-python3 -m http.server 8099 &           # les trois servent le site en local
+python3 -m http.server 8099 &           # les cinq servent le site en local
+node outils/test-bandeau.cjs
 node outils/test-recap-mon-ordre.cjs
 node outils/test-recap-barre-de-modes.cjs
 node outils/test-remplacants.cjs
@@ -152,6 +153,7 @@ node outils/test-partitions-proposition.cjs   # sans serveur ni navigateur
 
 | Script | Ce qu'il garde |
 | --- | --- |
+| `test-bandeau.cjs` | Le bandeau tient dans l'écran de 360 px au bureau, et « Déconnexion » reste à portée : dans le panneau ☰ sous 640 px, dans le bandeau au-dessus. C'est ce bouton, ajouté par la garde une fois la session confirmée, que les seuils avaient oublié — toutes les pages d'équipe défilaient latéralement sur téléphone, et « Admin » passait sous « Tableau de service » à 1280 px. |
 | `test-recap-mon-ordre.cjs` | Sous « Mon ordre », titulaires et remplaçant·es se rangent dans la même liste : un nom glissé y reste, une ligne indentée peut en sortir, et changer de filtre ne déplace personne d'autre. |
 | `test-recap-barre-de-modes.cjs` | La barre Marquer / Affecter / Oups du tableau de service survit au redessin du menu qui suit la réponse de la base sur les droits — c'est ce redessin qui l'avait fait disparaître pour tous les comptes admin et direction technique. Bureau et téléphone. |
 | `test-remplacants.cjs` | Les quatre issues de « Enregistrer ma liste » — dont celle qui laissait le bouton figé sur « Enregistrement… ». |
